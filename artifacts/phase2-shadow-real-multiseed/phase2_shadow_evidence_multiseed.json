@@ -1,0 +1,394 @@
+{
+  "schema_version": "phase2-shadow-evidence-multiseed.v1",
+  "artifact_kind": "phase2_shadow_evidence_multiseed",
+  "runner_kind": "default",
+  "include_phase3_combos": false,
+  "baseline_label": "pe-eta",
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "case_ids": [
+    "repair",
+    "task_clarification",
+    "repeated_failure",
+    "goal_drift"
+  ],
+  "profile_metric_summaries": {
+    "counterfactual-credit": {
+      "mean_persona_geometry_drift": {
+        "mean": 0.0167,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_persona_regime_geometry_alignment": {
+        "mean": 0.9833,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "cpd_beta_switch_recommended_count": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_pe_spike_score": {
+        "mean": 0.0665,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_reward_shift_score": {
+        "mean": 0.0438,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_score": {
+        "mean": 0.1544,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_effort": {
+        "mean": 0.64,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "counterfactual_readout_turn_count": {
+        "mean": 4.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_distinct_interlocutor_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_record_total_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      }
+    },
+    "cpd-beta-switch": {
+      "mean_persona_geometry_drift": {
+        "mean": 0.0167,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_persona_regime_geometry_alignment": {
+        "mean": 0.9833,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "cpd_beta_switch_recommended_count": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_pe_spike_score": {
+        "mean": 0.0665,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_reward_shift_score": {
+        "mean": 0.0438,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_score": {
+        "mean": 0.1544,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_effort": {
+        "mean": 0.64,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "counterfactual_readout_turn_count": {
+        "mean": 4.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_distinct_interlocutor_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_record_total_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      }
+    },
+    "pe-eta": {
+      "mean_persona_geometry_drift": {
+        "mean": 0.0167,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_persona_regime_geometry_alignment": {
+        "mean": 0.9833,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "cpd_beta_switch_recommended_count": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_pe_spike_score": {
+        "mean": 0.0665,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_reward_shift_score": {
+        "mean": 0.0438,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_score": {
+        "mean": 0.1544,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_effort": {
+        "mean": 0.64,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "counterfactual_readout_turn_count": {
+        "mean": 4.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_distinct_interlocutor_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_record_total_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      }
+    },
+    "persona-geometry-readout": {
+      "mean_persona_geometry_drift": {
+        "mean": 0.0167,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_persona_regime_geometry_alignment": {
+        "mean": 0.9833,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "cpd_beta_switch_recommended_count": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_pe_spike_score": {
+        "mean": 0.0665,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_reward_shift_score": {
+        "mean": 0.0438,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_score": {
+        "mean": 0.1544,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_effort": {
+        "mean": 0.64,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "counterfactual_readout_turn_count": {
+        "mean": 4.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_distinct_interlocutor_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_record_total_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      }
+    },
+    "tom-owner": {
+      "mean_persona_geometry_drift": {
+        "mean": 0.0167,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_persona_regime_geometry_alignment": {
+        "mean": 0.9833,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "cpd_beta_switch_recommended_count": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_pe_spike_score": {
+        "mean": 0.0665,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_cpd_reward_shift_score": {
+        "mean": 0.0438,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_score": {
+        "mean": 0.1544,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "mean_least_control_effort": {
+        "mean": 0.64,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "counterfactual_readout_turn_count": {
+        "mean": 4.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_distinct_interlocutor_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      },
+      "tom_record_total_max": {
+        "mean": 0.0,
+        "std": 0.0,
+        "stderr": 0.0
+      }
+    }
+  },
+  "mean_metric_means": {
+    "counterfactual-credit": {
+      "mean_persona_geometry_drift": 0.0167,
+      "mean_persona_regime_geometry_alignment": 0.9833,
+      "cpd_beta_switch_recommended_count": 0.0,
+      "mean_cpd_pe_spike_score": 0.0665,
+      "mean_cpd_reward_shift_score": 0.0438,
+      "mean_least_control_score": 0.1544,
+      "mean_least_control_effort": 0.64,
+      "counterfactual_readout_turn_count": 4.0,
+      "tom_distinct_interlocutor_max": 0.0,
+      "tom_record_total_max": 0.0
+    },
+    "cpd-beta-switch": {
+      "mean_persona_geometry_drift": 0.0167,
+      "mean_persona_regime_geometry_alignment": 0.9833,
+      "cpd_beta_switch_recommended_count": 0.0,
+      "mean_cpd_pe_spike_score": 0.0665,
+      "mean_cpd_reward_shift_score": 0.0438,
+      "mean_least_control_score": 0.1544,
+      "mean_least_control_effort": 0.64,
+      "counterfactual_readout_turn_count": 4.0,
+      "tom_distinct_interlocutor_max": 0.0,
+      "tom_record_total_max": 0.0
+    },
+    "pe-eta": {
+      "mean_persona_geometry_drift": 0.0167,
+      "mean_persona_regime_geometry_alignment": 0.9833,
+      "cpd_beta_switch_recommended_count": 0.0,
+      "mean_cpd_pe_spike_score": 0.0665,
+      "mean_cpd_reward_shift_score": 0.0438,
+      "mean_least_control_score": 0.1544,
+      "mean_least_control_effort": 0.64,
+      "counterfactual_readout_turn_count": 4.0,
+      "tom_distinct_interlocutor_max": 0.0,
+      "tom_record_total_max": 0.0
+    },
+    "persona-geometry-readout": {
+      "mean_persona_geometry_drift": 0.0167,
+      "mean_persona_regime_geometry_alignment": 0.9833,
+      "cpd_beta_switch_recommended_count": 0.0,
+      "mean_cpd_pe_spike_score": 0.0665,
+      "mean_cpd_reward_shift_score": 0.0438,
+      "mean_least_control_score": 0.1544,
+      "mean_least_control_effort": 0.64,
+      "counterfactual_readout_turn_count": 4.0,
+      "tom_distinct_interlocutor_max": 0.0,
+      "tom_record_total_max": 0.0
+    },
+    "tom-owner": {
+      "mean_persona_geometry_drift": 0.0167,
+      "mean_persona_regime_geometry_alignment": 0.9833,
+      "cpd_beta_switch_recommended_count": 0.0,
+      "mean_cpd_pe_spike_score": 0.0665,
+      "mean_cpd_reward_shift_score": 0.0438,
+      "mean_least_control_score": 0.1544,
+      "mean_least_control_effort": 0.64,
+      "counterfactual_readout_turn_count": 4.0,
+      "tom_distinct_interlocutor_max": 0.0,
+      "tom_record_total_max": 0.0
+    }
+  },
+  "head_to_head_results": [
+    {
+      "profile_a": "counterfactual-credit",
+      "profile_b": "pe-eta",
+      "case_count": 10,
+      "winrate_a_vs_b": 0.5,
+      "judge_kind": "deterministic",
+      "notes": "Deterministic metric-means comparison over 10 metrics; lower_is_better=('mean_least_control_effort', 'mean_persona_geometry_drift')."
+    },
+    {
+      "profile_a": "cpd-beta-switch",
+      "profile_b": "pe-eta",
+      "case_count": 10,
+      "winrate_a_vs_b": 0.5,
+      "judge_kind": "deterministic",
+      "notes": "Deterministic metric-means comparison over 10 metrics; lower_is_better=('mean_least_control_effort', 'mean_persona_geometry_drift')."
+    },
+    {
+      "profile_a": "persona-geometry-readout",
+      "profile_b": "pe-eta",
+      "case_count": 10,
+      "winrate_a_vs_b": 0.5,
+      "judge_kind": "deterministic",
+      "notes": "Deterministic metric-means comparison over 10 metrics; lower_is_better=('mean_least_control_effort', 'mean_persona_geometry_drift')."
+    },
+    {
+      "profile_a": "tom-owner",
+      "profile_b": "pe-eta",
+      "case_count": 10,
+      "winrate_a_vs_b": 0.5,
+      "judge_kind": "deterministic",
+      "notes": "Deterministic metric-means comparison over 10 metrics; lower_is_better=('mean_least_control_effort', 'mean_persona_geometry_drift')."
+    }
+  ],
+  "cross_generation_gate_evidence": {
+    "evidence_id": "xgen:phase2-shadow-multiseed:4",
+    "validation_score": 0.5,
+    "head_to_head_aggregate_winrate": 0.5,
+    "audit_evidence_id": null,
+    "notes": [
+      "Built from ExpensiveLayerSnapshot.head_to_head_results only; LLM judge readouts ignored for gate evidence."
+    ]
+  },
+  "provenance": {
+    "git_sha": "79e5e0d26e70b1e7a0b0e384cd960f5856b3c679",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.12",
+    "platform": "Windows-2025Server-10.0.26100-SP0"
+  }
+}

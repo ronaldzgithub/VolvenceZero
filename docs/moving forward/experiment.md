@@ -13,8 +13,9 @@
 > - **v3（2026-05-12）— 拆出独立的架构改造 spec**：阶段 B/C 推进所需的 9 项 cross-cutting 基础设施改造（profile composition / evaluation cascade / capability-level wiring / audit owner 接口 等）拆到 [`experiment-arch-uplift.md`](./experiment-arch-uplift.md)；本文档保持产品/规划视角。
 > - **v4（2026-05-22）— Phase 2 最小起跑面已落地**：A4 DATA_CONTRACT sync、A2 cascade facade、A5 audit skeleton wiring、OA-2 Mind/Face 静态守门、OA-3 typed framing gate、SYS-1 / COG-1 / COG-2 / COG-3 readout slices、四条 SHADOW profile、`metric_means` 抽取、`run_phase2_shadow_evidence_smoke.py` synthetic smoke + JSON contract test 已落地。阶段 C 不再是“无入口阻塞”，而是“最小 smoke 可跑；5 seeds × paper-suite-small 真实 evidence 待跑”。
 > - **v5（2026-05-22）— 真实 smoke + multi-seed/decision 工具链已落地**：真实 runner `case-limit=1` 与 `case-limit=4` 已产出 artifact；multi-seed wrapper、Phase 3 combo profile run、最小 audit readout、Phase D decision report、manifest verifier 与 CI smoke workflow 已落地。剩余核心工作是跑真实 multi-seed 5 seeds，并基于 decision report 做 ACTIVE/SHADOW/DISABLED 评审。
+> - **v6（2026-05-22）— 真实 5-seed evidence 已跑完**：`python scripts/run_phase2_shadow_evidence_multiseed.py --case-limit 4 --seeds 0 1 2 3 4 --output-dir artifacts/phase2-shadow-real-multiseed` 已完成并通过 manifest 校验；`build_phase2_shadow_decision_report.py` 输出四条单项 profile 均为 `REMAIN_SHADOW`（head-to-head winrate = 0.5），暂无 `ACTIVE_CANDIDATE`。
 >
-> **阶段状态**：阶段 A ✅ 完成 / 阶段 B ✅ 最小裁判席与护栏切片已落地 / 阶段 C 🟡 真实 single-run evidence 已产出（真实 multi-seed 待跑） / 阶段 D 🟡 首版 decision report 可生成（真实 multi-seed 决策待跑）。
+> **阶段状态**：阶段 A ✅ 完成 / 阶段 B ✅ 最小裁判席与护栏切片已落地 / 阶段 C ✅ 真实 5-seed single-profile evidence 已产出 / 阶段 D 🟡 首版决策报告已产出（四条均 REMAIN_SHADOW；Phase 3 combo 与 OA-4 full audit 待跑）。
 
 ---
 
@@ -159,8 +160,8 @@ profile = pe-eta（baseline）
 | 阶段 A — 现状核查矩阵 | ✅ 完成（2026-05-12） | [`experiment-phase-a-brief.md`](./experiment-phase-a-brief.md) |
 | **架构改造（A1-A5）** | ✅ 最小切片完成 | A1 profile registry + Phase 2 profile labels；A2 cascade facade / mid-layer COG-1 extraction；A4 DATA_CONTRACT sync test；A5 audit owner wired SHADOW |
 | 阶段 B — 裁判席 + 双门治理 + 契约同步 | ✅ 最小护栏完成 | Two-Gate 已强制；Mind/Face 静态守门；typed FramingAwarenessCheck；audit snapshot channel wired |
-| 阶段 C — 4 条 SHADOW profile 并行 | 🟡 真实 single-run evidence 已产出 | `artifacts/phase2-shadow-real-smoke`（case-limit=1）与 `artifacts/phase2-shadow-real-canonical`（4 canonical cases）已生成并校验；真实 5 seeds × paper-suite-small evidence 待跑 |
-| 阶段 D — profile → ACTIVE 决策 | 🟡 首版决策流已落地 | deterministic head-to-head + `evaluation_cross_generation` aggregate + `build_phase2_shadow_decision_report.py` 已可生成建议；仍等真实 multi-seed evidence 与 OA-4 full audit-agent |
+| 阶段 C — 4 条 SHADOW profile 并行 | ✅ 真实 5-seed evidence 已产出 | `artifacts/phase2-shadow-real-multiseed` 已生成；single-profile 四候选 focus metrics 均与 baseline 持平 |
+| 阶段 D — profile → ACTIVE 决策 | 🟡 首版决策已产出 | `phase2_shadow_decision_report.json` 四条单项 profile 均为 `REMAIN_SHADOW`（winrate=0.5）；无 `ACTIVE_CANDIDATE`，Phase 3 combo + full OA-4 audit-agent 待跑 |
 
 ### 下一步候选动作
 
@@ -174,7 +175,7 @@ profile = pe-eta（baseline）
 
 **v4 下一步（2026-05-22 之后）**：
 
-1. 跑真实 multi-seed：`python scripts/run_phase2_shadow_evidence_multiseed.py --case-limit 4 --seeds 0 1 2 3 4 --output-dir artifacts/phase2-shadow-real-multiseed`。
-2. 校验 multi-seed manifest，并运行 `python scripts/build_phase2_shadow_decision_report.py artifacts/phase2-shadow-real-multiseed/phase2_shadow_evidence_multiseed.json --output-dir artifacts/phase2-shadow-real-multiseed`。
-3. 需要组合 profile 时加 `--include-phase3-combos`，先看负迁移，再决定是否进入真实 multi-seed。
-4. 扩展 OA-4 audit-agent，从当前 readout-only probes 升级到 N8 8-attack elicited probe 工具链。
+1. 跑真实 Phase 3 combo multi-seed：`python scripts/run_phase2_shadow_evidence_multiseed.py --case-limit 4 --seeds 0 1 2 3 4 --include-phase3-combos --output-dir artifacts/phase3-shadow-real-multiseed`。
+2. 若组合 profile 仍为 `REMAIN_SHADOW`，不要切行为 ACTIVE；只保留 readout / evidence surface。
+3. 扩展 OA-4 audit-agent，从当前 readout-only probes 升级到 N8 8-attack elicited probe 工具链。
+4. 若后续要推进 ACTIVE，需先让某个 profile 在真实 multi-seed 中达到 `ACTIVE_CANDIDATE` 且 safety / identity / memory 无负迁移。

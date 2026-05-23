@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Any
 
 
-_MANIFEST_SCHEMA_VERSION = "phase2-shadow-evidence-manifest.v1"
+_SUPPORTED_MANIFEST_SCHEMA_VERSIONS = frozenset(
+    {
+        "phase2-shadow-evidence-manifest.v1",
+        "phase2-shadow-evidence-multiseed-manifest.v1",
+    }
+)
 
 
 def _load_manifest(path: Path) -> dict[str, Any]:
@@ -24,10 +29,10 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("manifest root must be a JSON object")
     schema_version = payload["schema_version"]
-    if schema_version != _MANIFEST_SCHEMA_VERSION:
+    if schema_version not in _SUPPORTED_MANIFEST_SCHEMA_VERSIONS:
         raise ValueError(
             f"unsupported schema_version {schema_version!r}; "
-            f"expected {_MANIFEST_SCHEMA_VERSION!r}"
+            f"expected one of {sorted(_SUPPORTED_MANIFEST_SCHEMA_VERSIONS)!r}"
         )
     return payload
 

@@ -1328,7 +1328,7 @@ return (
   - **COG-1 reframed（least-control + counterfactual credit）**：已新增 `CreditSnapshot.least_control_readout`，并让 evaluation mid layer 抽取 least-control / counterfactual readout。
   - **COG-2 reframed（ToM / 多人归因）**：已新增 `ToMInterlocutorRecordCount` / `tom_record_counts_by_interlocutor(...)`，并让 dialogue `metric_means` 暴露 `tom_distinct_interlocutor_max` / `tom_record_total_max`。
   - **SHADOW profile + metric 面**：四条 profile 已注册并可通过 `default_phase2_shadow_evidence_profiles()` / `run_phase2_shadow_evidence_smoke.py` 显式跑；默认 ablation / strong-proof 矩阵不包含它们。
-  - **阶段 D 决策机制**：`build_phase2_shadow_decision_report.py` 已能基于 multi-seed JSON 输出 `ACTIVE_CANDIDATE` / `REMAIN_SHADOW` / `DISABLED` 建议；当前缺真实 5-seed evidence 与 OA-4 full audit-agent，因此只能作为首版 decision-support，不是自动合并门。
+  - **阶段 D 决策机制**：`build_phase2_shadow_decision_report.py` 已能基于 multi-seed JSON 输出 `ACTIVE_CANDIDATE` / `REMAIN_SHADOW` / `DISABLED` 建议；真实 5-seed single-profile evidence 已跑完，四条单项 profile 均为 `REMAIN_SHADOW`（head-to-head winrate = 0.5）。当前缺 Phase 3 combo 真实 evidence 与 OA-4 full audit-agent，因此仍不是自动合并门。
 - **违反**：不违反 R 铁律。每个候选都遵循 Phase 1 的 profile composition + capability wiring 接口，行为隔离 + 可回滚 + 不污染现有 owner SSOT。COG-1 / COG-2 / COG-3 的"现状盲点"段落在 phase-a-brief 中已被 PARTIALLY-REFUTED，实际工作量比 [`探索方向.md`](moving%20forward/探索方向.md) 原描述小一档（4 个 ToM slot 已 ACTIVE / COCOA Phase 1.A+2.A 已上线 / multi_party_scenarios 已有 fixture）。
 - **风险**：
   - **短期低**：不做不影响 functionality，现有系统照常运行；阶段 A brief 已经记录所有候选的 ROI 与依赖。
@@ -1343,8 +1343,9 @@ return (
   1. **已完成最小切片**：SYS-1 / COG-3 / COG-1 / COG-2 readout + profile + metrics + synthetic smoke。
   2. **下一步**：真实 runner 跑 `scripts/run_phase2_shadow_evidence_smoke.py --case-limit 1`，确认非 synthetic path 可完成；再扩到全 4 canonical cases。
   3. **已完成 wrapper / decision-support**：`run_phase2_shadow_evidence_multiseed.py` 与 `build_phase2_shadow_decision_report.py` 已落地；synthetic 2-seed + Phase 3 combo smoke 已跑通。
-  4. **下一步**：真实 runner 跑 `run_phase2_shadow_evidence_multiseed.py --case-limit 4 --seeds 0 1 2 3 4`，再生成 decision report。
-  5. **阶段 D — 组合 profile + ACTIVE 决策**：真实 multi-seed 后再用组合 profile（如 SYS-1 ⊗ COG-1 PE-first 配对）跑第二轮；建立 "metric delta vs baseline + acceptance gate + rollback evidence" 三选一硬证据规则。
+  4. **已完成真实 5-seed 单项 evidence**：`artifacts/phase2-shadow-real-multiseed` 已产出并通过 manifest 校验；decision report 四条均为 `REMAIN_SHADOW`，所以当前不建议切任何 behavior ACTIVE。
+  5. **下一步**：真实 multi-seed 跑 Phase 3 combination profiles（`--include-phase3-combos`），验证组合是否有正 delta 或负迁移。
+  6. **阶段 D — 组合 profile + ACTIVE 决策**：只有当真实 multi-seed + audit evidence 达到 `ACTIVE_CANDIDATE`，才进入人工 review + rollback-window；否则保持 SHADOW / DISABLED。
   6. **配套**：每条候选的 SHADOW evidence 走 [`docs/specs/<candidate>-shadow-evidence-<date>.md`](specs/) 模板沉淀，让 PR review 阶段一眼看到 metric_means delta + 何时切 ACTIVE 的判定基准；模板已由 B4 [`run_shadow_evidence_template.py`](../scripts/run_shadow_evidence_template.py) 自动生成。
 - **优先级**：**低**（用户 2026-05-13 明确指示）。阶段 A brief 已经把每个候选的工作量 / 耦合 / 起跑前置都核查清楚，按条触发即可；不存在"必须在 X 时间前跑完"的硬截止。
 

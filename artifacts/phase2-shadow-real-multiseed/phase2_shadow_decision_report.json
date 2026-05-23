@@ -1,0 +1,52 @@
+{
+  "schema_version": "phase2-shadow-decision-report.v1",
+  "artifact_kind": "phase2_shadow_decision_report",
+  "source_schema_version": "phase2-shadow-evidence-multiseed.v1",
+  "runner_kind": "default",
+  "include_phase3_combos": false,
+  "decisions": [
+    {
+      "profile_label": "counterfactual-credit",
+      "baseline_label": "pe-eta",
+      "decision": "REMAIN_SHADOW",
+      "head_to_head_winrate": 0.5,
+      "reasons": [
+        "head-to-head winrate 0.5000 is non-negative but below ACTIVE threshold"
+      ]
+    },
+    {
+      "profile_label": "cpd-beta-switch",
+      "baseline_label": "pe-eta",
+      "decision": "REMAIN_SHADOW",
+      "head_to_head_winrate": 0.5,
+      "reasons": [
+        "head-to-head winrate 0.5000 is non-negative but below ACTIVE threshold"
+      ]
+    },
+    {
+      "profile_label": "persona-geometry-readout",
+      "baseline_label": "pe-eta",
+      "decision": "REMAIN_SHADOW",
+      "head_to_head_winrate": 0.5,
+      "reasons": [
+        "head-to-head winrate 0.5000 is non-negative but below ACTIVE threshold"
+      ]
+    },
+    {
+      "profile_label": "tom-owner",
+      "baseline_label": "pe-eta",
+      "decision": "REMAIN_SHADOW",
+      "head_to_head_winrate": 0.5,
+      "reasons": [
+        "head-to-head winrate 0.5000 is non-negative but below ACTIVE threshold"
+      ]
+    }
+  ],
+  "provenance": {
+    "git_sha": "79e5e0d26e70b1e7a0b0e384cd960f5856b3c679",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.12",
+    "platform": "Windows-2025Server-10.0.26100-SP0"
+  }
+}
