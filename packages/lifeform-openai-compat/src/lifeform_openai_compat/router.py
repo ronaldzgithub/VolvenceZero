@@ -252,6 +252,11 @@ async def _dispatch_lifeform(
             headers=headers,
             model=parsed.model,
             request=request,
+            # U6: thread structured L3 evidence pointers (or empty
+            # tuple when no figure bundle was bound) into the SSE
+            # stream so the final ``event: evidence`` frame surfaces
+            # them to the family-memorial client.
+            evidence_pointers=result.evidence_pointers,
         )
     return web.json_response(payload, status=200, headers=headers)
 
@@ -301,6 +306,7 @@ async def _emit_sse(
     headers: dict[str, str],
     model: str,
     request: web.Request,
+    evidence_pointers: tuple[dict, ...] = (),
 ) -> web.StreamResponse:
     """Stream a non-streaming OpenAI completion as SSE chunks (debt #12 / #31).
 
@@ -309,7 +315,15 @@ async def _emit_sse(
     1. ``role:assistant`` opening delta (no content yet).
     2. ``content`` delta carrying the full assistant text.
     3. final chunk with ``finish_reason: "stop"`` + usage echo.
-    4. ``data: [DONE]`` sentinel.
+    4. **(U6, optional)** ``event: evidence`` frame carrying the
+       structured L3 ``EvidencePointer`` list — only emitted when
+       the caller supplied non-empty ``evidence_pointers``. This
+       sits between the final chunk and ``[DONE]`` so OpenAI-only
+       clients that ignore unknown ``event:`` lines still consume
+       the standard sequence unchanged; clients that DO consume it
+       (apps/family-memorial's CitationCard) render clickable
+       citations linking back to the original family corpus.
+    5. ``data: [DONE]`` sentinel.
 
     Lifeform telemetry headers are preserved on the SSE response so
     harnesses still get ``x-lifeform-*`` even when streaming.
@@ -400,7 +414,22 @@ async def _emit_sse(
         final_chunk["usage"] = payload["usage"]
     await response.write(_sse(final_chunk))
 
-    # Frame 4: [DONE] sentinel per OpenAI streaming convention.
+    # Frame 4 (U6 — optional): structured L3 evidence frame. Sits
+    # between the final completion chunk and the ``[DONE]`` sentinel
+    # so OpenAI-only clients pick up the spec-mandated sequence
+    # unchanged; clients that read ``event: evidence`` (apps/
+    # family-memorial CitationCard) deserialize the JSON list and
+    # render clickable citations.
+    if evidence_pointers:
+        evidence_payload = json.dumps(
+            {"pointers": list(evidence_pointers), "schema_version": 1},
+            ensure_ascii=False,
+        )
+        await response.write(
+            f"event: evidence\ndata: {evidence_payload}\n\n".encode("utf-8")
+        )
+
+    # Frame 5: [DONE] sentinel per OpenAI streaming convention.
     await response.write(b"data: [DONE]\n\n")
     await response.write_eof()
     return response

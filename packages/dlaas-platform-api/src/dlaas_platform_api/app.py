@@ -113,6 +113,7 @@ from dlaas_platform_api.control_plane import (
     bind_figure_artifact_to_ai_id,
 )
 from dlaas_platform_registry import TemplateNotFound
+from dlaas_platform_api.debug_analysis import build_debug_analysis
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
 from dlaas_platform_api.intake_router import resolve_intake_decision
 from dlaas_platform_api.snapshot_export import snapshot_to_json
@@ -741,7 +742,22 @@ async def _handle_debug_event_ingest(request: web.Request) -> web.Response:
 
 async def _handle_debug_events_list(request: web.Request) -> web.Response:
     events = _list_debug_events(request)
-    return web.json_response({"status": "ok", "events": events})
+    total = len(events)
+    offset = max(0, _int_query(request, "offset", 0))
+    limit = max(1, min(_int_query(request, "limit", 100), 500))
+    page = events[offset : offset + limit]
+    return web.json_response(
+        {
+            "status": "ok",
+            "events": page,
+            "pagination": {
+                "total": total,
+                "offset": offset,
+                "limit": limit,
+                "returned": len(page),
+            },
+        }
+    )
 
 
 async def _handle_debug_analysis_create(request: web.Request) -> web.Response:
@@ -759,13 +775,20 @@ async def _handle_debug_analysis_create(request: web.Request) -> web.Response:
             detail="Snapshot-backed debug analysis requires admin or service auth.",
         )
     evidence = await _build_debug_analysis_evidence(request, analysis_request)
+    analysis = build_debug_analysis(
+        analysis_request=analysis_request,
+        evidence=evidence,
+    )
     artifact_id = _new_id("debug_artifact")
     report = DebugAnalysisReport(
         analysis_id=_new_id("debug_analysis"),
         prompt=analysis_request.prompt,
         selectors=analysis_request.selectors_json(),
         evidence=evidence,
-        recommendations=_debug_recommendations(evidence),
+        recommendations=tuple(analysis["recommendations"]),
+        version_suggestions=tuple(analysis["version_suggestions"]),
+        analysis_mode=str(analysis["analysis_mode"]),
+        prompt_template=str(analysis["prompt_template"]),
         artifact_id=artifact_id,
         created_at_ms=_now_ms(),
     )
@@ -774,7 +797,11 @@ async def _handle_debug_analysis_create(request: web.Request) -> web.Response:
         artifact_kind=ArtifactKind.DEBUG_ANALYSIS,
         ai_id=analysis_request.ai_id,
         source_ref=f"debug-analysis://{report.analysis_id}",
-        metadata=report.to_json(),
+        metadata={
+            **report.to_json(),
+            "suggestion_type": "debug_version_suggestion",
+            "evidence_summary": analysis["evidence_summary"],
+        },
         created_at_ms=report.created_at_ms,
     )
     _debug_analysis_store(request)[report.analysis_id] = report
@@ -2537,7 +2564,46 @@ def _list_debug_events(request: web.Request) -> list[dict[str, Any]]:
     for key, value in filters.items():
         if value:
             events = [event for event in events if event.get(key) == value]
-    return events
+    requested_types = {
+        str(value)
+        for value in (
+            request.query.getall("event_type", [])
+            + [
+                item
+                for value in request.query.getall("event_types", [])
+                for item in value.split(",")
+            ]
+            + [
+                item
+                for value in request.query.getall("event_types_csv", [])
+                for item in value.split(",")
+            ]
+        )
+        if str(value).strip()
+    }
+    if requested_types:
+        events = [
+            event for event in events if str(event.get("event_type", "")) in requested_types
+        ]
+    created_after = _int_query(request, "created_after_ms", 0)
+    created_before = _int_query(request, "created_before_ms", 0)
+    if created_after:
+        events = [
+            event
+            for event in events
+            if int(event.get("created_at_ms", 0) or 0) >= created_after
+        ]
+    if created_before:
+        events = [
+            event
+            for event in events
+            if int(event.get("created_at_ms", 0) or 0) <= created_before
+        ]
+    return sorted(
+        events,
+        key=lambda event: int(event.get("created_at_ms", 0) or 0),
+        reverse=True,
+    )
 
 
 async def _build_debug_analysis_evidence(
@@ -2810,6 +2876,16 @@ def _new_id(prefix: str) -> str:
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def _int_query(request: web.Request, name: str, default: int) -> int:
+    raw = request.query.get(name, "")
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
 
 
 async def _session_from_query(

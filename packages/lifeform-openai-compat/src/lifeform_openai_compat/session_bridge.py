@@ -290,6 +290,13 @@ async def lifeform_complete(
 
     response_text = result.response.text
     rationale_tags = tuple(getattr(result.response, "rationale_tags", ()))
+    # U6: copy structured L3 evidence pointers (added by lifeform-expression
+    # LLMResponseSynthesizer when a figure bundle is bound). Empty tuple
+    # when no bundle / no grounding ran. Kept as opaque dicts to avoid
+    # pulling lifeform-domain-figure types across the wheel boundary.
+    evidence_pointers = tuple(
+        getattr(result.response, "evidence_pointers", ()) or ()
+    )
     active_regime = getattr(result, "active_regime", None)
     active_abstract_action = getattr(result, "active_abstract_action", None)
 
@@ -330,6 +337,7 @@ async def lifeform_complete(
         active_abstract_action=active_abstract_action,
         pe_magnitude=pe_magnitude,
         rationale_tags=rationale_tags,
+        evidence_pointers=evidence_pointers,
     )
 
 

@@ -53,6 +53,7 @@ from dlaas_platform_contracts.debug import (
     DebugFieldType,
     DebugPrivacyLevel,
     DebugSchema,
+    DebugVersionSuggestion,
 )
 from dlaas_platform_contracts.envelope import (
     DEFAULT_PROTOCOL_VERSION,
@@ -169,6 +170,7 @@ __all__ = (
     "DebugFieldType",
     "DebugPrivacyLevel",
     "DebugSchema",
+    "DebugVersionSuggestion",
     "EvalGateDecision",
     "EvalRun",
     "EvalRunStatus",

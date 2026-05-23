@@ -329,10 +329,12 @@ async def test_debug_registration_ingest_and_analysis(slice1_client):
     assert event["debug_event_id"].startswith("debug_evt_")
 
     listed = await slice1_client.get(
-        "/dlaas/v1/debug/events?app_id=repair30&session_id=sess_debug"
+        "/dlaas/v1/debug/events?app_id=repair30&session_id=sess_debug&limit=1&offset=0"
     )
     assert listed.status == 200, await listed.text()
-    assert (await listed.json())["events"][0]["debug_event_id"] == event["debug_event_id"]
+    listed_body = await listed.json()
+    assert listed_body["events"][0]["debug_event_id"] == event["debug_event_id"]
+    assert listed_body["pagination"]["limit"] == 1
 
     analysis_resp = await slice1_client.post(
         "/dlaas/v1/debug/analysis",
@@ -353,6 +355,9 @@ async def test_debug_registration_ingest_and_analysis(slice1_client):
     assert analysis["artifact_id"].startswith("debug_artifact_")
     assert analysis["evidence"]["debug_event_count"] == 1
     assert analysis["recommendations"]
+    assert analysis["analysis_mode"] == "deterministic_fallback"
+    assert analysis["prompt_template"] == "prompts/debug_analysis.md"
+    assert analysis["version_suggestions"][0]["suggestion_type"] == "debug_version_suggestion"
 
 
 async def test_asset_intake_deep_read_creates_training_job(slice1_client):

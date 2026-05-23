@@ -283,12 +283,35 @@ class DebugAnalysisRequest:
 
 
 @dataclass(frozen=True)
+class DebugVersionSuggestion:
+    suggestion_type: str = "debug_version_suggestion"
+    issue_area: str = "unknown"
+    evidence_refs: tuple[str, ...] = ()
+    recommended_owner: str = "operator"
+    confidence: float = 0.0
+    proposed_next_test: str = ""
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "suggestion_type": self.suggestion_type,
+            "issue_area": self.issue_area,
+            "evidence_refs": list(self.evidence_refs),
+            "recommended_owner": self.recommended_owner,
+            "confidence": self.confidence,
+            "proposed_next_test": self.proposed_next_test,
+        }
+
+
+@dataclass(frozen=True)
 class DebugAnalysisReport:
     analysis_id: str
     prompt: str
     selectors: Mapping[str, Any]
     evidence: Mapping[str, Any] = field(default_factory=dict)
     recommendations: tuple[str, ...] = ()
+    version_suggestions: tuple[Mapping[str, Any], ...] = ()
+    analysis_mode: str = "deterministic_fallback"
+    prompt_template: str = ""
     artifact_id: str = ""
     created_at_ms: int = 0
 
@@ -299,6 +322,9 @@ class DebugAnalysisReport:
             "selectors": dict(self.selectors),
             "evidence": dict(self.evidence),
             "recommendations": list(self.recommendations),
+            "version_suggestions": [dict(item) for item in self.version_suggestions],
+            "analysis_mode": self.analysis_mode,
+            "prompt_template": self.prompt_template,
             "artifact_id": self.artifact_id,
             "created_at_ms": self.created_at_ms,
         }
@@ -314,4 +340,5 @@ __all__ = [
     "DebugFieldType",
     "DebugPrivacyLevel",
     "DebugSchema",
+    "DebugVersionSuggestion",
 ]
