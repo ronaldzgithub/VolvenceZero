@@ -26,6 +26,7 @@ class ArtifactKind(str, Enum):
     ADAPTER_CANDIDATE = "adapter_candidate"
     EVAL_REPORT = "eval_report"
     MONTHLY_REPORT = "monthly_report"
+    DEBUG_ANALYSIS = "debug_analysis"
 
 
 class PromotionDecision(str, Enum):

@@ -48,6 +48,13 @@ from dlaas_platform_contracts import (
     BillingEvent,
     ConsentRecord,
     DataExportJob,
+    DebugAnalysisReport,
+    DebugAnalysisRequest,
+    DebugAppRegistration,
+    DebugEventEnvelope,
+    DebugFieldType,
+    DebugPrivacyLevel,
+    DebugSchema,
     DeletionJob,
     EvalGateDecision,
     EvalRun,
@@ -125,6 +132,10 @@ _BILLING_EVENTS_KEY = "dlaas_billing_events"
 _CONSENTS_KEY = "dlaas_consents"
 _POLICIES_KEY = "dlaas_policies"
 _GOVERNANCE_STORE_KEY = "dlaas_governance_store"
+_DEBUG_APPS_KEY = "dlaas_debug_apps"
+_DEBUG_SCHEMAS_KEY = "dlaas_debug_schemas"
+_DEBUG_EVENTS_KEY = "dlaas_debug_events"
+_DEBUG_ANALYSES_KEY = "dlaas_debug_analyses"
 
 
 def attach_dlaas_routes(
@@ -212,6 +223,21 @@ def _add_lifecycle_routes(app: web.Application) -> None:
     app.router.add_get("/dlaas/v1/audit/events", _handle_audit_events)
     app.router.add_get("/dlaas/v1/audit/events/{event_id}", _handle_audit_event)
     app.router.add_get("/dlaas/v1/audit/traces/{session_id}", _handle_audit_trace)
+    app.router.add_post("/dlaas/v1/debug/apps", _handle_debug_app_register)
+    app.router.add_get("/dlaas/v1/debug/apps", _handle_debug_apps_list)
+    app.router.add_get("/dlaas/v1/debug/apps/{app_id}", _handle_debug_app_get)
+    app.router.add_post(
+        "/dlaas/v1/debug/apps/{app_id}/schemas", _handle_debug_schema_register
+    )
+    app.router.add_get(
+        "/dlaas/v1/debug/apps/{app_id}/schemas", _handle_debug_schemas_list
+    )
+    app.router.add_post("/dlaas/v1/debug/events", _handle_debug_event_ingest)
+    app.router.add_get("/dlaas/v1/debug/events", _handle_debug_events_list)
+    app.router.add_post("/dlaas/v1/debug/analysis", _handle_debug_analysis_create)
+    app.router.add_get(
+        "/dlaas/v1/debug/analysis/{analysis_id}", _handle_debug_analysis_get
+    )
     app.router.add_get("/dlaas/v1/artifacts", _handle_artifacts_list)
     app.router.add_get("/dlaas/v1/artifacts/{artifact_id}", _handle_artifact_get)
     app.router.add_post(
@@ -365,6 +391,10 @@ def _ensure_shadow_intake_stores(app: web.Application) -> None:
     app.setdefault(_USAGE_RECORDS_KEY, [])
     app.setdefault(_BILLING_EVENTS_KEY, [])
     app.setdefault(_CONSENTS_KEY, {})
+    app.setdefault(_DEBUG_APPS_KEY, {})
+    app.setdefault(_DEBUG_SCHEMAS_KEY, {})
+    app.setdefault(_DEBUG_EVENTS_KEY, {})
+    app.setdefault(_DEBUG_ANALYSES_KEY, {})
     app.setdefault(
         _POLICIES_KEY,
         {
@@ -577,6 +607,212 @@ async def _handle_audit_trace(request: web.Request) -> web.Response:
         "event_ids": [e.event_id for e in events],
     }
     return web.json_response({"status": "ok", **trace})
+
+
+async def _handle_debug_app_register(request: web.Request) -> web.Response:
+    data = await _read_json_or_error(request)
+    if isinstance(data, web.Response):
+        return data
+    try:
+        registration = DebugAppRegistration.from_json(
+            data,
+            created_at_ms=_now_ms(),
+        )
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_debug_app", detail=str(exc))
+    _debug_app_store(request)[registration.app_id] = registration
+    _persist_governance(
+        request,
+        "debug_app",
+        registration.app_id,
+        registration.to_json(),
+    )
+    _record_audit(
+        request,
+        event_type="debug_app_registered",
+        payload=registration.to_json(),
+    )
+    return web.json_response({"status": "ok", **registration.to_json()}, status=201)
+
+
+async def _handle_debug_apps_list(request: web.Request) -> web.Response:
+    persisted = _list_persisted_governance(request, "debug_app")
+    apps = persisted or [app.to_json() for app in _debug_app_store(request).values()]
+    return web.json_response({"status": "ok", "apps": apps})
+
+
+async def _handle_debug_app_get(request: web.Request) -> web.Response:
+    app_id = request.match_info.get("app_id", "")
+    registration = _debug_app_store(request).get(app_id)
+    if registration is None:
+        persisted = _get_persisted_governance(request, "debug_app", app_id)
+        if persisted is not None:
+            return web.json_response({"status": "ok", **persisted})
+    if registration is None:
+        return _json_error(status=404, error="debug_app_not_found", detail=app_id)
+    return web.json_response({"status": "ok", **registration.to_json()})
+
+
+async def _handle_debug_schema_register(request: web.Request) -> web.Response:
+    app_id = request.match_info.get("app_id", "")
+    if not _debug_app_exists(request, app_id):
+        return _json_error(status=404, error="debug_app_not_found", detail=app_id)
+    data = await _read_json_or_error(request)
+    if isinstance(data, web.Response):
+        return data
+    try:
+        schema = DebugSchema.from_json(data, app_id=app_id, created_at_ms=_now_ms())
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_debug_schema", detail=str(exc))
+    schema_key = (schema.app_id, schema.schema_version)
+    _debug_schema_store(request)[schema_key] = schema
+    _persist_governance(
+        request,
+        "debug_schema",
+        _debug_schema_record_id(schema.app_id, schema.schema_version),
+        schema.to_json(),
+    )
+    _record_audit(
+        request,
+        event_type="debug_schema_registered",
+        payload=schema.to_json(),
+    )
+    return web.json_response({"status": "ok", **schema.to_json()}, status=201)
+
+
+async def _handle_debug_schemas_list(request: web.Request) -> web.Response:
+    app_id = request.match_info.get("app_id", "")
+    persisted = [
+        schema
+        for schema in _list_persisted_governance(request, "debug_schema")
+        if schema.get("app_id") == app_id
+    ]
+    schemas = persisted or [
+        schema.to_json()
+        for (stored_app_id, _), schema in _debug_schema_store(request).items()
+        if stored_app_id == app_id
+    ]
+    return web.json_response({"status": "ok", "schemas": schemas})
+
+
+async def _handle_debug_event_ingest(request: web.Request) -> web.Response:
+    data = await _read_json_or_error(request)
+    if isinstance(data, web.Response):
+        return data
+    event_or_response = _parse_debug_event(request, data)
+    if isinstance(event_or_response, web.Response):
+        return event_or_response
+    event = event_or_response
+    _debug_event_store(request)[event.debug_event_id] = event
+    _persist_governance(
+        request,
+        "debug_event",
+        event.debug_event_id,
+        event.to_json(),
+        ai_id=event.ai_id,
+        session_id=event.session_id,
+    )
+    _record_audit(
+        request,
+        event_type="debug_event_ingested",
+        ai_id=event.ai_id,
+        session_id=event.session_id,
+        actor=event.app_id,
+        payload={
+            "debug_event_id": event.debug_event_id,
+            "app_id": event.app_id,
+            "event_type": event.event_type,
+            "stage": event.stage,
+            "schema_version": event.schema_version,
+        },
+    )
+    _record_usage(request, ai_id=event.ai_id, metric="debug_event", quantity=1)
+    return web.json_response({"status": "ok", **event.to_json()}, status=201)
+
+
+async def _handle_debug_events_list(request: web.Request) -> web.Response:
+    events = _list_debug_events(request)
+    return web.json_response({"status": "ok", "events": events})
+
+
+async def _handle_debug_analysis_create(request: web.Request) -> web.Response:
+    data = await _read_json_or_error(request)
+    if isinstance(data, web.Response):
+        return data
+    try:
+        analysis_request = DebugAnalysisRequest.from_json(data)
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_debug_analysis", detail=str(exc))
+    if analysis_request.include_snapshots and not _has_admin_auth(request):
+        return _json_error(
+            status=403,
+            error="admin_auth_required",
+            detail="Snapshot-backed debug analysis requires admin or service auth.",
+        )
+    evidence = await _build_debug_analysis_evidence(request, analysis_request)
+    artifact_id = _new_id("debug_artifact")
+    report = DebugAnalysisReport(
+        analysis_id=_new_id("debug_analysis"),
+        prompt=analysis_request.prompt,
+        selectors=analysis_request.selectors_json(),
+        evidence=evidence,
+        recommendations=_debug_recommendations(evidence),
+        artifact_id=artifact_id,
+        created_at_ms=_now_ms(),
+    )
+    artifact = ArtifactRecord(
+        artifact_id=artifact_id,
+        artifact_kind=ArtifactKind.DEBUG_ANALYSIS,
+        ai_id=analysis_request.ai_id,
+        source_ref=f"debug-analysis://{report.analysis_id}",
+        metadata=report.to_json(),
+        created_at_ms=report.created_at_ms,
+    )
+    _debug_analysis_store(request)[report.analysis_id] = report
+    _artifact_store(request)[artifact_id] = artifact
+    _persist_governance(
+        request,
+        "debug_analysis",
+        report.analysis_id,
+        report.to_json(),
+        ai_id=analysis_request.ai_id,
+        session_id=analysis_request.session_id,
+    )
+    _persist_governance(
+        request,
+        "artifact",
+        artifact_id,
+        artifact.to_json(),
+        ai_id=analysis_request.ai_id,
+    )
+    _record_audit(
+        request,
+        event_type="debug_analysis_created",
+        ai_id=analysis_request.ai_id,
+        session_id=analysis_request.session_id,
+        payload={
+            "analysis_id": report.analysis_id,
+            "artifact_id": artifact_id,
+            "selectors": report.selectors,
+        },
+    )
+    return web.json_response({"status": "ok", **report.to_json()}, status=201)
+
+
+async def _handle_debug_analysis_get(request: web.Request) -> web.Response:
+    analysis_id = request.match_info.get("analysis_id", "")
+    report = _debug_analysis_store(request).get(analysis_id)
+    if report is None:
+        persisted = _get_persisted_governance(request, "debug_analysis", analysis_id)
+        if persisted is not None:
+            return web.json_response({"status": "ok", **persisted})
+    if report is None:
+        return _json_error(
+            status=404,
+            error="debug_analysis_not_found",
+            detail=analysis_id,
+        )
+    return web.json_response({"status": "ok", **report.to_json()})
 
 
 async def _handle_artifacts_list(request: web.Request) -> web.Response:
@@ -2031,6 +2267,346 @@ def _consent_store(
 
 def _policy_store(request: web.Request) -> dict[str, PolicySnapshot]:
     return request.app[_POLICIES_KEY]
+
+
+def _debug_app_store(request: web.Request) -> dict[str, DebugAppRegistration]:
+    return request.app[_DEBUG_APPS_KEY]
+
+
+def _debug_schema_store(
+    request: web.Request,
+) -> dict[tuple[str, str], DebugSchema]:
+    return request.app[_DEBUG_SCHEMAS_KEY]
+
+
+def _debug_event_store(request: web.Request) -> dict[str, DebugEventEnvelope]:
+    return request.app[_DEBUG_EVENTS_KEY]
+
+
+def _debug_analysis_store(request: web.Request) -> dict[str, DebugAnalysisReport]:
+    return request.app[_DEBUG_ANALYSES_KEY]
+
+
+def _debug_schema_record_id(app_id: str, schema_version: str) -> str:
+    return f"{app_id}:{schema_version}"
+
+
+def _debug_app_exists(request: web.Request, app_id: str) -> bool:
+    if app_id in _debug_app_store(request):
+        return True
+    return _get_persisted_governance(request, "debug_app", app_id) is not None
+
+
+def _parse_debug_event(
+    request: web.Request,
+    data: dict[str, Any],
+) -> DebugEventEnvelope | web.Response:
+    app_id = str(data.get("app_id", "") or "").strip()
+    schema_version = str(data.get("schema_version", "") or "").strip()
+    event_type = str(data.get("event_type", "") or "").strip()
+    stage = str(data.get("stage", "") or "").strip()
+    fields = data.get("fields", {})
+    if not app_id:
+        return _json_error(status=400, error="missing_app_id", detail="app_id is required")
+    if not schema_version:
+        return _json_error(
+            status=400,
+            error="missing_schema_version",
+            detail="schema_version is required",
+        )
+    if not event_type:
+        return _json_error(
+            status=400,
+            error="missing_event_type",
+            detail="event_type is required",
+        )
+    if not stage:
+        return _json_error(status=400, error="missing_stage", detail="stage is required")
+    if not isinstance(fields, dict):
+        return _json_error(
+            status=400,
+            error="invalid_debug_fields",
+            detail="fields must be an object",
+        )
+    registration = _load_debug_app(request, app_id)
+    if registration is None:
+        return _json_error(status=404, error="debug_app_not_found", detail=app_id)
+    ai_id = str(data.get("ai_id", "") or "")
+    if registration.allowed_ai_ids and ai_id not in registration.allowed_ai_ids:
+        return _json_error(
+            status=403,
+            error="debug_ai_id_not_allowed",
+            detail=f"ai_id={ai_id!r} is not registered for app_id={app_id!r}",
+        )
+    if (
+        registration.allowed_event_types
+        and event_type not in registration.allowed_event_types
+    ):
+        return _json_error(
+            status=403,
+            error="debug_event_type_not_allowed",
+            detail=f"event_type={event_type!r} is not registered for app_id={app_id!r}",
+        )
+    schema = _load_debug_schema(request, app_id, schema_version)
+    if schema is None:
+        return _json_error(
+            status=404,
+            error="debug_schema_not_found",
+            detail=_debug_schema_record_id(app_id, schema_version),
+        )
+    validation_error = _validate_debug_fields(schema, event_type, fields)
+    if validation_error:
+        return _json_error(
+            status=400,
+            error="invalid_debug_fields",
+            detail=validation_error,
+        )
+    return DebugEventEnvelope(
+        debug_event_id=_new_id("debug_evt"),
+        app_id=app_id,
+        schema_version=schema_version,
+        ai_id=ai_id,
+        tenant_id=str(data.get("tenant_id", "") or ""),
+        session_id=str(data.get("session_id", "") or ""),
+        end_user_ref=str(data.get("end_user_ref", "") or ""),
+        response_id=str(data.get("response_id", "") or ""),
+        interaction_id=str(data.get("interaction_id", "") or ""),
+        event_type=event_type,
+        stage=stage,
+        fields=fields,
+        occurred_at=str(data.get("occurred_at", "") or ""),
+        created_at_ms=_now_ms(),
+    )
+
+
+def _load_debug_app(
+    request: web.Request,
+    app_id: str,
+) -> DebugAppRegistration | None:
+    registration = _debug_app_store(request).get(app_id)
+    if registration is not None:
+        return registration
+    persisted = _get_persisted_governance(request, "debug_app", app_id)
+    if persisted is None:
+        return None
+    try:
+        return DebugAppRegistration.from_json(
+            persisted,
+            created_at_ms=int(persisted.get("created_at_ms", 0) or 0),
+        )
+    except ValueError:
+        return None
+
+
+def _load_debug_schema(
+    request: web.Request,
+    app_id: str,
+    schema_version: str,
+) -> DebugSchema | None:
+    schema = _debug_schema_store(request).get((app_id, schema_version))
+    if schema is not None:
+        return schema
+    record_id = _debug_schema_record_id(app_id, schema_version)
+    persisted = _get_persisted_governance(request, "debug_schema", record_id)
+    if persisted is None:
+        return None
+    try:
+        return DebugSchema.from_json(
+            persisted,
+            app_id=app_id,
+            created_at_ms=int(persisted.get("created_at_ms", 0) or 0),
+        )
+    except ValueError:
+        return None
+
+
+def _validate_debug_fields(
+    schema: DebugSchema,
+    event_type: str,
+    fields: dict[str, Any],
+) -> str:
+    if schema.event_types and event_type not in schema.event_types:
+        return f"event_type={event_type!r} is not allowed by schema"
+    definitions = {field.name: field for field in schema.fields}
+    missing = [
+        field.name
+        for field in schema.fields
+        if field.required and field.name not in fields
+    ]
+    if missing:
+        return f"missing required debug fields: {', '.join(sorted(missing))}"
+    if not schema.allow_extra_fields:
+        extra = sorted(set(fields) - set(definitions))
+        if extra:
+            return f"unknown debug fields: {', '.join(extra)}"
+    for name, value in fields.items():
+        definition = definitions.get(name)
+        if definition is None:
+            continue
+        if definition.privacy_level is DebugPrivacyLevel.SECRET:
+            return f"field {name!r} is secret and cannot be ingested"
+        type_error = _debug_field_type_error(name, definition.type, value)
+        if type_error:
+            return type_error
+        if definition.type is DebugFieldType.ENUM and value not in definition.enum_values:
+            return f"field {name!r} must be one of {list(definition.enum_values)!r}"
+    return ""
+
+
+def _debug_field_type_error(
+    name: str,
+    field_type: DebugFieldType,
+    value: Any,
+) -> str:
+    if field_type is DebugFieldType.STRING and not isinstance(value, str):
+        return f"field {name!r} must be a string"
+    if field_type is DebugFieldType.NUMBER and (
+        isinstance(value, bool) or not isinstance(value, int | float)
+    ):
+        return f"field {name!r} must be a number"
+    if field_type is DebugFieldType.BOOLEAN and not isinstance(value, bool):
+        return f"field {name!r} must be a boolean"
+    if field_type is DebugFieldType.ENUM and not isinstance(value, str):
+        return f"field {name!r} must be an enum string"
+    return ""
+
+
+def _list_debug_events(request: web.Request) -> list[dict[str, Any]]:
+    persisted = _list_persisted_governance(
+        request,
+        "debug_event",
+        ai_id=request.query.get("ai_id", ""),
+        session_id=request.query.get("session_id", ""),
+    )
+    events = persisted or [
+        event.to_json() for event in _debug_event_store(request).values()
+    ]
+    filters = {
+        "app_id": request.query.get("app_id", ""),
+        "tenant_id": request.query.get("tenant_id", ""),
+        "end_user_ref": request.query.get("end_user_ref", ""),
+        "event_type": request.query.get("event_type", ""),
+    }
+    for key, value in filters.items():
+        if value:
+            events = [event for event in events if event.get(key) == value]
+    return events
+
+
+async def _build_debug_analysis_evidence(
+    request: web.Request,
+    analysis_request: DebugAnalysisRequest,
+) -> dict[str, Any]:
+    debug_events = _debug_events_for_analysis(request, analysis_request)
+    evidence: dict[str, Any] = {
+        "debug_events": debug_events,
+        "debug_event_count": len(debug_events),
+    }
+    if analysis_request.include_audit:
+        evidence["audit_events"] = _audit_events_for_analysis(request, analysis_request)
+    if analysis_request.ai_id and analysis_request.session_id:
+        runtime = await _runtime_debug_evidence(request, analysis_request)
+        evidence.update(runtime)
+    return evidence
+
+
+def _debug_events_for_analysis(
+    request: web.Request,
+    analysis_request: DebugAnalysisRequest,
+) -> list[dict[str, Any]]:
+    events = _list_persisted_governance(
+        request,
+        "debug_event",
+        ai_id=analysis_request.ai_id,
+        session_id=analysis_request.session_id,
+    ) or [event.to_json() for event in _debug_event_store(request).values()]
+    filters = {
+        "app_id": analysis_request.app_id,
+        "tenant_id": analysis_request.tenant_id,
+        "end_user_ref": analysis_request.end_user_ref,
+    }
+    for key, value in filters.items():
+        if value:
+            events = [event for event in events if event.get(key) == value]
+    if analysis_request.event_types:
+        allowed = set(analysis_request.event_types)
+        events = [event for event in events if event.get("event_type") in allowed]
+    return events
+
+
+def _audit_events_for_analysis(
+    request: web.Request,
+    analysis_request: DebugAnalysisRequest,
+) -> list[dict[str, Any]]:
+    events = _list_persisted_governance(
+        request,
+        "audit_event",
+        ai_id=analysis_request.ai_id,
+        session_id=analysis_request.session_id,
+    ) or [event.to_json() for event in _audit_store(request).values()]
+    if analysis_request.ai_id:
+        events = [event for event in events if event.get("ai_id") == analysis_request.ai_id]
+    if analysis_request.session_id:
+        events = [
+            event for event in events if event.get("session_id") == analysis_request.session_id
+        ]
+    return events
+
+
+async def _runtime_debug_evidence(
+    request: web.Request,
+    analysis_request: DebugAnalysisRequest,
+) -> dict[str, Any]:
+    try:
+        manager = _resolve_session_manager(request, analysis_request.ai_id)
+        session = await manager.get_session(analysis_request.session_id)
+    except (_AiIdNotFoundError, SessionNotFoundError) as exc:
+        return {"runtime_error": str(exc)}
+    snapshots = session.latest_active_snapshots
+    runtime: dict[str, Any] = {}
+    if analysis_request.include_readouts:
+        runtime["readouts"] = _build_readout_bundle(
+            ai_id=analysis_request.ai_id,
+            session_id=analysis_request.session_id,
+            view=ReadoutView.SUMMARY,
+            snapshots=snapshots,
+            request=request,
+        ).to_json()
+    if analysis_request.include_explain:
+        runtime["explain"] = ExplainTrace(
+            ai_id=analysis_request.ai_id,
+            session_id=analysis_request.session_id,
+            chain=_build_explain_chain(snapshots),
+        ).to_json()
+    if analysis_request.include_snapshots:
+        runtime["snapshots"] = {
+            slot: snapshot_to_json(snapshot, redact=True)
+            for slot, snapshot in snapshots.items()
+        }
+    return runtime
+
+
+def _debug_recommendations(evidence: dict[str, Any]) -> tuple[str, ...]:
+    recommendations: list[str] = []
+    debug_event_count = int(evidence.get("debug_event_count", 0) or 0)
+    if debug_event_count == 0:
+        recommendations.append(
+            "No app-owned debug events matched the selectors; add boundary instrumentation before deeper analysis."
+        )
+    if evidence.get("runtime_error"):
+        recommendations.append(
+            "Runtime readouts were unavailable for the selected ai_id/session_id; verify wake state and session correlation."
+        )
+    audit_events = evidence.get("audit_events", ())
+    if isinstance(audit_events, list) and not audit_events:
+        recommendations.append(
+            "No platform audit events matched the selectors; check auth path and correlation metadata."
+        )
+    if not recommendations:
+        recommendations.append(
+            "Evidence is available for the selected scope; compare debug events, readouts, and audit events before proposing app or DLaaS changes."
+        )
+    return tuple(recommendations)
 
 
 def _record_audit(

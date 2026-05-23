@@ -43,6 +43,17 @@ from dlaas_platform_contracts.dispatch_vocab import (
     ObservationType,
     feedback_valence_to_outcome_kind,
 )
+from dlaas_platform_contracts.debug import (
+    DebugAnalysisReport,
+    DebugAnalysisRequest,
+    DebugAppRegistration,
+    DebugEventEnvelope,
+    DebugFieldDefinition,
+    DebugFieldOwner,
+    DebugFieldType,
+    DebugPrivacyLevel,
+    DebugSchema,
+)
 from dlaas_platform_contracts.envelope import (
     DEFAULT_PROTOCOL_VERSION,
     FeedbackPayload,
@@ -149,6 +160,15 @@ __all__ = (
     "DataExportJob",
     "DataJobStatus",
     "DeletionJob",
+    "DebugAnalysisReport",
+    "DebugAnalysisRequest",
+    "DebugAppRegistration",
+    "DebugEventEnvelope",
+    "DebugFieldDefinition",
+    "DebugFieldOwner",
+    "DebugFieldType",
+    "DebugPrivacyLevel",
+    "DebugSchema",
     "EvalGateDecision",
     "EvalRun",
     "EvalRunStatus",
