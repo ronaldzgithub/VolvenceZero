@@ -70,11 +70,15 @@ EXIT_IO_OR_SCHEMA = 3
 def cmd_bake_bundle(args: argparse.Namespace) -> int:
     """Compile a profile + corpus into a fresh bundle, persist + audit."""
 
-    profile_factory, _corpus_factory = _resolve_figure_factories(args.figure)
+    profile_factory, _corpus_factory = _resolve_figure_factories(
+        args.figure, profile_file=getattr(args, "profile_file", None)
+    )
     if profile_factory is None:
         print(
             f"figure {args.figure!r} is not yet wired for bake-bundle "
-            f"(see known-debts.md #27 for lu_xun corpus follow-up)",
+            f"(see known-debts.md #27 for lu_xun corpus follow-up). "
+            f"Dynamic family memorial profiles require both "
+            f"--figure family_<id> and --profile-file <path.json>.",
             file=sys.stderr,
         )
         return EXIT_USAGE
@@ -93,11 +97,14 @@ def cmd_bake_bundle(args: argparse.Namespace) -> int:
 def _cmd_bake_bundle_synthetic(*, args, profile_factory) -> int:
     """Synthetic-corpus path: legacy SHADOW behaviour, unchanged."""
 
-    _profile_factory, corpus_factory = _resolve_figure_factories(args.figure)
+    _profile_factory, corpus_factory = _resolve_figure_factories(
+        args.figure, profile_file=getattr(args, "profile_file", None)
+    )
     if corpus_factory is None:
         print(
             f"figure {args.figure!r} has no synthetic corpus factory wired "
-            f"(only Einstein ships one; see known-debts.md #27)",
+            f"(only Einstein ships one; family memorials must use "
+            f"--corpus-mode curated). See known-debts.md #27.",
             file=sys.stderr,
         )
         return EXIT_USAGE
@@ -399,7 +406,9 @@ def cmd_bake_lora(args: argparse.Namespace) -> int:
         # from the figure id; the bundle does not persist envelopes
         # (R15: envelopes are input, the bundle's integrity hash
         # already pins what they produced).
-        profile_factory, corpus_factory = _resolve_figure_factories(args.figure)
+        profile_factory, corpus_factory = _resolve_figure_factories(
+            args.figure, profile_file=getattr(args, "profile_file", None)
+        )
         if profile_factory is None or corpus_factory is None:
             print(
                 f"internal: figure {args.figure!r} not in factory map",
@@ -591,13 +600,25 @@ def cmd_list(args: argparse.Namespace) -> int:
 _FigureFactories = tuple[Callable[[], object] | None, Callable[[], object] | None]
 
 
-def _resolve_figure_factories(figure: str) -> _FigureFactories:
+def _resolve_figure_factories(
+    figure: str,
+    *,
+    profile_file: str | pathlib.Path | None = None,
+) -> _FigureFactories:
     """Map ``--figure`` to (profile_factory, corpus_factory) callables.
 
     Returns ``(None, None)`` when the figure id has no shipped corpus
     yet (lu_xun, tracked under known-debts.md #27). Profile factories
     exist for both Einstein and Lu Xun, but the corpus side is what
     the CLI gates on — bake-bundle requires both.
+
+    Dynamic family-memorial path (U4 / family-memorial enabler): any
+    ``figure`` starting with ``family_`` is a per-memorial profile
+    loaded from ``profile_file``. We return a profile factory that
+    closes over the loaded profile dict and ``None`` for the corpus
+    factory — family memorials are CURATED-CORPUS ONLY (the corpus is
+    the family's uploaded text, not a reviewer-curated synthesizer
+    output).
     """
 
     if figure == "einstein":
@@ -605,6 +626,29 @@ def _resolve_figure_factories(figure: str) -> _FigureFactories:
     if figure == "lu_xun":
         # Profile available, corpus pending #27
         return (build_lu_xun_profile, None)
+    if figure.startswith("family_"):
+        if profile_file is None:
+            print(
+                f"figure {figure!r} requires --profile-file pointing at "
+                "a family memorial profile JSON",
+                file=sys.stderr,
+            )
+            return (None, None)
+        # Local import keeps the module load cheap when family
+        # memorials are not in play.
+        from lifeform_domain_figure.profiles.family import (
+            load_family_profile_file,
+        )
+        loaded_path = pathlib.Path(profile_file)
+        profile = load_family_profile_file(loaded_path)
+        if profile.profile_id != figure:
+            raise ValueError(
+                f"--figure {figure!r} does not match profile_id "
+                f"{profile.profile_id!r} in {loaded_path}; the bake-worker "
+                "is the only authorised producer of family profile files "
+                "and must keep these two ids in lock-step."
+            )
+        return (lambda profile=profile: profile, None)
     return (None, None)
 
 

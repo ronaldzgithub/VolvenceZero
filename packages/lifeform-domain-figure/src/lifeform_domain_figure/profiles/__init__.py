@@ -1,25 +1,26 @@
-"""Reviewed historical-figure profiles shipped with the wheel.
+"""Dynamic figure profile loaders.
 
-Each profile lives in its own module (``einstein.py``, ``lu_xun.py``,
-...) so the contents are inspectable and version-controlled. Adding
-a new profile means adding a new module + listing its builder here.
+The legacy ``einstein`` / ``lu_xun`` profiles are reviewer-curated and
+ship with the wheel under :mod:`lifeform_domain_figure`. They are
+appropriate for figures whose corpora are public-record (philosophers,
+scientists, authors with extensive published primary sources).
 
-Profiles are reviewed structured artifacts: they encode a figure's
-documented stances, drives, signature cases, value seeds, and
-boundaries in the typed :class:`HistoricalFigureProfile` schema, NOT
-verbatim primary-source text. The corpus itself enters the lifeform
-through :func:`lifeform_domain_figure.build_figure_ingestion_envelope`
-+ the canonical ingestion pipeline (see
-``docs/specs/figure-vertical.md``).
+For figures whose corpora are NOT public record — most notably the
+family-memorial product where the corpus is a private collection of
+interviews, letters, and recordings — the profile is generated at
+bake time from a small JSON descriptor (family-attested name +
+lifespan + bio). This module provides the loaders for those dynamic
+profiles.
 """
 
 from __future__ import annotations
 
-from lifeform_domain_figure.profiles.einstein import build_einstein_profile
-from lifeform_domain_figure.profiles.lu_xun import build_lu_xun_profile
+from lifeform_domain_figure.profiles.family import (
+    build_family_profile_from_json,
+    load_family_profile_file,
+)
 
-
-__all__ = [
-    "build_einstein_profile",
-    "build_lu_xun_profile",
-]
+__all__ = (
+    "build_family_profile_from_json",
+    "load_family_profile_file",
+)

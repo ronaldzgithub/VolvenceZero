@@ -28,6 +28,10 @@ Routes (all under ``/v1``):
 from __future__ import annotations
 
 from lifeform_service.app import create_app
+from lifeform_service.bundle_root_scanner import (
+    BundleScanReport,
+    scan_and_register_bundles,
+)
 from lifeform_service.cli import main
 from lifeform_service.einstein_resolver import (
     EinsteinBundleResolution,
@@ -52,6 +56,7 @@ from lifeform_service.verticals import (
 )
 
 __all__ = (
+    "BundleScanReport",
     "EinsteinBundleResolution",
     "FigureBundleNotFound",
     "FigureBundleStore",
@@ -67,4 +72,5 @@ __all__ = (
     "main",
     "register_bundle_persona_lora",
     "resolve_einstein_bundle",
+    "scan_and_register_bundles",
 )

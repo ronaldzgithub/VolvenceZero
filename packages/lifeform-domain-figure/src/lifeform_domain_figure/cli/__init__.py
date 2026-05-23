@@ -62,10 +62,39 @@ R8 / R10 / R15 invariants:
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections.abc import Sequence
 
 from lifeform_domain_figure.cli import _commands
+
+
+# Family memorial figure ids look like ``family_<cuid>`` — cuids are
+# 24-25 lowercase alphanumeric. We allow anything reasonable here and
+# defer the strict format check to the bake-worker / control plane,
+# but reject obviously-bogus inputs (whitespace, path separators) so
+# argparse fails loudly at the boundary.
+_BUILTIN_FIGURES = frozenset(("einstein", "lu_xun"))
+_FAMILY_ID_RE = re.compile(r"^family_[A-Za-z0-9_-]{4,128}$")
+
+
+def _validate_figure_arg(value: str) -> str:
+    """argparse type=...: accept built-ins + dynamic family_* ids.
+
+    Static ``choices=`` cannot express the dynamic family-memorial
+    pattern, so we hand-roll a validator that mirrors the original
+    constraint set plus the new dynamic path.
+    """
+
+    if value in _BUILTIN_FIGURES:
+        return value
+    if _FAMILY_ID_RE.match(value):
+        return value
+    raise argparse.ArgumentTypeError(
+        f"--figure {value!r} is not recognised; expected one of "
+        f"{sorted(_BUILTIN_FIGURES)} or a string matching "
+        f"family_<id>."
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -108,8 +137,23 @@ def build_parser() -> argparse.ArgumentParser:
     bake_bundle.add_argument(
         "--figure",
         required=True,
-        choices=("einstein", "lu_xun"),
-        help="Reviewed profile identifier.",
+        type=_validate_figure_arg,
+        help=(
+            "Figure id. Built-in: 'einstein' or 'lu_xun' (reviewer-"
+            "curated profile + synthetic corpus). Dynamic: any id "
+            "starting with 'family_' is loaded from --profile-file at "
+            "bake time (family-memorial product)."
+        ),
+    )
+    bake_bundle.add_argument(
+        "--profile-file",
+        default=None,
+        help=(
+            "Path to a JSON profile descriptor. Required when --figure "
+            "starts with 'family_'. The bake-worker is the only "
+            "authorised producer of this file; see "
+            "lifeform_domain_figure.profiles.family for the schema."
+        ),
     )
     bake_bundle.add_argument(
         "--corpus-mode",

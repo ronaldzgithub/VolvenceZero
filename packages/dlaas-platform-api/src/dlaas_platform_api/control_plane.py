@@ -30,7 +30,9 @@ from aiohttp import web
 
 from dlaas_platform_contracts import (
     AdoptionConfig,
+    CitationPolicy,
     ContractStatus,
+    CoveragePolicy,
     FocusPersonSpec,
     IdentityLinkSpec,
     ReadinessReport,
@@ -339,6 +341,19 @@ async def _handle_create_template(request: web.Request) -> web.Response:
     if body_tenant_id:
         assert_tenant_id_matches(tenant, body_tenant_id)
     stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    # U3 (family-memorial enabler): figure_artifact_id /
+    # citation_policy / coverage_policy / figure_time_window
+    # passthrough. The registry has supported these fields since
+    # debt #22 baked them into TemplateSpec; the HTTP handler was
+    # silently dropping them, forcing operators to use the registry
+    # store directly. With this pass-through, family-memorial (and
+    # any future figure-vertical product) can mint templates over
+    # plain HTTP.
+    try:
+        citation_policy = _parse_citation_policy(data.get("citation_policy"))
+        coverage_policy = _parse_coverage_policy(data.get("coverage_policy"))
+    except ValueError as exc:
+        return _error(400, "invalid_template_policy", str(exc))
     spec = await stores.templates.create(
         tenant_id=tenant.tenant_id,
         template_name=_required_str(data, "template_name"),
@@ -348,6 +363,10 @@ async def _handle_create_template(request: web.Request) -> web.Response:
         base_persona=data.get("base_persona") or {},
         persona_spec=data.get("persona_spec") or {},
         seed_config=data.get("seed_config") or {},
+        figure_artifact_id=str(data.get("figure_artifact_id", "") or ""),
+        citation_policy=citation_policy,
+        coverage_policy=coverage_policy,
+        figure_time_window=str(data.get("figure_time_window", "") or ""),
     )
     return web.json_response(
         {
@@ -358,6 +377,42 @@ async def _handle_create_template(request: web.Request) -> web.Response:
             **spec.to_json(),
         }
     )
+
+
+def _parse_citation_policy(value: object) -> CitationPolicy:
+    """Convert request-body string to ``CitationPolicy``; default DISABLED.
+
+    Raises :class:`ValueError` with the allowed values listed when the
+    string is non-empty but unrecognised — fail-loud so misconfigured
+    operator scripts get a typed 400 instead of silently dropping to
+    the legacy default.
+    """
+
+    if value is None or value == "":
+        return CitationPolicy.DISABLED
+    if isinstance(value, CitationPolicy):
+        return value
+    try:
+        return CitationPolicy(str(value).strip().lower())
+    except ValueError as exc:
+        allowed = ", ".join(p.value for p in CitationPolicy)
+        raise ValueError(
+            f"citation_policy={value!r} not recognised; allowed: {allowed}"
+        ) from exc
+
+
+def _parse_coverage_policy(value: object) -> CoveragePolicy:
+    if value is None or value == "":
+        return CoveragePolicy.PASSTHROUGH
+    if isinstance(value, CoveragePolicy):
+        return value
+    try:
+        return CoveragePolicy(str(value).strip().lower())
+    except ValueError as exc:
+        allowed = ", ".join(p.value for p in CoveragePolicy)
+        raise ValueError(
+            f"coverage_policy={value!r} not recognised; allowed: {allowed}"
+        ) from exc
 
 
 async def _handle_list_tenant_templates(request: web.Request) -> web.Response:
@@ -408,6 +463,32 @@ async def _handle_patch_template(request: web.Request) -> web.Response:
                 "invalid_template_status",
                 f"status must be one of: {allowed}",
             )
+    # U3 (family-memorial enabler): figure_* field passthrough on
+    # PATCH so operators can roll a memorial to a new bundle id (e.g.
+    # after a re-bake) without dropping + recreating the template.
+    try:
+        figure_artifact_id_val: str | None = (
+            None
+            if "figure_artifact_id" not in data
+            else str(data.get("figure_artifact_id", "") or "")
+        )
+        citation_policy_val = (
+            _parse_citation_policy(data["citation_policy"])
+            if "citation_policy" in data
+            else None
+        )
+        coverage_policy_val = (
+            _parse_coverage_policy(data["coverage_policy"])
+            if "coverage_policy" in data
+            else None
+        )
+        figure_time_window_val: str | None = (
+            None
+            if "figure_time_window" not in data
+            else str(data.get("figure_time_window", "") or "")
+        )
+    except ValueError as exc:
+        return _error(400, "invalid_template_policy", str(exc))
     try:
         spec = await stores.templates.patch(
             template_id=template_id,
@@ -419,6 +500,10 @@ async def _handle_patch_template(request: web.Request) -> web.Response:
             base_persona=data.get("base_persona"),
             persona_spec=data.get("persona_spec"),
             seed_config=data.get("seed_config"),
+            figure_artifact_id=figure_artifact_id_val,
+            citation_policy=citation_policy_val,
+            coverage_policy=coverage_policy_val,
+            figure_time_window=figure_time_window_val,
             version_note=str(data.get("version_note", "") or ""),
         )
     except ValueError as exc:
@@ -865,6 +950,18 @@ async def _handle_adopt(request: web.Request) -> web.Response:
     # adopts non-figure templates without crashing.
     # ``TemplateSpec.figure_artifact_id`` is a typed field (default ``""``)
     # in dlaas-platform-contracts; direct access keeps R8 / SSOT.
+    #
+    # Per-``ai_id`` synthesizer binding (U2 / family-memorial enabler):
+    # after the bundle is resolved, we pull the typed ``SessionManager``
+    # for ``final_contract.ai_id`` from the launcher and call its public
+    # ``bind_figure_bundle(bundle)`` method. ``SessionManager`` is a
+    # typed return value of ``InstanceManager.get`` so there is no
+    # ``hasattr`` defence; the call fails loud if the manager is gone
+    # (raising :class:`InstanceNotFound`), which is the correct
+    # contract surface for "adopt completed but the instance was
+    # racy-released between ``acquire`` and ``bind``". Without this
+    # call, every memorial in the same process shares the global
+    # default bundle (Einstein) and citations cross-contaminate.
     figure_artifact_id = template.figure_artifact_id
     if figure_artifact_id:
         try:
@@ -880,13 +977,8 @@ async def _handle_adopt(request: web.Request) -> web.Response:
                 default=None, bundle_id=figure_artifact_id
             )
             if bundle is not None:
-                # Note: the historical ``manager.bind_figure_bundle`` hook
-                # was a hasattr-defended dead code path (no such method
-                # exists on ``InstanceManager``); removed per
-                # no-swallow-errors-no-hasattr-abuse. If a future packet
-                # needs to thread the bundle into the launcher session,
-                # add a typed method on ``InstanceManager`` and call it
-                # directly.
+                session_manager = instance_manager.get(final_contract.ai_id)
+                session_manager.bind_figure_bundle(bundle)
                 if register_bundle_persona_lora is not None:
                     register_bundle_persona_lora(bundle)
 
