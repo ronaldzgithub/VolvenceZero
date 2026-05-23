@@ -230,7 +230,12 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Reviewed profile identifier. Steering currently only "
             "ships an Einstein contrast set; lu_xun support is "
-            "tracked under known-debts #27."
+            "tracked under known-debts #27. **family_<id>** dynamic "
+            "profiles (used by the VolvenceDeploy family-memorial "
+            "product) are NOT supported here — family memorials "
+            "ship with L1 / L3 / L4 only; L2 contrastive steering "
+            "requires reviewer-curated contrast sets the family "
+            "does not have."
         ),
     )
     bake_steering.add_argument(
@@ -311,7 +316,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("einstein",),
         help=(
             "Reviewed profile identifier. lu_xun corpus is tracked "
-            "under known-debts #27."
+            "under known-debts #27. **family_<id>** dynamic profiles "
+            "(used by the VolvenceDeploy family-memorial product) "
+            "are NOT supported here — family memorials ship with "
+            "L1 / L3 / L4 only; persona LoRA requires a curated "
+            "training plan + GPU substrate the family pipeline "
+            "does not provision."
         ),
     )
     bake_lora.add_argument(
