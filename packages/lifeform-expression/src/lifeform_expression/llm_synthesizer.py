@@ -228,7 +228,17 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         # the synthesizer-vs-grounded-decoder boundary: text is the
         # LLM's output; the verdict is metadata. Future packets can
         # opt into hard refusal by raising at this point.
-        grounded_tag = _grounded_verify_tag(bundle=bundle, text=response.text)
+        #
+        # U6 (family-memorial enabler): we now also surface the
+        # structured ``EvidencePointer`` records (not just the count
+        # in the rationale tag) so the OpenAI-compat bridge can write
+        # them into an ``event: evidence`` SSE frame. The UI in
+        # apps/family-memorial renders each pointer as a clickable
+        # citation card. Pointers are JSON-safe dicts here to avoid
+        # pulling lifeform-domain-figure types into AgentResponse.
+        grounded_tag, evidence_pointers = _grounded_verify(
+            bundle=bundle, text=response.text
+        )
         scope_disclaimer_tag = _scope_disclaimer_tag(scope_directive)
 
         self._record_turn(
@@ -242,6 +252,7 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
                 for tag in (style_tag, grounded_tag, scope_disclaimer_tag)
                 if tag
             ),
+            evidence_pointers=evidence_pointers,
         )
         return _attach_plan_rationale(enforced_response, plan)
 
@@ -320,28 +331,74 @@ def _style_hint_tag(*, bundle: Any) -> str:
     return f"l1_style_prior=figure:{hint.figure_id};terms:{sample}"
 
 
-def _grounded_verify_tag(*, bundle: Any, text: str) -> str:
+def _grounded_verify(
+    *, bundle: Any, text: str
+) -> tuple[str, tuple[dict, ...]]:
     """Run the L3 GroundedDecoder against the generated text.
 
-    Returns a single rationale tag summarising the verdict
-    (``passed`` count + unsupported count). Empty when there is no
-    bundle, no retrieval index, or the text is empty.
+    Returns ``(tag, pointer_dicts)``:
+      * ``tag`` is a single rationale tag summarising the verdict
+        (``passed`` count + unsupported count + evidence count) — same
+        string as the legacy ``_grounded_verify_tag`` produced; empty
+        when there is no bundle, no retrieval index, or empty text.
+      * ``pointer_dicts`` is a tuple of JSON-safe dicts that mirror
+        the typed :class:`EvidencePointer` records from
+        :meth:`GroundedDecoder.verify_with_pointers` (debt #24 / U6).
+        Each entry carries ``raw_locator`` / ``chunk_id`` /
+        ``source_envelope_id`` plus structured fields when the
+        locator parsed (``locator_kind``, ``document_id``,
+        ``paragraph_index``, ``offset_start``, ``offset_end``,
+        ``language``, ``sender_id``, ``recipient_id``, ``date_iso``,
+        ``venue_id``, ``volume``, ``page``). The dict shape avoids
+        pulling lifeform-domain-figure types into the vz-runtime
+        ``AgentResponse`` contract (R8 / wheel-boundary).
     """
 
     if bundle is None or not text.strip():
-        return ""
+        return ("", ())
     retrieval_index = getattr(bundle, "retrieval_index", None)
     if retrieval_index is None:
-        return ""
+        return ("", ())
     decoder = GroundedDecoder(
         retrieval_index, config=GroundedDecoderConfig()
     )
-    verdict = decoder.verify(text=text)
-    return (
+    verdict, pointers = decoder.verify_with_pointers(text=text)
+    tag = (
         f"l3_grounded_verify=passed:{int(verdict.passed)};"
         f"unsupported:{len(verdict.unsupported_assertions)};"
         f"evidence:{len(verdict.evidence_pointers)}"
     )
+    pointer_dicts = tuple(_evidence_pointer_to_dict(p) for p in pointers)
+    return (tag, pointer_dicts)
+
+
+def _evidence_pointer_to_dict(pointer: Any) -> dict:
+    """Convert an ``EvidencePointer`` to a JSON-safe dict.
+
+    Field-by-field copy via documented public attrs (no
+    ``__dict__`` / no ``asdict`` to keep the contract narrow even
+    when ``EvidencePointer`` grows new fields upstream — adding a
+    field here is an explicit decision).
+    """
+
+    return {
+        "raw_locator": pointer.raw_locator,
+        "chunk_id": pointer.chunk_id,
+        "source_envelope_id": pointer.source_envelope_id,
+        "locator_kind": pointer.locator_kind,
+        "document_id": pointer.document_id,
+        "paragraph_index": pointer.paragraph_index,
+        "offset_start": pointer.offset_start,
+        "offset_end": pointer.offset_end,
+        "language": pointer.language,
+        "sender_id": pointer.sender_id,
+        "recipient_id": pointer.recipient_id,
+        "date_iso": pointer.date_iso,
+        "venue_id": pointer.venue_id,
+        "volume": pointer.volume,
+        "page": pointer.page,
+        "rendered": pointer.rendered,
+    }
 
 
 def _scope_disclaimer_tag(directive) -> str:
@@ -409,11 +466,20 @@ def _maybe_activate_persona_lora(*, bundle: Any, runtime: Any):
 
 
 def _attach_enforcement_tags(
-    response: AgentResponse, *, tags: tuple[str, ...]
+    response: AgentResponse,
+    *,
+    tags: tuple[str, ...],
+    evidence_pointers: tuple[dict, ...] = (),
 ) -> AgentResponse:
-    """Append L1 / L3 / L4 enforcement tags to a response's rationale tags."""
+    """Append L1 / L3 / L4 enforcement tags to a response's rationale tags.
 
-    if not tags:
+    ``evidence_pointers`` (U6) replaces any pre-existing pointers on
+    the response with the freshly-computed structured list from the
+    L3 grounded verify. Empty tuple is treated as "no pointers to
+    attach"; existing pointers (if any from upstream paths) survive.
+    """
+
+    if not tags and not evidence_pointers:
         return response
     merged = list(response.rationale_tags)
     seen = set(merged)
@@ -427,6 +493,9 @@ def _attach_enforcement_tags(
         abstract_action=response.abstract_action,
         rationale=response.rationale,
         rationale_tags=tuple(merged),
+        evidence_pointers=(
+            evidence_pointers if evidence_pointers else response.evidence_pointers
+        ),
     )
 
 
@@ -459,4 +528,8 @@ def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentRe
         abstract_action=response.abstract_action,
         rationale=(rationale + plan_tag).strip(),
         rationale_tags=tuple(merged),
+        # U6: preserve structured evidence pointers across rationale
+        # merge so the OpenAI-compat bridge can write them to the
+        # ``event: evidence`` SSE frame downstream.
+        evidence_pointers=response.evidence_pointers,
     )

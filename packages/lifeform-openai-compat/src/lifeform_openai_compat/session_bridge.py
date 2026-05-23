@@ -194,6 +194,16 @@ class LifeformCompletionResult:
     the router exposes via response headers (``x-lifeform-*``) for
     downstream ablation analysis. The OpenAI body itself stays
     schema-compatible.
+
+    ``evidence_pointers`` (U6 / family-memorial enabler) carries the
+    structured L3 ``EvidencePointer`` records (as JSON-safe dicts)
+    that the figure-vertical's ``GroundedDecoder`` produced when the
+    response was grounded against a ``FigureRetrievalIndex``. The
+    router writes these into an ``event: evidence`` SSE frame at
+    stream close so downstream clients (apps/family-memorial's
+    ``CitationCard``) can render clickable citations linking back to
+    the original family corpus. Empty tuple = "no figure bundle was
+    bound to this ai_id" OR "no assertions cleared verify".
     """
 
     response: ChatCompletionResponse
@@ -202,6 +212,7 @@ class LifeformCompletionResult:
     active_abstract_action: str | None
     pe_magnitude: float
     rationale_tags: tuple[str, ...]
+    evidence_pointers: tuple[dict, ...] = ()
 
 
 async def lifeform_complete(

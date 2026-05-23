@@ -272,6 +272,18 @@ class SessionManager:
         return self._alpha_identity_provider
 
     @property
+    def alpha_memory_scope_root_dir(self) -> str | None:
+        """Return the filesystem root used for alpha scoped memory, if enabled.
+
+        DLaaS launcher-created per-``ai_id`` managers inherit this from the
+        root service manager so multi-instance traffic does not silently lose
+        the same per-user scoped-memory contract that the OpenAI-compatible
+        single-manager path already has.
+        """
+
+        return self._alpha_memory_scope_root_dir
+
+    @property
     def template_adapter(self) -> VerticalTemplateAdapter | None:
         """Default vertical's template adapter (or None).
 

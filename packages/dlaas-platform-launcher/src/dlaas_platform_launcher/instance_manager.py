@@ -90,11 +90,24 @@ def default_vertical_resolver() -> VerticalResolver:
 
     cache: dict[str, VerticalSpec] | None = None
 
+    aliases = {
+        # Digital Employee v0 is a product-level template pair layered over
+        # the general companion vertical. OrgAgent and EmployeeTwin diverge
+        # by ai_id/session/scope/tool policy at the DLaaS layer, not by a
+        # separate kernel wheel yet. Keeping the alias here lets the template
+        # ids wake fail-loudly if the companion vertical is absent while
+        # avoiding a prompt/workflow shim in the deploy app.
+        "digital-employee.org.v0": "companion",
+        "digital-employee.twin.v0": "companion",
+    }
+
     def resolve(runtime_template_id: str) -> VerticalSpec | None:
         nonlocal cache
         if cache is None:
             cache = discover_verticals()
-        return cache.get(runtime_template_id)
+        return cache.get(runtime_template_id) or cache.get(
+            aliases.get(runtime_template_id, "")
+        )
 
     return resolve
 
@@ -107,11 +120,17 @@ class InstanceManager:
         *,
         vertical_resolver: VerticalResolver,
         substrate_runtime: "OpenWeightResidualRuntime | None" = None,
+        alpha_identity_provider: Any | None = None,
+        alpha_memory_scope_root_dir: str | None = None,
+        attach_default_mcp_bundle: bool = False,
         max_sessions_per_instance: int = 256,
         idle_eviction_seconds: float | None = 60 * 30,
     ) -> None:
         self._vertical_resolver = vertical_resolver
         self._substrate_runtime = substrate_runtime
+        self._alpha_identity_provider = alpha_identity_provider
+        self._alpha_memory_scope_root_dir = alpha_memory_scope_root_dir
+        self._attach_default_mcp_bundle = attach_default_mcp_bundle
         self._instances: dict[str, SessionManager] = {}
         self._verticals: dict[str, str] = {}  # ai_id -> vertical_name
         self._lifecycle: dict[str, InstanceLifecycleState] = {}
@@ -181,10 +200,13 @@ class InstanceManager:
             manager = SessionManager(
                 lifeform_factory=spec.factory,
                 alpha_lifeform_factory=spec.alpha_factory,
+                alpha_identity_provider=self._alpha_identity_provider,
+                alpha_memory_scope_root_dir=self._alpha_memory_scope_root_dir,
                 vertical_name=spec.name,
                 max_sessions=self._max_sessions_per_instance,
                 idle_eviction_seconds=self._idle_eviction_seconds,
                 substrate_runtime=self._substrate_runtime,
+                attach_default_mcp_bundle=self._attach_default_mcp_bundle,
             )
             self._instances[ai_id] = manager
             self._verticals[ai_id] = spec.name
@@ -216,10 +238,13 @@ class InstanceManager:
                 manager = SessionManager(
                     lifeform_factory=spec.factory,
                     alpha_lifeform_factory=spec.alpha_factory,
+                    alpha_identity_provider=self._alpha_identity_provider,
+                    alpha_memory_scope_root_dir=self._alpha_memory_scope_root_dir,
                     vertical_name=spec.name,
                     max_sessions=self._max_sessions_per_instance,
                     idle_eviction_seconds=self._idle_eviction_seconds,
                     substrate_runtime=self._substrate_runtime,
+                    attach_default_mcp_bundle=self._attach_default_mcp_bundle,
                 )
                 self._instances[ai_id] = manager
                 self._verticals[ai_id] = spec.name

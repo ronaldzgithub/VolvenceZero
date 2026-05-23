@@ -107,7 +107,12 @@ from lifeform_service.session_manager import (
     SessionNotFoundError,
 )
 
-from dlaas_platform_api.control_plane import attach_control_plane_routes
+from dlaas_platform_api.control_plane import (
+    CONTROL_PLANE_STORES_KEY,
+    attach_control_plane_routes,
+    bind_figure_artifact_to_ai_id,
+)
+from dlaas_platform_registry import TemplateNotFound
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
 from dlaas_platform_api.intake_router import resolve_intake_decision
 from dlaas_platform_api.snapshot_export import snapshot_to_json
@@ -456,9 +461,13 @@ def build_dlaas_app(
     app = create_lifeform_app(**service_kwargs)
     registry = Registry(db_path=str(db_path))
     if instance_manager is None:
+        service_manager = app["session_manager"]
         instance_manager = InstanceManager(
             vertical_resolver=default_vertical_resolver(),
-            substrate_runtime=app["session_manager"].substrate_runtime,
+            substrate_runtime=service_manager.substrate_runtime,
+            alpha_identity_provider=service_manager.alpha_identity_provider,
+            alpha_memory_scope_root_dir=service_manager.alpha_memory_scope_root_dir,
+            attach_default_mcp_bundle=True,
         )
     auth_config = PlatformAuthConfig(
         control_plane_secret=(
@@ -1378,6 +1387,36 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
         )
     except (LookupError, ValueError) as exc:
         return _json_error(status=400, error="invalid_wake_request", detail=str(exc))
+
+    # U5 (family-memorial enabler): when the wake request names a
+    # ``template_id``, resolve the template's ``figure_artifact_id`` and
+    # bind the bundle to ``ai_id``'s SessionManager — same contract as
+    # the adopt path (U2) but available without the full tenant
+    # onboarding overhead. The bake-worker uses this so a freshly-baked
+    # per-memorial bundle is bound to its memorial's ai_id immediately
+    # after wake, with no second HTTP round-trip.
+    #
+    # Empty ``template_id`` keeps legacy wake-without-binding behaviour
+    # (used by ``bootstrap-einstein`` and other operator scripts that
+    # rely on the vertical factory to attach a global bundle).
+    if wake.template_id:
+        stores = request.app.get(CONTROL_PLANE_STORES_KEY)
+        if stores is not None:
+            try:
+                template = await stores.templates.get(wake.template_id)
+            except TemplateNotFound:
+                return _json_error(
+                    status=404,
+                    error="template_not_found",
+                    detail=(
+                        f"wake.template_id={wake.template_id!r} does not "
+                        "resolve to a registered template; the bake-worker "
+                        "must POST /dlaas/templates before /wake."
+                    ),
+                )
+            bind_figure_artifact_to_ai_id(
+                launcher, ai_id, template.figure_artifact_id
+            )
     return web.json_response({"status": "ok", **status.to_json()})
 
 
@@ -1793,7 +1832,9 @@ async def _handle_asset_intake(request: web.Request) -> web.Response:
             return envelope_or_error
         try:
             session = await _get_or_create_session(
-                _resolve_session_manager(request, ai_id), intake_request.session_id
+                _resolve_session_manager(request, ai_id),
+                intake_request.session_id,
+                user_id=intake_request.end_user_ref,
             )
             from lifeform_ingestion import IngestionPipeline
 
@@ -2152,7 +2193,11 @@ async def _dispatch_envelope_to_instance(
         )
 
     try:
-        session = await _get_or_create_session(manager, envelope.session_id)
+        session = await _get_or_create_session(
+            manager,
+            envelope.session_id,
+            user_id=envelope.end_user_ref,
+        )
     except SessionAlreadyExistsError as exc:  # pragma: no cover - racy
         return _json_error(
             status=409, error="session_already_exists", detail=str(exc)
@@ -2483,7 +2528,9 @@ def _list_debug_events(request: web.Request) -> list[dict[str, Any]]:
     ]
     filters = {
         "app_id": request.query.get("app_id", ""),
+        "ai_id": request.query.get("ai_id", ""),
         "tenant_id": request.query.get("tenant_id", ""),
+        "session_id": request.query.get("session_id", ""),
         "end_user_ref": request.query.get("end_user_ref", ""),
         "event_type": request.query.get("event_type", ""),
     }
@@ -2522,7 +2569,9 @@ def _debug_events_for_analysis(
     ) or [event.to_json() for event in _debug_event_store(request).values()]
     filters = {
         "app_id": analysis_request.app_id,
+        "ai_id": analysis_request.ai_id,
         "tenant_id": analysis_request.tenant_id,
+        "session_id": analysis_request.session_id,
         "end_user_ref": analysis_request.end_user_ref,
     }
     for key, value in filters.items():
@@ -3100,12 +3149,17 @@ async def _read_json_or_error(
         return _json_error(status=400, error="invalid_json_body", detail=str(exc))
 
 
-async def _get_or_create_session(manager: SessionManager, session_id: str):
+async def _get_or_create_session(
+    manager: SessionManager,
+    session_id: str,
+    *,
+    user_id: str | None = None,
+):
     """Reuse an existing session if present; otherwise create with that id."""
     try:
         return await manager.get_session(session_id)
     except SessionNotFoundError:
-        return await manager.create_session(session_id=session_id)
+        return await manager.create_session(session_id=session_id, user_id=user_id)
 
 
 def _json_error(

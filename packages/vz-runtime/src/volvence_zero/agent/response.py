@@ -21,6 +21,18 @@ class AgentResponse:
     The ``rationale`` string remains the human-readable summary and
     will continue to embed the same tokens for log readability, but
     its exact phrasing is **not** a contract.
+
+    ``evidence_pointers`` (U6 / family-memorial enabler) carries the
+    structured L3 ``EvidencePointer`` records the figure-vertical's
+    ``GroundedDecoder`` produces when the response was grounded
+    against a ``FigureRetrievalIndex``. Each entry is a JSON-safe
+    dict (``raw_locator`` / ``chunk_id`` / ``source_envelope_id`` /
+    ``locator_kind`` / ``document_id`` / ``page`` / ... — see
+    ``lifeform_expression.grounded_decoder.EvidencePointer`` for the
+    typed source). Empty tuple means either no figure bundle was
+    attached or no assertions cleared the verify threshold; consumers
+    must not treat absence as "no evidence required" — read
+    ``rationale_tags`` for the ``l3_grounded_verify=...`` summary.
     """
 
     text: str
@@ -28,6 +40,7 @@ class AgentResponse:
     abstract_action: str | None
     rationale: str
     rationale_tags: tuple[str, ...] = ()
+    evidence_pointers: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)

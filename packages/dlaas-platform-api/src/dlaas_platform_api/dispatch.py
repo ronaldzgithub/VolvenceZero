@@ -136,11 +136,11 @@ async def _handle_chat(
             detail="interaction_type=chat requires a non-empty human_brief",
         )
     native_tool_intent = _native_tool_intent(envelope.structured_context)
-    if native_tool_intent is not None:
+    loop_mode = _optional_str(
+        envelope.structured_context, "tool_loop_mode", default="client"
+    )
+    if native_tool_intent is not None or loop_mode == "server":
         invoker = _session_invoker(session)
-        loop_mode = _optional_str(
-            envelope.structured_context, "tool_loop_mode", default="client"
-        )
         if loop_mode == "server":
             from lifeform_affordance import ToolLoopOrchestrator, ToolLoopPolicy
 
@@ -149,11 +149,19 @@ async def _handle_chat(
                 invoker=invoker,
                 policy=ToolLoopPolicy(server_side_execution=True),
                 contract_id=envelope.contract_id,
+                granted_consents=frozenset(
+                    _optional_str_sequence(
+                        envelope.structured_context,
+                        "granted_consents",
+                    )
+                ),
             )
             loop_result = await orchestrator.run(
                 session=session,
                 user_input=envelope.human_brief,
-                initial_intents=(native_tool_intent,),
+                initial_intents=(
+                    (native_tool_intent,) if native_tool_intent is not None else ()
+                ),
             )
             final_text = getattr(loop_result.final_turn_result.response, "text", "") or ""
             acts = [text_act(final_text)]
@@ -173,7 +181,20 @@ async def _handle_chat(
                 interaction_type=envelope.interaction_type.value,
                 output_acts=tuple(acts),
                 protocol_version=envelope.protocol_version,
-                extra={"tool_loop": {"stop_reason": loop_result.stop_reason.value}},
+                extra={
+                    "tool_loop": {
+                        "stop_reason": loop_result.stop_reason.value,
+                        "steps": [_tool_loop_step_to_json(step) for step in loop_result.steps],
+                    }
+                },
+            )
+        if native_tool_intent is None:
+            raise DispatchError(
+                code="missing_tool_choice",
+                detail=(
+                    "structured_context.tool_loop_mode must be 'server' when "
+                    "no structured_context.tool_choice is provided."
+                ),
             )
         return ok_envelope(
             ai_id=ai_id,
@@ -255,6 +276,31 @@ def _native_tool_intent(ctx: Mapping[str, Any]) -> Any:
         plan_ref=_optional_str(ctx, "plan_ref", default=None) or None,
         source="dlaas_native",
     )
+
+
+def _tool_loop_step_to_json(step: Any) -> dict[str, Any]:
+    intent = step.intent
+    invocation = step.invocation
+    payload: dict[str, Any] = {
+        "step_index": step.step_index,
+        "tool_name": intent.descriptor_name,
+        "arguments": dict(intent.parameters),
+        "call_id": intent.stable_call_id,
+        "plan_ref": intent.plan_ref,
+        "status": step.status,
+        "elapsed_ms": step.elapsed_ms,
+    }
+    if invocation is not None:
+        payload["invocation"] = {
+            "descriptor_name": invocation.descriptor_name,
+            "status": invocation.status.value,
+            "payload": dict(invocation.payload or {}),
+            "error_class": invocation.error_class,
+            "error_detail": invocation.error_detail,
+            "tool_event_ids": list(invocation.tool_event_ids),
+            "task_id": invocation.task_id,
+        }
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -865,6 +911,33 @@ def _optional_str(
     if value is None:
         return default if default is not None else ""
     return str(value)
+
+
+def _optional_str_sequence(ctx: Mapping[str, Any], key: str) -> tuple[str, ...]:
+    raw = ctx.get(key, ())
+    if raw is None:
+        return ()
+    if isinstance(raw, str):
+        raise DispatchError(
+            code="invalid_field_type",
+            detail=f"structured_context.{key} must be a list of strings, not a string.",
+        )
+    try:
+        values = tuple(raw)
+    except TypeError as exc:
+        raise DispatchError(
+            code="invalid_field_type",
+            detail=f"structured_context.{key} must be a list of strings.",
+        ) from exc
+    out: list[str] = []
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            raise DispatchError(
+                code="invalid_field_type",
+                detail=f"structured_context.{key} entries must be non-empty strings.",
+            )
+        out.append(value.strip())
+    return tuple(out)
 
 
 def _optional_unit_float(

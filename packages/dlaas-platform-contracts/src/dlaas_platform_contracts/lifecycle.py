@@ -29,13 +29,24 @@ class InstanceLifecycleState(str, Enum):
 
 @dataclass(frozen=True)
 class WakeRequest:
-    """Request body for ``POST /dlaas/v1/instances/{ai_id}/wake``."""
+    """Request body for ``POST /dlaas/v1/instances/{ai_id}/wake``.
+
+    ``template_id`` (U5 / family-memorial enabler): when set, the wake
+    handler resolves the named template's ``figure_artifact_id`` and
+    binds the corresponding ``FigureArtifactBundle`` to the awakened
+    ``ai_id``'s ``SessionManager``. This lets bake-worker-style
+    operator flows (mint template -> wake) inherit the per-ai_id L3
+    retrieval index / L4 coverage map without going through the full
+    tenant-onboarding adopt path. Empty string keeps the legacy
+    "wake without binding" behaviour.
+    """
 
     contract_id: str = ""
     runtime_template_id: str = ""
     reason: str = "on_demand"
     strategy: str = "on_demand"
     prewarm: Mapping[str, Any] = field(default_factory=dict)
+    template_id: str = ""
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any] | None) -> "WakeRequest":
@@ -52,6 +63,7 @@ class WakeRequest:
             reason=str(data.get("reason", "on_demand") or "on_demand"),
             strategy=str(data.get("strategy", "on_demand") or "on_demand"),
             prewarm=dict(prewarm),
+            template_id=str(data.get("template_id", "") or ""),
         )
 
     def to_json(self) -> dict[str, Any]:

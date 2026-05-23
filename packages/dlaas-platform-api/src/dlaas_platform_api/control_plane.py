@@ -81,6 +81,58 @@ CONTROL_PLANE_STORES_KEY = "dlaas_control_plane_stores"
 """``app[CONTROL_PLANE_STORES_KEY]`` — typed handle to all stores."""
 
 
+def bind_figure_artifact_to_ai_id(
+    instance_manager: InstanceManager,
+    ai_id: str,
+    figure_artifact_id: str,
+) -> bool:
+    """Resolve ``figure_artifact_id`` + bind to ``ai_id``'s SessionManager.
+
+    Shared by both the **adopt** path (U2 — full tenant onboarding) and
+    the **wake** path (U5 — bake-worker / operator lazy materialize),
+    so the bind contract is identical regardless of how the ai_id was
+    brought up.
+
+    Returns:
+        True when a bundle was found and bound on the SessionManager;
+        False when ``figure_artifact_id`` is empty, when the
+        ``lifeform-service`` wheel is not installed (figure-vertical
+        absent), or when the lookup defaulted to None.
+
+    Raises:
+        FigureBundleNotFound: when ``figure_artifact_id`` is non-empty
+            but the in-process ``FigureBundleStore`` has not registered
+            that id. This is the fail-loud signal that the template
+            references a bundle the bundle-root scanner did not pick
+            up (U1) — operator must check ``FIGURE_BUNDLE_ROOT`` mount
+            + scanner run order. Caller surfaces as a typed 503.
+        InstanceNotFound: when ``ai_id`` is not present on
+            ``instance_manager`` — same fail-loud signal as everywhere
+            else in this module.
+
+    No-swallow per ``no-swallow-errors-no-hasattr-abuse.mdc``: we only
+    return False on the documented "nothing to bind" branches above.
+    """
+
+    if not figure_artifact_id:
+        return False
+    try:
+        from lifeform_service import (
+            lookup_figure_bundle,
+            register_bundle_persona_lora,
+        )
+    except ImportError:
+        return False
+    bundle = lookup_figure_bundle(default=None, bundle_id=figure_artifact_id)
+    if bundle is None:
+        return False
+    session_manager = instance_manager.get(ai_id)
+    session_manager.bind_figure_bundle(bundle)
+    if register_bundle_persona_lora is not None:
+        register_bundle_persona_lora(bundle)
+    return True
+
+
 class _Stores:
     """Container for the per-resource stores (assembled from one Registry)."""
 
@@ -940,47 +992,19 @@ async def _handle_adopt(request: web.Request) -> web.Response:
         )
         return _error(503, "vertical_not_registered", str(exc))
 
-    # Debt #22 closure: when the template names a figure_artifact_id,
-    # resolve it through the lifeform-service public surface and
-    # bind it to both the session manager (so subsequent sessions
-    # carry the bundle to their synthesizer) AND the persona LoRA
-    # pool (so the runtime can hot-swap the persona delta when
-    # generating). The two helpers are import-guarded so a
-    # platform install without the figure-vertical wheel still
-    # adopts non-figure templates without crashing.
-    # ``TemplateSpec.figure_artifact_id`` is a typed field (default ``""``)
-    # in dlaas-platform-contracts; direct access keeps R8 / SSOT.
-    #
-    # Per-``ai_id`` synthesizer binding (U2 / family-memorial enabler):
-    # after the bundle is resolved, we pull the typed ``SessionManager``
-    # for ``final_contract.ai_id`` from the launcher and call its public
-    # ``bind_figure_bundle(bundle)`` method. ``SessionManager`` is a
-    # typed return value of ``InstanceManager.get`` so there is no
-    # ``hasattr`` defence; the call fails loud if the manager is gone
-    # (raising :class:`InstanceNotFound`), which is the correct
-    # contract surface for "adopt completed but the instance was
-    # racy-released between ``acquire`` and ``bind``". Without this
-    # call, every memorial in the same process shares the global
-    # default bundle (Einstein) and citations cross-contaminate.
-    figure_artifact_id = template.figure_artifact_id
-    if figure_artifact_id:
-        try:
-            from lifeform_service import (
-                lookup_figure_bundle,
-                register_bundle_persona_lora,
-            )
-        except ImportError:
-            lookup_figure_bundle = None
-            register_bundle_persona_lora = None
-        if lookup_figure_bundle is not None:
-            bundle = lookup_figure_bundle(
-                default=None, bundle_id=figure_artifact_id
-            )
-            if bundle is not None:
-                session_manager = instance_manager.get(final_contract.ai_id)
-                session_manager.bind_figure_bundle(bundle)
-                if register_bundle_persona_lora is not None:
-                    register_bundle_persona_lora(bundle)
+    # Debt #22 closure + U2 (family-memorial enabler): when the
+    # template names a ``figure_artifact_id``, resolve it through the
+    # lifeform-service public surface and bind it to the
+    # ``SessionManager`` of the freshly-acquired ``ai_id`` so
+    # subsequent sessions carry the bundle into their synthesizer's
+    # L1 / L3 / L4 enforcers. The shared
+    # ``bind_figure_artifact_to_ai_id`` helper (above) is reused on
+    # the **wake** path (U5) so adopt and wake produce the same
+    # binding behaviour. Helper is fail-loud on missing bundle id
+    # (``FigureBundleNotFound``); empty figure_artifact_id is a noop.
+    bind_figure_artifact_to_ai_id(
+        instance_manager, final_contract.ai_id, template.figure_artifact_id
+    )
 
     persons_registered: list[dict[str, Any]] = []
     for person_payload in data.get("focus_persons") or ():

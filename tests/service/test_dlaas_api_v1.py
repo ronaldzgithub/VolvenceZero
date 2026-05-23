@@ -259,6 +259,102 @@ async def test_asset_intake_simple_ingest_text(slice1_client):
     assert body["ingestion_report"]["all_succeeded"] is True
 
 
+async def test_debug_registration_ingest_and_analysis(slice1_client):
+    app_resp = await slice1_client.post(
+        "/dlaas/v1/debug/apps",
+        json={
+            "app_id": "repair30",
+            "display_name": "repair30",
+            "allowed_ai_ids": ["ai_v1_slice1"],
+            "allowed_event_types": ["chat.completed"],
+        },
+    )
+    assert app_resp.status == 201, await app_resp.text()
+
+    schema_resp = await slice1_client.post(
+        "/dlaas/v1/debug/apps/repair30/schemas",
+        json={
+            "schema_version": "repair30.debug.v1",
+            "event_types": ["chat.completed"],
+            "fields": [
+                {
+                    "name": "status",
+                    "type": "number",
+                    "meaning": "HTTP status returned by DLaaS.",
+                    "owner": "dlaas",
+                    "privacy_level": "internal",
+                    "required": True,
+                },
+                {
+                    "name": "ok",
+                    "type": "boolean",
+                    "meaning": "Whether the upstream call succeeded.",
+                    "owner": "dlaas",
+                    "privacy_level": "internal",
+                    "required": True,
+                },
+            ],
+        },
+    )
+    assert schema_resp.status == 201, await schema_resp.text()
+
+    bad_event = await slice1_client.post(
+        "/dlaas/v1/debug/events",
+        json={
+            "app_id": "repair30",
+            "schema_version": "repair30.debug.v1",
+            "ai_id": "ai_v1_slice1",
+            "session_id": "sess_debug",
+            "event_type": "chat.completed",
+            "stage": "dlaas.chat",
+            "fields": {"status": 200, "ok": True, "extra": "blocked"},
+        },
+    )
+    assert bad_event.status == 400, await bad_event.text()
+
+    event_resp = await slice1_client.post(
+        "/dlaas/v1/debug/events",
+        json={
+            "app_id": "repair30",
+            "schema_version": "repair30.debug.v1",
+            "ai_id": "ai_v1_slice1",
+            "session_id": "sess_debug",
+            "event_type": "chat.completed",
+            "stage": "dlaas.chat",
+            "fields": {"status": 200, "ok": True},
+        },
+    )
+    assert event_resp.status == 201, await event_resp.text()
+    event = await event_resp.json()
+    assert event["debug_event_id"].startswith("debug_evt_")
+
+    listed = await slice1_client.get(
+        "/dlaas/v1/debug/events?app_id=repair30&session_id=sess_debug"
+    )
+    assert listed.status == 200, await listed.text()
+    assert (await listed.json())["events"][0]["debug_event_id"] == event["debug_event_id"]
+
+    analysis_resp = await slice1_client.post(
+        "/dlaas/v1/debug/analysis",
+        json={
+            "prompt": "Summarize debug evidence for this repair30 session.",
+            "selectors": {
+                "app_id": "repair30",
+                "ai_id": "ai_v1_slice1",
+                "session_id": "sess_debug",
+            },
+            "include_readouts": False,
+            "include_explain": False,
+            "include_audit": True,
+        },
+    )
+    assert analysis_resp.status == 201, await analysis_resp.text()
+    analysis = await analysis_resp.json()
+    assert analysis["artifact_id"].startswith("debug_artifact_")
+    assert analysis["evidence"]["debug_event_count"] == 1
+    assert analysis["recommendations"]
+
+
 async def test_asset_intake_deep_read_creates_training_job(slice1_client):
     resp = await slice1_client.post(
         "/dlaas/v1/instances/ai_v1_slice1/assets/intake",
