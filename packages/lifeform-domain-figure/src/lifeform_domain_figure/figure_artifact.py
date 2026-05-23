@@ -43,6 +43,10 @@ from volvence_zero.application import DomainExperiencePackage
 from volvence_zero.substrate import SubstrateFingerprint, fingerprint_set_sha256
 
 from lifeform_domain_figure.coverage_map import FigureCoverageMap
+from lifeform_domain_figure.presence_artifact import (
+    FigurePresenceArtifact,
+    presence_fingerprint,
+)
 from lifeform_domain_figure.profile import HistoricalFigureProfile
 from lifeform_domain_figure.retrieval_index import FigureRetrievalIndex
 from lifeform_domain_figure.style_prior import FigureStylePrior
@@ -112,6 +116,14 @@ class FigureArtifactBundle:
     refusal_eval_report: object | None = None
     grounding_eval_report: object | None = None
     voice_blind_test_report: object | None = None
+    # L0 visual presence (web digital-human + lipsync metadata). Default
+    # ``None`` keeps existing bundles byte-stable: only when a non-None
+    # presence artifact is attached is its fingerprint folded into
+    # ``integrity_hash``. The actual rendering plane lives in the
+    # deploy-side ``apps/presence-service``; this field carries only the
+    # hashed consent receipt + persona id + license label so audit can
+    # reverse-look up which legal posture produced this bundle.
+    presence: FigurePresenceArtifact | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
@@ -148,6 +160,11 @@ class FigureArtifactBundle:
                 "FigureArtifactBundle: style_prior.figure_id must "
                 "match bundle.figure_id"
             )
+        if self.presence is not None and self.figure_id != self.presence.figure_id:
+            raise ValueError(
+                "FigureArtifactBundle: presence.figure_id must "
+                "match bundle.figure_id"
+            )
 
 
 def compute_bundle_integrity_hash(
@@ -163,6 +180,7 @@ def compute_bundle_integrity_hash(
     metadata_digest_fingerprint: str = "",
     provenance_fingerprint: str = "",
     compatible_substrates: tuple[SubstrateFingerprint, ...] = (),
+    presence_integrity: str = "",
 ) -> str:
     """Deterministic SHA-256 over the bundle's load-bearing identity fields.
 
@@ -183,6 +201,14 @@ def compute_bundle_integrity_hash(
     :class:`SourceProvenance` tuple) folds the curator's license /
     capture-method declarations into the bundle's identity so a
     license-only edit yields a fresh bundle id.
+
+    ``presence_integrity`` follows the same byte-stable rule for the
+    L0 visual presence layer: empty default keeps legacy bundles'
+    hashes unchanged; non-empty (the
+    :class:`FigurePresenceArtifact.integrity_hash`) folds reference
+    image / consent token hash / license label / engine subset into
+    the bundle id so a likeness re-bake or consent revoke yields a
+    fresh bundle.
     """
 
     payload: tuple[object, ...] = (
@@ -203,6 +229,8 @@ def compute_bundle_integrity_hash(
     substrate_fp = fingerprint_set_sha256(compatible_substrates)
     if substrate_fp:
         payload = payload + (("compatible_substrates", substrate_fp),)
+    if presence_integrity:
+        payload = payload + (("presence", presence_integrity),)
     return hashlib.sha256(repr(payload).encode("utf-8")).hexdigest()
 
 
@@ -215,6 +243,8 @@ def bundle_id_from_hash(figure_id: str, integrity_hash: str) -> str:
 __all__ = [
     "SCHEMA_VERSION",
     "FigureArtifactBundle",
+    "FigurePresenceArtifact",
     "bundle_id_from_hash",
     "compute_bundle_integrity_hash",
+    "presence_fingerprint",
 ]

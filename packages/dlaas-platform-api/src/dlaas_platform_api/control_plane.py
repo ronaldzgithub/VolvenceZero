@@ -22,9 +22,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import pathlib
 import time
 from collections.abc import Mapping
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 from aiohttp import web
 
@@ -45,6 +48,7 @@ from dlaas_platform_launcher import (
     INSTANCE_MANAGER_APP_KEY,
     InstanceManager,
 )
+from dlaas_platform_launcher.instance_manager import InstanceNotFound
 from dlaas_platform_registry import (
     AssetNotFound,
     AssetStore,
@@ -81,11 +85,54 @@ CONTROL_PLANE_STORES_KEY = "dlaas_control_plane_stores"
 """``app[CONTROL_PLANE_STORES_KEY]`` — typed handle to all stores."""
 
 
+BindReason = Literal[
+    "ok",
+    "empty_figure_artifact_id",
+    "lifeform_service_absent",
+    "bundle_not_found",
+    "instance_not_found",
+]
+
+
+@dataclass(frozen=True)
+class BindResult:
+    """Outcome of :func:`bind_figure_artifact_to_ai_id`.
+
+    The previous bool return forced the caller to either swallow
+    failures (which defeated the trust contract — adopt would return
+    200 even when the bundle was missing) or to mirror the helper's
+    internal logic to figure out why the bool was False.
+
+    This typed result lets adopt / wake map every documented branch
+    to a typed HTTP error:
+
+    * ``ok`` — figure_artifact_id resolved + bound; happy path.
+    * ``empty_figure_artifact_id`` — template carries no bundle id;
+      the session falls back to the global default bundle (also a
+      happy path for non-figure templates).
+    * ``lifeform_service_absent`` — figure-vertical wheel not
+      installed on this dlaas-platform deploy; non-figure tenants
+      continue to work, figure-tenants get a typed 503.
+    * ``bundle_not_found`` — template names a bundle that the
+      in-process FigureBundleStore has not registered. Caller surfaces
+      as 503 ``figure_bundle_not_registered``; operator needs to run
+      U8 rescan (``POST /dlaas/control/figure-bundles/rescan``) and
+      check FIGURE_BUNDLE_ROOT mount.
+    * ``instance_not_found`` — ``ai_id`` not present on the launcher;
+      caller surfaces as 503 ``ai_id_not_acquired`` — adopt/wake
+      should have acquired the instance moments ago, so this points
+      at a launcher / lifecycle race condition.
+    """
+
+    bound: bool
+    reason: BindReason
+
+
 def bind_figure_artifact_to_ai_id(
     instance_manager: InstanceManager,
     ai_id: str,
     figure_artifact_id: str,
-) -> bool:
+) -> BindResult:
     """Resolve ``figure_artifact_id`` + bind to ``ai_id``'s SessionManager.
 
     Shared by both the **adopt** path (U2 — full tenant onboarding) and
@@ -94,43 +141,88 @@ def bind_figure_artifact_to_ai_id(
     brought up.
 
     Returns:
-        True when a bundle was found and bound on the SessionManager;
-        False when ``figure_artifact_id`` is empty, when the
-        ``lifeform-service`` wheel is not installed (figure-vertical
-        absent), or when the lookup defaulted to None.
+        BindResult — :attr:`BindResult.bound` is True only when a real
+        bundle was resolved and bound. Every False branch carries a
+        typed :attr:`BindResult.reason` enabling the caller to surface
+        a typed HTTP error rather than collapsing them all to 200.
 
-    Raises:
-        FigureBundleNotFound: when ``figure_artifact_id`` is non-empty
-            but the in-process ``FigureBundleStore`` has not registered
-            that id. This is the fail-loud signal that the template
-            references a bundle the bundle-root scanner did not pick
-            up (U1) — operator must check ``FIGURE_BUNDLE_ROOT`` mount
-            + scanner run order. Caller surfaces as a typed 503.
-        InstanceNotFound: when ``ai_id`` is not present on
-            ``instance_manager`` — same fail-loud signal as everywhere
-            else in this module.
-
-    No-swallow per ``no-swallow-errors-no-hasattr-abuse.mdc``: we only
-    return False on the documented "nothing to bind" branches above.
+    Does not raise: ``FigureBundleNotFound`` / ``InstanceNotFound``
+    are captured into BindResult reasons so the caller controls the
+    HTTP mapping in one place.
     """
 
     if not figure_artifact_id:
-        return False
+        return BindResult(bound=False, reason="empty_figure_artifact_id")
     try:
-        from lifeform_service import (
+        from lifeform_service import (  # noqa: PLC0415
+            FigureBundleNotFound,
             lookup_figure_bundle,
             register_bundle_persona_lora,
         )
     except ImportError:
-        return False
-    bundle = lookup_figure_bundle(default=None, bundle_id=figure_artifact_id)
+        return BindResult(bound=False, reason="lifeform_service_absent")
+    try:
+        bundle = lookup_figure_bundle(default=None, bundle_id=figure_artifact_id)
+    except FigureBundleNotFound:
+        # The defaulting overload above should never raise — but if
+        # the lifeform-service API contract drifts, treat it the same
+        # as bundle == None: a typed not-found rather than a silent
+        # default.
+        return BindResult(bound=False, reason="bundle_not_found")
     if bundle is None:
-        return False
-    session_manager = instance_manager.get(ai_id)
+        return BindResult(bound=False, reason="bundle_not_found")
+    try:
+        session_manager = instance_manager.get(ai_id)
+    except InstanceNotFound:
+        return BindResult(bound=False, reason="instance_not_found")
     session_manager.bind_figure_bundle(bundle)
     if register_bundle_persona_lora is not None:
         register_bundle_persona_lora(bundle)
-    return True
+    return BindResult(bound=True, reason="ok")
+
+
+_BIND_REASON_TO_ERROR_CODE: dict[BindReason, str] = {
+    "ok": "ok",
+    "empty_figure_artifact_id": "no_figure_artifact_id",
+    "lifeform_service_absent": "figure_vertical_unavailable",
+    "bundle_not_found": "figure_bundle_not_registered",
+    "instance_not_found": "ai_id_not_acquired",
+}
+
+
+def _bind_failure_detail(
+    figure_artifact_id: str, ai_id: str, reason: BindReason
+) -> str:
+    """Operator-friendly diagnostic for a failed bundle bind.
+
+    Per-reason hint guides recovery: the U8 rescan endpoint for
+    bundle_not_found; mount + module install check for
+    lifeform_service_absent; launcher race for instance_not_found.
+    """
+
+    if reason == "bundle_not_found":
+        return (
+            f"figure_artifact_id={figure_artifact_id!r} is not registered "
+            f"in the in-process FigureBundleStore. The bake-worker writes "
+            f"bundles under FIGURE_BUNDLE_ROOT; run "
+            f"POST /dlaas/control/figure-bundles/rescan to refresh the "
+            f"in-process registry, and verify FIGURE_BUNDLE_ROOT is "
+            f"mounted on this dlaas-platform pod."
+        )
+    if reason == "lifeform_service_absent":
+        return (
+            "lifeform-service wheel is not installed on this dlaas-platform; "
+            "figure-vertical (and therefore figure-bundle binding) is "
+            "unavailable. Operator: install lifeform-service or stop "
+            "minting templates with figure_artifact_id."
+        )
+    if reason == "instance_not_found":
+        return (
+            f"ai_id={ai_id!r} is not registered on the InstanceManager. "
+            "The lifecycle path that acquired this ai_id raced with bind; "
+            "retry adopt/wake."
+        )
+    return f"reason={reason}"
 
 
 class _Stores:
@@ -185,6 +277,25 @@ def attach_control_plane_routes(
     R.add_get("/dlaas/tenants/{tenant_id}/assets", _handle_list_tenant_assets)
 
     R.add_post("/dlaas/templates", _handle_create_template)
+    # U7 (family-memorial enabler): operator/control-plane variant of
+    # template create. Uses control_plane_secret auth and accepts an
+    # explicit ``tenant_id`` in the body. Operator services such as
+    # ``family-bake-worker`` cannot mint tenant API keys for the
+    # operator-owned tenant (e.g. ``family_memorial_operator``) and
+    # would otherwise need to do a tenant bootstrap on every deploy.
+    R.add_post(
+        "/dlaas/control/templates",
+        _handle_control_plane_template_create,
+    )
+    # U8 (family-memorial enabler): trigger an in-process re-scan of
+    # FIGURE_BUNDLE_ROOT so a freshly-baked bundle is picked up by
+    # the platform's FigureBundleStore without a process restart. The
+    # operator alternative — restarting dlaas-platform after every
+    # bake — drops live sessions and is not acceptable in production.
+    R.add_post(
+        "/dlaas/control/figure-bundles/rescan",
+        _handle_control_plane_rescan_bundles,
+    )
     R.add_get("/dlaas/tenants/{tenant_id}/templates", _handle_list_tenant_templates)
     R.add_get("/dlaas/templates/{template_id}", _handle_get_template)
     R.add_patch("/dlaas/templates/{template_id}", _handle_patch_template)
@@ -427,6 +538,146 @@ async def _handle_create_template(request: web.Request) -> web.Response:
             "template_id": spec.template_id,
             "version": spec.current_version,
             **spec.to_json(),
+        }
+    )
+
+
+async def _handle_control_plane_template_create(
+    request: web.Request,
+) -> web.Response:
+    """U7: operator-side template create authorised by control-plane secret.
+
+    Used by services (e.g. ``docker/family-bake-worker``) that need
+    to mint templates against a static "operator" tenant without
+    holding tenant API keys. The body MUST include ``tenant_id``
+    explicitly; the registry's tenant store is consulted to confirm
+    the tenant exists before delegating to
+    ``stores.templates.create``.
+
+    Apart from the auth surface and the explicit ``tenant_id``, the
+    request shape and the response shape mirror
+    :func:`_handle_create_template` so client code can share the
+    payload-building logic.
+    """
+
+    require_control_plane_secret(request)
+    data = await _read_json(request)
+    tenant_id = _required_str(data, "tenant_id")
+    stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    try:
+        await stores.tenants.get(tenant_id)
+    except TenantNotFound:
+        return _error(404, "tenant_not_found", f"tenant_id={tenant_id!r}")
+    try:
+        citation_policy = _parse_citation_policy(data.get("citation_policy"))
+        coverage_policy = _parse_coverage_policy(data.get("coverage_policy"))
+    except ValueError as exc:
+        return _error(400, "invalid_template_policy", str(exc))
+    spec = await stores.templates.create(
+        tenant_id=tenant_id,
+        template_name=_required_str(data, "template_name"),
+        domain=str(data.get("domain", "generic") or "generic"),
+        description=str(data.get("description", "") or ""),
+        runtime_template_id=str(data.get("runtime_template_id", "") or ""),
+        base_persona=data.get("base_persona") or {},
+        persona_spec=data.get("persona_spec") or {},
+        seed_config=data.get("seed_config") or {},
+        figure_artifact_id=str(data.get("figure_artifact_id", "") or ""),
+        citation_policy=citation_policy,
+        coverage_policy=coverage_policy,
+        figure_time_window=str(data.get("figure_time_window", "") or ""),
+    )
+    return web.json_response(
+        {
+            "status": "ok",
+            "tenant_id": tenant_id,
+            "template_id": spec.template_id,
+            "version": spec.current_version,
+            **spec.to_json(),
+        }
+    )
+
+
+async def _handle_control_plane_rescan_bundles(
+    request: web.Request,
+) -> web.Response:
+    """U8: rescan ``FIGURE_BUNDLE_ROOT`` and register any newly-baked
+    bundles into the in-process :class:`FigureBundleStore`.
+
+    Triggered by ``family-bake-worker`` after a successful bake +
+    before the subsequent wake call. Idempotent — :func:`register`
+    on the store overwrites by content-addressed ``bundle_id``.
+
+    Request body (all optional):
+        ``root_dir``: override the env-derived path. Tests use this
+            to point the scanner at a temp dir; in production it
+            should remain unset and the env var wins.
+        ``figure_id``: pass-through filter to scanner.
+        ``reason``: caller-supplied diagnostic string (logged).
+
+    Returns a JSON ``BundleScanReport`` so the caller can confirm
+    the freshly-baked bundle id appears in ``bundle_ids`` before
+    issuing wake. ``registered_count == 0`` is a valid response and
+    means the scanner found nothing new (or nothing at all on a
+    fresh install).
+    """
+
+    require_control_plane_secret(request)
+    try:
+        # ``lifeform-service`` is the figure-vertical package and is
+        # optional for non-figure deploys. Import lazily so the
+        # control plane stays usable in deploys without it; return
+        # a typed 501 instead of a generic 500 when missing.
+        from lifeform_service import scan_and_register_bundles  # noqa: PLC0415
+    except ImportError:
+        return _error(
+            501,
+            "lifeform_service_absent",
+            "lifeform-service wheel is not installed on this dlaas-platform; "
+            "figure-bundle rescan is not available.",
+        )
+    try:
+        data = await _read_json(request)
+    except web.HTTPException:
+        data = {}
+    root_dir_raw = str(data.get("root_dir", "") or "").strip()
+    figure_id_raw = str(data.get("figure_id", "") or "").strip()
+    reason = str(data.get("reason", "") or "").strip()
+    root_dir = root_dir_raw or os.environ.get("FIGURE_BUNDLE_ROOT", "").strip()
+    if not root_dir:
+        return _error(
+            400,
+            "figure_bundle_root_unset",
+            "FIGURE_BUNDLE_ROOT is not set on the server and no root_dir "
+            "override was supplied in the request body.",
+        )
+    try:
+        report = scan_and_register_bundles(
+            pathlib.Path(root_dir),
+            figure_id=figure_id_raw or None,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        return _error(
+            422,
+            "figure_bundle_scan_failed",
+            f"scan_and_register_bundles({root_dir!r}) raised: {exc}",
+        )
+    _LOG.info(
+        "[control_plane] figure-bundles rescan root=%s registered=%d already=%d "
+        "figure_filter=%s reason=%s",
+        report.root_dir,
+        report.registered_count,
+        report.already_registered_count,
+        figure_id_raw or "(none)",
+        reason or "(none)",
+    )
+    return web.json_response(
+        {
+            "status": "ok",
+            "root_dir": str(report.root_dir),
+            "registered_count": report.registered_count,
+            "already_registered_count": report.already_registered_count,
+            "bundle_ids": list(report.bundle_ids),
         }
     )
 
@@ -1000,11 +1251,31 @@ async def _handle_adopt(request: web.Request) -> web.Response:
     # L1 / L3 / L4 enforcers. The shared
     # ``bind_figure_artifact_to_ai_id`` helper (above) is reused on
     # the **wake** path (U5) so adopt and wake produce the same
-    # binding behaviour. Helper is fail-loud on missing bundle id
-    # (``FigureBundleNotFound``); empty figure_artifact_id is a noop.
-    bind_figure_artifact_to_ai_id(
+    # binding behaviour.
+    bind_result = bind_figure_artifact_to_ai_id(
         instance_manager, final_contract.ai_id, template.figure_artifact_id
     )
+    if not bind_result.bound and bind_result.reason in (
+        "bundle_not_found",
+        "instance_not_found",
+        "lifeform_service_absent",
+    ):
+        # Roll the contract back to FAILED so the operator's recovery
+        # path is "fix the bundle / re-run adopt" rather than
+        # "discover stale PROVISIONING".
+        await stores.contracts.update_status(
+            contract_id=final_contract.contract_id,
+            contract_status=ContractStatus.FAILED,
+        )
+        return _error(
+            503,
+            _BIND_REASON_TO_ERROR_CODE[bind_result.reason],
+            _bind_failure_detail(
+                template.figure_artifact_id,
+                final_contract.ai_id,
+                bind_result.reason,
+            ),
+        )
 
     persons_registered: list[dict[str, Any]] = []
     for person_payload in data.get("focus_persons") or ():

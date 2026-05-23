@@ -128,10 +128,27 @@ from lifeform_domain_figure.bundle_io import (
 from lifeform_domain_figure.compiler import (
     FigureBundleInputs,
     attach_lora_to_bundle,
+    attach_presence_to_bundle,
     attach_steering_to_bundle,
     build_figure_artifact_bundle,
     build_figure_package,
     build_figure_vitals_bootstrap,
+)
+from lifeform_domain_figure.presence_affordance import (
+    CONSENT_LIKENESS_RENDER,
+    CONSENT_VOICE_CLONE,
+    PRESENCE_AFFORDANCE_DESCRIPTORS,
+    TALKING_HEAD_VIDEO_DESCRIPTOR,
+)
+from lifeform_domain_figure.presence_artifact import (
+    SCHEMA_VERSION as FIGURE_PRESENCE_SCHEMA_VERSION,
+    FigurePresenceArtifact,
+    PresenceEngineId,
+    build_figure_presence_artifact,
+    compute_presence_integrity_hash,
+    hash_consent_token,
+    presence_artifact_id_from_hash,
+    presence_fingerprint,
 )
 from lifeform_domain_figure.contrast_set import (
     FigureContrastPair,
@@ -335,12 +352,26 @@ __all__ = [
     "FigureArtifactBundle",
     "FigureBundleInputs",
     "attach_lora_to_bundle",
+    "attach_presence_to_bundle",
     "attach_steering_to_bundle",
     "build_figure_artifact_bundle",
     "build_figure_package",
     "build_figure_vitals_bootstrap",
     "bundle_id_from_hash",
     "compute_bundle_integrity_hash",
+    # L0 visual presence (talking-head metadata)
+    "CONSENT_LIKENESS_RENDER",
+    "CONSENT_VOICE_CLONE",
+    "FIGURE_PRESENCE_SCHEMA_VERSION",
+    "FigurePresenceArtifact",
+    "PRESENCE_AFFORDANCE_DESCRIPTORS",
+    "PresenceEngineId",
+    "TALKING_HEAD_VIDEO_DESCRIPTOR",
+    "build_figure_presence_artifact",
+    "compute_presence_integrity_hash",
+    "hash_consent_token",
+    "presence_artifact_id_from_hash",
+    "presence_fingerprint",
     # Lifeform builder (P2.3 / P4.2)
     "FigureLifeformBundle",
     "build_einstein_lifeform",

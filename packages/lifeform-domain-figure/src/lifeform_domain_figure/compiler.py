@@ -51,6 +51,10 @@ from lifeform_domain_figure.figure_artifact import (
     bundle_id_from_hash,
     compute_bundle_integrity_hash,
 )
+from lifeform_domain_figure.presence_artifact import (
+    FigurePresenceArtifact,
+    presence_fingerprint,
+)
 from lifeform_domain_figure.profile import (
     FigureBoundaryPrior,
     FigureKnowledgeSeed,
@@ -305,6 +309,7 @@ def attach_steering_to_bundle(
         lora_integrity=_artifact_integrity(bundle.lora),
         metadata_digest_fingerprint=bundle.metadata_digest_fingerprint,
         provenance_fingerprint=bundle.provenance_fingerprint,
+        presence_integrity=presence_fingerprint(bundle.presence),
     )
     return _replace(
         bundle,
@@ -333,10 +338,55 @@ def attach_lora_to_bundle(
         lora_integrity=lora_integrity,
         metadata_digest_fingerprint=bundle.metadata_digest_fingerprint,
         provenance_fingerprint=bundle.provenance_fingerprint,
+        presence_integrity=presence_fingerprint(bundle.presence),
     )
     return _replace(
         bundle,
         lora=lora,
+        bundle_id=bundle_id_from_hash(bundle.figure_id, new_integrity),
+        integrity_hash=new_integrity,
+    )
+
+
+def attach_presence_to_bundle(
+    bundle: FigureArtifactBundle,
+    *,
+    presence: FigurePresenceArtifact,
+) -> FigureArtifactBundle:
+    """Return a new bundle with the L0 presence artifact attached.
+
+    This is the rare-heavy path equivalent for L0: the presence
+    artifact is produced offline by the rendering plane (after a real
+    operator has signed the consent receipt and a reference image /
+    voice clone / motion model has been registered with
+    ``apps/presence-service``). Re-attaching here folds the presence
+    fingerprint into the bundle's ``integrity_hash`` so a likeness
+    re-bake or consent revoke yields a fresh ``bundle_id``
+    (R15 byte-level rollback contract).
+    """
+
+    if presence.figure_id != bundle.figure_id:
+        raise ValueError(
+            "attach_presence_to_bundle: presence.figure_id "
+            f"{presence.figure_id!r} does not match bundle.figure_id "
+            f"{bundle.figure_id!r}"
+        )
+    new_integrity = compute_bundle_integrity_hash(
+        figure_id=bundle.figure_id,
+        profile_version=bundle.profile_version,
+        version_window=bundle.version_window,
+        retrieval_integrity=bundle.retrieval_index.integrity_hash,
+        coverage_integrity=bundle.coverage_map.integrity_hash,
+        style_integrity=bundle.style_prior.integrity_hash,
+        steering_integrity=_artifact_integrity(bundle.steering),
+        lora_integrity=_artifact_integrity(bundle.lora),
+        metadata_digest_fingerprint=bundle.metadata_digest_fingerprint,
+        provenance_fingerprint=bundle.provenance_fingerprint,
+        presence_integrity=presence.integrity_hash,
+    )
+    return _replace(
+        bundle,
+        presence=presence,
         bundle_id=bundle_id_from_hash(bundle.figure_id, new_integrity),
         integrity_hash=new_integrity,
     )
@@ -464,6 +514,7 @@ def _boundary_hint(boundary: FigureBoundaryPrior) -> BoundaryPriorHint:
 __all__ = [
     "FigureBundleInputs",
     "attach_lora_to_bundle",
+    "attach_presence_to_bundle",
     "attach_steering_to_bundle",
     "build_figure_artifact_bundle",
     "build_figure_package",

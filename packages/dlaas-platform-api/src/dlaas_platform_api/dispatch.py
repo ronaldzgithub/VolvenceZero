@@ -463,19 +463,26 @@ async def _handle_observe(
         )
 
     if obs_type is ObservationType.TOOL_RESULT:
+        plan_ref = _optional_str(ctx, "plan_ref", default=None) or None
+        artifact_refs = _optional_str_sequence(ctx, "artifact_refs")
+        tool_result_kwargs: dict[str, Any] = {
+            "event_id": _required_str(ctx, "event_id", obs_type),
+            "tool_name": _required_str(ctx, "tool_name", obs_type),
+            "action_id": _required_str(ctx, "action_id", obs_type),
+            "status": _required_str(ctx, "status", obs_type),
+            "summary": _required_str(ctx, "summary", obs_type),
+            "detail": _optional_str(ctx, "detail"),
+            "confidence": _optional_unit_float(ctx, "confidence", default=0.8),
+        }
+        if plan_ref:
+            tool_result_kwargs["plan_ref"] = plan_ref
+        if artifact_refs:
+            tool_result_kwargs["artifact_refs"] = artifact_refs
         return _emit_observe_response(
             envelope=envelope,
             ai_id=ai_id,
             obs_type=obs_type,
-            event_ids=session.submit_tool_result(
-                event_id=_required_str(ctx, "event_id", obs_type),
-                tool_name=_required_str(ctx, "tool_name", obs_type),
-                action_id=_required_str(ctx, "action_id", obs_type),
-                status=_required_str(ctx, "status", obs_type),
-                summary=_required_str(ctx, "summary", obs_type),
-                detail=_optional_str(ctx, "detail"),
-                confidence=_optional_unit_float(ctx, "confidence", default=0.8),
-            ),
+            event_ids=session.submit_tool_result(**tool_result_kwargs),
         )
 
     if obs_type is ObservationType.CORPUS_INGEST:

@@ -67,12 +67,17 @@ class WakeRequest:
         )
 
     def to_json(self) -> dict[str, Any]:
+        # B14 fix: ``template_id`` was being read in ``from_json`` but
+        # dropped on the way back out — asymmetric serialization made
+        # round-tripping (kernel -> JSON -> peer) silently lose the
+        # bind-on-wake hint, which is the whole point of U5.
         return {
             "contract_id": self.contract_id,
             "runtime_template_id": self.runtime_template_id,
             "reason": self.reason,
             "strategy": self.strategy,
             "prewarm": dict(self.prewarm),
+            "template_id": self.template_id,
         }
 
 

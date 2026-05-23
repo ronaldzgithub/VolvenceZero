@@ -14,10 +14,20 @@ later slices (Ops + Streaming) extend this with ``ack`` / ``chunk`` /
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterable
 from uuid import uuid4
 
 from dlaas_platform_contracts import DEFAULT_PROTOCOL_VERSION, OutputAct
+
+
+# Capability identifiers exposed to integrators. The platform-api
+# attaches one of these on every OutputAct so the shell can route the
+# payload to the right rendering surface (text widget, voice player,
+# talking-head <video>, ...). Shells advertise the subset they support
+# in the dispatch envelope under ``shell.embodiment``; the wrapper
+# below degrades unsupported capabilities to ``CAPABILITY_TEXT``.
+CAPABILITY_TEXT = "text_streaming"
+CAPABILITY_TALKING_HEAD = "talking_head_video"
 
 
 def make_response_id() -> str:
@@ -25,12 +35,60 @@ def make_response_id() -> str:
     return f"resp_{uuid4().hex[:12]}"
 
 
-def text_act(content: str, *, capability: str = "text_streaming") -> OutputAct:
+def text_act(content: str, *, capability: str = CAPABILITY_TEXT) -> OutputAct:
     """Wrap a plain-text response in the canonical text OutputAct."""
     return OutputAct(
         act_type="text",
         capability=capability,
         payload={"content": content},
+        degraded=False,
+        original_capability="",
+    )
+
+
+def talking_head_video_act(
+    *,
+    content: str,
+    persona_id: str,
+    session_token: str,
+    scope_key: str,
+    shell_capabilities: Iterable[str] = (),
+) -> OutputAct:
+    """Wrap a response for the L0 visual presence layer.
+
+    The kernel always produces text; this helper attaches the
+    talking-head payload that an apps/presence-service-aware shell
+    knows how to render.
+
+    When the active shell does not advertise ``talking_head_video`` in
+    ``shell_capabilities``, the act is downgraded to plain text with
+    ``degraded=True`` and ``original_capability="talking_head_video"``
+    so the integrator surfaces a no-regression text bubble. This is
+    the platform-side enforcement of the spec contract in
+    ``docs/specs/dlaas-platform.md`` §"OutputAct 包装":
+
+        shell 不接受的 capability 由 platform-api 在出站时 degrade 到
+        ``text`` + ``degraded=True``；不让 kernel 感知 shell embodiment.
+    """
+
+    advertised = frozenset(shell_capabilities)
+    if CAPABILITY_TALKING_HEAD not in advertised:
+        return OutputAct(
+            act_type="text",
+            capability=CAPABILITY_TEXT,
+            payload={"content": content},
+            degraded=True,
+            original_capability=CAPABILITY_TALKING_HEAD,
+        )
+    return OutputAct(
+        act_type="text",
+        capability=CAPABILITY_TALKING_HEAD,
+        payload={
+            "content": content,
+            "persona_id": persona_id,
+            "session_token": session_token,
+            "scope_key": scope_key,
+        },
         degraded=False,
         original_capability="",
     )
@@ -130,9 +188,12 @@ def ok_envelope(
 
 
 __all__ = [
+    "CAPABILITY_TALKING_HEAD",
+    "CAPABILITY_TEXT",
     "make_response_id",
     "ok_envelope",
     "system_act",
+    "talking_head_video_act",
     "text_act",
     "tool_call_act",
     "tool_task_act",

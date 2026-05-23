@@ -35,16 +35,24 @@
 - 回滚通过 `figure_artifact_id` 切换实现，不直接改基底权重（R15）。
 - 默认 wiring 都从 `WiringLevel.SHADOW` 开始，evaluation 证据先行才晋升。
 
-## 保真阶梯（L1 / L2 / L3 / L4）
+## 保真阶梯（L0 / L1 / L2 / L3 / L4）
 
 这是这个 vertical 的核心契约面，所有产物围绕它组织：
 
 | 层级 | 含义 | 数据制品 | 运行时执行者 |
 |---|---|---|---|
+| **L0 表象保真** | "看起来 / 听起来对口" — 头像、声纹、嘴型同步 | `FigurePresenceArtifact` (presence_artifact.py) | `apps/presence-service` (deploy-side rendering plane: server-photoreal WebRTC 或 client-3d viseme stream) — figure 包仅持有 metadata + 哈希同意书；像素与权重不进 vz-* / lifeform-domain-figure |
 | **L1 语气保真** | "听起来像他" — 词汇 / 句法 / 常用类比 | `FigureStylePrior` (P2.3) + `FigureLoRAArtifact` (F6) | `StylePriorInjector` (P3.3) + `PersonaLoRAPool` (P6.3) ✅ Wave F live in `LifeformLLMResponseSynthesizer.synthesize` |
 | **L2 立场保真** | "在他写过的议题上观点对得上" | `FigureSteeringSet` (F5, real residual) + `FigureLoRAArtifact` | `SubstrateDeltaAdapterLayer` + `PersonaLoRAPool` ✅ Wave D real hot-swap via `LoRAAwareResidualRuntime.activate_lora` |
 | **L3 引证保真** | "每段实质性断言都能回溯到他的原文" | `FigureRetrievalIndex` (P2.1) + `EvidencePointer` (Wave A) | `GroundedDecoder` (P3.1) ✅ Wave F invoked post-generation |
 | **L4 不知拒答** | "他没写过的领域系统拒答 / 软免责" | `FigureCoverageMap` (P2.2) | `ScopeRefuser` (P3.2) ✅ Wave F invoked pre-generation |
+
+**L0 不变量**：
+
+* `FigurePresenceArtifact` 是 metadata-only frozen dataclass；不存任何模型权重 / 像素，也不调用任何外部网络（同 `lifeform-domain-figure` 既有的 L0 / L2 边界 — figure-vertical 唯一允许 HTTP 出口在 corpus crawl L0，**不**在 presence layer）。
+* 同意书 token 存哈希，明文交给 operator/legal 系统持有。Token 哈希、license label、reference image URI、engine 子集都被 fold 进 bundle 的 `integrity_hash`：consent revoke 或 likeness re-bake 都会产生新的 `bundle_id`（守 R15）。
+* 默认 `bundle.presence is None`，folder fingerprint 为空，老 bundle 的 `integrity_hash` 字节稳定（同 `metadata_digest_fingerprint` / `provenance_fingerprint` 的兼容口径）。
+* 实际渲染由 `apps/presence-service` 完成，对内核完全不可见；shell 不支持 `talking_head_video.v1` 时 `dlaas-platform-api` 的 `OutputAct.degraded=True` 退化路径接管，回到纯 text。
 
 **早停点**：L1 + L3 + L4 = **零 GPU 训练**就能上线的 minimum-viable Figure。L2 / 加强版 L1 是 F5 / F6 的边际收益层，需要 ModificationGate evidence 才进。
 

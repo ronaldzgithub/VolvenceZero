@@ -109,6 +109,8 @@ from lifeform_service.session_manager import (
 
 from dlaas_platform_api.control_plane import (
     CONTROL_PLANE_STORES_KEY,
+    _BIND_REASON_TO_ERROR_CODE,
+    _bind_failure_detail,
     attach_control_plane_routes,
     bind_figure_artifact_to_ai_id,
 )
@@ -1428,21 +1430,42 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
     # rely on the vertical factory to attach a global bundle).
     if wake.template_id:
         stores = request.app.get(CONTROL_PLANE_STORES_KEY)
-        if stores is not None:
-            try:
-                template = await stores.templates.get(wake.template_id)
-            except TemplateNotFound:
-                return _json_error(
-                    status=404,
-                    error="template_not_found",
-                    detail=(
-                        f"wake.template_id={wake.template_id!r} does not "
-                        "resolve to a registered template; the bake-worker "
-                        "must POST /dlaas/templates before /wake."
-                    ),
-                )
-            bind_figure_artifact_to_ai_id(
-                launcher, ai_id, template.figure_artifact_id
+        if stores is None:
+            return _json_error(
+                status=503,
+                error="control_plane_unavailable",
+                detail=(
+                    "wake.template_id is set but the control plane stores "
+                    "are not attached to this dlaas-platform; reach out "
+                    "to platform operator."
+                ),
+            )
+        try:
+            template = await stores.templates.get(wake.template_id)
+        except TemplateNotFound:
+            return _json_error(
+                status=404,
+                error="template_not_found",
+                detail=(
+                    f"wake.template_id={wake.template_id!r} does not "
+                    "resolve to a registered template; the bake-worker "
+                    "must POST /dlaas/control/templates before /wake."
+                ),
+            )
+        bind_result = bind_figure_artifact_to_ai_id(
+            launcher, ai_id, template.figure_artifact_id
+        )
+        if not bind_result.bound and bind_result.reason in (
+            "bundle_not_found",
+            "instance_not_found",
+            "lifeform_service_absent",
+        ):
+            return _json_error(
+                status=503,
+                error=_BIND_REASON_TO_ERROR_CODE[bind_result.reason],
+                detail=_bind_failure_detail(
+                    template.figure_artifact_id, ai_id, bind_result.reason
+                ),
             )
     return web.json_response({"status": "ok", **status.to_json()})
 

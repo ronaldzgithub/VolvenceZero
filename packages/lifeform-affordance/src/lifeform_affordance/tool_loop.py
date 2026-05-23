@@ -311,6 +311,16 @@ class ToolLoopOrchestrator:
                     async_task_ids=(task_id,) if task_id else (),
                 )
             if invocation.status is not AffordanceInvocationStatus.SUCCEEDED:
+                # Symmetric with the success path: drain any queued
+                # semantic events (e.g. failed `execution_result` /
+                # `open_loop`) inside the same interaction so vz
+                # actually learns from a failed tool attempt instead
+                # of waiting for the next user message.
+                if invocation.status is AffordanceInvocationStatus.BACKEND_FAILED:
+                    turn_result = await session.run_turn(
+                        self._failure_continuation_text(intent, invocation),
+                        trigger_kind=TurnTriggerKind.APPRENTICE,
+                    )
                 return ToolLoopResult(
                     final_turn_result=turn_result,
                     stop_reason=ToolLoopStopReason.TOOL_BLOCKED,
@@ -407,6 +417,18 @@ class ToolLoopOrchestrator:
         return (
             "Continue the turn using the just-submitted tool result for "
             f"{intent.descriptor_name}."
+        )
+
+    @staticmethod
+    def _failure_continuation_text(
+        intent: ToolCallIntent,
+        invocation: AffordanceInvocationResult,
+    ) -> str:
+        return (
+            f"The tool {intent.descriptor_name!r} failed with "
+            f"{invocation.error_class}: {invocation.error_detail}. "
+            "Update the open loop / execution_result owner based on this "
+            "failure and acknowledge to the user."
         )
 
     @staticmethod
