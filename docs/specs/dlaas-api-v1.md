@@ -324,6 +324,131 @@ PE lineage and credit attribution via `plan_ref`.
 
 ## Observability And Explainability
 
+### Debug App Registration
+
+```http
+POST /dlaas/v1/debug/apps
+GET  /dlaas/v1/debug/apps
+GET  /dlaas/v1/debug/apps/{app_id}
+POST /dlaas/v1/debug/apps/{app_id}/schemas
+GET  /dlaas/v1/debug/apps/{app_id}/schemas
+```
+
+DLaaS debug registration is the platform contract for app-owned operational
+facts. It is separate from Volvence Accounts OAuth app registration: OAuth
+identifies hosted login/checkout clients, while `app_id` here identifies a
+debuggable DLaaS integration.
+
+App registration:
+
+```json
+{
+  "app_id": "repair30",
+  "display_name": "repair30",
+  "tenant_id": "tenant_repair30",
+  "allowed_ai_ids": ["ai_repair30_001"],
+  "allowed_event_types": ["chat.completed", "feedback.submitted"],
+  "default_retention_days": 30
+}
+```
+
+Schema registration freezes the fields an app may submit. Every field must
+carry its meaning so downstream analysis can explain evidence without
+reconstructing app internals:
+
+```json
+{
+  "schema_version": "repair30.debug.v1",
+  "event_types": ["chat.completed"],
+  "allow_extra_fields": false,
+  "fields": [
+    {
+      "name": "status",
+      "type": "number",
+      "meaning": "HTTP status returned by the upstream DLaaS call.",
+      "owner": "app",
+      "privacy_level": "internal",
+      "required": true
+    }
+  ]
+}
+```
+
+Field types: `string`, `number`, `boolean`, `json`, `enum`.
+
+Privacy levels: `public`, `internal`, `sensitive`, `secret`. Normal debug
+event ingest rejects `secret` fields; secret material must stay in the owning
+app or secret manager.
+
+### Debug Event Ingest
+
+```http
+POST /dlaas/v1/debug/events
+GET  /dlaas/v1/debug/events?app_id=repair30&ai_id=ai_repair30_001&session_id=repair30_123
+```
+
+Event envelope:
+
+```json
+{
+  "app_id": "repair30",
+  "schema_version": "repair30.debug.v1",
+  "ai_id": "ai_repair30_001",
+  "tenant_id": "tenant_repair30",
+  "session_id": "repair30_enrollment_123",
+  "end_user_ref": "user_123",
+  "response_id": "chatcmpl_abc",
+  "interaction_id": "turn_abc",
+  "event_type": "chat.completed",
+  "stage": "dlaas.chat",
+  "fields": {
+    "status": 200,
+    "stream": true
+  },
+  "occurred_at": "2026-05-23T14:00:00Z"
+}
+```
+
+Invariants:
+
+- `app_id`, `schema_version`, `event_type`, `stage`, and `fields` are required.
+- Unknown fields are rejected unless the schema sets `allow_extra_fields`.
+- Registered `allowed_ai_ids` and `allowed_event_types` are enforced when present.
+- Debug events are platform governance records and are mirrored into audit/event-stream entries.
+
+### Debug Analysis
+
+```http
+POST /dlaas/v1/debug/analysis
+GET  /dlaas/v1/debug/analysis/{analysis_id}
+```
+
+Analysis requests combine a human prompt with structured selectors. The prompt
+is not an authorization layer; the selectors and registered field policies
+control what evidence is available.
+
+```json
+{
+  "prompt": "Why did this repair30 session fail to produce a helpful response?",
+  "selectors": {
+    "app_id": "repair30",
+    "ai_id": "ai_repair30_001",
+    "session_id": "repair30_enrollment_123",
+    "event_types": ["chat.completed", "feedback.submitted"]
+  },
+  "include_readouts": true,
+  "include_explain": true,
+  "include_audit": true,
+  "include_snapshots": false
+}
+```
+
+The response stores a `debug_analysis` governance record and a
+`debug_analysis` artifact. Evidence may include registered debug events,
+platform audit events, curated readouts, explain traces, and admin-gated
+redacted snapshots. Future LLM-backed analysis must use centralized prompt
+templates and must not inline long prompts in route handlers.
+
 ### Curated Readouts
 
 ```http
