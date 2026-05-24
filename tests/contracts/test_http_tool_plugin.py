@@ -1,9 +1,10 @@
 """Contract test: HTTP plugin → AffordanceDescriptor + invocation.
 
-Validates Packet 2 of the DLaaS plugin foundation rollout:
+Validates Packet 2 + Packet 6 of the DLaaS plugin foundation rollout:
 
-1. ``build_http_tool_descriptors`` generates one descriptor per
-   endpoint, padding short hints to satisfy ``MIN_SELECTION_HINT_CHARS``.
+1. ``build_http_tool_descriptors`` requires per-endpoint manifest
+   entries; without them it raises
+   :class:`MissingHttpPluginManifestEntryError`.
 2. ``build_http_tool_backend`` consults the resolved env-var
    header templates and shapes the request properly per HTTP method.
 3. ``register_http_blueprints`` writes both registry and invoker.
@@ -31,19 +32,60 @@ from lifeform_affordance import (
     AffordanceRegistry,
     HttpToolBlueprint,
     HttpToolEndpoint,
+    MissingHttpPluginManifestEntryError,
     build_http_tool_backend,
     build_http_tool_descriptors,
     register_http_blueprints,
 )
+from lifeform_mcp_bridge.safety_manifest import SafetyManifestEntry
 from lifeform_service.plugin_attach import (
     http_blueprints_from_plugins,
     mcp_server_specs_from_plugins,
 )
+from volvence_zero.affordance import (
+    AffordanceCost,
+    AffordanceLatencyClass,
+    AffordanceMonetaryClass,
+    AffordanceSafety,
+)
 
 
 # ---------------------------------------------------------------------------
-# Blueprint construction
+# Fixtures
 # ---------------------------------------------------------------------------
+
+
+def _entry(
+    tool_name: str,
+    *,
+    excluded: bool = False,
+    affordance_tags: tuple[str, ...] = (),
+    safety: AffordanceSafety | None = None,
+    cost: AffordanceCost | None = None,
+) -> SafetyManifestEntry:
+    """Build a ``SafetyManifestEntry`` good enough for ``http_tool`` tests."""
+
+    return SafetyManifestEntry(
+        tool_name=tool_name,
+        when_to_use=(
+            f"Call {tool_name!r} when the test scenario explicitly asks "
+            "for the weather lookup; this hint is intentionally long enough "
+            "to satisfy MIN_SELECTION_HINT_CHARS."
+        ),
+        when_not_to_use=(
+            f"Do not call {tool_name!r} for sensitive data exfiltration or "
+            "for tasks that do not need a fresh external lookup; long hint "
+            "again for MIN_SELECTION_HINT_CHARS."
+        ),
+        cost_model=cost
+        or AffordanceCost(
+            latency_class=AffordanceLatencyClass.FAST,
+            monetary_class=AffordanceMonetaryClass.FREE,
+        ),
+        safety_model=safety or AffordanceSafety(audit_required=False),
+        affordance_tags=affordance_tags,
+        excluded=excluded,
+    )
 
 
 def _blueprint(plugin_name: str = "weather") -> HttpToolBlueprint:
@@ -75,6 +117,18 @@ def _blueprint(plugin_name: str = "weather") -> HttpToolBlueprint:
     )
 
 
+def _entries() -> dict[str, SafetyManifestEntry]:
+    return {
+        "current": _entry("current"),
+        "forecast": _entry("forecast"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Blueprint invariants
+# ---------------------------------------------------------------------------
+
+
 def test_blueprint_requires_safety_manifest_path() -> None:
     """R10: safety is never derived from the capability surface alone."""
 
@@ -88,24 +142,82 @@ def test_blueprint_requires_safety_manifest_path() -> None:
         )
 
 
-def test_descriptors_pad_short_hints_to_min_chars() -> None:
-    blueprint = _blueprint()
-    descriptors = build_http_tool_descriptors(blueprint)
-    assert len(descriptors) == 2
-    for descriptor in descriptors:
-        assert len(descriptor.when_to_use) >= 50
-        assert len(descriptor.when_not_to_use) >= 50
-    assert [d.name for d in descriptors] == ["weather.current", "weather.forecast"]
+# ---------------------------------------------------------------------------
+# build_http_tool_descriptors with manifest entries
+# ---------------------------------------------------------------------------
+
+
+def test_descriptors_inherit_when_to_use_from_manifest() -> None:
+    builds = build_http_tool_descriptors(_blueprint(), entries=_entries())
+    assert len(builds) == 2
+    for build in builds:
+        assert "Call" in build.descriptor.when_to_use
+        assert "Do not call" in build.descriptor.when_not_to_use
+    assert [b.descriptor.name for b in builds] == [
+        "weather.current",
+        "weather.forecast",
+    ]
 
 
 def test_descriptors_carry_plugin_tag_and_safety_path() -> None:
-    blueprint = _blueprint()
-    descriptors = build_http_tool_descriptors(blueprint)
-    for descriptor in descriptors:
+    builds = build_http_tool_descriptors(_blueprint(), entries=_entries())
+    for build in builds:
+        descriptor = build.descriptor
         assert "http_plugin" in descriptor.affordance_tags
-        assert blueprint.plugin_name in descriptor.affordance_tags
-        assert descriptor.source_path == blueprint.safety_manifest_path
-        assert descriptor.safety_model.audit_required
+        assert "weather" in descriptor.affordance_tags
+        assert descriptor.source_path == "manifests/weather.vzbridge.yaml"
+
+
+def test_missing_entry_raises_typed_error() -> None:
+    """Endpoint without a manifest entry must NOT silently default."""
+
+    incomplete: dict[str, SafetyManifestEntry] = {"current": _entry("current")}
+    with pytest.raises(MissingHttpPluginManifestEntryError):
+        build_http_tool_descriptors(_blueprint(), entries=incomplete)
+
+
+def test_descriptor_inherits_safety_from_entry() -> None:
+    safety = AffordanceSafety(
+        requires_user_confirmation=True,
+        irreversible=False,
+        requires_consent_grant=("weather_read",),
+        blocked_in_regimes=("emotional_support",),
+        audit_required=True,
+    )
+    entries = {
+        "current": _entry("current", safety=safety),
+        "forecast": _entry("forecast"),
+    }
+    builds = build_http_tool_descriptors(_blueprint(), entries=entries)
+    current_build = builds[0]
+    assert current_build.descriptor.safety_model == safety
+
+
+def test_descriptor_excluded_entry_disables_backend() -> None:
+    entries = {
+        "current": _entry("current", excluded=True),
+        "forecast": _entry("forecast"),
+    }
+    builds = build_http_tool_descriptors(_blueprint(), entries=entries)
+    excluded_build = builds[0]
+    backend_eligible_build = builds[1]
+    assert excluded_build.descriptor.excluded_from_runtime_selection is True
+    assert excluded_build.backend_eligible is False
+    assert backend_eligible_build.backend_eligible is True
+
+
+def test_entry_tags_merged_after_default_plugin_tags() -> None:
+    """Manifest tags ride along after the standard ``http_plugin`` tags."""
+
+    entries = {
+        "current": _entry("current", affordance_tags=("weather_lookup",)),
+        "forecast": _entry("forecast", affordance_tags=("http_plugin",)),
+    }
+    builds = build_http_tool_descriptors(_blueprint(), entries=entries)
+    current_tags = builds[0].descriptor.affordance_tags
+    forecast_tags = builds[1].descriptor.affordance_tags
+    assert current_tags == ("http_plugin", "weather", "weather_lookup")
+    assert forecast_tags == ("http_plugin", "weather")  # duplicates deduped
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +331,7 @@ def test_register_http_blueprints_populates_registry_and_invoker() -> None:
         registry=registry,
         invoker=invoker,
         blueprints=(blueprint,),
+        entries_by_plugin={"weather": _entries()},
         env_resolver=lambda var: "stub",
     )
     assert tuple(d.name for d in descriptors) == (
@@ -229,6 +342,44 @@ def test_register_http_blueprints_populates_registry_and_invoker() -> None:
         "weather.current",
         "weather.forecast",
     }
+
+
+def test_register_http_blueprints_skips_backend_for_excluded_entries() -> None:
+    blueprint = _blueprint()
+    registry = AffordanceRegistry()
+    invoker = AffordanceInvoker(registry=registry)
+    entries: dict[str, SafetyManifestEntry] = {
+        "current": _entry("current", excluded=True),
+        "forecast": _entry("forecast"),
+    }
+    descriptors = register_http_blueprints(
+        registry=registry,
+        invoker=invoker,
+        blueprints=(blueprint,),
+        entries_by_plugin={"weather": entries},
+        env_resolver=lambda var: "stub",
+    )
+    # Both descriptors land in the registry (audit visibility), but
+    # only the non-excluded one gets a backend.
+    assert tuple(d.name for d in descriptors) == (
+        "weather.current",
+        "weather.forecast",
+    )
+    assert set(invoker.backend_names()) == {"weather.forecast"}
+
+
+def test_register_http_blueprints_missing_plugin_entries_raises() -> None:
+    blueprint = _blueprint()
+    registry = AffordanceRegistry()
+    invoker = AffordanceInvoker(registry=registry)
+    with pytest.raises(MissingHttpPluginManifestEntryError):
+        register_http_blueprints(
+            registry=registry,
+            invoker=invoker,
+            blueprints=(blueprint,),
+            entries_by_plugin={},  # no weather entries
+            env_resolver=lambda var: "stub",
+        )
 
 
 def test_register_http_blueprints_rejects_duplicate_plugin_names() -> None:
@@ -249,11 +400,17 @@ def test_register_http_blueprints_rejects_duplicate_plugin_names() -> None:
     registry = AffordanceRegistry()
     invoker = AffordanceInvoker(registry=registry)
     register_http_blueprints(
-        registry=registry, invoker=invoker, blueprints=(blueprint_a,)
+        registry=registry,
+        invoker=invoker,
+        blueprints=(blueprint_a,),
+        entries_by_plugin={"weather": _entries()},
     )
     with pytest.raises(AffordanceAlreadyRegisteredError):
         register_http_blueprints(
-            registry=registry, invoker=invoker, blueprints=(blueprint_b,)
+            registry=registry,
+            invoker=invoker,
+            blueprints=(blueprint_b,),
+            entries_by_plugin={"weather": {"current": _entry("current")}},
         )
 
 

@@ -31,16 +31,21 @@ ends up with the contract's plugin set live on its lifeform instance.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from lifeform_affordance.http_tool import (
     HttpToolBlueprint,
     HttpToolEndpoint,
+    HttpToolSafetyEntry,
     register_http_blueprints,
 )
 from lifeform_core import Lifeform
 from lifeform_mcp_bridge import MCPServerSpec
+from lifeform_mcp_bridge.safety_manifest import (
+    SafetyManifestEntry,
+    load_manifest,
+)
 
 
 if TYPE_CHECKING:
@@ -48,6 +53,43 @@ if TYPE_CHECKING:
 
 
 _LOG = logging.getLogger("lifeform_service.plugin_attach")
+
+
+def load_http_plugin_manifest_entries(
+    plugin: "PluginManifest",
+) -> dict[str, SafetyManifestEntry]:
+    """Load + validate one HTTP plugin's ``.vzbridge.yaml``.
+
+    The manifest must declare ``server.name == plugin.name`` (the
+    existing :func:`load_manifest` enforces that). Returns the
+    flat ``{tool_name -> SafetyManifestEntry}`` map used by
+    :func:`build_http_tool_descriptors`.
+
+    Raises :class:`MCPSafetyManifestSchemaError` on any of the loader's
+    failures (missing file / bad schema / server.name mismatch /
+    short hints / illegal enums). The launcher catches the typed
+    exception and surfaces a 503 so the operator fixes the
+    manifest before the contract goes live.
+    """
+
+    manifest = load_manifest(
+        path=plugin.safety_manifest_path,
+        expected_server_name=plugin.name,
+    )
+    return dict(manifest.tool_entries)
+
+
+def _entries_by_plugin(
+    plugins: Sequence["PluginManifest"],
+) -> dict[str, Mapping[str, HttpToolSafetyEntry]]:
+    """Load each HTTP plugin's manifest entries into one keyed map."""
+
+    out: dict[str, Mapping[str, HttpToolSafetyEntry]] = {}
+    for plugin in plugins:
+        if plugin.kind != "http":
+            continue
+        out[plugin.name] = load_http_plugin_manifest_entries(plugin)
+    return out
 
 
 def apply_plugins_to_lifeform_config(
@@ -144,11 +186,13 @@ def register_http_plugins_after_start(
     blueprints = http_blueprints_from_plugins(plugins)
     if not blueprints:
         return
+    entries_by_plugin = _entries_by_plugin(plugins)
     registry, invoker = lifeform.ensure_affordance_registry()
     descriptors = register_http_blueprints(
         registry=registry,
         invoker=invoker,
         blueprints=blueprints,
+        entries_by_plugin=entries_by_plugin,
     )
     _LOG.info(
         "plugin_attach: registered %d HTTP affordance(s) from %d plugin(s)",
@@ -191,6 +235,7 @@ __all__ = [
     "apply_contract_policy_for_plugins",
     "apply_plugins_to_lifeform_config",
     "http_blueprints_from_plugins",
+    "load_http_plugin_manifest_entries",
     "mcp_server_specs_from_plugins",
     "register_http_plugins_after_start",
 ]

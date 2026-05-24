@@ -22,12 +22,19 @@ Two halves:
   endpoint and :func:`register_http_blueprints` wires them into the
   given registry + invoker.
 
-R10 carries through: each blueprint carries its
-``safety_manifest_path`` and the resulting affordances inherit the
-safety envelope a manifest-reader pass derives from it. Until that
-reader is wired in (debt #PluginFoundation), the default safety model
-is conservative (``audit_required=True``, no consent grants
-auto-allowed); operators must approve loosening per-affordance.
+R10 carries through: every plugin endpoint MUST resolve a
+:class:`HttpToolSafetyEntry` (loaded from the plugin's
+``.vzbridge.yaml`` by :mod:`lifeform_service.plugin_attach`).
+Endpoints without a matching manifest entry trip
+:class:`MissingHttpPluginManifestEntryError` — safety is never
+defaulted to "audit_required and pray".
+
+The "entry-like" abstraction is a :class:`typing.Protocol`
+(:class:`HttpToolSafetyEntry`) so the affordance wheel does not
+import :mod:`lifeform_mcp_bridge` (which would create a cycle —
+the bridge already depends on this wheel). The protocol matches
+``lifeform_mcp_bridge.SafetyManifestEntry`` by structural typing,
+so the launcher hands those instances straight through.
 """
 
 from __future__ import annotations
@@ -36,15 +43,12 @@ import logging
 import os
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from volvence_zero.affordance import (
-    MIN_SELECTION_HINT_CHARS,
     AffordanceCost,
     AffordanceDescriptor,
     AffordanceKind,
-    AffordanceLatencyClass,
-    AffordanceMonetaryClass,
     AffordanceSafety,
 )
 
@@ -58,6 +62,54 @@ _LOG = logging.getLogger("lifeform_affordance.http_tool")
 _VALID_HTTP_METHODS: frozenset[str] = frozenset(
     {"GET", "POST", "PUT", "PATCH", "DELETE"}
 )
+
+
+class MissingHttpPluginManifestEntryError(KeyError):
+    """An HTTP plugin endpoint has no matching ``.vzbridge.yaml`` entry.
+
+    R10: safety must be reviewed per-tool. Building an
+    :class:`AffordanceDescriptor` without a manifest-supplied
+    ``safety_model`` / ``cost_model`` would silently default to
+    "audit_required, no consent, no regime block"; we refuse instead.
+
+    The caller (the launcher) catches this and surfaces a typed 503
+    so the operator fixes the manifest before the contract goes
+    live.
+    """
+
+
+@runtime_checkable
+class HttpToolSafetyEntry(Protocol):
+    """Structural shape of one per-tool manifest entry.
+
+    Mirrors :class:`lifeform_mcp_bridge.SafetyManifestEntry`. We use
+    ``Protocol`` instead of importing the bridge class because
+    ``lifeform-mcp-bridge`` already depends on ``lifeform-affordance``
+    — a reverse import here would create a cycle that breaks the
+    wheel import-boundary contract test.
+
+    Callers in ``lifeform-service`` hand
+    ``SafetyManifestEntry`` instances straight through and they
+    satisfy this protocol by structural typing.
+    """
+
+    @property
+    def when_to_use(self) -> str: ...
+
+    @property
+    def when_not_to_use(self) -> str: ...
+
+    @property
+    def cost_model(self) -> AffordanceCost: ...
+
+    @property
+    def safety_model(self) -> AffordanceSafety: ...
+
+    @property
+    def affordance_tags(self) -> tuple[str, ...]: ...
+
+    @property
+    def excluded(self) -> bool: ...
 
 
 # ---------------------------------------------------------------------------
@@ -158,18 +210,6 @@ def affordance_name_for(plugin_name: str, endpoint_name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _pad_to_min_hint(text: str, fallback: str) -> str:
-    if len(text) >= MIN_SELECTION_HINT_CHARS:
-        return text
-    if text:
-        merged = f"{text} {fallback}"
-    else:
-        merged = fallback
-    while len(merged) < MIN_SELECTION_HINT_CHARS:
-        merged += " (HTTP plugin endpoint)"
-    return merged
-
-
 def _parameters_schema_with_default(
     schema: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -195,58 +235,88 @@ def _output_schema_with_default(
     return schema_dict
 
 
+@dataclass(frozen=True)
+class HttpDescriptorBuild:
+    """Result of building one HTTP plugin endpoint's descriptor.
+
+    ``backend_eligible`` is ``False`` when the manifest entry declared
+    ``excluded: true`` — the descriptor still appears in the registry
+    (so audits / catalog renders see it) but no backend is bound,
+    matching the MCP bridge's "register-but-skip-backend" pattern.
+    """
+
+    descriptor: AffordanceDescriptor
+    entry: HttpToolSafetyEntry
+    endpoint: HttpToolEndpoint
+    backend_eligible: bool
+
+
 def build_http_tool_descriptors(
     blueprint: HttpToolBlueprint,
-) -> tuple[AffordanceDescriptor, ...]:
-    """One ``AffordanceDescriptor`` per endpoint, deterministic order."""
+    *,
+    entries: Mapping[str, HttpToolSafetyEntry],
+) -> tuple[HttpDescriptorBuild, ...]:
+    """One ``AffordanceDescriptor`` per endpoint, deterministic order.
 
-    descriptors: list[AffordanceDescriptor] = []
+    ``entries`` is the per-endpoint manifest map (keyed by endpoint
+    name = MCP-style tool_name). Every endpoint MUST have a matching
+    entry; missing keys raise
+    :class:`MissingHttpPluginManifestEntryError` so safety drift
+    fails loud (R10).
+
+    Returns a tuple of :class:`HttpDescriptorBuild` so
+    :func:`register_http_blueprints` knows which descriptors should
+    get a backend (``backend_eligible``) and which are excluded.
+    """
+
+    builds: list[HttpDescriptorBuild] = []
     for endpoint in blueprint.endpoints:
+        entry = entries.get(endpoint.name)
+        if entry is None:
+            raise MissingHttpPluginManifestEntryError(
+                f"HTTP plugin {blueprint.plugin_name!r}: endpoint "
+                f"{endpoint.name!r} has no matching entry in the safety "
+                f"manifest at {blueprint.safety_manifest_path!r}. "
+                "Every endpoint must be reviewed; add a tools[] entry "
+                "with name == endpoint name."
+            )
         name = affordance_name_for(blueprint.plugin_name, endpoint.name)
         description = (
             endpoint.description
             or blueprint.description
             or f"HTTP plugin endpoint {endpoint.method} {blueprint.base_url}{endpoint.path}."
         )
-        when_to_use = _pad_to_min_hint(
-            endpoint.when_to_use,
-            (
-                f"Call the {blueprint.plugin_name} plugin's "
-                f"{endpoint.name!r} endpoint when the task requires "
-                f"the external {endpoint.method} {endpoint.path} API."
-            ),
+        merged_tags = ("http_plugin", blueprint.plugin_name) + tuple(
+            tag for tag in entry.affordance_tags
+            if tag not in {"http_plugin", blueprint.plugin_name}
         )
-        when_not_to_use = _pad_to_min_hint(
-            endpoint.when_not_to_use,
-            (
-                f"Do not call {blueprint.plugin_name}.{endpoint.name} for "
-                "internal-only tasks, for sensitive operations without "
-                "user confirmation, or when the boundary policy gates this plugin."
+        descriptor = AffordanceDescriptor(
+            name=name,
+            kind=AffordanceKind.TOOL,
+            version=blueprint.plugin_version,
+            display_name=f"{blueprint.plugin_name}.{endpoint.name}",
+            description=description,
+            when_to_use=entry.when_to_use,
+            when_not_to_use=entry.when_not_to_use,
+            parameters_schema=_parameters_schema_with_default(
+                endpoint.parameters_schema
             ),
+            output_schema=_output_schema_with_default(endpoint.output_schema),
+            cost_model=entry.cost_model,
+            safety_model=entry.safety_model,
+            affordance_tags=merged_tags,
+            source_path=blueprint.safety_manifest_path,
+            excluded_from_runtime_selection=entry.excluded,
         )
-        descriptors.append(
-            AffordanceDescriptor(
-                name=name,
-                kind=AffordanceKind.TOOL,
-                version=blueprint.plugin_version,
-                display_name=f"{blueprint.plugin_name}.{endpoint.name}",
-                description=description,
-                when_to_use=when_to_use,
-                when_not_to_use=when_not_to_use,
-                parameters_schema=_parameters_schema_with_default(
-                    endpoint.parameters_schema
-                ),
-                output_schema=_output_schema_with_default(endpoint.output_schema),
-                cost_model=AffordanceCost(
-                    latency_class=AffordanceLatencyClass.SLOW,
-                    monetary_class=AffordanceMonetaryClass.LOW,
-                ),
-                safety_model=AffordanceSafety(audit_required=True),
-                affordance_tags=("http_plugin", blueprint.plugin_name),
-                source_path=blueprint.safety_manifest_path,
+        builds.append(
+            HttpDescriptorBuild(
+                descriptor=descriptor,
+                entry=entry,
+                endpoint=endpoint,
+                backend_eligible=not entry.excluded,
             )
         )
-    return tuple(descriptors)
+    return tuple(builds)
 
 
 _DEFAULT_ENV_RESOLVER: Callable[[str], str | None] = os.environ.get
@@ -366,41 +436,65 @@ def register_http_blueprints(
     registry: AffordanceRegistry,
     invoker: AffordanceInvoker,
     blueprints: Sequence[HttpToolBlueprint],
+    entries_by_plugin: Mapping[str, Mapping[str, HttpToolSafetyEntry]],
     env_resolver: Callable[[str], str | None] = _DEFAULT_ENV_RESOLVER,
     http_client_factory: Callable[[], Any] | None = None,
 ) -> tuple[AffordanceDescriptor, ...]:
     """Register every blueprint's descriptors + backends.
 
+    ``entries_by_plugin`` is the manifest payload keyed by
+    ``plugin_name → {endpoint_name → HttpToolSafetyEntry}``. The
+    caller (typically :mod:`lifeform_service.plugin_attach`) loads
+    each plugin's ``.vzbridge.yaml`` and assembles this map.
+
     Returns the flattened tuple of registered descriptors so callers
     can log / audit what was attached.
 
-    Raises :class:`AffordanceAlreadyRegisteredError` when an HTTP
-    plugin's affordance name collides with an existing one — that
-    must surface loudly rather than silently shadow, because
-    duplicated names break the contract whitelist.
+    Raises:
+
+    * :class:`MissingHttpPluginManifestEntryError` when a plugin /
+      endpoint has no manifest entry (R10).
+    * :class:`AffordanceAlreadyRegisteredError` when an HTTP plugin's
+      affordance name collides with an existing one.
     """
 
     all_descriptors: list[AffordanceDescriptor] = []
     for blueprint in blueprints:
-        descriptors = build_http_tool_descriptors(blueprint)
-        registry.register_all(descriptors)
-        for descriptor, endpoint in zip(
-            descriptors, blueprint.endpoints, strict=True
-        ):
+        entries = entries_by_plugin.get(blueprint.plugin_name)
+        if entries is None:
+            raise MissingHttpPluginManifestEntryError(
+                f"HTTP plugin {blueprint.plugin_name!r}: no manifest "
+                "entries supplied; the launcher must call "
+                "load_manifest(...) first and pass the result via "
+                "entries_by_plugin."
+            )
+        builds = build_http_tool_descriptors(blueprint, entries=entries)
+        registry.register_all(build.descriptor for build in builds)
+        for build in builds:
+            if not build.backend_eligible:
+                _LOG.info(
+                    "http_tool: skipping backend for %s (manifest entry "
+                    "excluded=true)",
+                    build.descriptor.name,
+                )
+                continue
             backend = build_http_tool_backend(
                 blueprint,
-                endpoint,
+                build.endpoint,
                 env_resolver=env_resolver,
                 http_client_factory=http_client_factory,
             )
-            invoker.register_backend(descriptor.name, backend)
-        all_descriptors.extend(descriptors)
+            invoker.register_backend(build.descriptor.name, backend)
+        all_descriptors.extend(build.descriptor for build in builds)
     return tuple(all_descriptors)
 
 
 __all__ = [
+    "HttpDescriptorBuild",
     "HttpToolBlueprint",
     "HttpToolEndpoint",
+    "HttpToolSafetyEntry",
+    "MissingHttpPluginManifestEntryError",
     "affordance_name_for",
     "build_http_tool_backend",
     "build_http_tool_descriptors",
