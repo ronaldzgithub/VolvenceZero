@@ -115,6 +115,7 @@ from dlaas_platform_api.control_plane import (
     attach_control_plane_routes,
     bind_figure_artifact_to_ai_id,
 )
+from dlaas_platform_api.plugin_preview import attach_plugin_preview_routes
 from dlaas_platform_registry import TemplateNotFound
 from dlaas_platform_api.debug_analysis import build_debug_analysis
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
@@ -224,6 +225,7 @@ def attach_dlaas_full_stack(
     )
     _add_lifecycle_routes(app)
     attach_control_plane_routes(app, registry=registry)
+    attach_plugin_preview_routes(app)
     attach_ops_routes(app, registry=registry)
     attach_eval_routes(app, registry=registry)
     return app
