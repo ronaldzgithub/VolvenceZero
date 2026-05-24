@@ -536,6 +536,15 @@ def attach_control_plane_routes(
         "/dlaas/control/figure-bundles/rescan",
         _handle_control_plane_rescan_bundles,
     )
+    # U9 (digital-employee enabler): read-only catalog of every
+    # registered figure bundle so per-tenant apps (digital-employee
+    # admin UI in particular) can render a "public persona library"
+    # picker without forcing operators to embed the FIGURE_BUNDLE_ROOT
+    # contents in env / config.
+    R.add_get(
+        "/dlaas/control/figure-bundles",
+        _handle_control_plane_list_bundles,
+    )
     R.add_get("/dlaas/tenants/{tenant_id}/templates", _handle_list_tenant_templates)
     R.add_get("/dlaas/templates/{template_id}", _handle_get_template)
     R.add_patch("/dlaas/templates/{template_id}", _handle_patch_template)
@@ -857,6 +866,151 @@ async def _handle_control_plane_template_create(
             **spec.to_json(),
         }
     )
+
+
+async def _handle_control_plane_list_bundles(
+    request: web.Request,
+) -> web.Response:
+    """U9 (digital-employee enabler): list every figure bundle currently
+    registered in the in-process :class:`FigureBundleStore`.
+
+    Authentication: accepts either a tenant API key (so a per-tenant
+    app — e.g. ``digital-employee`` — can render a picker without
+    holding the control-plane secret) or ``X-Control-Plane-Secret``
+    (for operator scripts). Mirrors the dual-auth pattern used by
+    ``_handle_list_applications``.
+
+    The catalog view is read-only and intentionally exposes ONLY the
+    fields a downstream picker UI needs (display name, lifespan,
+    coverage seed, available time windows, presence/LoRA flags). The
+    underlying ``FigureArtifactBundle`` stays inside the process —
+    callers reference a bundle by its returned ``bundle_id`` (or
+    ``figure_id``) when minting a template.
+
+    Returns::
+
+        {
+          "status": "ok",
+          "figure_bundles": [
+            {
+              "bundle_id": "figure-bundle:einstein:<hash16>",
+              "figure_id": "einstein",
+              "figure_name": "Albert Einstein",
+              "figure_lifespan": [1879, 1955],
+              "profile_version": "v1+window:(0, 0)",
+              "version_window": [0, 0],
+              "description": "...",
+              "domain_coverage_seed": ["physics", "philosophy_of_science"],
+              "time_windows": [
+                {"window_id": "early", "year_start": 1900, "year_end": 1925}
+              ],
+              "has_lora": false,
+              "has_presence": false
+            },
+            ...
+          ]
+        }
+
+    Empty list is a valid response (fresh install with no profiles
+    shipped). 501 is returned when the ``lifeform-service`` wheel is
+    absent on this deploy (same fail-loud contract as the rescan
+    endpoint).
+    """
+
+    if "X-Control-Plane-Secret" in request.headers:
+        require_control_plane_secret(request)
+    else:
+        await require_tenant_auth(request)
+    try:
+        from lifeform_service import default_figure_bundle_store  # noqa: PLC0415
+    except ImportError:
+        return _error(
+            501,
+            "lifeform_service_absent",
+            "lifeform-service wheel is not installed on this dlaas-platform; "
+            "figure-bundle catalog is not available.",
+        )
+    store = default_figure_bundle_store()
+    seen_ids: set[int] = set()
+    catalog: list[dict[str, Any]] = []
+    for key in store.keys():
+        try:
+            bundle = store.lookup(key)
+        except LookupError:
+            continue
+        if id(bundle) in seen_ids:
+            # Each bundle is registered under both its bundle_id and
+            # its figure_id (see FigureBundleStore.register); de-dupe
+            # by object identity so the catalog has one row per bundle.
+            continue
+        seen_ids.add(id(bundle))
+        catalog.append(_figure_bundle_summary(bundle))
+    catalog.sort(key=lambda row: (row.get("figure_id", ""), row.get("bundle_id", "")))
+    return web.json_response(
+        {
+            "status": "ok",
+            "figure_bundles": catalog,
+        }
+    )
+
+
+def _figure_bundle_summary(bundle: object) -> dict[str, Any]:
+    """Project a ``FigureArtifactBundle`` to its picker-catalog view.
+
+    All field reads go through ``getattr`` with documented defaults
+    so a future bundle revision that adds fields does not break this
+    endpoint, and so this module never imports
+    ``lifeform_domain_figure`` directly (preserving the DLaaS
+    allowlist invariant the rest of control_plane already obeys).
+    """
+
+    profile = getattr(bundle, "profile", None)
+    figure_name = getattr(profile, "figure_name", "") if profile is not None else ""
+    figure_lifespan_raw = (
+        getattr(profile, "figure_lifespan", (0, 0)) if profile is not None else (0, 0)
+    )
+    description = (
+        getattr(profile, "description", "") if profile is not None else ""
+    )
+    domain_coverage_seed = (
+        tuple(getattr(profile, "domain_coverage_seed", ()) or ())
+        if profile is not None
+        else ()
+    )
+    time_windows_raw = (
+        tuple(getattr(profile, "time_windows", ()) or ())
+        if profile is not None
+        else ()
+    )
+    time_windows: list[dict[str, Any]] = []
+    for window in time_windows_raw:
+        time_windows.append(
+            {
+                "window_id": str(getattr(window, "window_id", "") or ""),
+                "year_start": int(getattr(window, "year_start", 0) or 0),
+                "year_end": int(getattr(window, "year_end", 0) or 0),
+            }
+        )
+    version_window_raw = getattr(bundle, "version_window", (0, 0)) or (0, 0)
+    return {
+        "bundle_id": str(getattr(bundle, "bundle_id", "") or ""),
+        "figure_id": str(getattr(bundle, "figure_id", "") or ""),
+        "figure_name": str(figure_name or ""),
+        "figure_lifespan": [
+            int(figure_lifespan_raw[0]) if len(figure_lifespan_raw) > 0 else 0,
+            int(figure_lifespan_raw[1]) if len(figure_lifespan_raw) > 1 else 0,
+        ],
+        "profile_version": str(getattr(bundle, "profile_version", "") or ""),
+        "version_window": [
+            int(version_window_raw[0]) if len(version_window_raw) > 0 else 0,
+            int(version_window_raw[1]) if len(version_window_raw) > 1 else 0,
+        ],
+        "description": str(description or ""),
+        "domain_coverage_seed": [str(t) for t in domain_coverage_seed],
+        "time_windows": time_windows,
+        "has_lora": getattr(bundle, "lora", None) is not None,
+        "has_presence": getattr(bundle, "presence", None) is not None,
+    }
 
 
 async def _handle_control_plane_rescan_bundles(
