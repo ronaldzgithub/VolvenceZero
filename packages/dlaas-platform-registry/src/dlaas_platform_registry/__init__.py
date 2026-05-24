@@ -28,12 +28,20 @@ Public exports:
 
 from __future__ import annotations
 
+from dlaas_platform_registry.applications import (
+    ApplicationApprovalNotFound,
+    ApplicationCredentialError,
+    ApplicationNotFound,
+    ApplicationStore,
+    merge_plugins_from_applications,
+)
 from dlaas_platform_registry.assets import AssetNotFound, AssetStore
 from dlaas_platform_registry.auth import (
     PlatformAuthBundle,
     PlatformAuthConfig,
     REGISTRY_APP_KEY,
     assert_tenant_id_matches,
+    require_application_auth,
     require_control_plane_or_service,
     require_control_plane_secret,
     require_service_secret,
@@ -69,6 +77,10 @@ from dlaas_platform_registry.tenants import (
 )
 
 __all__ = (
+    "ApplicationApprovalNotFound",
+    "ApplicationCredentialError",
+    "ApplicationNotFound",
+    "ApplicationStore",
     "AssetNotFound",
     "AssetStore",
     "AudienceProfileNotFound",
@@ -96,7 +108,9 @@ __all__ = (
     "TenantStore",
     "assert_tenant_id_matches",
     "init_schema",
+    "merge_plugins_from_applications",
     "open_connection",
+    "require_application_auth",
     "require_control_plane_or_service",
     "require_control_plane_secret",
     "require_service_secret",

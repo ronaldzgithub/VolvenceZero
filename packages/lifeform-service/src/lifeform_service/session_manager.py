@@ -49,6 +49,10 @@ from lifeform_service.templates import (
     VerticalTemplateAdapter,
 )
 from lifeform_service.default_mcp_bundle import with_default_mcp_bundle
+from lifeform_service.plugin_attach import (
+    apply_plugins_to_lifeform_config,
+    register_http_plugins_after_start,
+)
 from lifeform_service.vertical_registry import (
     UnknownVerticalError,
     VerticalNotAlphaCapableError,
@@ -107,6 +111,7 @@ class SessionManager:
         vertical_registry: VerticalRegistry | None = None,
         protocol_uptake_service: "ProtocolUptakeService | None" = None,
         attach_default_mcp_bundle: bool = False,
+        contract_plugins: tuple = (),
     ) -> None:
         """Construct a multi-vertical session manager.
 
@@ -184,6 +189,13 @@ class SessionManager:
         # MCP specs. Direct SessionManager tests / DLaaS legacy callers
         # leave this False and opt in at their construction boundary.
         self._attach_default_mcp_bundle = attach_default_mcp_bundle
+        # debt #PluginFoundation: per-contract plugin manifests applied
+        # to every fresh lifeform built by this manager. The DLaaS
+        # launcher seeds this from ``ContractSpec.plugins`` so each
+        # ai_id's sessions see exactly the plugins its tenant approved.
+        # Empty tuple = legacy contract (default), in which case
+        # ``create_session`` skips the plugin attach pass entirely.
+        self._contract_plugins = tuple(contract_plugins)
 
     @property
     def vertical_registry(self) -> VerticalRegistry:
@@ -483,12 +495,20 @@ class SessionManager:
                 life = chosen_spec.factory(runtime)
             if self._attach_default_mcp_bundle:
                 life = with_default_mcp_bundle(life)
+            if self._contract_plugins:
+                life = apply_plugins_to_lifeform_config(
+                    life, self._contract_plugins
+                )
             life = self._inject_uptake_seed_protocols(life)
             if self._figure_bundle is not None:
                 bind = getattr(life, "bind_figure_bundle", None)
                 if callable(bind):
                     bind(self._figure_bundle)
             await life.start()
+            if self._contract_plugins:
+                register_http_plugins_after_start(
+                    life, self._contract_plugins
+                )
             session = life.create_session(session_id=sid)
             self._sessions[sid] = _SessionEntry(
                 session=session,

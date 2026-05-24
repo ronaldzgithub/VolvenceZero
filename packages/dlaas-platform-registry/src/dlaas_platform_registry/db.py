@@ -26,7 +26,7 @@ import asyncio
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 
 
 _SCHEMA_SQL = (
@@ -140,6 +140,7 @@ _SCHEMA_SQL = (
         service_contract_json TEXT NOT NULL DEFAULT '{}',
         contract_status TEXT NOT NULL DEFAULT 'created',
         created_at_ms INTEGER NOT NULL,
+        plugins_json TEXT NOT NULL DEFAULT '[]',
         FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id),
         FOREIGN KEY (template_id) REFERENCES templates(template_id)
     );
@@ -266,6 +267,31 @@ _SCHEMA_SQL = (
         PRIMARY KEY (record_kind, record_id)
     );
     """,
+    """
+    CREATE TABLE IF NOT EXISTS applications (
+        application_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        version TEXT NOT NULL DEFAULT '0.0.0',
+        description TEXT NOT NULL DEFAULT '',
+        plugins_json TEXT NOT NULL DEFAULT '[]',
+        api_key TEXT NOT NULL UNIQUE,
+        api_secret_hash TEXT NOT NULL,
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS org_application_approvals (
+        tenant_id TEXT NOT NULL,
+        application_id TEXT NOT NULL,
+        approved_at_ms INTEGER NOT NULL,
+        approved_by_user_id TEXT NOT NULL DEFAULT '',
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        PRIMARY KEY (tenant_id, application_id),
+        FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id),
+        FOREIGN KEY (application_id) REFERENCES applications(application_id)
+    );
+    """,
 )
 
 
@@ -330,6 +356,18 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
         try:
             conn.execute(
                 f"ALTER TABLE templates ADD COLUMN {column} {column_type}"
+            )
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
+
+    schema_v4_contract_columns = (
+        ("plugins_json", "TEXT NOT NULL DEFAULT '[]'"),
+    )
+    for column, column_type in schema_v4_contract_columns:
+        try:
+            conn.execute(
+                f"ALTER TABLE contracts ADD COLUMN {column} {column_type}"
             )
         except sqlite3.OperationalError as exc:
             if "duplicate column name" not in str(exc).lower():

@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from dlaas_platform_contracts.plugins import PluginManifest
+
 
 # ---------------------------------------------------------------------------
 # Tenant
@@ -582,6 +584,13 @@ class ContractSpec:
     service_contract: Mapping[str, Any] = field(default_factory=dict)
     contract_status: ContractStatus = ContractStatus.CREATED
     created_at_ms: int = 0
+    # debt #PluginFoundation: per-contract plugin manifests resolved
+    # from the application bundles approved by this contract's
+    # tenant. Empty tuple on legacy contracts created before the
+    # plugin foundation rolled out — :meth:`from_json` accepts a
+    # missing ``plugins`` key as ``()`` so existing DB rows
+    # deserialise unchanged.
+    plugins: tuple[PluginManifest, ...] = ()
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "ContractSpec":
@@ -600,6 +609,12 @@ class ContractSpec:
             raise ValueError(
                 f"ContractSpec.contract_status must be one of: {allowed}"
             ) from exc
+        plugins_raw = data.get("plugins") or ()
+        if not isinstance(plugins_raw, (list, tuple)):
+            raise ValueError("ContractSpec.plugins must be a list of objects")
+        plugins = tuple(
+            PluginManifest.from_json(item) for item in plugins_raw
+        )
         return cls(
             contract_id=str(data.get("contract_id", "") or ""),
             tenant_id=str(data["tenant_id"]),
@@ -613,6 +628,7 @@ class ContractSpec:
             service_contract=dict(data.get("service_contract") or {}),
             contract_status=status,
             created_at_ms=int(data.get("created_at_ms", 0) or 0),
+            plugins=plugins,
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -629,6 +645,7 @@ class ContractSpec:
             "service_contract": dict(self.service_contract),
             "contract_status": self.contract_status.value,
             "created_at_ms": self.created_at_ms,
+            "plugins": [plugin.to_json() for plugin in self.plugins],
         }
 
 

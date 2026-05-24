@@ -1,19 +1,67 @@
-"""Debug analysis rendering for DLaaS platform evidence.
+"""Debug analysis pipeline for DLaaS platform evidence.
 
-This module owns the analysis boundary. It renders a centralized prompt
-template for future LLM-backed analysis and currently returns a deterministic
-fallback report so the API remains useful without introducing inline prompts or
-an undeclared model dependency.
+The pipeline is split into four explicit stages so the analysis boundary
+stays auditable:
+
+    resolve_evidence  -> redact_evidence -> render_prompt -> analyze
+
+`resolve_evidence` is owned by the route handler in `app.py` (it knows how
+to talk to the session manager / governance store). This module owns the
+remaining stages plus a small `DebugAnalyzer` protocol so that a future
+LLM-backed analyzer can be plugged in without touching the route handler
+or inlining prompts.
+
+`DeterministicAnalyzer` is the default. It is prompt-aware: it picks the
+right evidence slice based on intent keywords in the user prompt and uses
+field meanings (privacy_level / owner / type from the registered schema)
+to produce recommendations and structured `DebugVersionSuggestion`s.
+
+Selecting an analyzer is environment-gated:
+    DLAAS_DEBUG_ANALYZER=llm  -> placeholder LlmAnalyzer (returns
+                                  deterministic fallback today; will be
+                                  wired to a real model adapter later).
+    anything else / unset      -> DeterministicAnalyzer.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-from dlaas_platform_contracts import DebugAnalysisRequest
+from dlaas_platform_contracts import (
+    DebugAnalysisRequest,
+    DebugVersionSuggestion,
+)
+
+PROMPT_TEMPLATE_PATH = "prompts/debug_analysis.md"
+
+_INTENT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "handoff": ("handoff", "escalation", "refer-out"),
+    "boundary": ("boundary", "safety", "refer-out", "blocked"),
+    "wake": ("wake", "sleep", "lifecycle", "instance"),
+    "feedback": ("feedback", "valence", "rupture", "repair"),
+    "chat": ("chat", "turn", "completion", "stream"),
+    "training": ("training", "corpus", "sop", "asset"),
+    "data_lifecycle": ("export", "delete", "forget", "account"),
+}
+
+
+class DebugAnalyzer(Protocol):
+    analyzer_id: str
+    analyzer_version: str
+
+    def analyze(
+        self,
+        *,
+        analysis_request: DebugAnalysisRequest,
+        evidence_summary: Mapping[str, Any],
+        prompt_preview: str,
+        intent_tags: tuple[str, ...],
+    ) -> dict[str, Any]:
+        ...
 
 
 def build_debug_analysis(
@@ -21,21 +69,107 @@ def build_debug_analysis(
     analysis_request: DebugAnalysisRequest,
     evidence: Mapping[str, Any],
 ) -> dict[str, Any]:
-    evidence_summary = _summarize_evidence(evidence)
+    """Run the full analyzer pipeline and return a dict for the route handler.
+
+    The returned dict carries:
+      - analysis_mode        : analyzer category
+      - analyzer_id          : concrete analyzer name
+      - analyzer_version     : analyzer version string
+      - prompt_template      : centralized template path
+      - prompt_preview       : rendered prompt (with redacted evidence)
+      - evidence_summary     : compact summary for downstream UI
+      - recommendations      : tuple of operator-facing strings
+      - version_suggestions  : tuple of DebugVersionSuggestion.to_json()
+    """
+    redacted = _redact_evidence(evidence)
+    evidence_summary = _summarize_evidence(redacted)
+    intent_tags = _intent_tags(analysis_request.prompt)
     prompt_preview = _render_prompt_preview(
         analysis_request=analysis_request,
         evidence_summary=evidence_summary,
+        intent_tags=intent_tags,
     )
-    recommendations = _recommendations(evidence_summary)
-    version_suggestions = _version_suggestions(evidence_summary)
+    analyzer = _select_analyzer()
+    output = analyzer.analyze(
+        analysis_request=analysis_request,
+        evidence_summary=evidence_summary,
+        prompt_preview=prompt_preview,
+        intent_tags=intent_tags,
+    )
     return {
-        "analysis_mode": "deterministic_fallback",
-        "prompt_template": "prompts/debug_analysis.md",
+        "analysis_mode": output.get("analysis_mode", "deterministic_fallback"),
+        "analyzer_id": analyzer.analyzer_id,
+        "analyzer_version": analyzer.analyzer_version,
+        "prompt_template": PROMPT_TEMPLATE_PATH,
         "prompt_preview": prompt_preview,
         "evidence_summary": evidence_summary,
-        "recommendations": recommendations,
-        "version_suggestions": version_suggestions,
+        "intent_tags": list(intent_tags),
+        "recommendations": tuple(output.get("recommendations", ())),
+        "version_suggestions": tuple(output.get("version_suggestions", ())),
     }
+
+
+def _select_analyzer() -> DebugAnalyzer:
+    requested = (os.environ.get("DLAAS_DEBUG_ANALYZER", "") or "").strip().lower()
+    if requested == "llm":
+        return LlmAnalyzer()
+    return DeterministicAnalyzer()
+
+
+# ---------------------------------------------------------------------------
+# Evidence redaction
+# ---------------------------------------------------------------------------
+
+
+def _redact_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Best-effort redaction layer.
+
+    Today the analyzer cannot reach the registered schema to know which
+    fields are sensitive, so we use a conservative heuristic on event
+    field NAMES: anything containing 'secret', 'token', 'api_key',
+    'password', 'evidence' is masked. The route handler in `app.py`
+    will later add schema-aware redaction in CP-S5; this stage is the
+    backstop.
+    """
+    out: dict[str, Any] = {}
+    for key, value in evidence.items():
+        if key == "debug_events" and isinstance(value, list):
+            out[key] = [_redact_event(item) for item in value]
+        else:
+            out[key] = value
+    return out
+
+
+_NAME_REDACT_PATTERNS = (
+    "secret",
+    "token",
+    "api_key",
+    "password",
+    "evidence",
+)
+
+
+def _redact_event(event: Any) -> Any:
+    if not isinstance(event, dict):
+        return event
+    fields = event.get("fields")
+    if not isinstance(fields, dict):
+        return event
+    redacted_fields: dict[str, Any] = {}
+    for name, val in fields.items():
+        lname = name.lower()
+        if any(pat in lname for pat in _NAME_REDACT_PATTERNS):
+            redacted_fields[name] = "<redacted>"
+        else:
+            redacted_fields[name] = val
+    new_event = dict(event)
+    new_event["fields"] = redacted_fields
+    return new_event
+
+
+# ---------------------------------------------------------------------------
+# Evidence summary
+# ---------------------------------------------------------------------------
 
 
 def _summarize_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
@@ -51,6 +185,10 @@ def _summarize_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     readouts_present = isinstance(evidence.get("readouts"), Mapping)
     explain_present = isinstance(evidence.get("explain"), Mapping)
     snapshots_present = isinstance(evidence.get("snapshots"), Mapping)
+    # Collect a small set of common business field highlights so the
+    # analyzer can mention "app=repair30, day_index=7" etc. without
+    # surfacing every raw value.
+    highlights = _highlights_for(debug_events)
     return {
         "debug_event_count": len(debug_events),
         "audit_event_count": len(audit_events),
@@ -63,75 +201,70 @@ def _summarize_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
         "readouts_present": readouts_present,
         "explain_present": explain_present,
         "snapshots_present": snapshots_present,
+        "highlights": highlights,
     }
 
 
-def _recommendations(summary: Mapping[str, Any]) -> tuple[str, ...]:
-    recommendations: list[str] = []
-    if int(summary.get("debug_event_count", 0) or 0) == 0:
-        recommendations.append(
-            "No app-owned debug events matched the selectors; register schemas and publish boundary events before relying on analysis."
-        )
-    if int(summary.get("failed_debug_event_count", 0) or 0) > 0:
-        recommendations.append(
-            "One or more app boundary calls failed; inspect the failed debug event ids and upstream paths first."
-        )
-    if summary.get("runtime_error"):
-        recommendations.append(
-            "Runtime evidence was unavailable; verify ai_id wake state and session correlation before changing app logic."
-        )
-    if not summary.get("readouts_present") and not summary.get("explain_present"):
-        recommendations.append(
-            "No readouts or explain trace were available; analysis is limited to app/audit facts."
-        )
-    if not recommendations:
-        recommendations.append(
-            "Evidence is present across app debug events and DLaaS runtime views; compare failed calls, readouts, and audit traces before changing behavior."
-        )
-    return tuple(recommendations)
+_HIGHLIGHT_NAMES = (
+    "operation",
+    "agent_role",
+    "company_slug",
+    "tenant_slug",
+    "advisor_id",
+    "program_id",
+    "day_index",
+    "control_mode",
+    "boundary_severity",
+    "refer_out_required",
+    "feedback_valence",
+    "handoff_trigger",
+    "webhook_event_type",
+    "account_action",
+    "lifecycle_action",
+    "source_kind",
+)
 
 
-def _version_suggestions(summary: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
-    if int(summary.get("failed_debug_event_count", 0) or 0) > 0:
-        return (
-            {
-                "suggestion_type": "debug_version_suggestion",
-                "issue_area": "app",
-                "evidence_refs": list(summary.get("failed_debug_event_ids", ())),
-                "recommended_owner": "app",
-                "confidence": 0.7,
-                "proposed_next_test": "Replay the selected session and verify the failing upstream path returns a 2xx status with the same debug schema version.",
-            },
-        )
-    if summary.get("runtime_error"):
-        return (
-            {
-                "suggestion_type": "debug_version_suggestion",
-                "issue_area": "dlaas_runtime",
-                "evidence_refs": [],
-                "recommended_owner": "dlaas-platform",
-                "confidence": 0.65,
-                "proposed_next_test": "Wake the selected ai_id and fetch readouts for the selected session before rerunning analysis.",
-            },
-        )
-    return (
-        {
-            "suggestion_type": "debug_version_suggestion",
-            "issue_area": "unknown",
-            "evidence_refs": [],
-            "recommended_owner": "operator",
-            "confidence": 0.4,
-            "proposed_next_test": "Add or select more specific app-owned fields and rerun analysis with a narrower event type filter.",
-        },
+def _highlights_for(debug_events: list[dict[str, Any]]) -> dict[str, list[Any]]:
+    out: dict[str, list[Any]] = {}
+    for event in debug_events:
+        fields = event.get("fields") if isinstance(event, dict) else None
+        if not isinstance(fields, Mapping):
+            continue
+        for name in _HIGHLIGHT_NAMES:
+            if name in fields and fields[name] not in (None, ""):
+                bucket = out.setdefault(name, [])
+                if fields[name] not in bucket:
+                    bucket.append(fields[name])
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Intent classification
+# ---------------------------------------------------------------------------
+
+
+def _intent_tags(prompt: str) -> tuple[str, ...]:
+    lower = prompt.lower()
+    return tuple(
+        tag
+        for tag, keywords in _INTENT_KEYWORDS.items()
+        if any(kw in lower for kw in keywords)
     )
+
+
+# ---------------------------------------------------------------------------
+# Prompt template rendering (centralized)
+# ---------------------------------------------------------------------------
 
 
 def _render_prompt_preview(
     *,
     analysis_request: DebugAnalysisRequest,
     evidence_summary: Mapping[str, Any],
+    intent_tags: tuple[str, ...],
 ) -> str:
-    template = _read_package_text("prompts/debug_analysis.md")
+    template = _read_package_text(PROMPT_TEMPLATE_PATH)
     return template.format(
         prompt=analysis_request.prompt,
         selectors_json=json.dumps(
@@ -140,7 +273,7 @@ def _render_prompt_preview(
             sort_keys=True,
         ),
         evidence_summary_json=json.dumps(
-            dict(evidence_summary),
+            {**dict(evidence_summary), "intent_tags": list(intent_tags)},
             ensure_ascii=False,
             sort_keys=True,
         ),
@@ -159,4 +292,208 @@ def _list_value(value: Any) -> list[dict[str, Any]]:
     return [item for item in value if isinstance(item, dict)]
 
 
-__all__ = ["build_debug_analysis"]
+# ---------------------------------------------------------------------------
+# Analyzers
+# ---------------------------------------------------------------------------
+
+
+class DeterministicAnalyzer:
+    analyzer_id = "deterministic"
+    analyzer_version = "v2"
+
+    def analyze(
+        self,
+        *,
+        analysis_request: DebugAnalysisRequest,
+        evidence_summary: Mapping[str, Any],
+        prompt_preview: str,
+        intent_tags: tuple[str, ...],
+    ) -> dict[str, Any]:
+        recommendations = self._recommendations(
+            evidence_summary, intent_tags=intent_tags
+        )
+        suggestions = self._version_suggestions(
+            evidence_summary,
+            intent_tags=intent_tags,
+            selectors=analysis_request.selectors_json(),
+        )
+        return {
+            "analysis_mode": "deterministic",
+            "recommendations": recommendations,
+            "version_suggestions": tuple(
+                suggestion.to_json() for suggestion in suggestions
+            ),
+        }
+
+    def _recommendations(
+        self,
+        summary: Mapping[str, Any],
+        *,
+        intent_tags: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        recommendations: list[str] = []
+        debug_count = int(summary.get("debug_event_count", 0) or 0)
+        failed_count = int(summary.get("failed_debug_event_count", 0) or 0)
+        if debug_count == 0:
+            recommendations.append(
+                "No app-owned debug events matched the selectors; "
+                "register schemas and publish boundary events before relying on analysis."
+            )
+        if failed_count > 0:
+            recommendations.append(
+                f"{failed_count} app boundary call(s) failed; inspect the failed "
+                "debug event ids and upstream paths before changing app logic."
+            )
+        if summary.get("runtime_error"):
+            recommendations.append(
+                "Runtime evidence was unavailable; verify ai_id wake state and "
+                "session correlation before drawing conclusions."
+            )
+        if not summary.get("readouts_present") and not summary.get("explain_present"):
+            recommendations.append(
+                "No readouts or explain trace were available; analysis is limited to "
+                "app and audit facts."
+            )
+        if "handoff" in intent_tags:
+            highlights = summary.get("highlights", {})
+            triggers = highlights.get("handoff_trigger") if isinstance(highlights, Mapping) else None
+            if triggers:
+                recommendations.append(
+                    "Handoff intent: observed trigger(s) " + ", ".join(map(str, triggers))
+                )
+            else:
+                recommendations.append(
+                    "Handoff intent: no handoff_trigger field present in the selected "
+                    "events. Confirm repair30/digital-employee handoff paths actually fired."
+                )
+        if "boundary" in intent_tags:
+            highlights = summary.get("highlights", {})
+            severities = highlights.get("boundary_severity") if isinstance(highlights, Mapping) else None
+            if severities:
+                recommendations.append(
+                    "Boundary intent: observed severity(ies) "
+                    + ", ".join(map(str, severities))
+                )
+        if "feedback" in intent_tags:
+            highlights = summary.get("highlights", {})
+            valences = highlights.get("feedback_valence") if isinstance(highlights, Mapping) else None
+            if valences:
+                recommendations.append(
+                    "Feedback intent: observed valence(s) " + ", ".join(map(str, valences))
+                )
+        if not recommendations:
+            recommendations.append(
+                "Evidence is present across app debug events and DLaaS runtime views; "
+                "compare failed calls, readouts, and audit traces before changing behavior."
+            )
+        return tuple(recommendations)
+
+    def _version_suggestions(
+        self,
+        summary: Mapping[str, Any],
+        *,
+        intent_tags: tuple[str, ...],
+        selectors: Mapping[str, Any],
+    ) -> tuple[DebugVersionSuggestion, ...]:
+        failed_ids = tuple(
+            str(x) for x in summary.get("failed_debug_event_ids", ())
+        )
+        app_id = str(selectors.get("app_id", "") or "")
+        suggestions: list[DebugVersionSuggestion] = []
+        if failed_ids:
+            suggestions.append(
+                DebugVersionSuggestion(
+                    issue_area="app",
+                    evidence_refs=failed_ids,
+                    recommended_owner=app_id or "app",
+                    confidence=0.75 if "chat" in intent_tags else 0.7,
+                    proposed_next_test=(
+                        "Replay the selected session and verify the failing upstream "
+                        "path returns a 2xx status with the same debug schema version."
+                    ),
+                )
+            )
+        if summary.get("runtime_error"):
+            suggestions.append(
+                DebugVersionSuggestion(
+                    issue_area="dlaas_runtime",
+                    evidence_refs=(),
+                    recommended_owner="dlaas-platform",
+                    confidence=0.65,
+                    proposed_next_test=(
+                        "Wake the selected ai_id and fetch readouts for the selected "
+                        "session before rerunning analysis."
+                    ),
+                )
+            )
+        if "boundary" in intent_tags or "handoff" in intent_tags:
+            highlights = summary.get("highlights", {}) or {}
+            refer = isinstance(highlights, Mapping) and bool(
+                highlights.get("refer_out_required")
+            )
+            suggestions.append(
+                DebugVersionSuggestion(
+                    issue_area="prompt_template" if refer else "deployment",
+                    evidence_refs=(),
+                    recommended_owner="dlaas-platform",
+                    confidence=0.5,
+                    proposed_next_test=(
+                        "Compare the boundary policy / handoff disclaimer rendered by "
+                        "the app to the live DLaaS readouts for this session."
+                    ),
+                )
+            )
+        if not suggestions:
+            suggestions.append(
+                DebugVersionSuggestion(
+                    issue_area="unknown",
+                    evidence_refs=(),
+                    recommended_owner="operator",
+                    confidence=0.4,
+                    proposed_next_test=(
+                        "Add or select more specific app-owned fields and rerun "
+                        "analysis with a narrower event_type filter."
+                    ),
+                )
+            )
+        return tuple(suggestions)
+
+
+class LlmAnalyzer(DeterministicAnalyzer):
+    """Placeholder LLM-backed analyzer.
+
+    Today this just delegates to the deterministic logic so the public
+    interface stays exercised. Wiring a real model adapter is a follow-up
+    tracked in D24 — when it lands, it should consume the rendered
+    `prompt_preview` and return both recommendations and structured
+    `DebugVersionSuggestion`s.
+    """
+
+    analyzer_id = "llm_fallback"
+    analyzer_version = "v0"
+
+    def analyze(
+        self,
+        *,
+        analysis_request: DebugAnalysisRequest,
+        evidence_summary: Mapping[str, Any],
+        prompt_preview: str,
+        intent_tags: tuple[str, ...],
+    ) -> dict[str, Any]:
+        output = super().analyze(
+            analysis_request=analysis_request,
+            evidence_summary=evidence_summary,
+            prompt_preview=prompt_preview,
+            intent_tags=intent_tags,
+        )
+        output["analysis_mode"] = "llm_fallback"
+        return output
+
+
+__all__ = [
+    "DebugAnalyzer",
+    "DeterministicAnalyzer",
+    "LlmAnalyzer",
+    "PROMPT_TEMPLATE_PATH",
+    "build_debug_analysis",
+]

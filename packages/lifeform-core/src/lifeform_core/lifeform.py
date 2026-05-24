@@ -480,6 +480,30 @@ class Lifeform:
         # instead of returning a stale handle to a closed pool.
         self._mcp_pool = None
 
+    def ensure_affordance_registry(self) -> tuple[Any, Any]:
+        """Lazily create the lifeform-scoped registry + invoker pair.
+
+        Used by the DLaaS plugin foundation (Packet 2) so HTTP
+        plugins can attach affordances even when the lifeform has
+        no MCP servers. Idempotent: returns the existing pair when
+        ``start()`` already populated one. The lazy import keeps
+        ``lifeform-affordance`` an optional dependency for the
+        majority of lifeforms that never wire any plugin.
+        """
+
+        if self._mcp_registry is not None and self._mcp_invoker is not None:
+            return self._mcp_registry, self._mcp_invoker
+        from lifeform_affordance import (  # noqa: PLC0415
+            AffordanceInvoker,
+            AffordanceRegistry,
+        )
+
+        registry = self._mcp_registry or AffordanceRegistry()
+        invoker = self._mcp_invoker or AffordanceInvoker(registry=registry)
+        self._mcp_registry = registry
+        self._mcp_invoker = invoker
+        return registry, invoker
+
     def bind_figure_bundle(self, bundle: Any) -> None:
         """Attach a :class:`FigureArtifactBundle` to this lifeform.
 

@@ -200,6 +200,7 @@ class DebugEventEnvelope:
     interaction_id: str = ""
     occurred_at: str = ""
     created_at_ms: int = 0
+    retention_expires_at_ms: int = 0
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -217,6 +218,7 @@ class DebugEventEnvelope:
             "fields": dict(self.fields),
             "occurred_at": self.occurred_at,
             "created_at_ms": self.created_at_ms,
+            "retention_expires_at_ms": self.retention_expires_at_ms,
         }
 
 
@@ -311,8 +313,13 @@ class DebugAnalysisReport:
     recommendations: tuple[str, ...] = ()
     version_suggestions: tuple[Mapping[str, Any], ...] = ()
     analysis_mode: str = "deterministic_fallback"
+    analyzer_id: str = ""
+    analyzer_version: str = ""
+    intent_tags: tuple[str, ...] = ()
     prompt_template: str = ""
+    prompt_preview: str = ""
     artifact_id: str = ""
+    retention_expires_at_ms: int = 0
     created_at_ms: int = 0
 
     def to_json(self) -> dict[str, Any]:
@@ -324,8 +331,13 @@ class DebugAnalysisReport:
             "recommendations": list(self.recommendations),
             "version_suggestions": [dict(item) for item in self.version_suggestions],
             "analysis_mode": self.analysis_mode,
+            "analyzer_id": self.analyzer_id,
+            "analyzer_version": self.analyzer_version,
+            "intent_tags": list(self.intent_tags),
             "prompt_template": self.prompt_template,
+            "prompt_preview": self.prompt_preview,
             "artifact_id": self.artifact_id,
+            "retention_expires_at_ms": self.retention_expires_at_ms,
             "created_at_ms": self.created_at_ms,
         }
 

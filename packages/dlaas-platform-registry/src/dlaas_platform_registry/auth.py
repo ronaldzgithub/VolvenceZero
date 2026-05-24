@@ -25,8 +25,12 @@ from dataclasses import dataclass
 
 from aiohttp import web
 
-from dlaas_platform_contracts import TenantSpec
+from dlaas_platform_contracts import ApplicationSpec, TenantSpec
 
+from dlaas_platform_registry.applications import (
+    ApplicationCredentialError,
+    ApplicationStore,
+)
 from dlaas_platform_registry.tenants import (
     TenantCredentialError,
     TenantStore,
@@ -62,10 +66,17 @@ class PlatformAuthBundle:
     Stored under ``app[REGISTRY_APP_KEY]`` so handlers can pull both
     the typed :class:`TenantStore` and the static
     :class:`PlatformAuthConfig` in one access.
+
+    ``application_store`` is optional only because Slice 3 + Slice 4
+    apps existed before the plugin foundation (Packet 3); old
+    deployments that have not migrated the schema yet pass ``None``
+    and the new application routes return 503 until the migration
+    runs.
     """
 
     tenant_store: TenantStore
     auth_config: PlatformAuthConfig
+    application_store: ApplicationStore | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +117,41 @@ async def require_tenant_auth(request: web.Request) -> TenantSpec:
     except TenantCredentialError as exc:
         raise _json_forbidden(
             "invalid_tenant_credentials", str(exc)
+        ) from exc
+
+
+async def require_application_auth(request: web.Request) -> ApplicationSpec:
+    """Authenticate the caller as a registered application.
+
+    Reads ``X-Application-Api-Key`` + ``X-Application-Api-Secret``
+    headers; raises ``401`` when absent and ``403`` when invalid.
+    Used by application self-service endpoints (``PUT
+    /dlaas/applications/{id}``, version bumps, plugin updates) so
+    application owners can manage their plugin bundle without
+    needing the control-plane secret.
+    """
+
+    bundle: PlatformAuthBundle = request.app[REGISTRY_APP_KEY]
+    if bundle.application_store is None:
+        raise _json_unauthorized(
+            "application_auth_disabled",
+            "application authentication is not configured on this server",
+        )
+    headers = request.headers
+    api_key = (headers.get("X-Application-Api-Key") or "").strip()
+    api_secret = (headers.get("X-Application-Api-Secret") or "").strip()
+    if not api_key or not api_secret:
+        raise _json_unauthorized(
+            "missing_application_credentials",
+            "X-Application-Api-Key + X-Application-Api-Secret are required",
+        )
+    try:
+        return await bundle.application_store.authenticate(
+            api_key=api_key, api_secret=api_secret
+        )
+    except ApplicationCredentialError as exc:
+        raise _json_forbidden(
+            "invalid_application_credentials", str(exc)
         ) from exc
 
 
@@ -230,6 +276,7 @@ __all__ = [
     "PlatformAuthConfig",
     "REGISTRY_APP_KEY",
     "assert_tenant_id_matches",
+    "require_application_auth",
     "require_control_plane_or_service",
     "require_control_plane_secret",
     "require_service_secret",

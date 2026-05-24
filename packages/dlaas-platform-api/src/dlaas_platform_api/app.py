@@ -92,6 +92,7 @@ from dlaas_platform_ops import (
     operator_takeover_response_body,
 )
 from dlaas_platform_registry import (
+    ApplicationStore,
     GovernanceRecordNotFound,
     GovernanceStore,
     PlatformAuthBundle,
@@ -205,6 +206,7 @@ def attach_dlaas_full_stack(
     app[REGISTRY_APP_KEY] = PlatformAuthBundle(
         tenant_store=TenantStore(registry),
         auth_config=auth_config,
+        application_store=ApplicationStore(registry),
     )
     app[INSTANCE_MANAGER_APP_KEY] = instance_manager
     app[_GOVERNANCE_STORE_KEY] = GovernanceStore(registry)
@@ -245,6 +247,10 @@ def _add_lifecycle_routes(app: web.Application) -> None:
     app.router.add_post("/dlaas/v1/debug/analysis", _handle_debug_analysis_create)
     app.router.add_get(
         "/dlaas/v1/debug/analysis/{analysis_id}", _handle_debug_analysis_get
+    )
+    app.router.add_get("/dlaas/v1/debug/analyses", _handle_debug_analyses_list)
+    app.router.add_get(
+        "/dlaas/v1/debug/suggestions", _handle_debug_suggestions_list
     )
     app.router.add_get("/dlaas/v1/artifacts", _handle_artifacts_list)
     app.router.add_get("/dlaas/v1/artifacts/{artifact_id}", _handle_artifact_get)
@@ -403,6 +409,7 @@ def _ensure_shadow_intake_stores(app: web.Application) -> None:
     app.setdefault(_DEBUG_SCHEMAS_KEY, {})
     app.setdefault(_DEBUG_EVENTS_KEY, {})
     app.setdefault(_DEBUG_ANALYSES_KEY, {})
+    app.setdefault(_DEBUG_SWEEP_STATE_KEY, {"last_run_ms": 0})
     app.setdefault(
         _POLICIES_KEY,
         {
@@ -676,6 +683,28 @@ async def _handle_debug_schema_register(request: web.Request) -> web.Response:
         schema = DebugSchema.from_json(data, app_id=app_id, created_at_ms=_now_ms())
     except ValueError as exc:
         return _json_error(status=400, error="invalid_debug_schema", detail=str(exc))
+    existing = _load_debug_schema(request, app_id, schema.schema_version)
+    if existing is not None:
+        new_hash = _debug_schema_content_hash(schema)
+        existing_hash = _debug_schema_content_hash(existing)
+        if new_hash == existing_hash:
+            return web.json_response(
+                {"status": "ok", "unchanged": True, **existing.to_json()},
+                status=200,
+            )
+        return _json_error(
+            status=409,
+            error="debug_schema_conflict",
+            detail=(
+                f"schema_version={schema.schema_version!r} already registered for "
+                f"app_id={app_id!r} with different fields; bump schema_version instead "
+                "of mutating an existing one"
+            ),
+            extra={
+                "existing_hash": existing_hash,
+                "submitted_hash": new_hash,
+            },
+        )
     schema_key = (schema.app_id, schema.schema_version)
     _debug_schema_store(request)[schema_key] = schema
     _persist_governance(
@@ -690,6 +719,17 @@ async def _handle_debug_schema_register(request: web.Request) -> web.Response:
         payload=schema.to_json(),
     )
     return web.json_response({"status": "ok", **schema.to_json()}, status=201)
+
+
+def _debug_schema_content_hash(schema: DebugSchema) -> str:
+    payload = schema.to_json()
+    payload.pop("created_at_ms", None)
+    # Field order is part of the schema (operators sometimes care about
+    # presentation order in the field dictionary), so we keep order
+    # deterministic by serializing as-given rather than sorting fields.
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=False).encode("utf-8")
+    ).hexdigest()
 
 
 async def _handle_debug_schemas_list(request: web.Request) -> web.Response:
@@ -743,6 +783,7 @@ async def _handle_debug_event_ingest(request: web.Request) -> web.Response:
 
 
 async def _handle_debug_events_list(request: web.Request) -> web.Response:
+    _maybe_sweep_expired_debug_records(request)
     events = _list_debug_events(request)
     total = len(events)
     offset = max(0, _int_query(request, "offset", 0))
@@ -760,6 +801,58 @@ async def _handle_debug_events_list(request: web.Request) -> web.Response:
             },
         }
     )
+
+
+_DEBUG_SWEEP_STATE_KEY = "dlaas_debug_sweep_state"
+_DEBUG_SWEEP_INTERVAL_MS = 60_000
+
+
+def _debug_sweep_state(request: web.Request) -> dict[str, int]:
+    state = request.app.get(_DEBUG_SWEEP_STATE_KEY)
+    if isinstance(state, dict):
+        return state
+    # aiohttp 3.13 forbids mutating `app[...]` after startup, so the
+    # state slot is seeded in `_ensure_shadow_intake_stores`. Fall back
+    # to an unbound dict if a caller managed to hit this path before
+    # startup wiring (only happens in tests that bypass `setUp`).
+    return {"last_run_ms": 0}
+
+
+def _maybe_sweep_expired_debug_records(request: web.Request) -> None:
+    """Opportunistic in-process retention sweeper.
+
+    Runs at most once every _DEBUG_SWEEP_INTERVAL_MS, on debug event list
+    reads, to evict events / analyses whose retention_expires_at_ms is in
+    the past. Documented limitation in D24: this is best-effort eviction
+    from the in-process stores only; durable rows in the governance store
+    still need a real cron job.
+    """
+    state = _debug_sweep_state(request)
+    now = _now_ms()
+    last_run = int(state.get("last_run_ms", 0))
+    if now - last_run < _DEBUG_SWEEP_INTERVAL_MS:
+        return
+    state["last_run_ms"] = now
+
+    events = _debug_event_store(request)
+    expired_event_ids = [
+        event_id
+        for event_id, event in events.items()
+        if int(event.retention_expires_at_ms or 0) > 0
+        and int(event.retention_expires_at_ms or 0) <= now
+    ]
+    for event_id in expired_event_ids:
+        events.pop(event_id, None)
+
+    analyses = _debug_analysis_store(request)
+    expired_analysis_ids = [
+        analysis_id
+        for analysis_id, report in analyses.items()
+        if int(report.retention_expires_at_ms or 0) > 0
+        and int(report.retention_expires_at_ms or 0) <= now
+    ]
+    for analysis_id in expired_analysis_ids:
+        analyses.pop(analysis_id, None)
 
 
 async def _handle_debug_analysis_create(request: web.Request) -> web.Response:
@@ -782,6 +875,12 @@ async def _handle_debug_analysis_create(request: web.Request) -> web.Response:
         evidence=evidence,
     )
     artifact_id = _new_id("debug_artifact")
+    now_ms = _now_ms()
+    retention_at = _retention_expires_at(
+        request,
+        app_id=analysis_request.app_id,
+        created_at_ms=now_ms,
+    )
     report = DebugAnalysisReport(
         analysis_id=_new_id("debug_analysis"),
         prompt=analysis_request.prompt,
@@ -790,9 +889,14 @@ async def _handle_debug_analysis_create(request: web.Request) -> web.Response:
         recommendations=tuple(analysis["recommendations"]),
         version_suggestions=tuple(analysis["version_suggestions"]),
         analysis_mode=str(analysis["analysis_mode"]),
+        analyzer_id=str(analysis.get("analyzer_id", "")),
+        analyzer_version=str(analysis.get("analyzer_version", "")),
+        intent_tags=tuple(str(v) for v in analysis.get("intent_tags", ())),
         prompt_template=str(analysis["prompt_template"]),
+        prompt_preview=str(analysis.get("prompt_preview", "")),
         artifact_id=artifact_id,
-        created_at_ms=_now_ms(),
+        retention_expires_at_ms=retention_at,
+        created_at_ms=now_ms,
     )
     artifact = ArtifactRecord(
         artifact_id=artifact_id,
@@ -851,6 +955,46 @@ async def _handle_debug_analysis_get(request: web.Request) -> web.Response:
             detail=analysis_id,
         )
     return web.json_response({"status": "ok", **report.to_json()})
+
+
+async def _handle_debug_analyses_list(request: web.Request) -> web.Response:
+    analyses = _list_debug_analyses(request)
+    total = len(analyses)
+    offset = max(0, _int_query(request, "offset", 0))
+    limit = max(1, min(_int_query(request, "limit", 50), 500))
+    page = analyses[offset : offset + limit]
+    return web.json_response(
+        {
+            "status": "ok",
+            "analyses": page,
+            "pagination": {
+                "total": total,
+                "offset": offset,
+                "limit": limit,
+                "returned": len(page),
+            },
+        }
+    )
+
+
+async def _handle_debug_suggestions_list(request: web.Request) -> web.Response:
+    suggestions = _list_debug_suggestions(request)
+    total = len(suggestions)
+    offset = max(0, _int_query(request, "offset", 0))
+    limit = max(1, min(_int_query(request, "limit", 100), 500))
+    page = suggestions[offset : offset + limit]
+    return web.json_response(
+        {
+            "status": "ok",
+            "suggestions": page,
+            "pagination": {
+                "total": total,
+                "offset": offset,
+                "limit": limit,
+                "returned": len(page),
+            },
+        }
+    )
 
 
 async def _handle_artifacts_list(request: web.Request) -> web.Response:
@@ -2456,6 +2600,7 @@ def _parse_debug_event(
             error="invalid_debug_fields",
             detail=validation_error,
         )
+    created_at_ms = _now_ms()
     return DebugEventEnvelope(
         debug_event_id=_new_id("debug_evt"),
         app_id=app_id,
@@ -2470,7 +2615,10 @@ def _parse_debug_event(
         stage=stage,
         fields=fields,
         occurred_at=str(data.get("occurred_at", "") or ""),
-        created_at_ms=_now_ms(),
+        created_at_ms=created_at_ms,
+        retention_expires_at_ms=_retention_expires_at(
+            request, app_id=app_id, created_at_ms=created_at_ms
+        ),
     )
 
 
@@ -2563,7 +2711,26 @@ def _debug_field_type_error(
         return f"field {name!r} must be a boolean"
     if field_type is DebugFieldType.ENUM and not isinstance(value, str):
         return f"field {name!r} must be an enum string"
+    if field_type is DebugFieldType.JSON and not _is_json_safe(value):
+        return f"field {name!r} must be JSON-safe (object, list, or scalar)"
     return ""
+
+
+def _is_json_safe(value: Any) -> bool:
+    """True if `value` is composed of JSON-native types only.
+
+    Accepts: None, bool, int, float, str, list of safe, dict[str, safe].
+    Rejects: bytes, tuples, sets, custom objects.
+    """
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_safe(item) for item in value)
+    if isinstance(value, dict):
+        return all(
+            isinstance(k, str) and _is_json_safe(v) for k, v in value.items()
+        )
+    return False
 
 
 def _list_debug_events(request: web.Request) -> list[dict[str, Any]]:
@@ -2629,14 +2796,106 @@ def _list_debug_events(request: web.Request) -> list[dict[str, Any]]:
     )
 
 
+def _list_debug_analyses(request: web.Request) -> list[dict[str, Any]]:
+    persisted = _list_persisted_governance(
+        request,
+        "debug_analysis",
+        ai_id=request.query.get("ai_id", ""),
+        session_id=request.query.get("session_id", ""),
+    )
+    analyses = persisted or [
+        report.to_json() for report in _debug_analysis_store(request).values()
+    ]
+    app_id = request.query.get("app_id", "")
+    if app_id:
+        analyses = [
+            a
+            for a in analyses
+            if str((a.get("selectors") or {}).get("app_id", "")) == app_id
+        ]
+    analyzer_id = request.query.get("analyzer_id", "")
+    if analyzer_id:
+        analyses = [a for a in analyses if str(a.get("analyzer_id", "")) == analyzer_id]
+    created_after = _int_query(request, "created_after_ms", 0)
+    created_before = _int_query(request, "created_before_ms", 0)
+    if created_after:
+        analyses = [
+            a
+            for a in analyses
+            if int(a.get("created_at_ms", 0) or 0) >= created_after
+        ]
+    if created_before:
+        analyses = [
+            a
+            for a in analyses
+            if int(a.get("created_at_ms", 0) or 0) <= created_before
+        ]
+    return sorted(
+        analyses,
+        key=lambda a: int(a.get("created_at_ms", 0) or 0),
+        reverse=True,
+    )
+
+
+def _list_debug_suggestions(request: web.Request) -> list[dict[str, Any]]:
+    """Flatten version_suggestions across analyses into a queryable list.
+
+    Each row is a `DebugVersionSuggestion` payload enriched with its parent
+    analysis_id, app_id (from selectors), and created_at_ms so operators
+    can filter by `issue_area` / `recommended_owner` without first opening
+    each analysis.
+    """
+    analyses = _list_debug_analyses(request)
+    issue_area_filter = request.query.get("issue_area", "")
+    owner_filter = request.query.get("recommended_owner", "")
+    rows: list[dict[str, Any]] = []
+    for analysis in analyses:
+        selectors = analysis.get("selectors") or {}
+        suggestions = analysis.get("version_suggestions") or []
+        if not isinstance(suggestions, list):
+            continue
+        for suggestion in suggestions:
+            if not isinstance(suggestion, dict):
+                continue
+            if issue_area_filter and str(suggestion.get("issue_area", "")) != issue_area_filter:
+                continue
+            if owner_filter and str(suggestion.get("recommended_owner", "")) != owner_filter:
+                continue
+            rows.append(
+                {
+                    **suggestion,
+                    "analysis_id": analysis.get("analysis_id"),
+                    "app_id": selectors.get("app_id"),
+                    "ai_id": selectors.get("ai_id"),
+                    "session_id": selectors.get("session_id"),
+                    "created_at_ms": analysis.get("created_at_ms"),
+                    "retention_expires_at_ms": analysis.get(
+                        "retention_expires_at_ms", 0
+                    ),
+                }
+            )
+    return rows
+
+
 async def _build_debug_analysis_evidence(
     request: web.Request,
     analysis_request: DebugAnalysisRequest,
 ) -> dict[str, Any]:
     debug_events = _debug_events_for_analysis(request, analysis_request)
+    # Schema-aware redaction: callers without admin/service auth never see
+    # field values whose schema marks them `sensitive`. Admin/service auth
+    # already gates raw snapshots, so we use the same gate here so a
+    # support engineer with a service secret can still cross-reference
+    # sensitive ids during incident response.
+    is_admin = _has_admin_auth(request)
+    debug_events = [
+        _redact_event_against_schema(request, event, allow_sensitive=is_admin)
+        for event in debug_events
+    ]
     evidence: dict[str, Any] = {
         "debug_events": debug_events,
         "debug_event_count": len(debug_events),
+        "redaction_applied": not is_admin,
     }
     if analysis_request.include_audit:
         evidence["audit_events"] = _audit_events_for_analysis(request, analysis_request)
@@ -2644,6 +2903,41 @@ async def _build_debug_analysis_evidence(
         runtime = await _runtime_debug_evidence(request, analysis_request)
         evidence.update(runtime)
     return evidence
+
+
+def _redact_event_against_schema(
+    request: web.Request,
+    event: dict[str, Any],
+    *,
+    allow_sensitive: bool,
+) -> dict[str, Any]:
+    if allow_sensitive:
+        return event
+    fields = event.get("fields") if isinstance(event, dict) else None
+    if not isinstance(fields, dict):
+        return event
+    app_id = str(event.get("app_id", "") or "")
+    schema_version = str(event.get("schema_version", "") or "")
+    if not app_id or not schema_version:
+        return event
+    schema = _load_debug_schema(request, app_id, schema_version)
+    if schema is None:
+        return event
+    sensitive_names = {
+        field.name
+        for field in schema.fields
+        if field.privacy_level
+        in (DebugPrivacyLevel.SENSITIVE, DebugPrivacyLevel.SECRET)
+    }
+    if not sensitive_names:
+        return event
+    new_fields = {
+        name: "<redacted>" if name in sensitive_names else value
+        for name, value in fields.items()
+    }
+    new_event = dict(event)
+    new_event["fields"] = new_fields
+    return new_event
 
 
 def _debug_events_for_analysis(
@@ -2722,29 +3016,6 @@ async def _runtime_debug_evidence(
             for slot, snapshot in snapshots.items()
         }
     return runtime
-
-
-def _debug_recommendations(evidence: dict[str, Any]) -> tuple[str, ...]:
-    recommendations: list[str] = []
-    debug_event_count = int(evidence.get("debug_event_count", 0) or 0)
-    if debug_event_count == 0:
-        recommendations.append(
-            "No app-owned debug events matched the selectors; add boundary instrumentation before deeper analysis."
-        )
-    if evidence.get("runtime_error"):
-        recommendations.append(
-            "Runtime readouts were unavailable for the selected ai_id/session_id; verify wake state and session correlation."
-        )
-    audit_events = evidence.get("audit_events", ())
-    if isinstance(audit_events, list) and not audit_events:
-        recommendations.append(
-            "No platform audit events matched the selectors; check auth path and correlation metadata."
-        )
-    if not recommendations:
-        recommendations.append(
-            "Evidence is available for the selected scope; compare debug events, readouts, and audit events before proposing app or DLaaS changes."
-        )
-    return tuple(recommendations)
 
 
 def _record_audit(
@@ -2899,6 +3170,27 @@ def _new_id(prefix: str) -> str:
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def _retention_expires_at(
+    request: web.Request,
+    *,
+    app_id: str,
+    created_at_ms: int,
+) -> int:
+    """Compute retention_expires_at_ms from the registered app's
+    default_retention_days. Returns 0 when the app or its retention
+    window cannot be resolved (operator-visible default: never expires).
+    """
+    if not app_id:
+        return 0
+    registration = _load_debug_app(request, app_id)
+    if registration is None:
+        return 0
+    days = int(registration.default_retention_days or 0)
+    if days <= 0:
+        return 0
+    return created_at_ms + days * 24 * 60 * 60 * 1000
 
 
 def _int_query(request: web.Request, name: str, default: int) -> int:

@@ -23,6 +23,7 @@ from dlaas_platform_contracts import (
     ContractStatus,
     FocusPersonSpec,
     IdentityLinkSpec,
+    PluginManifest,
 )
 
 from dlaas_platform_registry.db import Registry
@@ -57,9 +58,11 @@ class ContractStore:
         service_contract: Mapping[str, Any] | None = None,
         contract_status: ContractStatus = ContractStatus.CREATED,
         contract_id: str | None = None,
+        plugins: tuple[PluginManifest, ...] = (),
     ) -> ContractSpec:
         contract_id = contract_id or _fresh_contract_id()
         created_at_ms = int(time.time() * 1000.0)
+        plugins_json = json.dumps([plugin.to_json() for plugin in plugins])
         async with self._registry.write_lock:
             self._registry.conn.execute(
                 """
@@ -67,8 +70,8 @@ class ContractStore:
                     contract_id, tenant_id, template_id, template_version,
                     shell_id, ai_id, owner_user_id, engine_tools_json,
                     tool_policy_snapshot_json, service_contract_json,
-                    contract_status, created_at_ms
-                ) VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?)
+                    contract_status, created_at_ms, plugins_json
+                ) VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     contract_id,
@@ -82,6 +85,7 @@ class ContractStore:
                     json.dumps(dict(service_contract or {})),
                     contract_status.value,
                     created_at_ms,
+                    plugins_json,
                 ),
             )
         return ContractSpec(
@@ -97,6 +101,7 @@ class ContractStore:
             service_contract=dict(service_contract or {}),
             contract_status=contract_status,
             created_at_ms=created_at_ms,
+            plugins=plugins,
         )
 
     async def get(self, contract_id: str) -> ContractSpec:
@@ -334,6 +339,19 @@ class ContractStore:
 
 
 def _row_to_spec(row) -> ContractSpec:
+    plugins_payload: tuple[PluginManifest, ...] = ()
+    plugins_raw = _row_get(row, "plugins_json") if row is not None else None
+    if plugins_raw:
+        try:
+            decoded = json.loads(plugins_raw)
+        except json.JSONDecodeError:
+            decoded = []
+        if isinstance(decoded, list):
+            plugins_payload = tuple(
+                PluginManifest.from_json(item)
+                for item in decoded
+                if isinstance(item, Mapping)
+            )
     return ContractSpec(
         contract_id=row["contract_id"],
         tenant_id=row["tenant_id"],
@@ -347,7 +365,24 @@ def _row_to_spec(row) -> ContractSpec:
         service_contract=json.loads(row["service_contract_json"] or "{}"),
         contract_status=ContractStatus(row["contract_status"]),
         created_at_ms=int(row["created_at_ms"]),
+        plugins=plugins_payload,
     )
+
+
+def _row_get(row, key: str) -> Any:
+    """Defensive ``sqlite3.Row`` lookup that returns ``None`` for
+    missing keys.
+
+    During a forward migration the new ``plugins_json`` column might
+    be absent on the very first call before
+    :func:`init_schema` is re-run; we treat that as ``None`` rather
+    than crashing legacy callers.
+    """
+
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return None
 
 
 __all__ = ["ContractNotFound", "ContractStore"]

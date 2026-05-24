@@ -355,9 +355,261 @@ async def test_debug_registration_ingest_and_analysis(slice1_client):
     assert analysis["artifact_id"].startswith("debug_artifact_")
     assert analysis["evidence"]["debug_event_count"] == 1
     assert analysis["recommendations"]
-    assert analysis["analysis_mode"] == "deterministic_fallback"
+    assert analysis["analysis_mode"] == "deterministic"
+    assert analysis["analyzer_id"] == "deterministic"
+    assert analysis["analyzer_version"] == "v2"
     assert analysis["prompt_template"] == "prompts/debug_analysis.md"
+    assert analysis["prompt_preview"]
+    assert analysis["intent_tags"], "expected at least one intent tag"
     assert analysis["version_suggestions"][0]["suggestion_type"] == "debug_version_suggestion"
+
+
+async def test_debug_schema_register_is_idempotent_and_conflict_aware(slice1_client):
+    base_schema = {
+        "schema_version": "appA.debug.v1",
+        "fields": [
+            {
+                "name": "operation",
+                "type": "string",
+                "meaning": "Stable operation name.",
+                "owner": "app",
+                "privacy_level": "internal",
+                "required": True,
+            },
+        ],
+    }
+    app_resp = await slice1_client.post(
+        "/dlaas/v1/debug/apps",
+        json={"app_id": "appA", "display_name": "appA"},
+    )
+    assert app_resp.status == 201, await app_resp.text()
+
+    first = await slice1_client.post(
+        "/dlaas/v1/debug/apps/appA/schemas",
+        json=base_schema,
+    )
+    assert first.status == 201, await first.text()
+
+    same = await slice1_client.post(
+        "/dlaas/v1/debug/apps/appA/schemas",
+        json=base_schema,
+    )
+    assert same.status == 200, await same.text()
+    body = await same.json()
+    assert body.get("unchanged") is True
+
+    drifted = await slice1_client.post(
+        "/dlaas/v1/debug/apps/appA/schemas",
+        json={
+            **base_schema,
+            "fields": [
+                {**base_schema["fields"][0], "meaning": "Changed meaning."},
+            ],
+        },
+    )
+    assert drifted.status == 409, await drifted.text()
+    err = await drifted.json()
+    assert err["error"] == "debug_schema_conflict"
+
+
+async def test_debug_analyses_and_suggestions_list_endpoints(slice1_client):
+    # Register a tiny app + schema so we can post a few events and create
+    # multiple analyses, then list suggestions.
+    await slice1_client.post(
+        "/dlaas/v1/debug/apps",
+        json={"app_id": "listapp", "display_name": "List App"},
+    )
+    await slice1_client.post(
+        "/dlaas/v1/debug/apps/listapp/schemas",
+        json={
+            "schema_version": "listapp.debug.v1",
+            "fields": [
+                {
+                    "name": "operation",
+                    "type": "string",
+                    "meaning": "Op name.",
+                    "owner": "app",
+                    "privacy_level": "internal",
+                    "required": True,
+                },
+                {
+                    "name": "ok",
+                    "type": "boolean",
+                    "meaning": "Whether the call succeeded.",
+                    "owner": "dlaas",
+                    "privacy_level": "internal",
+                    "required": True,
+                },
+            ],
+        },
+    )
+    # One failing event so the deterministic analyzer emits an `app` suggestion.
+    await slice1_client.post(
+        "/dlaas/v1/debug/events",
+        json={
+            "app_id": "listapp",
+            "schema_version": "listapp.debug.v1",
+            "ai_id": "ai_listapp_001",
+            "session_id": "sess_list",
+            "event_type": "handoff.created",
+            "stage": "dlaas.handoff",
+            "fields": {"operation": "createHandoff", "ok": False},
+        },
+    )
+    create = await slice1_client.post(
+        "/dlaas/v1/debug/analysis",
+        json={
+            "prompt": "Investigate this handoff failure.",
+            "selectors": {"app_id": "listapp"},
+            "include_readouts": False,
+            "include_explain": False,
+            "include_audit": True,
+        },
+    )
+    assert create.status == 201, await create.text()
+
+    analyses_resp = await slice1_client.get(
+        "/dlaas/v1/debug/analyses?app_id=listapp&limit=10"
+    )
+    assert analyses_resp.status == 200, await analyses_resp.text()
+    analyses = await analyses_resp.json()
+    assert analyses["analyses"], "expected at least one analysis"
+    assert all(
+        a["selectors"]["app_id"] == "listapp" for a in analyses["analyses"]
+    )
+
+    suggestions_resp = await slice1_client.get(
+        "/dlaas/v1/debug/suggestions?app_id=listapp&issue_area=app"
+    )
+    assert suggestions_resp.status == 200, await suggestions_resp.text()
+    suggestions = await suggestions_resp.json()
+    assert suggestions["suggestions"], "expected at least one suggestion"
+    assert all(
+        s["issue_area"] == "app" and s["app_id"] == "listapp"
+        for s in suggestions["suggestions"]
+    )
+    # Each suggestion row is flattened with parent analysis id.
+    assert all("analysis_id" in s for s in suggestions["suggestions"])
+
+
+async def test_debug_analysis_redacts_sensitive_fields(slice1_client):
+    # Schema with one sensitive field whose value should be masked unless
+    # the caller has admin/service auth.
+    await slice1_client.post(
+        "/dlaas/v1/debug/apps",
+        json={"app_id": "redact", "display_name": "Redact App"},
+    )
+    await slice1_client.post(
+        "/dlaas/v1/debug/apps/redact/schemas",
+        json={
+            "schema_version": "redact.debug.v1",
+            "fields": [
+                {
+                    "name": "operation",
+                    "type": "string",
+                    "meaning": "Op name.",
+                    "owner": "app",
+                    "privacy_level": "internal",
+                    "required": True,
+                },
+                {
+                    "name": "ok",
+                    "type": "boolean",
+                    "meaning": "Whether the call succeeded.",
+                    "owner": "dlaas",
+                    "privacy_level": "internal",
+                    "required": True,
+                },
+                {
+                    "name": "enrollment_id",
+                    "type": "string",
+                    "meaning": "Enrollment id (sensitive).",
+                    "owner": "app",
+                    "privacy_level": "sensitive",
+                    "required": False,
+                },
+            ],
+        },
+    )
+    await slice1_client.post(
+        "/dlaas/v1/debug/events",
+        json={
+            "app_id": "redact",
+            "schema_version": "redact.debug.v1",
+            "ai_id": "ai_redact_001",
+            "session_id": "sess_redact",
+            "event_type": "chat.completed",
+            "stage": "dlaas.chat",
+            "fields": {
+                "operation": "completeChat",
+                "ok": True,
+                "enrollment_id": "ENR-secret-123",
+            },
+        },
+    )
+    create = await slice1_client.post(
+        "/dlaas/v1/debug/analysis",
+        json={
+            "prompt": "smoke",
+            "selectors": {"app_id": "redact"},
+            "include_readouts": False,
+            "include_explain": False,
+            "include_audit": False,
+        },
+    )
+    assert create.status == 201, await create.text()
+    body = await create.json()
+    assert body["evidence"]["redaction_applied"] is True
+    events = body["evidence"]["debug_events"]
+    assert events, "expected at least one debug event"
+    assert events[0]["fields"]["enrollment_id"] == "<redacted>"
+    assert events[0]["fields"]["operation"] == "completeChat"
+
+
+async def test_debug_event_retention_expires_at(slice1_client):
+    await slice1_client.post(
+        "/dlaas/v1/debug/apps",
+        json={"app_id": "ret", "display_name": "Ret", "default_retention_days": 7},
+    )
+    await slice1_client.post(
+        "/dlaas/v1/debug/apps/ret/schemas",
+        json={
+            "schema_version": "ret.debug.v1",
+            "fields": [
+                {
+                    "name": "operation",
+                    "type": "string",
+                    "meaning": "Op name.",
+                    "owner": "app",
+                    "privacy_level": "internal",
+                    "required": True,
+                },
+                {
+                    "name": "ok",
+                    "type": "boolean",
+                    "meaning": "Whether the call succeeded.",
+                    "owner": "dlaas",
+                    "privacy_level": "internal",
+                    "required": True,
+                },
+            ],
+        },
+    )
+    event_resp = await slice1_client.post(
+        "/dlaas/v1/debug/events",
+        json={
+            "app_id": "ret",
+            "schema_version": "ret.debug.v1",
+            "ai_id": "ai_ret_001",
+            "session_id": "sess_ret",
+            "event_type": "chat.completed",
+            "stage": "dlaas.chat",
+            "fields": {"operation": "completeChat", "ok": True},
+        },
+    )
+    assert event_resp.status == 201, await event_resp.text()
+    event = await event_resp.json()
+    assert event["retention_expires_at_ms"] > event["created_at_ms"]
 
 
 async def test_asset_intake_deep_read_creates_training_job(slice1_client):

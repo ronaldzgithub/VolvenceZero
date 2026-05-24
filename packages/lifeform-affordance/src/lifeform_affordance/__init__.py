@@ -74,6 +74,14 @@ from lifeform_affordance.snapshot import (
     AffordanceSnapshot,
     build_neutral_snapshot,
 )
+from lifeform_affordance.http_tool import (
+    HttpToolBlueprint,
+    HttpToolEndpoint,
+    affordance_name_for,
+    build_http_tool_backend,
+    build_http_tool_descriptors,
+    register_http_blueprints,
+)
 from lifeform_affordance.tool_loop import (
     LLMToolIntentProposer,
     ToolCallIntent,
@@ -117,6 +125,8 @@ __all__ = [
     "BoundaryDenial",
     "BoundaryPolicy",
     "DescriptorDerivedBoundaryPolicy",
+    "HttpToolBlueprint",
+    "HttpToolEndpoint",
     "LLMToolIntentProposer",
     "ToolCallIntent",
     "ToolIntentProposal",
@@ -128,9 +138,13 @@ __all__ = [
     "ToolLoopResult",
     "ToolLoopStep",
     "ToolLoopStopReason",
+    "affordance_name_for",
+    "build_http_tool_backend",
+    "build_http_tool_descriptors",
     "build_neutral_snapshot",
     "build_scored_snapshot",
     "build_scoring_context_from_snapshots",
+    "register_http_blueprints",
     "render_catalog_json",
     "render_compact_list",
     "render_markdown",

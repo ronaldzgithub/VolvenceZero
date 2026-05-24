@@ -37,6 +37,10 @@ from dlaas_platform_contracts.adoption import (
     TrainingPolicySelection,
     VerticalSelection,
 )
+from dlaas_platform_contracts.applications import (
+    ApplicationApprovalSpec,
+    ApplicationSpec,
+)
 from dlaas_platform_contracts.dispatch_vocab import (
     CommandName,
     FeedbackValence,
@@ -112,6 +116,15 @@ from dlaas_platform_contracts.observability import (
     ReadoutView,
     SnapshotExportRequest,
 )
+from dlaas_platform_contracts.plugins import (
+    HttpEndpoint,
+    HttpPluginSpec,
+    MCPPluginSpec,
+    PluginKind,
+    PluginManifest,
+    compute_plugin_tool_policy_snapshot,
+    merge_capability_whitelist,
+)
 from dlaas_platform_contracts.resources import (
     AssetSpec,
     CitationPolicy,
@@ -142,6 +155,8 @@ from dlaas_platform_contracts.training import (
 
 __all__ = (
     "AdoptionConfig",
+    "ApplicationApprovalSpec",
+    "ApplicationSpec",
     "ArtifactKind",
     "ArtifactRecord",
     "AssetIntakeDecision",
@@ -187,6 +202,8 @@ __all__ = (
     "FocusPersonSpec",
     "HandoffStatus",
     "HandoffTicketSpec",
+    "HttpEndpoint",
+    "HttpPluginSpec",
     "IdentityLinkSpec",
     "InstanceLifecycleState",
     "InstanceStatus",
@@ -195,11 +212,14 @@ __all__ = (
     "InteractionType",
     "LaunchLicenseSpec",
     "LifeBlueprint",
+    "MCPPluginSpec",
     "MemoryPolicySelection",
     "ObservationType",
     "OpsPolicySelection",
     "OutputAct",
     "OutputContract",
+    "PluginKind",
+    "PluginManifest",
     "PolicySnapshot",
     "ProtocolSelection",
     "ProtocolSubmission",
@@ -230,5 +250,7 @@ __all__ = (
     "VerticalSelection",
     "WakeRequest",
     "WebhookSubscription",
+    "compute_plugin_tool_policy_snapshot",
     "feedback_valence_to_outcome_kind",
+    "merge_capability_whitelist",
 )

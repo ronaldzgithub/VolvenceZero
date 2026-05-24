@@ -46,7 +46,11 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from dlaas_platform_contracts import InstanceLifecycleState, InstanceStatus
+from dlaas_platform_contracts import (
+    InstanceLifecycleState,
+    InstanceStatus,
+    PluginManifest,
+)
 from lifeform_service.session_manager import SessionManager
 from lifeform_service.verticals import VerticalSpec
 
@@ -180,6 +184,7 @@ class InstanceManager:
         *,
         ai_id: str,
         runtime_template_id: str,
+        plugins: tuple[PluginManifest, ...] = (),
     ) -> SessionManager:
         """Idempotently register ``ai_id`` with the matching vertical.
 
@@ -187,6 +192,12 @@ class InstanceManager:
         returned unchanged (so adoption is replayable on retry). If
         the vertical cannot be resolved, raises ``LookupError`` so
         the caller can return a typed 422 / 503.
+
+        ``plugins`` is the contract-resolved plugin manifest set the
+        DLaaS adopt path passes from
+        :attr:`ContractSpec.plugins`; each freshly created
+        :class:`SessionManager` carries it forward to every lifeform
+        the manager later builds (debt #PluginFoundation).
         """
         async with self._lock:
             if ai_id in self._instances:
@@ -207,6 +218,7 @@ class InstanceManager:
                 idle_eviction_seconds=self._idle_eviction_seconds,
                 substrate_runtime=self._substrate_runtime,
                 attach_default_mcp_bundle=self._attach_default_mcp_bundle,
+                contract_plugins=plugins,
             )
             self._instances[ai_id] = manager
             self._verticals[ai_id] = spec.name
@@ -221,8 +233,16 @@ class InstanceManager:
         ai_id: str,
         runtime_template_id: str = "",
         reason: str = "on_demand",
+        plugins: tuple[PluginManifest, ...] = (),
     ) -> InstanceStatus:
-        """Wake an adopted instance, optionally acquiring it first."""
+        """Wake an adopted instance, optionally acquiring it first.
+
+        ``plugins`` is forwarded to a fresh :class:`SessionManager`
+        when a wake call has to re-acquire an evicted instance (the
+        DLaaS adopt path always passes the current
+        :attr:`ContractSpec.plugins` so the rehydrated instance keeps
+        the same plugin set the original adopt installed).
+        """
 
         async with self._lock:
             if ai_id not in self._instances:
@@ -245,6 +265,7 @@ class InstanceManager:
                     idle_eviction_seconds=self._idle_eviction_seconds,
                     substrate_runtime=self._substrate_runtime,
                     attach_default_mcp_bundle=self._attach_default_mcp_bundle,
+                    contract_plugins=plugins,
                 )
                 self._instances[ai_id] = manager
                 self._verticals[ai_id] = spec.name

@@ -38,11 +38,13 @@ from dlaas_platform_contracts import (
     CoveragePolicy,
     FocusPersonSpec,
     IdentityLinkSpec,
+    PluginManifest,
     ReadinessReport,
     ShellKind,
     TemplateActivationStatus,
     TemplateSpec,
     TemplateStatus,
+    compute_plugin_tool_policy_snapshot,
 )
 from dlaas_platform_launcher import (
     INSTANCE_MANAGER_APP_KEY,
@@ -50,6 +52,8 @@ from dlaas_platform_launcher import (
 )
 from dlaas_platform_launcher.instance_manager import InstanceNotFound
 from dlaas_platform_registry import (
+    ApplicationNotFound,
+    ApplicationStore,
     AssetNotFound,
     AssetStore,
     ContractNotFound,
@@ -63,6 +67,8 @@ from dlaas_platform_registry import (
     TenantNotFound,
     TenantStore,
     assert_tenant_id_matches,
+    merge_plugins_from_applications,
+    require_application_auth,
     require_control_plane_secret,
     require_tenant_auth,
 )
@@ -235,6 +241,7 @@ class _Stores:
         "assets",
         "templates",
         "contracts",
+        "applications",
     )
 
     def __init__(self, registry: Registry) -> None:
@@ -244,6 +251,239 @@ class _Stores:
         self.assets = AssetStore(registry)
         self.templates = TemplateStore(registry)
         self.contracts = ContractStore(registry)
+        self.applications = ApplicationStore(registry)
+
+
+# ---------------------------------------------------------------------------
+# Applications (Packet 3: plugin foundation)
+# ---------------------------------------------------------------------------
+
+
+async def _handle_create_application(request: web.Request) -> web.Response:
+    """Provision a new application bundle (control-plane operation).
+
+    Body: ``{ "name": "...", "version": "...", "description": "...",
+              "plugins": [PluginManifest...] }``
+
+    Returns the freshly issued application_id + api_key + plaintext
+    api_secret (the latter exactly once).
+    """
+
+    require_control_plane_secret(request)
+    data = await _read_json(request)
+    name = _required_str(data, "name")
+    version = str(data.get("version", "0.0.0") or "0.0.0")
+    description = str(data.get("description", "") or "")
+    try:
+        plugins = _parse_inline_plugins(data.get("plugins"))
+    except ValueError as exc:
+        return _error(400, "invalid_plugin_manifest", str(exc))
+    stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    spec = await stores.applications.create(
+        name=name,
+        version=version,
+        description=description,
+        plugins=plugins,
+    )
+    return web.json_response({"status": "ok", **spec.to_json()})
+
+
+async def _handle_get_application(request: web.Request) -> web.Response:
+    """Return one application spec. Visible to tenants + control plane."""
+
+    if "X-Control-Plane-Secret" in request.headers:
+        require_control_plane_secret(request)
+    else:
+        await require_tenant_auth(request)
+    application_id = request.match_info["application_id"]
+    stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    try:
+        spec = await stores.applications.get(application_id)
+    except ApplicationNotFound:
+        return _error(404, "application_not_found", application_id)
+    return web.json_response({"status": "ok", **spec.to_json()})
+
+
+async def _handle_list_applications(request: web.Request) -> web.Response:
+    """List every registered application (catalog view).
+
+    Tenants see the catalog to choose which ones to approve. The
+    response does NOT include any approval status; tenants combine
+    this with ``GET /dlaas/tenants/{id}/applications`` (Packet 4
+    portal UI) to render an "approved / available" split.
+    """
+
+    if "X-Control-Plane-Secret" in request.headers:
+        require_control_plane_secret(request)
+    else:
+        await require_tenant_auth(request)
+    stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    specs = await stores.applications.list()
+    return web.json_response(
+        {
+            "status": "ok",
+            "applications": [spec.to_json() for spec in specs],
+        }
+    )
+
+
+async def _handle_update_application(request: web.Request) -> web.Response:
+    """Application owner updates plugins / version (self-service).
+
+    Authenticates via ``X-Application-Api-Key`` + ``X-Application-Api-Secret``.
+    The request path's ``application_id`` MUST match the authenticated
+    application; cross-app updates are 403.
+    """
+
+    application = await require_application_auth(request)
+    application_id = request.match_info["application_id"]
+    if application_id != application.application_id:
+        return _error(
+            403,
+            "application_mismatch",
+            (
+                f"authenticated application_id="
+                f"{application.application_id!r} cannot update "
+                f"application_id={application_id!r}"
+            ),
+        )
+    data = await _read_json(request)
+    try:
+        plugins = _parse_inline_plugins(data.get("plugins"))
+    except ValueError as exc:
+        return _error(400, "invalid_plugin_manifest", str(exc))
+    version = data.get("version")
+    description = data.get("description")
+    stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    updated = await stores.applications.update_plugins(
+        application_id=application_id,
+        plugins=plugins,
+        version=str(version) if version is not None else None,
+        description=str(description) if description is not None else None,
+    )
+    return web.json_response({"status": "ok", **updated.to_json()})
+
+
+async def _handle_approve_application(request: web.Request) -> web.Response:
+    """Tenant approves an application's plugin bundle."""
+
+    tenant = await require_tenant_auth(request)
+    tenant_id = request.match_info["tenant_id"]
+    assert_tenant_id_matches(tenant, tenant_id)
+    application_id = request.match_info["application_id"]
+    stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    try:
+        await stores.applications.get(application_id)
+    except ApplicationNotFound:
+        return _error(404, "application_not_found", application_id)
+    data = await _read_json(request, allow_empty=True)
+    approved_by = str(data.get("approved_by_user_id", "") or "")
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), Mapping) else None
+    approval = await stores.applications.approve(
+        tenant_id=tenant.tenant_id,
+        application_id=application_id,
+        approved_by_user_id=approved_by,
+        metadata=metadata,
+    )
+    return web.json_response({"status": "ok", **approval.to_json()})
+
+
+async def _handle_revoke_application_approval(
+    request: web.Request,
+) -> web.Response:
+    """Tenant revokes a prior application approval.
+
+    Already-adopted contracts keep their frozen
+    :attr:`ContractSpec.plugins` snapshot; future adopts skip this
+    application.
+    """
+
+    tenant = await require_tenant_auth(request)
+    tenant_id = request.match_info["tenant_id"]
+    assert_tenant_id_matches(tenant, tenant_id)
+    application_id = request.match_info["application_id"]
+    stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    removed = await stores.applications.revoke_approval(
+        tenant_id=tenant.tenant_id, application_id=application_id
+    )
+    if not removed:
+        return _error(404, "application_approval_not_found", application_id)
+    return web.json_response(
+        {
+            "status": "ok",
+            "tenant_id": tenant.tenant_id,
+            "application_id": application_id,
+        }
+    )
+
+
+async def _handle_list_tenant_applications(
+    request: web.Request,
+) -> web.Response:
+    """List every application this tenant has approved."""
+
+    tenant = await require_tenant_auth(request)
+    tenant_id = request.match_info["tenant_id"]
+    assert_tenant_id_matches(tenant, tenant_id)
+    stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    approved = await stores.applications.list_approved_applications_for_tenant(
+        tenant_id=tenant.tenant_id
+    )
+    return web.json_response(
+        {
+            "status": "ok",
+            "tenant_id": tenant.tenant_id,
+            "applications": [spec.to_json() for spec in approved],
+        }
+    )
+
+
+async def _resolve_plugins_from_application_ids(
+    stores: _Stores,
+    *,
+    tenant_id: str,
+    application_ids: list[str],
+) -> tuple[list[PluginManifest], web.Response | None]:
+    """Resolve ``application_ids`` → merged plugin manifests.
+
+    Validates each application exists, is approved by ``tenant_id``,
+    and that no two applications declare the same plugin name. On
+    any of those failures returns a (None, web.Response) pair that
+    the caller propagates as the adopt 4xx error.
+    """
+
+    specs: list = []
+    for app_id in application_ids:
+        try:
+            app_spec = await stores.applications.get(app_id)
+        except ApplicationNotFound:
+            return (
+                [],
+                _error(404, "application_not_found", app_id),
+            )
+        approval = await stores.applications.get_approval(
+            tenant_id=tenant_id, application_id=app_id
+        )
+        if approval is None:
+            return (
+                [],
+                _error(
+                    409,
+                    "application_not_approved",
+                    (
+                        f"application_id={app_id!r} is not approved by "
+                        f"tenant_id={tenant_id!r}; call "
+                        f"POST /dlaas/tenants/{tenant_id}/applications/{app_id}/approve "
+                        "first."
+                    ),
+                ),
+            )
+        specs.append(app_spec)
+    try:
+        merged = merge_plugins_from_applications(specs)
+    except ValueError as exc:
+        return ([], _error(409, "plugin_name_conflict", str(exc)))
+    return (list(merged), None)
 
 
 def attach_control_plane_routes(
@@ -332,6 +572,27 @@ def attach_control_plane_routes(
 
     R.add_post("/dlaas/adopt", _handle_adopt)
     R.add_post("/dlaas/v1/adoptions", _handle_adopt)
+
+    R.add_post("/dlaas/applications", _handle_create_application)
+    R.add_get("/dlaas/applications", _handle_list_applications)
+    R.add_get(
+        "/dlaas/applications/{application_id}", _handle_get_application
+    )
+    R.add_put(
+        "/dlaas/applications/{application_id}", _handle_update_application
+    )
+    R.add_post(
+        "/dlaas/tenants/{tenant_id}/applications/{application_id}/approve",
+        _handle_approve_application,
+    )
+    R.add_delete(
+        "/dlaas/tenants/{tenant_id}/applications/{application_id}/approve",
+        _handle_revoke_application_approval,
+    )
+    R.add_get(
+        "/dlaas/tenants/{tenant_id}/applications",
+        _handle_list_tenant_applications,
+    )
 
     R.add_post(
         "/dlaas/instances/{ai_id}/persons",
@@ -1076,6 +1337,10 @@ async def _handle_create_contract(request: web.Request) -> web.Response:
             "shell_not_deployable",
             "Only deployment shells can host a runtime contract.",
         )
+    try:
+        plugins = _parse_inline_plugins(data.get("plugins"))
+    except ValueError as exc:
+        return _error(400, "invalid_plugin_manifest", str(exc))
     contract = await stores.contracts.create(
         tenant_id=tenant.tenant_id,
         template_id=template_id,
@@ -1087,6 +1352,7 @@ async def _handle_create_contract(request: web.Request) -> web.Response:
         engine_tools=data.get("engine_tools") or {},
         tool_policy_snapshot=data.get("tool_policy_snapshot") or {},
         service_contract=data.get("service_contract") or {},
+        plugins=plugins,
     )
     return web.json_response({"status": "ok", **contract.to_json()})
 
@@ -1211,6 +1477,36 @@ async def _handle_adopt(request: web.Request) -> web.Response:
     )
 
     instance_manager: InstanceManager = request.app[INSTANCE_MANAGER_APP_KEY]
+    try:
+        inline_plugins = _parse_inline_plugins(data.get("plugins"))
+    except ValueError as exc:
+        return _error(400, "invalid_plugin_manifest", str(exc))
+    application_ids_raw = data.get("application_ids") or ()
+    if not isinstance(application_ids_raw, (list, tuple)):
+        return _error(
+            400,
+            "invalid_application_ids",
+            "'application_ids' must be a JSON array of strings",
+        )
+    application_ids = [
+        str(app_id) for app_id in application_ids_raw if str(app_id).strip()
+    ]
+    resolved_app_plugins, app_error = await _resolve_plugins_from_application_ids(
+        stores,
+        tenant_id=tenant.tenant_id,
+        application_ids=application_ids,
+    )
+    if app_error is not None:
+        return app_error
+    plugins = tuple(list(inline_plugins) + resolved_app_plugins)
+    try:
+        # Reject a contract that ends up with two plugins of the same name
+        # — whether the duplicate came from inline + approved app or two
+        # approved apps, the contract surface has to be deduped or the
+        # affordance registry would fail loudly at session start.
+        _assert_plugin_names_unique(plugins)
+    except ValueError as exc:
+        return _error(409, "plugin_name_conflict", str(exc))
     contract = await stores.contracts.create(
         tenant_id=tenant.tenant_id,
         template_id=template_id,
@@ -1221,10 +1517,12 @@ async def _handle_adopt(request: web.Request) -> web.Response:
         owner_user_id=str(data.get("owner_user_id", "") or ""),
         engine_tools=data.get("engine_tools") or {},
         tool_policy_snapshot=_compute_tool_policy_snapshot(
-            data.get("engine_tools") or {}
+            data.get("engine_tools") or {},
+            plugins,
         ),
         service_contract=service_contract,
         contract_status=ContractStatus.PROVISIONING,
+        plugins=plugins,
     )
     final_contract = await stores.contracts.set_ai_id(
         contract_id=contract.contract_id,
@@ -1235,6 +1533,7 @@ async def _handle_adopt(request: web.Request) -> web.Response:
         await instance_manager.acquire(
             ai_id=final_contract.ai_id,
             runtime_template_id=runtime_template_id,
+            plugins=final_contract.plugins,
         )
     except LookupError as exc:
         await stores.contracts.update_status(
@@ -1640,17 +1939,66 @@ def _activation_snapshot_summary(session) -> dict[str, int]:
     return {"world_nodes": 0, "self_nodes": 0, "l2_cards": 0}
 
 
-def _compute_tool_policy_snapshot(engine_tools: Mapping[str, Any]) -> dict[str, Any]:
-    enabled = []
-    for name, value in engine_tools.items():
-        if isinstance(value, bool) and value:
-            enabled.append(name)
-            continue
-        if isinstance(value, Mapping) and bool(value.get("enabled", False)):
-            enabled.append(name)
-    snapshot = dict(engine_tools)
-    snapshot["enabled_capabilities"] = enabled
-    return snapshot
+def _assert_plugin_names_unique(
+    plugins: tuple[PluginManifest, ...],
+) -> None:
+    """Reject duplicate plugin names inside a single contract.
+
+    Mirrors the contract-side rule in
+    :func:`dlaas_platform_registry.merge_plugins_from_applications`
+    but applied across inline + application-resolved manifests so
+    the adopt path's "merge" step never produces a contract that
+    breaks the affordance registry at session start.
+    """
+
+    seen: dict[str, str] = {}
+    for plugin in plugins:
+        if plugin.name in seen:
+            raise ValueError(
+                f"plugin name {plugin.name!r} is declared twice on this "
+                f"contract; either drop one of the inline manifests or "
+                f"revoke one of the contributing application's approvals."
+            )
+        seen[plugin.name] = plugin.name
+
+
+def _parse_inline_plugins(payload: Any) -> tuple[PluginManifest, ...]:
+    """Parse a ``plugins`` array out of an HTTP request body.
+
+    Accepts either an absent/None field (no plugins) or a JSON list
+    of :class:`PluginManifest` objects in their ``to_json`` shape.
+    Rejects any other type loudly so clients get a 400 instead of a
+    silent empty plugin set. Packet 3 will replace this inline path
+    with ``application_ids`` resolution; the inline acceptor stays
+    available as the escape hatch for legacy clients and CLI smoke
+    tests.
+    """
+
+    if payload is None:
+        return ()
+    if not isinstance(payload, (list, tuple)):
+        raise ValueError(
+            "'plugins' must be a JSON array of PluginManifest objects"
+        )
+    return tuple(PluginManifest.from_json(item) for item in payload)
+
+
+def _compute_tool_policy_snapshot(
+    engine_tools: Mapping[str, Any],
+    plugins: tuple[PluginManifest, ...] = (),
+) -> dict[str, Any]:
+    """Compute the frozen tool-policy snapshot stored on a contract.
+
+    Combines the legacy ``engine_tools`` bool flags with each
+    declared plugin's
+    :attr:`PluginManifest.declared_capabilities`. The resulting
+    ``enabled_capabilities`` list is what the launcher hands to
+    :meth:`AffordanceRegistry.set_contract_policy` at session time,
+    so plugin-contributed affordances ride the same allowlist as
+    legacy capabilities.
+    """
+
+    return compute_plugin_tool_policy_snapshot(engine_tools, plugins)
 
 
 def _instance_token_placeholder(ai_id: str) -> str:

@@ -35,6 +35,26 @@ def fresh_tenant_id() -> str:
     return f"ten_{secrets.token_hex(6)}"
 
 
+def fresh_application_id() -> str:
+    """Return a fresh ``app_<hex>`` application identifier."""
+    return f"app_{secrets.token_hex(6)}"
+
+
+def fresh_application_api_key() -> str:
+    """Return a fresh public application API key (``ak_`` prefix).
+
+    Distinct prefix from tenant ``tk_`` keys so an operator
+    inspecting a credentials file can tell which auth mode it
+    belongs to at a glance.
+    """
+    return "ak_" + secrets.token_urlsafe(16)
+
+
+def fresh_application_api_secret() -> str:
+    """Return a fresh application secret (``as_`` prefix)."""
+    return "as_" + secrets.token_urlsafe(32)
+
+
 def fresh_api_key() -> str:
     """Return a fresh public API key with the ``tk_`` prefix."""
     return _API_KEY_PREFIX + secrets.token_urlsafe(16)
@@ -62,6 +82,9 @@ def verify_api_secret(secret: str, expected_hash: str) -> bool:
 __all__ = [
     "fresh_api_key",
     "fresh_api_secret",
+    "fresh_application_api_key",
+    "fresh_application_api_secret",
+    "fresh_application_id",
     "fresh_tenant_id",
     "hash_api_secret",
     "verify_api_secret",

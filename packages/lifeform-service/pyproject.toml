@@ -14,11 +14,16 @@ dependencies = [
     "vz-application==0.1.*",
     "vz-runtime==0.1.*",
     "lifeform-core==0.1.*",
+    "lifeform-affordance==0.1.*",
     "lifeform-expression==0.1.*",
     "lifeform-domain-emogpt==0.1.*",
     "lifeform-domain-figure==0.1.*",
     "lifeform-protocol-runtime==0.1.*",
     "lifeform-mcp-bridge==0.1.*",
+    # ``plugin_attach`` translates ``ContractSpec.plugins`` into
+    # in-kernel objects on every adopt; the contracts wheel is the
+    # SSOT for the plugin schema.
+    "dlaas-platform-contracts==0.1.*",
     # The default service path auto-attaches external/vz-bundle when the
     # submodule is present. Keep the bundle's base runtime deps here so
     # python -m vz_bundle.server can start even when the submodule itself
