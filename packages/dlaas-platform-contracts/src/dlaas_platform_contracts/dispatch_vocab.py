@@ -144,6 +144,12 @@ class ObservationType(str, Enum):
       ``ExternalSemanticEventBatch`` payloads routed to
       ``submit_semantic_events`` for callers that already speak the
       kernel vocabulary.
+    * ``KNOWLEDGE_RETIRED`` — explicit "this previously-ingested
+      knowledge source is no longer authoritative" event. Routes
+      through the ``submit_reviewed_knowledge_event`` sink as a
+      CLASS_NOTE subtype so semantic owners can mark the matching
+      ``knowledge_id`` stale without needing real asset deletion at
+      the corpus tier. Required field: ``knowledge_id``.
     """
 
     HOMEWORK_RESULT = "homework_result"
@@ -153,6 +159,7 @@ class ObservationType(str, Enum):
     TOOL_RESULT = "tool_result"
     CORPUS_INGEST = "corpus_ingest"
     GENERIC_SEMANTIC = "generic_semantic"
+    KNOWLEDGE_RETIRED = "knowledge_retired"
 
 
 class CommandName(str, Enum):

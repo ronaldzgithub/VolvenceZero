@@ -506,6 +506,49 @@ async def _handle_observe(
             envelope=envelope, session=session, ai_id=ai_id, ctx=ctx
         )
 
+    if obs_type is ObservationType.KNOWLEDGE_RETIRED:
+        # Q1.3 retire semantics: routed through the same
+        # `submit_reviewed_knowledge_event` sink as CLASS_NOTE so the
+        # semantic owners can detach the matching `knowledge_id` from
+        # any active corpus references. The caller carries the
+        # original `knowledge_id` plus a `retire_reason` so audit /
+        # PE can attribute the change.
+        knowledge_id = _required_str(ctx, "knowledge_id", obs_type)
+        retire_reason = _optional_str(
+            ctx, "retire_reason", default="caller_retired"
+        )
+        summary = _required_str(
+            ctx,
+            "summary",
+            obs_type,
+            default=f"knowledge retired: {knowledge_id}",
+        )
+        return _emit_observe_response(
+            envelope=envelope,
+            ai_id=ai_id,
+            obs_type=obs_type,
+            event_ids=session.submit_reviewed_knowledge_event(
+                event_id=_required_str(ctx, "event_id", obs_type),
+                knowledge_id=knowledge_id,
+                summary=summary,
+                detail=_optional_str(
+                    ctx,
+                    "detail",
+                    default=f"retire_reason={retire_reason}",
+                ),
+                source_label=_optional_str(
+                    ctx,
+                    "source_label",
+                    default=ObservationType.KNOWLEDGE_RETIRED.value,
+                ),
+                confidence=_optional_unit_float(ctx, "confidence", default=0.95),
+                relevance_hint=_optional_str(
+                    ctx, "relevance_hint", default="retired"
+                ),
+                needs_followup=False,
+            ),
+        )
+
     if obs_type is ObservationType.GENERIC_SEMANTIC:
         # GENERIC_SEMANTIC requires a typed ExternalSemanticEventBatch
         # which is non-trivial to construct from raw JSON. Slice 2 does

@@ -198,6 +198,12 @@ class DebugEventEnvelope:
     end_user_ref: str = ""
     response_id: str = ""
     interaction_id: str = ""
+    # Q5.2 (digital-employee): typed correlation id that joins a single
+    # request's spans across app/portal/orchestrator/upstream. Apps
+    # propagate it via ``structured_context.correlation_id``; the
+    # platform extracts and stores it as a first-class field so the
+    # ``/dlaas/v1/debug/events`` index supports trace-style filtering.
+    correlation_id: str = ""
     occurred_at: str = ""
     created_at_ms: int = 0
     retention_expires_at_ms: int = 0
@@ -213,6 +219,7 @@ class DebugEventEnvelope:
             "end_user_ref": self.end_user_ref,
             "response_id": self.response_id,
             "interaction_id": self.interaction_id,
+            "correlation_id": self.correlation_id,
             "event_type": self.event_type,
             "stage": self.stage,
             "fields": dict(self.fields),
