@@ -144,10 +144,23 @@ async def _handle_chat(
         if loop_mode == "server":
             from lifeform_affordance import ToolLoopOrchestrator, ToolLoopPolicy
 
+            policy_kwargs: dict[str, Any] = {"server_side_execution": True}
+            override_steps = _optional_int(
+                envelope.structured_context,
+                "tool_loop_max_steps",
+            )
+            if override_steps is not None and override_steps > 0:
+                policy_kwargs["max_tool_steps"] = override_steps
+            override_wall_ms = _optional_int(
+                envelope.structured_context,
+                "tool_loop_max_wall_ms",
+            )
+            if override_wall_ms is not None and override_wall_ms > 0:
+                policy_kwargs["max_wall_ms"] = override_wall_ms
             orchestrator = ToolLoopOrchestrator(
                 registry=invoker.registry,
                 invoker=invoker,
-                policy=ToolLoopPolicy(server_side_execution=True),
+                policy=ToolLoopPolicy(**policy_kwargs),
                 contract_id=envelope.contract_id,
                 granted_consents=frozenset(
                     _optional_str_sequence(
@@ -299,6 +312,9 @@ def _tool_loop_step_to_json(step: Any) -> dict[str, Any]:
             "error_detail": invocation.error_detail,
             "tool_event_ids": list(invocation.tool_event_ids),
             "task_id": invocation.task_id,
+            "kernel_summary_truncated": bool(
+                getattr(invocation, "kernel_summary_truncated", False)
+            ),
         }
     return payload
 
@@ -918,6 +934,34 @@ def _optional_str(
     if value is None:
         return default if default is not None else ""
     return str(value)
+
+
+def _optional_int(
+    ctx: Mapping[str, Any],
+    key: str,
+) -> int | None:
+    """Read an optional integer field from structured_context.
+
+    Used by callers that want to override a default policy bound
+    (e.g. ``tool_loop_max_steps`` / ``tool_loop_max_wall_ms``).
+    Returns ``None`` when the key is absent or the value cannot be
+    coerced to ``int`` cleanly — the caller decides the fallback.
+    """
+    raw = ctx.get(key)
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        return int(raw)
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw)
+    if isinstance(raw, str):
+        try:
+            return int(raw.strip())
+        except ValueError:
+            return None
+    return None
 
 
 def _optional_str_sequence(ctx: Mapping[str, Any], key: str) -> tuple[str, ...]:

@@ -182,6 +182,12 @@ class AffordanceInvocationResult:
     error_detail: str = ""
     tool_event_ids: tuple[str, ...] = ()
     task_handle: AffordanceTaskHandle | None = None
+    # P3.2 (D26-summary): True when ``_summarise_for_kernel``
+    # truncated the detail field to fit the kernel char budget so
+    # operators can audit how often summary loss occurs. The full
+    # payload is still available off the side channel as
+    # ``AffordanceInvocationResult.payload``.
+    kernel_summary_truncated: bool = False
 
     def __post_init__(self) -> None:
         is_success = self.status in {
@@ -970,7 +976,7 @@ class AffordanceInvoker:
             and ran_backend
         ):
             tool_action_id = action_id or f"{descriptor.name}:{event_id}"
-            summary, detail = _summarise_for_kernel(
+            summary, detail, kernel_summary_truncated = _summarise_for_kernel(
                 status=status,
                 payload=payload,
                 error_class=error_class,
@@ -1010,6 +1016,7 @@ class AffordanceInvoker:
             error_class=error_class,
             error_detail=error_detail,
             tool_event_ids=tool_event_ids,
+            kernel_summary_truncated=kernel_summary_truncated,
         )
 
 
@@ -1043,26 +1050,31 @@ def _summarise_for_kernel(
     error_class: str,
     error_detail: str,
     max_chars: int = 320,
-) -> tuple[str, str]:
-    """Build ``(summary, detail)`` suitable for ``submit_tool_result``.
+) -> tuple[str, str, bool]:
+    """Build ``(summary, detail, truncated)`` for ``submit_tool_result``.
 
     Kernel semantic adapters rely on the tool result fields having
     real content; an empty summary looks like a no-op and can
     confuse the execution_result owner's classification.
+
+    P3.2 (D26-summary): the third return value indicates whether the
+    detail was truncated to fit ``max_chars``. Callers can persist
+    this flag so operators can later identify how often summarisation
+    is losing signal, and downstream chunked-ingestion can pick the
+    full payload off the side channel.
     """
     if status is AffordanceInvocationStatus.SUCCEEDED:
         summary = "affordance invocation succeeded"
         if payload:
-            # Keep the detail short + JSON-ish so the adapter can
-            # treat it as evidence without parsing every backend.
             text_preview = ", ".join(f"{k}={payload[k]!r}" for k in list(payload)[:4])
-            detail = f"payload: {text_preview}"[:max_chars]
-        else:
-            detail = "payload: (empty)"
-        return summary, detail
+            raw = f"payload: {text_preview}"
+            detail = raw[:max_chars]
+            return summary, detail, len(raw) > max_chars
+        return summary, "payload: (empty)", False
     summary = f"affordance invocation {status.value}"
-    detail = f"{error_class}: {error_detail}"[:max_chars]
-    return summary, detail
+    raw = f"{error_class}: {error_detail}"
+    detail = raw[:max_chars]
+    return summary, detail, len(raw) > max_chars
 
 
 __all__ = [
