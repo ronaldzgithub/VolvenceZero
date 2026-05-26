@@ -55,6 +55,23 @@ class FigurePresenceArtifact:
 
     Construct only via :func:`build_figure_presence_artifact` so the
     integrity hash is computed in one place.
+
+    Round 2 catalog fingerprints (``voice_profile_fingerprint``,
+    ``music_catalog_fingerprint``, ``scene_catalog_fingerprint``,
+    ``prop_catalog_fingerprint``) are deploy-side fingerprints of the
+    corresponding ``PresenceVoiceProfile`` / ``PresenceMusicTrack`` /
+    ``PresenceSceneAsset`` / ``PresencePropAsset`` rows the figure is
+    permitted to bind at render time. Default ``""`` keeps existing
+    bundles byte-stable; non-empty values fold into
+    :func:`compute_presence_integrity_hash` so updating a catalog
+    binding yields a fresh ``presence_artifact_id`` and a fresh
+    bundle id (R15 byte-level rollback contract).
+
+    Importantly, **no asset bytes/weights live here** — these are
+    opaque deploy-side hashes of the catalogs the rendering plane
+    owns. The figure wheel is still the source of truth for *who*
+    the figure is and *what* permissions exist; deploy-side
+    catalogs decide *which* assets are visible.
     """
 
     schema_version: int
@@ -69,6 +86,10 @@ class FigurePresenceArtifact:
     license_label: str
     irreversible_likeness: bool
     integrity_hash: str
+    voice_profile_fingerprint: str = ""
+    music_catalog_fingerprint: str = ""
+    scene_catalog_fingerprint: str = ""
+    prop_catalog_fingerprint: str = ""
 
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
@@ -127,6 +148,10 @@ def compute_presence_integrity_hash(
     likeness_consent_token_hash: str,
     license_label: str,
     irreversible_likeness: bool,
+    voice_profile_fingerprint: str = "",
+    music_catalog_fingerprint: str = "",
+    scene_catalog_fingerprint: str = "",
+    prop_catalog_fingerprint: str = "",
 ) -> str:
     """Deterministic SHA-256 over the presence artifact's identity fields.
 
@@ -136,6 +161,13 @@ def compute_presence_integrity_hash(
     presence artifact is attached, so any change to the consent token,
     license, or reference image yields a fresh ``bundle_id`` and is
     rollback-addressable.
+
+    Round 2 catalog fingerprints follow the same byte-stable rule as
+    the metadata / provenance fingerprints in
+    :func:`compute_bundle_integrity_hash`: empty default keeps existing
+    bundles byte-stable; non-empty values are folded in so changing the
+    voice / music / scene / prop catalog binding yields a fresh
+    ``presence_artifact_id``.
     """
 
     payload: tuple[object, ...] = (
@@ -150,6 +182,14 @@ def compute_presence_integrity_hash(
         license_label,
         irreversible_likeness,
     )
+    if voice_profile_fingerprint:
+        payload = payload + (("voice_profile", voice_profile_fingerprint),)
+    if music_catalog_fingerprint:
+        payload = payload + (("music_catalog", music_catalog_fingerprint),)
+    if scene_catalog_fingerprint:
+        payload = payload + (("scene_catalog", scene_catalog_fingerprint),)
+    if prop_catalog_fingerprint:
+        payload = payload + (("prop_catalog", prop_catalog_fingerprint),)
     return hashlib.sha256(repr(payload).encode("utf-8")).hexdigest()
 
 
@@ -186,6 +226,10 @@ def build_figure_presence_artifact(
     likeness_consent_token: str,
     license_label: str,
     irreversible_likeness: bool = True,
+    voice_profile_fingerprint: str = "",
+    music_catalog_fingerprint: str = "",
+    scene_catalog_fingerprint: str = "",
+    prop_catalog_fingerprint: str = "",
 ) -> FigurePresenceArtifact:
     """Construct a :class:`FigurePresenceArtifact` with derived hashes.
 
@@ -200,6 +244,11 @@ def build_figure_presence_artifact(
     presence artifact with an updated ``motion_model_id`` and replaying
     consent — which yields a different ``presence_artifact_id`` and a
     different bundle hash, so the rollback contract holds.
+
+    Round 2: the optional catalog fingerprint arguments default to
+    ``""`` so legacy callers keep producing byte-stable artifacts.
+    Non-empty fingerprints fold into the integrity hash so swapping
+    a catalog binding produces a fresh artifact id.
     """
 
     voice_id = (voice_clone_id or "").strip()
@@ -215,6 +264,10 @@ def build_figure_presence_artifact(
         likeness_consent_token_hash=consent_hash,
         license_label=license_label,
         irreversible_likeness=irreversible_likeness,
+        voice_profile_fingerprint=voice_profile_fingerprint,
+        music_catalog_fingerprint=music_catalog_fingerprint,
+        scene_catalog_fingerprint=scene_catalog_fingerprint,
+        prop_catalog_fingerprint=prop_catalog_fingerprint,
     )
     return FigurePresenceArtifact(
         schema_version=SCHEMA_VERSION,
@@ -231,6 +284,10 @@ def build_figure_presence_artifact(
         license_label=license_label,
         irreversible_likeness=irreversible_likeness,
         integrity_hash=integrity_hash,
+        voice_profile_fingerprint=voice_profile_fingerprint,
+        music_catalog_fingerprint=music_catalog_fingerprint,
+        scene_catalog_fingerprint=scene_catalog_fingerprint,
+        prop_catalog_fingerprint=prop_catalog_fingerprint,
     )
 
 

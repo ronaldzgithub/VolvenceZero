@@ -788,11 +788,81 @@ def _try_einstein() -> VerticalSpec | None:
     )
 
 
+def _try_novel_worlds_character() -> VerticalSpec | None:
+    """novel-worlds character vertical.
+
+    Generic CharacterTemplateAdapter binding for the novel-worlds app.
+    Distinct from `_try_zhang_wuji` because:
+      - template_subdir = "novel-worlds" so DLaaS scans
+        /data/novel-bundles/novel-worlds/ (the path the
+        apps/novel-worlds/workers/bake-worker writes to);
+      - default factory falls back to the upstream zhang_wuji profile
+        when no template_id is supplied, since the adapter requires a
+        base profile but novel-worlds requests always include
+        template_id;
+      - runtime_template_id "novel-worlds.character.v0" is what the
+        BFF passes on wake / adoption calls.
+    """
+    try:
+        from lifeform_domain_character import (
+            build_character_template_adapter,
+            build_zhang_wuji_lifeform,
+        )
+    except ImportError:
+        return None
+
+    def factory(runtime):
+        synthesizer = _expression_synthesizer_for_runtime(runtime)
+        semantic_runtime = _build_llm_semantic_runtime_from_runtime(runtime)
+        return build_zhang_wuji_lifeform(
+            substrate_runtime=runtime,
+            response_synthesizer=synthesizer,
+            semantic_proposal_runtime=semantic_runtime,
+        ).lifeform
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from volvence_zero.brain import BrainConfig
+
+        synthesizer = _expression_synthesizer_for_runtime(
+            runtime, repair_alpha_enabled=True
+        )
+        semantic_runtime = _build_llm_semantic_runtime_from_runtime(runtime)
+        config = LifeformConfig(
+            brain_config=BrainConfig(
+                memory_scope_root_dir=memory_scope_root_dir
+            )
+        )
+        return build_zhang_wuji_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            response_synthesizer=synthesizer,
+            semantic_proposal_runtime=semantic_runtime,
+            identity_provider=identity_provider,
+        ).lifeform
+
+    template_adapter = build_character_template_adapter(
+        response_synthesizer_factory=_expression_synthesizer_for_runtime,
+        semantic_proposal_runtime_factory=_build_llm_semantic_runtime_from_runtime,
+    )
+
+    return VerticalSpec(
+        name="novel-worlds-character",
+        factory=factory,
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        alpha_factory=alpha_factory,
+        template_adapter=template_adapter,
+        template_subdir="novel-worlds",
+    )
+
+
 _BUILDERS = (
     _try_companion,
     _try_uncalibrated_companion,
     _try_coding,
     _try_zhang_wuji,
+    _try_novel_worlds_character,
     _try_einstein,
     _try_einstein_raw,
     _try_einstein_bundle,
