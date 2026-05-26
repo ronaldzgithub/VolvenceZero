@@ -166,6 +166,38 @@ class ObservationType(str, Enum):
     GENERIC_SEMANTIC = "generic_semantic"
     KNOWLEDGE_RETIRED = "knowledge_retired"
     PERSON_PROFILE = "person_profile"
+    # ------------------------------------------------------------------
+    # ExperienceLoop SHADOW (see dlaas_platform_contracts.experience).
+    #
+    # Each value still routes through ``submit_reviewed_knowledge_event``
+    # at the kernel sink — they are just typed labels so DLaaS can
+    # validate the ``structured_context.experience`` payload and the
+    # debug stream can tag each event with a stable kind. ``vz-*``
+    # keeps its existing class_note pipeline; nothing new is required
+    # in the kernel.
+    # ------------------------------------------------------------------
+    EXPERIENCE_RECEIPT = "experience_receipt"
+    EXPERIENCE_METRIC = "experience_metric"
+    EXPERIENCE_REFLECTION_GENERATED = "experience_reflection_generated"
+
+
+_EXPERIENCE_OBSERVATION_TYPES: Final[frozenset[ObservationType]] = frozenset(
+    {
+        ObservationType.EXPERIENCE_RECEIPT,
+        ObservationType.EXPERIENCE_METRIC,
+        ObservationType.EXPERIENCE_REFLECTION_GENERATED,
+    }
+)
+
+
+def is_experience_observation(obs_type: ObservationType) -> bool:
+    """True iff this observation kind is part of the ExperienceLoop set.
+
+    The dispatcher uses this to apply the typed
+    ``structured_context.experience`` validation while still falling
+    through to the existing class-note kernel sink (SHADOW behaviour).
+    """
+    return obs_type in _EXPERIENCE_OBSERVATION_TYPES
 
 
 class CommandName(str, Enum):
@@ -207,4 +239,5 @@ __all__ = [
     "FeedbackValence",
     "ObservationType",
     "feedback_valence_to_outcome_kind",
+    "is_experience_observation",
 ]

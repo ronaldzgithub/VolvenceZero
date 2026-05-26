@@ -33,6 +33,8 @@ from typing import Any
 
 from dlaas_platform_contracts import (
     CommandName,
+    ExperienceReceiptSpec,
+    ExperienceReflectionSpec,
     FeedbackPayload,
     FeedbackValence,
     InteractionEnvelope,
@@ -40,6 +42,7 @@ from dlaas_platform_contracts import (
     ObservationType,
     OutputAct,
     feedback_valence_to_outcome_kind,
+    is_experience_observation,
 )
 from lifeform_core.types import TurnTriggerKind
 from lifeform_ingestion import (
@@ -608,6 +611,11 @@ async def _handle_observe(
             ),
         )
 
+    if is_experience_observation(obs_type):
+        return _handle_experience_observation(
+            envelope=envelope, session=session, ai_id=ai_id, ctx=ctx, obs_type=obs_type
+        )
+
     if obs_type is ObservationType.GENERIC_SEMANTIC:
         # GENERIC_SEMANTIC requires a typed ExternalSemanticEventBatch
         # which is non-trivial to construct from raw JSON. Slice 2 does
@@ -722,6 +730,99 @@ def _emit_observe_response(
             "observation_type": obs_type.value,
             "event_ids": list(event_ids),
         },
+    )
+
+
+def _handle_experience_observation(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+    ctx: Mapping[str, Any],
+    obs_type: ObservationType,
+) -> dict[str, Any]:
+    """Route a typed ExperienceLoop observation.
+
+    SHADOW behaviour: validate the typed ``ExperienceReceiptSpec`` /
+    ``ExperienceReflectionSpec`` payload (under
+    ``structured_context.experience``) and then fall through to the
+    same ``submit_reviewed_knowledge_event`` sink the legacy
+    ``class_note`` path uses. This keeps the kernel side untouched
+    while every cross-app emitter starts speaking the typed envelope.
+    """
+
+    experience_raw = ctx.get("experience")
+    if not isinstance(experience_raw, Mapping):
+        raise DispatchError(
+            code="missing_experience_payload",
+            detail=(
+                "ExperienceLoop observations must carry a typed "
+                "structured_context.experience object."
+            ),
+        )
+    try:
+        if obs_type is ObservationType.EXPERIENCE_REFLECTION_GENERATED:
+            ExperienceReflectionSpec.from_json(experience_raw)
+        else:
+            ExperienceReceiptSpec.from_json(experience_raw)
+    except ValueError as exc:
+        raise DispatchError(
+            code="invalid_experience_payload",
+            detail=str(exc),
+        ) from exc
+
+    domain = str(experience_raw.get("domain") or "experience")
+    experience_id = str(experience_raw.get("experience_id") or "unknown")
+    event_kind = (
+        str(experience_raw.get("event_kind") or "")
+        if obs_type is not ObservationType.EXPERIENCE_REFLECTION_GENERATED
+        else "reflection_generated"
+    )
+    if not event_kind:
+        event_kind = obs_type.value
+    knowledge_id = _optional_str(
+        ctx,
+        "knowledge_id",
+        default=f"{domain}:{experience_id}:{event_kind}",
+    )
+    event_id = _optional_str(
+        ctx,
+        "event_id",
+        default=f"{domain}:{event_kind}:{experience_id}",
+    )
+    summary = _optional_str(
+        ctx,
+        "summary",
+        default=str(experience_raw.get("summary") or envelope.human_brief),
+    )
+    detail = _optional_str(
+        ctx,
+        "detail",
+        default=str(experience_raw.get("detail") or summary),
+    )
+    source_label = _optional_str(
+        ctx,
+        "source_label",
+        default=f"digital-employee.{domain}.{event_kind}",
+    )
+    confidence = _optional_unit_float(ctx, "confidence", default=0.85)
+    needs_followup = bool(ctx.get("needs_followup", False))
+
+    event_ids = session.submit_reviewed_knowledge_event(
+        event_id=event_id,
+        knowledge_id=knowledge_id,
+        summary=summary,
+        detail=detail,
+        source_label=source_label,
+        confidence=confidence,
+        relevance_hint=_optional_str(ctx, "relevance_hint"),
+        needs_followup=needs_followup,
+    )
+    return _emit_observe_response(
+        envelope=envelope,
+        ai_id=ai_id,
+        obs_type=obs_type,
+        event_ids=event_ids,
     )
 
 
