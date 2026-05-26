@@ -204,10 +204,27 @@ def scope_key_for(identity: UserIdentity | None) -> str:
     return identity.scope_key
 
 
+def _safe_scope_dirname(user_id: str) -> str:
+    """Return a filesystem-safe directory name for a logical scope key.
+
+    Scope keys intentionally contain semantic separators such as
+    ``company:<id>`` or ``tenant:user``. Those are legal logical ids but
+    not legal path components on Windows (``:`` is forbidden). Keep the
+    logical key unchanged everywhere else; only encode the path segment.
+    The prefix makes the mapping explicit and avoids collisions with
+    pre-existing plain directory names.
+    """
+
+    import base64
+
+    encoded = base64.urlsafe_b64encode(user_id.encode("utf-8")).decode("ascii")
+    return "scope_" + encoded.rstrip("=")
+
+
 def scoped_memory_dir(*, root_dir: str | os.PathLike[str], user_id: str) -> Path:
     """Compute the filesystem directory for a scoped store."""
 
-    return Path(root_dir) / user_id
+    return Path(root_dir) / _safe_scope_dirname(user_id)
 
 
 def build_scoped_memory_store(

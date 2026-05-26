@@ -93,6 +93,7 @@ from dlaas_platform_ops import (
 )
 from dlaas_platform_registry import (
     ApplicationStore,
+    ContractNotFound,
     GovernanceRecordNotFound,
     GovernanceStore,
     PlatformAuthBundle,
@@ -1546,10 +1547,25 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
     try:
         payload = await _read_json_object(request, allow_empty=True)
         wake = WakeRequest.from_json(payload)
+        plugins = ()
+        contract_id = ""
+        tool_policy_snapshot: dict[str, Any] | None = None
+        stores = request.app.get(CONTROL_PLANE_STORES_KEY)
+        if stores is not None:
+            try:
+                contract = await stores.contracts.get_by_ai_id(ai_id)
+                plugins = contract.plugins
+                contract_id = contract.contract_id
+                tool_policy_snapshot = dict(contract.tool_policy_snapshot)
+            except ContractNotFound:
+                plugins = ()
         status = await launcher.wake(
             ai_id=ai_id,
             runtime_template_id=wake.runtime_template_id,
             reason=wake.reason,
+            plugins=plugins,
+            contract_id=contract_id,
+            tool_policy_snapshot=tool_policy_snapshot,
         )
     except InstanceNotFound:
         return _json_error(

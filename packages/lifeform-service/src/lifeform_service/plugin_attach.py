@@ -207,6 +207,7 @@ def apply_contract_policy_for_plugins(
     contract_id: str,
     plugins: Sequence["PluginManifest"],
     extra_allowed_names: Sequence[str] = (),
+    tool_policy_snapshot: Mapping[str, object] | None = None,
 ) -> None:
     """Push the union of plugin-contributed names + extras into the
     lifeform's affordance registry as a contract whitelist.
@@ -220,8 +221,13 @@ def apply_contract_policy_for_plugins(
     if not contract_id.strip():
         return
     allowed: list[str] = list(extra_allowed_names)
-    for manifest in plugins:
-        allowed.extend(manifest.declared_capabilities)
+    if tool_policy_snapshot is not None:
+        raw = tool_policy_snapshot.get("enabled_capabilities")
+        if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
+            allowed.extend(str(item) for item in raw if str(item).strip())
+    if not allowed:
+        for manifest in plugins:
+            allowed.extend(manifest.declared_capabilities)
     if not allowed:
         return
     registry, _invoker = lifeform.ensure_affordance_registry()

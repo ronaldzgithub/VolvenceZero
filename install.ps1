@@ -12,6 +12,22 @@ Set-Location $RootDir
 Write-Host "Installing Volvence Zero workspace into the current Python environment..."
 Write-Host "Python: $(& $PythonBin -c 'import sys; print(sys.executable)')"
 
+function Invoke-PipInstall {
+    param([string[]] $PipArgs)
+    # pip commonly writes harmless warnings to stderr (e.g. "Ignoring
+    # invalid distribution ..."). With $ErrorActionPreference=Stop those
+    # warnings become terminating ErrorRecords in Windows PowerShell. For
+    # native commands, LASTEXITCODE is the only verdict we care about.
+    $previousEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $PythonBin -m pip @PipArgs 2>&1 | ForEach-Object { Write-Host $_ }
+    } finally {
+        $ErrorActionPreference = $previousEap
+    }
+    return $LASTEXITCODE
+}
+
 # Order matters: dependencies must be installed before dependents.
 $Packages = @(
     "packages\vz-contracts",
@@ -53,8 +69,8 @@ $Packages = @(
 foreach ($pkg in $Packages) {
     if (Test-Path $pkg) {
         Write-Host "==> [pass 1] pip install -e $pkg --no-deps"
-        & $PythonBin -m pip install -e $pkg --no-deps
-        if ($LASTEXITCODE -ne 0) { throw "pip install (pass 1) failed for $pkg" }
+        $exit = Invoke-PipInstall @("install", "-e", $pkg, "--no-deps")
+        if ($exit -ne 0) { throw "pip install (pass 1) failed for $pkg" }
     }
 }
 
@@ -67,19 +83,19 @@ foreach ($pkg in $Packages) {
 foreach ($pkg in $Packages) {
     if (Test-Path $pkg) {
         Write-Host "==> [pass 2] pip install -e $pkg"
-        & $PythonBin -m pip install -e $pkg
-        if ($LASTEXITCODE -ne 0) { throw "pip install (pass 2) failed for $pkg" }
+        $exit = Invoke-PipInstall @("install", "-e", $pkg)
+        if ($exit -ne 0) { throw "pip install (pass 2) failed for $pkg" }
     }
 }
 
 if ($Extras) {
     Write-Host "==> pip install vz-runtime[$Extras] (extras only)"
-    & $PythonBin -m pip install "vz-runtime[$Extras]"
-    if ($LASTEXITCODE -ne 0) { throw "pip install extras failed" }
+    $exit = Invoke-PipInstall @("install", "vz-runtime[$Extras]")
+    if ($exit -ne 0) { throw "pip install extras failed" }
     if ($Extras -match "dev") {
         Write-Host "==> pip install -e .[dev] (workspace dev tooling)"
-        & $PythonBin -m pip install -e ".[dev]"
-        if ($LASTEXITCODE -ne 0) { throw "pip install dev extras failed" }
+        $exit = Invoke-PipInstall @("install", "-e", ".[dev]")
+        if ($exit -ne 0) { throw "pip install dev extras failed" }
     }
 }
 
@@ -106,8 +122,8 @@ if ($Extras -and $Extras -match "hf") {
     $torchIndex = Get-PytorchWheelIndex
     Write-Host "==> Reinstall torch from $($torchIndex.Url) ($($torchIndex.Label))"
     & $PythonBin -m pip uninstall -y torch 2>$null | Out-Null
-    & $PythonBin -m pip install torch --index-url $torchIndex.Url
-    if ($LASTEXITCODE -ne 0) { throw "pip install torch ($($torchIndex.Label)) failed" }
+    $exit = Invoke-PipInstall @("install", "torch", "--index-url", $torchIndex.Url)
+    if ($exit -ne 0) { throw "pip install torch ($($torchIndex.Label)) failed" }
     & $PythonBin -c @"
 import torch
 print('torch', torch.__version__, 'cuda', torch.cuda.is_available())

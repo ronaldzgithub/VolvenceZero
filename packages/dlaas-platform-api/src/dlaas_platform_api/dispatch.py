@@ -549,6 +549,65 @@ async def _handle_observe(
             ),
         )
 
+    if obs_type is ObservationType.PERSON_PROFILE:
+        # Digital Employee R16-R20: a BFF-side InboxItem can carry a
+        # counterparty snapshot (customer / colleague / external system).
+        # The kernel does not need a bespoke portal-side table; it needs
+        # a reviewed knowledge event with a stable knowledge_id so
+        # relationship-continuity owners can attach social context to the
+        # twin's session.
+        person_ref = _required_str(ctx, "person_ref", obs_type)
+        person_kind = _required_str(ctx, "person_kind", obs_type)
+        attributes = ctx.get("attributes")
+        attributes_detail = ""
+        if isinstance(attributes, Mapping) and attributes:
+            try:
+                import json
+
+                attributes_detail = " attributes=" + json.dumps(
+                    dict(attributes),
+                    sort_keys=True,
+                    ensure_ascii=False,
+                )
+            except Exception:
+                attributes_detail = " attributes=(unserializable)"
+        return _emit_observe_response(
+            envelope=envelope,
+            ai_id=ai_id,
+            obs_type=obs_type,
+            event_ids=session.submit_reviewed_knowledge_event(
+                event_id=_required_str(ctx, "event_id", obs_type),
+                knowledge_id=_required_str(
+                    ctx,
+                    "knowledge_id",
+                    obs_type,
+                    default=f"counterparty:{person_ref}",
+                ),
+                summary=_required_str(
+                    ctx,
+                    "summary",
+                    obs_type,
+                    default=f"person_profile:{person_kind}:{person_ref}",
+                ),
+                detail=(
+                    _optional_str(ctx, "detail", default=envelope.human_brief)
+                    + attributes_detail
+                ),
+                source_label=_optional_str(
+                    ctx,
+                    "source_label",
+                    default=ObservationType.PERSON_PROFILE.value,
+                ),
+                confidence=_optional_unit_float(ctx, "confidence", default=0.9),
+                relevance_hint=_optional_str(
+                    ctx,
+                    "relevance_hint",
+                    default=f"counterparty:{person_kind}",
+                ),
+                needs_followup=bool(ctx.get("needs_followup", False)),
+            ),
+        )
+
     if obs_type is ObservationType.GENERIC_SEMANTIC:
         # GENERIC_SEMANTIC requires a typed ExternalSemanticEventBatch
         # which is non-trivial to construct from raw JSON. Slice 2 does

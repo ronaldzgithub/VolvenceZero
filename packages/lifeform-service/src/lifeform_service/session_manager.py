@@ -50,6 +50,7 @@ from lifeform_service.templates import (
 )
 from lifeform_service.default_mcp_bundle import with_default_mcp_bundle
 from lifeform_service.plugin_attach import (
+    apply_contract_policy_for_plugins,
     apply_plugins_to_lifeform_config,
     register_http_plugins_after_start,
 )
@@ -112,6 +113,8 @@ class SessionManager:
         protocol_uptake_service: "ProtocolUptakeService | None" = None,
         attach_default_mcp_bundle: bool = False,
         contract_plugins: tuple = (),
+        contract_id: str = "",
+        tool_policy_snapshot: dict | None = None,
     ) -> None:
         """Construct a multi-vertical session manager.
 
@@ -196,6 +199,8 @@ class SessionManager:
         # Empty tuple = legacy contract (default), in which case
         # ``create_session`` skips the plugin attach pass entirely.
         self._contract_plugins = tuple(contract_plugins)
+        self._contract_id = contract_id
+        self._tool_policy_snapshot = dict(tool_policy_snapshot or {})
 
     @property
     def vertical_registry(self) -> VerticalRegistry:
@@ -508,6 +513,19 @@ class SessionManager:
             if self._contract_plugins:
                 register_http_plugins_after_start(
                     life, self._contract_plugins
+                )
+            contract_ids = [self._contract_id] if self._contract_id else []
+            if self._contract_id and self._contract_id != "digital-employee":
+                # The digital-employee BFF still sends the stable
+                # compatibility contract_id on runtime envelopes while
+                # adopt stores the generated platform contract_id.
+                contract_ids.append("digital-employee")
+            for contract_id in contract_ids:
+                apply_contract_policy_for_plugins(
+                    life,
+                    contract_id=contract_id,
+                    plugins=self._contract_plugins,
+                    tool_policy_snapshot=self._tool_policy_snapshot,
                 )
             session = life.create_session(session_id=sid)
             self._sessions[sid] = _SessionEntry(

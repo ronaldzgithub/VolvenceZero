@@ -150,6 +150,11 @@ class ObservationType(str, Enum):
       CLASS_NOTE subtype so semantic owners can mark the matching
       ``knowledge_id`` stale without needing real asset deletion at
       the corpus tier. Required field: ``knowledge_id``.
+    * ``PERSON_PROFILE`` — explicit third-party / counterparty
+      profile snapshot. Used by digital-employee R16-R20 so the
+      EmployeeTwin knows who the employee is acting toward. Routes
+      through ``submit_reviewed_knowledge_event`` as a typed reviewed
+      knowledge note with person attributes embedded in detail.
     """
 
     HOMEWORK_RESULT = "homework_result"
@@ -160,6 +165,7 @@ class ObservationType(str, Enum):
     CORPUS_INGEST = "corpus_ingest"
     GENERIC_SEMANTIC = "generic_semantic"
     KNOWLEDGE_RETIRED = "knowledge_retired"
+    PERSON_PROFILE = "person_profile"
 
 
 class CommandName(str, Enum):

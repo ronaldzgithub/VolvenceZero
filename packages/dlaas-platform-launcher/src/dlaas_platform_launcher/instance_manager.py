@@ -185,6 +185,8 @@ class InstanceManager:
         ai_id: str,
         runtime_template_id: str,
         plugins: tuple[PluginManifest, ...] = (),
+        contract_id: str = "",
+        tool_policy_snapshot: dict[str, Any] | None = None,
     ) -> SessionManager:
         """Idempotently register ``ai_id`` with the matching vertical.
 
@@ -219,6 +221,8 @@ class InstanceManager:
                 substrate_runtime=self._substrate_runtime,
                 attach_default_mcp_bundle=self._attach_default_mcp_bundle,
                 contract_plugins=plugins,
+                contract_id=contract_id,
+                tool_policy_snapshot=tool_policy_snapshot,
             )
             self._instances[ai_id] = manager
             self._verticals[ai_id] = spec.name
@@ -234,6 +238,8 @@ class InstanceManager:
         runtime_template_id: str = "",
         reason: str = "on_demand",
         plugins: tuple[PluginManifest, ...] = (),
+        contract_id: str = "",
+        tool_policy_snapshot: dict[str, Any] | None = None,
     ) -> InstanceStatus:
         """Wake an adopted instance, optionally acquiring it first.
 
@@ -266,6 +272,8 @@ class InstanceManager:
                     substrate_runtime=self._substrate_runtime,
                     attach_default_mcp_bundle=self._attach_default_mcp_bundle,
                     contract_plugins=plugins,
+                    contract_id=contract_id,
+                    tool_policy_snapshot=tool_policy_snapshot,
                 )
                 self._instances[ai_id] = manager
                 self._verticals[ai_id] = spec.name

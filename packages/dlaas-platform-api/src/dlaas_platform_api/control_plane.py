@@ -1661,6 +1661,10 @@ async def _handle_adopt(request: web.Request) -> web.Response:
         _assert_plugin_names_unique(plugins)
     except ValueError as exc:
         return _error(409, "plugin_name_conflict", str(exc))
+    engine_tools = dict(data.get("engine_tools") or {})
+    for capability in adoption_config.tools.allowed_capabilities:
+        if capability:
+            engine_tools.setdefault(capability, True)
     contract = await stores.contracts.create(
         tenant_id=tenant.tenant_id,
         template_id=template_id,
@@ -1669,9 +1673,9 @@ async def _handle_adopt(request: web.Request) -> web.Response:
         ),
         shell_id=shell_id,
         owner_user_id=str(data.get("owner_user_id", "") or ""),
-        engine_tools=data.get("engine_tools") or {},
+        engine_tools=engine_tools,
         tool_policy_snapshot=_compute_tool_policy_snapshot(
-            data.get("engine_tools") or {},
+            engine_tools,
             plugins,
         ),
         service_contract=service_contract,
@@ -1688,6 +1692,8 @@ async def _handle_adopt(request: web.Request) -> web.Response:
             ai_id=final_contract.ai_id,
             runtime_template_id=runtime_template_id,
             plugins=final_contract.plugins,
+            contract_id=final_contract.contract_id,
+            tool_policy_snapshot=dict(final_contract.tool_policy_snapshot),
         )
     except LookupError as exc:
         await stores.contracts.update_status(
