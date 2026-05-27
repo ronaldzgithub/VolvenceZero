@@ -95,14 +95,20 @@ def default_vertical_resolver() -> VerticalResolver:
     cache: dict[str, VerticalSpec] | None = None
 
     aliases = {
-        # Digital Employee v0 is a product-level template pair layered over
-        # the general companion vertical. OrgAgent and EmployeeTwin diverge
-        # by ai_id/session/scope/tool policy at the DLaaS layer, not by a
-        # separate kernel wheel yet. Keeping the alias here lets the template
-        # ids wake fail-loudly if the companion vertical is absent while
-        # avoiding a prompt/workflow shim in the deploy app.
+        # Back-compat only. lifeform-service now registers
+        # digital-employee.org.v0 / .twin.v0 as first-class vertical
+        # names that wrap the companion v0 factory, so healthy
+        # deployments resolve by exact name. The alias keeps older
+        # installed wheels working during a rolling upgrade.
         "digital-employee.org.v0": "companion",
         "digital-employee.twin.v0": "companion",
+        # novel-worlds BFFs speak in product runtime_template_id form
+        # while the lifeform-service registry entry is named by the
+        # vertical factory. Keep this alias explicit so wake/adoption
+        # requests with runtime_template_id="novel-worlds.character.v0"
+        # resolve to the CharacterTemplateAdapter-backed vertical that
+        # scans /data/novel-bundles/novel-worlds.
+        "novel-worlds.character.v0": "novel-worlds-character",
     }
 
     def resolve(runtime_template_id: str) -> VerticalSpec | None:

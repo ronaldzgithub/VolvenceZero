@@ -194,3 +194,33 @@ def test_lint_warnings_empty_in_slice_1() -> None:
     # Slice 1 declares no soft lints (post_init raises handle hard
     # invariants). The accessor exists for slice 2 to grow into.
     assert registry.lint_warnings() == ()
+
+
+def test_contract_policy_filters_visible_affordances() -> None:
+    registry = AffordanceRegistry()
+    registry.register(_descriptor("read_file"))
+    registry.register(_descriptor("send_email"))
+    registry.register(_descriptor("create_ad_campaign"))
+
+    # Legacy sessions without a policy stay allow-all.
+    assert [d.name for d in registry.list_for_session(contract_id=None)] == [
+        "read_file",
+        "send_email",
+        "create_ad_campaign",
+    ]
+    assert [d.name for d in registry.list_for_session(contract_id="legacy")] == [
+        "read_file",
+        "send_email",
+        "create_ad_campaign",
+    ]
+
+    registry.set_contract_policy(
+        contract_id="contract_digital_employee",
+        allowed_affordance_names=["read_file", "send_email", "unknown_stale_tool"],
+    )
+
+    assert registry.has_contract_policy("contract_digital_employee")
+    assert [
+        d.name
+        for d in registry.list_for_session(contract_id="contract_digital_employee")
+    ] == ["read_file", "send_email"]

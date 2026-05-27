@@ -137,6 +137,59 @@ def _try_companion() -> VerticalSpec | None:
     )
 
 
+def _try_digital_employee_org() -> VerticalSpec | None:
+    """Digital Employee company-level OrgAgent vertical.
+
+    v0 intentionally reuses the companion lifeform factory while giving
+    DLaaS a real vertical name to resolve from
+    ``runtime_template_id=digital-employee.org.v0``. The product-level
+    policy difference (org scope, read-heavy tools, company memory) is
+    carried by the adoption contract and BFF context today; once a
+    dedicated digital-employee kernel package exists, only this factory
+    binding needs to change.
+    """
+
+    companion = _try_companion()
+    if companion is None:
+        return None
+    return VerticalSpec(
+        name="digital-employee.org.v0",
+        factory=companion.factory,
+        has_temporal_bootstrap=companion.has_temporal_bootstrap,
+        has_regime_bootstrap=companion.has_regime_bootstrap,
+        bootstraps_dir=companion.bootstraps_dir,
+        scenarios_dir=companion.scenarios_dir,
+        alpha_factory=companion.alpha_factory,
+        template_adapter=companion.template_adapter,
+        template_subdir=companion.template_subdir,
+    )
+
+
+def _try_digital_employee_twin() -> VerticalSpec | None:
+    """Digital Employee per-member EmployeeTwin vertical.
+
+    v0 shares the companion factory but resolves as a first-class
+    vertical name. This removes the launcher-only alias dependency from
+    the healthy path while keeping behaviour backwards-compatible until
+    the twin-specific regime/tool policy owner moves into lifeform.
+    """
+
+    companion = _try_companion()
+    if companion is None:
+        return None
+    return VerticalSpec(
+        name="digital-employee.twin.v0",
+        factory=companion.factory,
+        has_temporal_bootstrap=companion.has_temporal_bootstrap,
+        has_regime_bootstrap=companion.has_regime_bootstrap,
+        bootstraps_dir=companion.bootstraps_dir,
+        scenarios_dir=companion.scenarios_dir,
+        alpha_factory=companion.alpha_factory,
+        template_adapter=companion.template_adapter,
+        template_subdir=companion.template_subdir,
+    )
+
+
 def _try_uncalibrated_companion() -> VerticalSpec | None:
     """Bare companion vertical without the pre-trained bootstraps.
 
@@ -859,6 +912,8 @@ def _try_novel_worlds_character() -> VerticalSpec | None:
 
 _BUILDERS = (
     _try_companion,
+    _try_digital_employee_org,
+    _try_digital_employee_twin,
     _try_uncalibrated_companion,
     _try_coding,
     _try_zhang_wuji,

@@ -284,12 +284,20 @@ async def _handle_cognition_experience_throughput(
         if created < cutoff:
             continue
         event_type = str(event.get("event_type", "") or "")
-        if event_type not in {receipt_type, reflection_type}:
+        fields = event.get("fields") or {}
+        experience = fields.get("experience") if isinstance(fields, dict) else None
+        schema_version = (
+            str(experience.get("schema_version", "") or "")
+            if isinstance(experience, dict)
+            else ""
+        )
+        effective_type = schema_version or event_type
+        if effective_type not in {receipt_type, reflection_type}:
             continue
         binding = _extract_binding(event)
         day = _ms_to_day(created)
         bucket = by_binding_day.setdefault((binding, day), {"receipts": 0, "reflections": 0})
-        if event_type == receipt_type:
+        if effective_type == receipt_type:
             bucket["receipts"] += 1
         else:
             bucket["reflections"] += 1
@@ -492,9 +500,30 @@ def _extract_binding(event: dict[str, Any]) -> str:
     """Recover the experience binding name from a debug event envelope."""
     fields = event.get("fields") or {}
     if isinstance(fields, dict):
+        experience = fields.get("experience")
+        if isinstance(experience, dict):
+            domain = experience.get("domain")
+            if domain:
+                return str(domain)
+        domain = fields.get("domain")
+        if domain:
+            return str(domain)
         binding = fields.get("binding") or fields.get("binding_name")
         if binding:
             return str(binding)
+        source_label = fields.get("source_label")
+        if isinstance(source_label, str) and (
+            source_label.startswith("digital-employee.")
+            or source_label.startswith("experience-loop.")
+        ):
+            rest = (
+                source_label.removeprefix("digital-employee.")
+                if source_label.startswith("digital-employee.")
+                else source_label.removeprefix("experience-loop.")
+            )
+            head = rest.split(".", 1)[0]
+            if head:
+                return head
     app_id = event.get("app_id") or ""
     return str(app_id) if app_id else "unknown"
 

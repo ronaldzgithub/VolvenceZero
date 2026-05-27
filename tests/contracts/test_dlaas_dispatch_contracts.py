@@ -660,3 +660,101 @@ async def test_human_brief_does_not_affect_chat_dispatch():
     assert len(session.run_turn_calls) == 1
     assert session.submit_profile_event_calls == []
     assert body["interaction_type"] == "chat"
+
+
+# ---------------------------------------------------------------------------
+# ExperienceLoop SHADOW observe contracts
+# ---------------------------------------------------------------------------
+
+
+async def test_observe_experience_receipt_routes_to_reviewed_knowledge():
+    session = _FakeSession()
+    body = await dispatch_envelope(
+        envelope=_envelope(
+            interaction_type="observe",
+            human_brief="reader feedback observed",
+            structured_context={
+                "observation_type": "experience_receipt",
+                "experience": {
+                    "schema_version": "experience.receipt.v1",
+                    "domain": "reader_dialogue",
+                    "experience_id": "resp_123",
+                    "event_kind": "feedback_observed",
+                    "summary": "Reader feedback: helped",
+                },
+            },
+        ),
+        session=session,
+        ai_id="ai_smoke",
+    )
+    assert body["observation_type"] == "experience_receipt"
+    assert len(session.submit_reviewed_knowledge_event_calls) == 1
+    call = session.submit_reviewed_knowledge_event_calls[0]
+    assert call["knowledge_id"] == "reader_dialogue:resp_123:feedback_observed"
+    assert call["source_label"] == "digital-employee.reader_dialogue.feedback_observed"
+
+
+async def test_observe_experience_metric_routes_to_reviewed_knowledge():
+    session = _FakeSession()
+    body = await dispatch_envelope(
+        envelope=_envelope(
+            interaction_type="observe",
+            human_brief="metric observed",
+            structured_context={
+                "observation_type": "experience_metric",
+                "experience": {
+                    "schema_version": "experience.receipt.v1",
+                    "domain": "marketing",
+                    "experience_id": "campaign_1",
+                    "event_kind": "metric_observed",
+                    "summary": "CTR improved",
+                    "confidence": 0.9,
+                },
+            },
+        ),
+        session=session,
+        ai_id="ai_smoke",
+    )
+    assert body["observation_type"] == "experience_metric"
+    assert len(session.submit_reviewed_knowledge_event_calls) == 1
+
+
+async def test_observe_experience_reflection_validates_required_title():
+    session = _FakeSession()
+    with pytest.raises(DispatchError) as info:
+        await dispatch_envelope(
+            envelope=_envelope(
+                interaction_type="observe",
+                human_brief="reflection generated",
+                structured_context={
+                    "observation_type": "experience_reflection_generated",
+                    "experience": {
+                        "schema_version": "experience.reflection.v1",
+                        "domain": "marketing",
+                        "experience_id": "campaign_1",
+                        "summary": "Reflection without title",
+                    },
+                },
+            ),
+            session=session,
+            ai_id="ai_smoke",
+        )
+    assert info.value.code == "invalid_experience_payload"
+    assert "title" in info.value.detail
+    assert session.submit_reviewed_knowledge_event_calls == []
+
+
+async def test_observe_experience_rejects_missing_payload():
+    session = _FakeSession()
+    with pytest.raises(DispatchError) as info:
+        await dispatch_envelope(
+            envelope=_envelope(
+                interaction_type="observe",
+                human_brief="missing payload",
+                structured_context={"observation_type": "experience_receipt"},
+            ),
+            session=session,
+            ai_id="ai_smoke",
+        )
+    assert info.value.code == "missing_experience_payload"
+    assert session.submit_reviewed_knowledge_event_calls == []

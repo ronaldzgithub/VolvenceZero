@@ -497,6 +497,199 @@ input event -> active regime -> active protocols -> boundary decision -> strateg
 Explainability never reconstructs producer internals. It reads only
 snapshot descriptions and stable readout fields.
 
+### Cognition Aggregates
+
+Five tenant-scoped GET endpoints aggregate per-interaction cognition
+snapshots so portals and downstream apps can render regime history,
+learning-family distribution, ExperienceLoop throughput, and eval
+trend without re-deriving owner state. All paths are gated through
+the same tenant auth as the rest of `/dlaas/v1/...` and return
+`{status, count, items}` (or `{status, totals, sample_count}` for
+the radar aggregate).
+
+Snapshots are written by the dispatch hook in `app.py` after every
+successful `dispatch_envelope`. The recorded fields are the
+`active_regime` id, prediction-error 4 axes (`task`, `relationship`,
+`regime`, `action`, plus `magnitude`), a six-class learning-family
+count derived from populated kernel slots, `eval_alert_count` /
+`memory_entries`, and the full readout bundle for forward
+compatibility. The store is in-memory aiohttp app state; the
+platform-api restart drops history. Persistence is tracked as a
+round-6 known debt in `apps/dlaas-portal/known-debts.md`.
+
+The cognition surface honours the same R12 / R14 / R4 rules as the
+other observability endpoints:
+
+- R14: the regime owner is the kernel; this surface only records
+  what the readout bundle already published.
+- R4: visualisations are readouts (soft signals), not a model
+  self-assessed capability score.
+- R12: `eval-trend` is the eval PE readout; nothing here ever feeds
+  back into a learning input.
+
+```http
+GET /dlaas/v1/cognition/snapshots?ai_id=ai_demo&since_ms=&until_ms=&window=7d&limit=200
+```
+
+Paginated raw rows. Accepts `ai_id`, `tenant_id`, `session_id`,
+`source` (`interaction` / `session_end` / `sampler` / `manual`),
+`since_ms` / `until_ms` epoch filters, and a free-form `window` like
+`7d` / `24h` / `30m`. Default newest-first sort, max `limit=1000`.
+
+Sample response:
+
+```json
+{
+  "status": "ok",
+  "count": 1,
+  "items": [
+    {
+      "snapshot_id": "cog_4f3a91c0d712",
+      "tenant_id": "tenant_demo",
+      "ai_id": "ai_demo",
+      "session_id": "sess_demo",
+      "source": "interaction",
+      "captured_at_ms": 1717049200000,
+      "regime_id": "regime.calm",
+      "prediction_error": {
+        "magnitude": 0.18,
+        "task": 0.05,
+        "relationship": 0.12,
+        "regime": 0.0,
+        "action": 0.01
+      },
+      "learning_family": {
+        "cognition": 3,
+        "knowledge": 2,
+        "strategy": 1,
+        "protocol": 0,
+        "safety": 1,
+        "training": 0
+      },
+      "eval_alert_count": 0,
+      "memory_entries": 12,
+      "raw_readout": { "body": {}, "cognition": {} }
+    }
+  ]
+}
+```
+
+```http
+GET /dlaas/v1/cognition/timelines/regime?ai_id=ai_demo&window=7d
+```
+
+Coalesces consecutive same-regime snapshots into `RegimeTimelineSegment`
+ranges so a strip chart can render one band per regime run instead
+of one rect per turn.
+
+```json
+{
+  "status": "ok",
+  "count": 1,
+  "items": [
+    {
+      "regime_id": "regime.calm",
+      "started_at_ms": 1717048800000,
+      "ended_at_ms": 1717049200000,
+      "duration_ms": 400000,
+      "sample_count": 7
+    }
+  ]
+}
+```
+
+```http
+GET /dlaas/v1/cognition/learning-family?ai_id=ai_demo&window=7d
+```
+
+Sums the six-class learning-family counts over the window so a
+radar chart has a single point per family. Mirrors the slot family
+buckets used internally by `_build_readout_bundle`.
+
+```json
+{
+  "status": "ok",
+  "sample_count": 24,
+  "totals": {
+    "cognition": 72,
+    "knowledge": 48,
+    "strategy": 24,
+    "protocol": 0,
+    "safety": 24,
+    "training": 0
+  }
+}
+```
+
+```http
+GET /dlaas/v1/cognition/experience-throughput?window=30d&group_by=binding,day
+```
+
+Reads from the existing `debug_events` store and groups
+`experience.receipt.v1` + `experience.reflection.v1` envelopes by
+ExperienceLoop binding and ISO day. No new persistence; the
+endpoint is a thin aggregator over the debug events the platform
+already records.
+
+```json
+{
+  "status": "ok",
+  "count": 1,
+  "items": [
+    {
+      "binding": "marketing.bench",
+      "day": "2026-05-26",
+      "receipts": 12,
+      "reflections": 4
+    }
+  ]
+}
+```
+
+```http
+GET /dlaas/v1/cognition/eval-trend?ai_id=ai_demo&window=30d
+```
+
+Reads from the `eval_runs` store and projects daily run count, mean
+score, and pass rate (score >= 0.5). The endpoint is read-only and
+never edits a run; it is a pure readout. The `runs` and
+`average_score` figures match what `eval/runs/{run_id}` returns row
+by row.
+
+```json
+{
+  "status": "ok",
+  "count": 1,
+  "items": [
+    {
+      "day": "2026-05-26",
+      "runs": 4,
+      "average_score": 0.78,
+      "pass_rate": 0.75
+    }
+  ]
+}
+```
+
+### Eval Runs CRUD
+
+The eval surface lives on the same auth tier as readouts but is
+called out separately because `cognition/eval-trend` depends on it
+and it is otherwise undocumented.
+
+```http
+POST /dlaas/v1/eval/runs
+GET  /dlaas/v1/eval/runs/{run_id}
+POST /dlaas/v1/eval/runs/{run_id}/approve
+```
+
+`POST /eval/runs` accepts `{ gate_id, ai_id, contract_id, score }`
+and returns a `EvalRun` with status `pending`. `GET ../{run_id}`
+returns the run; `POST ../{run_id}/approve` stamps
+`status=approved` and `decision=PromotionDecision.ALLOW`. The
+`score` field is a soft signal under R12 — it is a readout of PE,
+not a learning input.
+
 ## Safety Protocol Aliases
 
 Safety injection is protocol-only:

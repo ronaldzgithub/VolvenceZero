@@ -2446,8 +2446,84 @@ async def _dispatch_envelope_to_instance(
         session_id=envelope.session_id,
         payload={"interaction_type": envelope.interaction_type.value},
     )
+    _maybe_record_experience_debug_event(request, ai_id=ai_id, envelope=envelope)
     _record_usage(request, ai_id=ai_id, metric=f"interaction.{envelope.interaction_type.value}", quantity=1)
     return web.json_response(body)
+
+
+def _maybe_record_experience_debug_event(
+    request: web.Request,
+    *,
+    ai_id: str,
+    envelope: InteractionEnvelope,
+) -> None:
+    """Record SHADOW ExperienceLoop debug events after a successful observe.
+
+    Consumer apps emit typed ExperienceLoop payloads through the normal
+    ``interaction_type=observe`` route. The kernel still receives them
+    as reviewed knowledge, but operator readouts need a stable debug
+    event stream with the typed payload intact. This bridge is
+    best-effort and must never block the interaction response.
+    """
+    try:
+        if envelope.interaction_type is not InteractionType.OBSERVE:
+            return
+        ctx = envelope.structured_context
+        observation_type = str(ctx.get("observation_type", "") or "")
+        if observation_type not in {
+            "experience_brief",
+            "experience_receipt",
+            "experience_metric",
+            "experience_reflection_generated",
+        }:
+            return
+        experience = ctx.get("experience")
+        if not isinstance(experience, dict):
+            return
+        schema_version = str(experience.get("schema_version", "") or "")
+        if schema_version == "experience.reflection.v1":
+            event_type = "experience.reflection.v1"
+        elif schema_version == "experience.brief.v1":
+            event_type = "experience.brief.v1"
+        else:
+            event_type = "experience.receipt.v1"
+        domain = str(experience.get("domain", "") or "unknown")
+        experience_id = str(experience.get("experience_id", "") or "")
+        source_label = str(
+            ctx.get("source_label")
+            or f"digital-employee.{domain}.{observation_type}"
+        )
+        created_at_ms = _now_ms()
+        debug_event = DebugEventEnvelope(
+            debug_event_id=_new_id("debug_evt"),
+            app_id="experience-loop",
+            schema_version="experience-loop.debug.v1",
+            ai_id=ai_id,
+            tenant_id=str(ctx.get("tenant_id", "") or ""),
+            session_id=envelope.session_id,
+            end_user_ref=envelope.end_user_ref,
+            response_id="",
+            interaction_id="",
+            event_type=event_type,
+            stage="dlaas.experience",
+            fields={
+                "binding": domain,
+                "domain": domain,
+                "experience_id": experience_id,
+                "schema_version": schema_version,
+                "observation_type": observation_type,
+                "source_label": source_label,
+                "experience": experience,
+            },
+            occurred_at="",
+            created_at_ms=created_at_ms,
+            retention_expires_at_ms=_retention_expires_at(
+                request, app_id="experience-loop", created_at_ms=created_at_ms
+            ),
+        )
+        _debug_event_store(request)[debug_event.debug_event_id] = debug_event
+    except Exception:  # noqa: BLE001 -- debug bridge must not block observe
+        _LOG.exception("experience debug event write failed for ai_id=%s", ai_id)
 
 
 def _maybe_record_cognition_snapshot(

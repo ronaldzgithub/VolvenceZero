@@ -178,6 +178,7 @@ class ObservationType(str, Enum):
     # ------------------------------------------------------------------
     EXPERIENCE_RECEIPT = "experience_receipt"
     EXPERIENCE_METRIC = "experience_metric"
+    EXPERIENCE_BRIEF = "experience_brief"
     EXPERIENCE_REFLECTION_GENERATED = "experience_reflection_generated"
 
 
@@ -185,6 +186,7 @@ _EXPERIENCE_OBSERVATION_TYPES: Final[frozenset[ObservationType]] = frozenset(
     {
         ObservationType.EXPERIENCE_RECEIPT,
         ObservationType.EXPERIENCE_METRIC,
+        ObservationType.EXPERIENCE_BRIEF,
         ObservationType.EXPERIENCE_REFLECTION_GENERATED,
     }
 )

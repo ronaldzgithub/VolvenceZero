@@ -33,6 +33,7 @@ from typing import Any
 
 from dlaas_platform_contracts import (
     CommandName,
+    ExperienceBriefSpec,
     ExperienceReceiptSpec,
     ExperienceReflectionSpec,
     FeedbackPayload,
@@ -761,7 +762,9 @@ def _handle_experience_observation(
             ),
         )
     try:
-        if obs_type is ObservationType.EXPERIENCE_REFLECTION_GENERATED:
+        if obs_type is ObservationType.EXPERIENCE_BRIEF:
+            ExperienceBriefSpec.from_json(experience_raw)
+        elif obs_type is ObservationType.EXPERIENCE_REFLECTION_GENERATED:
             ExperienceReflectionSpec.from_json(experience_raw)
         else:
             ExperienceReceiptSpec.from_json(experience_raw)
@@ -775,9 +778,15 @@ def _handle_experience_observation(
     experience_id = str(experience_raw.get("experience_id") or "unknown")
     event_kind = (
         str(experience_raw.get("event_kind") or "")
-        if obs_type is not ObservationType.EXPERIENCE_REFLECTION_GENERATED
+        if obs_type
+        not in (
+            ObservationType.EXPERIENCE_BRIEF,
+            ObservationType.EXPERIENCE_REFLECTION_GENERATED,
+        )
         else "reflection_generated"
     )
+    if obs_type is ObservationType.EXPERIENCE_BRIEF:
+        event_kind = "brief_observed"
     if not event_kind:
         event_kind = obs_type.value
     knowledge_id = _optional_str(
