@@ -89,3 +89,5 @@ artifacts/companion_bench_smoke/*
 /.local
 /.venv
 /.venv.conda.bak
+/tests
+*.pyc

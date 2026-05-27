@@ -18,6 +18,8 @@
 
 | 文档 | 内容 | 状态 |
 |---|---|---|
+| [volvence-bp-4page-v2-cn.md](./volvence-bp-4page-v2-cn.md) | **新版中文商业计划书 v2（高密度 PPT 文案版）**：可直接拆成 4-5 页 PPT 的屏幕文案。围绕类人 EQ+IQ AI、电商私域 AI 运营员工、为什么 context/RAG/workflow 解决不了长期关系、从私域到下一代关系电商平台、以及对外安全的技术严谨性证据链（100 篇论文研究、内部 benchmark、artifact、4,400+ tests）。已去除核心内部技术名词，适合作为对外 BP 初稿。 | **v0.1（2026-05-28）** |
+| [volvence-bp-4page-v1-cn.md](./volvence-bp-4page-v1-cn.md) | **新版中文商业计划书 (BP) 5页精要版**：面向投资人与核心合作方的极简BP。5分钟讲透：全自主类人情商与智商AI数字生命定位、从Mobi电商私域说透ROA产品形态、关系治理(Governance)根本壁垒、支撑商业飞轮的8段第一性原理技术推导、以及2026年3500万营收内部预估与下一步12个月计划。 | **v1.0（2026-05-28）** |
 | [commercialization-assessment.md](./commercialization-assessment.md) | VZ 全面商业化评估：差异化资产、市场结构、6 条路径备选、12-24 个月排序、单位经济、GTM、风险与 kill criteria、OKR 草案、反目标 | v0.1（2026-05-13） |
 | [xfund-technical-credibility-brief.md](./xfund-technical-credibility-brief.md) | 对 Xfund (Patrick Chung) 一次首谈用的技术可信度对外裁短版：thesis / 架构第一性承诺 / 8 件 ship 的事 / 与 Delphi / Open Evidence 对标 / anti-claims / 60 秒中英文口头版 | v0.1（2026-05-13） |
 | [xfund-strategic-thesis.md](./xfund-strategic-thesis.md) | Xfund 完整战略叙事书面版：业界深度调研 / 与头部互相支撑 / 已 ship 实物 + 算法证明 / IQ + EQ 涌现路径 / 三件事 evidence cascade / anti-claims / 60 秒口头版 | v0.1（2026-05-14） |
