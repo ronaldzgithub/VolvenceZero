@@ -118,6 +118,11 @@ from dlaas_platform_api.control_plane import (
 )
 from dlaas_platform_api.plugin_preview import attach_plugin_preview_routes
 from dlaas_platform_registry import TemplateNotFound
+from dlaas_platform_api.cognition import (
+    attach_cognition_routes,
+    ensure_cognition_store,
+    record_cognition_snapshot,
+)
 from dlaas_platform_api.debug_analysis import build_debug_analysis
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
 from dlaas_platform_api.intake_router import resolve_intake_decision
@@ -392,6 +397,7 @@ def _add_lifecycle_routes(app: web.Application) -> None:
         "/dlaas/v1/instances/{ai_id}/training/jobs/{job_id}/promote",
         _handle_training_job_promote,
     )
+    attach_cognition_routes(app)
 
 
 def _ensure_shadow_intake_stores(app: web.Application) -> None:
@@ -413,6 +419,7 @@ def _ensure_shadow_intake_stores(app: web.Application) -> None:
     app.setdefault(_DEBUG_EVENTS_KEY, {})
     app.setdefault(_DEBUG_ANALYSES_KEY, {})
     app.setdefault(_DEBUG_SWEEP_STATE_KEY, {"last_run_ms": 0})
+    ensure_cognition_store(app)
     app.setdefault(
         _POLICIES_KEY,
         {
@@ -2425,6 +2432,12 @@ async def _dispatch_envelope_to_instance(
         )
     except DispatchError as exc:
         return _json_error(status=exc.status, error=exc.code, detail=exc.detail)
+    _maybe_record_cognition_snapshot(
+        request,
+        ai_id=ai_id,
+        session=session,
+        session_id=envelope.session_id,
+    )
     _record_audit(
         request,
         event_type=f"interaction_{envelope.interaction_type.value}",
@@ -2435,6 +2448,41 @@ async def _dispatch_envelope_to_instance(
     )
     _record_usage(request, ai_id=ai_id, metric=f"interaction.{envelope.interaction_type.value}", quantity=1)
     return web.json_response(body)
+
+
+def _maybe_record_cognition_snapshot(
+    request: web.Request,
+    *,
+    ai_id: str,
+    session: Any,
+    session_id: str,
+) -> None:
+    """Record one ``CognitionSnapshot`` per successful interaction.
+
+    Wrapped in a broad ``except`` because the dispatch path is the
+    user-visible request; a bad readout or a missing slot must never
+    surface as a 500 to the caller. Logged so ops can spot if every
+    interaction is silently failing the snapshot write.
+    """
+    try:
+        snapshots = session.latest_active_snapshots
+        bundle = _build_readout_bundle(
+            ai_id=ai_id,
+            session_id=session_id,
+            view=ReadoutView.SUMMARY,
+            snapshots=snapshots,
+            request=request,
+        )
+        record_cognition_snapshot(
+            request,
+            ai_id=ai_id,
+            session_id=session_id,
+            snapshots=snapshots,
+            readout_bundle_json=bundle.to_json(),
+            source="interaction",
+        )
+    except Exception:  # noqa: BLE001 -- never block dispatch
+        _LOG.exception("cognition snapshot write failed for ai_id=%s", ai_id)
 
 
 def _resolve_session_manager(
