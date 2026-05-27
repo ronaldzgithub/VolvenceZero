@@ -183,3 +183,81 @@ def test_presence_artifact_is_frozen() -> None:
     )
     with pytest.raises(dataclasses.FrozenInstanceError):
         artifact.license_label = "tampered"  # type: ignore[misc]
+
+
+# ---- Round 2 catalog fingerprint fields (R2-close-D) ----
+
+
+def _base_presence_kwargs(figure_id: str) -> dict:
+    return dict(
+        figure_id=figure_id,
+        persona_id_at_presence_service="persona_einstein_local",
+        reference_image_uri="https://example.com/einstein/portrait.jpg",
+        voice_clone_id="voice_einstein_v1",
+        motion_model_id="hallo3-2026-04",
+        supported_engines=("server-photoreal", "client-3d"),
+        likeness_consent_token="estate-grant-2026-04-12-abcdef",
+        license_label="estate-grant-2026",
+    )
+
+
+def test_catalog_fingerprints_default_empty_keeps_byte_stability() -> None:
+    """Pre-R2 callers stay byte-for-byte stable when they pass no fingerprints."""
+    legacy = build_figure_presence_artifact(**_base_presence_kwargs("einstein"))
+    explicit_empty = build_figure_presence_artifact(
+        **_base_presence_kwargs("einstein"),
+        voice_profile_fingerprint="",
+        music_catalog_fingerprint="",
+        scene_catalog_fingerprint="",
+        prop_catalog_fingerprint="",
+    )
+    assert legacy.integrity_hash == explicit_empty.integrity_hash
+    assert legacy.presence_artifact_id == explicit_empty.presence_artifact_id
+
+
+def test_catalog_fingerprint_changes_integrity_hash() -> None:
+    """Setting any one fingerprint must yield a different artifact id."""
+    baseline = build_figure_presence_artifact(**_base_presence_kwargs("einstein"))
+    voice_pinned = build_figure_presence_artifact(
+        **_base_presence_kwargs("einstein"),
+        voice_profile_fingerprint="sha256:voice_v1",
+    )
+    assert voice_pinned.integrity_hash != baseline.integrity_hash
+    assert voice_pinned.presence_artifact_id != baseline.presence_artifact_id
+
+    scene_pinned = build_figure_presence_artifact(
+        **_base_presence_kwargs("einstein"),
+        scene_catalog_fingerprint="sha256:scene_v1",
+    )
+    assert scene_pinned.integrity_hash != baseline.integrity_hash
+    assert scene_pinned.integrity_hash != voice_pinned.integrity_hash
+
+
+def test_catalog_fingerprints_are_stored_on_artifact() -> None:
+    """Fingerprint args must round-trip onto the dataclass for audit replay."""
+    artifact = build_figure_presence_artifact(
+        **_base_presence_kwargs("einstein"),
+        voice_profile_fingerprint="sha256:voice_v1",
+        music_catalog_fingerprint="sha256:music_v1",
+        scene_catalog_fingerprint="sha256:scene_v1",
+        prop_catalog_fingerprint="sha256:prop_v1",
+    )
+    assert artifact.voice_profile_fingerprint == "sha256:voice_v1"
+    assert artifact.music_catalog_fingerprint == "sha256:music_v1"
+    assert artifact.scene_catalog_fingerprint == "sha256:scene_v1"
+    assert artifact.prop_catalog_fingerprint == "sha256:prop_v1"
+
+
+def test_catalog_fingerprints_are_order_dependent_in_hash() -> None:
+    """Swapping music/scene fingerprints must NOT collapse to the same hash."""
+    a = build_figure_presence_artifact(
+        **_base_presence_kwargs("einstein"),
+        music_catalog_fingerprint="A",
+        scene_catalog_fingerprint="B",
+    )
+    b = build_figure_presence_artifact(
+        **_base_presence_kwargs("einstein"),
+        music_catalog_fingerprint="B",
+        scene_catalog_fingerprint="A",
+    )
+    assert a.integrity_hash != b.integrity_hash
