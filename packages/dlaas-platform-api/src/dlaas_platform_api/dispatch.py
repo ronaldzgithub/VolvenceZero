@@ -231,6 +231,12 @@ async def _handle_chat(
     result = await session.run_turn(envelope.human_brief)
     response_text = getattr(result.response, "text", "") or ""
     rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
+    extra: dict[str, Any] = {
+        "active_regime": getattr(result, "active_regime", None),
+        "active_abstract_action": getattr(result, "active_abstract_action", None),
+        "rationale_tags": list(rationale_tags),
+    }
+    extra.update(_cognition_extra(session))
     return ok_envelope(
         ai_id=ai_id,
         contract_id=envelope.contract_id,
@@ -238,11 +244,7 @@ async def _handle_chat(
         interaction_type=envelope.interaction_type.value,
         output_acts=(text_act(response_text),),
         protocol_version=envelope.protocol_version,
-        extra={
-            "active_regime": getattr(result, "active_regime", None),
-            "active_abstract_action": getattr(result, "active_abstract_action", None),
-            "rationale_tags": list(rationale_tags),
-        },
+        extra=extra,
     )
 
 
@@ -889,6 +891,14 @@ async def _handle_apprentice(
     )
     response_text = getattr(result.response, "text", "") or ""
     rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
+    extra: dict[str, Any] = {
+        "active_regime": getattr(result, "active_regime", None),
+        "active_abstract_action": getattr(result, "active_abstract_action", None),
+        "rationale_tags": list(rationale_tags),
+        "trigger_kind": TurnTriggerKind.APPRENTICE.value,
+        "mode": envelope.mode.value,
+    }
+    extra.update(_cognition_extra(session))
     return ok_envelope(
         ai_id=ai_id,
         contract_id=envelope.contract_id,
@@ -896,13 +906,7 @@ async def _handle_apprentice(
         interaction_type=envelope.interaction_type.value,
         output_acts=(text_act(response_text),),
         protocol_version=envelope.protocol_version,
-        extra={
-            "active_regime": getattr(result, "active_regime", None),
-            "active_abstract_action": getattr(result, "active_abstract_action", None),
-            "rationale_tags": list(rationale_tags),
-            "trigger_kind": TurnTriggerKind.APPRENTICE.value,
-            "mode": envelope.mode.value,
-        },
+        extra=extra,
     )
 
 
@@ -1066,6 +1070,17 @@ async def _handle_command(
         )
         response_text = getattr(result.response, "text", "") or ""
         rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
+        extra: dict[str, Any] = {
+            "command": cmd.value,
+            "trigger_kind": TurnTriggerKind.APPRENTICE.value,
+            "active_regime": getattr(result, "active_regime", None),
+            "active_abstract_action": getattr(
+                result, "active_abstract_action", None
+            ),
+            "rationale_tags": list(rationale_tags),
+            "followup_evidence_ref": followup_evidence,
+        }
+        extra.update(_cognition_extra(session))
         return ok_envelope(
             ai_id=ai_id,
             contract_id=envelope.contract_id,
@@ -1073,16 +1088,7 @@ async def _handle_command(
             interaction_type=envelope.interaction_type.value,
             output_acts=(text_act(response_text),),
             protocol_version=envelope.protocol_version,
-            extra={
-                "command": cmd.value,
-                "trigger_kind": TurnTriggerKind.APPRENTICE.value,
-                "active_regime": getattr(result, "active_regime", None),
-                "active_abstract_action": getattr(
-                    result, "active_abstract_action", None
-                ),
-                "rationale_tags": list(rationale_tags),
-                "followup_evidence_ref": followup_evidence,
-            },
+            extra=extra,
         )
 
     raise DispatchError(  # pragma: no cover - exhaustive
@@ -1110,6 +1116,107 @@ def _parse_command_name(envelope: InteractionEnvelope) -> CommandName:
             code="invalid_command",
             detail=f"command must be one of: {allowed}",
         ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Cognition enrichment for the interaction response
+# ---------------------------------------------------------------------------
+
+
+def _cognition_extra(session: Any) -> dict[str, Any]:
+    """Surface the published expression intent + a compact PE / relationship
+    readout on the interaction response ``extra`` block.
+
+    Rationale: the cognitive core already publishes ``expression_intent``
+    (on the ``response_assembly`` snapshot), a structured prediction-error
+    snapshot, and a ``relationship_state`` snapshot whose owner writes a
+    human-readable ``description``. The chat/apprentice handlers previously
+    forwarded only ``active_regime`` / ``active_abstract_action`` /
+    ``rationale_tags``, stripping the very signal the product layer needs to
+    drive the visible avatar + relationship UI (the "subjectivity transport
+    gap"). We mirror the readout builder's snapshot-reading pattern
+    (``response_assembly.expression_intent`` via ``getattr`` on the snapshot
+    value, ``relationship_state.description``) and a compact prediction-error
+    projection. We NEVER reach into owner internals beyond the public
+    snapshot value fields, and we NEVER reconstruct producer state — exactly
+    what ``_build_readout_bundle`` already does.
+
+    This is best-effort enrichment: the chat turn is load-bearing and must
+    not 5xx because a snapshot is absent for a given turn type. Snapshot
+    publication is part of the session contract (the readout endpoints rely
+    on ``latest_active_snapshots``); we read it as documented optional
+    session behaviour and skip enrichment when it is not present.
+    """
+    snapshots = getattr(session, "latest_active_snapshots", None)
+    if not snapshots:
+        return {}
+    extra: dict[str, Any] = {}
+
+    response_assembly = snapshots.get("response_assembly")
+    expression_intent = _snapshot_value_field(response_assembly, "expression_intent")
+    if isinstance(expression_intent, str) and expression_intent:
+        extra["expression_intent"] = expression_intent
+
+    prediction_error = snapshots.get("prediction_error")
+    pe_compact = _prediction_error_compact(prediction_error)
+    if pe_compact is not None:
+        extra["prediction_error"] = pe_compact
+
+    relationship_brief = _snapshot_description(snapshots.get("relationship_state"))
+    if relationship_brief:
+        extra["relationship_brief"] = relationship_brief
+
+    return extra
+
+
+def _snapshot_value_field(snapshot: Any, field_name: str) -> Any:
+    """Read ``snapshot.value.<field_name>``; ``None`` when absent.
+
+    Mirrors ``dlaas_platform_api.app._field`` so the dispatch enrichment and
+    the readout builder agree on how a published snapshot value is read.
+    """
+    if snapshot is None:
+        return None
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return None
+    return getattr(value, field_name, None)
+
+
+def _snapshot_description(snapshot: Any) -> str:
+    """Read the publisher-authored ``description`` string off a snapshot.
+
+    Description-only, matching the redaction posture of the readout builder
+    (``app._description``): we surface what the owning module CHOSE to
+    publish about itself, never raw owner internals.
+    """
+    if snapshot is None:
+        return ""
+    value = getattr(snapshot, "value", None)
+    return str(getattr(value, "description", "") or "")
+
+
+def _prediction_error_compact(snapshot: Any) -> dict[str, float] | None:
+    """Compact projection of the prediction-error snapshot.
+
+    Exposes the three numeric axes the cognition store already extracts
+    (``magnitude`` / ``relationship`` / ``task``) so the product layer can
+    drive affect without an extra ``/cognition/snapshots`` round-trip. We
+    only surface scalars that are actually present + numeric.
+    """
+    if snapshot is None:
+        return None
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return None
+    out: dict[str, float] = {}
+    for axis in ("magnitude", "relationship", "task"):
+        raw = getattr(value, axis, None)
+        if isinstance(raw, bool):
+            continue
+        if isinstance(raw, (int, float)):
+            out[axis] = float(raw)
+    return out or None
 
 
 # ---------------------------------------------------------------------------

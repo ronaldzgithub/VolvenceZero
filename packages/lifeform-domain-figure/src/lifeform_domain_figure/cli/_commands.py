@@ -458,6 +458,12 @@ def cmd_bake_lora(args: argparse.Namespace) -> int:
         capacity_cost=args.capacity_cost,
         rollback_evidence=args.rollback_evidence,
     )
+    # R4-7: fire-and-forget presence LoRA fingerprint registration on a
+    # successful applied bake. Weights stay in the bundle; presence only
+    # learns which fingerprint a persona uses. Never affects the exit
+    # code — a presence outage must not fail a model promotion.
+    if result.applied and getattr(args, "presence_persona", None):
+        _maybe_register_lora_with_presence(args=args, artifact=artifact)
     return _finalise_gate_apply(
         args=args,
         result_bundle=result.bundle,
@@ -709,6 +715,56 @@ def _bake_with_peft(*, args: argparse.Namespace, plan):
         max_steps=args.peft_max_steps,
     )
     return backend.bake(plan)
+
+
+def _maybe_register_lora_with_presence(
+    *,
+    args: argparse.Namespace,
+    artifact: object,
+) -> None:
+    """R4-7: best-effort POST of the baked LoRA fingerprint to presence.
+
+    Resolves base url + secret from the CLI flags, then env. Skips
+    silently when either is missing. Never raises — import + network
+    failures are swallowed so a presence outage cannot fail a bake.
+    """
+
+    import os
+
+    base_url = (
+        getattr(args, "presence_base_url", None)
+        or os.environ.get("PRESENCE_BASE_URL")
+        or ""
+    ).strip()
+    secret = (
+        getattr(args, "presence_internal_secret", None)
+        or os.environ.get("PRESENCE_INTERNAL_SECRET")
+        or ""
+    ).strip()
+    if not base_url or not secret:
+        return
+    try:
+        from lifeform_domain_figure.presence_lora_register import (
+            build_registration_from_artifact,
+            register_lora_into_presence,
+        )
+
+        registration = build_registration_from_artifact(
+            artifact=artifact,  # type: ignore[arg-type]
+            persona_identifier=str(args.presence_persona),
+            license_label=f"figure-bake:{getattr(artifact, 'figure_id', 'unknown')}",
+            layer=getattr(args, "presence_lora_layer", "persona"),
+        )
+        register_lora_into_presence(
+            registration=registration,
+            presence_base_url=base_url,
+            internal_secret=secret,
+        )
+    except Exception as exc:  # noqa: BLE001 - fire-and-forget by design
+        print(
+            f"bake-lora: presence LoRA registration skipped ({exc})",
+            file=sys.stderr,
+        )
 
 
 def _finalise_gate_apply(

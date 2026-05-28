@@ -459,6 +459,37 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.30,
         help="Override the gate proposal capacity_cost (default 0.30).",
     )
+    # R4-7: optional presence-service LoRA fingerprint registration.
+    # When --presence-persona is set (and PRESENCE_BASE_URL +
+    # PRESENCE_INTERNAL_SECRET are configured, via env or the flags
+    # below), a successful applied bake POSTs the LoRA fingerprint to
+    # presence so it knows which LoRA a persona uses. Fire-and-forget:
+    # weights stay in the bundle; presence only records the fingerprint.
+    bake_lora.add_argument(
+        "--presence-persona",
+        default=None,
+        help=(
+            "Presence persona identifier to register this LoRA "
+            "fingerprint against: either a presence DB id or "
+            "'<app-slug>:<external-ref>'. Omit to skip presence "
+            "registration."
+        ),
+    )
+    bake_lora.add_argument(
+        "--presence-base-url",
+        default=None,
+        help="Override PRESENCE_BASE_URL for the LoRA fingerprint POST.",
+    )
+    bake_lora.add_argument(
+        "--presence-internal-secret",
+        default=None,
+        help="Override PRESENCE_INTERNAL_SECRET for the LoRA POST.",
+    )
+    bake_lora.add_argument(
+        "--presence-lora-layer",
+        default="persona",
+        help="LoRA layer tag registered with presence (default persona).",
+    )
 
     rollback = subparsers.add_parser(
         "rollback",

@@ -969,6 +969,12 @@ class AffordanceInvoker:
             AffordanceInvocationStatus.BACKEND_FAILED,
         }
         tool_event_ids: tuple[str, ...] = ()
+        # Pre-flight gates (BOUNDARY / RATE_LIMITED / PARAMETER_INVALID /
+        # EXCLUDED / BACKEND_MISSING), non-TOOL kinds, and session-less
+        # calls never reach the kernel summariser, so nothing was
+        # truncated. Initialise here so the result builder below always
+        # has a bound value.
+        kernel_summary_truncated = False
         if (
             session is not None
             and descriptor.kind is AffordanceKind.TOOL
