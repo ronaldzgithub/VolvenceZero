@@ -86,6 +86,7 @@ def save_lifeform_template(
     source_arc_id: str | None = None,
     replay_provenance: str = "",
     overwrite_existing: bool = False,
+    preserve_memory: bool = False,
 ) -> SaveLifeformTemplateResult:
     """Extract lived character lifeform state into a saveable template.
 
@@ -127,6 +128,14 @@ def save_lifeform_template(
         overwrite_existing: When True, an existing template with the
             same path is overwritten. Default False fails loudly to
             prevent accidental clobber.
+        preserve_memory: NW7 / R14. When True, ``give_birth`` ignores
+            the alpha-mode ``skip_memory_restore`` flag and always
+            restores ``memory_checkpoint`` into the live session. Use
+            this for templates whose canonical first-half-of-life
+            memories must persist across every player (e.g.
+            ``novel-worlds-character``). Defaults to ``False`` so
+            existing personal-companion templates retain their fresh
+            per-user scope behaviour.
 
     Returns:
         A :class:`SaveLifeformTemplateResult` carrying the typed
@@ -175,6 +184,7 @@ def save_lifeform_template(
         source_arc_id=source_arc_id,
         replay_provenance=replay_provenance or "(unspecified)",
         integrity_hash=integrity,
+        preserve_memory=preserve_memory,
     )
     template = LifeformTemplate(
         manifest=manifest,

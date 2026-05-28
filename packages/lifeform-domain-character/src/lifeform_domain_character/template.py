@@ -85,6 +85,14 @@ class LifeformTemplateManifest:
     * ``integrity_hash`` — SHA-256 over the canonical JSON
       serialization of the LifeformTemplate **with** this field
       replaced by the empty string before hashing. Verified on load.
+    * ``preserve_memory`` — NW7: when ``True``, ``give_birth`` ignores
+      the alpha-mode ``skip_memory_restore`` flag and always restores
+      the template's ``memory_checkpoint`` into the live session. Used
+      by the ``novel-worlds-character`` vertical so the character
+      remembers their canonical first half of life across every
+      player. Defaults to ``False`` for backward compatibility (the
+      DLaaS alpha default for personal companions still skips memory
+      restore so per-user scope dominates).
     """
 
     template_id: str
@@ -94,6 +102,7 @@ class LifeformTemplateManifest:
     source_arc_id: str | None
     replay_provenance: str
     integrity_hash: str
+    preserve_memory: bool = False
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -111,6 +120,10 @@ class LifeformTemplateManifest:
         if not isinstance(self.schema_version, int) or self.schema_version < 1:
             raise ValueError(
                 "LifeformTemplateManifest.schema_version must be a positive int"
+            )
+        if not isinstance(self.preserve_memory, bool):
+            raise ValueError(
+                "LifeformTemplateManifest.preserve_memory must be a bool"
             )
 
 

@@ -178,8 +178,9 @@ def give_birth(
 
     # Memory-store policy:
     # 1. ``memory_store`` injected by caller → use it as-is.
-    # 2. ``skip_memory_restore=True`` → leave memory_store=None so
-    #    the kernel auto-builds a per-session store from
+    # 2. ``skip_memory_restore=True`` AND the template did NOT opt in
+    #    to ``preserve_memory`` → leave memory_store=None so the
+    #    kernel auto-builds a per-session store from
     #    ``BrainConfig.memory_scope_root_dir + IdentityProvider``
     #    (this is the alpha service path: per-user disk persistence
     #    starts fresh and accumulates on top of the saved drives /
@@ -187,9 +188,16 @@ def give_birth(
     #    snapshot into every user's account).
     # 3. Otherwise → reconstruct from the template checkpoint, the
     #    canonical "fully reincarnated" path.
+    #
+    # NW7: ``manifest.preserve_memory=True`` overrides ``skip_memory_restore``
+    # so templates whose canonical first-half-of-life memories must
+    # persist across every player (e.g. novel-worlds-character) get
+    # restored even under the alpha service path. R14 persistent
+    # identity is defined by what the character remembers; players
+    # always meet the same person.
     if memory_store is not None:
         active_memory_store: MemoryStore | None = memory_store
-    elif skip_memory_restore:
+    elif skip_memory_restore and not inflated.manifest.preserve_memory:
         active_memory_store = None
     else:
         active_memory_store = _restore_memory_store(inflated)
