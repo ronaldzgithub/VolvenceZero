@@ -65,6 +65,18 @@
 - 当前 owner 内部已收敛为单一 outcome mapper/head：prediction、actual outcome 与 error weighting 都在 `prediction_error` owner 内完成；consumer 不应重建这三段语义
 - 当前 `magnitude` / `signed_reward` 不再是简单的四维平权 L1/平均，而是结合 prediction confidence 与 axis expectation strength 的 owner-side calibrated readout
 - 当前 `evaluation` 只发布 PE-owner readout（如 `prediction_error_magnitude`、`prediction_error_reward`、`predictive_accuracy`），不再推导第二套 PE 语义
+
+**evaluation→PE/credit 解耦 gate（`VZ_PE_EVALUATION_DECOUPLED`）**：
+
+为了完全兑现 R-PE 第 1 不变量「evaluation 是 readout，不是学习源头」，新增一个显式可回滚 gate，控制 evaluation 是否进入 PE actual outcome 与 evaluation-derived credit：
+
+| WiringLevel | actual outcome 的 `family_signals` | evaluation→credit | 退出条件 |
+| --- | --- | --- | --- |
+| `SHADOW`（默认，env 未设/falsey） | 来自 `_family_signals(EvaluationSnapshot)`（旧行为，逐字保留） | `derive_learning_evidence_credit_records` + counterfactual `propose_update` 写回照旧 | — |
+| `ACTIVE`（`VZ_PE_EVALUATION_DECOUPLED` truthy） | `{}`（中性 0.5），actual outcome 仅由 substrate / dual-track / regime / external-outcome 驱动 | evaluation-derived credit 置空；counterfactual 不传 evaluation（学习写回不触发），仅保留 historical/readout 记录 | SHADOW 对比证据（`tests/test_pe_evaluation_credit_decoupling.py`）显示 ACTIVE 下 actual outcome 对 evaluation 内容不敏感且与 SHADOW 可测量地不同；在此基础上由 operator 决定切 ACTIVE |
+
+- 实现位置：`vz-cognition/.../prediction/error.py::pe_evaluation_decoupled_active` + `_build_outcome_evidence`；`vz-runtime/.../integration/final_wiring.py` 的 credit 派生段复用同一 gate。
+- 默认 SHADOW 保证此 packet 对既有 PE/credit 测试与运行时行为零影响（R15 可回滚）。
 - 当前 proof harness 允许显式区分两层含义：一层是 **PE publication/readout**（slot + evaluation evidence 仍存在），另一层是 **PE primary dominance**（是否直接主导 joint-loop schedule 与 RL reward）。`pe-eta-pe-readout-only` 用于只保留前者
 - `bootstrap=True` 表示当前 turn 尚无可结算的上一轮 prediction；下游不应把这类快照当作真实 learning evidence
 - live runtime 中，部分 consumer 会把 `prediction_error` 当作“上一轮结算出的 carryover signal”，以维持单轮 DAG 和 owner 边界
@@ -175,6 +187,7 @@ debt #11 修法 (3) 方法论：先写 38-turn 长 scenario（[`packages/lifefor
 
 - 2026-05-06: Phase 1.B 上线 owner-internal Curiosity-Critic running-stats 分解（`PEDecomposition` + `_PECriticHead`）；`PredictionErrorSnapshot.pe_decomposition` 为 optional 字段，bootstrap 时为 `None`；`evaluation` 新增 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 两个 report-only metric。Phase 2.B learned critic head 登记为后续 uplift。
 - 2026-05-02: 重写对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的依赖口径：PE 消费 temporal segment closure 与可观察 outcome context，不新增 trace owner 或 learning primitive
+- 2026-05-28: 新增 `VZ_PE_EVALUATION_DECOUPLED` gate（默认 SHADOW，可回滚），ACTIVE 时 evaluation 不再进入 PE actual outcome 与 evaluation-derived credit；契约测试 `tests/test_pe_evaluation_credit_decoupling.py`
 - 2026-04-22: 补充 `pe-eta-pe-readout-only` proof 口径，明确区分 PE publication/readout 与 PE primary dominance
 - 2026-04-22: 当前实现口径补充单一 owner-side mapper/head、confidence-aware calibrated error weighting，以及 evaluation 只发布 PE-owner readout 的边界
 - 2026-04-20: 初始版本。将 `prediction_error` 从 credit/evaluation 的上游设计原则提升为独立能力域 spec，固定主链契约 `evaluated_prediction -> actual_outcome -> next_prediction -> error`

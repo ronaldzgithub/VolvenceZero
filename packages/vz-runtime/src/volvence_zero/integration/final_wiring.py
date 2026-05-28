@@ -74,6 +74,7 @@ from volvence_zero.prediction.error import (
     PredictionActionContext,
     PredictionErrorModule,
     PredictionErrorSnapshot,
+    pe_evaluation_decoupled_active,
 )
 from volvence_zero.reflection import (
     ProtocolReflectionEngine,
@@ -2078,9 +2079,20 @@ async def run_final_wiring_turn(
             reflection_engine=reflection_module.engine if reflection_module is not None else None,
         )
         if credit_module is not None:
-            extra_credits = derive_learning_evidence_credit_records(
-                evaluation_snapshot=enriched_evaluation,
-                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 1,
+            # R-PE #1 (same gate as PE actual-outcome decoupling): when
+            # ACTIVE, credit is NOT derived from evaluation — evaluation is
+            # a readout, not a learning source. Credit then flows only from
+            # PE aggregation (derive_prediction_error_credit_records below)
+            # and substrate/regime-derived records. SHADOW (default) keeps
+            # the legacy evaluation-derived credit path verbatim.
+            credit_decoupled = pe_evaluation_decoupled_active()
+            extra_credits = (
+                ()
+                if credit_decoupled
+                else derive_learning_evidence_credit_records(
+                    evaluation_snapshot=enriched_evaluation,
+                    timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 1,
+                )
             )
             regime_snapshot_value_for_credit = (
                 active_snapshots.get("regime").value
@@ -2106,11 +2118,16 @@ async def run_final_wiring_turn(
                 temporal_snapshot_for_credit.value, TemporalAbstractionSnapshot
             ):
                 temporal_snapshot_value_for_credit = temporal_snapshot_for_credit.value
+            # R-PE #1: when decoupled, withhold evaluation from the learned
+            # counterfactual head so its evaluation-driven learned-baseline
+            # writeback (propose_update / record_modification) does not fire;
+            # the historical / readout records still emit. SHADOW (default)
+            # passes the evaluation snapshot through unchanged.
             counterfactual_credits = credit_module.ledger.derive_learned_counterfactual_contribution_records(
                 regime_snapshot=regime_snapshot_value_for_credit,
                 temporal_snapshot=temporal_snapshot_value_for_credit,
                 prediction_error_snapshot=prediction_snapshot_value,
-                evaluation_snapshot=enriched_evaluation,
+                evaluation_snapshot=None if credit_decoupled else enriched_evaluation,
                 timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 5,
             )
             extra_credits = extra_credits + counterfactual_credits

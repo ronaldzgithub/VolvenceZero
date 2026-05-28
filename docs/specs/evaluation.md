@@ -100,6 +100,7 @@ VZ-MemProbe 测的是「**retrieval 端的连续性 / 排序 / 跨语境隔离**
 当前实现补充：
 
 - `credit` 已直接消费 `prediction_error`；evaluation 对学习循环的主要作用是 readout、gate context 和 widening evidence，而不是独占 credit 源头
+- `VZ_PE_EVALUATION_DECOUPLED` gate（默认 SHADOW，可回滚）把上述不变量从「设计原则」收紧为「可执行边界」：ACTIVE 时 evaluation 既不进入 PE actual outcome（`family_signals` 置中性），也不派生 evaluation-derived credit、不触发 counterfactual 学习写回；只保留 readout / historical 记录。详见 `docs/specs/prediction-error-loop.md` 的解耦 gate 表与契约测试 `tests/test_pe_evaluation_credit_decoupling.py`
 
 **详细设计**：见 `docs/EVALUATION_SYSTEM.md`
 

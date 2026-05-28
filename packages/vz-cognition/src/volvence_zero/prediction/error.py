@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Mapping
 
@@ -1057,6 +1058,29 @@ def derive_actual_outcome_from_substrate(
     )
 
 
+_PE_DECOUPLE_TRUTHY = frozenset({"1", "true", "yes", "on", "active"})
+
+
+def pe_evaluation_decoupled_active() -> bool:
+    """R-PE invariant #1 gate: evaluation is a readout, not a learning source.
+
+    When ACTIVE (``VZ_PE_EVALUATION_DECOUPLED`` truthy) the PE actual
+    outcome no longer derives its ``family_signals`` from the
+    :class:`EvaluationSnapshot`; the outcome is driven only by substrate /
+    dual-track / regime / external-outcome evidence. Default is SHADOW
+    (env unset/false), which preserves the legacy behaviour exactly so
+    this packet is a no-op until an operator opts in (R15 reversibility).
+
+    Decoupling mechanism: an empty ``family_signals`` mapping makes every
+    ``evidence.family_signals.get(family, 0.5)`` lookup in
+    :meth:`_PredictionErrorHead.build_actual_outcome` fall back to the
+    neutral 0.5, so evaluation can no longer bias the outcome while the
+    substrate-derived axes keep contributing unchanged.
+    """
+    raw = (os.environ.get("VZ_PE_EVALUATION_DECOUPLED", "") or "").strip().lower()
+    return raw in _PE_DECOUPLE_TRUTHY
+
+
 def _build_outcome_evidence(
     *,
     substrate_snapshot: SubstrateSnapshot | None,
@@ -1071,8 +1095,14 @@ def _build_outcome_evidence(
         regime_stability = _clamp_unit(
             trend_map.get(regime_snapshot.active_regime.regime_id, 0.5)
         )
+    # R-PE #1: when the decouple gate is ACTIVE, evaluation scores do NOT
+    # feed PE actual outcome (neutral family_signals). SHADOW (default)
+    # keeps the legacy evaluation-derived signals.
+    family_signals = (
+        {} if pe_evaluation_decoupled_active() else _family_signals(evaluation_snapshot)
+    )
     return _OutcomeEvidence(
-        family_signals=_family_signals(evaluation_snapshot),
+        family_signals=family_signals,
         substrate_signals=_substrate_semantic_signals(substrate_snapshot),
         previous_substrate_signals=_substrate_semantic_signals(previous_substrate_snapshot),
         substrate_delta=_substrate_delta(substrate_snapshot, previous_substrate_snapshot),

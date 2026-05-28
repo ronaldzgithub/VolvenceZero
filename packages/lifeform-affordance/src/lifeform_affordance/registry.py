@@ -24,6 +24,7 @@ Design decisions that avoid traps:
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -31,6 +32,24 @@ from volvence_zero.affordance import (
     AffordanceDescriptor,
     AffordanceKind,
 )
+
+
+_FAIL_CLOSED_TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+
+def _env_fail_closed_default() -> bool:
+    """Read the platform-wide tool-policy fail-closed default.
+
+    SHADOW (default, env unset/false): a ``contract_id`` with no
+    registered policy is allow-all (legacy back-compat).
+    ACTIVE (``DLAAS_TOOL_POLICY_FAIL_CLOSED=true``): a ``contract_id``
+    with no registered policy is deny-all — a contract that was
+    supposed to carry a ``tool_policy_snapshot`` but whose policy never
+    reached the registry exposes ZERO affordances instead of silently
+    exposing everything.
+    """
+    raw = (os.environ.get("DLAAS_TOOL_POLICY_FAIL_CLOSED", "") or "").strip().lower()
+    return raw in _FAIL_CLOSED_TRUTHY
 
 
 class AffordanceRegistryError(RuntimeError):
@@ -79,7 +98,7 @@ class AffordanceRegistry:
             ...
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, fail_closed: bool | None = None) -> None:
         self._descriptors: dict[str, AffordanceDescriptor] = {}
         self._registration_order: list[str] = []
         self._sealed: bool = False
@@ -91,6 +110,17 @@ class AffordanceRegistry:
         # consumed by :meth:`list_for_contract`. Never mutated
         # in-place after `seal()`.
         self._contract_policies: dict[str, frozenset[str]] = {}
+        # Tool-policy fail-closed gate (R10 / debt #16). Explicit arg
+        # wins; otherwise the platform-wide env default. When True, a
+        # ``contract_id`` with no registered policy is deny-all rather
+        # than allow-all. Default-OFF keeps existing behaviour (SHADOW).
+        self._fail_closed: bool = (
+            _env_fail_closed_default() if fail_closed is None else fail_closed
+        )
+
+    @property
+    def fail_closed(self) -> bool:
+        return self._fail_closed
 
     # ------------------------------------------------------------------
     # Write path (startup only)
@@ -251,16 +281,25 @@ class AffordanceRegistry:
         * ``contract_id is None`` → return :meth:`all_descriptors`
           (legacy back-compat for sites that don't yet plumb a
           contract id through).
-        * ``contract_id`` has no registered policy → also return
-          :meth:`all_descriptors` (legacy contract created before
-          tool_policy_snapshot was wired; default-allow keeps
-          existing behaviour observable).
+        * ``contract_id`` has no registered policy →
+          - fail-closed OFF (default / SHADOW): return
+            :meth:`all_descriptors` (legacy contract created before
+            tool_policy_snapshot was wired; default-allow keeps
+            existing behaviour observable).
+          - fail-closed ON (``DLAAS_TOOL_POLICY_FAIL_CLOSED=true``):
+            return an empty tuple (deny-all). A contract that should
+            have published a policy but didn't exposes ZERO
+            affordances instead of silently exposing everything.
         * ``contract_id`` has a registered policy → return only the
           intersection with the whitelist, preserving registration
           order so the rendered tool list stays deterministic.
         """
 
-        if contract_id is None or contract_id not in self._contract_policies:
+        if contract_id is None:
+            return self.all_descriptors()
+        if contract_id not in self._contract_policies:
+            if self._fail_closed:
+                return ()
             return self.all_descriptors()
         allow = self._contract_policies[contract_id]
         return tuple(

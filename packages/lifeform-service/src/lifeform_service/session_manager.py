@@ -202,6 +202,47 @@ class SessionManager:
         self._contract_id = contract_id
         self._tool_policy_snapshot = dict(tool_policy_snapshot or {})
 
+    def update_contract_policy(
+        self,
+        *,
+        contract_id: str = "",
+        plugins: tuple = (),
+        tool_policy_snapshot: dict | None = None,
+    ) -> None:
+        """Refresh contract plugin set + tool policy for this manager.
+
+        Used by the DLaaS adopt-retry / contract-update path (debt #16)
+        so an already-acquired ``ai_id`` is NOT frozen at its
+        first-adopt policy. New sessions always pick up the refreshed
+        values via :meth:`create_session`; live sessions get the
+        contract policy re-applied to their affordance registry here.
+
+        Empty / None args are treated as "leave unchanged" so callers
+        can refresh just the policy snapshot without resupplying the
+        plugin set.
+        """
+        if contract_id:
+            self._contract_id = contract_id
+        if plugins:
+            self._contract_plugins = tuple(plugins)
+        if tool_policy_snapshot is not None:
+            self._tool_policy_snapshot = dict(tool_policy_snapshot)
+        if not self._contract_id:
+            return
+        contract_ids = [self._contract_id]
+        if self._contract_id != "digital-employee":
+            # The digital-employee BFF still tags runtime envelopes with
+            # the stable compatibility contract_id; keep both in sync.
+            contract_ids.append("digital-employee")
+        for entry in self._sessions.values():
+            for cid in contract_ids:
+                apply_contract_policy_for_plugins(
+                    entry.lifeform,
+                    contract_id=cid,
+                    plugins=self._contract_plugins,
+                    tool_policy_snapshot=self._tool_policy_snapshot,
+                )
+
     @property
     def vertical_registry(self) -> VerticalRegistry:
         return self._registry

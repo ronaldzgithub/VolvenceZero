@@ -209,7 +209,18 @@ class InstanceManager:
         """
         async with self._lock:
             if ai_id in self._instances:
-                return self._instances[ai_id]
+                # Adopt is replayable. Refresh the tool policy / plugin
+                # set on the existing manager so a re-adopt with a
+                # changed tool_policy_snapshot is NOT silently dropped
+                # (debt #16: policy must not be frozen at first adopt).
+                existing = self._instances[ai_id]
+                if contract_id or tool_policy_snapshot is not None or plugins:
+                    existing.update_contract_policy(
+                        contract_id=contract_id,
+                        plugins=plugins,
+                        tool_policy_snapshot=tool_policy_snapshot,
+                    )
+                return existing
             spec = self._vertical_resolver(runtime_template_id)
             if spec is None:
                 raise LookupError(
