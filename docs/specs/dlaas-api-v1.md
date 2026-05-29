@@ -879,6 +879,61 @@ GET /dlaas/v1/catalog/tool-policies
 GET /dlaas/v1/catalog/training-policies
 ```
 
+### Substrate profiles — registry-backed (implemented)
+
+`GET /dlaas/v1/catalog/substrate-profiles` is now served from the
+`SubstrateProfileRegistry`
+([`substrate_profiles.py`](../../packages/dlaas-platform-api/src/dlaas_platform_api/substrate_profiles.py))
+rather than a hardcoded list, and returns `default_substrate_profile_id`
+plus each profile's `mode` / `adapter_policy` / `runtime_backend` /
+`allow_rare_heavy_refresh` / `model_id_hint`. Shipped profiles:
+`shared-frozen`, `shared-frozen-persona-lora`, `synthetic-dev`,
+`synthetic-dev-persona-lora`, and `vllm-shared-frozen-persona-lora`
+(`runtime_backend="vllm"`).
+
+Adoption-time enforcement (implemented in
+[`control_plane.py`](../../packages/dlaas-platform-api/src/dlaas_platform_api/control_plane.py)):
+
+- An explicit `substrate_profile_id` that is unknown → `400
+  unknown_substrate_profile`. An empty id stays mode-agnostic
+  (back-compat) and resolves a permissive adapter policy.
+- A profile whose `mode` does not match the running substrate (synthetic
+  vs shared_frozen) → `409 substrate_profile_mismatch`.
+- `adapter_policy` is now **enforced**: `none` binds the figure bundle
+  for L1/L3/L4 but disables the L2 persona-LoRA overlay at the
+  activation site; `persona_lora` permits it. The resolved policy is
+  persisted on the service contract and threaded through the
+  SessionManager to the synthesizer.
+- A figure bundle whose `compatible_substrates` (substrate fingerprints)
+  do not include the running substrate's `model_id` → `409
+  figure_bundle_substrate_incompatible` (substrate-upgrade-protocol).
+- `runtime_backend` (`transformers` / `vllm`) on the profile is now selected
+  at pod startup via `build_runtime_for_profile`; an explicit profile whose
+  backend differs from the running substrate → `409
+  substrate_backend_mismatch`.
+
+### Training jobs — executor (implemented, opt-in)
+
+`adapter_candidate` / training jobs are no longer record-only. With
+`VZ_TRAINING_WORKER=1` a background `TrainingJobExecutor`
+([`training_executor.py`](../../packages/dlaas-platform-api/src/dlaas_platform_api/training_executor.py))
+drains `pending` jobs through a pluggable runner and advances
+`pending → running → succeeded/failed`, persisting to the registry
+`training_jobs` table. Job create now enforces policy: `adapter_candidate`
+requires `training.allow_adapter_training` and
+`substrate.allow_rare_heavy_refresh`, else `403`. Promotion still requires
+`gate_evidence` (R10 — no hot substrate update). Default (worker off) keeps the
+legacy record-only behaviour.
+
+### Per-end-user identity (implemented)
+
+`end_user_ref` + `session_id` remain caller-supplied. Reusing one `session_id`
+for a different `end_user_ref` now returns `409 session_end_user_mismatch`
+(opt-out `VZ_ALLOW_SESSION_END_USER_REMAP=1`). Two-layer `tenant:end_user`
+memory scope and per-`ai_id` memory roots are opt-in
+(`VZ_TWO_LAYER_SCOPE=1`, `VZ_PER_AI_MEMORY_ROOT=1`); default stays single-layer
+to avoid re-keying existing on-disk memory.
+
 Example blueprint:
 
 ```json

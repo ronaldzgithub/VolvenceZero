@@ -57,6 +57,15 @@ rare-heavy (定期离线):
   RL:  完整的 Internal RL 训练循环
 ```
 
+> 2026-05-29: rare-heavy 的**平台级调度器**已落地(此前只有内核内 PE 触发 +
+> 会话内联训练,平台 TrainingJob 仅记录不执行)。DLaaS 现有持久 `training_jobs`
+> 表 + `TrainingJobExecutor`(队列 + 后台 worker,`VZ_TRAINING_WORKER=1` 启用)推进
+> `pending→running→succeeded/failed`,可插拔 runner(synthetic / figure_lora),
+> job create 强制 `allow_adapter_training`/`allow_rare_heavy_refresh`,promote 仍走
+> ModificationGate 证据。见
+> [`training_executor.py`](../../packages/dlaas-platform-api/src/dlaas_platform_api/training_executor.py)
+> 与 `dlaas-api-v1.md`「Training jobs — executor」。真 GPU PEFT bake 仍需运维 override。
+
 ### 冻结基底 + 自适应控制器分层
 
 | 层 | 更新频率 | 算法基础 |

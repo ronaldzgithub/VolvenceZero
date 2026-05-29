@@ -42,6 +42,7 @@ guard is per-task, not process-global, on that backend.
 from __future__ import annotations
 
 import asyncio
+import os
 import pathlib
 import time
 import uuid
@@ -50,7 +51,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from lifeform_core import Lifeform, LifeformSession
-from lifeform_service.alpha import AlphaIdentityProvider
+from lifeform_service.alpha import (
+    DEFAULT_ALPHA_TENANT_ID,
+    AlphaIdentityProvider,
+)
 from lifeform_service.substrate_registry import (
     SubstrateRuntimeProvider,
     fixed_provider_from_runtime,
@@ -66,7 +70,6 @@ from lifeform_service.plugin_attach import (
     register_http_plugins_after_start,
 )
 from lifeform_service.vertical_registry import (
-    UnknownVerticalError,
     VerticalNotAlphaCapableError,
     VerticalRegistry,
 )
@@ -95,6 +98,12 @@ class _SessionEntry:
     # Sessions created via the legacy ``factory`` / ``alpha_factory`` path
     # have ``template_context=None`` and cannot be saved as templates.
     template_context: TemplateContext | None = None
+    # The end-user this session was created for (``user_id`` at create
+    # time). Used by the dispatch layer to fail loud when a caller reuses
+    # one ``session_id`` for a different end-user (which would otherwise
+    # serve the first user's kernel state). Empty string = unknown /
+    # legacy session created without a user_id.
+    end_user_ref: str = ""
 
 
 class SessionManager:
@@ -126,6 +135,8 @@ class SessionManager:
         contract_plugins: tuple = (),
         contract_id: str = "",
         tool_policy_snapshot: dict | None = None,
+        tenant_id: str = "",
+        scope_strategy: str = "",
     ) -> None:
         """Construct a multi-vertical session manager.
 
@@ -173,6 +184,15 @@ class SessionManager:
         self._substrate_provider = substrate_provider
         self._sessions: dict[str, _SessionEntry] = {}
         self._lock = asyncio.Lock()
+        # Tenant + memory scope strategy (DLaaS adopt). ``tenant_id`` is
+        # the adopting tenant; ``scope_strategy`` (e.g.
+        # ``"tenant_ai_end_user"``) plus env ``VZ_TWO_LAYER_SCOPE`` opt
+        # the manager into two-layer ``{tenant}:{end_user}`` memory
+        # scope keys instead of the legacy single-layer
+        # ``scope_key == user_id``. Empty defaults keep the legacy
+        # single-layer behaviour for standalone / closed-alpha lanes.
+        self._tenant_id: str = tenant_id
+        self._scope_strategy: str = scope_strategy
         # Optional figure-vertical bundle bound by the DLaaS adopt
         # path (``manager.bind_figure_bundle(bundle)``). When set,
         # every lifeform created by this manager has the bundle
@@ -481,6 +501,35 @@ class SessionManager:
             raise SessionNotFoundError(session_id)
         return entry.vertical_name or self._registry.default_name
 
+    def session_end_user(self, session_id: str) -> str | None:
+        """Return the end-user this session was created for, or None.
+
+        Returns ``None`` when the session does not exist or was created
+        without a ``user_id`` (legacy). The dispatch layer uses this to
+        reject reusing one ``session_id`` for a different end-user.
+        """
+        entry = self._sessions.get(session_id)
+        if entry is None:
+            return None
+        return entry.end_user_ref or None
+
+    def _two_layer_scope_enabled(self) -> bool:
+        """Whether this manager binds two-layer ``{tenant}:{end_user}`` scope.
+
+        Requires BOTH the adopting contract's
+        ``scope_strategy == "tenant_ai_end_user"`` AND the operator
+        env ``VZ_TWO_LAYER_SCOPE=1`` (opt-in, to avoid silently
+        re-keying existing single-layer on-disk memory).
+        """
+
+        if self._scope_strategy != "tenant_ai_end_user":
+            return False
+        return os.environ.get("VZ_TWO_LAYER_SCOPE", "").strip() in (
+            "1",
+            "true",
+            "True",
+        )
+
     async def create_session(
         self,
         *,
@@ -532,21 +581,25 @@ class SessionManager:
                         "template_adapter; pick a different vertical or "
                         "disable alpha mode"
                     )
-                # SessionManager keeps the legacy single-layer
-                # contract: closed-alpha evidence / scoped-memory
-                # files on disk were written under
-                # ``scope_key == user_id``. Per debt #46 ACTIVE the
-                # default ``bind_session`` now derives a two-layer
-                # scope_key, so we route this call site through the
-                # explicit legacy alias to avoid silently re-keying
-                # existing files. Sites that *want* two-layer scope
-                # call ``bind_session(...)`` (default) on the provider
-                # directly (e.g. P2 growth-advisor admin endpoint per
-                # debt #69) — they intentionally bypass SessionManager.
-                self._alpha_identity_provider.bind_session_legacy_alias(
-                    session_id=sid,
-                    user_id=user_id,
-                )
+                # SessionManager defaults to the legacy single-layer
+                # contract (``scope_key == user_id``) so closed-alpha
+                # evidence / scoped-memory files on disk are not
+                # silently re-keyed. When the adopting contract opts in
+                # (``scope_strategy == "tenant_ai_end_user"``) AND the
+                # operator sets ``VZ_TWO_LAYER_SCOPE=1``, bind through
+                # the two-layer path so memory partitions per
+                # ``{tenant}:{end_user}`` (debt #46 / #69).
+                if self._two_layer_scope_enabled():
+                    self._alpha_identity_provider.bind_session(
+                        session_id=sid,
+                        end_user_id=user_id,
+                        tenant_id=self._tenant_id or DEFAULT_ALPHA_TENANT_ID,
+                    )
+                else:
+                    self._alpha_identity_provider.bind_session_legacy_alias(
+                        session_id=sid,
+                        user_id=user_id,
+                    )
                 identity_provider = self._alpha_identity_provider
 
             # Resolve runtime via the provider so post-swap session
@@ -645,6 +698,7 @@ class SessionManager:
                 last_active_at=self._clock(),
                 vertical_name=chosen_name,
                 template_context=template_context,
+                end_user_ref=(user_id or ""),
             )
         await self._shutdown_entries(evicted)
         return session

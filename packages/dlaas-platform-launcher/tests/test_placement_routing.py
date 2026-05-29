@@ -90,10 +90,10 @@ class _FakeManager:
 
     async def acquire(self, *, ai_id, runtime_template_id, **kwargs):
         self.acquired.append(ai_id)
-        return f"sm:{self.pod_id}:{ai_id}"
+        return {"pod": self.pod_id, "ai_id": ai_id}
 
-    def get(self, ai_id):
-        return f"sm:{self.pod_id}:{ai_id}"
+    async def forward_interaction(self, *, ai_id, envelope):
+        return {"pod": self.pod_id, "ai_id": ai_id}
 
     def record_interaction(self, ai_id):
         pass
@@ -112,10 +112,13 @@ async def test_multipod_launcher_routes_to_owning_pod() -> None:
     sm1 = await launcher.acquire(ai_id="ai_1", runtime_template_id="companion")
     sm2 = await launcher.acquire(ai_id="ai_2", runtime_template_id="companion")
     # Two ai_ids on capacity-1 pods land on different pods.
-    assert {sm1.split(":")[1], sm2.split(":")[1]} == {"pod-a", "pod-b"}
+    assert {sm1["pod"], sm2["pod"]} == {"pod-a", "pod-b"}
 
-    # get() routes back to the owning pod consistently.
-    assert launcher.get("ai_1") == sm1
+    # forward_interaction routes back to the owning pod consistently
+    # (sessions live in the pod, so get() is intentionally unsupported).
+    owner = launcher.router.resolve("ai_1").runtime_pod_id
+    routed = await launcher.forward_interaction(ai_id="ai_1", envelope=object())
+    assert routed["pod"] == owner
     assert launcher.has("ai_1")
 
     await launcher.release("ai_1")

@@ -137,48 +137,132 @@ def _try_companion() -> VerticalSpec | None:
     )
 
 
-def _try_digital_employee_org() -> VerticalSpec | None:
-    """Digital Employee company-level OrgAgent vertical.
+def _try_digital_employee_role(
+    *, name: str, role: str
+) -> VerticalSpec | None:
+    """Shared builder for the two digital-employee verticals.
 
-    v0 intentionally reuses the companion lifeform factory while giving
-    DLaaS a real vertical name to resolve from
-    ``runtime_template_id=digital-employee.org.v0``. The product-level
-    policy difference (org scope, read-heavy tools, company memory) is
-    carried by the adoption contract and BFF context today; once a
-    dedicated digital-employee kernel package exists, only this factory
-    binding needs to change.
+    When ``lifeform-domain-digital-employee`` is installed, the vertical
+    resolves to the role-specialised factory (org / twin) whose
+    behavioural differentiation is carried by a data-only
+    ``DomainExperiencePackage``. When that wheel is absent, we fall back
+    to the companion factory so older deployments keep working byte-for-
+    byte (the SHADOW posture: present the real vertical name, lean on
+    companion behaviour until the specialised wheel rolls out).
+
+    Calibration flags (``has_*_bootstrap``) and the chat-browser template
+    adapter are inherited from the companion vertical because v0 reuses
+    the companion calibration basin; only the domain experience differs.
     """
 
     companion = _try_companion()
     if companion is None:
         return None
+
+    try:
+        from lifeform_domain_digital_employee import (
+            build_digital_employee_lifeform,
+        )
+    except ImportError:
+        # Specialised wheel not installed — keep the first-class vertical
+        # name resolving via the companion factory (rolling-upgrade safe).
+        return VerticalSpec(
+            name=name,
+            factory=companion.factory,
+            has_temporal_bootstrap=companion.has_temporal_bootstrap,
+            has_regime_bootstrap=companion.has_regime_bootstrap,
+            bootstraps_dir=companion.bootstraps_dir,
+            scenarios_dir=companion.scenarios_dir,
+            alpha_factory=companion.alpha_factory,
+            template_adapter=companion.template_adapter,
+            template_subdir=companion.template_subdir,
+        )
+
+    def factory(runtime):
+        return build_digital_employee_lifeform(
+            role=role,
+            substrate_runtime=runtime,
+            response_synthesizer=_expression_synthesizer_for_runtime(runtime),
+        )
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+        )
+        return build_digital_employee_lifeform(
+            role=role,
+            config=config,
+            substrate_runtime=runtime,
+            identity_provider=identity_provider,
+            response_synthesizer=_expression_synthesizer_for_runtime(
+                runtime,
+                repair_alpha_enabled=True,
+            ),
+        )
+
     return VerticalSpec(
-        name="digital-employee.org.v0",
-        factory=companion.factory,
+        name=name,
+        factory=factory,
         has_temporal_bootstrap=companion.has_temporal_bootstrap,
         has_regime_bootstrap=companion.has_regime_bootstrap,
         bootstraps_dir=companion.bootstraps_dir,
         scenarios_dir=companion.scenarios_dir,
-        alpha_factory=companion.alpha_factory,
+        alpha_factory=alpha_factory,
         template_adapter=companion.template_adapter,
         template_subdir=companion.template_subdir,
     )
 
 
+def _try_digital_employee_org() -> VerticalSpec | None:
+    """Digital Employee company-level OrgAgent vertical.
+
+    Resolves ``runtime_template_id=digital-employee.org.v0`` to the
+    org-specialised lifeform (coordination / policy-grounding domain pack)
+    when ``lifeform-domain-digital-employee`` is installed, else falls
+    back to the companion factory.
+    """
+
+    return _try_digital_employee_role(name="digital-employee.org.v0", role="org")
+
+
 def _try_digital_employee_twin() -> VerticalSpec | None:
     """Digital Employee per-member EmployeeTwin vertical.
 
-    v0 shares the companion factory but resolves as a first-class
-    vertical name. This removes the launcher-only alias dependency from
-    the healthy path while keeping behaviour backwards-compatible until
-    the twin-specific regime/tool policy owner moves into lifeform.
+    Resolves ``runtime_template_id=digital-employee.twin.v0`` to the
+    twin-specialised lifeform (execution / escalation domain pack) when
+    the specialised wheel is installed, else falls back to companion.
+    """
+
+    return _try_digital_employee_role(name="digital-employee.twin.v0", role="twin")
+
+
+def _try_cultivation_expert() -> VerticalSpec | None:
+    """Autonomous-cultivation expert vertical (``cultivation.expert.v0``).
+
+    Used by the lifeform-cultivation engine: each cultivated industry
+    expert is a lifeform instance on this vertical. The vertical itself
+    is deliberately domain-agnostic — the expert's identity, domain
+    focus, and *school* are NOT baked into the factory. They are grown
+    at runtime from the cultivation charter + researched corpus the
+    engine ingests (R6 slow loop) and consolidate into a persistent
+    regime (R14). Picking a school here as a prompt label would violate
+    that contract, so we reuse the companion calibration basin as the
+    starting substrate and let cognition diverge from lived experience.
+
+    When no specialised cultivation domain wheel is installed (the
+    common case today), this resolves to the companion factory — the
+    same rolling-upgrade-safe posture the digital-employee verticals
+    use.
     """
 
     companion = _try_companion()
     if companion is None:
         return None
     return VerticalSpec(
-        name="digital-employee.twin.v0",
+        name="cultivation.expert.v0",
         factory=companion.factory,
         has_temporal_bootstrap=companion.has_temporal_bootstrap,
         has_regime_bootstrap=companion.has_regime_bootstrap,
@@ -914,6 +998,7 @@ _BUILDERS = (
     _try_companion,
     _try_digital_employee_org,
     _try_digital_employee_twin,
+    _try_cultivation_expert,
     _try_uncalibrated_companion,
     _try_coding,
     _try_zhang_wuji,

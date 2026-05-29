@@ -48,6 +48,12 @@ from dlaas_platform_registry.auth import (
     require_tenant_auth,
 )
 from dlaas_platform_registry.contracts import ContractNotFound, ContractStore
+from dlaas_platform_registry.cultivation_store import (
+    CultivationNotFound,
+    CultivationRecordSpec,
+    CultivationStatus,
+    CultivationStore,
+)
 from dlaas_platform_registry.db import Registry, init_schema, open_connection
 from dlaas_platform_registry.eval_store import (
     AudienceProfileNotFound,
@@ -65,6 +71,10 @@ from dlaas_platform_registry.handoff import (
     HandoffTicketStore,
 )
 from dlaas_platform_registry.shells import ShellNotFound, ShellStore
+from dlaas_platform_registry.training_jobs import (
+    TrainingJobNotFound,
+    TrainingJobStore,
+)
 from dlaas_platform_registry.templates import (
     TemplateNotFound,
     TemplateStore,
@@ -86,6 +96,12 @@ __all__ = (
     "AudienceProfileNotFound",
     "ContractNotFound",
     "ContractStore",
+    "TrainingJobNotFound",
+    "TrainingJobStore",
+    "CultivationNotFound",
+    "CultivationRecordSpec",
+    "CultivationStatus",
+    "CultivationStore",
     "EvalStore",
     "ExamQuestionNotFound",
     "ExamRunNotFound",

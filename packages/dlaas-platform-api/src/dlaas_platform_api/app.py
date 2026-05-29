@@ -82,9 +82,12 @@ from dlaas_platform_launcher import (
     INSTANCE_MANAGER_APP_KEY,
     InstanceManager,
     InstanceNotFound,
+    LauncherProtocol,
 )
 from dlaas_platform_launcher.instance_manager import default_vertical_resolver
 from dlaas_platform_eval import attach_eval_routes
+
+from dlaas_platform_api.cultivation import attach_cultivation_routes
 from dlaas_platform_ops import (
     OPS_BUNDLE_APP_KEY,
     OpsBundle,
@@ -133,8 +136,15 @@ from dlaas_platform_api.debug_analysis import build_debug_analysis
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
 from dlaas_platform_api.intake_router import resolve_intake_decision
 from dlaas_platform_api.snapshot_export import snapshot_to_json
+from dlaas_platform_api.training_executor import (
+    InMemoryTrainingJobStore,
+    TrainingJobExecutor,
+    training_worker_enabled,
+)
 
 _LOG = logging.getLogger("dlaas_platform_api")
+
+_TRAINING_EXECUTOR_KEY = "dlaas_training_executor"
 
 DLAAS_APP_AI_ID_KEY = "dlaas_default_ai_id"
 """``app[DLAAS_APP_AI_ID_KEY]`` — Slice 1 hardcoded ``ai_id`` fallback."""
@@ -225,6 +235,7 @@ def attach_dlaas_full_stack(
     app[_GOVERNANCE_STORE_KEY] = GovernanceStore(registry)
     app[DLAAS_APP_AI_ID_KEY] = default_ai_id
     _ensure_shadow_intake_stores(app)
+    _maybe_wire_training_executor(app, registry=registry)
     if platform_endpoint:
         app["dlaas_platform_endpoint"] = platform_endpoint
     app.router.add_post(
@@ -240,7 +251,41 @@ def attach_dlaas_full_stack(
     attach_plugin_preview_routes(app)
     attach_ops_routes(app, registry=registry)
     attach_eval_routes(app, registry=registry)
+    attach_cultivation_routes(app, registry=registry)
     return app
+
+
+def _maybe_wire_training_executor(
+    app: web.Application, *, registry: Registry
+) -> None:
+    """Wire the rare-heavy training executor when ``VZ_TRAINING_WORKER=1``.
+
+    Backward compatible: when the env flag is unset, no executor is
+    created and the in-memory store keeps its legacy "record only, no
+    execution" behaviour. When enabled, jobs persist to the registry's
+    ``training_jobs`` table and a background worker drains them.
+    """
+
+    if not training_worker_enabled():
+        return
+    try:
+        from dlaas_platform_registry import TrainingJobStore
+    except ImportError:
+        return
+    persisted_store = TrainingJobStore(registry)
+    app[_TRAINING_JOBS_KEY] = persisted_store
+    executor = TrainingJobExecutor(store=persisted_store)
+    app[_TRAINING_EXECUTOR_KEY] = executor
+
+    async def _on_startup(_app: web.Application) -> None:
+        executor.start()
+        await executor.requeue_pending()
+
+    async def _on_cleanup(_app: web.Application) -> None:
+        await executor.stop()
+
+    app.on_startup.append(_on_startup)
+    app.on_cleanup.append(_on_cleanup)
 
 
 def _add_lifecycle_routes(app: web.Application) -> None:
@@ -295,6 +340,9 @@ def _add_lifecycle_routes(app: web.Application) -> None:
     app.router.add_get("/dlaas/v1/catalog/protocols", _handle_catalog_protocols)
     app.router.add_get(
         "/dlaas/v1/catalog/tool-policies", _handle_catalog_tool_policies
+    )
+    app.router.add_get(
+        "/dlaas/v1/catalog/builtin-tools", _handle_catalog_builtin_tools
     )
     app.router.add_get(
         "/dlaas/v1/catalog/training-policies",
@@ -411,7 +459,7 @@ def _add_lifecycle_routes(app: web.Application) -> None:
 
 def _ensure_shadow_intake_stores(app: web.Application) -> None:
     app.setdefault(_PROTOCOL_SUBMISSIONS_KEY, {})
-    app.setdefault(_TRAINING_JOBS_KEY, {})
+    app.setdefault(_TRAINING_JOBS_KEY, InMemoryTrainingJobStore())
     app.setdefault(_ASSET_INTAKES_KEY, {})
     app.setdefault(_AUDIT_EVENTS_KEY, {})
     app.setdefault(_ARTIFACTS_KEY, {})
@@ -455,6 +503,42 @@ def _ensure_shadow_intake_stores(app: web.Application) -> None:
     )
 
 
+def _multi_pod_enabled() -> bool:
+    return os.environ.get("VZ_MULTI_POD", "").strip() in ("1", "true", "True")
+
+
+def _maybe_build_multi_pod_launcher(app: web.Application):
+    """Build a MultiPodLauncher + pod supervisor when ``VZ_MULTI_POD=1``.
+
+    Returns ``None`` when multi-pod is disabled (the default), so the
+    caller falls through to the single in-process InstanceManager. The
+    spawned supervisor is stored on the app for cleanup.
+    """
+
+    if not _multi_pod_enabled():
+        return None
+    from dlaas_platform_api.pod_supervisor import (
+        PodProcessSupervisor,
+        pod_specs_from_env,
+    )
+
+    specs = pod_specs_from_env()
+    if not specs:
+        raise ValueError(
+            "VZ_MULTI_POD=1 but VZ_MULTI_POD_SPECS is empty; provide pod "
+            "specs (pod_id,port,substrate_profile,model_id,gpu_id;...)."
+        )
+    supervisor = PodProcessSupervisor(specs)
+    launcher = supervisor.build_launcher()
+    app["dlaas_pod_supervisor"] = supervisor
+
+    async def _stop_pods(_app: web.Application) -> None:
+        supervisor.stop()
+
+    app.on_cleanup.append(_stop_pods)
+    return launcher
+
+
 def build_dlaas_app(
     *,
     db_path: str | os.PathLike[str] = ":memory:",
@@ -491,13 +575,27 @@ def build_dlaas_app(
     app = create_lifeform_app(**service_kwargs)
     registry = Registry(db_path=str(db_path))
     if instance_manager is None:
+        instance_manager = _maybe_build_multi_pod_launcher(app)
+    if instance_manager is None:
         service_manager = app["session_manager"]
+        # NW9: thread the service-level templates root through to the
+        # per-ai_id SessionManagers the launcher builds, so baked
+        # LifeformTemplate JSON (e.g. /data/novel-bundles/novel-worlds/
+        # nwtpl_*.json) is loadable via create_session(template_id=...).
+        # Prefer the value already configured on the service manager;
+        # otherwise read TEMPLATES_ROOT_DIR from the environment.
+        templates_root_dir = (
+            service_manager.templates_root_dir
+            or os.environ.get("TEMPLATES_ROOT_DIR", "").strip()
+            or None
+        )
         instance_manager = InstanceManager(
             vertical_resolver=default_vertical_resolver(),
             substrate_runtime=service_manager.substrate_runtime,
             alpha_identity_provider=service_manager.alpha_identity_provider,
             alpha_memory_scope_root_dir=service_manager.alpha_memory_scope_root_dir,
             attach_default_mcp_bundle=True,
+            templates_root_dir=templates_root_dir,
         )
     auth_config = PlatformAuthConfig(
         control_plane_secret=(
@@ -1402,6 +1500,87 @@ async def _handle_catalog_tool_policies(request: web.Request) -> web.Response:
     )
 
 
+def _resolve_vz_bundle_manifest_path() -> str | None:
+    """Locate the live ``vz-bundle`` ``.vzbridge.yaml`` for this deploy.
+
+    Prefers an explicit ``VZ_BUNDLE_MANIFEST_PATH`` override, otherwise
+    reuses the same bundle-root discovery the service layer uses to
+    attach the default MCP bundle. Returns ``None`` when the submodule
+    is not present in this checkout (the catalog then degrades to []).
+    """
+    override = os.environ.get("VZ_BUNDLE_MANIFEST_PATH", "").strip()
+    if override:
+        return override
+    try:
+        from lifeform_service.default_mcp_bundle import default_mcp_server_specs
+
+        for spec in default_mcp_server_specs():
+            if spec.name == "vz-bundle" and spec.safety_manifest_path:
+                return spec.safety_manifest_path
+    except Exception:  # noqa: BLE001 - discovery is best-effort
+        _LOG.debug("vz-bundle manifest discovery failed", exc_info=True)
+    return None
+
+
+async def _handle_catalog_builtin_tools(request: web.Request) -> web.Response:
+    """List the platform's built-in (vz-bundle) tool capabilities.
+
+    Read-only catalog parsed from the reviewed ``.vzbridge.yaml`` so the
+    portal can show operators what the system can already do before they
+    propose a new tool. Degrades to an empty list when the bundle is not
+    installed in this checkout.
+    """
+    manifest_path = _resolve_vz_bundle_manifest_path()
+    if not manifest_path:
+        return web.json_response(
+            {"status": "ok", "server": "vz-bundle", "tools": []}
+        )
+    try:
+        from lifeform_mcp_bridge.safety_manifest import load_manifest
+
+        manifest = load_manifest(
+            path=manifest_path, expected_server_name="vz-bundle"
+        )
+    except Exception as exc:  # noqa: BLE001 - never 500 a read-only catalog
+        _LOG.warning(
+            "builtin-tools: could not load %r: %s", manifest_path, exc
+        )
+        return web.json_response(
+            {"status": "ok", "server": "vz-bundle", "tools": []}
+        )
+
+    tools: list[dict[str, Any]] = []
+    for entry in manifest.tool_entries.values():
+        if entry.excluded:
+            continue
+        cost = entry.cost_model
+        safety = entry.safety_model
+        tools.append(
+            {
+                "name": entry.tool_name,
+                "when_to_use": entry.when_to_use,
+                "when_not_to_use": entry.when_not_to_use,
+                "affordance_tags": list(entry.affordance_tags),
+                "cost_model": {
+                    "latency_class": cost.latency_class.value,
+                    "monetary_class": cost.monetary_class.value,
+                    "rate_limit_per_minute": cost.rate_limit_per_minute,
+                },
+                "safety_model": {
+                    "requires_user_confirmation": safety.requires_user_confirmation,
+                    "irreversible": safety.irreversible,
+                    "requires_consent_grant": list(safety.requires_consent_grant),
+                    "blocked_in_regimes": list(safety.blocked_in_regimes),
+                    "audit_required": safety.audit_required,
+                },
+            }
+        )
+    tools.sort(key=lambda item: item["name"])
+    return web.json_response(
+        {"status": "ok", "server": "vz-bundle", "tools": tools}
+    )
+
+
 async def _handle_catalog_training_policies(request: web.Request) -> web.Response:
     return web.json_response(
         {
@@ -1516,7 +1695,7 @@ async def _handle_explain(request: web.Request) -> web.Response:
 
 async def _handle_list_instances(request: web.Request) -> web.Response:
     launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
-    if not isinstance(launcher, InstanceManager):
+    if not isinstance(launcher, LauncherProtocol):
         return _json_error(
             status=503,
             error="launcher_not_configured",
@@ -1529,7 +1708,7 @@ async def _handle_list_instances(request: web.Request) -> web.Response:
 
 async def _handle_instance_status(request: web.Request) -> web.Response:
     launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
-    if not isinstance(launcher, InstanceManager):
+    if not isinstance(launcher, LauncherProtocol):
         return _json_error(
             status=503,
             error="launcher_not_configured",
@@ -1549,7 +1728,7 @@ async def _handle_instance_status(request: web.Request) -> web.Response:
 
 async def _handle_wake_instance(request: web.Request) -> web.Response:
     launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
-    if not isinstance(launcher, InstanceManager):
+    if not isinstance(launcher, LauncherProtocol):
         return _json_error(
             status=503,
             error="launcher_not_configured",
@@ -1562,6 +1741,9 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
         plugins = ()
         contract_id = ""
         tool_policy_snapshot: dict[str, Any] | None = None
+        wake_tenant_id = ""
+        wake_scope_strategy = ""
+        wake_substrate_profile = ""
         stores = request.app.get(CONTROL_PLANE_STORES_KEY)
         if stores is not None:
             try:
@@ -1569,6 +1751,15 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
                 plugins = contract.plugins
                 contract_id = contract.contract_id
                 tool_policy_snapshot = dict(contract.tool_policy_snapshot)
+                wake_tenant_id = str(getattr(contract, "tenant_id", "") or "")
+                _adoption = contract.service_contract.get("adoption_config", {})
+                wake_scope_strategy = str(
+                    _adoption.get("memory", {}).get("scope_strategy", "") or ""
+                )
+                wake_substrate_profile = str(
+                    _adoption.get("substrate", {}).get("substrate_profile_id", "")
+                    or ""
+                )
             except ContractNotFound:
                 plugins = ()
         status = await launcher.wake(
@@ -1578,6 +1769,9 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
             plugins=plugins,
             contract_id=contract_id,
             tool_policy_snapshot=tool_policy_snapshot,
+            tenant_id=wake_tenant_id,
+            scope_strategy=wake_scope_strategy,
+            substrate_profile=wake_substrate_profile,
         )
     except InstanceNotFound:
         return _json_error(
@@ -1649,6 +1843,7 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
             "bundle_not_found",
             "instance_not_found",
             "lifeform_service_absent",
+            "substrate_incompatible",
         ):
             return _json_error(
                 status=503,
@@ -1662,7 +1857,7 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
 
 async def _handle_sleep_instance(request: web.Request) -> web.Response:
     launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
-    if not isinstance(launcher, InstanceManager):
+    if not isinstance(launcher, LauncherProtocol):
         return _json_error(
             status=503,
             error="launcher_not_configured",
@@ -2126,7 +2321,9 @@ async def _handle_asset_intake(request: web.Request) -> web.Response:
         else TrainingJobStatus.RUNNING
     )
     job = job.with_status(status)
-    _training_store(request)[(ai_id, job.job_id)] = job
+    await _training_store(request).put(job)
+    if status is TrainingJobStatus.PENDING:
+        _maybe_enqueue_training_job(request, ai_id=ai_id, job_id=job.job_id)
     body = _asset_intake_response(
         asset=asset,
         decision_rationale=decision.rationale,
@@ -2290,6 +2487,61 @@ def _ingestion_report_to_json(report: Any) -> dict[str, Any]:
     }
 
 
+def _maybe_enqueue_training_job(
+    request: web.Request, *, ai_id: str, job_id: str
+) -> None:
+    """Enqueue a freshly-created job onto the executor when one is wired."""
+
+    executor = request.app.get(_TRAINING_EXECUTOR_KEY)
+    if isinstance(executor, TrainingJobExecutor):
+        executor.enqueue(ai_id=ai_id, job_id=job_id)
+
+
+async def _training_policy_error(
+    request: web.Request, job: TrainingJob
+) -> web.Response | None:
+    """Enforce adapter-training / rare-heavy policy at job create (403).
+
+    Reads the adopting contract's ``adoption_config`` (persisted on the
+    service contract). ``adapter_candidate`` jobs require
+    ``training.allow_adapter_training``; any rare-heavy-bearing job also
+    requires ``substrate.allow_rare_heavy_refresh``. When no contract /
+    config is available (dev / SHADOW), the check is permissive so the
+    legacy behaviour is preserved.
+    """
+
+    stores = request.app.get(CONTROL_PLANE_STORES_KEY)
+    if stores is None or not job.contract_id.strip():
+        return None
+    try:
+        contract = await stores.contracts.get(job.contract_id)
+    except ContractNotFound:
+        return None
+    adoption = dict(contract.service_contract.get("adoption_config", {}) or {})
+    training = dict(adoption.get("training", {}) or {})
+    substrate = dict(adoption.get("substrate", {}) or {})
+    if job.job_type.value == "adapter_candidate":
+        if not bool(training.get("allow_adapter_training", False)):
+            return _json_error(
+                status=403,
+                error="adapter_training_forbidden",
+                detail=(
+                    "this contract's adoption_config.training.allow_adapter_training "
+                    "is false; adapter_candidate jobs are not permitted."
+                ),
+            )
+        if not bool(substrate.get("allow_rare_heavy_refresh", False)):
+            return _json_error(
+                status=403,
+                error="rare_heavy_refresh_forbidden",
+                detail=(
+                    "this contract's adoption_config.substrate.allow_rare_heavy_refresh "
+                    "is false; rare-heavy adapter training is not permitted."
+                ),
+            )
+    return None
+
+
 async def _handle_training_job_create(request: web.Request) -> web.Response:
     ai_id = request.match_info.get("ai_id", "")
     try:
@@ -2298,7 +2550,11 @@ async def _handle_training_job_create(request: web.Request) -> web.Response:
         job = TrainingJob.from_json(data, ai_id=ai_id, job_id=job_id)
     except ValueError as exc:
         return _json_error(status=400, error="invalid_training_job", detail=str(exc))
-    _training_store(request)[(ai_id, job.job_id)] = job
+    policy_error = await _training_policy_error(request, job)
+    if policy_error is not None:
+        return policy_error
+    await _training_store(request).put(job)
+    _maybe_enqueue_training_job(request, ai_id=ai_id, job_id=job.job_id)
     artifact_kind = (
         ArtifactKind.ADAPTER_CANDIDATE
         if job.job_type.value == "adapter_candidate"
@@ -2346,7 +2602,7 @@ async def _handle_training_job_cancel(request: web.Request) -> web.Response:
     if isinstance(job, web.Response):
         return job
     updated = job.with_status(TrainingJobStatus.CANCELLED)
-    _training_store(request)[(job.ai_id, job.job_id)] = updated
+    await _training_store(request).put(updated)
     _record_audit(
         request,
         event_type="training_job_cancelled",
@@ -2363,7 +2619,7 @@ async def _handle_training_job_promote(request: web.Request) -> web.Response:
         return job
     if job.job_type.value == "adapter_candidate" and not job.gate_evidence:
         updated = job.with_status(TrainingJobStatus.BLOCKED)
-        _training_store(request)[(job.ai_id, job.job_id)] = updated
+        await _training_store(request).put(updated)
         _record_audit(
             request,
             event_type="training_job_promotion_blocked",
@@ -2378,7 +2634,7 @@ async def _handle_training_job_promote(request: web.Request) -> web.Response:
             extra=updated.to_json(),
         )
     updated = job.with_status(TrainingJobStatus.PROMOTED)
-    _training_store(request)[(job.ai_id, job.job_id)] = updated
+    await _training_store(request).put(updated)
     _record_audit(
         request,
         event_type="training_job_promoted",
@@ -2425,6 +2681,43 @@ async def _dispatch_envelope_to_instance(
             )
             return web.json_response(dict(body))
 
+    # Multi-process path: when the launcher supports remote forwarding
+    # (MultiPodLauncher), the owning pod holds the session, so forward
+    # the whole envelope over RPC instead of resolving a local manager.
+    launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
+    forward = getattr(launcher, "forward_interaction", None)
+    if callable(forward):
+        try:
+            body = await forward(ai_id=ai_id, envelope=envelope)
+        except InstanceNotFound:
+            return _json_error(
+                status=404,
+                error="ai_id_not_found",
+                detail=f"ai_id={ai_id!r} is not placed on any runtime pod.",
+            )
+        except RuntimeError as exc:
+            return _json_error(
+                status=502, error="pod_forward_failed", detail=str(exc)
+            )
+        _record_audit(
+            request,
+            event_type=f"interaction_{envelope.interaction_type.value}",
+            ai_id=ai_id,
+            contract_id=envelope.contract_id,
+            session_id=envelope.session_id,
+            payload={
+                "interaction_type": envelope.interaction_type.value,
+                "routing": "multi_pod_forward",
+            },
+        )
+        _record_usage(
+            request,
+            ai_id=ai_id,
+            metric=f"interaction.{envelope.interaction_type.value}",
+            quantity=1,
+        )
+        return web.json_response(body)
+
     try:
         manager = _resolve_session_manager(request, ai_id)
     except _AiIdNotFoundError as exc:
@@ -2437,6 +2730,12 @@ async def _dispatch_envelope_to_instance(
             manager,
             envelope.session_id,
             user_id=envelope.end_user_ref,
+        )
+    except _SessionEndUserMismatch as exc:
+        return _json_error(
+            status=409,
+            error="session_end_user_mismatch",
+            detail=str(exc),
         )
     except SessionAlreadyExistsError as exc:  # pragma: no cover - racy
         return _json_error(
@@ -2598,7 +2897,7 @@ def _resolve_session_manager(
        (Slice 1 single-instance path).
     """
     launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
-    if isinstance(launcher, InstanceManager):
+    if isinstance(launcher, LauncherProtocol):
         try:
             return launcher.get(ai_id)
         except InstanceNotFound as exc:
@@ -2617,7 +2916,8 @@ def _protocol_store(request: web.Request) -> dict[tuple[str, str], ProtocolSubmi
     return request.app[_PROTOCOL_SUBMISSIONS_KEY]
 
 
-def _training_store(request: web.Request) -> dict[tuple[str, str], TrainingJob]:
+def _training_store(request: web.Request):
+    """Return the training-job store (InMemory by default, persisted when wired)."""
     return request.app[_TRAINING_JOBS_KEY]
 
 
@@ -3448,7 +3748,7 @@ def _build_readout_bundle(
                 1 for (stored_ai, _) in _protocol_store(request) if stored_ai == ai_id
             ),
             "training_job_count": sum(
-                1 for (stored_ai, _) in _training_store(request) if stored_ai == ai_id
+                1 for job in _training_store(request).list_all() if job.ai_id == ai_id
             ),
         },
     )
@@ -3629,7 +3929,7 @@ def _social_readout(snapshots: dict[str, Any]) -> dict[str, Any]:
 
 def _status_json_if_known(request: web.Request, ai_id: str) -> dict[str, Any]:
     launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
-    if not isinstance(launcher, InstanceManager):
+    if not isinstance(launcher, LauncherProtocol):
         return {"ai_id": ai_id, "lifecycle_state": "single_instance"}
     try:
         return launcher.status(ai_id).to_json()
@@ -3722,7 +4022,7 @@ def _catalog_blueprints() -> tuple[LifeBlueprint, ...]:
 def _get_training_job(request: web.Request) -> TrainingJob | web.Response:
     ai_id = request.match_info.get("ai_id", "")
     job_id = request.match_info.get("job_id", "")
-    job = _training_store(request).get((ai_id, job_id))
+    job = _training_store(request).get(ai_id=ai_id, job_id=job_id)
     if job is None:
         return _json_error(status=404, error="training_job_not_found", detail=job_id)
     return job
@@ -3786,17 +4086,60 @@ async def _read_json_or_error(
         return _json_error(status=400, error="invalid_json_body", detail=str(exc))
 
 
+class _SessionEndUserMismatch(Exception):
+    """A reused session_id is bound to a different end-user than requested."""
+
+    def __init__(self, *, session_id: str, bound: str, requested: str) -> None:
+        super().__init__(
+            f"session_id={session_id!r} is bound to end_user_ref={bound!r} "
+            f"but the request carries end_user_ref={requested!r}"
+        )
+        self.session_id = session_id
+        self.bound = bound
+        self.requested = requested
+
+
+def _session_end_user_remap_allowed() -> bool:
+    """Whether reusing a session_id across different end-users is allowed.
+
+    Default False (fail loud) — serving session A's kernel state to a
+    different end-user is a cross-user state leak. Operators that
+    intentionally remap (e.g. anonymous-then-login) set
+    ``VZ_ALLOW_SESSION_END_USER_REMAP=1``.
+    """
+
+    return os.environ.get("VZ_ALLOW_SESSION_END_USER_REMAP", "").strip() in (
+        "1",
+        "true",
+        "True",
+    )
+
+
 async def _get_or_create_session(
     manager: SessionManager,
     session_id: str,
     *,
     user_id: str | None = None,
 ):
-    """Reuse an existing session if present; otherwise create with that id."""
+    """Reuse an existing session if present; otherwise create with that id.
+
+    On reuse, guard against a caller binding one ``session_id`` to a
+    different end-user than it was created for (raises
+    :class:`_SessionEndUserMismatch`, which the dispatch layer maps to a
+    409). Disable the guard with ``VZ_ALLOW_SESSION_END_USER_REMAP=1``.
+    """
     try:
-        return await manager.get_session(session_id)
+        session = await manager.get_session(session_id)
     except SessionNotFoundError:
         return await manager.create_session(session_id=session_id, user_id=user_id)
+    if user_id and not _session_end_user_remap_allowed():
+        reader = getattr(manager, "session_end_user", None)
+        bound = reader(session_id) if callable(reader) else None
+        if bound is not None and bound != user_id:
+            raise _SessionEndUserMismatch(
+                session_id=session_id, bound=bound, requested=user_id
+            )
+    return session
 
 
 def _json_error(

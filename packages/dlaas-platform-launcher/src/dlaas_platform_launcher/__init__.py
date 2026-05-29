@@ -20,7 +20,11 @@ from dlaas_platform_launcher.instance_manager import (
     InstanceManager,
     InstanceNotFound,
 )
+from dlaas_platform_launcher.launcher_protocol import LauncherProtocol
 from dlaas_platform_launcher.multi_pod_launcher import MultiPodLauncher
+from dlaas_platform_launcher.remote_instance_manager import (
+    RemoteInstanceManager,
+)
 from dlaas_platform_launcher.placement import (
     AiIdPlacementRouter,
     PlacementCapacityError,
@@ -34,7 +38,9 @@ __all__ = (
     "INSTANCE_MANAGER_APP_KEY",
     "InstanceManager",
     "InstanceNotFound",
+    "LauncherProtocol",
     "MultiPodLauncher",
+    "RemoteInstanceManager",
     "AiIdPlacementRouter",
     "PlacementCapacityError",
     "PlacementNotFound",

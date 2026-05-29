@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 import uuid
 from dataclasses import dataclass
@@ -67,6 +68,23 @@ from lifeform_openai_compat.raw_substrate import (
     estimate_prompt_tokens,
     split_messages,
 )
+
+
+class SessionEndUserMismatchError(ValueError):
+    """A reused session_id is bound to a different end-user than requested.
+
+    Subclasses ``ValueError`` so existing router error handling still
+    catches it; the router maps it to a 409 specifically.
+    """
+
+
+def _session_end_user_remap_allowed() -> bool:
+    return os.environ.get("VZ_ALLOW_SESSION_END_USER_REMAP", "").strip() in (
+        "1",
+        "true",
+        "True",
+    )
+
 
 _DEFAULT_MAX_NEW_TOKENS: int = 512
 _AUTO_SESSION_ID_PREFIX: str = "auto-"
@@ -264,11 +282,17 @@ async def lifeform_complete(
 
     resolution = derive_session_id(request)
     user_id = request.metadata.get("user_id", "").strip() or None
+    # NW9: honour the baked LifeformTemplate id when the caller binds
+    # one. Without this the session falls back to the vertical default
+    # profile and the character's trained memory_checkpoint never loads.
+    # Only applies on first create_session for this session_id.
+    template_id = request.metadata.get("dlaas.template_id", "").strip() or None
 
     session = await _get_or_create_session(
         manager=manager,
         session_id=resolution.session_id,
         user_id=user_id,
+        template_id=template_id,
     )
 
     if request.messages[-1].role == "tool":
@@ -526,6 +550,7 @@ async def _get_or_create_session(
     manager: SessionManager,
     session_id: str,
     user_id: str | None,
+    template_id: str | None = None,
 ) -> Any:
     """SessionManager get-or-create with a tiny race-tolerant fallback.
 
@@ -535,13 +560,30 @@ async def _get_or_create_session(
     back to ``get_session``, which the loser of the race will see
     as the existing session. This is the standard lifeform-service
     pattern; we are not introducing new error semantics.
+
+    NW9: ``template_id`` (when set) selects a baked LifeformTemplate so
+    the session is reincarnated from that template's memory_checkpoint
+    rather than the vertical default profile. It only takes effect on
+    the first ``create_session`` for a given ``session_id`` (sessions
+    are sticky); reused sessions keep their original template binding.
     """
 
     if await manager.has_session(session_id):
-        return await manager.get_session(session_id)
+        session = await manager.get_session(session_id)
+        if user_id and not _session_end_user_remap_allowed():
+            reader = getattr(manager, "session_end_user", None)
+            bound = reader(session_id) if callable(reader) else None
+            if bound is not None and bound != user_id:
+                raise SessionEndUserMismatchError(
+                    f"session_id={session_id!r} is bound to user_id={bound!r} "
+                    f"but the request carries user_id={user_id!r}"
+                )
+        return session
     try:
         return await manager.create_session(
-            session_id=session_id, user_id=user_id
+            session_id=session_id,
+            user_id=user_id,
+            template_id=template_id,
         )
     except SessionAlreadyExistsError:
         # Lost the race; fall back to the existing session.
@@ -556,12 +598,14 @@ async def _get_or_create_session(
 def reserved_metadata_keys() -> tuple[str, ...]:
     """Reserved keys in the OpenAI ``metadata`` extension.
 
-    External harnesses may pass arbitrary metadata; these two keys
+    External harnesses may pass arbitrary metadata; these keys
     are interpreted by the bridge:
 
     * ``session_id`` — explicit override (sticky reuse on a chosen id)
     * ``user_id`` — passed through to ``create_session(user_id=...)``
+    * ``dlaas.template_id`` — baked LifeformTemplate id; selects the
+      reincarnation template on first ``create_session`` (NW9)
 
     All other keys are stored on the request DTO unchanged.
     """
-    return ("session_id", "user_id")
+    return ("session_id", "user_id", "dlaas.template_id")

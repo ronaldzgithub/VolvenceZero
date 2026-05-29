@@ -79,6 +79,14 @@ class SubstrateProfile:
     allow_rare_heavy_refresh: bool = False
     model_id_hint: str = ""
     runtime_backend: str = BACKEND_TRANSFORMERS
+    # Runtime build params (multi-pod): a pod loads its substrate from
+    # these. ``model_id`` empty + ``mode == synthetic`` -> synthetic
+    # runtime (no weights). For shared_frozen, ``model_id`` is the HF id.
+    model_id: str = ""
+    device: str = "auto"
+    dtype: str = "auto"
+    max_loras: int = 4
+    max_lora_rank: int = 16
 
     def __post_init__(self) -> None:
         if not self.substrate_profile_id.strip():
@@ -114,6 +122,9 @@ class SubstrateProfile:
             "allow_rare_heavy_refresh": self.allow_rare_heavy_refresh,
             "model_id_hint": self.model_id_hint,
             "runtime_backend": self.runtime_backend,
+            "model_id": self.model_id,
+            "device": self.device,
+            "dtype": self.dtype,
         }
 
 
@@ -225,6 +236,48 @@ def default_substrate_profile_registry() -> SubstrateProfileRegistry:
     return _DEFAULT_REGISTRY
 
 
+def build_runtime_for_profile(profile: SubstrateProfile) -> object | None:
+    """Build the substrate runtime a pod should load for ``profile``.
+
+    * ``mode == synthetic`` -> ``None`` (each session builds its own
+      synthetic runtime; matches DLaaS synthetic mode).
+    * ``runtime_backend == vllm`` -> ``VLLMOpenWeightResidualRuntime``
+      (requires the optional ``vz-substrate[vllm]`` extra + GPU).
+    * otherwise -> a frozen transformers runtime via
+      ``build_transformers_runtime_with_fallback``
+      (``allow_live_substrate_mutation=False`` for R2 sharing).
+
+    Heavy substrate imports are deferred to call time so importing this
+    module stays cheap.
+    """
+
+    if profile.mode == MODE_SYNTHETIC:
+        return None
+    if not profile.model_id.strip():
+        raise ValueError(
+            f"substrate profile {profile.substrate_profile_id!r} is "
+            f"shared_frozen but has no model_id to load."
+        )
+    if profile.runtime_backend == BACKEND_VLLM:
+        from volvence_zero.substrate import VLLMOpenWeightResidualRuntime
+
+        return VLLMOpenWeightResidualRuntime(
+            model_id=profile.model_id,
+            max_loras=profile.max_loras,
+            max_lora_rank=profile.max_lora_rank,
+            dtype=profile.dtype,
+        )
+    from volvence_zero.substrate import (
+        build_transformers_runtime_with_fallback,
+    )
+
+    return build_transformers_runtime_with_fallback(
+        model_id=profile.model_id,
+        device=profile.device,
+        allow_live_substrate_mutation=False,
+    )
+
+
 def running_substrate_mode(runtime: object | None) -> str:
     """Derive the running substrate's mode from the injected runtime.
 
@@ -242,6 +295,25 @@ def running_substrate_mode(runtime: object | None) -> str:
     return MODE_SHARED_FROZEN
 
 
+def running_substrate_backend(runtime: object | None) -> str:
+    """Return the running substrate's backend id, or "" for synthetic/none."""
+
+    if runtime is None:
+        return ""
+    try:
+        from volvence_zero.substrate import (
+            SyntheticOpenWeightResidualRuntime,
+            VLLMOpenWeightResidualRuntime,
+        )
+    except ImportError:
+        return ""
+    if isinstance(runtime, SyntheticOpenWeightResidualRuntime):
+        return ""
+    if isinstance(runtime, VLLMOpenWeightResidualRuntime):
+        return BACKEND_VLLM
+    return BACKEND_TRANSFORMERS
+
+
 __all__ = [
     "ADAPTER_POLICY_NONE",
     "ADAPTER_POLICY_PERSONA_LORA",
@@ -252,6 +324,8 @@ __all__ = [
     "SubstrateProfile",
     "SubstrateProfileRegistry",
     "UnknownSubstrateProfile",
+    "build_runtime_for_profile",
     "default_substrate_profile_registry",
     "running_substrate_mode",
+    "running_substrate_backend",
 ]

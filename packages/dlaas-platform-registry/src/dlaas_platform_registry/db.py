@@ -26,7 +26,7 @@ import asyncio
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 
 
 _SCHEMA_SQL = (
@@ -268,6 +268,29 @@ _SCHEMA_SQL = (
     );
     """,
     """
+    CREATE TABLE IF NOT EXISTS cultivations (
+        cultivation_id TEXT PRIMARY KEY,
+        ai_id TEXT NOT NULL DEFAULT '',
+        slug TEXT NOT NULL,
+        display_name TEXT NOT NULL DEFAULT '',
+        domain TEXT NOT NULL DEFAULT '',
+        runtime_template_id TEXT NOT NULL DEFAULT '',
+        seed_persona_json TEXT NOT NULL DEFAULT '{}',
+        curriculum_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'seeding',
+        cycles_completed INTEGER NOT NULL DEFAULT 0,
+        coherence_score REAL NOT NULL DEFAULT 0.0,
+        coherence_detail_json TEXT NOT NULL DEFAULT '{}',
+        regime_history_json TEXT NOT NULL DEFAULT '[]',
+        dlaas_template_id TEXT NOT NULL DEFAULT '',
+        last_exam_run_id TEXT NOT NULL DEFAULT '',
+        inducted_template_id TEXT NOT NULL DEFAULT '',
+        notes TEXT NOT NULL DEFAULT '',
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL
+    );
+    """,
+    """
     CREATE TABLE IF NOT EXISTS applications (
         application_id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -290,6 +313,25 @@ _SCHEMA_SQL = (
         PRIMARY KEY (tenant_id, application_id),
         FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id),
         FOREIGN KEY (application_id) REFERENCES applications(application_id)
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS training_jobs (
+        job_id TEXT NOT NULL,
+        ai_id TEXT NOT NULL,
+        contract_id TEXT NOT NULL DEFAULT '',
+        tenant_id TEXT NOT NULL DEFAULT '',
+        job_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_by TEXT NOT NULL DEFAULT '',
+        source_ref TEXT NOT NULL DEFAULT '',
+        promotion_gate TEXT NOT NULL DEFAULT '',
+        artifact_ref TEXT NOT NULL DEFAULT '',
+        gate_evidence_json TEXT NOT NULL DEFAULT '{}',
+        notes TEXT NOT NULL DEFAULT '',
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL,
+        PRIMARY KEY (ai_id, job_id)
     );
     """,
 )
@@ -384,6 +426,60 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
             payload_json TEXT NOT NULL DEFAULT '{}',
             created_at_ms INTEGER NOT NULL,
             PRIMARY KEY (record_kind, record_id)
+        );
+        """
+    )
+
+    # Schema v7: persisted DLaaS training jobs (rare-heavy executor).
+    # Forward-create for pre-v7 databases; fresh DBs get it from
+    # ``_SCHEMA_SQL`` above.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS training_jobs (
+            job_id TEXT NOT NULL,
+            ai_id TEXT NOT NULL,
+            contract_id TEXT NOT NULL DEFAULT '',
+            tenant_id TEXT NOT NULL DEFAULT '',
+            job_type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_by TEXT NOT NULL DEFAULT '',
+            source_ref TEXT NOT NULL DEFAULT '',
+            promotion_gate TEXT NOT NULL DEFAULT '',
+            artifact_ref TEXT NOT NULL DEFAULT '',
+            gate_evidence_json TEXT NOT NULL DEFAULT '{}',
+            notes TEXT NOT NULL DEFAULT '',
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL,
+            PRIMARY KEY (ai_id, job_id)
+        );
+        """
+    )
+
+    # Schema v6: autonomous expert-cultivation records. Forward-create
+    # for databases that pre-date the table; fresh DBs already get it
+    # from ``_SCHEMA_SQL`` above.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cultivations (
+            cultivation_id TEXT PRIMARY KEY,
+            ai_id TEXT NOT NULL DEFAULT '',
+            slug TEXT NOT NULL,
+            display_name TEXT NOT NULL DEFAULT '',
+            domain TEXT NOT NULL DEFAULT '',
+            runtime_template_id TEXT NOT NULL DEFAULT '',
+            seed_persona_json TEXT NOT NULL DEFAULT '{}',
+            curriculum_json TEXT NOT NULL DEFAULT '{}',
+            status TEXT NOT NULL DEFAULT 'seeding',
+            cycles_completed INTEGER NOT NULL DEFAULT 0,
+            coherence_score REAL NOT NULL DEFAULT 0.0,
+            coherence_detail_json TEXT NOT NULL DEFAULT '{}',
+            regime_history_json TEXT NOT NULL DEFAULT '[]',
+            dlaas_template_id TEXT NOT NULL DEFAULT '',
+            last_exam_run_id TEXT NOT NULL DEFAULT '',
+            inducted_template_id TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT '',
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL
         );
         """
     )

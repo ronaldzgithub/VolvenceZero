@@ -360,6 +360,11 @@ DLAAS_PLATFORM_ALLOWED_LIFEFORM_PREFIXES: frozenset[str] = frozenset(
         "lifeform_evolution",
         "lifeform_expression",
         "lifeform_thinking",
+        # Autonomous expert-cultivation engine. The platform's
+        # /dlaas/v1/cultivation/* routes drive the self-study loop through
+        # this wheel; it only touches the kernel via the canonical
+        # session + ingestion surfaces (cognition stays kernel-owned).
+        "lifeform_cultivation",
     }
 )
 

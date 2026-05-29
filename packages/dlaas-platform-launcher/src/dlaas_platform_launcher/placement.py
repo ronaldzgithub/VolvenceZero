@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 
 def _now_ms() -> int:

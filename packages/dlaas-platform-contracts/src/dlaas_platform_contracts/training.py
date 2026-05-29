@@ -164,6 +164,21 @@ class TrainingJob:
             notes=self.notes,
         )
 
+    def with_artifact_ref(self, artifact_ref: str) -> "TrainingJob":
+        return TrainingJob(
+            job_id=self.job_id,
+            ai_id=self.ai_id,
+            contract_id=self.contract_id,
+            job_type=self.job_type,
+            status=self.status,
+            created_by=self.created_by,
+            source_ref=self.source_ref,
+            promotion_gate=self.promotion_gate,
+            artifact_ref=artifact_ref,
+            gate_evidence=dict(self.gate_evidence),
+            notes=self.notes,
+        )
+
     def to_json(self) -> dict[str, Any]:
         return {
             "job_id": self.job_id,

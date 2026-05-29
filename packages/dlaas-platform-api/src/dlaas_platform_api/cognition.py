@@ -228,6 +228,16 @@ class CognitionSnapshotStore:
             assert self._mem is not None
             yield from list(self._mem)
 
+    def __len__(self) -> int:
+        if self._conn is not None:
+            with self._lock:
+                row = self._conn.execute(
+                    "SELECT COUNT(*) AS n FROM cognition_snapshots"
+                ).fetchone()
+            return int(row["n"]) if row is not None else 0
+        assert self._mem is not None
+        return len(self._mem)
+
     def sweep(
         self, *, retention_days: int | None = None, now_ms: int | None = None
     ) -> int:

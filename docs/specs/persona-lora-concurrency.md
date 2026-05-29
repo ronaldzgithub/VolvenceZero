@@ -20,6 +20,27 @@
 - forward hook 状态在 task 间是否串？
 - 嵌套 activate 抛 RuntimeError 是单线程语义，asyncio 下 race 怎么处理？
 
+### 2.1 2026-05-29 实现进展（DLaaS substrate + LoRA packet）
+
+部分推进，给出**正确性**隔离 evidence（GPU 吞吐基线仍待 #45 perf 床）：
+
+- **Per-tenant 作用域池**：每个 `SessionManager` 持自有
+  `PersonaLoRAPool` 并把它传给 synthesizer，激活查 scoped 池而非
+  全局 `default_persona_lora_pool`（消除 last-register-wins）。
+  `_maybe_activate_persona_lora(..., pool=scoped_pool, enabled=...)`。
+- **并发隔离 evidence**：
+  [`test_persona_lora_concurrency_evidence.py`](../../packages/lifeform-service/tests/test_persona_lora_concurrency_evidence.py)
+  —— N=12 个 asyncio task，同 `figure_id` 不同 checkpoint，交错激活后
+  每 task 只看到自己的 checkpoint（无串扰）；adapter_policy=none 时
+  全部不激活。
+- **vLLM 并发后端**：`VLLMOpenWeightResidualRuntime` 用
+  per-request `LoRARequest`，active checkpoint 走 `contextvars`
+  按 task 隔离 —— transformers 的 "serial-decode + 单线程嵌套守门"
+  假设在 vLLM 后端放松为 per-task。嵌套 activate 仍在同 task 抛
+  `RuntimeError`，跨 task 并发不再误判。
+- **仍缺**：真 GPU 上 N≥10 并发 logits determinism + swap overhead
+  P50/P99 实测（依赖 #45）。本批是单测级隔离证明，非 GPU 吞吐基线。
+
 ## 3. SLO
 
 | 指标 | 阈值 | 检测 |

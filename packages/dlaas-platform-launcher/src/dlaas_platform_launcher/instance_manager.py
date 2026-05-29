@@ -42,6 +42,8 @@ mapping only.
 from __future__ import annotations
 
 import asyncio
+import os
+import pathlib
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -135,12 +137,23 @@ class InstanceManager:
         attach_default_mcp_bundle: bool = False,
         max_sessions_per_instance: int = 256,
         idle_eviction_seconds: float | None = 60 * 30,
+        templates_root_dir: "pathlib.Path | str | None" = None,
     ) -> None:
         self._vertical_resolver = vertical_resolver
         self._substrate_runtime = substrate_runtime
         self._alpha_identity_provider = alpha_identity_provider
         self._alpha_memory_scope_root_dir = alpha_memory_scope_root_dir
         self._attach_default_mcp_bundle = attach_default_mcp_bundle
+        # NW9: service-level templates root (e.g. /data/novel-bundles).
+        # Per-vertical SessionManagers built in acquire()/wake() resolve
+        # the per-vertical subdir off this root so baked LifeformTemplate
+        # JSON is loadable via create_session(template_id=...). When None,
+        # template loading is unavailable and chat uses default profiles.
+        self._templates_root_dir: pathlib.Path | None = (
+            pathlib.Path(templates_root_dir)
+            if templates_root_dir is not None
+            else None
+        )
         self._instances: dict[str, SessionManager] = {}
         self._verticals: dict[str, str] = {}  # ai_id -> vertical_name
         self._lifecycle: dict[str, InstanceLifecycleState] = {}
@@ -185,6 +198,53 @@ class InstanceManager:
 
         self._last_interaction_at_ms[ai_id] = _now_ms()
 
+    def _resolved_templates_dir_for(
+        self, spec: VerticalSpec
+    ) -> pathlib.Path | None:
+        """NW9: per-vertical templates dir for the legacy single-vertical
+        SessionManager built per ai_id.
+
+        The legacy SessionManager constructor synthesises a one-entry
+        registry with an empty ``template_subdir``, so its
+        ``templates_dir_for`` returns the passed ``templates_root_dir``
+        verbatim. We therefore resolve the per-vertical subdir HERE off
+        the service-level root (e.g. ``/data/novel-bundles`` +
+        ``novel-worlds`` -> ``/data/novel-bundles/novel-worlds``).
+
+        Returns ``None`` when no service root is configured or the
+        vertical does not register a template adapter, in which case the
+        SessionManager is built without template support (default
+        profiles only).
+        """
+        if self._templates_root_dir is None or spec.template_adapter is None:
+            return None
+        subdir = (spec.template_subdir or spec.name or "").strip()
+        if not subdir:
+            return self._templates_root_dir
+        return self._templates_root_dir / subdir
+
+    def _resolve_memory_root_for(self, *, ai_id: str, tenant_id: str) -> str | None:
+        """Compute the per-ai_id memory root when opted in.
+
+        Returns ``{base}/{tenant_id}/{ai_id}`` when
+        ``VZ_PER_AI_MEMORY_ROOT=1`` and a base root is configured, so
+        two ai_ids in one process never share on-disk memory. Otherwise
+        returns the shared base root (legacy behaviour).
+        """
+
+        base = self._alpha_memory_scope_root_dir
+        if base is None:
+            return None
+        opt_in = os.environ.get("VZ_PER_AI_MEMORY_ROOT", "").strip() in (
+            "1",
+            "true",
+            "True",
+        )
+        if not opt_in:
+            return base
+        tenant_segment = tenant_id.strip() or "default-tenant"
+        return str(pathlib.Path(base) / tenant_segment / ai_id)
+
     async def acquire(
         self,
         *,
@@ -193,6 +253,9 @@ class InstanceManager:
         plugins: tuple[PluginManifest, ...] = (),
         contract_id: str = "",
         tool_policy_snapshot: dict[str, Any] | None = None,
+        tenant_id: str = "",
+        scope_strategy: str = "",
+        substrate_profile: str = "",
     ) -> SessionManager:
         """Idempotently register ``ai_id`` with the matching vertical.
 
@@ -231,8 +294,15 @@ class InstanceManager:
                 lifeform_factory=spec.factory,
                 alpha_lifeform_factory=spec.alpha_factory,
                 alpha_identity_provider=self._alpha_identity_provider,
-                alpha_memory_scope_root_dir=self._alpha_memory_scope_root_dir,
+                alpha_memory_scope_root_dir=self._resolve_memory_root_for(
+                    ai_id=ai_id, tenant_id=tenant_id
+                ),
                 vertical_name=spec.name,
+                # NW9: wire template loading so create_session(template_id=)
+                # reincarnates a baked LifeformTemplate (memory_checkpoint)
+                # instead of falling back to the vertical default profile.
+                template_adapter=spec.template_adapter,
+                templates_root_dir=self._resolved_templates_dir_for(spec),
                 max_sessions=self._max_sessions_per_instance,
                 idle_eviction_seconds=self._idle_eviction_seconds,
                 substrate_runtime=self._substrate_runtime,
@@ -240,6 +310,8 @@ class InstanceManager:
                 contract_plugins=plugins,
                 contract_id=contract_id,
                 tool_policy_snapshot=tool_policy_snapshot,
+                tenant_id=tenant_id,
+                scope_strategy=scope_strategy,
             )
             self._instances[ai_id] = manager
             self._verticals[ai_id] = spec.name
@@ -257,6 +329,9 @@ class InstanceManager:
         plugins: tuple[PluginManifest, ...] = (),
         contract_id: str = "",
         tool_policy_snapshot: dict[str, Any] | None = None,
+        tenant_id: str = "",
+        scope_strategy: str = "",
+        substrate_profile: str = "",
     ) -> InstanceStatus:
         """Wake an adopted instance, optionally acquiring it first.
 
@@ -282,8 +357,14 @@ class InstanceManager:
                     lifeform_factory=spec.factory,
                     alpha_lifeform_factory=spec.alpha_factory,
                     alpha_identity_provider=self._alpha_identity_provider,
-                    alpha_memory_scope_root_dir=self._alpha_memory_scope_root_dir,
+                    alpha_memory_scope_root_dir=self._resolve_memory_root_for(
+                        ai_id=ai_id, tenant_id=tenant_id
+                    ),
                     vertical_name=spec.name,
+                    # NW9: same template wiring as acquire() so a wake that
+                    # re-acquires an evicted instance keeps template loading.
+                    template_adapter=spec.template_adapter,
+                    templates_root_dir=self._resolved_templates_dir_for(spec),
                     max_sessions=self._max_sessions_per_instance,
                     idle_eviction_seconds=self._idle_eviction_seconds,
                     substrate_runtime=self._substrate_runtime,
@@ -291,6 +372,8 @@ class InstanceManager:
                     contract_plugins=plugins,
                     contract_id=contract_id,
                     tool_policy_snapshot=tool_policy_snapshot,
+                    tenant_id=tenant_id,
+                    scope_strategy=scope_strategy,
                 )
                 self._instances[ai_id] = manager
                 self._verticals[ai_id] = spec.name

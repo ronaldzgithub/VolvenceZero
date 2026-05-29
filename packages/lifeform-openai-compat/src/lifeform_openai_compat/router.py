@@ -61,6 +61,7 @@ from lifeform_openai_compat.raw_substrate import (
 )
 from lifeform_openai_compat.session_bridge import (
     LifeformCompletionResult,
+    SessionEndUserMismatchError,
     lifeform_complete,
 )
 
@@ -235,6 +236,12 @@ async def _dispatch_lifeform(
     resolved_manager = manager_or_response
     try:
         result = await lifeform_complete(request=parsed, manager=resolved_manager)
+    except SessionEndUserMismatchError as exc:
+        return _error(
+            status=409,
+            error="session_end_user_mismatch",
+            detail=str(exc),
+        )
     except ValueError as exc:
         return _error_from_value_error(exc)
     except Exception as exc:  # pragma: no cover - defensive

@@ -97,6 +97,7 @@ BindReason = Literal[
     "lifeform_service_absent",
     "bundle_not_found",
     "instance_not_found",
+    "substrate_incompatible",
 ]
 
 
@@ -182,6 +183,14 @@ def bind_figure_artifact_to_ai_id(
         session_manager = instance_manager.get(ai_id)
     except InstanceNotFound:
         return BindResult(bound=False, reason="instance_not_found")
+    # Substrate-upgrade-protocol guard: a bundle whose L2 LoRA was baked
+    # against specific substrate weights declares ``compatible_substrates``;
+    # reject binding it onto a substrate it was not baked for (fail loud
+    # rather than silently serving a mismatched adapter).
+    if not _bundle_substrate_compatible(
+        bundle=bundle, runtime=instance_manager.substrate_runtime
+    ):
+        return BindResult(bound=False, reason="substrate_incompatible")
     # ``adapter_policy`` is the resolved substrate profile policy; only
     # ``persona_lora`` permits the figure LoRA overlay. Anything else
     # (notably ``none``) binds the bundle for L1/L3/L4 enforcement but
@@ -204,7 +213,33 @@ _BIND_REASON_TO_ERROR_CODE: dict[BindReason, str] = {
     "lifeform_service_absent": "figure_vertical_unavailable",
     "bundle_not_found": "figure_bundle_not_registered",
     "instance_not_found": "ai_id_not_acquired",
+    "substrate_incompatible": "figure_bundle_substrate_incompatible",
 }
+
+
+def _bundle_substrate_compatible(*, bundle: object, runtime: object) -> bool:
+    """Whether ``bundle`` may run on the currently-loaded substrate.
+
+    Returns True when the bundle declares no ``compatible_substrates``
+    (legacy / unconstrained), when the running substrate is synthetic
+    (``runtime is None`` — dev path), when the bundle carries a legacy
+    fingerprint sentinel, or when one declared fingerprint's ``model_id``
+    matches the running substrate. Otherwise False (caller fails loud).
+    """
+
+    compatible = getattr(bundle, "compatible_substrates", ())
+    if not compatible:
+        return True
+    if runtime is None:
+        return True
+    running_model_id = getattr(runtime, "model_id", "")
+    for fingerprint in compatible:
+        is_legacy = getattr(fingerprint, "is_legacy", None)
+        if callable(is_legacy) and is_legacy():
+            return True
+        if getattr(fingerprint, "model_id", "") == running_model_id:
+            return True
+    return False
 
 
 def _bind_failure_detail(
@@ -238,6 +273,15 @@ def _bind_failure_detail(
             f"ai_id={ai_id!r} is not registered on the InstanceManager. "
             "The lifecycle path that acquired this ai_id raced with bind; "
             "retry adopt/wake."
+        )
+    if reason == "substrate_incompatible":
+        return (
+            f"figure_artifact_id={figure_artifact_id!r} declares "
+            "compatible_substrates that do not include the substrate this "
+            "pod loaded. The L2 LoRA was baked against different substrate "
+            "weights; re-bake the bundle against the running substrate "
+            "(substrate-upgrade-protocol) or route this ai_id to a pod "
+            "running a compatible substrate."
         )
     return f"reason={reason}"
 
@@ -285,8 +329,17 @@ async def _handle_create_application(request: web.Request) -> web.Response:
     name = _required_str(data, "name")
     version = str(data.get("version", "0.0.0") or "0.0.0")
     description = str(data.get("description", "") or "")
+    # Pre-allocate the application id so portal-authored safety manifests
+    # can be materialised under a stable per-application directory before
+    # the row is persisted.
+    from dlaas_platform_registry.secrets import fresh_application_id
+
+    application_id = fresh_application_id()
     try:
-        plugins = _parse_inline_plugins(data.get("plugins"))
+        plugins_payload = _materialize_inline_safety(
+            data.get("plugins"), application_id=application_id
+        )
+        plugins = _parse_inline_plugins(plugins_payload)
     except ValueError as exc:
         return _error(400, "invalid_plugin_manifest", str(exc))
     stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
@@ -295,6 +348,7 @@ async def _handle_create_application(request: web.Request) -> web.Response:
         version=version,
         description=description,
         plugins=plugins,
+        application_id=application_id,
     )
     return web.json_response({"status": "ok", **spec.to_json()})
 
@@ -1715,6 +1769,9 @@ async def _handle_adopt(request: web.Request) -> web.Response:
             plugins=final_contract.plugins,
             contract_id=final_contract.contract_id,
             tool_policy_snapshot=dict(final_contract.tool_policy_snapshot),
+            tenant_id=tenant.tenant_id,
+            scope_strategy=adoption_config.memory.scope_strategy,
+            substrate_profile=adoption_config.substrate.substrate_profile_id,
         )
     except LookupError as exc:
         await stores.contracts.update_status(
@@ -1742,6 +1799,7 @@ async def _handle_adopt(request: web.Request) -> web.Response:
         "bundle_not_found",
         "instance_not_found",
         "lifeform_service_absent",
+        "substrate_incompatible",
     ):
         # Roll the contract back to FAILED so the operator's recovery
         # path is "fix the bundle / re-run adopt" rather than
@@ -2146,6 +2204,86 @@ def _assert_plugin_names_unique(
         seen[plugin.name] = plugin.name
 
 
+def _managed_safety_dir() -> pathlib.Path:
+    """Root directory where portal-authored safety manifests are written.
+
+    Must be a persistent, lifeform-readable path in production (e.g. a
+    mounted volume). Defaults under the platform working dir for dev.
+    """
+    raw = os.environ.get("DLAAS_MANAGED_SAFETY_DIR", "").strip()
+    if raw:
+        return pathlib.Path(raw)
+    return pathlib.Path.cwd() / ".dlaas" / "managed-safety"
+
+
+def _materialize_inline_safety(
+    plugins_payload: Any, *, application_id: str
+) -> Any:
+    """Persist any per-plugin ``safety_manifest_yaml`` to disk.
+
+    The portal LLM-authors HTTP plugins together with their reviewed
+    ``.vzbridge.yaml`` content. Because the runtime only ever loads
+    safety from a file (R10, no inline wire field), we materialise that
+    content to ``DLAAS_MANAGED_SAFETY_DIR/{application_id}/{plugin}.vzbridge.yaml``
+    and rewrite ``safety_manifest_path`` to point at it. The YAML is
+    validated with the same ``load_manifest`` the runtime uses, and for
+    HTTP plugins every endpoint must have a matching tool entry — so a
+    malformed pair is rejected with a 400 before the application exists.
+
+    Plugins without ``safety_manifest_yaml`` pass through unchanged
+    (backwards compatible with file-shipped bundles).
+    """
+    if not isinstance(plugins_payload, (list, tuple)):
+        return plugins_payload
+    from lifeform_mcp_bridge.safety_manifest import load_manifest
+
+    rewritten: list[Any] = []
+    base_dir = _managed_safety_dir() / application_id
+    for item in plugins_payload:
+        if not isinstance(item, Mapping):
+            rewritten.append(item)
+            continue
+        plugin = dict(item)
+        safety_yaml = plugin.pop("safety_manifest_yaml", None)
+        if safety_yaml is None:
+            rewritten.append(plugin)
+            continue
+        if not isinstance(safety_yaml, str) or not safety_yaml.strip():
+            raise ValueError(
+                "safety_manifest_yaml must be a non-empty string when provided"
+            )
+        name = str(plugin.get("name", "")).strip()
+        if not name:
+            raise ValueError("plugin with safety_manifest_yaml must have a name")
+        base_dir.mkdir(parents=True, exist_ok=True)
+        target = base_dir / f"{name}.vzbridge.yaml"
+        target.write_text(safety_yaml, encoding="utf-8")
+        try:
+            manifest = load_manifest(path=target, expected_server_name=name)
+        except Exception as exc:  # noqa: BLE001 - surfaced as 400
+            target.unlink(missing_ok=True)
+            raise ValueError(
+                f"safety_manifest_yaml for plugin {name!r} is invalid: {exc}"
+            ) from exc
+        # For HTTP plugins, every declared endpoint needs a manifest entry.
+        http_block = plugin.get("http")
+        if plugin.get("kind") == "http" and isinstance(http_block, Mapping):
+            endpoints = http_block.get("endpoints") or []
+            for endpoint in endpoints:
+                if not isinstance(endpoint, Mapping):
+                    continue
+                ep_name = str(endpoint.get("name", ""))
+                if ep_name and ep_name not in manifest.tool_entries:
+                    target.unlink(missing_ok=True)
+                    raise ValueError(
+                        f"plugin {name!r}: endpoint {ep_name!r} has no matching "
+                        f"tool entry in safety_manifest_yaml"
+                    )
+        plugin["safety_manifest_path"] = str(target)
+        rewritten.append(plugin)
+    return rewritten
+
+
 def _parse_inline_plugins(payload: Any) -> tuple[PluginManifest, ...]:
     """Parse a ``plugins`` array out of an HTTP request body.
 
@@ -2310,6 +2448,7 @@ def _validate_substrate_profile(
         ADAPTER_POLICY_PERSONA_LORA,
         UnknownSubstrateProfile,
         default_substrate_profile_registry,
+        running_substrate_backend,
         running_substrate_mode,
     )
 
@@ -2329,7 +2468,8 @@ def _validate_substrate_profile(
             _error(400, "unknown_substrate_profile", str(exc)),
             "",
         )
-    running_mode = running_substrate_mode(instance_manager.substrate_runtime)
+    running_runtime = getattr(instance_manager, "substrate_runtime", None)
+    running_mode = running_substrate_mode(running_runtime)
     if profile.mode != running_mode:
         return (
             _error(
@@ -2338,6 +2478,21 @@ def _validate_substrate_profile(
                 f"substrate_profile_id {profile.substrate_profile_id!r} "
                 f"declares mode {profile.mode!r} but the running substrate "
                 f"is {running_mode!r}.",
+            ),
+            "",
+        )
+    # Backend check only applies to a single-process launcher with a
+    # loaded runtime; multi-pod placement routes by profile to a pod
+    # whose substrate matches, so skip when there is no local runtime.
+    running_backend = running_substrate_backend(running_runtime)
+    if running_backend and profile.runtime_backend != running_backend:
+        return (
+            _error(
+                409,
+                "substrate_backend_mismatch",
+                f"substrate_profile_id {profile.substrate_profile_id!r} "
+                f"declares runtime_backend {profile.runtime_backend!r} but the "
+                f"running substrate backend is {running_backend!r}.",
             ),
             "",
         )

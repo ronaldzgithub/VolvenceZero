@@ -37,6 +37,11 @@ dependencies = [
     # DOCX adapters. lifeform-ingestion is on the platform-tier
     # allowlist (see tests/contracts/test_import_boundaries.py).
     "lifeform-ingestion==0.1.*",
+    # Autonomous expert-cultivation engine. The /dlaas/v1/cultivation/*
+    # routes drive the self-study loop through this wheel; it only
+    # touches the kernel via the canonical session + ingestion surfaces
+    # (cognition stays kernel-owned).
+    "lifeform-cultivation==0.1.*",
     "aiohttp>=3.9",
 ]
 

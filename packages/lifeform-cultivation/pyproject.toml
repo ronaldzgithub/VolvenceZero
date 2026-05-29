@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-cultivation"
+version = "0.1.0"
+description = "Autonomous industry-expert cultivation engine. Drives a low-interaction self-study loop (web research -> corpus_ingest -> apprentice study -> R6 slow-reflection) against a DLaaS lifeform session and reads back a school-coherence (R14 regime concentration) readout. Cognition stays kernel-owned; this wheel only orchestrates intake cadence and reads published readouts."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    # The engine only ever touches kernel state through the canonical
+    # intake surfaces (LifeformSession.run_turn / end_scene via the
+    # duck-typed sink, and IngestionPipeline for corpus). It must NOT
+    # import any vz-* kernel-owner wheel directly, nor the
+    # dlaas-platform-api wheel (that would invert the dependency).
+    "lifeform-core==0.1.*",
+    "lifeform-ingestion==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_cultivation*"]
