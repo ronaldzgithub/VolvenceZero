@@ -54,11 +54,27 @@ class _FakeResponse:
 
 
 @dataclass
+class _ResponseAssemblyValue:
+    expression_intent: str = "support-first"
+
+
+@dataclass
+class _FakeSnapshot:
+    value: Any
+
+
+def _default_active_snapshots() -> dict[str, Any]:
+    return {"response_assembly": _FakeSnapshot(_ResponseAssemblyValue())}
+
+
+@dataclass
 class _FakeRunResult:
     response: _FakeResponse
     active_regime: str | None = "acquaintance_building"
     active_abstract_action: str | None = "ground"
-    active_snapshots: dict[str, Any] = field(default_factory=dict)
+    active_snapshots: dict[str, Any] = field(
+        default_factory=_default_active_snapshots
+    )
 
 
 @dataclass
@@ -274,6 +290,10 @@ async def test_lifeform_mode_surfaces_telemetry_headers(lifeform_client) -> None
     assert resp.headers["x-lifeform-pe-magnitude"] == "0.1300"
     assert resp.headers["x-lifeform-session-resolution"] == "fresh"
     assert "intent=ground" in resp.headers["x-lifeform-rationale-tags"]
+    # Published expression intent (subjectivity-transport fix): lets
+    # OpenAI-compat consumers drive the presence avatar from the core's
+    # real intent.
+    assert resp.headers["x-lifeform-expression-intent"] == "support-first"
 
 
 async def test_openai_forced_tool_choice_returns_tool_calls(lifeform_client) -> None:

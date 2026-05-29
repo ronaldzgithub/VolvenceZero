@@ -453,6 +453,11 @@ def _lifeform_telemetry_headers(result: LifeformCompletionResult) -> dict[str, s
         headers["x-lifeform-regime"] = result.active_regime
     if result.active_abstract_action:
         headers["x-lifeform-abstract-action"] = result.active_abstract_action
+    if result.expression_intent:
+        # Drives the presence avatar on OpenAI-compat consumers
+        # (einstein / family-memorial); value is a snake/kebab
+        # identifier, ASCII-safe for a header.
+        headers["x-lifeform-expression-intent"] = result.expression_intent
     if result.rationale_tags:
         # Header values must be ASCII; rationale tags are already ASCII
         # (snake-case identifiers) but we comma-join for terseness.

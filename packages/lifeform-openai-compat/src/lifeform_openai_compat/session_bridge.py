@@ -186,6 +186,28 @@ def extract_user_input(messages: tuple[ChatMessage, ...]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _expression_intent_from_result(result: object) -> str | None:
+    """Read ``response_assembly.expression_intent`` off the kernel run
+    result's published snapshots.
+
+    Mirrors the DLaaS dispatch + readout-builder pattern: we read only
+    the public snapshot value field, never owner internals, and treat
+    a missing snapshot as ``None`` (the turn simply produced no
+    response_assembly — e.g. a tool-only turn).
+    """
+    snapshots = getattr(result, "active_snapshots", None)
+    if not snapshots:
+        return None
+    snapshot = snapshots.get("response_assembly")
+    if snapshot is None:
+        return None
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return None
+    intent = getattr(value, "expression_intent", None)
+    return intent if isinstance(intent, str) and intent else None
+
+
 @dataclass(frozen=True)
 class LifeformCompletionResult:
     """Internal struct produced by :func:`lifeform_complete`.
@@ -213,6 +235,14 @@ class LifeformCompletionResult:
     pe_magnitude: float
     rationale_tags: tuple[str, ...]
     evidence_pointers: tuple[dict, ...] = ()
+    # Published expression intent (from the ``response_assembly``
+    # snapshot). Surfaced on the ``x-lifeform-expression-intent``
+    # response header so OpenAI-compat consumers (einstein /
+    # family-memorial) can drive the presence avatar from the core's
+    # real intent instead of a hardcoded preset — the OpenAI-compat
+    # half of the "subjectivity transport gap" fix. ``None`` when the
+    # turn produced no response_assembly.
+    expression_intent: str | None = None
 
 
 async def lifeform_complete(
@@ -299,6 +329,7 @@ async def lifeform_complete(
     )
     active_regime = getattr(result, "active_regime", None)
     active_abstract_action = getattr(result, "active_abstract_action", None)
+    expression_intent = _expression_intent_from_result(result)
 
     summaries = session.turn_summaries
     last_summary = summaries[-1] if summaries else None
@@ -338,6 +369,7 @@ async def lifeform_complete(
         pe_magnitude=pe_magnitude,
         rationale_tags=rationale_tags,
         evidence_pointers=evidence_pointers,
+        expression_intent=expression_intent,
     )
 
 

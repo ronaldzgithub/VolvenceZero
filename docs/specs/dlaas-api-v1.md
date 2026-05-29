@@ -132,6 +132,29 @@ These acts are platform delivery wrappers only. They do not create a second
 tool owner; invocation outcomes still enter cognition through the canonical
 environment/tool-result path.
 
+### Interaction response `extra` (cognition readout)
+
+Every `chat` / `teach` / `task` / `initiate_proactive_followup` response carries
+an `extra` block. Beyond the response text in `output_acts`, the platform
+surfaces the published cognitive state so a product client can drive the
+visible avatar + relationship UI without a second round-trip:
+
+| `extra` field | Source snapshot | Meaning |
+|---|---|---|
+| `active_regime` | turn result | Active regime id (persistent regime identity, R14). |
+| `active_abstract_action` | turn result | Active ETA abstract action, when present. |
+| `rationale_tags` | response | Response rationale tag list. |
+| `expression_intent` | `response_assembly` | Published expression intent (e.g. `support-first`, `direct-answer`). Drives presence `PerformancePlan` when the client forwards it as `ExpressionIntentInput.source="lifeform"`. |
+| `prediction_error` | `prediction_error` | Compact `{magnitude, relationship, task}` projection (numeric axes only when present). |
+| `relationship_brief` | `relationship_state` | Publisher-authored `description` string only — never raw owner internals (same redaction posture as `/readouts`). |
+
+The cognition fields are best-effort: they are present when the matching
+snapshot was published for that turn, and absent otherwise. The chat turn is
+load-bearing and never fails because a snapshot is missing. Clients MUST treat
+every cognition field as optional. Full structured slots (e.g. the raw
+`relationship_state` / `dual_track` owners) remain available only on the
+admin snapshot-export route, per the readout-vs-raw split below.
+
 ## Adoption Contract
 
 ```http
@@ -689,6 +712,86 @@ returns the run; `POST ../{run_id}/approve` stamps
 `status=approved` and `decision=PromotionDecision.ALLOW`. The
 `score` field is a soft signal under R12 — it is a readout of PE,
 not a learning input.
+
+### Cognition Health
+
+The cognition aggregates above are descriptive (what the snapshots
+say). The health surface is the **normative** layer: it answers
+"is this digital life OK" by deriving signals from the same snapshot
+fields and rolling them up into an `ok` / `watch` / `alert` verdict.
+It adds no new cognition concept and never re-derives owner state
+(R12/R14); thresholds are an operational policy (env-overridable),
+not a kernel fact.
+
+```http
+GET /dlaas/v1/cognition/health?ai_id=ai_demo&window=7d
+GET /dlaas/v1/cognition/health/overview?window=7d
+```
+
+Signals (all derived from existing snapshot fields):
+
+- `regime_instability` — regime switches per sample over the window
+  (thrash). Needs >= 4 samples.
+- `pe_elevation` — mean `prediction_error.magnitude` over the window.
+- `eval_alerts` — summed `eval_alert_count` over the window.
+- `staleness` — wall-clock gap since the most recent snapshot.
+
+Each signal yields `watch` or `alert`; the verdict is the max
+severity (no signals → `ok`). Thresholds:
+`DLAAS_COG_PE_WATCH` / `DLAAS_COG_PE_ALERT` /
+`DLAAS_COG_REGIME_THRASH` / `DLAAS_COG_EVAL_ALERT` /
+`DLAAS_COG_STALE_HOURS`.
+
+Single-verdict response:
+
+```json
+{
+  "status": "ok",
+  "health": {
+    "ai_id": "ai_demo",
+    "status": "alert",
+    "signals": [
+      {
+        "name": "eval_alerts",
+        "severity": "alert",
+        "detail": "5 eval alerts in window >= 3",
+        "value": 5
+      }
+    ],
+    "sample_count": 12,
+    "last_seen_ms": 1717049200000,
+    "latest_session_id": "sess_demo",
+    "computed_at_ms": 1717049260000
+  }
+}
+```
+
+`GET /cognition/health/overview` groups every ai_id in scope by
+status and returns counts + a worst-first list. **Security: the
+overview (and the single-verdict endpoint) NEVER include
+`raw_readout`** — only the verdict + signal names/details — so a
+cross-tenant platform operator cannot read tenant-private readout
+content through the health surface.
+
+```json
+{
+  "status": "ok",
+  "computed_at_ms": 1717049260000,
+  "counts": { "ok": 8, "watch": 2, "alert": 1 },
+  "items": [
+    {
+      "ai_id": "ai_hot",
+      "tenant_id": "tenant_demo",
+      "status": "alert",
+      "signals": [{ "name": "pe_elevation", "severity": "alert", "detail": "...", "value": 0.82 }],
+      "sample_count": 30,
+      "last_seen_ms": 1717049200000,
+      "latest_session_id": "sess_hot",
+      "computed_at_ms": 1717049260000
+    }
+  ]
+}
+```
 
 ## Safety Protocol Aliases
 

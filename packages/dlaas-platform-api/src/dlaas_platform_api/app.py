@@ -123,6 +123,7 @@ from dlaas_platform_api.cognition import (
     ensure_cognition_store,
     record_cognition_snapshot,
 )
+from dlaas_platform_api.cognition_health import attach_cognition_health_routes
 from dlaas_platform_api.debug_analysis import build_debug_analysis
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
 from dlaas_platform_api.intake_router import resolve_intake_decision
@@ -398,6 +399,7 @@ def _add_lifecycle_routes(app: web.Application) -> None:
         _handle_training_job_promote,
     )
     attach_cognition_routes(app)
+    attach_cognition_health_routes(app)
 
 
 def _ensure_shadow_intake_stores(app: web.Application) -> None:

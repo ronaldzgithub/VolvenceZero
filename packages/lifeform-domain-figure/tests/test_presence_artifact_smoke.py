@@ -14,21 +14,36 @@ from lifeform_domain_figure import (
     presence_fingerprint,
 )
 from lifeform_domain_figure.compiler import build_figure_artifact_bundle, FigureBundleInputs
+from lifeform_domain_figure.envelope_builder import FigureCorpusSourceBundle
 from lifeform_domain_figure.figure_artifact import (
     FigureArtifactBundle,
     compute_bundle_integrity_hash,
 )
+from lifeform_domain_figure import build_figure_ingestion_envelope
 from lifeform_domain_figure.profiles import build_einstein_profile
 from lifeform_domain_figure.sample_corpus import synthetic_einstein_corpus
 
 
 def _einstein_bundle() -> FigureArtifactBundle:
+    # R5-2: `FigureBundleInputs` takes `envelopes`, not the long-removed
+    # `figure_sources` kwarg. Build envelopes the same way the working
+    # lora-bake smoke does so this suite (newly un-blocked) matches the
+    # current compiler API.
     profile = build_einstein_profile()
-    inputs = FigureBundleInputs(
-        profile=profile,
-        figure_sources=synthetic_einstein_corpus(),
+    papers, letters, lectures, notebooks = synthetic_einstein_corpus()
+    envelopes = build_figure_ingestion_envelope(
+        FigureCorpusSourceBundle(
+            figure_id="einstein",
+            papers=papers,
+            letters=letters,
+            lectures=lectures,
+            notebooks=notebooks,
+        ),
+        uploader="lifeform-figure-tests:presence-artifact",
+    ).envelopes
+    return build_figure_artifact_bundle(
+        FigureBundleInputs(profile=profile, envelopes=envelopes)
     )
-    return build_figure_artifact_bundle(inputs)
 
 
 def test_build_presence_artifact_round_trips_hashes() -> None:
