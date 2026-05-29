@@ -156,6 +156,12 @@ class InstanceManager:
         )
         self._instances: dict[str, SessionManager] = {}
         self._verticals: dict[str, str] = {}  # ai_id -> vertical_name
+        # Optional per-ai_id ProtocolUptakeService. When set BEFORE
+        # ``acquire`` (e.g. by the cultivation control plane), the
+        # SessionManager built for that ai_id seeds approved
+        # BehaviorProtocols into every new session it creates — the
+        # load-bearing wiring for autonomous school formation.
+        self._protocol_uptake_services: dict[str, Any] = {}
         self._lifecycle: dict[str, InstanceLifecycleState] = {}
         self._last_interaction_at_ms: dict[str, int] = {}
         self._last_wake_reason: dict[str, str] = {}
@@ -168,6 +174,19 @@ class InstanceManager:
     @property
     def substrate_runtime(self) -> "OpenWeightResidualRuntime | None":
         return self._substrate_runtime
+
+    def set_protocol_uptake_service(self, ai_id: str, service: Any) -> None:
+        """Bind a ProtocolUptakeService for ``ai_id`` before ``acquire``.
+
+        Idempotent. The service is read once at ``acquire`` time and
+        handed to the per-ai_id :class:`SessionManager`; binding it after
+        acquire only affects a subsequent re-acquire of an evicted
+        instance. The cultivation control plane sets this so researched
+        theories (approved into the service as BehaviorProtocols) seed
+        the instance's study sessions.
+        """
+
+        self._protocol_uptake_services[ai_id] = service
 
     def has(self, ai_id: str) -> bool:
         return ai_id in self._instances
@@ -312,6 +331,7 @@ class InstanceManager:
                 tool_policy_snapshot=tool_policy_snapshot,
                 tenant_id=tenant_id,
                 scope_strategy=scope_strategy,
+                protocol_uptake_service=self._protocol_uptake_services.get(ai_id),
             )
             self._instances[ai_id] = manager
             self._verticals[ai_id] = spec.name

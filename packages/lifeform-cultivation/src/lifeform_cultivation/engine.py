@@ -24,7 +24,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from lifeform_cultivation.coherence import CoherenceAssessment, assess_coherence
+from lifeform_cultivation.coherence import (
+    assess_coherence,
+    assess_protocol_coherence,
+)
 from lifeform_cultivation.curriculum import (
     CultivationCurriculum,
     CultivationSeed,
@@ -38,8 +41,8 @@ from lifeform_cultivation.sink import CultivationSink
 class CycleEvent:
     cycle_index: int
     topic: str
-    docs_ingested: int
-    chunks_ingested: int
+    docs_researched: int
+    protocols_uptaken: tuple[str, ...]
     active_regime: str
     reflected: bool
 
@@ -47,8 +50,8 @@ class CycleEvent:
         return {
             "cycle_index": self.cycle_index,
             "topic": self.topic,
-            "docs_ingested": self.docs_ingested,
-            "chunks_ingested": self.chunks_ingested,
+            "docs_researched": self.docs_researched,
+            "protocols_uptaken": list(self.protocols_uptaken),
             "active_regime": self.active_regime,
             "reflected": self.reflected,
         }
@@ -57,16 +60,22 @@ class CycleEvent:
 @dataclass(frozen=True)
 class CultivationProgress:
     cycles_completed: int
-    coherence: CoherenceAssessment
+    coherence_score: float
+    coherence_detail: dict
+    readout_kind: str  # "protocol" | "regime_fallback"
     regime_history: tuple[str, ...]
+    uptaken_protocols: tuple[str, ...]
     events: tuple[CycleEvent, ...]
     converged: bool
 
     def to_json(self) -> dict[str, object]:
         return {
             "cycles_completed": self.cycles_completed,
-            "coherence": self.coherence.to_json(),
+            "coherence_score": self.coherence_score,
+            "coherence_detail": dict(self.coherence_detail),
+            "readout_kind": self.readout_kind,
             "regime_history": list(self.regime_history),
+            "uptaken_protocols": list(self.uptaken_protocols),
             "events": [e.to_json() for e in self.events],
             "converged": self.converged,
         }
@@ -114,6 +123,7 @@ class CultivationEngine:
         """
 
         regimes: list[str] = list(prior_regimes)
+        uptaken: list[str] = []
         events: list[CycleEvent] = []
         reflect_every = max(1, self._curriculum.reflect_every)
 
@@ -125,12 +135,17 @@ class CultivationEngine:
             docs = await sink.research(
                 query, max_results=self._curriculum.docs_per_topic
             )
-            chunks_ingested = 0
+            cycle_protocols: list[str] = []
             for doc in docs:
                 corpus_text = f"{doc.title}\n来源: {doc.url}\n\n{doc.text}"
-                chunks_ingested += await sink.ingest(
-                    corpus_text=corpus_text, source_uri=doc.url
+                # Re-home: researched theory -> BehaviorProtocol (competes
+                # in the active mixture on PE utility), NOT raw corpus.
+                protocol_id = await sink.uptake_protocol(
+                    corpus_text=corpus_text, source_label=doc.url
                 )
+                if protocol_id:
+                    cycle_protocols.append(protocol_id)
+            uptaken.extend(cycle_protocols)
 
             brief = build_study_brief(topic=topic, domain=self._domain)
             turn = await sink.study(brief)
@@ -145,23 +160,45 @@ class CultivationEngine:
                 CycleEvent(
                     cycle_index=cycle_index,
                     topic=topic,
-                    docs_ingested=len(docs),
-                    chunks_ingested=chunks_ingested,
+                    docs_researched=len(docs),
+                    protocols_uptaken=tuple(cycle_protocols),
                     active_regime=turn.active_regime,
                     reflected=reflected,
                 )
             )
 
         cycles_completed = start_cycle + max(0, count)
-        coherence = assess_coherence(regimes)
+
+        # Primary readout: protocol active-mixture convergence (the school
+        # lives in the mixture, not the regime label). Fall back to regime
+        # concentration only when the protocol runtime is not publishing
+        # the active_mixture slot in this environment.
+        mixture = sink.read_active_mixture()
+        protocol_coherence = assess_protocol_coherence(mixture)
+        if protocol_coherence.total_protocols > 0:
+            score = protocol_coherence.score
+            detail = protocol_coherence.to_json()
+            readout_kind = "protocol"
+            has_school = protocol_coherence.distinct_schools >= 1
+        else:
+            regime_coherence = assess_coherence(regimes)
+            score = regime_coherence.score
+            detail = regime_coherence.to_json()
+            readout_kind = "regime_fallback"
+            has_school = regime_coherence.total_observations > 0
+
         converged = (
-            cycles_completed >= self._curriculum.min_cycles_for_convergence
-            and coherence.score >= self._curriculum.coherence_threshold
+            has_school
+            and cycles_completed >= self._curriculum.min_cycles_for_convergence
+            and score >= self._curriculum.coherence_threshold
         )
         return CultivationProgress(
             cycles_completed=cycles_completed,
-            coherence=coherence,
+            coherence_score=score,
+            coherence_detail=detail,
+            readout_kind=readout_kind,
             regime_history=tuple(regimes),
+            uptaken_protocols=tuple(uptaken),
             events=tuple(events),
             converged=converged,
         )

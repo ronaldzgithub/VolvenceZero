@@ -261,14 +261,90 @@ def _try_cultivation_expert() -> VerticalSpec | None:
     companion = _try_companion()
     if companion is None:
         return None
+
+    try:
+        from lifeform_domain_emogpt import build_companion_lifeform
+    except ImportError:
+        # Specialised wheel absent — fall back to the plain companion
+        # factory (rolling-upgrade safe); the protocol slow-loop stays at
+        # its default SHADOW until the wheel is installed.
+        return VerticalSpec(
+            name="cultivation.expert.v0",
+            factory=companion.factory,
+            has_temporal_bootstrap=companion.has_temporal_bootstrap,
+            has_regime_bootstrap=companion.has_regime_bootstrap,
+            bootstraps_dir=companion.bootstraps_dir,
+            scenarios_dir=companion.scenarios_dir,
+            alpha_factory=companion.alpha_factory,
+            template_adapter=companion.template_adapter,
+            template_subdir=companion.template_subdir,
+        )
+
+    def _cultivation_rollout_config():
+        """Rollout config that turns the protocol slow-loop ACTIVE.
+
+        Phase 2 of the cultivation-consistency plan: the active mixture
+        layer is already ACTIVE by default (PE utility + identity gate),
+        but the slow consolidation loop (``protocol_reflection`` proposes
+        decay/reinforce/retire/archive; ``protocol_revision_queue``
+        review-gates + auto-applies the safe ones) defaults SHADOW in the
+        general deployment. Cultivation instances opt in so the mixture
+        actually converges onto one coherent school over the long horizon
+        — failing strategies decay, mutually-incompatible protocols are
+        arbitrated by PE, and the Identity Core stays fixed (R15: the
+        queue keeps rollback snapshots).
+        """
+
+        from volvence_zero.integration import FinalRolloutConfig
+        from volvence_zero.runtime import WiringLevel
+
+        return FinalRolloutConfig(
+            protocol_reflection=WiringLevel.ACTIVE,
+            protocol_revision_queue=WiringLevel.ACTIVE,
+        )
+
+    def factory(runtime):
+        from lifeform_core import LifeformConfig
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(
+                final_rollout_config=_cultivation_rollout_config()
+            )
+        )
+        return build_companion_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            response_synthesizer=_expression_synthesizer_for_runtime(runtime),
+        )
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(
+                memory_scope_root_dir=memory_scope_root_dir,
+                final_rollout_config=_cultivation_rollout_config(),
+            )
+        )
+        return build_companion_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            identity_provider=identity_provider,
+            response_synthesizer=_expression_synthesizer_for_runtime(
+                runtime, repair_alpha_enabled=True
+            ),
+        )
+
     return VerticalSpec(
         name="cultivation.expert.v0",
-        factory=companion.factory,
+        factory=factory,
         has_temporal_bootstrap=companion.has_temporal_bootstrap,
         has_regime_bootstrap=companion.has_regime_bootstrap,
         bootstraps_dir=companion.bootstraps_dir,
         scenarios_dir=companion.scenarios_dir,
-        alpha_factory=companion.alpha_factory,
+        alpha_factory=alpha_factory,
         template_adapter=companion.template_adapter,
         template_subdir=companion.template_subdir,
     )

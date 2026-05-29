@@ -867,11 +867,28 @@ def _apply_application_prior_writeback(
                 )
             )
             domain_pre_checkpoint_captured = True
+        # Supersession (cultivation-consistency Phase 3): when the
+        # reviewed update names a prior record it supersedes, retire that
+        # record before writing the replacement so a stale fact does not
+        # coexist with its correction. No-op for the legacy additive path
+        # (``supersedes_record_id`` is ``None`` there), so existing flows
+        # are byte-identical; only the review channel that populates the
+        # field exercises this branch.
+        superseded = getattr(update, "supersedes_record_id", None)
+        superseded_count = 0
+        if superseded and superseded != update.record.record_id:
+            superseded_count = domain_knowledge_store.remove_records_by_id_prefix(
+                superseded
+            )
         domain_knowledge_store.upsert_records((update.record,))
         domain_knowledge_store.save_to_backend()
         after_hash = current_domain_knowledge_hash()
         applied_targets.append(update.target)
         applied_operations.append(f"application-prior:domain-knowledge:{update.record.record_id}")
+        if superseded_count:
+            applied_operations.append(
+                f"application-prior:supersede:{superseded}:retired={superseded_count}"
+            )
         audit_records.append(
             SelfModificationRecord(
                 target=update.target,

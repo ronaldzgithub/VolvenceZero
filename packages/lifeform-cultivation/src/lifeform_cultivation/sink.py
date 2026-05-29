@@ -19,7 +19,7 @@ study turn is a plain apprentice turn and the kernel owns the cognition.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -51,11 +51,17 @@ class CultivationSink(Protocol):
         self, query: str, *, max_results: int
     ) -> tuple[ResearchDoc, ...]: ...
 
+    async def uptake_protocol(
+        self, *, corpus_text: str, source_label: str
+    ) -> str | None: ...
+
     async def ingest(self, *, corpus_text: str, source_uri: str) -> int: ...
 
     async def study(self, brief: str) -> StudyTurn: ...
 
     async def reflect(self, *, reason: str) -> None: ...
+
+    def read_active_mixture(self) -> Any: ...
 
 
 class SessionCultivationSink:
@@ -78,6 +84,7 @@ class SessionCultivationSink:
         search_tool: str = "search_web",
         fetch_tool: str = "fetch_webpage",
         uploader: str = "cultivation",
+        protocol_uptaker: "Callable[[str, str], Awaitable[str | None]] | None" = None,
     ) -> None:
         self._session = session
         self._contract_id = contract_id
@@ -85,6 +92,12 @@ class SessionCultivationSink:
         self._search_tool = search_tool
         self._fetch_tool = fetch_tool
         self._uploader = uploader
+        # Bound by the platform layer to a ProtocolUptakeService:
+        # (corpus_text, source_label) -> approved protocol_id | None.
+        # When absent the sink degrades to raw corpus ingestion (which
+        # does NOT engage the school-consolidation mechanism — see the
+        # cultivation consistency plan).
+        self._protocol_uptaker = protocol_uptaker
 
     async def research(
         self, query: str, *, max_results: int
@@ -127,6 +140,42 @@ class SessionCultivationSink:
                 )
             )
         return tuple(docs)
+
+    async def uptake_protocol(
+        self, *, corpus_text: str, source_label: str
+    ) -> str | None:
+        """Turn researched text into a BehaviorProtocol via the uptaker.
+
+        Routes the material through the platform-bound
+        ``ProtocolUptakeService`` (DocumentUptake: LLM structured
+        extraction -> candidate -> review -> load). The protocol then
+        competes in the active mixture on PE utility — this is the
+        architecturally-correct path for forming a coherent school. When
+        no uptaker is bound (e.g. LLM not configured) we fall back to raw
+        corpus ingestion so the loop still makes progress, and return
+        ``None`` to signal the degraded path to the engine.
+        """
+
+        if self._protocol_uptaker is None:
+            await self.ingest(corpus_text=corpus_text, source_uri=source_label)
+            return None
+        return await self._protocol_uptaker(corpus_text, source_label)
+
+    def read_active_mixture(self) -> Any:
+        """Return the published ``active_mixture`` snapshot value or None.
+
+        Reads the same ``latest_active_snapshots`` surface the dispatch
+        cognition-enrichment uses. ``None`` when the protocol runtime is
+        not publishing the slot in this environment.
+        """
+
+        snapshots = getattr(self._session, "latest_active_snapshots", None)
+        if not snapshots:
+            return None
+        snapshot = snapshots.get("active_mixture")
+        if snapshot is None:
+            return None
+        return getattr(snapshot, "value", None)
 
     async def ingest(self, *, corpus_text: str, source_uri: str) -> int:
         text = corpus_text.strip()

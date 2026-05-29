@@ -17,6 +17,11 @@ dependencies = [
     # dlaas-platform-api wheel (that would invert the dependency).
     "lifeform-core==0.1.*",
     "lifeform-ingestion==0.1.*",
+    # vz-contracts: the BehaviorProtocol / IdentityAssertion /
+    # ActiveMixtureSnapshot schema used to build the Identity Core
+    # anchor and to read the school active-mixture readout. Contracts
+    # only — no kernel-owner module.
+    "vz-contracts==0.1.*",
 ]
 
 [tool.setuptools.packages.find]

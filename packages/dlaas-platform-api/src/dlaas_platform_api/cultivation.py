@@ -66,6 +66,12 @@ from lifeform_cultivation import (
     CultivationEngine,
     CultivationSeed,
     SessionCultivationSink,
+    build_identity_core_protocol,
+)
+from lifeform_service.openai_compat_client import build_client_from_env
+from lifeform_service.protocol_uptake import (
+    ProtocolUptakeConfig,
+    ProtocolUptakeService,
 )
 
 _LOG = logging.getLogger("dlaas_platform_api.cultivation")
@@ -80,7 +86,15 @@ DEFAULT_TICK_CYCLES = 4
 class CultivationBundle:
     """Container the api wheel reads to dispatch cultivation state."""
 
-    __slots__ = ("registry", "cultivations", "eval_store", "templates", "tenants", "grader")
+    __slots__ = (
+        "registry",
+        "cultivations",
+        "eval_store",
+        "templates",
+        "tenants",
+        "grader",
+        "_uptake_services",
+    )
 
     def __init__(self, *, registry: Registry) -> None:
         self.registry = registry
@@ -89,6 +103,23 @@ class CultivationBundle:
         self.templates = TemplateStore(registry)
         self.tenants = TenantStore(registry)
         self.grader = DefaultRubricGrader()
+        # One ProtocolUptakeService per cultivation ai_id. Holds the
+        # approved school protocols (Identity Core + researched theories)
+        # that the instance's SessionManager seeds into each study
+        # session. Lives here (not the registry) because protocols are
+        # in-process kernel artifacts, not control-plane rows.
+        self._uptake_services: dict[str, ProtocolUptakeService] = {}
+
+    def uptake_service_for(self, ai_id: str) -> ProtocolUptakeService:
+        svc = self._uptake_services.get(ai_id)
+        if svc is None:
+            svc = ProtocolUptakeService(
+                config=ProtocolUptakeConfig(
+                    llm_client_factory=build_client_from_env,
+                )
+            )
+            self._uptake_services[ai_id] = svc
+        return svc
 
 
 def attach_cultivation_routes(
@@ -130,6 +161,16 @@ async def _handle_create(request: web.Request) -> web.Response:
     ai_id = f"cultivation:{slug}"
 
     instance_manager = _instance_manager(request)
+
+    # Seed the Identity Core protocol (the operator-supplied rough persona
+    # IS the reviewed school anchor) into this ai_id's uptake service, and
+    # bind the service to the InstanceManager BEFORE acquire so the
+    # SessionManager seeds it into every study session.
+    uptake = bundle.uptake_service_for(ai_id)
+    identity_core = build_identity_core_protocol(seed)
+    uptake.registry.load(identity_core)
+    instance_manager.set_protocol_uptake_service(ai_id, uptake)
+
     try:
         await instance_manager.acquire(
             ai_id=ai_id, runtime_template_id=RUNTIME_TEMPLATE_ID
@@ -204,11 +245,47 @@ async def _handle_tick(request: web.Request) -> web.Response:
     seed = CultivationSeed.from_json(dict(record.seed_persona))
     curriculum = CultivationCurriculum.from_json(dict(record.curriculum))
 
-    session = await _session_for(request, ai_id=record.ai_id, cultivation_id=cultivation_id)
+    # Bind the per-ai_id uptake service so researched theories become
+    # BehaviorProtocols (re-homed onto the protocol runtime). Re-loading
+    # the Identity Core is idempotent and survives a process restart that
+    # would otherwise leave the service empty.
+    instance_manager = _instance_manager(request)
+    uptake = bundle.uptake_service_for(record.ai_id)
+    uptake.registry.load(build_identity_core_protocol(seed))
+    instance_manager.set_protocol_uptake_service(record.ai_id, uptake)
+
+    async def _uptaker(text: str, source_label: str) -> str | None:
+        try:
+            candidate = await uptake.extract_from_markdown_text(
+                text, source_label=source_label
+            )
+        except RuntimeError:
+            # LLM not configured (PROTOCOL_LLM_* unset): degrade to corpus
+            # ingestion in the sink. Not a swallowed error — it is the
+            # documented degraded path the sink falls back to.
+            return None
+        await uptake.submit_candidate(candidate)
+        try:
+            approved = await uptake.approve_pending(
+                candidate.protocol.protocol_id, reviewer_id="cultivation-auto"
+            )
+        except KeyError:
+            return None
+        return approved.protocol_id
+
+    # Fresh session per tick so the SessionManager seeds the currently
+    # approved protocol set (protocols approved this tick take effect at
+    # the next tick — the documented convergence cadence).
+    session = await _fresh_tick_session(
+        request,
+        ai_id=record.ai_id,
+        cultivation_id=cultivation_id,
+        seq=record.cycles_completed,
+    )
     if isinstance(session, web.Response):
         return session
 
-    sink = SessionCultivationSink(session=session)
+    sink = SessionCultivationSink(session=session, protocol_uptaker=_uptaker)
     engine = CultivationEngine(curriculum=curriculum, domain=seed.domain)
 
     seeded_chunks = 0
@@ -230,8 +307,8 @@ async def _handle_tick(request: web.Request) -> web.Response:
         cultivation_id=cultivation_id,
         status=new_status,
         cycles_completed=progress.cycles_completed,
-        coherence_score=progress.coherence.score,
-        coherence_detail=progress.coherence.to_json(),
+        coherence_score=progress.coherence_score,
+        coherence_detail=progress.coherence_detail,
         regime_history=progress.regime_history,
     )
     return web.json_response(
@@ -408,7 +485,11 @@ async def _ensure_candidate_template(
         "focus": seed.focus,
         "value_boundaries": list(seed.value_boundaries),
         "single_school_objective": seed.single_school_objective,
-        "cultivated_school": str(record.coherence_detail.get("dominant_regime", "")),
+        "cultivated_school": str(
+            record.coherence_detail.get("dominant_protocol")
+            or record.coherence_detail.get("dominant_regime", "")
+        ),
+        "coherence_readout": str(record.coherence_detail.get("readout", "")),
         "coherence_score": record.coherence_score,
         "cultivation_id": record.cultivation_id,
         "source_ai_id": record.ai_id,
@@ -553,6 +634,39 @@ def _instance_manager(request: web.Request) -> InstanceManager:
             content_type="application/json",
         )
     return instance_manager
+
+
+async def _fresh_tick_session(
+    request: web.Request, *, ai_id: str, cultivation_id: str, seq: int
+):
+    """Create a new per-tick study session seeded with approved protocols.
+
+    A fresh ``session_id`` is required because ``create_session`` rejects
+    a reused id; the new session triggers ``_inject_uptake_seed_protocols``
+    so the current approved protocol set (Identity Core + researched
+    theories) is loaded. Idle/LRU eviction in the SessionManager reclaims
+    superseded tick sessions.
+    """
+
+    instance_manager = _instance_manager(request)
+    try:
+        manager = instance_manager.get(ai_id)
+    except InstanceNotFound:
+        try:
+            manager = await instance_manager.acquire(
+                ai_id=ai_id, runtime_template_id=RUNTIME_TEMPLATE_ID
+            )
+        except LookupError:
+            return _error(
+                503,
+                "vertical_unavailable",
+                f"runtime_template_id={RUNTIME_TEMPLATE_ID!r} is not registered.",
+            )
+    session_id = f"cultivation:{cultivation_id}:c{seq}"
+    try:
+        return await manager.get_session(session_id)
+    except LookupError:
+        return await manager.create_session(session_id=session_id)
 
 
 async def _session_for(request: web.Request, *, ai_id: str, cultivation_id: str):
