@@ -124,6 +124,11 @@ from dlaas_platform_api.cognition import (
     record_cognition_snapshot,
 )
 from dlaas_platform_api.cognition_health import attach_cognition_health_routes
+from dlaas_platform_api.app_status import attach_app_status_routes
+from dlaas_platform_api.persona_market import (
+    attach_persona_market_routes,
+    ensure_persona_market_store,
+)
 from dlaas_platform_api.debug_analysis import build_debug_analysis
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
 from dlaas_platform_api.intake_router import resolve_intake_decision
@@ -400,6 +405,8 @@ def _add_lifecycle_routes(app: web.Application) -> None:
     )
     attach_cognition_routes(app)
     attach_cognition_health_routes(app)
+    attach_app_status_routes(app)
+    attach_persona_market_routes(app)
 
 
 def _ensure_shadow_intake_stores(app: web.Application) -> None:
@@ -422,6 +429,7 @@ def _ensure_shadow_intake_stores(app: web.Application) -> None:
     app.setdefault(_DEBUG_ANALYSES_KEY, {})
     app.setdefault(_DEBUG_SWEEP_STATE_KEY, {"last_run_ms": 0})
     ensure_cognition_store(app)
+    ensure_persona_market_store(app)
     app.setdefault(
         _POLICIES_KEY,
         {
@@ -1340,22 +1348,17 @@ async def _handle_catalog_verticals(request: web.Request) -> web.Response:
 
 
 async def _handle_catalog_substrate_profiles(request: web.Request) -> web.Response:
+    from dlaas_platform_api.substrate_profiles import (
+        default_substrate_profile_registry,
+    )
+
+    registry = default_substrate_profile_registry()
     return web.json_response(
         {
             "status": "ok",
+            "default_substrate_profile_id": registry.default_profile_id,
             "substrate_profiles": [
-                {
-                    "substrate_profile_id": "shared-frozen",
-                    "mode": "shared_frozen",
-                    "adapter_policy": "none",
-                    "allow_rare_heavy_refresh": False,
-                },
-                {
-                    "substrate_profile_id": "synthetic-dev",
-                    "mode": "synthetic",
-                    "adapter_policy": "none",
-                    "allow_rare_heavy_refresh": False,
-                },
+                profile.to_json() for profile in registry.list()
             ],
         }
     )
@@ -1623,8 +1626,24 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
                     "must POST /dlaas/control/templates before /wake."
                 ),
             )
+        # Resolve the substrate adapter_policy persisted on the
+        # contract at adopt so wake binds with the same R10 gate. When
+        # there is no contract (operator scripts that wake without
+        # adopt), default permissive to preserve legacy behaviour.
+        wake_adapter_policy = "persona_lora"
+        try:
+            wake_contract = await stores.contracts.get_by_ai_id(ai_id)
+            wake_adapter_policy = str(
+                wake_contract.service_contract.get("adapter_policy")
+                or "persona_lora"
+            )
+        except ContractNotFound:
+            wake_adapter_policy = "persona_lora"
         bind_result = bind_figure_artifact_to_ai_id(
-            launcher, ai_id, template.figure_artifact_id
+            launcher,
+            ai_id,
+            template.figure_artifact_id,
+            adapter_policy=wake_adapter_policy,
         )
         if not bind_result.bound and bind_result.reason in (
             "bundle_not_found",
@@ -3423,6 +3442,7 @@ def _build_readout_bundle(
             "boundary_policy": _snapshot_summary(boundary_policy),
             "boundary_union_ids": protocol_summary.get("boundary_union_ids", []),
         },
+        social=_social_readout(snapshots),
         training={
             "protocol_submission_count": sum(
                 1 for (stored_ai, _) in _protocol_store(request) if stored_ai == ai_id
@@ -3523,6 +3543,88 @@ def _len_field(snapshot: Any, field_name: str) -> int:
     if value is None:
         return 0
     return len(getattr(value, field_name, ()) or ())
+
+
+# Social cognition (R16-R20) readout projection. The InterlocutorState
+# 12 continuous axes + zone classifications are published by the
+# ``interlocutor_state`` owner; we project them verbatim (readout-only,
+# R12) so the platform never re-derives social cognition downstream.
+_INTERLOCUTOR_AXES: tuple[str, ...] = (
+    "engagement_intensity",
+    "self_disclosure_level",
+    "task_focus_level",
+    "emotional_weight",
+    "cognitive_engagement",
+    "resistance_level",
+    "openness_to_guidance",
+    "directness",
+    "trust_signal",
+    "stability",
+    "rapport_warmth",
+    "pace_pressure",
+)
+_INTERLOCUTOR_ZONES: tuple[str, ...] = (
+    "acknowledge_pressure_zone",
+    "emotional_high_zone",
+    "resistance_high_zone",
+    "trust_negative_zone",
+    "repair_zone",
+    "direct_task_zone",
+    "emotional_render_zone",
+    "pace_pressure_zone",
+    "low_directness_zone",
+    "cold_rapport_zone",
+)
+
+
+def _interlocutor_axes(snapshot: Any) -> dict[str, Any]:
+    """Project the ``interlocutor_state`` snapshot's 12 axes + zones.
+
+    The slot value is an ``InterlocutorStateSnapshot`` whose ``.state``
+    is the 12-axis ``InterlocutorState``. Returns ``{"present": False}``
+    when the owner published nothing (e.g. SHADOW disabled).
+    """
+    value = getattr(snapshot, "value", None)
+    state = getattr(value, "state", None)
+    if state is None:
+        return {"present": False}
+    axes = {name: _safe_float(getattr(state, name, None)) for name in _INTERLOCUTOR_AXES}
+    zones = {name: bool(getattr(state, name, False)) for name in _INTERLOCUTOR_ZONES}
+    return {
+        "present": True,
+        "axes": axes,
+        "zones": zones,
+        "readout_confidence": _safe_float(getattr(state, "readout_confidence", None)),
+        "rationale": str(
+            getattr(state, "rationale", "") or getattr(value, "description", "") or ""
+        ),
+        "owner": getattr(snapshot, "owner", ""),
+        "version": getattr(snapshot, "version", 0),
+    }
+
+
+def _safe_float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _social_readout(snapshots: dict[str, Any]) -> dict[str, Any]:
+    """Build the social-cognition (R16-R20) readout block.
+
+    Combines the InterlocutorState axes with conversational-role and
+    common-ground snapshot summaries. Pure projection — never derives.
+    """
+    if not isinstance(snapshots, dict):
+        return {"present": False}
+    interlocutor = _interlocutor_axes(snapshots.get("interlocutor_state"))
+    return {
+        "present": bool(interlocutor.get("present")),
+        "interlocutor": interlocutor,
+        "conversational_role": _snapshot_summary(snapshots.get("conversational_role")),
+        "common_ground": _snapshot_summary(snapshots.get("common_ground")),
+    }
 
 
 def _status_json_if_known(request: web.Request, ai_id: str) -> dict[str, Any]:

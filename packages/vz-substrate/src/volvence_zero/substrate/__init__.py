@@ -28,6 +28,20 @@ from volvence_zero.substrate.substrate_fingerprint import (
     SubstrateFingerprint,
     fingerprint_set_sha256,
 )
+from volvence_zero.substrate.peft_adapter_cache import (
+    CACHE_MAX_ENV,
+    PeftAdapterCache,
+    PeftAdapterOps,
+    adapter_name_for,
+    build_default_peft_adapter_cache,
+    peft_cache_max,
+)
+from volvence_zero.substrate.peft_checkpoint_paths import (
+    CHECKPOINT_ANCHOR,
+    CHECKPOINT_ROOT_ENV,
+    peft_checkpoint_root,
+    resolve_peft_checkpoint_dir,
+)
 from volvence_zero.substrate.persona_lora_pool import (
     PersonaLoRANotFound,
     PersonaLoRAPool,
@@ -67,6 +81,10 @@ from volvence_zero.substrate.residual_backend import (
     resolve_substrate_fallback_mode,
     resolve_local_runtime_mode,
 )
+from volvence_zero.substrate.vllm_runtime import (
+    VLLMLoRARouter,
+    VLLMOpenWeightResidualRuntime,
+)
 from volvence_zero.substrate.self_mod import (
     SubstrateFastMemoryCell,
     SubstrateFastMemoryState,
@@ -100,6 +118,18 @@ __all__ = [
     "OpenWeightResidualRuntime",
     "OpenWeightResidualStreamSubstrateAdapter",
     "OpenWeightRuntimeCapture",
+    "CHECKPOINT_ANCHOR",
+    "CHECKPOINT_ROOT_ENV",
+    "peft_checkpoint_root",
+    "resolve_peft_checkpoint_dir",
+    "CACHE_MAX_ENV",
+    "PeftAdapterCache",
+    "PeftAdapterOps",
+    "adapter_name_for",
+    "build_default_peft_adapter_cache",
+    "peft_cache_max",
+    "VLLMLoRARouter",
+    "VLLMOpenWeightResidualRuntime",
     "PersonaLoRANotFound",
     "PersonaLoRAPool",
     "PersonaLoRARecord",

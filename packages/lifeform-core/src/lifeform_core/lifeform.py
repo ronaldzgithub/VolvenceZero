@@ -303,6 +303,19 @@ class Lifeform:
         # `synthesizer.with_figure_bundle(bundle)` so the L1 / L3 / L4
         # enforcement layers can consume it on each turn.
         self._figure_bundle: Any = None
+        # Persona-LoRA activation gate (substrate adapter_policy). When
+        # the DLaaS adopt path binds a contract whose substrate profile
+        # forbids adapters, the SessionManager sets this False so the
+        # per-session synthesizer skips LoRA activation even if the
+        # bundle's figure_id has a pool record. Defaults True so the
+        # standalone path keeps the additive behaviour.
+        self._persona_lora_enabled: bool = True
+        # Per-ai_id scoped persona-LoRA pool. The DLaaS SessionManager
+        # sets this so each tenant's synthesizer looks up LoRA records
+        # in an isolated pool (the global default pool is
+        # last-register-wins across tenants). None keeps the default
+        # pool fallback for the standalone path.
+        self._persona_lora_pool: Any = None
         # mcp-tools-bundle-bridge packet — lazily initialised state
         # for the optional MCP server pool. ``Lifeform.start()``
         # (async) populates these once when there are non-empty
@@ -519,6 +532,25 @@ class Lifeform:
         Pass ``None`` to clear the binding.
         """
         self._figure_bundle = bundle
+
+    def set_persona_lora_enabled(self, enabled: bool) -> None:
+        """Set whether per-session synthesizers may activate persona LoRA.
+
+        The DLaaS adopt path calls this from the SessionManager with the
+        adopting contract's substrate ``adapter_policy`` so the runtime
+        activation site honours the policy (R10): ``False`` forbids
+        adapter activation for every session this lifeform creates.
+        """
+        self._persona_lora_enabled = bool(enabled)
+
+    def set_persona_lora_pool(self, pool: Any) -> None:
+        """Set the per-ai_id scoped persona-LoRA pool for new sessions.
+
+        The DLaaS SessionManager passes its own pool so persona-LoRA
+        records are isolated per tenant. Every per-session synthesizer
+        clone consults this pool instead of the process-wide default.
+        """
+        self._persona_lora_pool = pool
 
     def with_domain_experience(
         self,
@@ -781,6 +813,12 @@ class Lifeform:
             cloned_llm = synth.clone_for_session()
             if self._figure_bundle is not None:
                 cloned_llm = cloned_llm.with_figure_bundle(self._figure_bundle)
+            if not self._persona_lora_enabled:
+                cloned_llm = cloned_llm.with_persona_lora_enabled(False)
+            if self._persona_lora_pool is not None:
+                cloned_llm = cloned_llm.with_persona_lora_pool(
+                    self._persona_lora_pool
+                )
             return cloned_llm
         if not isinstance(synth, GroundedResponseSynthesizer):
             return None

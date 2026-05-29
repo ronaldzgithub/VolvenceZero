@@ -138,6 +138,8 @@ def bind_figure_artifact_to_ai_id(
     instance_manager: InstanceManager,
     ai_id: str,
     figure_artifact_id: str,
+    *,
+    adapter_policy: str = "persona_lora",
 ) -> BindResult:
     """Resolve ``figure_artifact_id`` + bind to ``ai_id``'s SessionManager.
 
@@ -163,7 +165,6 @@ def bind_figure_artifact_to_ai_id(
         from lifeform_service import (  # noqa: PLC0415
             FigureBundleNotFound,
             lookup_figure_bundle,
-            register_bundle_persona_lora,
         )
     except ImportError:
         return BindResult(bound=False, reason="lifeform_service_absent")
@@ -181,9 +182,19 @@ def bind_figure_artifact_to_ai_id(
         session_manager = instance_manager.get(ai_id)
     except InstanceNotFound:
         return BindResult(bound=False, reason="instance_not_found")
-    session_manager.bind_figure_bundle(bundle)
-    if register_bundle_persona_lora is not None:
-        register_bundle_persona_lora(bundle)
+    # ``adapter_policy`` is the resolved substrate profile policy; only
+    # ``persona_lora`` permits the figure LoRA overlay. Anything else
+    # (notably ``none``) binds the bundle for L1/L3/L4 enforcement but
+    # disables the L2 persona-LoRA activation at the runtime (R10).
+    #
+    # ``bind_figure_bundle`` registers the bundle's LoRA into the
+    # SessionManager's own *scoped* pool (isolated per ai_id) so two
+    # tenants adopting different bundles for the same figure_id no
+    # longer collide in the process-wide default pool.
+    persona_lora_enabled = adapter_policy == "persona_lora"
+    session_manager.bind_figure_bundle(
+        bundle, persona_lora_enabled=persona_lora_enabled
+    )
     return BindResult(bound=True, reason="ok")
 
 
@@ -1631,6 +1642,16 @@ async def _handle_adopt(request: web.Request) -> web.Response:
     )
 
     instance_manager: InstanceManager = request.app[INSTANCE_MANAGER_APP_KEY]
+    profile_error, resolved_adapter_policy = _validate_substrate_profile(
+        substrate=adoption_config.substrate,
+        instance_manager=instance_manager,
+    )
+    if profile_error is not None:
+        return profile_error
+    # Persist the *resolved* adapter policy (from the registry profile)
+    # so the bind path and the runtime activation gate read a single
+    # authoritative value rather than re-deriving it from the contract.
+    service_contract.setdefault("adapter_policy", resolved_adapter_policy)
     try:
         inline_plugins = _parse_inline_plugins(data.get("plugins"))
     except ValueError as exc:
@@ -1712,7 +1733,10 @@ async def _handle_adopt(request: web.Request) -> web.Response:
     # the **wake** path (U5) so adopt and wake produce the same
     # binding behaviour.
     bind_result = bind_figure_artifact_to_ai_id(
-        instance_manager, final_contract.ai_id, template.figure_artifact_id
+        instance_manager,
+        final_contract.ai_id,
+        template.figure_artifact_id,
+        adapter_policy=resolved_adapter_policy,
     )
     if not bind_result.bound and bind_result.reason in (
         "bundle_not_found",
@@ -2261,6 +2285,63 @@ async def _read_json(
             content_type="application/json",
         )
     return data
+
+
+def _validate_substrate_profile(
+    *,
+    substrate: Any,
+    instance_manager: InstanceManager,
+) -> tuple[web.Response | None, str]:
+    """Validate the requested substrate profile against the running base.
+
+    Returns ``(error_response_or_None, resolved_adapter_policy)``.
+
+    * An unknown ``substrate_profile_id`` -> 400 (fail loud; a typo must
+      not silently fall through to the default profile).
+    * A profile whose ``mode`` does not match the running substrate's
+      mode -> 409 (e.g. adopting ``synthetic-dev`` on a GPU-frozen
+      deployment, or ``shared-frozen`` on a synthetic dev process).
+
+    On success the resolved profile's ``adapter_policy`` is returned so
+    the caller can persist it on the service contract.
+    """
+
+    from dlaas_platform_api.substrate_profiles import (
+        ADAPTER_POLICY_PERSONA_LORA,
+        UnknownSubstrateProfile,
+        default_substrate_profile_registry,
+        running_substrate_mode,
+    )
+
+    registry = default_substrate_profile_registry()
+    profile_id = substrate.substrate_profile_id
+    if not profile_id:
+        # No explicit profile selection: stay mode-agnostic for
+        # back-compat and keep the additive persona-LoRA behaviour
+        # (permissive). Disabling adapters is opt-in by selecting a
+        # profile whose adapter_policy is "none". Only an explicit
+        # profile id is validated against the running substrate.
+        return (None, ADAPTER_POLICY_PERSONA_LORA)
+    try:
+        profile = registry.get(profile_id)
+    except UnknownSubstrateProfile as exc:
+        return (
+            _error(400, "unknown_substrate_profile", str(exc)),
+            "",
+        )
+    running_mode = running_substrate_mode(instance_manager.substrate_runtime)
+    if profile.mode != running_mode:
+        return (
+            _error(
+                409,
+                "substrate_profile_mismatch",
+                f"substrate_profile_id {profile.substrate_profile_id!r} "
+                f"declares mode {profile.mode!r} but the running substrate "
+                f"is {running_mode!r}.",
+            ),
+            "",
+        )
+    return (None, profile.adapter_policy)
 
 
 def _error(status: int, code: str, detail: str) -> web.Response:

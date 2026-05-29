@@ -7,12 +7,20 @@ experience trajectories.
 Storage model
 -------------
 
-We mirror the existing in-memory shadow stores used by ``app.py`` —
-one list keyed on the aiohttp ``web.Application`` (``app[_COGNITION_SNAPSHOTS_KEY]``).
-There is no SQLAlchemy / Alembic layer: the platform API runs
-single-process and persistence for cognition snapshots is a future
-concern (tracked separately as round-6 open debt in
-``apps/dlaas-portal/known-debts.md``).
+Snapshots live behind :class:`CognitionSnapshotStore`, keyed on the
+aiohttp ``web.Application`` (``app[COGNITION_SNAPSHOTS_KEY]``). The store
+has two backends, chosen at process start:
+
+* **Durable (SQLite)** when ``DLAAS_COGNITION_DB_PATH`` is set — snapshots
+  survive a platform-api restart, indexed on
+  ``(tenant_id, ai_id, captured_at_ms)`` and swept per
+  ``DLAAS_COGNITION_RETENTION_DAYS``.
+* **In-memory list** otherwise — the historical single-process behaviour
+  (no persistence). This keeps the durable path fully reversible: unset
+  the env var and the store reverts to memory.
+
+The store is iterable and exposes ``append`` so the aggregation handlers
+below work unchanged over either backend.
 
 Write path
 ----------
@@ -55,9 +63,14 @@ Design constraints
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
+import sqlite3
+import threading
 import time
 import uuid
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
 
@@ -67,6 +80,13 @@ _LOG = logging.getLogger("dlaas_platform_api.cognition")
 
 # Public store key so other modules can reach it via ``app[<KEY>]``
 COGNITION_SNAPSHOTS_KEY = "dlaas_cognition_snapshots"
+
+# Durable-store configuration. Unset DB path -> in-memory fallback.
+_COGNITION_DB_PATH_ENV = "DLAAS_COGNITION_DB_PATH"
+_COGNITION_RETENTION_ENV = "DLAAS_COGNITION_RETENTION_DAYS"
+# A retention sweep runs at most once per hour (piggy-backed on append)
+# so the durable path enforces retention without a separate scheduler.
+_SWEEP_MIN_INTERVAL_MS = 60 * 60 * 1000
 
 # Mirrored from app.py — we deliberately avoid importing from app.py to
 # keep the dependency direction one-way (app.py imports this module,
@@ -121,13 +141,169 @@ class CognitionSnapshot:
         return asdict(self)
 
 
+class CognitionSnapshotStore:
+    """Append-only store of cognition snapshot rows (Track 4 FULL).
+
+    Iterable: yields snapshot row dicts (the shape
+    :meth:`CognitionSnapshot.to_json` produces) so the aggregation
+    handlers work unchanged over either backend. Thread-safe via a
+    coarse lock (aiohttp is single-loop, but append/sweep can interleave
+    with the throttled retention sweep).
+    """
+
+    def __init__(
+        self, *, db_path: str | None = None, retention_days: int | None = None
+    ) -> None:
+        self._lock = threading.Lock()
+        self._retention_days = retention_days
+        self._last_sweep_ms = 0
+        self._mem: list[dict[str, Any]] | None = None
+        self._conn: sqlite3.Connection | None = None
+        if db_path:
+            conn = sqlite3.connect(
+                db_path, check_same_thread=False, isolation_level=None
+            )
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA synchronous = NORMAL;")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cognition_snapshots (
+                    snapshot_id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL DEFAULT '',
+                    ai_id TEXT NOT NULL DEFAULT '',
+                    session_id TEXT NOT NULL DEFAULT '',
+                    source TEXT NOT NULL DEFAULT '',
+                    captured_at_ms INTEGER NOT NULL DEFAULT 0,
+                    row_json TEXT NOT NULL DEFAULT '{}'
+                );
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cog_ai_time "
+                "ON cognition_snapshots (tenant_id, ai_id, captured_at_ms);"
+            )
+            self._conn = conn
+        else:
+            self._mem = []
+
+    @property
+    def durable(self) -> bool:
+        return self._conn is not None
+
+    def append(self, row: dict[str, Any]) -> None:
+        with self._lock:
+            if self._conn is not None:
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO cognition_snapshots "
+                    "(snapshot_id, tenant_id, ai_id, session_id, source, "
+                    "captured_at_ms, row_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        str(row.get("snapshot_id", "")),
+                        str(row.get("tenant_id", "")),
+                        str(row.get("ai_id", "")),
+                        str(row.get("session_id", "")),
+                        str(row.get("source", "")),
+                        int(row.get("captured_at_ms", 0) or 0),
+                        json.dumps(row),
+                    ),
+                )
+            else:
+                assert self._mem is not None
+                self._mem.append(row)
+        self._maybe_sweep()
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        if self._conn is not None:
+            with self._lock:
+                rows = self._conn.execute(
+                    "SELECT row_json FROM cognition_snapshots"
+                ).fetchall()
+            for r in rows:
+                try:
+                    yield json.loads(r["row_json"])
+                except (TypeError, ValueError):  # pragma: no cover - defensive
+                    continue
+        else:
+            assert self._mem is not None
+            yield from list(self._mem)
+
+    def sweep(
+        self, *, retention_days: int | None = None, now_ms: int | None = None
+    ) -> int:
+        """Delete snapshots older than the retention horizon. Returns count."""
+        days = retention_days if retention_days is not None else self._retention_days
+        if not days or days <= 0:
+            return 0
+        cutoff = (now_ms if now_ms is not None else _now_ms()) - int(days) * 86_400_000
+        with self._lock:
+            if self._conn is not None:
+                cur = self._conn.execute(
+                    "DELETE FROM cognition_snapshots WHERE captured_at_ms < ?",
+                    (cutoff,),
+                )
+                return max(0, cur.rowcount or 0)
+            assert self._mem is not None
+            before = len(self._mem)
+            self._mem = [
+                r for r in self._mem if int(r.get("captured_at_ms", 0) or 0) >= cutoff
+            ]
+            return before - len(self._mem)
+
+    def _maybe_sweep(self) -> None:
+        if not self._retention_days or self._retention_days <= 0:
+            return
+        now = _now_ms()
+        if now - self._last_sweep_ms < _SWEEP_MIN_INTERVAL_MS:
+            return
+        self._last_sweep_ms = now
+        try:
+            self.sweep(now_ms=now)
+        except sqlite3.Error:  # pragma: no cover - defensive
+            _LOG.exception("cognition retention sweep failed")
+
+
+def _retention_days_from_env() -> int | None:
+    raw = (os.environ.get(_COGNITION_RETENTION_ENV) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
 def ensure_cognition_store(app: web.Application) -> None:
-    """Idempotent store initialisation. Called from ``_ensure_shadow_intake_stores``."""
-    app.setdefault(COGNITION_SNAPSHOTS_KEY, [])
+    """Idempotent store initialisation. Called from ``_ensure_shadow_intake_stores``.
+
+    Chooses the durable SQLite backend when ``DLAAS_COGNITION_DB_PATH``
+    is configured, else the in-memory list (reversible).
+    """
+    if COGNITION_SNAPSHOTS_KEY in app:
+        return
+    db_path = (os.environ.get(_COGNITION_DB_PATH_ENV) or "").strip() or None
+    app[COGNITION_SNAPSHOTS_KEY] = CognitionSnapshotStore(
+        db_path=db_path, retention_days=_retention_days_from_env()
+    )
 
 
-def cognition_store(request: web.Request) -> list[dict[str, Any]]:
+def cognition_store(request: web.Request) -> CognitionSnapshotStore:
     return request.app[COGNITION_SNAPSHOTS_KEY]
+
+
+def sweep_cognition_retention(
+    request: web.Request, *, retention_days: int | None = None
+) -> int:
+    """Force a retention sweep (ops / cron entry point). Returns deleted count.
+
+    No-op when the store is a plain list (no retention support) or the
+    horizon is unset.
+    """
+    store = request.app.get(COGNITION_SNAPSHOTS_KEY)
+    if isinstance(store, CognitionSnapshotStore):
+        return store.sweep(retention_days=retention_days)
+    return 0
 
 
 def record_cognition_snapshot(
@@ -190,6 +366,9 @@ def attach_cognition_routes(app: web.Application) -> None:
     )
     app.router.add_get(
         "/dlaas/v1/cognition/eval-trend", _handle_cognition_eval_trend
+    )
+    app.router.add_get(
+        "/dlaas/v1/cognition/interlocutor", _handle_cognition_interlocutor
     )
 
 
@@ -315,6 +494,44 @@ async def _handle_cognition_experience_throughput(
             "status": "ok",
             "count": len(items),
             "items": items,
+        }
+    )
+
+
+async def _handle_cognition_interlocutor(request: web.Request) -> web.Response:
+    """Deep social-cognition (R16-R20) readout for the latest snapshot.
+
+    Returns the InterlocutorState 12 axes + zones plus conversational
+    role / common-ground summaries from the most recent stored cognition
+    snapshot for ``ai_id`` (optionally pinned to ``session_id`` and
+    ``tenant_id``). Readout-only (R12): never re-derives cognition,
+    only surfaces what the kernel already published.
+    """
+    ai_id = request.query.get("ai_id", "").strip()
+    if not ai_id:
+        return web.json_response(
+            {"status": "error", "error": "ai_id_required"}, status=400
+        )
+    # _filter_snapshots already applies ai_id/session_id/tenant_id and
+    # returns newest-first, so the head is the latest matching snapshot.
+    items = _filter_snapshots(request)
+    if not items:
+        return web.json_response(
+            {"status": "ok", "ai_id": ai_id, "present": False, "social": None}
+        )
+    latest = items[0]
+    raw = latest.get("raw_readout") or {}
+    social = raw.get("social") if isinstance(raw, dict) else None
+    if not isinstance(social, dict):
+        social = {"present": False}
+    return web.json_response(
+        {
+            "status": "ok",
+            "ai_id": ai_id,
+            "session_id": latest.get("session_id", ""),
+            "captured_at_ms": latest.get("captured_at_ms", 0),
+            "present": bool(social.get("present")),
+            "social": social,
         }
     )
 

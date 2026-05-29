@@ -793,6 +793,63 @@ content through the health surface.
 }
 ```
 
+### Application Status
+
+The cognition surfaces above monitor a single ai_id (a digital life).
+The application-status surface monitors a single **application** (a
+consumer deployment: einstein, coread, repair30, ...). It reuses the
+exact verdict shape as cognition health (`status` in
+`ok`/`watch`/`alert` + `signals`) — only the entity differs.
+
+It adds no new app-side reporting: the verdict is derived from the
+existing debug-app registry (`/dlaas/v1/debug/apps`) unioned with
+recent debug-event activity (`/dlaas/v1/debug/events`).
+
+```http
+GET /dlaas/v1/apps/status?window=7d&tenant_id=
+GET /dlaas/v1/apps/status/{app_id}?window=7d
+```
+
+Signals (derived from existing fields):
+
+- `silent` (alert) — a known app (registered or previously active)
+  with zero events in the window, or whose most recent event is older
+  than `DLAAS_APP_STALE_HOURS` (default 24h). Distinguishes a dead app
+  from a healthy idle one.
+- `error_rate` (watch/alert) — fraction of recent events that look
+  like errors (`fields.ok === false`, `fields.status >= 400`, or an
+  event_type naming a failure). Heuristic; calibrate per app.
+  Suppressed below `DLAAS_APP_MIN_EVENTS_FOR_ERROR` events.
+
+Overview response (grouped, worst-first; no event bodies):
+
+```json
+{
+  "status": "ok",
+  "computed_at_ms": 1717049260000,
+  "counts": { "ok": 9, "watch": 1, "alert": 2 },
+  "items": [
+    {
+      "app_id": "coread",
+      "display_name": "Coread",
+      "tenant_id": "tenant_demo",
+      "registered": true,
+      "status": "alert",
+      "signals": [{ "name": "silent", "severity": "alert", "detail": "no events in window", "value": 0 }],
+      "event_count": 0,
+      "event_types": [],
+      "last_event_ms": null,
+      "computed_at_ms": 1717049260000
+    }
+  ]
+}
+```
+
+`GET /apps/status/{app_id}` adds a `breakdown` of recent events by
+`event_type` and `stage`. Thresholds:
+`DLAAS_APP_STALE_HOURS` / `DLAAS_APP_ERROR_RATE_WATCH` /
+`DLAAS_APP_ERROR_RATE_ALERT` / `DLAAS_APP_MIN_EVENTS_FOR_ERROR`.
+
 ## Safety Protocol Aliases
 
 Safety injection is protocol-only:

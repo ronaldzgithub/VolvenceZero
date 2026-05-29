@@ -190,6 +190,37 @@ class RefusalScore:
 
 
 @dataclass(frozen=True)
+class L3FaithfulnessScore:
+    """L3 citation-faithfulness for one response (#59).
+
+    Quantifies "are the response's verifiable claims grounded in the
+    cited evidence frames?" from the synthesizer's per-turn
+    ``l3_grounded_verify=passed:K;unsupported:M;evidence:N`` tag(s).
+
+    * ``faithfulness`` in [0, 1] — ``passed / (passed + unsupported)``;
+      1.0 when the verifier ran but asserted nothing needing support
+      (``passed + unsupported == 0``); 0.0 when no L3 verify ran.
+    * ``verified`` — whether any L3 grounded-verify happened at all
+      (lets the gate distinguish "faithful" from "never checked").
+    """
+
+    faithfulness: float
+    passed_count: int
+    unsupported_count: int
+    evidence_count: int
+    verified: bool
+
+    def to_json(self) -> dict:
+        return {
+            "faithfulness": self.faithfulness,
+            "passed_count": self.passed_count,
+            "unsupported_count": self.unsupported_count,
+            "evidence_count": self.evidence_count,
+            "verified": self.verified,
+        }
+
+
+@dataclass(frozen=True)
 class QuestionScore:
     """Aggregate of voice / cognition / refusal for one question."""
 
@@ -199,6 +230,9 @@ class QuestionScore:
     cognition: CognitionScore | None  # None for out-of-scope questions
     refusal: RefusalScore
     l3_evidence_count: int
+    # L3 citation faithfulness (#59). Defaulted so historical callers
+    # that predate the faithfulness metric still construct cleanly.
+    l3_faithfulness: L3FaithfulnessScore | None = None
 
     def to_json(self) -> dict:
         return {
@@ -208,6 +242,9 @@ class QuestionScore:
             "cognition": self.cognition.to_json() if self.cognition else None,
             "refusal": self.refusal.to_json(),
             "l3_evidence_count": self.l3_evidence_count,
+            "l3_faithfulness": (
+                self.l3_faithfulness.to_json() if self.l3_faithfulness else None
+            ),
         }
 
 
@@ -223,6 +260,10 @@ class ConditionAggregate:
     out_of_scope_refusal_rate: float
     out_of_scope_question_count: int
     l3_evidence_count: int
+    # Mean L3 faithfulness over in-corpus responses that ran a grounded
+    # verify (#59). Defaulted for back-compat with historical callers.
+    l3_faithfulness: float = 0.0
+    l3_verified_question_count: int = 0
 
     def to_json(self) -> dict:
         return {
@@ -234,6 +275,8 @@ class ConditionAggregate:
             "out_of_scope_refusal_rate": self.out_of_scope_refusal_rate,
             "out_of_scope_question_count": self.out_of_scope_question_count,
             "l3_evidence_count": self.l3_evidence_count,
+            "l3_faithfulness": self.l3_faithfulness,
+            "l3_verified_question_count": self.l3_verified_question_count,
         }
 
 
@@ -294,6 +337,7 @@ __all__ = [
     "CognitionScore",
     "ConditionAggregate",
     "GateResult",
+    "L3FaithfulnessScore",
     "PersonaCondition",
     "PersonaQuestionCategory",
     "PersonaTestQuestion",

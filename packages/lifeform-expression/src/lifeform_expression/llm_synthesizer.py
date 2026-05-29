@@ -95,6 +95,8 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         planner: PromptPlanner | None = None,
         history_turns: int = _DEFAULT_HISTORY_TURNS,
         figure_bundle: object | None = None,
+        persona_lora_enabled: bool = True,
+        persona_lora_pool: object | None = None,
     ) -> None:
         super().__init__(
             runtime=runtime,
@@ -106,6 +108,19 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         self._history_turns = max(0, history_turns)
         self._history: deque[tuple[str, str]] = deque(maxlen=self._history_turns)
         self._figure_bundle = figure_bundle
+        # Adapter policy gate (R10 / substrate adapter_policy): when the
+        # adopting contract's substrate profile forbids persona LoRA,
+        # the SessionManager binds this False so the per-turn activation
+        # is skipped even if a record exists in the pool. Defaults True
+        # so the standalone / dev path keeps the additive behaviour.
+        self._persona_lora_enabled = persona_lora_enabled
+        # Per-tenant scoped persona-LoRA pool. When the SessionManager
+        # binds a figure bundle for a specific ai_id it passes its own
+        # scoped pool so two tenants that adopt different bundles for the
+        # same figure_id never collide (the global default pool is
+        # last-register-wins). ``None`` falls back to the process-wide
+        # default pool, preserving standalone behaviour.
+        self._persona_lora_pool = persona_lora_pool
 
     @property
     def planner(self) -> PromptPlanner:
@@ -127,6 +142,14 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
     def figure_bundle(self) -> object | None:
         return self._figure_bundle
 
+    @property
+    def persona_lora_enabled(self) -> bool:
+        return self._persona_lora_enabled
+
+    @property
+    def persona_lora_pool(self) -> object | None:
+        return self._persona_lora_pool
+
     def with_figure_bundle(
         self, bundle: object | None
     ) -> "LifeformLLMResponseSynthesizer":
@@ -139,6 +162,37 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
 
         clone = self.clone_for_session()
         clone._figure_bundle = bundle  # noqa: SLF001 — internal reassignment
+        return clone
+
+    def with_persona_lora_enabled(
+        self, enabled: bool
+    ) -> "LifeformLLMResponseSynthesizer":
+        """Return a clone whose per-turn persona-LoRA gate is ``enabled``.
+
+        Used by the SessionManager to enforce the adopting contract's
+        substrate ``adapter_policy`` at the activation site: when the
+        policy forbids LoRA, the bound synthesizer never activates an
+        adapter even if a record is present in the pool.
+        """
+
+        clone = self.clone_for_session()
+        clone._persona_lora_enabled = enabled  # noqa: SLF001
+        clone._figure_bundle = self._figure_bundle  # noqa: SLF001
+        return clone
+
+    def with_persona_lora_pool(
+        self, pool: object | None
+    ) -> "LifeformLLMResponseSynthesizer":
+        """Return a clone whose persona-LoRA activation consults ``pool``.
+
+        The SessionManager passes its per-ai_id scoped pool so persona
+        LoRA lookups are isolated per tenant. ``None`` restores the
+        process-wide default pool fallback.
+        """
+
+        clone = self.clone_for_session()
+        clone._persona_lora_pool = pool  # noqa: SLF001
+        clone._figure_bundle = self._figure_bundle  # noqa: SLF001
         return clone
 
     def clone_for_session(self) -> "LifeformLLMResponseSynthesizer":
@@ -159,6 +213,8 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
             planner=self._planner,
             history_turns=self._history_turns,
             figure_bundle=self._figure_bundle,
+            persona_lora_enabled=self._persona_lora_enabled,
+            persona_lora_pool=self._persona_lora_pool,
         )
         return clone
 
@@ -217,7 +273,10 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         # mutated; the activate context restores the pre-call
         # forward state on exit (R2 + R15).
         with _maybe_activate_persona_lora(
-            bundle=bundle, runtime=self._runtime
+            bundle=bundle,
+            runtime=self._runtime,
+            enabled=self._persona_lora_enabled,
+            pool=self._persona_lora_pool,
         ):
             response = super().synthesize(context=context, assembly=assembly)
 
@@ -421,7 +480,9 @@ def _scope_disclaimer_tag(directive) -> str:
 
 
 @contextlib.contextmanager
-def _maybe_activate_persona_lora(*, bundle: Any, runtime: Any):
+def _maybe_activate_persona_lora(
+    *, bundle: Any, runtime: Any, enabled: bool = True, pool: Any = None
+):
     """Activate the persona LoRA on ``runtime`` when the bundle pins one.
 
     Looks up the figure_id in the process-wide default
@@ -430,15 +491,20 @@ def _maybe_activate_persona_lora(*, bundle: Any, runtime: Any):
     ``pool.activate(figure_id, runtime=runtime)`` for the lifetime
     of the context. Falls through (no-op) when:
 
+    * the adopting contract's adapter_policy disabled LoRA (``enabled``
+      is False),
     * no bundle attached,
     * bundle has no figure_id,
     * pool has no record for figure_id,
     * runtime does not satisfy the activation Protocol.
 
-    All four fallbacks preserve the legacy synthesize() behaviour
+    All fallbacks preserve the legacy synthesize() behaviour
     bit-identically — the activation is purely additive.
     """
 
+    if not enabled:
+        yield
+        return
     if bundle is None:
         yield
         return
@@ -454,14 +520,16 @@ def _maybe_activate_persona_lora(*, bundle: Any, runtime: Any):
     except ImportError:
         yield
         return
-    pool = default_persona_lora_pool()
-    if not pool.has(figure_id):
+    # A SessionManager-scoped pool (per ai_id) isolates tenants; fall
+    # back to the process-wide default pool for the standalone path.
+    active_pool = pool if pool is not None else default_persona_lora_pool()
+    if not active_pool.has(figure_id):
         yield
         return
     if not isinstance(runtime, LoRAAwareResidualRuntime):
         yield
         return
-    with pool.activate(figure_id, runtime=runtime):
+    with active_pool.activate(figure_id, runtime=runtime):
         yield
 
 

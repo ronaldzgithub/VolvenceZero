@@ -26,6 +26,17 @@ itself is consumed under the asyncio event loop's single-thread
 guarantee \u2014 ``runtime.generate(...)`` is sync and blocks the loop, so
 concurrent sessions naturally serialise. Do NOT run ``run_in_executor``
 on the runtime without re-introducing a ``threading.Lock`` here.
+
+Serial-decode assumption (backend-specific): the above holds for the
+``TransformersOpenWeightResidualRuntime`` (one blocking decode + one
+context-managed LoRA activation at a time). The
+``VLLMOpenWeightResidualRuntime`` is the concurrent backend: it batches
+requests and attaches a per-request ``LoRARequest``, tracking the active
+adapter in a ``contextvars.ContextVar`` so concurrent tenant turns route
+their own persona without colliding. When deploying the vLLM backend the
+serial-decode constraint above is relaxed (the per-request path is
+``generate_for_request``); the persona-LoRA pool's nested-activation
+guard is per-task, not process-global, on that backend.
 """
 
 from __future__ import annotations
@@ -170,6 +181,20 @@ class SessionManager:
         # synthesizer clone then carries the bundle through to L1
         # / L3 / L4 enforcement (debt #22 closure).
         self._figure_bundle: object | None = None
+        # Substrate adapter_policy gate (R10). The DLaaS adopt path
+        # binds this from the contract's resolved substrate profile so
+        # every lifeform this manager builds honours the policy at the
+        # persona-LoRA activation site. Defaults True (permissive) so
+        # the standalone service path keeps the additive behaviour.
+        self._persona_lora_enabled: bool = True
+        # Per-ai_id scoped persona-LoRA pool. Each SessionManager owns
+        # one so two tenants that adopt different bundles for the same
+        # figure_id never collide in the process-wide default pool
+        # (which is last-register-wins). The bound bundle's LoRA is
+        # registered here at bind time and the pool is handed to every
+        # lifeform this manager builds. ``None`` until a figure bundle
+        # is bound, so non-figure managers keep the default-pool path.
+        self._persona_lora_pool: object | None = None
         # ``protocol-online-learning-active`` packet: when set,
         # every freshly-built ``Lifeform`` (regardless of which
         # vertical / template / alpha branch produced it) is
@@ -252,7 +277,18 @@ class SessionManager:
         """The figure-vertical bundle bound to this manager (or None)."""
         return self._figure_bundle
 
-    def bind_figure_bundle(self, bundle: object | None) -> None:
+    @property
+    def persona_lora_pool(self) -> object | None:
+        """The per-ai_id scoped persona-LoRA pool (None until a bundle
+        with adapters is bound). Diagnostics / tests only."""
+        return self._persona_lora_pool
+
+    def bind_figure_bundle(
+        self,
+        bundle: object | None,
+        *,
+        persona_lora_enabled: bool = True,
+    ) -> None:
         """Bind a figure-vertical artifact bundle for new sessions.
 
         Called from the DLaaS adopt path after
@@ -262,12 +298,38 @@ class SessionManager:
         :meth:`lifeform_core.Lifeform.bind_figure_bundle` so the
         per-session synthesizer picks the bundle up at clone time.
 
+        ``persona_lora_enabled`` carries the adopting contract's
+        resolved substrate ``adapter_policy``: when ``False`` the
+        bound lifeforms skip persona-LoRA activation at synthesis time
+        (R10 — adapter usage is policy-gated). Defaults True.
+
         Pass ``None`` to clear the binding (e.g. on contract
         revocation). Existing sessions retain the bundle they were
         created with — change-of-mind invalidates the entire
         session, not the bundle on a live session.
         """
         self._figure_bundle = bundle
+        self._persona_lora_enabled = persona_lora_enabled
+        if bundle is None:
+            self._persona_lora_pool = None
+            return
+        # Register the bundle's baked LoRA into this manager's scoped
+        # pool (isolated per ai_id). When the policy forbids adapters
+        # ``register_bundle_persona_lora`` is a no-op, so the scoped
+        # pool stays empty and activation never fires.
+        from volvence_zero.substrate import PersonaLoRAPool
+
+        from lifeform_service.figure_bundle_store import (
+            register_bundle_persona_lora,
+        )
+
+        scoped_pool = PersonaLoRAPool()
+        register_bundle_persona_lora(
+            bundle,
+            pool=scoped_pool,
+            persona_lora_enabled=persona_lora_enabled,
+        )
+        self._persona_lora_pool = scoped_pool
 
     @property
     def substrate_runtime(self) -> "OpenWeightResidualRuntime | None":
@@ -550,6 +612,14 @@ class SessionManager:
                 bind = getattr(life, "bind_figure_bundle", None)
                 if callable(bind):
                     bind(self._figure_bundle)
+            if not self._persona_lora_enabled:
+                set_policy = getattr(life, "set_persona_lora_enabled", None)
+                if callable(set_policy):
+                    set_policy(False)
+            if self._persona_lora_pool is not None:
+                set_pool = getattr(life, "set_persona_lora_pool", None)
+                if callable(set_pool):
+                    set_pool(self._persona_lora_pool)
             await life.start()
             if self._contract_plugins:
                 register_http_plugins_after_start(

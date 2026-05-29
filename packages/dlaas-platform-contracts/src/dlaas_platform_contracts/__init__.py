@@ -133,6 +133,14 @@ from dlaas_platform_contracts.observability import (
     ReadoutView,
     SnapshotExportRequest,
 )
+from dlaas_platform_contracts.persona_market import (
+    PersonaListingSpec,
+    PersonaListingStatus,
+    PersonaListingVisibility,
+    PersonaProvenance,
+    PersonaSubscriptionSpec,
+    PersonaSubscriptionStatus,
+)
 from dlaas_platform_contracts.plugins import (
     HttpEndpoint,
     HttpPluginSpec,
@@ -250,6 +258,12 @@ __all__ = (
     "OpsPolicySelection",
     "OutputAct",
     "OutputContract",
+    "PersonaListingSpec",
+    "PersonaListingStatus",
+    "PersonaListingVisibility",
+    "PersonaProvenance",
+    "PersonaSubscriptionSpec",
+    "PersonaSubscriptionStatus",
     "PluginKind",
     "PluginManifest",
     "PolicySnapshot",

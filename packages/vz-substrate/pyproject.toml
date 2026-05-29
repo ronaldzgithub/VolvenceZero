@@ -18,6 +18,12 @@ hf = [
     "torch",
     "transformers",
 ]
+# High-throughput multi-LoRA serving backend (VLLMOpenWeightResidualRuntime).
+# Optional: the module imports cleanly without vllm and only requires it
+# when a real engine is constructed.
+vllm = [
+    "vllm",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

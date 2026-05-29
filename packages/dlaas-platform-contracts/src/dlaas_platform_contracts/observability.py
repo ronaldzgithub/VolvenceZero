@@ -35,6 +35,11 @@ class ReadoutBundle:
     protocol: Mapping[str, Any] = field(default_factory=dict)
     safety: Mapping[str, Any] = field(default_factory=dict)
     training: Mapping[str, Any] = field(default_factory=dict)
+    # Social cognition readout (R16-R20): the InterlocutorState axes plus
+    # conversational-role / common-ground projections. Additive + optional
+    # (defaults empty) so existing readout consumers are unaffected; the
+    # `/dlaas/v1/cognition/interlocutor` endpoint surfaces this block.
+    social: Mapping[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -48,6 +53,7 @@ class ReadoutBundle:
             "protocol": dict(self.protocol),
             "safety": dict(self.safety),
             "training": dict(self.training),
+            "social": dict(self.social),
         }
 
 

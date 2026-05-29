@@ -231,9 +231,57 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
         return self._peft_adapter_context(checkpoint_dir)
 
+    def _ensure_peft_cache(self):
+        """Return this runtime's lazily-built PEFT adapter LRU cache.
+
+        Keeps up to ``VZ_LORA_CACHE_MAX`` adapters resident in one
+        ``peft.PeftModel`` so repeated turns for the same persona avoid
+        re-running ``PeftModel.from_pretrained`` per request.
+        """
+
+        cache = getattr(self, "_peft_adapter_cache", None)
+        if cache is not None:
+            return cache
+        try:
+            peft_mod = importlib.import_module("peft")
+        except ImportError as exc:
+            raise ImportError(
+                "activate_peft_adapter: peft is required to load a saved "
+                "PEFT adapter at inference time. Install via "
+                "``pip install vz-runtime[torch]`` (peft is a transitive "
+                "dep)."
+            ) from exc
+        from volvence_zero.substrate.peft_adapter_cache import (
+            build_default_peft_adapter_cache,
+        )
+
+        cache = build_default_peft_adapter_cache(peft_mod)
+        object.__setattr__(self, "_peft_adapter_cache", cache)
+        return cache
+
+    @property
+    def peft_cache_stats(self) -> dict[str, int]:
+        """Resident-adapter cache hit/miss/size counters (diagnostics)."""
+
+        cache = getattr(self, "_peft_adapter_cache", None)
+        if cache is None:
+            return {"hits": 0, "misses": 0, "resident": 0}
+        return {
+            "hits": cache.hits,
+            "misses": cache.misses,
+            "resident": cache.resident_count,
+        }
+
     @contextlib.contextmanager
     def _peft_adapter_context(self, checkpoint_dir):
-        """Context-manager body for :meth:`activate_peft_adapter`."""
+        """Context-manager body for :meth:`activate_peft_adapter`.
+
+        Uses a bounded LRU of resident adapters (debt #40 + adapter
+        VRAM cache): instead of ``from_pretrained`` + ``unload`` every
+        turn, the requested adapter is loaded once and re-activated on
+        subsequent turns. R2 is preserved: on context exit all adapter
+        layers are disabled so the base forward path is restored.
+        """
 
         import pathlib
 
@@ -246,42 +294,32 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"checkpoint_dir and that the directory has not been "
                 f"deleted."
             )
-        try:
-            peft_mod = importlib.import_module("peft")
-        except ImportError as exc:
-            raise ImportError(
-                "activate_peft_adapter: peft is required to load a saved "
-                "PEFT adapter at inference time. Install via "
-                "``pip install vz-runtime[torch]`` (peft is a transitive "
-                "dep)."
-            ) from exc
         if getattr(self, "_lora_activation_in_flight", False):
             raise RuntimeError(
                 "activate_peft_adapter: nested activation detected; exit "
                 "the outer LoRA context before activating a different "
                 "persona."
             )
+        cache = self._ensure_peft_cache()
         original_model = self._model
-        peft_wrapped = peft_mod.PeftModel.from_pretrained(
-            original_model, str(path)
-        )
-        peft_wrapped.eval()
-        try:
-            object.__setattr__(self, "_lora_activation_in_flight", True)
-            object.__setattr__(self, "_lora_activation_checkpoint_dir", str(path))
-            object.__setattr__(self, "_model", peft_wrapped)
-            yield
-        finally:
-            object.__setattr__(self, "_model", original_model)
-            object.__setattr__(self, "_lora_activation_in_flight", False)
-            object.__setattr__(self, "_lora_activation_checkpoint_dir", "")
-            # ``unload`` returns the unwrapped base with adapter
-            # sub-modules detached but weights NOT merged into base.
-            # This guarantees R2: post-context state_dict hash on
-            # ``original_model`` equals pre-context hash.
-            unload = getattr(peft_wrapped, "unload", None)
-            if callable(unload):
-                unload()
+        with cache.activate(
+            base_model=original_model, checkpoint_dir=str(path)
+        ) as peft_model:
+            try:
+                object.__setattr__(self, "_lora_activation_in_flight", True)
+                object.__setattr__(
+                    self, "_lora_activation_checkpoint_dir", str(path)
+                )
+                object.__setattr__(self, "_model", peft_model)
+                yield
+            finally:
+                # Restore the base reference; the cache has already
+                # disabled the adapter layers so this base forward is
+                # the clean frozen-base path (R2). Adapter weights stay
+                # resident for the next turn (no per-turn reload).
+                object.__setattr__(self, "_model", original_model)
+                object.__setattr__(self, "_lora_activation_in_flight", False)
+                object.__setattr__(self, "_lora_activation_checkpoint_dir", "")
 
     @contextlib.contextmanager
     def _lora_hot_swap_context(self, layers):

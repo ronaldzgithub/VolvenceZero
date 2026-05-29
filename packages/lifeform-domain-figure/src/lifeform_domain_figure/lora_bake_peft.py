@@ -52,7 +52,10 @@ import pathlib
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from volvence_zero.substrate import SubstrateDeltaAdapterLayer
+from volvence_zero.substrate import (
+    SubstrateDeltaAdapterLayer,
+    peft_checkpoint_root,
+)
 
 from lifeform_domain_figure.lora_artifact import (
     SCHEMA_VERSION,
@@ -81,10 +84,12 @@ _DEFAULT_DELTA_VECTOR_DIM = 256
 # Default on-disk location for peft.save_pretrained snapshots. The
 # real-LoRA inference path (debt #40 closure) loads checkpoints from
 # here via `peft.PeftModel.from_pretrained`. Layout:
-#   PEFT_CHECKPOINT_CACHE_ROOT / <figure_id> / <plan_hash_prefix> /
+#   <checkpoint root> / <figure_id> / <plan_hash_prefix> /
 # Keyed by training_plan_hash so two bakes of the same plan share
 # one on-disk snapshot (cheap re-bake; portable across processes).
-PEFT_CHECKPOINT_CACHE_ROOT = pathlib.Path(".local") / "peft-checkpoints"
+# The root is resolved through :func:`peft_checkpoint_root` so the
+# bake job and the runtime adopt path agree on location and honour the
+# ``VZ_PEFT_CHECKPOINT_ROOT`` override with a single variable.
 _DISABLED_CHECKPOINT_DIR = pathlib.Path("")
 
 
@@ -147,7 +152,7 @@ class PEFTLoRABakeBackend(LoRABakeBackend):
       is large.
     * ``checkpoint_dir`` — out-of-process artifact staging dir.
       ``None`` (default) auto-derives a path under
-      :data:`PEFT_CHECKPOINT_CACHE_ROOT`/``<figure_id>/<plan_hash>``
+      :func:`peft_checkpoint_root`/``<figure_id>/<plan_hash>``
       so the trained PEFT adapter is **always** persisted to disk.
       The path is recorded on the returned
       :attr:`FigureLoRAArtifact.peft_checkpoint_dir` so the runtime
@@ -384,9 +389,9 @@ class PEFTLoRABakeBackend(LoRABakeBackend):
         Three cases:
 
         * ``checkpoint_dir is None`` (default) — auto-derive to
-          :data:`PEFT_CHECKPOINT_CACHE_ROOT` /
-          ``<figure_id>/<plan_hash_prefix>`` under the current working
-          directory. Always returns a real path: the trained adapter
+          :func:`peft_checkpoint_root` /
+          ``<figure_id>/<plan_hash_prefix>`` under the configured
+          checkpoint root. Always returns a real path: the trained adapter
           is persisted so the runtime can load it through
           ``peft.PeftModel.from_pretrained``.
         * ``checkpoint_dir`` set to an empty path
@@ -400,7 +405,7 @@ class PEFTLoRABakeBackend(LoRABakeBackend):
 
         if self.checkpoint_dir is None:
             plan_prefix = plan.integrity_hash[:16] if plan.integrity_hash else "unhashed"
-            return PEFT_CHECKPOINT_CACHE_ROOT / plan.figure_id / plan_prefix
+            return peft_checkpoint_root() / plan.figure_id / plan_prefix
         if self.checkpoint_dir == _DISABLED_CHECKPOINT_DIR:
             return None
         return self.checkpoint_dir

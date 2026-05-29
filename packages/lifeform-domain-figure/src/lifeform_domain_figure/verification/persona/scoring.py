@@ -29,6 +29,7 @@ from lifeform_domain_figure.verification.persona.records import (
     AblationResult,
     CognitionScore,
     ConditionAggregate,
+    L3FaithfulnessScore,
     PersonaCondition,
     PersonaQuestionCategory,
     PersonaTestQuestion,
@@ -327,6 +328,61 @@ def _matches_refusal_preamble(text: str) -> bool:
 
 
 _L3_EVIDENCE_RE = re.compile(r"evidence:(\d+)")
+_L3_PASSED_RE = re.compile(r"passed:(\d+)")
+_L3_UNSUPPORTED_RE = re.compile(r"unsupported:(\d+)")
+
+
+def score_l3_faithfulness(
+    rationale_tags: tuple[str, ...],
+) -> L3FaithfulnessScore:
+    """Quantify L3 citation faithfulness for one response (#59).
+
+    Parses the synthesizer's ``l3_grounded_verify=passed:K;unsupported:M;
+    evidence:N`` tag(s), totalling across multiple verifies in a single
+    response. Faithfulness is the fraction of verifiable assertions that
+    were grounded in cited evidence:
+
+        faithfulness = passed / (passed + unsupported)
+
+    Edge cases:
+
+    * No ``l3_grounded_verify`` tag at all → ``verified=False``,
+      ``faithfulness=0.0`` (the L3 check never ran; the gate treats this
+      as "unverified", not "faithful").
+    * A verify ran but asserted nothing needing support
+      (``passed + unsupported == 0``) → ``verified=True``,
+      ``faithfulness=1.0`` (vacuously faithful).
+    """
+
+    verified = False
+    passed = 0
+    unsupported = 0
+    evidence = 0
+    for tag in rationale_tags:
+        if not tag.startswith("l3_grounded_verify"):
+            continue
+        verified = True
+        m_passed = _L3_PASSED_RE.search(tag)
+        m_unsupported = _L3_UNSUPPORTED_RE.search(tag)
+        m_evidence = _L3_EVIDENCE_RE.search(tag)
+        if m_passed:
+            passed += int(m_passed.group(1))
+        if m_unsupported:
+            unsupported += int(m_unsupported.group(1))
+        if m_evidence:
+            evidence += int(m_evidence.group(1))
+    if not verified:
+        faithfulness = 0.0
+    else:
+        total = passed + unsupported
+        faithfulness = 1.0 if total == 0 else passed / float(total)
+    return L3FaithfulnessScore(
+        faithfulness=max(0.0, min(1.0, faithfulness)),
+        passed_count=passed,
+        unsupported_count=unsupported,
+        evidence_count=evidence,
+        verified=verified,
+    )
 
 
 def _extract_l3_evidence_count(rationale_tags: tuple[str, ...]) -> int:
@@ -383,6 +439,7 @@ def score_question(
         expected_refusal=expected_refusal,
     )
     l3_evidence_count = _extract_l3_evidence_count(result.rationale_tags)
+    l3_faithfulness = score_l3_faithfulness(result.rationale_tags)
     return QuestionScore(
         question_id=question.question_id,
         condition=result.condition,
@@ -390,6 +447,7 @@ def score_question(
         cognition=cognition,
         refusal=refusal,
         l3_evidence_count=l3_evidence_count,
+        l3_faithfulness=l3_faithfulness,
     )
 
 
@@ -427,6 +485,17 @@ def aggregate_scores(
         else:
             refusal_rate = 0.0
         l3_total = sum(s.l3_evidence_count for s in in_corpus_scores)
+        # L3 faithfulness averages only over in-corpus responses that
+        # actually ran a grounded verify (#59); a response that never
+        # verified neither helps nor hurts the mean.
+        verified_faith = [
+            s.l3_faithfulness.faithfulness
+            for s in in_corpus_scores
+            if s.l3_faithfulness is not None and s.l3_faithfulness.verified
+        ]
+        l3_faithfulness_avg = (
+            sum(verified_faith) / len(verified_faith) if verified_faith else 0.0
+        )
         aggregates.append(
             ConditionAggregate(
                 condition=condition,
@@ -437,6 +506,8 @@ def aggregate_scores(
                 out_of_scope_refusal_rate=refusal_rate,
                 out_of_scope_question_count=len(out_of_scope),
                 l3_evidence_count=l3_total,
+                l3_faithfulness=l3_faithfulness_avg,
+                l3_verified_question_count=len(verified_faith),
             )
         )
     return tuple(aggregates)
@@ -448,6 +519,7 @@ __all__ = [
     "DEFAULT_VOICE_TOP_WORDS_WEIGHT",
     "aggregate_scores",
     "score_cognition",
+    "score_l3_faithfulness",
     "score_question",
     "score_refusal",
     "score_voice",

@@ -190,6 +190,7 @@ def register_bundle_persona_lora(
     bundle: object,
     *,
     pool: object | None = None,
+    persona_lora_enabled: bool = True,
 ) -> str | None:
     """Register a bundle's baked LoRA artifact in a :class:`PersonaLoRAPool`.
 
@@ -206,11 +207,25 @@ def register_bundle_persona_lora(
 
     The function reads the artifact through documented public
     fields (``figure_id`` / ``backend_id`` / ``training_plan_hash``
-    / ``adapter_layers`` / ``parameter_count`` / ``description``);
-    a missing field is the intended fail-loud signal that someone
-    stuffed a different shape into the ``lora`` slot.
+    / ``adapter_layers`` / ``parameter_count`` / ``description`` /
+    ``peft_checkpoint_dir``); a missing field is the intended
+    fail-loud signal that someone stuffed a different shape into the
+    ``lora`` slot.
+
+    The ``peft_checkpoint_dir`` is forwarded so an adopted figure
+    activates through the real PEFT path
+    (:meth:`LoRAAwareResidualRuntime.activate_peft_adapter`) instead
+    of the LayerNorm-eaten projected-summary hook fallback. The path
+    is resolved against the substrate checkpoint root so a service
+    started in a different CWD than the bake job still finds the
+    checkpoint (see :func:`volvence_zero.substrate.resolve_peft_checkpoint_dir`).
     """
 
+    if not persona_lora_enabled:
+        # Substrate adapter_policy forbids adapters for this contract;
+        # do not register the LoRA into the pool so the activation site
+        # has nothing to pick up (R10 enforcement at the registry edge).
+        return None
     artifact = getattr(bundle, "lora", None)
     if artifact is None:
         return None
@@ -226,6 +241,8 @@ def register_bundle_persona_lora(
         target_pool = default_persona_lora_pool()
     else:
         target_pool = pool
+    from volvence_zero.substrate import resolve_peft_checkpoint_dir
+
     return target_pool.register(
         figure_id=artifact.figure_id,
         source_bundle_id=bundle_id,
@@ -234,6 +251,9 @@ def register_bundle_persona_lora(
         adapter_layers=artifact.adapter_layers,
         parameter_count=artifact.parameter_count,
         description=artifact.description,
+        peft_checkpoint_dir=resolve_peft_checkpoint_dir(
+            artifact.peft_checkpoint_dir
+        ),
     )
 
 
