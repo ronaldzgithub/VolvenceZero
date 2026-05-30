@@ -189,14 +189,38 @@ def give_birth(
     # 3. Otherwise → reconstruct from the template checkpoint, the
     #    canonical "fully reincarnated" path.
     #
-    # NW7: ``manifest.preserve_memory=True`` overrides ``skip_memory_restore``
-    # so templates whose canonical first-half-of-life memories must
-    # persist across every player (e.g. novel-worlds-character) get
-    # restored even under the alpha service path. R14 persistent
-    # identity is defined by what the character remembers; players
-    # always meet the same person.
+    # NW7: ``manifest.preserve_memory=True`` makes the canonical
+    # first-half-of-life memory load even under the alpha service path.
+    #
+    # NW10 (durable co-evolution): under the alpha path we no longer
+    # inject the checkpoint as an in-memory store (which bypassed the
+    # filesystem-backed scoped store and reset every session). Instead we
+    # leave ``active_memory_store=None`` so ``Brain.create_session``
+    # builds the per-scope durable store, and we hand the checkpoint to
+    # ``BrainConfig.memory_seed_checkpoint`` so it SEEDS that store once
+    # on the first session. Result: the character starts from its trained
+    # self, then durably accumulates the relationship with the player.
+    # The offline bake / eval path (``skip_memory_restore=False``) keeps
+    # the full in-memory restore used by replay.
     if memory_store is not None:
         active_memory_store: MemoryStore | None = memory_store
+    elif skip_memory_restore and inflated.manifest.preserve_memory:
+        from volvence_zero.memory import MemoryStoreCheckpoint
+
+        seed = inflated.memory_checkpoint
+        if isinstance(seed, MemoryStoreCheckpoint):
+            active_memory_store = None
+            base_config = _replace(
+                base_config,
+                brain_config=_replace(
+                    base_config.brain_config, memory_seed_checkpoint=seed
+                ),
+            )
+        else:
+            # Untyped / opaque checkpoint carrier: fall back to the
+            # in-memory restore so canonical identity is still correct
+            # (durability for this edge case is a known limitation).
+            active_memory_store = _restore_memory_store(inflated)
     elif skip_memory_restore and not inflated.manifest.preserve_memory:
         active_memory_store = None
     else:

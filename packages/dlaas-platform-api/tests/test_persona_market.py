@@ -143,3 +143,99 @@ def test_delist_requires_owner() -> None:
     with pytest.raises(PersonaMarketError) as exc:
         store.delist(tenant_id="tenant-b", listing_ref=listing.listing_ref)
     assert exc.value.code == "forbidden"
+
+
+# ---------------------------------------------------------------------------
+# Template economy: usage metering, 70/30 split ledger, settlement.
+# ---------------------------------------------------------------------------
+
+
+def _subscribed_store() -> tuple[PersonaMarketStore, str]:
+    store = PersonaMarketStore()
+    listing = store.publish(
+        tenant_id="tenant-a",
+        display_name="Sales coach",
+        persona_config={"nl_brief": "x"},
+        price_cents=10_000,
+        currency="USD",
+    )
+    store.subscribe(
+        subscriber_tenant_id="tenant-b", listing_ref=listing.listing_ref
+    )
+    return store, listing.listing_ref
+
+
+def test_usage_event_splits_70_30() -> None:
+    store, listing_ref = _subscribed_store()
+    usage, ledger = store.record_usage(
+        listing_ref=listing_ref,
+        subscriber_tenant_id="tenant-b",
+        kind="subscription_period",
+        quantity=1,
+    )
+    assert usage.gross_cents == 10_000
+    assert ledger.gross_cents == 10_000
+    assert ledger.platform_fee_cents == 7_000
+    assert ledger.provider_earning_cents == 3_000
+    # Split always reconstitutes gross exactly.
+    assert ledger.platform_fee_cents + ledger.provider_earning_cents == 10_000
+    assert ledger.source_tenant_id == "tenant-a"
+    assert ledger.subscriber_tenant_id == "tenant-b"
+
+
+def test_usage_requires_subscription() -> None:
+    store = PersonaMarketStore()
+    listing = store.publish(tenant_id="tenant-a", display_name="Coach")
+    with pytest.raises(PersonaMarketError) as exc:
+        store.record_usage(
+            listing_ref=listing.listing_ref, subscriber_tenant_id="tenant-b"
+        )
+    assert exc.value.code == "not_subscribed"
+
+
+def test_usage_idempotency_dedup() -> None:
+    store, listing_ref = _subscribed_store()
+    store.record_usage(
+        listing_ref=listing_ref,
+        subscriber_tenant_id="tenant-b",
+        idempotency_key="period-2026-05",
+    )
+    dup = store.usage_for_idem(listing_ref, "period-2026-05")
+    assert dup is not None
+    # The ledger only carried one entry for the idempotent period.
+    rows = store.query_ledger(listing_ref=listing_ref)
+    assert len(rows) == 1
+
+
+def test_ledger_views_and_settlement() -> None:
+    store, listing_ref = _subscribed_store()
+    store.record_usage(
+        listing_ref=listing_ref, subscriber_tenant_id="tenant-b", quantity=1
+    )
+    store.record_usage(
+        listing_ref=listing_ref, subscriber_tenant_id="tenant-b", quantity=2
+    )
+    provider_rows = store.query_ledger(provider_tenant_id="tenant-a")
+    subscriber_rows = store.query_ledger(subscriber_tenant_id="tenant-b")
+    assert len(provider_rows) == 2
+    assert len(subscriber_rows) == 2
+    # 10000 + 20000 gross -> provider 3000 + 6000 = 9000.
+    assert sum(r.provider_earning_cents for r in provider_rows) == 9_000
+
+    settled = store.settle_pending(provider_tenant_id="tenant-a")
+    assert len(settled) == 2
+    # Re-running settles nothing (idempotent on already-settled rows).
+    assert store.settle_pending(provider_tenant_id="tenant-a") == []
+
+
+def test_refund_mirrors_split() -> None:
+    store, listing_ref = _subscribed_store()
+    # A correction posts a negative gross; the split mirrors the charge.
+    _usage, ledger = store.record_usage(
+        listing_ref=listing_ref,
+        subscriber_tenant_id="tenant-b",
+        kind="refund",
+        gross_cents=-10_000,
+    )
+    assert ledger.platform_fee_cents == -7_000
+    assert ledger.provider_earning_cents == -3_000

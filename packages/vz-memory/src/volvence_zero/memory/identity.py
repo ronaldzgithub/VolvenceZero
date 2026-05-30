@@ -28,7 +28,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Protocol
 
-from volvence_zero.memory.contracts import MemoryEntry, MemoryStratum
+from volvence_zero.memory.contracts import (
+    MemoryEntry,
+    MemoryStoreCheckpoint,
+    MemoryStratum,
+)
 from volvence_zero.memory.persistence import FileSystemPersistenceBackend
 from volvence_zero.memory.store import MemoryStore, build_default_memory_store
 
@@ -233,6 +237,7 @@ def build_scoped_memory_store(
     root_dir: str | os.PathLike[str] | None = None,
     latent_dim: int = 8,
     nested_profile: bool = True,
+    seed_checkpoint: MemoryStoreCheckpoint | None = None,
 ) -> MemoryStore:
     """Build a ``MemoryStore`` for the given identity.
 
@@ -244,12 +249,27 @@ def build_scoped_memory_store(
       ``<root_dir>/<user_id>/memory`` plus a parallel eager-load so
       previous sessions' durable entries are available to the new
       session.
+
+    NW10: ``seed_checkpoint`` lets a baked LifeformTemplate's canonical
+    ``memory_checkpoint`` seed the scoped store **exactly once** — on the
+    first session for this scope (when ``load_from_backend()`` reports no
+    prior content). On every subsequent session the accumulated on-disk
+    state wins and the seed is ignored, so the character starts from its
+    trained self and then durably co-evolves with the player rather than
+    resetting to the checkpoint every session. The seed is materialised
+    to disk immediately so a crash before the first ``end_scene`` drain
+    does not lose the canonical baseline.
     """
 
     if identity is None or not identity.has_permission("persist"):
-        return build_default_memory_store(
+        store = build_default_memory_store(
             latent_dim=latent_dim, nested_profile=nested_profile
         )
+        # No durable backend → at least give the (ephemeral) session the
+        # canonical baseline so an unscoped fallback isn't a blank slate.
+        if seed_checkpoint is not None:
+            store.restore_checkpoint(seed_checkpoint)
+        return store
     if root_dir is None:
         raise ValueError(
             "root_dir is required when building a scoped MemoryStore for a known identity."
@@ -264,7 +284,13 @@ def build_scoped_memory_store(
     # Eagerly load so the session starts with any prior durable content.
     # load_from_backend returns False when no checkpoint exists; that is
     # the expected first-session case and is not an error.
-    store.load_from_backend()
+    loaded = store.load_from_backend()
+    # NW10: seed-once from the canonical checkpoint. Only when there is no
+    # prior durable content (first session for this scope). Never re-seed
+    # over accumulated memory — that would wipe the relationship history.
+    if not loaded and seed_checkpoint is not None:
+        store.restore_checkpoint(seed_checkpoint)
+        store.save_to_backend()
     return store
 
 

@@ -268,7 +268,7 @@ class PersonaListingSpec:
 class PersonaSubscriptionSpec:
     """A subscriber tenant's entitlement to a listing."""
 
-    subscription_ref: str
+    subscription_id: str
     listing_ref: str
     subscriber_tenant_id: str
     subscribed_by: str = ""
@@ -281,7 +281,7 @@ class PersonaSubscriptionSpec:
 
     def to_json(self) -> dict[str, Any]:
         return {
-            "subscription_ref": self.subscription_ref,
+            "subscription_id": self.subscription_id,
             "listing_ref": self.listing_ref,
             "subscriber_tenant_id": self.subscriber_tenant_id,
             "subscribed_by": self.subscribed_by,
@@ -300,7 +300,7 @@ class PersonaSubscriptionSpec:
             PersonaProvenance.from_json(prov) if isinstance(prov, Mapping) else None
         )
         return PersonaSubscriptionSpec(
-            subscription_ref=str(data.get("subscription_ref", "")),
+            subscription_id=str(data.get("subscription_id", "")),
             listing_ref=str(data.get("listing_ref", "")),
             subscriber_tenant_id=str(data.get("subscriber_tenant_id", "")),
             subscribed_by=str(data.get("subscribed_by", "")),
@@ -369,7 +369,7 @@ class MarketplaceLedgerEntry:
 
     entry_id: str
     listing_ref: str
-    subscription_ref: str
+    subscription_id: str
     source_tenant_id: str
     subscriber_tenant_id: str
     gross_cents: int
@@ -385,7 +385,7 @@ class MarketplaceLedgerEntry:
         return {
             "entry_id": self.entry_id,
             "listing_ref": self.listing_ref,
-            "subscription_ref": self.subscription_ref,
+            "subscription_id": self.subscription_id,
             "source_tenant_id": self.source_tenant_id,
             "subscriber_tenant_id": self.subscriber_tenant_id,
             "gross_cents": self.gross_cents,

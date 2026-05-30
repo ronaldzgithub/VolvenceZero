@@ -33,6 +33,7 @@ from volvence_zero.memory import (
     AnonymousIdentityProvider,
     IdentityProvider,
     MemoryStore,
+    MemoryStoreCheckpoint,
     UserIdentity,
     build_scoped_memory_store,
     scope_key_for,
@@ -93,6 +94,14 @@ class BrainConfig:
     # permission. None (default) keeps the current
     # no-cross-session-memory behavior.
     memory_scope_root_dir: str | None = None
+    # NW10 (durable co-evolution): canonical baseline that seeds a fresh
+    # scoped MemoryStore EXACTLY ONCE — on the first session for a scope
+    # (when no prior durable content exists on disk). Lets a baked
+    # LifeformTemplate's memory_checkpoint seed the per-relationship
+    # store, after which the accumulated on-disk state wins and the
+    # character durably co-evolves with the player instead of resetting
+    # to the checkpoint every session. None = no seed (current behavior).
+    memory_seed_checkpoint: MemoryStoreCheckpoint | None = None
     # Packet D (long-horizon-closure): cross-session owner hydration
     # wiring level. ACTIVE is the production-grade default — long
     # horizon continuity is the whole point of the lifeform shape,
@@ -567,6 +576,9 @@ class Brain:
                 session_memory_store = build_scoped_memory_store(
                     identity=identity,
                     root_dir=self._config.memory_scope_root_dir,
+                    # NW10: seed the per-relationship store once from the
+                    # baked canonical checkpoint, then let it accumulate.
+                    seed_checkpoint=self._config.memory_seed_checkpoint,
                 )
         # Packet D (long-horizon-closure): build the OwnerHydrationStore
         # only when (a) hydration wiring is non-DISABLED AND (b) the
