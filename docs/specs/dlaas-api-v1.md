@@ -850,6 +850,62 @@ Overview response (grouped, worst-first; no event bodies):
 `DLAAS_APP_STALE_HOURS` / `DLAAS_APP_ERROR_RATE_WATCH` /
 `DLAAS_APP_ERROR_RATE_ALERT` / `DLAAS_APP_MIN_EVENTS_FOR_ERROR`.
 
+## Expert Cultivation
+
+Autonomous industry-expert cultivation ("行业专家自动养成") grows a default
+system expert with minimal human interaction: an operator seeds a rough
+persona, the engine researches the domain, and the expert converges onto a
+single coherent school of thought before an operator inducts it as a default
+expert template. The "school" is NOT a regime label — it is the agent's
+Behavior Protocol active-mixture, so conflict resolution rides the kernel's
+existing layered mechanism (Identity Core + boundary-union hard-block,
+PE-utility soft-blend / arbitration, slow-reflection retirement). Cognition
+stays kernel-owned; this surface only orchestrates intake cadence and reads
+published readouts (R12) — it never resolves contradictions itself.
+
+All routes are operator-scoped (control-plane secret).
+
+```http
+POST /dlaas/v1/cultivation
+GET  /dlaas/v1/cultivation
+GET  /dlaas/v1/cultivation/{cultivation_id}
+POST /dlaas/v1/cultivation/{cultivation_id}/tick
+POST /dlaas/v1/cultivation/{cultivation_id}/graduate
+POST /dlaas/v1/cultivation/{cultivation_id}/induct
+```
+
+- `POST /cultivation` seeds a new expert:
+  `{ slug, display_name, domain, role_archetype, focus?, value_boundaries?[],
+  single_school_objective?, curriculum: { topics[], source_hints?[],
+  coherence_threshold? } }`. The seed compiles into an ACTIVE **Identity Core**
+  `BehaviorProtocol` (value boundaries become a hard-block union — the anchor
+  that resists drift from shallow inputs) loaded into the instance, and binds
+  a per-`ai_id` `ProtocolUptakeService`.
+- `POST .../tick { cycles? }` runs autonomous study cycles: research
+  (`search_web` / `fetch_webpage`) → DocumentUptake (researched theory →
+  `BehaviorProtocol` candidate → review → load, NOT raw corpus) → apprentice
+  study turn → R6 slow-reflection. Returns a `progress` readout: active-mixture
+  convergence `coherence_score`, dominant school protocol, and the protocols
+  uptaken this tick.
+- `GET .../{id}` returns the cultivation record: status machine
+  `seeding → studying → converging → exam → ready_for_review → inducted`,
+  `coherence_score`, and `coherence_detail` (`dominant_protocol`,
+  `distinct_schools`, `identity_core_present`, `readout`).
+- `POST .../graduate` creates an activated + published candidate template,
+  runs an eval exam as evidence (reuses the eval gate), and — when the school
+  has converged — moves the record to `ready_for_review`.
+- `POST .../induct` is the **operator approval** that promotes the published
+  template to a default system expert.
+
+Runtime vertical: `cultivation.expert.v0`. The protocol slow-loop
+(`protocol_reflection` / `protocol_revision_queue`) is ACTIVE for these
+instances so the mixture prunes failing strategies and converges onto one
+school while the Identity Core stays fixed (R15 rollback retained). Web
+research reuses the vz-bundle browse tools; researched theories never enter
+as raw corpus. Engine + readouts live in
+`packages/lifeform-cultivation`; operator console in
+`apps/dlaas-portal` → `/[locale]/cultivation`.
+
 ## Safety Protocol Aliases
 
 Safety injection is protocol-only:
