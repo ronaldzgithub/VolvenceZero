@@ -21,6 +21,10 @@ from lifeform_domain_figure.profiles.family import (
     load_family_profile_file,
 )
 from lifeform_domain_figure.profiles.lu_xun import build_lu_xun_profile
+from lifeform_domain_figure.profiles.myriad import (
+    build_myriad_profile_from_json,
+    load_myriad_profile_file,
+)
 
 __all__ = (
     # Reviewer-curated public-record profiles. The package `__init__.py`
@@ -30,4 +34,6 @@ __all__ = (
     "build_lu_xun_profile",
     "build_family_profile_from_json",
     "load_family_profile_file",
+    "build_myriad_profile_from_json",
+    "load_myriad_profile_file",
 )

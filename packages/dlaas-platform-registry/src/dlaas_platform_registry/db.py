@@ -23,8 +23,11 @@ without paying executor-thread overhead per call.
 from __future__ import annotations
 
 import asyncio
+import os
 import sqlite3
 from pathlib import Path
+
+from dlaas_platform_registry.pg_dialect import translate_statement
 
 SCHEMA_VERSION = 7
 
@@ -485,27 +488,171 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Postgres backend (debt D2)
+# ---------------------------------------------------------------------------
+#
+# The registry defaults to SQLite (zero-dependency, unchanged). Setting
+# ``DLAAS_REGISTRY_BACKEND=postgres`` + ``DLAAS_REGISTRY_PG_DSN=...`` (or
+# passing ``backend="postgres", dsn=...`` to :class:`Registry`) routes the
+# *same* store SQL through a translation adapter so the typed store API is
+# byte-for-byte identical. The translation (``?`` → ``%s`` and
+# ``INSERT OR REPLACE`` → ``ON CONFLICT`` upsert) lives in
+# :mod:`dlaas_platform_registry.pg_dialect` and is unit-tested; the live
+# psycopg connection is only constructed when the driver is installed.
+
+
+def resolve_registry_backend(backend: str | None = None) -> str:
+    """Return the selected registry backend ('sqlite' | 'postgres')."""
+
+    chosen = (backend or os.environ.get("DLAAS_REGISTRY_BACKEND") or "sqlite").strip().lower()
+    if chosen in ("", "sqlite", "sqlite3", "file"):
+        return "sqlite"
+    if chosen in ("postgres", "postgresql", "pg"):
+        return "postgres"
+    raise ValueError(
+        f"resolve_registry_backend: unknown backend {chosen!r}. "
+        "Expected 'sqlite' or 'postgres'."
+    )
+
+
+class _PostgresCursorResult:
+    """sqlite3-style result wrapper over a psycopg cursor.
+
+    The stores call ``conn.execute(sql, params).fetchone()/.fetchall()``
+    and index rows by column name (``row["col"]``). psycopg's dict-row
+    cursor returns ``dict`` rows, which already support ``row["col"]``.
+    """
+
+    def __init__(self, rows: list, rowcount: int) -> None:
+        self._rows = rows
+        self.rowcount = rowcount
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self):
+        return list(self._rows)
+
+
+class PostgresConnectionAdapter:
+    """Wrap a psycopg connection behind the sqlite3 ``conn.execute`` API.
+
+    Translates each statement via
+    :func:`dlaas_platform_registry.pg_dialect.translate_statement` so the
+    per-resource stores need no changes. Constructed only when
+    ``backend="postgres"``; importing this class never requires psycopg.
+    """
+
+    def __init__(self, dsn: str) -> None:
+        try:
+            import psycopg  # type: ignore
+            from psycopg.rows import dict_row  # type: ignore
+        except ImportError as exc:  # pragma: no cover - depends on env
+            raise RuntimeError(
+                "Postgres registry backend needs the 'psycopg' driver. "
+                "Install it (pip install 'psycopg[binary]') or use the "
+                "default SQLite backend (unset DLAAS_REGISTRY_BACKEND)."
+            ) from exc
+        if not dsn:
+            raise ValueError(
+                "Postgres registry backend requires a DSN "
+                "(DLAAS_REGISTRY_PG_DSN or Registry(dsn=...))."
+            )
+        self._conn = psycopg.connect(dsn, autocommit=True, row_factory=dict_row)
+
+    def execute(self, sql: str, params: tuple = ()):  # noqa: D401
+        translated = translate_statement(sql)
+        cur = self._conn.cursor()
+        cur.execute(translated, tuple(params))
+        rows: list = []
+        if cur.description is not None:
+            rows = list(cur.fetchall())
+        result = _PostgresCursorResult(rows, cur.rowcount)
+        cur.close()
+        return result
+
+    def close(self) -> None:
+        try:
+            self._conn.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+
+def _init_schema_postgres(adapter: "PostgresConnectionAdapter") -> None:
+    """Bootstrap the schema on Postgres (CREATE TABLE IF NOT EXISTS).
+
+    The ``_SCHEMA_SQL`` CREATE statements use portable column types
+    (TEXT / INTEGER / REAL) and ``CREATE TABLE IF NOT EXISTS``, so they
+    apply cleanly on Postgres after placeholder/upsert translation
+    (which is a no-op for DDL). The SQLite-specific forward-migration
+    ``ALTER TABLE ADD COLUMN`` deltas are re-expressed with the Postgres
+    ``IF NOT EXISTS`` form so re-runs are idempotent.
+    """
+
+    for stmt in _SCHEMA_SQL:
+        adapter.execute(stmt)
+    pg_alters = (
+        "ALTER TABLE templates ADD COLUMN IF NOT EXISTS figure_artifact_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE templates ADD COLUMN IF NOT EXISTS citation_policy TEXT NOT NULL DEFAULT 'disabled'",
+        "ALTER TABLE templates ADD COLUMN IF NOT EXISTS coverage_policy TEXT NOT NULL DEFAULT 'passthrough'",
+        "ALTER TABLE templates ADD COLUMN IF NOT EXISTS figure_time_window TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS plugins_json TEXT NOT NULL DEFAULT '[]'",
+    )
+    for stmt in pg_alters:
+        adapter.execute(stmt)
+    adapter.execute(
+        "INSERT INTO schema_meta (key, value) VALUES (%s, %s) "
+        "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+        ("schema_version", str(SCHEMA_VERSION)),
+    )
+
+
 class Registry:
-    """Thin facade over the SQLite connection + per-resource stores.
+    """Thin facade over the registry connection + per-resource stores.
 
     Holds a single :class:`asyncio.Lock` that the per-resource stores
     acquire on writes. Reads do not take the lock because WAL mode
     gives them snapshot consistency.
+
+    Backend (debt D2): SQLite by default (``db_path``); pass
+    ``backend="postgres"`` + ``dsn=...`` (or set ``DLAAS_REGISTRY_BACKEND``
+    / ``DLAAS_REGISTRY_PG_DSN``) to back the same store API with managed
+    Postgres instead of SQLite-on-PVC. The store SQL is unchanged — it is
+    translated at the connection boundary.
 
     Slice 3 wires Tenant + Shell + Asset + Template + Contract; Slice
     4 adds focus_persons + identity_links; Slice 5 adds handoff
     tickets.
     """
 
-    def __init__(self, *, db_path: str | Path = ":memory:") -> None:
-        self._conn = open_connection(db_path)
-        init_schema(self._conn)
+    def __init__(
+        self,
+        *,
+        db_path: str | Path = ":memory:",
+        backend: str | None = None,
+        dsn: str | None = None,
+    ) -> None:
+        self._backend = resolve_registry_backend(backend)
         self._write_lock = asyncio.Lock()
-        self._db_path = str(db_path)
+        if self._backend == "postgres":
+            resolved_dsn = dsn or os.environ.get("DLAAS_REGISTRY_PG_DSN") or ""
+            adapter = PostgresConnectionAdapter(resolved_dsn)
+            _init_schema_postgres(adapter)
+            self._conn = adapter
+            self._db_path = f"postgres:{resolved_dsn.split('@')[-1] if '@' in resolved_dsn else 'configured'}"
+        else:
+            self._conn = open_connection(db_path)
+            init_schema(self._conn)
+            self._db_path = str(db_path)
 
     @property
-    def conn(self) -> sqlite3.Connection:
+    def conn(self):
         return self._conn
+
+    @property
+    def backend(self) -> str:
+        return self._backend
 
     @property
     def write_lock(self) -> asyncio.Lock:
@@ -520,11 +667,15 @@ class Registry:
             self._conn.close()
         except sqlite3.Error:  # pragma: no cover - defensive
             pass
+        except Exception:  # pragma: no cover - defensive (postgres adapter)
+            pass
 
 
 __all__ = [
+    "PostgresConnectionAdapter",
     "Registry",
     "SCHEMA_VERSION",
     "init_schema",
     "open_connection",
+    "resolve_registry_backend",
 ]

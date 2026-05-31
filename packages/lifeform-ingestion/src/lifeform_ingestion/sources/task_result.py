@@ -1,4 +1,4 @@
-"""Task-result source adapter (Gap 3 slice 1).
+"""Task-result source adapter (Gap 3 slice 1; D-de-1 chunked ingestion).
 
 Structured JSON / dict task results get split per-field so each
 chunk carries a single piece of information (status, summary,
@@ -10,6 +10,15 @@ outputs that are bigger than a single ``submit_tool_result`` event
 would comfortably carry, e.g. a web search result with a page of
 excerpts: the lifeform ingests each excerpt as its own turn and the
 slow loop consolidates them into durable knowledge.
+
+D-de-1 (chunked artifact ingestion): a single ``submit_tool_result``
+kernel summary truncates long detail to ~320 chars, so a big field
+(a multi-page ``detail`` or ``findings`` blob) used to lose most of
+its content. To preserve the full artifact, any field whose text
+exceeds ``max_chunk_chars`` is now split into bounded sub-chunks
+(reusing the plain-text chunker) instead of becoming one oversized
+chunk. Fields that fit keep their original single ``:field:<name>``
+chunk id so the change is backward-compatible.
 """
 
 from __future__ import annotations
@@ -25,6 +34,10 @@ from lifeform_ingestion.envelope import (
     IngestionEnvelope,
     IngestionProvenance,
     IngestionSourceKind,
+)
+from lifeform_ingestion.sources.plain_text import (
+    DEFAULT_MAX_CHUNK_CHARS,
+    chunk_plain_text,
 )
 
 
@@ -47,17 +60,22 @@ def envelope_from_task_result(
     envelope_id: str | None = None,
     compliance_profile: IngestionComplianceProfile = IngestionComplianceProfile.FORCED,
     field_order: tuple[str, ...] = DEFAULT_FIELD_ORDER,
+    max_chunk_chars: int = DEFAULT_MAX_CHUNK_CHARS,
 ) -> IngestionEnvelope:
     """Turn a structured task_result dict into an ``IngestionEnvelope``.
 
     Each known field from ``field_order`` that is present AND has
-    non-empty content becomes one chunk. Unknown fields in the
-    payload are ignored (this is a keyword-agnostic structural
+    non-empty content becomes one or more chunks. Unknown fields in
+    the payload are ignored (this is a keyword-agnostic structural
     adapter \u2014 we do not try to interpret arbitrary fields).
 
     ``chunk_id`` embeds the field name so downstream audit can tell
     "which field of the task_result produced this knowledge" without
-    keeping the original payload around.
+    keeping the original payload around. A field that fits within
+    ``max_chunk_chars`` keeps the canonical ``<envelope>:field:<name>``
+    id; an oversized field is split into ``...:field:<name>:part:NNNN``
+    chunks (D-de-1) so the full artifact survives instead of being
+    truncated by the kernel summary.
 
     Fails loudly if NO field in ``field_order`` yielded a non-empty
     chunk \u2014 an ingestion call with no actionable content is almost
@@ -66,6 +84,11 @@ def envelope_from_task_result(
     """
     if not task_id.strip():
         raise ValueError("envelope_from_task_result: task_id must be non-empty")
+    if max_chunk_chars <= 0:
+        raise ValueError(
+            f"envelope_from_task_result: max_chunk_chars must be > 0, "
+            f"got {max_chunk_chars!r}"
+        )
     serialized = json.dumps(task_result, sort_keys=True, default=str)
     integrity_hash = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
     if envelope_id is None:
@@ -80,12 +103,13 @@ def envelope_from_task_result(
         text = _stringify(value)
         if not text.strip():
             continue
-        chunks.append(
-            IngestionChunk(
-                chunk_id=f"{envelope_id}:field:{field_name}",
+        chunks.extend(
+            _chunks_for_field(
+                envelope_id=envelope_id,
+                task_id=task_id,
+                field_name=field_name,
                 text=text,
-                locator=f"task_id={task_id};field={field_name}",
-                confidence=1.0,
+                max_chunk_chars=max_chunk_chars,
             )
         )
     if not chunks:
@@ -108,6 +132,47 @@ def envelope_from_task_result(
         compliance_profile=compliance_profile,
         partial_failures=(),
     )
+
+
+def _chunks_for_field(
+    *,
+    envelope_id: str,
+    task_id: str,
+    field_name: str,
+    text: str,
+    max_chunk_chars: int,
+) -> list[IngestionChunk]:
+    """Produce one (small field) or many (oversized field) chunks.
+
+    Small fields keep the canonical ``<envelope>:field:<name>`` id so
+    existing consumers / audits do not change. Oversized fields are
+    split with the shared plain-text chunker into deterministic
+    ``...:part:NNNN`` chunks whose locators carry the byte offsets, so
+    the full artifact reaches the kernel one bounded turn at a time
+    instead of being truncated to the ~320-char kernel summary.
+    """
+    if len(text) <= max_chunk_chars:
+        return [
+            IngestionChunk(
+                chunk_id=f"{envelope_id}:field:{field_name}",
+                text=text,
+                locator=f"task_id={task_id};field={field_name}",
+                confidence=1.0,
+            )
+        ]
+    pieces = chunk_plain_text(text, max_chunk_chars=max_chunk_chars)
+    return [
+        IngestionChunk(
+            chunk_id=f"{envelope_id}:field:{field_name}:part:{index:04d}",
+            text=segment,
+            locator=(
+                f"task_id={task_id};field={field_name};"
+                f"part={index};offset={start}-{end}"
+            ),
+            confidence=1.0,
+        )
+        for index, (segment, start, end) in enumerate(pieces)
+    ]
 
 
 def _stringify(value: Any) -> str:

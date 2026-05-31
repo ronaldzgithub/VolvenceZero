@@ -81,6 +81,32 @@ if TYPE_CHECKING:
     from volvence_zero.substrate import OpenWeightResidualRuntime
 
 
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip() in ("1", "true", "True", "yes", "on")
+
+
+def _legacy_single_layer_scope_opt_out() -> bool:
+    """Whether the operator has explicitly opted out of two-layer scope.
+
+    Two-layer ``{tenant}:{end_user}`` scope is the default (debt #46 /
+    D3 / D22). An operator restores the previous single-layer
+    ``scope_key == user_id`` behaviour with either:
+
+    * ``VZ_LEGACY_SINGLE_LAYER_SCOPE=1`` (preferred, explicit), or
+    * ``VZ_TWO_LAYER_SCOPE=0`` / ``=false`` (negating the legacy opt-in).
+
+    A bare / unset / truthy ``VZ_TWO_LAYER_SCOPE`` does NOT opt out — the
+    default is two-layer regardless of that flag now.
+    """
+
+    if _env_flag("VZ_LEGACY_SINGLE_LAYER_SCOPE"):
+        return True
+    raw = os.environ.get("VZ_TWO_LAYER_SCOPE")
+    if raw is not None and raw.strip() in ("0", "false", "False", "no", "off"):
+        return True
+    return False
+
+
 @dataclass
 class _SessionEntry:
     session: LifeformSession
@@ -516,19 +542,29 @@ class SessionManager:
     def _two_layer_scope_enabled(self) -> bool:
         """Whether this manager binds two-layer ``{tenant}:{end_user}`` scope.
 
-        Requires BOTH the adopting contract's
-        ``scope_strategy == "tenant_ai_end_user"`` AND the operator
-        env ``VZ_TWO_LAYER_SCOPE=1`` (opt-in, to avoid silently
-        re-keying existing single-layer on-disk memory).
+        Debt #46 / D3 / D22: two-layer scope is now the **default** for
+        any manager whose adopting contract selects
+        ``scope_strategy == "tenant_ai_end_user"`` (which is itself the
+        default for :class:`MemoryPolicySelection`). The historical
+        ``VZ_TWO_LAYER_SCOPE`` opt-in env is still honoured, but the gate
+        is no longer required to turn two-layer *on*.
+
+        Safety / no-silent-rekey: managers that carry an empty
+        ``scope_strategy`` — notably the standalone closed-alpha service,
+        which keeps single-layer ``scope_key == user_id`` on-disk memory —
+        stay single-layer untouched. Operators with a two-layer-adopting
+        contract that must keep the previous single-layer behaviour
+        (because their durable entries were tagged under the old scope)
+        set ``VZ_LEGACY_SINGLE_LAYER_SCOPE=1`` (or ``VZ_TWO_LAYER_SCOPE=0``)
+        to opt out explicitly, so the migration is observable rather than
+        silent. When they do, the legacy single-layer scope alias remains
+        available via :func:`volvence_zero.memory.legacy_single_layer_scope`
+        for read/delete reconciliation.
         """
 
         if self._scope_strategy != "tenant_ai_end_user":
             return False
-        return os.environ.get("VZ_TWO_LAYER_SCOPE", "").strip() in (
-            "1",
-            "true",
-            "True",
-        )
+        return not _legacy_single_layer_scope_opt_out()
 
     async def create_session(
         self,
@@ -537,6 +573,7 @@ class SessionManager:
         user_id: str | None = None,
         template_id: str | None = None,
         vertical_name: str | None = None,
+        tenant_id: str | None = None,
     ) -> LifeformSession:
         """Mint a new live session.
 
@@ -553,6 +590,13 @@ class SessionManager:
         * non-empty + adapter present — route through
           ``adapter.build_session_context_from_template`` so the
           session inherits the saved profile / drives.
+
+        ``tenant_id`` (D22): optional per-call tenant override for the
+        two-layer scope binding. When two-layer scope is active it takes
+        precedence over the manager's adopting ``tenant_id`` and the
+        closed-alpha default, letting a single multi-tenant front door
+        (e.g. the OpenAI-compat bridge) partition end-user memory per
+        tenant. Ignored in single-layer mode.
         """
         evicted: tuple[_SessionEntry, ...] = ()
         async with self._lock:
@@ -590,10 +634,19 @@ class SessionManager:
                 # the two-layer path so memory partitions per
                 # ``{tenant}:{end_user}`` (debt #46 / #69).
                 if self._two_layer_scope_enabled():
+                    # Per-call ``tenant_id`` (e.g. plumbed from the
+                    # OpenAI-compat bridge ``metadata.tenant_id``) wins;
+                    # otherwise fall back to the manager's adopting
+                    # tenant, then the closed-alpha default tenant.
+                    effective_tenant = (
+                        (tenant_id or "").strip()
+                        or self._tenant_id
+                        or DEFAULT_ALPHA_TENANT_ID
+                    )
                     self._alpha_identity_provider.bind_session(
                         session_id=sid,
                         end_user_id=user_id,
-                        tenant_id=self._tenant_id or DEFAULT_ALPHA_TENANT_ID,
+                        tenant_id=effective_tenant,
                     )
                 else:
                     self._alpha_identity_provider.bind_session_legacy_alias(

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-domain-repair30"
+version = "0.1.0"
+description = "Lifeform vertical: repair30 field-service repair assistant — diagnostic / safety-gate / parts-and-procedure domain package (data-only regime/case/playbook/boundary priors)."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "vz-cognition==0.1.*",
+    "vz-application==0.1.*",
+    "vz-runtime==0.1.*",
+    "lifeform-core==0.1.*",
+    "lifeform-domain-emogpt==0.1.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_domain_repair30*"]

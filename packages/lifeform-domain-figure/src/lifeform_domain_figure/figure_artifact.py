@@ -167,6 +167,17 @@ class FigureArtifactBundle:
             )
 
 
+# D9 vocab alias: the volvence-press / novel-worlds products speak of an
+# "author companion" rather than a "historical figure". The runtime
+# artifact is identical — the author's reviewed profile + corpus compiles
+# into the same immutable bundle. This alias lets Press-side code (and the
+# ``figure-companion`` vertical) refer to the bundle by its product vocab
+# without a parallel schema. It is a pure type alias, NOT a subclass: the
+# integrity hash, byte layout, and ``FigureArtifactBundle`` identity are
+# unchanged, so existing bundles stay byte-stable (additive-only).
+AuthorCompanionBundle = FigureArtifactBundle
+
+
 def compute_bundle_integrity_hash(
     *,
     figure_id: str,

@@ -24,14 +24,17 @@ from volvence_zero.memory.identity import (
     build_scoped_memory_store,
     delete_entries_for_scope,
     derive_scope_key,
+    legacy_single_layer_scope,
     list_durable_entries_for_scope,
     scope_key_for,
     scoped_memory_dir,
 )
 from volvence_zero.memory.persistence import (
     FileSystemPersistenceBackend,
+    InMemoryPersistenceBackend,
     PersistenceBackend,
     deserialize_checkpoint,
+    resolve_persistence_backend,
     serialize_checkpoint,
 )
 from volvence_zero.memory.contracts import MemoryAttributeReadout
@@ -71,6 +74,7 @@ __all__ = [
     "CMSTowerProfile",
     "CMSVariant",
     "FileSystemPersistenceBackend",
+    "InMemoryPersistenceBackend",
     "IdentityProvider",
     "PersistenceBackend",
     "StaticIdentityProvider",
@@ -78,7 +82,9 @@ __all__ = [
     "build_scoped_memory_store",
     "delete_entries_for_scope",
     "deserialize_checkpoint",
+    "legacy_single_layer_scope",
     "list_durable_entries_for_scope",
+    "resolve_persistence_backend",
     "scope_key_for",
     "scoped_memory_dir",
     "serialize_checkpoint",

@@ -22,6 +22,7 @@ from lifeform_ingestion.sources.docx import (
     envelope_from_docx_bytes,
     envelope_from_docx_file,
 )
+from lifeform_ingestion.sources.job_trace import envelope_from_job_trace
 from lifeform_ingestion.sources.pdf import (
     DEFAULT_MAX_PAGES,
     PdfIngestionError,
@@ -29,12 +30,14 @@ from lifeform_ingestion.sources.pdf import (
     envelope_from_pdf_file,
 )
 from lifeform_ingestion.sources.plain_text import (
+    DEFAULT_MAX_CHUNK_CHARS,
     chunk_plain_text,
     envelope_from_text,
 )
 from lifeform_ingestion.sources.task_result import envelope_from_task_result
 
 __all__ = [
+    "DEFAULT_MAX_CHUNK_CHARS",
     "DEFAULT_MAX_PAGES",
     "DEFAULT_MAX_PARAGRAPHS",
     "DocxIngestionError",
@@ -42,6 +45,7 @@ __all__ = [
     "chunk_plain_text",
     "envelope_from_docx_bytes",
     "envelope_from_docx_file",
+    "envelope_from_job_trace",
     "envelope_from_pdf_bytes",
     "envelope_from_pdf_file",
     "envelope_from_task_result",

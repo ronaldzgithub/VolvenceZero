@@ -329,6 +329,9 @@ def main(argv: list[str] | None = None) -> int:
         service_version=args.service_version,
         policy_version=args.policy_version,
         alpha_users=alpha_users,
+        # D6 (#alpha-reload): remember the source file so the running
+        # service can hot-reload the allow-list (endpoint / SIGHUP).
+        alpha_users_path=args.alpha_users_file,
     )
     if args.alpha_enabled and args.memory_scope_root_dir is None:
         print("--alpha-enabled requires --memory-scope-root-dir", file=sys.stderr)

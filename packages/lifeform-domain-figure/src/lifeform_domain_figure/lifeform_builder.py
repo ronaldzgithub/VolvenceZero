@@ -145,6 +145,75 @@ def build_figure_lifeform(
     )
 
 
+def build_figure_lifeform_from_bundle(
+    artifact_bundle: FigureArtifactBundle,
+    *,
+    config: LifeformConfig | None = None,
+    use_vitals_bootstrap: bool = True,
+    memory_store: MemoryStore | None = None,
+    substrate_runtime: Any = None,
+    substrate_adapter_factory: Any = None,
+    response_synthesizer: Any = None,
+    semantic_proposal_runtime: Any = None,
+    identity_provider: Any = None,
+) -> FigureLifeformBundle:
+    """Wake a Lifeform from an already-baked :class:`FigureArtifactBundle`.
+
+    This is the generic ``figure-full <slug>`` factory (D25): given a
+    bundle that the bake pipeline already compiled + persisted to disk
+    (resolved by ``slug`` via ``bundle_io.load_figure_bundle`` or the
+    service-layer figure resolver), construct the runnable Lifeform with
+    **no per-figure code**. The bundle already carries the figure's
+    ``domain_package`` (L4/playbook/boundary owners), ``vitals_bootstrap``
+    (drive shape) and ``profile``; we attach those to a
+    :class:`LifeformConfig` and build the kernel exactly as
+    :func:`build_figure_lifeform` does, but without re-ingesting or
+    re-compiling the corpus (the bundle's integrity hash already pins
+    what the corpus produced — R15).
+
+    Returned ``FigureLifeformBundle.ingestion_envelopes`` is empty: a
+    waked-from-bundle lifeform has no fresh envelopes to drain (the
+    corpus lives behind the bundle's retrieval index, which the
+    expression-layer L3 decoder reads through ``artifact_bundle``).
+
+    Args mirror :func:`build_figure_lifeform`; the caller attaches the
+    returned ``artifact_bundle`` to the LLM synthesizer via
+    ``with_figure_bundle`` for the L1/L3/L4 enforcement path.
+    """
+
+    base_config = config if isinstance(config, LifeformConfig) else LifeformConfig()
+    brain_overrides: dict[str, Any] = {"rare_heavy_enabled": False}
+    if substrate_runtime is not None:
+        brain_overrides["substrate_mode"] = "injected"
+    base_config = _replace(
+        base_config,
+        brain_config=_replace(base_config.brain_config, **brain_overrides),
+    )
+    base_config = base_config.with_domain_experience(
+        (artifact_bundle.domain_package,)
+    )
+    if use_vitals_bootstrap:
+        base_config = base_config.with_vitals(artifact_bundle.vitals_bootstrap)
+    lifeform_kwargs: dict[str, Any] = {"memory_store": memory_store}
+    if substrate_runtime is not None:
+        lifeform_kwargs["substrate_runtime"] = substrate_runtime
+    if substrate_adapter_factory is not None:
+        lifeform_kwargs["substrate_adapter_factory"] = substrate_adapter_factory
+    if response_synthesizer is not None:
+        lifeform_kwargs["response_synthesizer"] = response_synthesizer
+    if semantic_proposal_runtime is not None:
+        lifeform_kwargs["semantic_proposal_runtime"] = semantic_proposal_runtime
+    if identity_provider is not None:
+        lifeform_kwargs["identity_provider"] = identity_provider
+    lifeform = Lifeform(base_config, **lifeform_kwargs)
+    return FigureLifeformBundle(
+        lifeform=lifeform,
+        profile=artifact_bundle.profile,
+        artifact_bundle=artifact_bundle,
+        ingestion_envelopes=(),
+    )
+
+
 def build_einstein_lifeform(
     *,
     config: LifeformConfig | None = None,
@@ -190,4 +259,5 @@ __all__ = [
     "FigureLifeformBundle",
     "build_einstein_lifeform",
     "build_figure_lifeform",
+    "build_figure_lifeform_from_bundle",
 ]

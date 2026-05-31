@@ -282,6 +282,11 @@ async def lifeform_complete(
 
     resolution = derive_session_id(request)
     user_id = request.metadata.get("user_id", "").strip() or None
+    # D22: honour an explicit ``tenant_id`` so a multi-tenant front door
+    # can route end-user memory into the two-layer ``{tenant}:{end_user}``
+    # scope. Empty / missing falls back to the manager's adopting tenant
+    # (then the closed-alpha default) inside ``create_session``.
+    tenant_id = request.metadata.get("tenant_id", "").strip() or None
     # NW9: honour the baked LifeformTemplate id when the caller binds
     # one. Without this the session falls back to the vertical default
     # profile and the character's trained memory_checkpoint never loads.
@@ -293,6 +298,7 @@ async def lifeform_complete(
         session_id=resolution.session_id,
         user_id=user_id,
         template_id=template_id,
+        tenant_id=tenant_id,
     )
 
     if request.messages[-1].role == "tool":
@@ -551,6 +557,7 @@ async def _get_or_create_session(
     session_id: str,
     user_id: str | None,
     template_id: str | None = None,
+    tenant_id: str | None = None,
 ) -> Any:
     """SessionManager get-or-create with a tiny race-tolerant fallback.
 
@@ -584,6 +591,7 @@ async def _get_or_create_session(
             session_id=session_id,
             user_id=user_id,
             template_id=template_id,
+            tenant_id=tenant_id,
         )
     except SessionAlreadyExistsError:
         # Lost the race; fall back to the existing session.
@@ -603,9 +611,12 @@ def reserved_metadata_keys() -> tuple[str, ...]:
 
     * ``session_id`` — explicit override (sticky reuse on a chosen id)
     * ``user_id`` — passed through to ``create_session(user_id=...)``
+    * ``tenant_id`` — passed through to ``create_session(tenant_id=...)``
+      so the two-layer ``{tenant}:{end_user}`` scope partitions memory
+      per tenant (D22)
     * ``dlaas.template_id`` — baked LifeformTemplate id; selects the
       reincarnation template on first ``create_session`` (NW9)
 
     All other keys are stored on the request DTO unchanged.
     """
-    return ("session_id", "user_id", "dlaas.template_id")
+    return ("session_id", "user_id", "tenant_id", "dlaas.template_id")

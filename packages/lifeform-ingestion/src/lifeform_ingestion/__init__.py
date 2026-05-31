@@ -30,6 +30,7 @@ from lifeform_ingestion.pipeline import (
     IngestionTurnRecord,
 )
 from lifeform_ingestion.sources import (
+    DEFAULT_MAX_CHUNK_CHARS,
     DEFAULT_MAX_PAGES,
     DEFAULT_MAX_PARAGRAPHS,
     DocxIngestionError,
@@ -37,6 +38,7 @@ from lifeform_ingestion.sources import (
     chunk_plain_text,
     envelope_from_docx_bytes,
     envelope_from_docx_file,
+    envelope_from_job_trace,
     envelope_from_pdf_bytes,
     envelope_from_pdf_file,
     envelope_from_task_result,
@@ -44,6 +46,7 @@ from lifeform_ingestion.sources import (
 )
 
 __all__ = [
+    "DEFAULT_MAX_CHUNK_CHARS",
     "DEFAULT_MAX_PAGES",
     "DEFAULT_MAX_PARAGRAPHS",
     "DocxIngestionError",
@@ -59,6 +62,7 @@ __all__ = [
     "chunk_plain_text",
     "envelope_from_docx_bytes",
     "envelope_from_docx_file",
+    "envelope_from_job_trace",
     "envelope_from_pdf_bytes",
     "envelope_from_pdf_file",
     "envelope_from_task_result",

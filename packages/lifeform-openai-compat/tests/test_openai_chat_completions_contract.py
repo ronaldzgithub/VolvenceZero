@@ -204,6 +204,7 @@ class _FakeSessionManager:
         session_id: str | None = None,
         user_id: str | None = None,  # noqa: ARG002 - signature parity
         template_id: str | None = None,  # noqa: ARG002
+        tenant_id: str | None = None,  # noqa: ARG002 - D22 signature parity
     ) -> _FakeLifeformSession:
         sid = session_id or "auto-fake"
         if sid in self._sessions:

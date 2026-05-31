@@ -16,16 +16,29 @@ right evidence slice based on intent keywords in the user prompt and uses
 field meanings (privacy_level / owner / type from the registered schema)
 to produce recommendations and structured `DebugVersionSuggestion`s.
 
+`LlmAnalyzer` (D24) is a real model-backed analyzer. It renders the
+centralized prompt (see ``PROMPT_TEMPLATE_PATH`` /
+``SYSTEM_PROMPT_PATH``), calls an injected ``LlmJsonClient`` in JSON
+mode, and parses the structured result back into recommendations +
+``DebugVersionSuggestion``s. It degrades gracefully: with no client
+configured, or on any model / parse failure, it falls back to the
+deterministic logic so the route handler always gets a usable report.
+The ``analysis_mode`` field records which path actually ran.
+
 Selecting an analyzer is environment-gated:
-    DLAAS_DEBUG_ANALYZER=llm  -> placeholder LlmAnalyzer (returns
-                                  deterministic fallback today; will be
-                                  wired to a real model adapter later).
+    DLAAS_DEBUG_ANALYZER=llm  -> LlmAnalyzer wired to a model client
+                                  built from env (DLAAS_DEBUG_LLM_* with a
+                                  fallback to PROTOCOL_LLM_*). If no
+                                  credentials are present the analyzer
+                                  still runs and reports the deterministic
+                                  fallback path honestly.
     anything else / unset      -> DeterministicAnalyzer.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -35,8 +48,23 @@ from dlaas_platform_contracts import (
     DebugAnalysisRequest,
     DebugVersionSuggestion,
 )
+from lifeform_core.external_llm import (
+    LlmJsonClient,
+    OpenAiCompatConfig,
+    OpenAiCompatJsonClient,
+)
+
+_LOG = logging.getLogger("dlaas_platform_api.debug_analysis")
 
 PROMPT_TEMPLATE_PATH = "prompts/debug_analysis.md"
+SYSTEM_PROMPT_PATH = "prompts/debug_analysis_system.md"
+
+# Issue areas the deterministic analyzer emits; the LLM is asked to stay
+# within this set so downstream UI/version-suggestion consumers see a
+# stable enum-like surface. Unknown values are coerced to "unknown".
+_KNOWN_ISSUE_AREAS = frozenset(
+    {"app", "dlaas_runtime", "prompt_template", "deployment", "unknown"}
+)
 
 _INTENT_KEYWORDS: dict[str, tuple[str, ...]] = {
     "handoff": ("handoff", "escalation", "refer-out"),
@@ -68,6 +96,7 @@ def build_debug_analysis(
     *,
     analysis_request: DebugAnalysisRequest,
     evidence: Mapping[str, Any],
+    analyzer: "DebugAnalyzer | None" = None,
 ) -> dict[str, Any]:
     """Run the full analyzer pipeline and return a dict for the route handler.
 
@@ -80,6 +109,9 @@ def build_debug_analysis(
       - evidence_summary     : compact summary for downstream UI
       - recommendations      : tuple of operator-facing strings
       - version_suggestions  : tuple of DebugVersionSuggestion.to_json()
+
+    ``analyzer`` is normally selected from the environment; callers
+    (and tests) may inject a concrete analyzer to bypass the env gate.
     """
     redacted = _redact_evidence(evidence)
     evidence_summary = _summarize_evidence(redacted)
@@ -89,7 +121,8 @@ def build_debug_analysis(
         evidence_summary=evidence_summary,
         intent_tags=intent_tags,
     )
-    analyzer = _select_analyzer()
+    if analyzer is None:
+        analyzer = _select_analyzer()
     output = analyzer.analyze(
         analysis_request=analysis_request,
         evidence_summary=evidence_summary,
@@ -112,8 +145,57 @@ def build_debug_analysis(
 def _select_analyzer() -> DebugAnalyzer:
     requested = (os.environ.get("DLAAS_DEBUG_ANALYZER", "") or "").strip().lower()
     if requested == "llm":
-        return LlmAnalyzer()
+        return LlmAnalyzer(client=_build_llm_client_from_env())
     return DeterministicAnalyzer()
+
+
+def _env(*names: str) -> str:
+    """First non-empty stripped value among ``names`` in the environment."""
+    for name in names:
+        value = (os.environ.get(name, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _build_llm_client_from_env() -> LlmJsonClient | None:
+    """Construct an OpenAI-compatible JSON client for the debug analyzer.
+
+    Reads ``DLAAS_DEBUG_LLM_{API_KEY,BASE_URL,MODEL}`` first, then falls
+    back to the shared ``PROTOCOL_LLM_*`` credentials so a deployment that
+    already configured the protocol-uptake LLM gets debug analysis for
+    free. Returns ``None`` (rather than raising) when credentials are
+    incomplete; the caller's :class:`LlmAnalyzer` then degrades to the
+    deterministic fallback and records that honestly.
+    """
+    api_key = _env("DLAAS_DEBUG_LLM_API_KEY", "PROTOCOL_LLM_API_KEY")
+    base_url = _env("DLAAS_DEBUG_LLM_BASE_URL", "PROTOCOL_LLM_BASE_URL")
+    model = _env("DLAAS_DEBUG_LLM_MODEL", "PROTOCOL_LLM_MODEL")
+    if not (api_key and base_url and model):
+        _LOG.info(
+            "DLAAS_DEBUG_ANALYZER=llm but LLM credentials are incomplete "
+            "(api_key=%s base_url=%s model=%s); debug analysis will use the "
+            "deterministic fallback path.",
+            bool(api_key),
+            bool(base_url),
+            bool(model),
+        )
+        return None
+    timeout = _env("DLAAS_DEBUG_LLM_TIMEOUT_SECONDS")
+    config_kwargs: dict[str, Any] = {
+        "base_url": base_url,
+        "api_key": api_key,
+        "model": model,
+    }
+    if timeout:
+        try:
+            config_kwargs["timeout_seconds"] = float(timeout)
+        except ValueError:
+            _LOG.warning(
+                "Ignoring non-numeric DLAAS_DEBUG_LLM_TIMEOUT_SECONDS=%r",
+                timeout,
+            )
+    return OpenAiCompatJsonClient(OpenAiCompatConfig(**config_kwargs))
 
 
 # ---------------------------------------------------------------------------
@@ -460,17 +542,30 @@ class DeterministicAnalyzer:
 
 
 class LlmAnalyzer(DeterministicAnalyzer):
-    """Placeholder LLM-backed analyzer.
+    """Model-backed analyzer (D24).
 
-    Today this just delegates to the deterministic logic so the public
-    interface stays exercised. Wiring a real model adapter is a follow-up
-    tracked in D24 — when it lands, it should consume the rendered
-    `prompt_preview` and return both recommendations and structured
-    `DebugVersionSuggestion`s.
+    Given an :class:`LlmJsonClient`, it sends the centralized system +
+    user prompts to the model in JSON mode and parses the structured
+    result into recommendations + ``DebugVersionSuggestion``s.
+
+    Failure handling is deliberate and visible (R: no swallowed errors):
+
+    * No client configured        -> ``analysis_mode="llm_unconfigured_fallback"``
+    * Client error / bad JSON      -> ``analysis_mode="llm_error_fallback"``
+                                      + a recommendation naming the failure
+    * Model returned no content    -> same error-fallback path
+    * Success                      -> ``analysis_mode="llm"``
+
+    In every fallback case the deterministic analysis is returned so the
+    operator still gets a usable report; the mode string tells them which
+    path produced it.
     """
 
-    analyzer_id = "llm_fallback"
-    analyzer_version = "v0"
+    analyzer_id = "llm"
+    analyzer_version = "v1"
+
+    def __init__(self, client: LlmJsonClient | None = None) -> None:
+        self._client = client
 
     def analyze(
         self,
@@ -480,14 +575,129 @@ class LlmAnalyzer(DeterministicAnalyzer):
         prompt_preview: str,
         intent_tags: tuple[str, ...],
     ) -> dict[str, Any]:
+        if self._client is None:
+            return self._fallback(
+                analysis_request=analysis_request,
+                evidence_summary=evidence_summary,
+                prompt_preview=prompt_preview,
+                intent_tags=intent_tags,
+                mode="llm_unconfigured_fallback",
+            )
+        try:
+            raw = self._client.complete_json(
+                system_prompt=_read_package_text(SYSTEM_PROMPT_PATH),
+                user_prompt=prompt_preview,
+            )
+            recommendations, suggestions = _parse_llm_output(raw)
+        except Exception as exc:  # noqa: BLE001 - degrade, but record the reason
+            _LOG.warning("LlmAnalyzer fell back to deterministic: %s", exc)
+            output = self._fallback(
+                analysis_request=analysis_request,
+                evidence_summary=evidence_summary,
+                prompt_preview=prompt_preview,
+                intent_tags=intent_tags,
+                mode="llm_error_fallback",
+            )
+            output["recommendations"] = (
+                f"LLM debug analysis failed ({type(exc).__name__}); "
+                "showing deterministic fallback instead.",
+                *output["recommendations"],
+            )
+            return output
+        return {
+            "analysis_mode": "llm",
+            "recommendations": recommendations,
+            "version_suggestions": tuple(
+                suggestion.to_json() for suggestion in suggestions
+            ),
+        }
+
+    def _fallback(
+        self,
+        *,
+        analysis_request: DebugAnalysisRequest,
+        evidence_summary: Mapping[str, Any],
+        prompt_preview: str,
+        intent_tags: tuple[str, ...],
+        mode: str,
+    ) -> dict[str, Any]:
         output = super().analyze(
             analysis_request=analysis_request,
             evidence_summary=evidence_summary,
             prompt_preview=prompt_preview,
             intent_tags=intent_tags,
         )
-        output["analysis_mode"] = "llm_fallback"
+        output["analysis_mode"] = mode
         return output
+
+
+def _parse_llm_output(
+    raw: Mapping[str, Any],
+) -> tuple[tuple[str, ...], tuple[DebugVersionSuggestion, ...]]:
+    """Parse the model's JSON object into typed analysis output.
+
+    Raises ``ValueError`` if the payload has no usable content so the
+    caller can fall back to the deterministic analyzer instead of
+    surfacing an empty (and misleading) report.
+    """
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"LLM output is not a JSON object: {type(raw)!r}")
+    recommendations = tuple(
+        text
+        for text in (
+            str(item).strip() for item in _as_list(raw.get("recommendations"))
+        )
+        if text
+    )
+    suggestions = tuple(
+        _suggestion_from_json(item)
+        for item in _as_list(raw.get("version_suggestions"))
+        if isinstance(item, Mapping)
+    )
+    if not recommendations and not suggestions:
+        raise ValueError(
+            "LLM output had neither recommendations nor version_suggestions"
+        )
+    return recommendations, suggestions
+
+
+def _as_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    return []
+
+
+def _suggestion_from_json(item: Mapping[str, Any]) -> DebugVersionSuggestion:
+    issue_area = str(item.get("issue_area", "") or "unknown").strip().lower()
+    if issue_area not in _KNOWN_ISSUE_AREAS:
+        issue_area = "unknown"
+    evidence_refs = tuple(
+        str(ref).strip()
+        for ref in _as_list(item.get("evidence_refs"))
+        if str(ref).strip()
+    )
+    recommended_owner = str(item.get("recommended_owner", "") or "operator").strip()
+    proposed_next_test = str(item.get("proposed_next_test", "") or "").strip()
+    confidence = _clamp_confidence(item.get("confidence"))
+    return DebugVersionSuggestion(
+        issue_area=issue_area,
+        evidence_refs=evidence_refs,
+        recommended_owner=recommended_owner or "operator",
+        confidence=confidence,
+        proposed_next_test=proposed_next_test,
+    )
+
+
+def _clamp_confidence(value: Any) -> float:
+    try:
+        conf = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if conf < 0.0:
+        return 0.0
+    if conf > 1.0:
+        return 1.0
+    return conf
 
 
 __all__ = [
@@ -495,5 +705,6 @@ __all__ = [
     "DeterministicAnalyzer",
     "LlmAnalyzer",
     "PROMPT_TEMPLATE_PATH",
+    "SYSTEM_PROMPT_PATH",
     "build_debug_analysis",
 ]

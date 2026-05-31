@@ -61,6 +61,11 @@ class _FakeLifeformSession:
         self.session_id = session_id
         self.turn_summaries: list[_FakeTurnSummary] = []
         self.run_turn_calls: list[str] = []
+        # The real LifeformSession always exposes an affordance invoker
+        # (the service attaches a default MCP bundle). ``None`` here means
+        # "no server-side tool loop", so non-tool turns go straight to
+        # ``run_turn`` — which is what these bridge tests exercise.
+        self.mcp_invoker = None
 
     async def run_turn(self, user_input: str) -> _FakeRunResult:
         self.run_turn_calls.append(user_input)
@@ -86,6 +91,8 @@ class _FakeSessionManager:
         self.vertical_name = vertical_name
         self._sessions: dict[str, _FakeLifeformSession] = {}
         self.create_calls: list[tuple[str | None, str | None]] = []
+        # D22: record the per-call tenant_id the bridge plumbs through.
+        self.tenant_calls: list[str | None] = []
 
     async def has_session(self, session_id: str) -> bool:
         return session_id in self._sessions
@@ -99,9 +106,11 @@ class _FakeSessionManager:
         session_id: str | None = None,
         user_id: str | None = None,
         template_id: str | None = None,  # noqa: ARG002 - parity with real signature
+        tenant_id: str | None = None,
     ) -> _FakeLifeformSession:
         sid = session_id or "auto-fake"
         self.create_calls.append((sid, user_id))
+        self.tenant_calls.append(tenant_id)
         if sid in self._sessions:
             from lifeform_service import SessionAlreadyExistsError
 
@@ -279,6 +288,11 @@ def test_reserved_metadata_keys_includes_session_id_and_user_id() -> None:
     assert "user_id" in keys
 
 
+def test_reserved_metadata_keys_includes_tenant_id() -> None:
+    # D22: tenant_id is interpreted by the bridge (two-layer scope).
+    assert "tenant_id" in reserved_metadata_keys()
+
+
 # ---------------------------------------------------------------------------
 # lifeform_complete (async)
 # ---------------------------------------------------------------------------
@@ -399,6 +413,30 @@ async def test_lifeform_complete_passes_user_id_to_create_session() -> None:
     )
     await lifeform_complete(request=request, manager=manager)
     assert manager.create_calls[0] == ("harness-arc-002", "alice")
+
+
+async def test_lifeform_complete_passes_tenant_id_to_create_session() -> None:
+    # D22: metadata.tenant_id is plumbed through to create_session so the
+    # two-layer {tenant}:{end_user} scope partitions memory per tenant.
+    manager = _FakeSessionManager()
+    request = _request(
+        ("user", "hi"),
+        metadata={
+            "session_id": "harness-arc-003",
+            "user_id": "alice",
+            "tenant_id": "brand_a",
+        },
+    )
+    await lifeform_complete(request=request, manager=manager)
+    assert manager.create_calls[0] == ("harness-arc-003", "alice")
+    assert manager.tenant_calls[0] == "brand_a"
+
+
+async def test_lifeform_complete_tenant_id_defaults_none_when_absent() -> None:
+    manager = _FakeSessionManager()
+    request = _request(("user", "hi"), metadata={"session_id": "no-tenant"})
+    await lifeform_complete(request=request, manager=manager)
+    assert manager.tenant_calls[0] is None
 
 
 async def test_lifeform_complete_sends_only_latest_user_message_to_kernel() -> None:

@@ -163,6 +163,7 @@ from lifeform_domain_figure.coverage_map import (
 )
 from lifeform_domain_figure.figure_artifact import (
     SCHEMA_VERSION as FIGURE_BUNDLE_SCHEMA_VERSION,
+    AuthorCompanionBundle,
     FigureArtifactBundle,
     bundle_id_from_hash,
     compute_bundle_integrity_hash,
@@ -171,6 +172,7 @@ from lifeform_domain_figure.lifeform_builder import (
     FigureLifeformBundle,
     build_einstein_lifeform,
     build_figure_lifeform,
+    build_figure_lifeform_from_bundle,
 )
 from lifeform_domain_figure.gate_apply import (
     GatedPersonaLoRAProposal,
@@ -349,6 +351,7 @@ __all__ = [
     "build_figure_style_prior",
     # Bundle (P2.3)
     "FIGURE_BUNDLE_SCHEMA_VERSION",
+    "AuthorCompanionBundle",
     "FigureArtifactBundle",
     "FigureBundleInputs",
     "attach_lora_to_bundle",
@@ -376,6 +379,7 @@ __all__ = [
     "FigureLifeformBundle",
     "build_einstein_lifeform",
     "build_figure_lifeform",
+    "build_figure_lifeform_from_bundle",
     # Contrast set + steering data prep (P5.1)
     "FigureContrastPair",
     "FigureContrastSet",

@@ -182,3 +182,46 @@ def test_envelope_from_task_result_records_integrity_hash() -> None:
     # Changed payload => different hash.
     c = envelope_from_task_result({"summary": "y"}, task_id="t-1")
     assert a.provenance.integrity_hash != c.provenance.integrity_hash
+
+
+# ---------------------------------------------------------------------------
+# D-de-1: chunked artifact ingestion for oversized task_result fields
+# ---------------------------------------------------------------------------
+
+
+def test_envelope_from_task_result_small_field_keeps_canonical_chunk_id() -> None:
+    # A field that fits keeps the single ``:field:<name>`` id (no part suffix),
+    # so existing audits / consumers are unaffected.
+    envelope = envelope_from_task_result(
+        {"detail": "short detail"},
+        task_id="t-small",
+    )
+    assert envelope.total_chunks == 1
+    assert envelope.chunks[0].chunk_id.endswith(":field:detail")
+
+
+def test_envelope_from_task_result_oversized_field_is_subchunked() -> None:
+    big_detail = "x" * 5000
+    envelope = envelope_from_task_result(
+        {"summary": "ok", "detail": big_detail},
+        task_id="t-big",
+        max_chunk_chars=1000,
+    )
+    detail_chunks = [c for c in envelope.chunks if ":field:detail" in c.chunk_id]
+    # 5000 chars / 1000 -> 5 bounded sub-chunks, none truncated.
+    assert len(detail_chunks) == 5
+    for chunk in detail_chunks:
+        assert len(chunk.text) <= 1000
+        assert ":part:" in chunk.chunk_id
+        assert "offset=" in chunk.locator
+    # The full content survives: concatenating the parts reproduces it.
+    assert "".join(c.text for c in detail_chunks) == big_detail
+    # The small field stays a single canonical chunk.
+    summary_chunks = [c for c in envelope.chunks if ":field:summary" in c.chunk_id]
+    assert len(summary_chunks) == 1
+    assert summary_chunks[0].chunk_id.endswith(":field:summary")
+
+
+def test_envelope_from_task_result_rejects_nonpositive_max() -> None:
+    with pytest.raises(ValueError, match="max_chunk_chars"):
+        envelope_from_task_result({"summary": "x"}, task_id="t", max_chunk_chars=0)

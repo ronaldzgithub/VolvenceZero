@@ -78,7 +78,9 @@ def cmd_bake_bundle(args: argparse.Namespace) -> int:
             f"figure {args.figure!r} is not yet wired for bake-bundle "
             f"(see known-debts.md #27 for lu_xun corpus follow-up). "
             f"Dynamic family memorial profiles require both "
-            f"--figure family_<id> and --profile-file <path.json>.",
+            f"--figure family_<id> and --profile-file <path.json>; "
+            f"myriad personas require --figure myriad_<id> and "
+            f"--profile-file <path.json>.",
             file=sys.stderr,
         )
         return EXIT_USAGE
@@ -653,6 +655,31 @@ def _resolve_figure_factories(
                 f"{profile.profile_id!r} in {loaded_path}; the bake-worker "
                 "is the only authorised producer of family profile files "
                 "and must keep these two ids in lock-step."
+            )
+        return (lambda profile=profile: profile, None)
+    if figure.startswith("myriad_"):
+        # D-myriad-1: operator-configured generic figure personas. Like
+        # the family path these are CURATED-CORPUS ONLY — the corpus is
+        # the operator's uploaded text, not a reviewer-curated synthesizer
+        # output — so we return a profile factory and ``None`` for corpus.
+        if profile_file is None:
+            print(
+                f"figure {figure!r} requires --profile-file pointing at "
+                "a myriad persona profile JSON",
+                file=sys.stderr,
+            )
+            return (None, None)
+        from lifeform_domain_figure.profiles.myriad import (
+            load_myriad_profile_file,
+        )
+        loaded_path = pathlib.Path(profile_file)
+        profile = load_myriad_profile_file(loaded_path)
+        if profile.profile_id != figure:
+            raise ValueError(
+                f"--figure {figure!r} does not match profile_id "
+                f"{profile.profile_id!r} in {loaded_path}; the myriad "
+                "operator tool is the only authorised producer of myriad "
+                "profile files and must keep these two ids in lock-step."
             )
         return (lambda profile=profile: profile, None)
     return (None, None)

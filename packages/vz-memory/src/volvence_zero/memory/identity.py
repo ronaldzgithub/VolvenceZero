@@ -33,7 +33,11 @@ from volvence_zero.memory.contracts import (
     MemoryStoreCheckpoint,
     MemoryStratum,
 )
-from volvence_zero.memory.persistence import FileSystemPersistenceBackend
+from volvence_zero.memory.persistence import (
+    FileSystemPersistenceBackend,
+    PersistenceBackend,
+    resolve_persistence_backend,
+)
 from volvence_zero.memory.store import MemoryStore, build_default_memory_store
 
 
@@ -208,6 +212,34 @@ def scope_key_for(identity: UserIdentity | None) -> str:
     return identity.scope_key
 
 
+def legacy_single_layer_scope(identity: UserIdentity | None) -> str | None:
+    """Return the pre-two-layer single-layer ``user_scope`` alias, if any.
+
+    Before debt #46 flipped two-layer scope to the default, durable
+    memory entries were tagged ``user_scope:<user_id>`` (the bare
+    end-user id). After the flip the same end user is tagged
+    ``user_scope:<tenant>:<end_user>``. The on-disk *checkpoint files*
+    are keyed by ``user_id`` directory and so are byte-identical across
+    the flip, but the ``user_scope:<scope>`` *tags* embedded on durable
+    entries differ. Hosts that need to keep finding / deleting memory
+    written under the old single-layer key pass this alias to
+    :func:`list_durable_entries_for_scope` /
+    :func:`delete_entries_for_scope` via ``extra_scopes`` so the
+    migration never silently orphans on-disk memory (the kernel
+    constraint: do not silently re-key existing memory).
+
+    Returns ``None`` when the identity is already single-layer
+    (``scope_key == user_id``) or anonymous — there is no distinct
+    legacy alias to add.
+    """
+
+    if identity is None:
+        return None
+    if identity.scope_key == identity.user_id:
+        return None
+    return identity.user_id
+
+
 def _safe_scope_dirname(user_id: str) -> str:
     """Return a filesystem-safe directory name for a logical scope key.
 
@@ -238,6 +270,7 @@ def build_scoped_memory_store(
     latent_dim: int = 8,
     nested_profile: bool = True,
     seed_checkpoint: MemoryStoreCheckpoint | None = None,
+    persistence_backend: PersistenceBackend | None = None,
 ) -> MemoryStore:
     """Build a ``MemoryStore`` for the given identity.
 
@@ -249,6 +282,17 @@ def build_scoped_memory_store(
       ``<root_dir>/<user_id>/memory`` plus a parallel eager-load so
       previous sessions' durable entries are available to the new
       session.
+
+    D2 (pluggable scoped-memory backend): ``persistence_backend`` lets a
+    host inject any :class:`PersistenceBackend` (e.g. a Postgres-backed
+    backend) instead of the on-disk JSON default. When ``None`` the
+    backend is resolved via
+    :func:`volvence_zero.memory.persistence.resolve_persistence_backend`
+    (env ``VZ_MEMORY_BACKEND`` / ``VZ_MEMORY_PG_DSN``), which defaults to
+    the historical :class:`FileSystemPersistenceBackend` so existing
+    deployments are byte-for-byte unchanged. The two-layer ``scope_key``
+    is used as the backend ``namespace`` so a shared Postgres instance
+    partitions every tenant/end-user without filesystem fan-out.
 
     NW10: ``seed_checkpoint`` lets a baked LifeformTemplate's canonical
     ``memory_checkpoint`` seed the scoped store **exactly once** — on the
@@ -270,13 +314,30 @@ def build_scoped_memory_store(
         if seed_checkpoint is not None:
             store.restore_checkpoint(seed_checkpoint)
         return store
-    if root_dir is None:
-        raise ValueError(
-            "root_dir is required when building a scoped MemoryStore for a known identity."
-        )
-    user_dir = scoped_memory_dir(root_dir=root_dir, user_id=identity.user_id)
-    user_dir.mkdir(parents=True, exist_ok=True)
-    backend = FileSystemPersistenceBackend(base_dir=str(user_dir))
+    if persistence_backend is not None:
+        backend: PersistenceBackend = persistence_backend
+    else:
+        # Resolve the backend through the SSOT funnel. The filesystem
+        # default still requires (and mkdir-creates) the per-scope
+        # directory so existing on-disk deployments are unchanged; a
+        # non-filesystem backend (memory / postgres) namespaces by the
+        # logical scope_key instead.
+        backend_choice = os.environ.get("VZ_MEMORY_BACKEND", "").strip().lower()
+        if backend_choice in ("", "filesystem", "file", "fs"):
+            if root_dir is None:
+                raise ValueError(
+                    "root_dir is required when building a scoped MemoryStore "
+                    "for a known identity (filesystem backend)."
+                )
+            user_dir = scoped_memory_dir(root_dir=root_dir, user_id=identity.user_id)
+            user_dir.mkdir(parents=True, exist_ok=True)
+            backend = FileSystemPersistenceBackend(base_dir=str(user_dir))
+        else:
+            backend = resolve_persistence_backend(
+                base_dir=root_dir,
+                namespace=identity.scope_key,
+                backend=backend_choice,
+            )
     store = build_default_memory_store(
         latent_dim=latent_dim, nested_profile=nested_profile
     )
@@ -306,21 +367,43 @@ def _durable_entries_iter(store: MemoryStore) -> Iterable[MemoryEntry]:
     return store._entries_for(MemoryStratum.DURABLE)  # noqa: SLF001
 
 
+def _scope_tags(user_scope: str, extra_scopes: tuple[str, ...]) -> frozenset[str]:
+    """Build the set of ``user_scope:<scope>`` tags to match.
+
+    ``extra_scopes`` lets callers add backward-compat aliases (e.g. the
+    pre-two-layer single-layer key from :func:`legacy_single_layer_scope`)
+    so durable entries written under an older scope convention are still
+    found after the two-layer-default flip. Empty / whitespace aliases
+    are dropped so an absent legacy alias is a no-op.
+    """
+
+    scopes = [user_scope, *extra_scopes]
+    return frozenset(f"user_scope:{scope}" for scope in scopes if scope and scope.strip())
+
+
 def list_durable_entries_for_scope(
     store: MemoryStore,
     *,
     user_scope: str,
+    extra_scopes: tuple[str, ...] = (),
 ) -> tuple[MemoryEntry, ...]:
     """Return DURABLE rupture-repair entries tagged with ``user_scope``.
 
     v0 convention: entries tagged ``user_scope:<scope>`` are scoped to
     that user. Entries missing the tag are not scope-attributable and
     are excluded from this helper.
+
+    ``extra_scopes`` adds backward-compat alias scopes (e.g. the
+    pre-two-layer single-layer key) so a host migrating to the
+    two-layer-default scope can still enumerate memory written under
+    the old single-layer tag. Defaults to no aliases (legacy behaviour).
     """
 
-    tag = f"user_scope:{user_scope}"
+    tags = _scope_tags(user_scope, extra_scopes)
     return tuple(
-        entry for entry in _durable_entries_iter(store) if tag in entry.tags
+        entry
+        for entry in _durable_entries_iter(store)
+        if any(tag in entry.tags for tag in tags)
     )
 
 
@@ -328,6 +411,7 @@ def delete_entries_for_scope(
     store: MemoryStore,
     *,
     user_scope: str,
+    extra_scopes: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     """Delete DURABLE entries tagged with ``user_scope``.
 
@@ -335,14 +419,20 @@ def delete_entries_for_scope(
     *not* rebuilt here — it is a projection that re-derives on next
     retrieval (``docs/specs/continuum-memory.md``). Transient and
     episodic entries are session-local and left untouched.
+
+    ``extra_scopes`` adds backward-compat alias scopes (see
+    :func:`list_durable_entries_for_scope`) so a two-layer-default
+    deletion still reaches memory tagged under the old single-layer
+    key — closing the GDPR / PIPL "right to be forgotten" hole that a
+    silent re-key would otherwise open.
     """
 
-    tag = f"user_scope:{user_scope}"
+    tags = _scope_tags(user_scope, extra_scopes)
     artifact_store = store._artifact_store  # noqa: SLF001
     targets = tuple(
         entry.entry_id
         for entry in artifact_store.entries_for(MemoryStratum.DURABLE)
-        if tag in entry.tags
+        if any(tag in entry.tags for tag in tags)
     )
     deleted: list[str] = []
     for entry_id in targets:
@@ -363,6 +453,7 @@ __all__ = [
     "build_scoped_memory_store",
     "delete_entries_for_scope",
     "derive_scope_key",
+    "legacy_single_layer_scope",
     "list_durable_entries_for_scope",
     "scope_key_for",
     "scoped_memory_dir",

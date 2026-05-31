@@ -221,6 +221,10 @@ def create_app(
         substrate_provider.current_runtime if substrate_provider is not None else None
     )
     app["alpha_config"] = alpha
+    # D6 (#alpha-reload): keep the identity provider reachable from
+    # request handlers so the allow-list can be hot-reloaded (reload
+    # endpoint / SIGHUP) without a platform restart.
+    app["alpha_provider"] = alpha_provider
     app["templates_root_dir"] = service_templates_root
     # Shared external LLM client. Any vertical / route handler that
     # wants LLM access reads ``app["external_llm_client"]`` (may be
@@ -261,6 +265,11 @@ def create_app(
     )
     app.router.add_delete("/v1/users/me/memory", _handle_delete_user_memory)
     app.router.add_get("/v1/admin/weekly-report", _handle_admin_weekly_report)
+    app.router.add_post("/v1/admin/alpha/reload", _handle_reload_alpha_users)
+    # D6 (#alpha-reload): on POSIX, SIGHUP also triggers a reload so ops
+    # can `kill -HUP <pid>` after editing the allow-list file. Windows has
+    # no SIGHUP; the HTTP endpoint is the cross-platform path.
+    app.on_startup.append(_install_alpha_reload_signal_handler)
     if protocol_uptake_service is not None:
         register_protocol_routes(app, uptake_service=protocol_uptake_service)
     # Governance-demo simulator routes. The cache is always installed
@@ -1029,6 +1038,83 @@ async def _handle_delete_user_memory(request: web.Request) -> web.Response:
             "evidence_artifact_ref": evidence_ref,
         }
     )
+
+
+def _reload_alpha_allow_list(app: web.Application) -> dict[str, Any]:
+    """Re-read the alpha allow-list file and apply it in place (D6).
+
+    Returns a small JSON-safe summary. Raises ``_BadRequest`` when the
+    allow-list is inline (not file-backed) so the caller cannot get a
+    misleading "reloaded" success. Any malformed file propagates as an
+    exception and the previous allow-list stays in force (the provider
+    only swaps in the new set after a successful parse).
+    """
+
+    alpha: AlphaServiceConfig = app["alpha_config"]
+    provider: AlphaIdentityProvider | None = app.get("alpha_provider")
+    if not alpha.enabled or provider is None:
+        raise _BadRequest("alpha_disabled", "closed alpha is disabled")
+    if alpha.alpha_users_path is None:
+        raise _BadRequest(
+            "alpha_users_not_file_backed",
+            "allow-list was supplied inline; nothing to reload from disk",
+        )
+    previous = provider.allowed_users
+    refreshed = provider.reload_allowed_users_from_file(alpha.alpha_users_path)
+    # Keep the frozen config in sync so ``alpha.is_allowed`` (used by the
+    # route-level gate) sees the same set as the provider's bind path.
+    app["alpha_config"] = alpha.with_alpha_users(refreshed)
+    added = sorted(refreshed - previous)
+    removed = sorted(previous - refreshed)
+    _LOG.info(
+        "alpha allow-list reloaded from %s: %d users (+%d/-%d)",
+        alpha.alpha_users_path,
+        len(refreshed),
+        len(added),
+        len(removed),
+    )
+    return {
+        "reloaded": True,
+        "source": alpha.alpha_users_path,
+        "allowed_user_count": len(refreshed),
+        "added_users": added,
+        "removed_users": removed,
+    }
+
+
+async def _handle_reload_alpha_users(request: web.Request) -> web.Response:
+    """``POST /v1/admin/alpha/reload`` — hot-reload the allow-list (D6).
+
+    Lets a new closed-alpha sign-in take effect without restarting the
+    platform: ops append the user to the allow-list file (visible to the
+    running process via the shared PVC) and call this endpoint.
+    """
+
+    summary = _reload_alpha_allow_list(request.app)
+    return _json_ok(summary)
+
+
+async def _install_alpha_reload_signal_handler(app: web.Application) -> None:
+    """Wire SIGHUP → allow-list reload on POSIX (no-op on Windows) (D6)."""
+
+    import asyncio
+    import signal
+
+    if not hasattr(signal, "SIGHUP"):
+        return  # Windows / platforms without SIGHUP — endpoint only.
+
+    def _on_sighup() -> None:
+        try:
+            _reload_alpha_allow_list(app)
+        except Exception as exc:  # pragma: no cover - defensive ops path
+            _LOG.warning("alpha allow-list SIGHUP reload failed: %s", exc)
+
+    loop = asyncio.get_running_loop()
+    try:
+        loop.add_signal_handler(signal.SIGHUP, _on_sighup)
+    except (NotImplementedError, RuntimeError):  # pragma: no cover
+        # Some loops (e.g. on Windows) do not support signal handlers.
+        _LOG.debug("SIGHUP handler not installed; use the reload endpoint")
 
 
 async def _handle_admin_weekly_report(request: web.Request) -> web.Response:

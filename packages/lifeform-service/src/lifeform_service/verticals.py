@@ -1070,10 +1070,302 @@ def _try_novel_worlds_character() -> VerticalSpec | None:
     )
 
 
+def _build_figure_vertical_lifeform(
+    *,
+    runtime,
+    use_alpha: bool,
+    identity_provider=None,
+    memory_scope_root_dir=None,
+    register_lora: bool,
+    condition_label: str,
+    slug_env: str,
+):
+    """Construct a generic figure :class:`Lifeform` for a slug-driven vertical.
+
+    Resolves the process-default figure bundle from disk via
+    :func:`lifeform_service.figure_resolver.resolve_figure_bundle`
+    (keyed by ``slug_env``). When a disk bundle is found it is waked
+    through the per-figure-code-free
+    :func:`lifeform_domain_figure.build_figure_lifeform_from_bundle`
+    factory (D25) and its L1/L3/L4 artifacts are attached to the LLM
+    synthesizer. When no slug is pinned (the common case — the real
+    per-ai_id bundle is bound later by the DLaaS adopt path) or the
+    pinned bundle is missing on disk, we fall back to a placeholder
+    Einstein calibration basin so the vertical still produces a
+    runnable lifeform; the dedicated vertical NAME + adopt-time binding
+    are what give press / novel-worlds their own boundary.
+
+    ``register_lora`` mirrors the einstein-full arm: when True a
+    resolved bundle's baked persona-LoRA (if present) is registered in
+    the process-wide pool so the synthesizer's auto-activate hook fires.
+    """
+
+    from lifeform_core import LifeformConfig
+    from lifeform_domain_figure import (
+        build_einstein_lifeform,
+        build_figure_lifeform_from_bundle,
+    )
+
+    from lifeform_service.figure_resolver import resolve_figure_bundle
+
+    config: LifeformConfig | None = None
+    if use_alpha:
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+        )
+
+    resolution = resolve_figure_bundle(slug_env=slug_env)
+    base_synthesizer = _expression_synthesizer_for_runtime(
+        runtime, repair_alpha_enabled=use_alpha
+    )
+
+    if resolution.bundle is not None:
+        artifact = resolution.bundle
+        bound_synthesizer = _attach_figure_bundle(base_synthesizer, artifact)
+        lora_record_id: str | None = None
+        if register_lora:
+            lora_record_id = _register_einstein_persona_lora_if_present(artifact)
+        rebound = build_figure_lifeform_from_bundle(
+            artifact,
+            config=config,
+            substrate_runtime=runtime,
+            response_synthesizer=bound_synthesizer,
+            identity_provider=identity_provider if use_alpha else None,
+        )
+        _log_figure_vertical_ready(
+            condition_label=condition_label,
+            figure_id=resolution.figure_id,
+            bundle_id=resolution.bundle_id,
+            source=resolution.source,
+            lora_record_id=lora_record_id,
+            lora_present_in_bundle=getattr(artifact, "lora", None) is not None,
+        )
+        return rebound.lifeform
+
+    # Placeholder fallback: no disk bundle bound for this process default.
+    # Reuse the Einstein synthetic calibration basin until the adopt path
+    # binds a real per-ai_id author bundle (documented posture; mirrors
+    # einstein-bundle's synthetic fallback).
+    seed_bundle = build_einstein_lifeform(
+        config=config,
+        substrate_runtime=runtime,
+        identity_provider=identity_provider if use_alpha else None,
+    )
+    artifact = seed_bundle.artifact_bundle
+    bound_synthesizer = _attach_figure_bundle(base_synthesizer, artifact)
+    rebound = build_einstein_lifeform(
+        config=config,
+        substrate_runtime=runtime,
+        response_synthesizer=bound_synthesizer,
+        identity_provider=identity_provider if use_alpha else None,
+    )
+    _log_figure_vertical_ready(
+        condition_label=condition_label,
+        figure_id=resolution.figure_id or "(placeholder)",
+        bundle_id="",
+        source=resolution.source,
+        lora_record_id=None,
+        lora_present_in_bundle=False,
+    )
+    return rebound.lifeform
+
+
+def _log_figure_vertical_ready(
+    *,
+    condition_label: str,
+    figure_id: str,
+    bundle_id: str,
+    source: str,
+    lora_record_id: str | None,
+    lora_present_in_bundle: bool,
+) -> None:
+    """Single-line stderr breadcrumb so operators can audit the wiring."""
+
+    import sys
+
+    lora_label = (
+        f"lora_record={lora_record_id}"
+        if lora_record_id
+        else (
+            "lora_artifact=in-bundle (not registered)"
+            if lora_present_in_bundle
+            else "lora=absent"
+        )
+    )
+    print(
+        f"[verticals] {condition_label} figure_id={figure_id or '-'} "
+        f"bundle_id={bundle_id or '-'} source={source} {lora_label}",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def _try_figure_companion() -> VerticalSpec | None:
+    """Generic author-companion vertical (D-press-1 / D9).
+
+    The boundary volvence-press / novel-worlds / coread readers wake
+    against instead of ``einstein-full``. L1/L3/L4 enforcement is on
+    (figure bundle attached to the synthesizer); persona-LoRA is NOT
+    registered (companion arm, mirrors ``einstein-bundle``). The actual
+    per-author / per-figure bundle is bound at DLaaS adopt time; the
+    process default is resolved from ``FIGURE_COMPANION_SLUG`` when set.
+    """
+
+    try:
+        from lifeform_domain_figure import build_einstein_lifeform  # noqa: F401
+    except ImportError:
+        return None
+
+    def factory(runtime):
+        return _build_figure_vertical_lifeform(
+            runtime=runtime,
+            use_alpha=False,
+            register_lora=False,
+            condition_label="figure-companion",
+            slug_env="FIGURE_COMPANION_SLUG",
+        )
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        return _build_figure_vertical_lifeform(
+            runtime=runtime,
+            use_alpha=True,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            register_lora=False,
+            condition_label="figure-companion",
+            slug_env="FIGURE_COMPANION_SLUG",
+        )
+
+    return VerticalSpec(
+        name="figure-companion",
+        factory=factory,
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        alpha_factory=alpha_factory,
+    )
+
+
+def _try_figure_full() -> VerticalSpec | None:
+    """Generic ``figure-full <slug>`` vertical (D25).
+
+    The slug-driven equivalent of ``einstein-full``: L1/L3/L4 + persona
+    LoRA active, but for ANY baked figure (coread historical figures,
+    press author companions, family / myriad personas) without
+    per-figure code. The process default is resolved from
+    ``FIGURE_FULL_SLUG``; per-ai_id binding happens at adopt time.
+    """
+
+    try:
+        from lifeform_domain_figure import build_einstein_lifeform  # noqa: F401
+    except ImportError:
+        return None
+
+    def factory(runtime):
+        return _build_figure_vertical_lifeform(
+            runtime=runtime,
+            use_alpha=False,
+            register_lora=True,
+            condition_label="figure-full",
+            slug_env="FIGURE_FULL_SLUG",
+        )
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        return _build_figure_vertical_lifeform(
+            runtime=runtime,
+            use_alpha=True,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            register_lora=True,
+            condition_label="figure-full",
+            slug_env="FIGURE_FULL_SLUG",
+        )
+
+    return VerticalSpec(
+        name="figure-full",
+        factory=factory,
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
+        alpha_factory=alpha_factory,
+    )
+
+
+def _try_repair30() -> VerticalSpec | None:
+    """Repair30 field-service vertical (``repair30-full``, D23).
+
+    Resolves ``runtime_template_id=repair30-full`` to the repair30-
+    specialised lifeform (diagnostic / safety-gate / parts-and-procedure
+    domain pack) when ``lifeform-domain-repair30`` is installed, else
+    falls back to the companion factory so repair30 stops resolving to
+    ``einstein-full`` even on a deployment that has not yet rolled out
+    the specialised wheel (rolling-upgrade safe — same SHADOW posture as
+    the digital-employee verticals).
+    """
+
+    companion = _try_companion()
+    if companion is None:
+        return None
+
+    try:
+        from lifeform_domain_repair30 import build_repair30_lifeform
+    except ImportError:
+        # Specialised wheel absent — keep the first-class vertical name
+        # resolving via the companion factory (no more einstein-full
+        # fallback).
+        return VerticalSpec(
+            name="repair30-full",
+            factory=companion.factory,
+            has_temporal_bootstrap=companion.has_temporal_bootstrap,
+            has_regime_bootstrap=companion.has_regime_bootstrap,
+            bootstraps_dir=companion.bootstraps_dir,
+            scenarios_dir=companion.scenarios_dir,
+            alpha_factory=companion.alpha_factory,
+            template_adapter=companion.template_adapter,
+            template_subdir=companion.template_subdir,
+        )
+
+    def factory(runtime):
+        return build_repair30_lifeform(
+            substrate_runtime=runtime,
+            response_synthesizer=_expression_synthesizer_for_runtime(runtime),
+        )
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        from lifeform_core import LifeformConfig
+        from volvence_zero.brain import BrainConfig
+
+        config = LifeformConfig(
+            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+        )
+        return build_repair30_lifeform(
+            config=config,
+            substrate_runtime=runtime,
+            identity_provider=identity_provider,
+            response_synthesizer=_expression_synthesizer_for_runtime(
+                runtime,
+                repair_alpha_enabled=True,
+            ),
+        )
+
+    return VerticalSpec(
+        name="repair30-full",
+        factory=factory,
+        has_temporal_bootstrap=companion.has_temporal_bootstrap,
+        has_regime_bootstrap=companion.has_regime_bootstrap,
+        bootstraps_dir=companion.bootstraps_dir,
+        scenarios_dir=companion.scenarios_dir,
+        alpha_factory=alpha_factory,
+        template_adapter=companion.template_adapter,
+        template_subdir=companion.template_subdir,
+    )
+
+
 _BUILDERS = (
     _try_companion,
     _try_digital_employee_org,
     _try_digital_employee_twin,
+    _try_repair30,
     _try_cultivation_expert,
     _try_uncalibrated_companion,
     _try_coding,
@@ -1083,6 +1375,8 @@ _BUILDERS = (
     _try_einstein_raw,
     _try_einstein_bundle,
     _try_einstein_full,
+    _try_figure_companion,
+    _try_figure_full,
     _try_growth_advisor,
 )
 
