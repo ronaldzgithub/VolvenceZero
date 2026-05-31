@@ -118,6 +118,23 @@ External repo carries `eval-scenarios/*.json` files at a conventional path. `Eva
 
 ## Safety Manifest Schema
 
+> **Schema SSOT location.** The manifest schema (`SafetyManifest` /
+> `SafetyManifestEntry`), its validation builder (`build_safety_manifest`),
+> the file loader (`load_safety_manifest`), and the tier-neutral
+> `SafetyManifestSchemaError` live in **`vz-contracts`**
+> (`volvence_zero.mcp_safety_manifest`). This is so the platform tier
+> (`dlaas-platform-*`: plugin preview / inline-manifest materialization /
+> builtin-tool catalog) consumes the same schema + validation as the
+> lifeform-side bridge **without** importing a lifeform implementation
+> wheel (which would invert the one-way `platform → lifeform → kernel`
+> dependency; see `tests/contracts/test_import_boundaries.py`
+> `DLAAS_PLATFORM_ALLOWED_VZ_PREFIXES`). `lifeform-mcp-bridge` keeps a thin
+> `load_manifest` shim that re-raises `SafetyManifestSchemaError` as the
+> `MCPBridgeError`-subclass `MCPSafetyManifestSchemaError` so bridge
+> bringup can still catch any bridge failure uniformly. The
+> `yaml` parse is a deferred in-function import, keeping `vz-contracts`
+> free of a hard third-party dependency at module-import time.
+
 `<external_repo>/.vzbridge.yaml`:
 
 ```yaml
@@ -171,7 +188,7 @@ prompts:
   enabled: false                          # default
 ```
 
-Validation rules (enforced by `SafetyManifest.load`):
+Validation rules (enforced by `build_safety_manifest` / `load_safety_manifest`):
 
 - `schema_version` must equal `1`
 - `server.name` must match the `MCPServerSpec.name` configured in `BrainConfig.mcp_server_specs`

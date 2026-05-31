@@ -11,6 +11,18 @@ authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
     "dlaas-platform-contracts==0.1.*",
+    # vz-contracts: the platform consumes the MCP / plugin safety-manifest
+    # schema + validation SSOT (``volvence_zero.mcp_safety_manifest``) for
+    # plugin preview / inline-manifest materialization / builtin-tool
+    # catalog. Schema lives in the foundation wheel so the platform does
+    # not reach across the boundary into lifeform-mcp-bridge. See
+    # ``tests/contracts/test_import_boundaries.py``
+    # ``DLAAS_PLATFORM_ALLOWED_VZ_PREFIXES``.
+    "vz-contracts==0.1.*",
+    # ``volvence_zero.mcp_safety_manifest.load_safety_manifest`` parses
+    # ``.vzbridge.yaml`` files (deferred ``import yaml``), so the caller
+    # must have PyYAML installed.
+    "pyyaml>=6.0",
     # Slice 3 introduces persistent control-plane resources. The
     # registry wheel owns the typed CRUD + three-mode auth surface;
     # api routes only translate HTTP <-> registry calls.

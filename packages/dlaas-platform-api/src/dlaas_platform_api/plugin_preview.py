@@ -19,8 +19,8 @@ R10 invariants stay intact:
 * Tenant must have approved the application
   (:meth:`ApplicationStore.get_approval`).
 * The manifest entry for the requested tool MUST exist (the load
-  path is the same :func:`load_manifest` the runtime uses, so a
-  missing entry trips :class:`MCPSafetyManifestSchemaError`).
+  path is the same :func:`load_safety_manifest` the runtime uses, so a
+  missing entry trips :class:`SafetyManifestSchemaError`).
 * Secrets pulled from the platform's environment are redacted to
   ``first 4 chars + "***"`` so the operator can confirm the env var
   resolved without leaking the value into a portal UI.
@@ -48,11 +48,11 @@ from dlaas_platform_registry import (
     assert_tenant_id_matches,
     require_tenant_auth,
 )
-from lifeform_mcp_bridge.errors import MCPSafetyManifestSchemaError
-from lifeform_mcp_bridge.safety_manifest import (
+from volvence_zero.mcp_safety_manifest import (
     SafetyManifest,
     SafetyManifestEntry,
-    load_manifest,
+    SafetyManifestSchemaError,
+    load_safety_manifest,
 )
 
 
@@ -355,11 +355,11 @@ async def _handle_preview(request: web.Request) -> web.Response:
 
     # Resolve manifest entry for the requested tool.
     try:
-        manifest: SafetyManifest = load_manifest(
+        manifest: SafetyManifest = load_safety_manifest(
             path=plugin.safety_manifest_path,
             expected_server_name=plugin.name,
         )
-    except MCPSafetyManifestSchemaError as exc:
+    except SafetyManifestSchemaError as exc:
         return _error(503, "safety_manifest_invalid", str(exc))
     entry = manifest.lookup(tool_name)
     if entry is None:

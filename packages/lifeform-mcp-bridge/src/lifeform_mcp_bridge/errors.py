@@ -19,6 +19,8 @@ inspectable on the snapshot.
 
 from __future__ import annotations
 
+from volvence_zero.mcp_safety_manifest import SafetyManifestSchemaError
+
 
 class MCPBridgeError(Exception):
     """Base class for every failure inside the MCP bundle bridge.
@@ -87,8 +89,15 @@ class MCPMissingSafetyManifestError(MCPBridgeError):
     """
 
 
-class MCPSafetyManifestSchemaError(MCPBridgeError):
+class MCPSafetyManifestSchemaError(MCPBridgeError, SafetyManifestSchemaError):
     """The ``.vzbridge.yaml`` file is structurally invalid.
+
+    Bridge-side subclass of the tier-neutral
+    :class:`volvence_zero.mcp_safety_manifest.SafetyManifestSchemaError`
+    that ALSO inherits :class:`MCPBridgeError` so session-bringup code
+    can catch any bridge failure uniformly. The contracts loader raises
+    the base ``SafetyManifestSchemaError``; the bridge's
+    ``load_manifest`` re-raises it as this subclass.
 
     Typical causes: ``schema_version`` mismatch, missing required
     field on a tool entry, ``when_to_use`` < 50 chars, illegal enum

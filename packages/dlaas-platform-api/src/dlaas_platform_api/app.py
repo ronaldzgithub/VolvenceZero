@@ -1536,9 +1536,9 @@ async def _handle_catalog_builtin_tools(request: web.Request) -> web.Response:
             {"status": "ok", "server": "vz-bundle", "tools": []}
         )
     try:
-        from lifeform_mcp_bridge.safety_manifest import load_manifest
+        from volvence_zero.mcp_safety_manifest import load_safety_manifest
 
-        manifest = load_manifest(
+        manifest = load_safety_manifest(
             path=manifest_path, expected_server_name="vz-bundle"
         )
     except Exception as exc:  # noqa: BLE001 - never 500 a read-only catalog

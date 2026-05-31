@@ -323,6 +323,11 @@ DLAAS_PLATFORM_ALLOWED_VZ_PREFIXES: frozenset[str] = frozenset(
         "volvence_zero.application_readouts",  # vz-contracts subpackage (typed protocol)
         "volvence_zero.learned_update",  # vz-contracts subpackage (typed proposal)
         "volvence_zero.llm_proposal_diagnostics",  # vz-contracts subpackage
+        # MCP / plugin safety-manifest schema + validation SSOT. Moved
+        # to vz-contracts so the platform tier consumes the same schema
+        # as lifeform-mcp-bridge without reaching across the wheel
+        # boundary into a lifeform implementation wheel.
+        "volvence_zero.mcp_safety_manifest",
     }
 )
 DLAAS_PLATFORM_FORBIDDEN_VZ_SUBPACKAGES: frozenset[str] = frozenset(

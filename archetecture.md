@@ -103,7 +103,14 @@ Each boundary exists to protect one invariant, not to mirror a directory layout:
    `docs/integration/external-bundle.md`. The bridge wheel
    (`lifeform-mcp-bridge`) is a lifeform-side wheel; CI
    `tests/contracts/test_mcp_bridge_import_boundary.py` enforces it
-   does not reverse-import any kernel internals.
+   does not reverse-import any kernel internals. The manifest **schema +
+   validation SSOT** (`SafetyManifest` / `SafetyManifestEntry` /
+   `build_safety_manifest` / `load_safety_manifest` /
+   `SafetyManifestSchemaError`) lives in `vz-contracts`
+   (`volvence_zero.mcp_safety_manifest`) so the `dlaas-platform-*` tier
+   consumes one schema without importing the bridge wheel; the bridge
+   keeps a thin `load_manifest` shim that re-raises the schema error as
+   the `MCPBridgeError`-subclass `MCPSafetyManifestSchemaError`.
 
 ## Document Map
 

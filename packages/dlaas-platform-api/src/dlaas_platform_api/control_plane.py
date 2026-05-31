@@ -2226,7 +2226,7 @@ def _materialize_inline_safety(
     safety from a file (R10, no inline wire field), we materialise that
     content to ``DLAAS_MANAGED_SAFETY_DIR/{application_id}/{plugin}.vzbridge.yaml``
     and rewrite ``safety_manifest_path`` to point at it. The YAML is
-    validated with the same ``load_manifest`` the runtime uses, and for
+    validated with the same ``load_safety_manifest`` the runtime uses, and for
     HTTP plugins every endpoint must have a matching tool entry — so a
     malformed pair is rejected with a 400 before the application exists.
 
@@ -2235,7 +2235,7 @@ def _materialize_inline_safety(
     """
     if not isinstance(plugins_payload, (list, tuple)):
         return plugins_payload
-    from lifeform_mcp_bridge.safety_manifest import load_manifest
+    from volvence_zero.mcp_safety_manifest import load_safety_manifest
 
     rewritten: list[Any] = []
     base_dir = _managed_safety_dir() / application_id
@@ -2259,7 +2259,7 @@ def _materialize_inline_safety(
         target = base_dir / f"{name}.vzbridge.yaml"
         target.write_text(safety_yaml, encoding="utf-8")
         try:
-            manifest = load_manifest(path=target, expected_server_name=name)
+            manifest = load_safety_manifest(path=target, expected_server_name=name)
         except Exception as exc:  # noqa: BLE001 - surfaced as 400
             target.unlink(missing_ok=True)
             raise ValueError(
