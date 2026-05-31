@@ -34,6 +34,10 @@ from typing import Any
 from aiohttp import web
 
 from dlaas_platform_contracts import (
+    CapabilityProfileSpec,
+    CapabilityReadoutInputs,
+    ClaimedResume,
+    ExperienceSummary,
     MarketplaceLedgerEntry,
     PersonaListingSpec,
     PersonaListingStatus,
@@ -44,6 +48,9 @@ from dlaas_platform_contracts import (
     PersonaSubscriptionSpec,
     PersonaSubscriptionStatus,
     SettlementStatus,
+    SkillScore,
+    build_profile_from_composed,
+    compose_capability_indices,
     compute_revenue_split,
 )
 from dlaas_platform_registry import (
@@ -113,6 +120,8 @@ class PersonaMarketStore:
         # (listing_ref, idempotency_key) -> usage_id
         self._usage_idem: dict[tuple[str, str], str] = {}
         self._ledger: list[MarketplaceLedgerEntry] = []
+        # listing_ref -> certified capability profile.
+        self._profiles: dict[str, CapabilityProfileSpec] = {}
 
     # ---- listings ----
 
@@ -403,6 +412,14 @@ class PersonaMarketStore:
             self._ledger[i] = updated
             settled.append(updated)
         return settled
+
+    # ---- capability profiles ----
+
+    def put_profile(self, profile: CapabilityProfileSpec) -> None:
+        self._profiles[profile.listing_ref] = profile
+
+    def get_profile(self, listing_ref: str) -> CapabilityProfileSpec | None:
+        return self._profiles.get(listing_ref)
 
 
 def ensure_persona_market_store(app: web.Application) -> PersonaMarketStore:
@@ -702,6 +719,182 @@ async def _handle_run_settlements(request: web.Request) -> web.Response:
 
 
 # ---------------------------------------------------------------------------
+# Handlers — capability profile ("AI resume")
+# ---------------------------------------------------------------------------
+
+
+def _readout_inputs_from_body(data: dict[str, Any]) -> CapabilityReadoutInputs:
+    r = data.get("readout_inputs")
+    r = r if isinstance(r, dict) else {}
+
+    def num(key: str, default: float) -> float:
+        try:
+            return float(r.get(key, default))
+        except (TypeError, ValueError):
+            return default
+
+    def count(key: str) -> int:
+        try:
+            return int(r.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    return CapabilityReadoutInputs(
+        exam_aggregate=num("exam_aggregate", 0.5),
+        license_granted=bool(data.get("license_granted", r.get("license_granted", False))),
+        f1_task=num("f1_task", 0.5),
+        f2_interaction=num("f2_interaction", 0.5),
+        f3_relationship=num("f3_relationship", 0.5),
+        f4_learning=num("f4_learning", 0.5),
+        f5_abstraction=num("f5_abstraction", 0.5),
+        f6_safety=num("f6_safety", 0.5),
+        interlocutor_trust=num("interlocutor_trust", 0.5),
+        interlocutor_rapport=num("interlocutor_rapport", 0.5),
+        eval_pass_rate=num("eval_pass_rate", 0.5),
+        regime_stability=num("regime_stability", 0.5),
+        tool_repeat_fail_rate=num("tool_repeat_fail_rate", 0.0),
+        judge_fidelity=num("judge_fidelity", 0.5),
+        judge_stability=num("judge_stability", 0.5),
+        judge_safety=num("judge_safety", 0.5),
+        kindness_ratio=num("kindness_ratio", 0.5),
+        closed_scenes=count("closed_scenes"),
+        regime_history_days=count("regime_history_days"),
+        usage_turns=count("usage_turns"),
+        tenure_days=count("tenure_days"),
+        data_completeness=num("data_completeness", 0.5),
+    )
+
+
+def _skills_from_body(data: dict[str, Any]) -> list[SkillScore]:
+    raw = data.get("skills")
+    out: list[SkillScore] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            try:
+                score = float(item.get("score_0_100", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                score = 0.0
+            breakdown = item.get("rubric_breakdown")
+            out.append(
+                SkillScore(
+                    name=name,
+                    score_0_100=score,
+                    source_exam_run_id=str(item.get("source_exam_run_id", "")),
+                    rubric_breakdown=tuple(
+                        dict(b) for b in breakdown if isinstance(b, dict)
+                    )
+                    if isinstance(breakdown, list)
+                    else (),
+                )
+            )
+    return out
+
+
+def _profile_evidence_hash(inputs: CapabilityReadoutInputs, exam_run_id: str) -> str:
+    import hashlib
+    import json as _json
+
+    payload = _json.dumps(
+        {"exam_run_id": exam_run_id, "inputs": inputs.__dict__},
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
+
+
+async def _handle_certify_listing(request: web.Request) -> web.Response:
+    """Certify a listing's capability profile.
+
+    Control-plane only: the certified scores are platform-produced from
+    a verified exam run + readout snapshot. The lister cannot self-certify
+    (anti-gaming). The `claimed` block is lister content and is echoed
+    through unchanged + always labelled self-reported by consumers.
+    """
+    require_control_plane_secret(request)
+    store = _get_store(request)
+    listing_ref = request.match_info["listing_ref"]
+    listing = store.get(listing_ref)
+    if listing is None:
+        return _error(404, "not_found", listing_ref)
+    body = await request.json()
+    if not isinstance(body, dict):
+        return _error(400, "invalid_body", "expected a JSON object")
+
+    inputs = _readout_inputs_from_body(body)
+    skills = _skills_from_body(body)
+    evidence_raw = body.get("evidence_refs")
+    evidence_refs = (
+        {
+            str(k): [str(x) for x in (v or [])]
+            for k, v in evidence_raw.items()
+        }
+        if isinstance(evidence_raw, dict)
+        else {}
+    )
+    exam_run_id = str(body.get("exam_run_id", ""))
+    snapshot_hash = str(
+        body.get("readout_snapshot_hash", "")
+        or _profile_evidence_hash(inputs, exam_run_id)
+    )
+    exp = body.get("experience")
+    experience = (
+        ExperienceSummary.from_json(exp)
+        if isinstance(exp, dict)
+        else ExperienceSummary(
+            closed_scenes=inputs.closed_scenes,
+            regime_history_days=inputs.regime_history_days,
+            usage_turns=inputs.usage_turns,
+            tenure_days=inputs.tenure_days,
+        )
+    )
+    claimed_raw = body.get("claimed")
+    claimed = ClaimedResume.from_json(
+        claimed_raw if isinstance(claimed_raw, dict) else {}
+    )
+
+    composed = compose_capability_indices(inputs, evidence_refs=evidence_refs)
+    profile = build_profile_from_composed(
+        profile_ref=f"cp_{uuid.uuid4().hex[:16]}",
+        listing_ref=listing_ref,
+        ai_id=str(body.get("ai_id", "")),
+        vertical=listing.vertical,
+        archetype=listing.archetype,
+        composed=composed,
+        skills=skills,
+        experience=experience,
+        claimed=claimed,
+        certified_at_ms=_now_ms(),
+        exam_run_id=exam_run_id,
+        readout_snapshot_hash=snapshot_hash,
+        license_granted=inputs.license_granted,
+        content_hash=listing.asset_bundle_hash,
+    )
+    store.put_profile(profile)
+    return web.json_response({"status": "ok", "profile": profile.to_json()})
+
+
+async def _handle_get_profile(request: web.Request) -> web.Response:
+    await require_tenant_auth(request)
+    store = _get_store(request)
+    listing_ref = request.match_info["listing_ref"]
+    listing = store.get(listing_ref)
+    profile = store.get_profile(listing_ref)
+    if profile is None:
+        return _error(404, "profile_not_found", listing_ref)
+    stale = bool(
+        listing is not None and profile.is_stale(listing.asset_bundle_hash)
+    )
+    return web.json_response(
+        {"status": "ok", "profile": profile.to_json(), "stale": stale}
+    )
+
+
+# ---------------------------------------------------------------------------
 # Wiring
 # ---------------------------------------------------------------------------
 
@@ -731,6 +924,14 @@ def attach_persona_market_routes(app: web.Application) -> web.Application:
     R.add_post("/dlaas/v1/persona-market/usage-events", _handle_usage_event)
     R.add_get("/dlaas/v1/persona-market/ledger", _handle_get_ledger)
     R.add_post("/dlaas/v1/persona-market/settlements/run", _handle_run_settlements)
+    R.add_post(
+        "/dlaas/v1/persona-market/listings/{listing_ref}/certify",
+        _handle_certify_listing,
+    )
+    R.add_get(
+        "/dlaas/v1/persona-market/listings/{listing_ref}/profile",
+        _handle_get_profile,
+    )
     return app
 
 

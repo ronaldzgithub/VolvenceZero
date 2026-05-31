@@ -212,3 +212,160 @@ async def test_suspended_listing_blocks_new_subscription() -> None:
         )
     )
     assert resp.status == 404  # suspended -> not subscribable
+
+
+async def test_certify_builds_profile_and_detects_stale() -> None:
+    app = _app()
+    provider = {"X-Tenant-Id": "tenant-a"}
+    await pm._handle_publish_listing(
+        _FakeRequest(
+            app,
+            headers=provider,
+            json_body={
+                "listing_ref": "pl_resume",
+                "display_name": "Sales Coach",
+                "vertical": "sales",
+                "archetype": "closer",
+                "asset_bundle_hash": "hash_v1",
+            },
+        )
+    )
+
+    # Certify (control-plane) with verified exam + readout signals.
+    cert = _body(
+        await pm._handle_certify_listing(
+            _FakeRequest(
+                app,
+                headers={"X-Control-Plane-Secret": "x"},
+                match_info={"listing_ref": "pl_resume"},
+                json_body={
+                    "ai_id": "ai-sales-1",
+                    "license_granted": True,
+                    "exam_run_id": "exam_run_42",
+                    "readout_inputs": {
+                        "exam_aggregate": 0.82,
+                        "f1_task": 0.8,
+                        "f3_relationship": 0.75,
+                        "interlocutor_trust": 0.7,
+                        "interlocutor_rapport": 0.65,
+                        "kindness_ratio": 0.9,
+                        "eval_pass_rate": 0.85,
+                        "regime_stability": 0.7,
+                        "f6_safety": 0.85,
+                        "judge_safety": 0.9,
+                        "usage_turns": 3000,
+                        "tenure_days": 200,
+                        "data_completeness": 0.9,
+                    },
+                    "skills": [
+                        {
+                            "name": "objection_handling",
+                            "score_0_100": 84,
+                            "source_exam_run_id": "exam_run_42",
+                        }
+                    ],
+                    "claimed": {
+                        "role_title": "Senior Sales AI",
+                        "domains": ["b2b_saas"],
+                        "headline_tagline": "Closes enterprise deals",
+                    },
+                    "evidence_refs": {"reasoning_skill": ["exam_run_42"]},
+                },
+            )
+        )
+    )
+    prof = cert["profile"]
+    assert 60 <= prof["iq_index"] <= 150
+    assert 60 <= prof["eq_index"] <= 150
+    assert prof["overall_grade"] in {"A", "B", "C", "D", "F"}
+    assert prof["license_granted"] is True
+    assert prof["content_hash"] == "hash_v1"
+    assert prof["claimed"]["role_title"] == "Senior Sales AI"
+    assert any(s["name"] == "objection_handling" for s in prof["skills"])
+    assert len(prof["axes"]) == 6
+    # Reasoning axis is certified + carries its evidence ref.
+    reasoning = next(a for a in prof["axes"] if a["axis"] == "reasoning_skill")
+    assert reasoning["provenance"] == "certified"
+    assert "exam_run_42" in reasoning["evidence_refs"]
+
+    # GET profile (tenant) -> fresh.
+    got = _body(
+        await pm._handle_get_profile(
+            _FakeRequest(
+                app, headers={"X-Tenant-Id": "tenant-b"},
+                match_info={"listing_ref": "pl_resume"},
+            )
+        )
+    )
+    assert got["stale"] is False
+    assert got["profile"]["iq_index"] == prof["iq_index"]
+
+    # Re-publish with new asset bundle hash -> profile goes stale.
+    await pm._handle_publish_listing(
+        _FakeRequest(
+            app,
+            headers=provider,
+            json_body={
+                "listing_ref": "pl_resume",
+                "display_name": "Sales Coach",
+                "asset_bundle_hash": "hash_v2",
+            },
+        )
+    )
+    stale = _body(
+        await pm._handle_get_profile(
+            _FakeRequest(
+                app, headers={"X-Tenant-Id": "tenant-b"},
+                match_info={"listing_ref": "pl_resume"},
+            )
+        )
+    )
+    assert stale["stale"] is True
+
+
+async def test_certify_is_control_plane_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Anti-gaming: a lister cannot self-certify. Certified scores are
+    platform-produced; the endpoint demands the control-plane secret, so
+    a tenant-only caller is rejected before any profile is written."""
+    app = _app()
+    await pm._handle_publish_listing(
+        _FakeRequest(
+            app,
+            headers={"X-Tenant-Id": "tenant-a"},
+            json_body={"listing_ref": "pl_guard", "display_name": "X"},
+        )
+    )
+
+    def deny(_request: web.Request) -> None:
+        raise web.HTTPForbidden(reason="control_plane_required")
+
+    monkeypatch.setattr(pm, "require_control_plane_secret", deny)
+    with pytest.raises(web.HTTPForbidden):
+        await pm._handle_certify_listing(
+            _FakeRequest(
+                app,
+                headers={"X-Tenant-Id": "tenant-a"},
+                match_info={"listing_ref": "pl_guard"},
+                json_body={"readout_inputs": {"exam_aggregate": 0.99}},
+            )
+        )
+    # No profile was written by the rejected attempt.
+    assert app[pm.PERSONA_MARKET_STORE_KEY].get_profile("pl_guard") is None
+
+
+async def test_get_profile_404_when_uncertified() -> None:
+    app = _app()
+    await pm._handle_publish_listing(
+        _FakeRequest(
+            app,
+            headers={"X-Tenant-Id": "tenant-a"},
+            json_body={"listing_ref": "pl_nocert", "display_name": "X"},
+        )
+    )
+    resp = await pm._handle_get_profile(
+        _FakeRequest(
+            app, headers={"X-Tenant-Id": "tenant-b"},
+            match_info={"listing_ref": "pl_nocert"},
+        )
+    )
+    assert resp.status == 404
