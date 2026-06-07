@@ -1762,6 +1762,45 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
                 )
             except ContractNotFound:
                 plugins = ()
+        # Cultivation reflow: when the wake names a template carrying a
+        # ``cultivation_protocol_bundle`` (an inducted self-learning
+        # expert), hydrate its converged school and bind it to this ai_id's
+        # ProtocolUptakeService BEFORE acquire, so the SessionManager seeds
+        # the cultivated protocols into every session and online ETA
+        # learning continues from there. The adopted runtime keeps its own
+        # per-session revision_log and never writes back to the published
+        # bundle (R8: not a second cognition owner).
+        if wake.template_id and stores is not None:
+            try:
+                _reflow_template = await stores.templates.get(wake.template_id)
+            except TemplateNotFound:
+                _reflow_template = None
+            if _reflow_template is not None:
+                _reflow_bundle = (_reflow_template.seed_config or {}).get(
+                    "cultivation_protocol_bundle"
+                )
+                _bind_uptake = getattr(
+                    launcher, "set_protocol_uptake_service", None
+                )
+                if _reflow_bundle and callable(_bind_uptake):
+                    from lifeform_service.cultivation_bundle import (
+                        build_uptake_service_from_bundle,
+                    )
+
+                    try:
+                        _reflow_uptake = build_uptake_service_from_bundle(
+                            _reflow_bundle
+                        )
+                    except ValueError as exc:
+                        return _json_error(
+                            status=400,
+                            error="invalid_cultivation_bundle",
+                            detail=(
+                                f"template {wake.template_id!r} carries a "
+                                f"malformed cultivation_protocol_bundle: {exc}"
+                            ),
+                        )
+                    _bind_uptake(ai_id, _reflow_uptake)
         status = await launcher.wake(
             ai_id=ai_id,
             runtime_template_id=wake.runtime_template_id,

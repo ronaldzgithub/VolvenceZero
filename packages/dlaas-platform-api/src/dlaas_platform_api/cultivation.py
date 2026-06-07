@@ -71,6 +71,7 @@ from lifeform_cultivation import (
     build_identity_core_protocol,
     parse_directions,
 )
+from lifeform_service.cultivation_bundle import export_protocol_bundle
 from lifeform_service.openai_compat_client import build_client_from_env
 from lifeform_service.protocol_uptake import (
     ProtocolUptakeConfig,
@@ -694,6 +695,24 @@ async def _ensure_candidate_template(
         "package_id": record.package_id,
         "track_id": record.track_id,
     }
+    # R15 portability: export the *learned* school (the converged approved
+    # protocol set) into the template's seed_config so adoption re-hydrates
+    # the cultivated cognition, not just the persona metadata. Empty when
+    # the in-process uptake service holds no approved protocols (e.g. the
+    # process restarted between tick and graduate) — then the template
+    # still carries persona_spec metadata and the legacy seed path applies.
+    approved = bundle.uptake_service_for(record.ai_id).loaded_approved_snapshot()
+    seed_config: dict[str, Any] | None = None
+    if approved:
+        seed_config = {
+            "cultivation_protocol_bundle": export_protocol_bundle(
+                approved,
+                source_ai_id=record.ai_id,
+                cultivation_id=record.cultivation_id,
+                package_id=record.package_id,
+                track_id=record.track_id,
+            )
+        }
     template = await bundle.templates.create(
         tenant_id=SYSTEM_TENANT_ID,
         template_name=seed.display_name,
@@ -701,6 +720,7 @@ async def _ensure_candidate_template(
         description=f"Auto-cultivated expert: {seed.display_name} ({seed.domain})",
         runtime_template_id=RUNTIME_TEMPLATE_ID,
         persona_spec=persona_spec,
+        seed_config=seed_config,
     )
     # Mark activated (the seed charter + study corpus already ran through
     # the kernel's ingestion path on the source instance) so the template

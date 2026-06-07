@@ -916,6 +916,24 @@ in their `cultivation.persona.v1` `persona_spec` so siblings group back to
 one seed and roll back together (R15). When `directions[]` is absent the
 legacy single-expert path is unchanged.
 
+**Cognition reflow (portable learned school).** Graduation does not just
+record persona metadata — it exports the cultivation's *converged school*
+(the approved `BehaviorProtocol` set: Identity Core + researched theory
+protocols) into the candidate template's `seed_config` under
+`cultivation_protocol_bundle` (schema `cultivation.protocol_bundle.v1`,
+lossless via `protocol_to_payload`). On `/wake` with that `template_id`,
+the platform hydrates a `ProtocolUptakeService` from the bundle and binds
+it to the adopting `ai_id` *before* acquire, so the adopted instance
+*starts* from the cultivated school and continues online ETA learning
+(its own per-session α/β PE mixing + a fresh `revision_log`). The adopted
+runtime never writes back to the published bundle, so the bundle is a
+reviewed-frozen artifact, not a second cognition owner (R8); improving a
+published expert means **re-inducting**, which produces a new template
+version with a new bundle (R15 rollback via versioned templates). If the
+source process restarted between `tick` and `graduate` (in-memory uptake
+empty), the template still carries `persona_spec` metadata and the legacy
+seed path applies. Owner: `lifeform_service.cultivation_bundle`.
+
 Runtime vertical: `cultivation.expert.v0`. The protocol slow-loop
 (`protocol_reflection` / `protocol_revision_queue`) is ACTIVE for these
 instances so the mixture prunes failing strategies and converges onto one
