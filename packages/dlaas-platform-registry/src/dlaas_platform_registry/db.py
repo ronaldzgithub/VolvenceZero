@@ -29,7 +29,7 @@ from pathlib import Path
 
 from dlaas_platform_registry.pg_dialect import translate_statement
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 _SCHEMA_SQL = (
@@ -289,6 +289,9 @@ _SCHEMA_SQL = (
         last_exam_run_id TEXT NOT NULL DEFAULT '',
         inducted_template_id TEXT NOT NULL DEFAULT '',
         notes TEXT NOT NULL DEFAULT '',
+        package_id TEXT NOT NULL DEFAULT '',
+        track_id TEXT NOT NULL DEFAULT '',
+        direction_json TEXT NOT NULL DEFAULT '{}',
         created_at_ms INTEGER NOT NULL,
         updated_at_ms INTEGER NOT NULL
     );
@@ -481,11 +484,32 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
             last_exam_run_id TEXT NOT NULL DEFAULT '',
             inducted_template_id TEXT NOT NULL DEFAULT '',
             notes TEXT NOT NULL DEFAULT '',
+            package_id TEXT NOT NULL DEFAULT '',
+            track_id TEXT NOT NULL DEFAULT '',
+            direction_json TEXT NOT NULL DEFAULT '{}',
             created_at_ms INTEGER NOT NULL,
             updated_at_ms INTEGER NOT NULL
         );
         """
     )
+
+    # Schema v8: multi-direction cultivation packages. Existing
+    # single-expert cultivation rows pre-date the package columns; add
+    # them forward-only (duplicate-column = no-op) so a seed can fan out
+    # into several self-consistent school tracks grouped by package_id.
+    cultivation_v8_columns = (
+        ("package_id", "TEXT NOT NULL DEFAULT ''"),
+        ("track_id", "TEXT NOT NULL DEFAULT ''"),
+        ("direction_json", "TEXT NOT NULL DEFAULT '{}'"),
+    )
+    for column, column_type in cultivation_v8_columns:
+        try:
+            conn.execute(
+                f"ALTER TABLE cultivations ADD COLUMN {column} {column_type}"
+            )
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
 
 
 # ---------------------------------------------------------------------------

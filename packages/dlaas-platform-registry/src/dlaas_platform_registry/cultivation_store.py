@@ -78,6 +78,13 @@ class CultivationRecordSpec:
     last_exam_run_id: str = ""
     inducted_template_id: str = ""
     notes: str = ""
+    # Multi-direction package grouping (schema v8). ``package_id`` ties
+    # sibling school tracks grown from one seed; ``track_id`` is this
+    # track's stable id; ``direction`` is the per-track research schedule.
+    # Empty package_id/track_id = legacy single-expert cultivation.
+    package_id: str = ""
+    track_id: str = ""
+    direction: Mapping[str, Any] = field(default_factory=dict)
     created_at_ms: int = 0
     updated_at_ms: int = 0
 
@@ -100,6 +107,9 @@ class CultivationRecordSpec:
             "last_exam_run_id": self.last_exam_run_id,
             "inducted_template_id": self.inducted_template_id,
             "notes": self.notes,
+            "package_id": self.package_id,
+            "track_id": self.track_id,
+            "direction": dict(self.direction),
             "created_at_ms": self.created_at_ms,
             "updated_at_ms": self.updated_at_ms,
         }
@@ -132,6 +142,9 @@ class CultivationStore:
         curriculum: Mapping[str, Any],
         cultivation_id: str | None = None,
         notes: str = "",
+        package_id: str = "",
+        track_id: str = "",
+        direction: Mapping[str, Any] | None = None,
     ) -> CultivationRecordSpec:
         cultivation_id = cultivation_id or _fresh_cultivation_id()
         now = int(time.time() * 1000.0)
@@ -141,8 +154,9 @@ class CultivationStore:
                 INSERT INTO cultivations (
                     cultivation_id, ai_id, slug, display_name, domain,
                     runtime_template_id, seed_persona_json, curriculum_json,
-                    status, created_at_ms, updated_at_ms
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'seeding', ?, ?)
+                    status, notes, package_id, track_id, direction_json,
+                    created_at_ms, updated_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'seeding', ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     cultivation_id,
@@ -153,6 +167,10 @@ class CultivationStore:
                     runtime_template_id,
                     json.dumps(dict(seed_persona), ensure_ascii=False),
                     json.dumps(dict(curriculum), ensure_ascii=False),
+                    notes,
+                    package_id,
+                    track_id,
+                    json.dumps(dict(direction or {}), ensure_ascii=False),
                     now,
                     now,
                 ),
@@ -181,6 +199,28 @@ class CultivationStore:
             "SELECT * FROM cultivations ORDER BY created_at_ms DESC"
         ).fetchall()
         return tuple(_row_to_cultivation(row) for row in rows)
+
+    async def list_for_package(
+        self, package_id: str
+    ) -> tuple[CultivationRecordSpec, ...]:
+        """Return every track row sharing ``package_id`` (creation order)."""
+
+        rows = self._registry.conn.execute(
+            "SELECT * FROM cultivations WHERE package_id = ? "
+            "ORDER BY created_at_ms ASC",
+            (package_id,),
+        ).fetchall()
+        return tuple(_row_to_cultivation(row) for row in rows)
+
+    async def list_package_ids(self) -> tuple[str, ...]:
+        """Return distinct non-empty package ids, newest first."""
+
+        rows = self._registry.conn.execute(
+            "SELECT package_id, MAX(created_at_ms) AS latest "
+            "FROM cultivations WHERE package_id != '' "
+            "GROUP BY package_id ORDER BY latest DESC"
+        ).fetchall()
+        return tuple(row["package_id"] for row in rows)
 
     async def update_progress(
         self,
@@ -279,6 +319,10 @@ class CultivationStore:
 
 
 def _row_to_cultivation(row) -> CultivationRecordSpec:
+    keys = row.keys() if hasattr(row, "keys") else ()
+    package_id = row["package_id"] if "package_id" in keys else ""
+    track_id = row["track_id"] if "track_id" in keys else ""
+    direction_json = row["direction_json"] if "direction_json" in keys else "{}"
     return CultivationRecordSpec(
         cultivation_id=row["cultivation_id"],
         ai_id=row["ai_id"],
@@ -297,6 +341,9 @@ def _row_to_cultivation(row) -> CultivationRecordSpec:
         last_exam_run_id=row["last_exam_run_id"],
         inducted_template_id=row["inducted_template_id"],
         notes=row["notes"],
+        package_id=package_id or "",
+        track_id=track_id or "",
+        direction=json.loads(direction_json or "{}"),
         created_at_ms=int(row["created_at_ms"]),
         updated_at_ms=int(row["updated_at_ms"]),
     )

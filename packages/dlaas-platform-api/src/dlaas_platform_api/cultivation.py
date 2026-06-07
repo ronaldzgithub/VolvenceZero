@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from collections.abc import Mapping
 from typing import Any
 
@@ -63,10 +64,12 @@ from dlaas_platform_registry import (
 from lifeform_core.types import TurnTriggerKind
 from lifeform_cultivation import (
     CultivationCurriculum,
+    CultivationDirection,
     CultivationEngine,
     CultivationSeed,
     SessionCultivationSink,
     build_identity_core_protocol,
+    parse_directions,
 )
 from lifeform_service.openai_compat_client import build_client_from_env
 from lifeform_service.protocol_uptake import (
@@ -136,6 +139,12 @@ def attach_cultivation_routes(
     R = app.router
     R.add_post("/dlaas/v1/cultivation", _handle_create)
     R.add_get("/dlaas/v1/cultivation", _handle_list)
+    # Package routes are registered BEFORE the `{cultivation_id}` wildcard
+    # so `packages` is not captured as a cultivation id.
+    R.add_get("/dlaas/v1/cultivation/packages", _handle_list_packages)
+    R.add_get(
+        "/dlaas/v1/cultivation/packages/{package_id}", _handle_get_package
+    )
     R.add_get("/dlaas/v1/cultivation/{cultivation_id}", _handle_get)
     R.add_post("/dlaas/v1/cultivation/{cultivation_id}/tick", _handle_tick)
     R.add_post(
@@ -157,22 +166,105 @@ async def _handle_create(request: web.Request) -> web.Response:
 
     slug = _required_str(data, "slug")
     seed = _parse_seed(data)
-    curriculum = _parse_curriculum(data)
-    ai_id = f"cultivation:{slug}"
+    notes = str(data.get("notes", "") or "")
+
+    try:
+        directions = parse_directions(data.get("directions"))
+    except ValueError as exc:
+        return _error(400, "invalid_directions", str(exc))
 
     instance_manager = _instance_manager(request)
 
-    # Seed the Identity Core protocol (the operator-supplied rough persona
-    # IS the reviewed school anchor) into this ai_id's uptake service, and
-    # bind the service to the InstanceManager BEFORE acquire so the
-    # SessionManager seeds it into every study session.
-    uptake = bundle.uptake_service_for(ai_id)
-    identity_core = build_identity_core_protocol(seed)
-    uptake.registry.load(identity_core)
-    instance_manager.set_protocol_uptake_service(ai_id, uptake)
+    # Multi-direction path: one seed fans out into several self-consistent
+    # school tracks, each its own ai_id + cultivation row, grouped by a
+    # shared package_id. Each track converges independently so the schools
+    # do not cross-contaminate.
+    if directions:
+        base_curriculum = _parse_curriculum(data)
+        package_id = _fresh_package_id()
+        track_records = []
+        for direction in directions:
+            track_ai_id = f"cultivation:{slug}:{direction.track_id}"
+            acquired = await _acquire_track(
+                request,
+                bundle=bundle,
+                instance_manager=instance_manager,
+                ai_id=track_ai_id,
+                seed=seed,
+            )
+            if isinstance(acquired, web.Response):
+                return acquired
+            track_curriculum = direction.to_curriculum(base=base_curriculum)
+            record = await bundle.cultivations.create(
+                ai_id=track_ai_id,
+                slug=slug,
+                display_name=f"{seed.display_name} · {direction.display_name}",
+                domain=seed.domain,
+                runtime_template_id=RUNTIME_TEMPLATE_ID,
+                seed_persona=seed.to_json(),
+                curriculum=track_curriculum.to_json(),
+                notes=notes,
+                package_id=package_id,
+                track_id=direction.track_id,
+                direction=direction.to_json(),
+            )
+            track_records.append(record)
+        return web.json_response(
+            {
+                "status": "ok",
+                "package_id": package_id,
+                "tracks": [r.to_json() for r in track_records],
+            }
+        )
 
+    # Legacy single-expert path (unchanged behaviour).
+    curriculum = _parse_curriculum(data)
+    ai_id = f"cultivation:{slug}"
+    acquired = await _acquire_track(
+        request,
+        bundle=bundle,
+        instance_manager=instance_manager,
+        ai_id=ai_id,
+        seed=seed,
+    )
+    if isinstance(acquired, web.Response):
+        return acquired
+
+    record = await bundle.cultivations.create(
+        ai_id=ai_id,
+        slug=slug,
+        display_name=seed.display_name,
+        domain=seed.domain,
+        runtime_template_id=RUNTIME_TEMPLATE_ID,
+        seed_persona=seed.to_json(),
+        curriculum=curriculum.to_json(),
+        notes=notes,
+    )
+    return web.json_response({"status": "ok", **record.to_json()})
+
+
+async def _acquire_track(
+    request: web.Request,
+    *,
+    bundle: CultivationBundle,
+    instance_manager: InstanceManager,
+    ai_id: str,
+    seed: CultivationSeed,
+):
+    """Seed the Identity Core + bind uptake + acquire one track instance.
+
+    The operator-supplied rough persona IS the reviewed school anchor; it
+    is loaded into the per-``ai_id`` uptake service and bound to the
+    InstanceManager BEFORE acquire so the SessionManager seeds it into
+    every study session. Returns the acquired manager, or a typed 503
+    ``web.Response`` when the runtime vertical is not installed.
+    """
+
+    uptake = bundle.uptake_service_for(ai_id)
+    uptake.registry.load(build_identity_core_protocol(seed))
+    instance_manager.set_protocol_uptake_service(ai_id, uptake)
     try:
-        await instance_manager.acquire(
+        return await instance_manager.acquire(
             ai_id=ai_id, runtime_template_id=RUNTIME_TEMPLATE_ID
         )
     except LookupError:
@@ -183,17 +275,9 @@ async def _handle_create(request: web.Request) -> web.Response:
             f"install a lifeform-domain vertical that provides it.",
         )
 
-    record = await bundle.cultivations.create(
-        ai_id=ai_id,
-        slug=slug,
-        display_name=seed.display_name,
-        domain=seed.domain,
-        runtime_template_id=RUNTIME_TEMPLATE_ID,
-        seed_persona=seed.to_json(),
-        curriculum=curriculum.to_json(),
-        notes=str(data.get("notes", "") or ""),
-    )
-    return web.json_response({"status": "ok", **record.to_json()})
+
+def _fresh_package_id() -> str:
+    return f"cpkg_{secrets.token_hex(4)}"
 
 
 async def _handle_list(request: web.Request) -> web.Response:
@@ -213,6 +297,116 @@ async def _handle_get(request: web.Request) -> web.Response:
     if isinstance(record, web.Response):
         return record
     return web.json_response({"status": "ok", **record.to_json()})
+
+
+# ---------------------------------------------------------------------------
+# Packages — group sibling school tracks grown from one seed
+# ---------------------------------------------------------------------------
+
+# Cultivation lifecycle status -> package track status (mirrors the
+# foundation `CultivationTrackStatus` union). `exam` rolls up to
+# `converging` (it is mid-graduation), `seeding` to `studying`.
+_TRACK_STATUS_BY_CULTIVATION = {
+    CultivationStatus.SEEDING: "studying",
+    CultivationStatus.STUDYING: "studying",
+    CultivationStatus.CONVERGING: "converging",
+    CultivationStatus.EXAM: "converging",
+    CultivationStatus.READY_FOR_REVIEW: "ready_for_review",
+    CultivationStatus.INDUCTED: "inducted",
+    CultivationStatus.FAILED: "failed",
+}
+
+
+def _track_view(record) -> dict[str, Any]:
+    detail = dict(record.coherence_detail)
+    school = str(
+        detail.get("dominant_protocol")
+        or detail.get("dominant_regime", "")
+        or ""
+    )
+    distinct = int(
+        detail.get("distinct_schools")
+        or detail.get("distinct_regimes", 0)
+        or 0
+    )
+    template_id = record.inducted_template_id or record.dlaas_template_id
+    view: dict[str, Any] = {
+        "track_id": record.track_id,
+        "display_name": record.display_name,
+        "school": school,
+        "status": _TRACK_STATUS_BY_CULTIVATION.get(record.status, "studying"),
+        "coherence_score": record.coherence_score,
+        "distinct_schools": distinct,
+        "identity_core_present": bool(detail.get("identity_core_present", False)),
+        "inducted": record.status is CultivationStatus.INDUCTED,
+        "cultivation_id": record.cultivation_id,
+    }
+    if template_id:
+        view["template_id"] = template_id
+    if record.last_exam_run_id:
+        view["exam_run_id"] = record.last_exam_run_id
+    return view
+
+
+def _build_package_view(package_id: str, records) -> dict[str, Any]:
+    """Group track records into the `cultivation.package.v1` JSON shape."""
+
+    tracks = [_track_view(r) for r in records]
+    published = [
+        {
+            "schema_version": "persona-studio.v1",
+            "artifact_kind": "template",
+            "source_kind": "self_learning",
+            "display_name": t["display_name"],
+            "template_id": t["template_id"],
+            "grounding_status": "partial",
+        }
+        for t in tracks
+        if t.get("inducted") and t.get("template_id")
+    ]
+    first = records[0] if records else None
+    created_at_ms = min((r.created_at_ms for r in records), default=0)
+    return {
+        "schema_version": "cultivation.package.v1",
+        "package_id": package_id,
+        "display_name": first.seed_persona.get("display_name", "")
+        if first
+        else "",
+        "domain": first.domain if first else "",
+        "seed_slug": first.slug if first else "",
+        "source_kind": "self_learning",
+        "tracks": tracks,
+        "published": published,
+        "provenance": {
+            "source": "cultivation",
+            "reviewed": False,
+            "research_egress": "creation_time",
+        },
+        "created_at_ms": created_at_ms,
+    }
+
+
+async def _handle_list_packages(request: web.Request) -> web.Response:
+    require_control_plane_secret(request)
+    bundle = _bundle(request)
+    package_ids = await bundle.cultivations.list_package_ids()
+    packages = []
+    for package_id in package_ids:
+        records = await bundle.cultivations.list_for_package(package_id)
+        packages.append(_build_package_view(package_id, records))
+    return web.json_response({"status": "ok", "packages": packages})
+
+
+async def _handle_get_package(request: web.Request) -> web.Response:
+    require_control_plane_secret(request)
+    bundle = _bundle(request)
+    package_id = request.match_info["package_id"]
+    records = await bundle.cultivations.list_for_package(package_id)
+    if not records:
+        return _error(404, "package_not_found", package_id)
+    return web.json_response(
+        {"status": "ok", **_build_package_view(package_id, records)}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -493,6 +687,12 @@ async def _ensure_candidate_template(
         "coherence_score": record.coherence_score,
         "cultivation_id": record.cultivation_id,
         "source_ai_id": record.ai_id,
+        # Package provenance (multi-direction cultivation). Empty when
+        # this template came from the legacy single-expert path, so the
+        # portal can group sibling tracks back to one seed and roll the
+        # package back together (R15).
+        "package_id": record.package_id,
+        "track_id": record.track_id,
     }
     template = await bundle.templates.create(
         tenant_id=SYSTEM_TENANT_ID,

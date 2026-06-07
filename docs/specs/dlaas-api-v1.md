@@ -868,6 +868,8 @@ All routes are operator-scoped (control-plane secret).
 ```http
 POST /dlaas/v1/cultivation
 GET  /dlaas/v1/cultivation
+GET  /dlaas/v1/cultivation/packages
+GET  /dlaas/v1/cultivation/packages/{package_id}
 GET  /dlaas/v1/cultivation/{cultivation_id}
 POST /dlaas/v1/cultivation/{cultivation_id}/tick
 POST /dlaas/v1/cultivation/{cultivation_id}/graduate
@@ -897,12 +899,35 @@ POST /dlaas/v1/cultivation/{cultivation_id}/induct
 - `POST .../induct` is the **operator approval** that promotes the published
   template to a default system expert.
 
+**Multi-direction packages.** A seed may carry an optional `directions[]`
+list — each entry `{ track_id, display_name, topics[], source_hints?[],
+objective?, coherence_threshold?, min_cycles_for_convergence? }`. When
+present, the seed fans out into several **self-consistent school tracks**:
+each direction becomes its own cultivation row with a distinct
+`ai_id = cultivation:{slug}:{track_id}` and its own active-mixture
+convergence + exam, but all tracks share one `package_id`. Schools never
+cross-contaminate because each track has its own kernel session. Tracks are
+ticked / graduated / inducted individually through the existing
+`{cultivation_id}` routes; `GET .../packages` and
+`GET .../packages/{package_id}` return the grouped
+`cultivation.package.v1` view (tracks + published refs + provenance) the
+operator console renders. Graduated templates carry `package_id` / `track_id`
+in their `cultivation.persona.v1` `persona_spec` so siblings group back to
+one seed and roll back together (R15). When `directions[]` is absent the
+legacy single-expert path is unchanged.
+
 Runtime vertical: `cultivation.expert.v0`. The protocol slow-loop
 (`protocol_reflection` / `protocol_revision_queue`) is ACTIVE for these
 instances so the mixture prunes failing strategies and converges onto one
 school while the Identity Core stays fixed (R15 rollback retained). Web
 research reuses the vz-bundle browse tools; researched theories never enter
-as raw corpus. Engine + readouts live in
+as raw corpus. This web research is **creation-time / studio-time only**
+(the cultivation loop, before induction): the inducted template's adopted
+runtime never reaches the internet, mirroring the Persona Studio
+`runtimeEgressAllowed = false` invariant. Because the loop *does* acquire
+external corpus at creation time, the Persona Studio contract marks
+`self_learning` with `enrichesFromExternalCorpus = true`, so publication
+must carry provenance. Engine + readouts live in
 `packages/lifeform-cultivation`; operator console in
 `apps/dlaas-portal` → `/[locale]/cultivation`.
 

@@ -26,14 +26,20 @@ from lifeform_cultivation.coherence import (
 )
 from lifeform_cultivation.curriculum import (
     CultivationCurriculum,
+    CultivationDirection,
     CultivationSeed,
     build_charter_text,
     build_study_brief,
+    parse_directions,
 )
 from lifeform_cultivation.engine import (
     CultivationEngine,
     CultivationProgress,
     CycleEvent,
+    MultiTrackProgress,
+    TrackProgress,
+    TrackRun,
+    run_direction_tracks,
 )
 from lifeform_cultivation.protocols import (
     IDENTITY_CORE_WEIGHT_FLOOR,
@@ -50,20 +56,26 @@ from lifeform_cultivation.sink import (
 __all__ = [
     "CoherenceAssessment",
     "CultivationCurriculum",
+    "CultivationDirection",
     "CultivationEngine",
     "CultivationProgress",
     "CultivationSeed",
     "CultivationSink",
     "CycleEvent",
     "IDENTITY_CORE_WEIGHT_FLOOR",
+    "MultiTrackProgress",
     "ProtocolCoherenceAssessment",
     "ResearchDoc",
     "SessionCultivationSink",
     "StudyTurn",
+    "TrackProgress",
+    "TrackRun",
     "assess_coherence",
     "assess_protocol_coherence",
     "build_charter_text",
     "build_identity_core_protocol",
     "build_study_brief",
     "is_identity_core",
+    "parse_directions",
+    "run_direction_tracks",
 ]

@@ -30,6 +30,7 @@ from lifeform_cultivation.coherence import (
 )
 from lifeform_cultivation.curriculum import (
     CultivationCurriculum,
+    CultivationDirection,
     CultivationSeed,
     build_charter_text,
     build_study_brief,
@@ -204,8 +205,112 @@ class CultivationEngine:
         )
 
 
+# ---------------------------------------------------------------------------
+# Multi-direction orchestration
+# ---------------------------------------------------------------------------
+#
+# A single seed can fan out into several DIRECTIONS, each growing its own
+# internally-consistent school. Each direction runs the *same* engine
+# loop against its *own* sink (its own kernel session / ai_id), so the
+# schools never cross-contaminate — there is no shared mutable cognitive
+# state between tracks; the only thing they share is the seed's Identity
+# Core anchor (loaded into each track independently by the caller).
+#
+# This orchestrator is pure: the caller supplies a bound sink per track
+# (the platform layer binds a real per-ai_id session), so it stays inside
+# the wheel boundary (no session / ai_id ownership here) and is testable
+# with fake sinks.
+
+
+@dataclass(frozen=True)
+class TrackRun:
+    """One direction + its bound (per-track) sink and resume state."""
+
+    direction: CultivationDirection
+    sink: CultivationSink
+    start_cycle: int = 0
+    prior_regimes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class TrackProgress:
+    track_id: str
+    display_name: str
+    progress: CultivationProgress
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "track_id": self.track_id,
+            "display_name": self.display_name,
+            "progress": self.progress.to_json(),
+        }
+
+
+@dataclass(frozen=True)
+class MultiTrackProgress:
+    """Aggregate readout across every direction's track."""
+
+    tracks: tuple[TrackProgress, ...]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "tracks": [t.to_json() for t in self.tracks],
+            "converged_track_ids": list(self.converged_track_ids),
+            "all_converged": self.all_converged,
+        }
+
+    @property
+    def converged_track_ids(self) -> tuple[str, ...]:
+        return tuple(t.track_id for t in self.tracks if t.progress.converged)
+
+    @property
+    def all_converged(self) -> bool:
+        return bool(self.tracks) and all(
+            t.progress.converged for t in self.tracks
+        )
+
+
+async def run_direction_tracks(
+    runs: tuple[TrackRun, ...],
+    *,
+    domain: str,
+    count: int,
+    base_curriculum: CultivationCurriculum | None = None,
+) -> MultiTrackProgress:
+    """Run ``count`` study cycles for each direction, independently.
+
+    Each :class:`TrackRun` carries its own sink (bound by the caller to a
+    distinct kernel session), so the per-track active-mixture readout and
+    exam evidence are isolated. Returns a :class:`MultiTrackProgress`
+    aggregating each track's :class:`CultivationProgress`.
+    """
+
+    results: list[TrackProgress] = []
+    for run in runs:
+        curriculum = run.direction.to_curriculum(base=base_curriculum)
+        engine = CultivationEngine(curriculum=curriculum, domain=domain)
+        progress = await engine.run_cycles(
+            run.sink,
+            start_cycle=run.start_cycle,
+            count=count,
+            prior_regimes=run.prior_regimes,
+        )
+        results.append(
+            TrackProgress(
+                track_id=run.direction.track_id,
+                display_name=run.direction.display_name,
+                progress=progress,
+            )
+        )
+    return MultiTrackProgress(tracks=tuple(results))
+
+
 __all__ = [
     "CultivationEngine",
     "CultivationProgress",
     "CycleEvent",
+    "MultiTrackProgress",
+    "TrackProgress",
+    "TrackRun",
+    "run_direction_tracks",
 ]

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from volvence_zero.behavior_protocol import (
     ActiveMixtureSnapshot,
     ActiveProtocolEntry,
@@ -16,16 +18,21 @@ from volvence_zero.behavior_protocol import (
 
 from lifeform_cultivation import (
     CultivationCurriculum,
+    CultivationDirection,
     CultivationEngine,
     CultivationSeed,
+    MultiTrackProgress,
     ResearchDoc,
     StudyTurn,
+    TrackRun,
     assess_coherence,
     assess_protocol_coherence,
     build_charter_text,
     build_identity_core_protocol,
     build_study_brief,
     is_identity_core,
+    parse_directions,
+    run_direction_tracks,
 )
 
 
@@ -235,3 +242,93 @@ def test_curriculum_and_seed_round_trip():
     assert CultivationCurriculum.from_json(c.to_json()).topics == c.topics
     seed = CultivationSeed(display_name="N", domain="d", role_archetype="r")
     assert CultivationSeed.from_json(seed.to_json()) == seed
+
+
+# --- Multi-direction cultivation ------------------------------------------
+
+
+def test_direction_to_curriculum_inherits_base_cadence():
+    base = _curriculum(docs_per_topic=5, reflect_every=3, target_cycles=30)
+    direction = CultivationDirection(
+        track_id="cbt",
+        display_name="CBT",
+        topics=("认知偏差", "行为"),
+        coherence_threshold=0.8,
+        min_cycles_for_convergence=6,
+    )
+    cur = direction.to_curriculum(base=base)
+    assert cur.topics == ("认知偏差", "行为")
+    assert cur.docs_per_topic == 5  # inherited from base
+    assert cur.reflect_every == 3  # inherited from base
+    assert cur.coherence_threshold == 0.8  # direction override
+    assert cur.min_cycles_for_convergence == 6  # direction override
+
+
+def test_parse_directions_round_trip_and_dedup():
+    parsed = parse_directions(
+        [
+            {"track_id": "pd", "display_name": "PD", "topics": ["a"]},
+            {"track_id": "cbt", "display_name": "CBT", "topics": ["b"]},
+        ]
+    )
+    assert [d.track_id for d in parsed] == ["pd", "cbt"]
+    assert CultivationDirection.from_json(parsed[0].to_json()) == parsed[0]
+
+
+def test_parse_directions_empty_when_absent():
+    assert parse_directions(None) == ()
+    assert parse_directions({}) == ()
+
+
+def test_parse_directions_rejects_duplicate_track_ids():
+    with pytest.raises(ValueError):
+        parse_directions(
+            [
+                {"track_id": "dup", "topics": ["a"]},
+                {"track_id": "dup", "topics": ["b"]},
+            ]
+        )
+
+
+def test_parse_directions_rejects_bad_track_id():
+    with pytest.raises(ValueError):
+        parse_directions([{"track_id": "Bad ID", "topics": ["a"]}])
+
+
+def test_run_direction_tracks_isolates_each_school():
+    converged_mix = _mixture(
+        [("cultivation-identity:x", 0.25), ("uptake:psychodynamic", 0.9)]
+    )
+    mixed_mix = _mixture(
+        [("uptake:a", 0.34), ("uptake:b", 0.33), ("uptake:c", 0.33)]
+    )
+    runs = (
+        TrackRun(
+            direction=CultivationDirection(
+                track_id="pd",
+                display_name="PD",
+                topics=("依恋",),
+                min_cycles_for_convergence=4,
+            ),
+            sink=FakeSink(mixture=converged_mix),
+        ),
+        TrackRun(
+            direction=CultivationDirection(
+                track_id="cbt",
+                display_name="CBT",
+                topics=("认知",),
+                min_cycles_for_convergence=4,
+            ),
+            sink=FakeSink(mixture=mixed_mix),
+        ),
+    )
+    result = asyncio.run(
+        run_direction_tracks(runs, domain="儿童心理", count=6)
+    )
+    assert isinstance(result, MultiTrackProgress)
+    assert len(result.tracks) == 2
+    by_id = {t.track_id: t for t in result.tracks}
+    assert by_id["pd"].progress.converged is True
+    assert by_id["cbt"].progress.converged is False
+    assert result.converged_track_ids == ("pd",)
+    assert result.all_converged is False
