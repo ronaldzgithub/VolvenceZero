@@ -47,6 +47,7 @@ $Packages = @(
     "packages\lifeform-domain-coding",
     "packages\lifeform-domain-figure",
     "packages\lifeform-domain-growth-advisor",
+    "packages\lifeform-cultivation",
     "packages\companion-bench",
     "packages\companion-ref-harness",
     "packages\lifeform-service",
