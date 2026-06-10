@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import logging
 import pathlib
+from hashlib import sha256
 from collections.abc import Mapping
 from uuid import uuid4
 from pathlib import Path
@@ -59,6 +60,13 @@ from lifeform_service.alpha import (
     alpha_config_to_json,
 )
 from lifeform_core import LlmJsonClient
+from lifeform_protocol_runtime import (
+    MentorIntakeApplyMode,
+    MentorIntakeKind,
+    MentorIntakeRequest,
+    classify_mentor_intake,
+    extract_protocol_from_description,
+)
 from lifeform_service.openai_utterance_client import (
     build_utterance_client_from_env,
 )
@@ -89,6 +97,7 @@ from lifeform_service.vertical_registry import (
 from lifeform_service.verticals import VerticalSpec
 from volvence_zero.agent.prompts import build_system_prompt
 from volvence_zero.application.types import ResponseAssemblySnapshot
+from volvence_zero.behavior_protocol import ReviewLevel, ReviewStatus
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeKind,
@@ -233,6 +242,7 @@ def create_app(
     # opt-in consumers. Verticals that don't need the LLM simply
     # don't read this key — no behavior change.
     app["external_llm_client"] = external_llm_client
+    app["protocol_uptake_service"] = protocol_uptake_service
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
     app.router.add_get("/v1/health", _handle_health)
@@ -248,6 +258,10 @@ def create_app(
     app.router.add_post(
         "/v1/sessions/{session_id}/dialogue-outcomes",
         _handle_dialogue_outcome,
+    )
+    app.router.add_post(
+        "/v1/sessions/{session_id}/mentor-intakes",
+        _handle_mentor_intake,
     )
     app.router.add_post("/v1/sessions/{session_id}/pause", _handle_pause_session)
     app.router.add_post("/v1/sessions/{session_id}/end-scene", _handle_end_scene)
@@ -846,6 +860,138 @@ async def _handle_turn(request: web.Request) -> web.Response:
     return _json_ok(body.to_json())
 
 
+async def _handle_mentor_intake(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _require_json(request)
+    guidance = payload.get("guidance")
+    if not isinstance(guidance, str) or not guidance.strip():
+        raise _BadRequest("invalid_guidance", "guidance must be a non-empty string")
+
+    llm_client: LlmJsonClient | None = request.app.get("external_llm_client")
+    if llm_client is None:
+        return _json_error(
+            status=503,
+            error="mentor_intake_llm_not_configured",
+            detail=(
+                "mentor intake requires the shared OpenAI-compatible JSON "
+                "LLM client."
+            ),
+        )
+
+    apply_mode = _parse_mentor_apply_mode(payload.get("apply_mode"))
+    mentor_id = _mentor_id(request, payload)
+    target_protocol_id = _optional_str(payload.get("target_protocol_id"))
+    protocol_id = _optional_str(payload.get("protocol_id")) or _mentor_protocol_id(
+        session_id=session_id,
+        guidance=guidance,
+    )
+    advisor_name = _optional_str(payload.get("advisor_name")) or mentor_id
+    reviewer_level = _parse_review_level(payload.get("reviewer_level"))
+    request_obj = MentorIntakeRequest(
+        guidance=guidance,
+        mentor_id=mentor_id,
+        target_protocol_id=target_protocol_id,
+        apply_mode=apply_mode,
+    )
+
+    try:
+        decision = classify_mentor_intake(request_obj, llm_client=llm_client)
+    except ValueError as exc:
+        return _json_error(
+            status=422,
+            error="mentor_intake_classification_failed",
+            detail=str(exc),
+        )
+
+    response: dict[str, Any] = {
+        "session_id": session_id,
+        "apply_mode": apply_mode.value,
+        "decision": decision.to_json(),
+        "applied": False,
+    }
+    if apply_mode is MentorIntakeApplyMode.CLASSIFY_ONLY:
+        return _json_ok(response)
+
+    if decision.intake_kind not in {
+        MentorIntakeKind.PROTOCOL,
+        MentorIntakeKind.BOUNDARY,
+    }:
+        response["unsupported_reason"] = decision.unsupported_reason or (
+            f"{decision.intake_kind.value} intake is not supported for "
+            "session-local apply yet."
+        )
+        status = 202 if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW else 422
+        return _json_ok(response, status=status)
+
+    try:
+        candidate = extract_protocol_from_description(
+            guidance,
+            llm_client=llm_client,
+            protocol_id=protocol_id,
+            advisor_name=advisor_name,
+            extractor_id="lifeform-service/mentor-intake",
+        )
+    except (ValueError, RuntimeError) as exc:
+        return _json_error(
+            status=422,
+            error="mentor_protocol_extraction_failed",
+            detail=str(exc),
+        )
+
+    if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW:
+        service: ProtocolUptakeService | None = request.app.get(
+            "protocol_uptake_service"
+        )
+        if service is None:
+            return _json_error(
+                status=503,
+                error="protocol_uptake_not_configured",
+                detail="submit_for_review requires ProtocolUptakeService.",
+            )
+        submitted_id = await service.submit_candidate(
+            candidate,
+            note=f"mentor-intake:{mentor_id}",
+        )
+        response["submitted_for_review"] = True
+        response["protocol_id"] = submitted_id
+        return _json_ok(response, status=202)
+
+    from dataclasses import replace as _replace
+
+    session = await manager.get_session(session_id)
+    approved_protocol = _replace(
+        candidate.protocol,
+        review_status=ReviewStatus.ACTIVE,
+    )
+    try:
+        applied = session.apply_mentor_intake(
+            approved_protocol,
+            reviewer_id=mentor_id,
+            reviewer_level=reviewer_level,
+            note=f"mentor-intake:{apply_mode.value}",
+        )
+    except (PermissionError, ValueError, TypeError) as exc:
+        return _json_error(
+            status=403 if isinstance(exc, PermissionError) else 400,
+            error="mentor_intake_apply_failed",
+            detail=str(exc),
+        )
+
+    response["applied"] = True
+    response["application"] = applied
+    response["protocol"] = {
+        "protocol_id": approved_protocol.protocol_id,
+        "advisor_name": approved_protocol.advisor_name,
+        "review_status": approved_protocol.review_status.value,
+        "boundary_count": len(approved_protocol.boundary_contracts),
+        "strategy_count": len(approved_protocol.strategy_priors),
+        "knowledge_seed_count": len(approved_protocol.knowledge_seeds),
+        "signature_case_count": len(approved_protocol.signature_cases),
+    }
+    return _json_ok(response)
+
+
 def _derive_llm_envelope(
     *,
     assembly: ResponseAssemblySnapshot | None,
@@ -1187,6 +1333,57 @@ async def _maybe_json(request: web.Request) -> Any:
         return json.loads(text)
     except json.JSONDecodeError as exc:
         raise _BadRequest("invalid_json", f"Body is not valid JSON: {exc}") from exc
+
+
+def _parse_mentor_apply_mode(raw: object) -> MentorIntakeApplyMode:
+    if raw is None:
+        return MentorIntakeApplyMode.CLASSIFY_ONLY
+    if not isinstance(raw, str):
+        raise _BadRequest("invalid_apply_mode", "apply_mode must be a string")
+    try:
+        return MentorIntakeApplyMode(raw.strip() or "classify_only")
+    except ValueError as exc:
+        allowed = ", ".join(mode.value for mode in MentorIntakeApplyMode)
+        raise _BadRequest(
+            "invalid_apply_mode",
+            f"apply_mode must be one of: {allowed}",
+        ) from exc
+
+
+def _parse_review_level(raw: object) -> ReviewLevel:
+    if raw is None:
+        return ReviewLevel.L4
+    if not isinstance(raw, str):
+        raise _BadRequest("invalid_reviewer_level", "reviewer_level must be a string")
+    try:
+        return ReviewLevel(raw.strip().lower())
+    except ValueError as exc:
+        allowed = ", ".join(level.value for level in ReviewLevel)
+        raise _BadRequest(
+            "invalid_reviewer_level",
+            f"reviewer_level must be one of: {allowed}",
+        ) from exc
+
+
+def _mentor_id(request: web.Request, payload: dict[str, Any]) -> str:
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    if alpha.enabled:
+        return _alpha_user_id(request, payload)
+    raw = payload.get("mentor_id") or request.headers.get("X-Mentor-Id")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return "anonymous-mentor"
+
+
+def _optional_str(raw: object) -> str | None:
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
+def _mentor_protocol_id(*, session_id: str, guidance: str) -> str:
+    digest = sha256(f"{session_id}:{guidance}".encode("utf-8")).hexdigest()[:12]
+    return f"mentor:{session_id}:{digest}"
 
 
 class _BadRequest(Exception):

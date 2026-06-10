@@ -52,6 +52,7 @@ from volvence_zero.agent.response import (
 )
 from volvence_zero.application.domain_experience import DomainExperiencePackage
 from volvence_zero.agent.dialogue_outcome_producers import scene_closed_evidence
+from volvence_zero.behavior_protocol import BehaviorProtocol, ReviewLevel
 from volvence_zero.brain import Brain, BrainConfig, BrainSession
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidence,
@@ -69,6 +70,7 @@ from volvence_zero.regime import RegimeBootstrap
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateAdapter
 from volvence_zero.temporal import MetacontrollerParameterSnapshot
+from volvence_zero.protocol_runtime import LoadContext
 
 
 @runtime_checkable
@@ -1041,6 +1043,42 @@ class LifeformSession:
         self._pending_mcp_prompts = []
         self._mcp_prompts_flushed = True
         return tuple(submitted)
+
+    def apply_mentor_intake(
+        self,
+        protocol: BehaviorProtocol,
+        *,
+        reviewer_id: str,
+        reviewer_level: ReviewLevel = ReviewLevel.L4,
+        note: str = "",
+    ) -> dict[str, object]:
+        """Load a mentor-approved protocol into this live session.
+
+        This is the single lifeform-side adapter for current-session
+        mentor intake. It delegates to the kernel-owned
+        ``ProtocolRegistryModule`` so behavior changes flow through
+        ``ActiveMixtureSnapshot`` on the next turn. It does not touch
+        the service-level approved registry.
+        """
+
+        if not reviewer_id.strip():
+            raise ValueError("apply_mentor_intake.reviewer_id must be non-empty")
+        registry_module = self._brain_session.runner._protocol_registry_module
+        registry_module.load_protocol(
+            protocol,
+            load_context=LoadContext(
+                reviewer_id=reviewer_id,
+                reviewer_level=reviewer_level,
+                note=note,
+            ),
+        )
+        return {
+            "protocol_id": protocol.protocol_id,
+            "reviewer_id": reviewer_id,
+            "reviewer_level": reviewer_level.value,
+            "applies_to_current_session": True,
+            "routed_owner": "protocol_registry",
+        }
 
     def persist_owners(self) -> tuple[str, ...]:
         """Packet D (long-horizon-closure): export + persist all

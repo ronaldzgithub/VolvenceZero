@@ -169,7 +169,7 @@ def _case_records() -> tuple[CaseMemoryRecord, ...]:
             domain=_DOMAIN_ESCALATION,
             problem_pattern="task-exceeds-authority",
             user_state_pattern="expects-completion",
-            risk_markers=("risk-high", "external-spend"),
+            risk_markers=("risk-high",),
             track_tags=("self", "world"),
             regime_tags=("escalation_to_human",),
             intervention_ordering=(

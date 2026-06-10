@@ -153,7 +153,7 @@ def _case_records() -> tuple[CaseMemoryRecord, ...]:
             domain=_DOMAIN_COMPLIANCE,
             problem_pattern="external-spend-or-irreversible",
             user_state_pattern="action-requested",
-            risk_markers=("risk-high", "external-spend"),
+            risk_markers=("risk-high",),
             track_tags=("world",),
             regime_tags=("compliance_guard",),
             intervention_ordering=(

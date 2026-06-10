@@ -469,6 +469,11 @@ def _lifeform_telemetry_headers(result: LifeformCompletionResult) -> dict[str, s
         # Header values must be ASCII; rationale tags are already ASCII
         # (snake-case identifiers) but we comma-join for terseness.
         headers["x-lifeform-rationale-tags"] = ",".join(result.rationale_tags)
+    if result.confidence is not None:
+        # Kernel-PE calibrated confidence (deploy debt D-collab-pe):
+        # absent header = the kernel published no PE snapshot this turn;
+        # consumers must fall back honestly, never fabricate a value.
+        headers["x-lifeform-confidence"] = f"{result.confidence:.4f}"
     return headers
 
 

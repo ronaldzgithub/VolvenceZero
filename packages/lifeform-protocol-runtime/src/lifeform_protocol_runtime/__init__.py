@@ -53,6 +53,13 @@ from lifeform_protocol_runtime.llm_clients import (
     OpenAiCompatConfig,
     OpenAiCompatJsonClient,
 )
+from lifeform_protocol_runtime.mentor_intake import (
+    MentorIntakeApplyMode,
+    MentorIntakeDecision,
+    MentorIntakeKind,
+    MentorIntakeRequest,
+    classify_mentor_intake,
+)
 from lifeform_protocol_runtime.serialization import (
     SCHEMA_VERSION as PROTOCOL_PAYLOAD_SCHEMA_VERSION,
     ProtocolPayloadSchemaError,
@@ -68,12 +75,17 @@ __all__ = [
     "DocumentChunk",
     "DocumentText",
     "LlmJsonClient",
+    "MentorIntakeApplyMode",
+    "MentorIntakeDecision",
+    "MentorIntakeKind",
+    "MentorIntakeRequest",
     "MockLlmJsonClient",
     "OpenAiCompatConfig",
     "OpenAiCompatJsonClient",
     "PROTOCOL_PAYLOAD_SCHEMA_VERSION",
     "ProtocolPayloadSchemaError",
     "chunk_document",
+    "classify_mentor_intake",
     "extract_protocol_candidate",
     "extract_protocol_from_description",
     "inject_protocol_from_payload",

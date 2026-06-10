@@ -1541,6 +1541,7 @@ class PredictionErrorSnapshot:
 - live session 中，部分消费者会把 `prediction_error` 视为“上一轮 carryover learning evidence”，以避免同轮自因果闭环
 - `memory_retrieval_facets` 由 PredictionError owner 根据自身 error 维度生成；memory 不从 `PredictionError.error` 各分量重新选择 dominant dimension
 - Phase 2.B 在 `_PECriticHead` 内维护 learned contextual critic（`SubstrateSnapshot.feature_surface` digest + `PredictionActionContext` -> expected `|axis_error|`）。`aleatoric_magnitude` 仍来自 EMA variance floor；`epistemic_magnitude` / `improvement_magnitude` 代表 `actual |axis_error| - critic_prediction` 的可改进部分。该 readout 仍为 report-only，不进入 evaluation acceptance gate。
+- **HTTP 投影（deploy 债 `D-collab-pe` 上游半）**：DLaaS interaction `extra` 与 OpenAI-compat `x-lifeform-confidence` header 投影 `next_prediction.confidence`（clamp [0,1]，标 `confidence_origin="kernel_pe"`），PE 轴投影 `error.{magnitude, relationship_error, task_error}`。投影是只读 readout，规则冻结在 `docs/specs/dlaas-api-v1.md` §「Interaction response `extra`」；快照缺席时字段缺席，平台不得伪造。
 
 **消费者**：记忆系统、时间抽象层、认知 Regime 层、信用分配、慢反思路径；`evaluation` 在 final wiring 中追加 PE evidence，但不把它变成新的模块 owner
 **发布频率**：每 turn

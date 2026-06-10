@@ -1333,6 +1333,17 @@ return (
   - **COG-2 reframed（ToM / 多人归因）**：已新增 `ToMInterlocutorRecordCount` / `tom_record_counts_by_interlocutor(...)`，并让 dialogue `metric_means` 暴露 `tom_distinct_interlocutor_max` / `tom_record_total_max`。
   - **SHADOW profile + metric 面**：四条 profile 已注册并可通过 `default_phase2_shadow_evidence_profiles()` / `run_phase2_shadow_evidence_smoke.py` 显式跑；默认 ablation / strong-proof 矩阵不包含它们。
   - **阶段 D 决策机制**：`build_phase2_shadow_decision_report.py` 已能基于 multi-seed JSON 输出 `ACTIVE_CANDIDATE` / `REMAIN_SHADOW` / `DISABLED` 建议；真实 5-seed single-profile evidence 已跑完，四条单项 profile 均为 `REMAIN_SHADOW`（head-to-head winrate = 0.5）。当前缺 Phase 3 combo 真实 evidence 与 OA-4 full audit-agent，因此仍不是自动合并门。
+  - **Phase 3 combo 路径 READY-TO-RUN（2026-06-10 冒烟核验）**：(a) synthetic 全
+    profile（4 单项 + 3 combo + audit-persona-geometry）冒烟通过，artifact
+    `artifacts/phase2-shadow-combo-smoke-synthetic`（manifest verified）；(b)
+    **真实 runner** 单 seed `--case-limit 1 --seeds 0 --include-phase3-combos`
+    端到端跑通（约 23 分钟含 HF 权重加载），artifact
+    `artifacts/phase3-shadow-combo-smoke-singleseed`（manifest verified）。
+    完整 evidence run 只差算力与择机执行：
+    `python scripts/run_phase2_shadow_evidence_multiseed.py --case-limit 4 --seeds 0 1 2 3 4 --include-phase3-combos --output-dir artifacts/phase3-shadow-real-multiseed`
+    （随后 `build_phase2_shadow_decision_report.py` + manifest verify）。结果
+    无论方向，须如实回填本条 + deploy 侧 `VolvenceDeploy/docs/known-debts.md`
+    `D-thesis-1`。
 - **违反**：不违反 R 铁律。每个候选都遵循 Phase 1 的 profile composition + capability wiring 接口，行为隔离 + 可回滚 + 不污染现有 owner SSOT。COG-1 / COG-2 / COG-3 的"现状盲点"段落在 phase-a-brief 中已被 PARTIALLY-REFUTED，实际工作量比 [`探索方向.md`](moving%20forward/探索方向.md) 原描述小一档（4 个 ToM slot 已 ACTIVE / COCOA Phase 1.A+2.A 已上线 / multi_party_scenarios 已有 fixture）。
 - **风险**：
   - **短期低**：不做不影响 functionality，现有系统照常运行；阶段 A brief 已经记录所有候选的 ROI 与依赖。
@@ -1526,6 +1537,14 @@ return (
   2. companion-bench A3 加伴生"human eval cross-validation"轨道（与 debt #33 human-eval 联动）
   3. 加 `docs/specs/relationship-continuity-external-validation.md`：列举系统自评指标 vs 用户感受 proxy 的对照矩阵 + 评估方法论
   4. P2 月报 metric 旁标注 "system self-eval" vs "external-validated"，避免在客户面前混用
+- **进展（2026-06-10）**：修法 1 + 3 + 4 的**规范半**已落地——
+  [`docs/specs/relationship-continuity-external-validation.md`](specs/relationship-continuity-external-validation.md)
+  固化了对照矩阵、双盲三臂评分协议（N=20 评估员 / 30-turn 片段 / VZ vs baseline vs
+  真人）、两个判读门（效度门 ρ≥0.4 / 差异门配对显著 + 二选一胜率>0.6）与
+  `system_self_eval / llm_judge / external_validated` 三态标注枚举（已登记
+  `00_INDEX.md` §8）。**evidence run 本身仍 OPEN**（评估员招募 + 片段采集 + 真实
+  评分未做）；部署侧 `VolvenceDeploy/docs/known-debts.md` `D-thesis-1` EXIT 条件 (b)
+  以本 spec 的两个判读门为可执行定义。
 - **优先级**：**低-中**（Phase B 中期；与 P2 30 天试点同 packet 设计；与 #33 human-eval 联动）
 
 ---

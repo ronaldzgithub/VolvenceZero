@@ -21,6 +21,10 @@ is intentionally organized around a few invariants:
 - **Latent control over token control**: long-running behavior is learned in
   temporal controller state (`z_t`, `beta_t`) rather than through surface-text
   keyword rules.
+- **Human guidance is typed intake**: mentor guidance is classified into
+  protocol / revision / experience / knowledge / case / boundary intake and
+  routed to the corresponding owner. It is not a prompt override and not a
+  platform-owned cognitive state.
 - **Rollback by construction**: new owners and fields enter through
   `WiringLevel.DISABLED` / `SHADOW` / `ACTIVE`, with contract tests and evidence
   gates before widening their consumer radius.

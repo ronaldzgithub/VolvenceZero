@@ -181,10 +181,12 @@
 | Spec | 内容 |
 |------|------|
 | [evaluation.md](./evaluation.md) | 6 族评估指标（任务能力、交互质量、关系连续性、学习质量、抽象质量、安全与有界性） |
+| [relationship-continuity-external-validation.md](./relationship-continuity-external-validation.md) | 关系连续性 ground truth：自评 vs 用户感受对照矩阵、双盲第三方评分协议、`system_self_eval / llm_judge / external_validated` 三态标注（债 #51） |
 
 **核心不变量**：
 - 评估不仅衡量有用性，还衡量连续性、稳定性、信任和长期适应
 - 评估是 prediction error 的 readout / gate，而不是学习源头
+- 关系类指标对外引用必须带 evidence-source 三态标注；external validation 结果不回灌学习链路
 
 ---
 

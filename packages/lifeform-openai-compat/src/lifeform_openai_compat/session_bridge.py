@@ -226,6 +226,35 @@ def _expression_intent_from_result(result: object) -> str | None:
     return intent if isinstance(intent, str) and intent else None
 
 
+def _kernel_confidence_from_result(result: object) -> float | None:
+    """Read the kernel's calibrated forward-looking confidence.
+
+    Source: ``prediction_error`` snapshot value
+    (``PredictionErrorSnapshot.next_prediction.confidence``), the PE
+    owner's own [0, 1] confidence for the upcoming turn. Mirrors the
+    DLaaS dispatch ``_kernel_confidence`` projection (upstream half of
+    deploy debt ``D-collab-pe``) so OpenAI-compat consumers get the same
+    signal on a response header. ``None`` (header absent) when the turn
+    published no PE snapshot — consumers must NOT fabricate a value.
+    """
+    snapshots = getattr(result, "active_snapshots", None)
+    if not snapshots:
+        return None
+    snapshot = snapshots.get("prediction_error")
+    if snapshot is None:
+        return None
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return None
+    next_prediction = getattr(value, "next_prediction", None)
+    if next_prediction is None:
+        return None
+    raw = getattr(next_prediction, "confidence", None)
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return None
+    return max(0.0, min(1.0, float(raw)))
+
+
 @dataclass(frozen=True)
 class LifeformCompletionResult:
     """Internal struct produced by :func:`lifeform_complete`.
@@ -261,6 +290,12 @@ class LifeformCompletionResult:
     # half of the "subjectivity transport gap" fix. ``None`` when the
     # turn produced no response_assembly.
     expression_intent: str | None = None
+    # Kernel-calibrated forward-looking confidence [0, 1] from the PE
+    # owner (``next_prediction.confidence``). Surfaced on the
+    # ``x-lifeform-confidence`` response header so a BFF collaboration
+    # gate can consume a REAL kernel-PE signal (deploy debt
+    # ``D-collab-pe``). ``None`` when the turn published no PE snapshot.
+    confidence: float | None = None
 
 
 async def lifeform_complete(
@@ -360,6 +395,7 @@ async def lifeform_complete(
     active_regime = getattr(result, "active_regime", None)
     active_abstract_action = getattr(result, "active_abstract_action", None)
     expression_intent = _expression_intent_from_result(result)
+    confidence = _kernel_confidence_from_result(result)
 
     summaries = session.turn_summaries
     last_summary = summaries[-1] if summaries else None
@@ -400,6 +436,7 @@ async def lifeform_complete(
         rationale_tags=rationale_tags,
         evidence_pointers=evidence_pointers,
         expression_intent=expression_intent,
+        confidence=confidence,
     )
 
 

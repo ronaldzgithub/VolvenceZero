@@ -244,6 +244,17 @@ Allowed self-modification targets: retrieval weighting, strategy priors, abstrac
 
 Gating rules define what can be modified online, what requires background validation, what requires offline retraining, and what requires human review.
 
+**R-MI. Human Mentor Guidance Is Typed Intake, Not Prompt Override**
+
+Human mentorship is part of the adaptive system, but it is not a privileged prompt channel. When a human mentor gives guidance, the system must treat it as a typed intake event: classify the guidance by meaning, route it to the single owner that can act on it, and preserve audit / rollback evidence.
+
+The first distinction is between **behavior protocol** and **experience**:
+
+- If guidance changes what the system should do next — action posture, boundary, strategy ordering, temporal phase behavior, activation conditions, or success / failure criteria — it must become a `BehaviorProtocol` or a reviewed `ProtocolRevisionProposal`. It enters the adaptive controller surface through `ProtocolRegistryModule`, affects `ActiveMixtureSnapshot`, and can shape the next turn.
+- If guidance explains what happened, why an outcome was good or bad, or what evidence should be remembered, it is experience / knowledge / case material. It must enter the appropriate memory, case, knowledge, credit, or consolidation owner and influence future behavior through retrieval, delayed credit, and reflection.
+
+Mentor intake therefore sits at the human-in-the-loop boundary between operations and cognition. It may be assisted by an LLM classifier, but classification must be structured and owner-oriented, not keyword matching. If a target owner is not implemented, the system must return an explicit unsupported / queued result rather than silently degrading to prompt text. A mentor instruction that should immediately change behavior but only lands as memory is a control failure; a retrospective experience that becomes a hard rule is an overfitting failure.
+
 **R11. Runtime State Must Expose a Learnable Internal Representation**
 
 The system maintains explicit internal state rich enough for both behavioral control and later reflection: active motives and tensions, candidate strategies, uncertainty, user-state estimates, relationship-state estimates, current regime, and expected outcomes. If the system cannot name and publish its internal state, it cannot learn reliably from it.
@@ -368,6 +379,7 @@ The design is on-track only if the answer to most of these becomes "yes":
 10. Can it expose enough internal state to support reflection, evaluation, and rollback?
 11. Can new adaptive layers be added without destroying module ownership and public contracts?
 12. Can fixed multi-turn dialogue benchmarks show that high prediction error triggers temporally aligned controller changes and later improvement relative to weak baselines?
+13. Can human mentor guidance be classified into protocol / revision / experience / knowledge / case / boundary intake and routed to the correct owner without becoming prompt-only behavior?
 
 ---
 
@@ -426,5 +438,6 @@ The result is not a better prompt stack, but a bounded learning organism:
 - reflective in the background
 - memory-rich across timescales
 - relationship-aware as a first-class objective
+- responsive to human mentor guidance through typed intake rather than prompt override
 - explainable through explicit contracts
 - learning from its own prediction errors

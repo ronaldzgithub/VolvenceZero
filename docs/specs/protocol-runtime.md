@@ -80,6 +80,29 @@
 - 其他 owner（boundary_policy / metacontroller / vitals）通过**读 ProtocolRuntime 快照**决定如何调权自己拥有的状态，而不是被 ProtocolRuntime 直写
 - 这一组关系完全等价于 Domain Experience Layer 的"经验 → ETA 4 接入点"机制，只是把"静态垂直经验"扩展为"可激活、可混合、可修订的运行时配置"
 
+## Mentor Intake（人机协同指导入口）
+
+人类 mentor 的指导不是默认写成"经验"，也不是临时塞进 prompt。Mentor guidance 是一个**intake event**：先分类，再路由到唯一 owner。分类必须走语义/结构化方法（LLM JSON 输出、模型分类或人工显式选择），禁止用关键词匹配决定 owner。
+
+分类结果包括：
+
+| intake_kind | 判定口径 | 路由 |
+|---|---|---|
+| `protocol` | 改变后续行动姿态、任务集、策略顺序、时间阶段或成功/失败定义 | `TaskDescriptionUptake` → `BehaviorProtocol` → `ProtocolRegistryModule.load_protocol` |
+| `protocol_revision` | 修改已加载协议中的某条 strategy / knowledge / case 权重或生命周期 | `ProtocolRevisionProposal` → review / queue → `ProtocolRegistryModule.apply_revision` |
+| `boundary` | 新增/收紧禁止行为、升级、人审或 hard block 条件 | 编译为 `BehaviorProtocol.boundary_contracts`，经 `ProtocolRegistryModule.load_protocol` 进入 boundary owner |
+| `knowledge` | 只增加事实/领域知识，不要求立即改变行动姿态 | ingestion / reviewed knowledge path → `domain_knowledge` owner |
+| `case` | 记录一个具体情境、对话或处理样例 | case ingestion path → `case_memory` owner |
+| `experience` | 记录"发生了什么、效果如何、PE/信用如何归因" | experience / consolidation owners；不得直接冒充协议 |
+
+运行时不变量：
+
+1. 会改变下一轮行为的 mentor 指导必须进入 `BehaviorProtocol` 或 `ProtocolRevisionProposal`，并由 `ProtocolRegistryModule` 发布到 `ActiveMixtureSnapshot`。
+2. 当前会话热加载是 session-local：只修改该 session 的稳定 `ProtocolRegistryModule`，不污染 service-level approved registry。
+3. service-level `ProtocolUptakeService` 的既有语义保持不变：approved / library active set 默认只影响**新 session** 的 `seed_protocols`。
+4. 非 protocol 分类在对应 owner 未接好之前必须 fail loudly / 返回 unsupported，不允许退化成 prompt-only guidance。
+5. 每个 mentor intake 必须携带 `mentor_id` / `reviewer_id` / `apply_mode` / `routed_owner` / `applies_to_current_session` 审计字段。
+
 ## 五个机构（架构总览）
 
 ```

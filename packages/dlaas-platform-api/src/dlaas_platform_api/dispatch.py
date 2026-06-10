@@ -1162,6 +1162,17 @@ def _cognition_extra(session: Any) -> dict[str, Any]:
     if pe_compact is not None:
         extra["prediction_error"] = pe_compact
 
+    confidence = _kernel_confidence(prediction_error)
+    if confidence is not None:
+        # D-collab-pe (deploy-side collaboration gate): the kernel's
+        # forward-looking calibrated confidence (R-PE readout,
+        # ``next_prediction.confidence``). ``confidence_origin`` lets the
+        # consumer's gate distinguish a real kernel PE signal from a
+        # structural / fallback literal — it must NEVER be fabricated
+        # downstream when this field is absent.
+        extra["confidence"] = confidence
+        extra["confidence_origin"] = "kernel_pe"
+
     relationship_brief = _snapshot_description(snapshots.get("relationship_state"))
     if relationship_brief:
         extra["relationship_brief"] = relationship_brief
@@ -1203,20 +1214,63 @@ def _prediction_error_compact(snapshot: Any) -> dict[str, float] | None:
     (``magnitude`` / ``relationship`` / ``task``) so the product layer can
     drive affect without an extra ``/cognition/snapshots`` round-trip. We
     only surface scalars that are actually present + numeric.
+
+    The published slot value is the kernel ``PredictionErrorSnapshot``,
+    whose numeric axes live on the nested ``error`` object
+    (``error.magnitude`` / ``error.relationship_error`` /
+    ``error.task_error``). We read that canonical shape first and keep the
+    legacy flat-attribute read as a fallback for pre-publication compact
+    values, so the projection works against the REAL kernel snapshot
+    instead of silently returning ``None`` in production.
     """
     if snapshot is None:
         return None
     value = getattr(snapshot, "value", None)
     if value is None:
         return None
+    error = getattr(value, "error", None)
     out: dict[str, float] = {}
-    for axis in ("magnitude", "relationship", "task"):
-        raw = getattr(value, axis, None)
+    axis_sources = (
+        ("magnitude", "magnitude"),
+        ("relationship", "relationship_error"),
+        ("task", "task_error"),
+    )
+    for axis, error_field in axis_sources:
+        raw = getattr(error, error_field, None) if error is not None else None
+        if raw is None:
+            # Legacy/compact value shape: flat axis attributes.
+            raw = getattr(value, axis, None)
         if isinstance(raw, bool):
             continue
         if isinstance(raw, (int, float)):
             out[axis] = float(raw)
     return out or None
+
+
+def _kernel_confidence(snapshot: Any) -> float | None:
+    """Calibrated forward-looking confidence off the PE snapshot.
+
+    Reads ``PredictionErrorSnapshot.next_prediction.confidence`` — the
+    kernel's own [0, 1] confidence for the upcoming turn, computed by the
+    PE owner (``PredictionErrorModule._confidence``). This is the single
+    legal kernel-PE confidence source for the deploy-side collaboration
+    gate (upstream half of deploy debt ``D-collab-pe``); ``None`` when the
+    snapshot/field is absent so the consumer can fall back honestly
+    (labelled ``structural`` / ``fallback``) instead of receiving a
+    fabricated literal.
+    """
+    if snapshot is None:
+        return None
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return None
+    next_prediction = getattr(value, "next_prediction", None)
+    if next_prediction is None:
+        return None
+    raw = getattr(next_prediction, "confidence", None)
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return None
+    return max(0.0, min(1.0, float(raw)))
 
 
 # ---------------------------------------------------------------------------

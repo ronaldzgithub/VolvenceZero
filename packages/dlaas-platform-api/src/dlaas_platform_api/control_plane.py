@@ -1438,7 +1438,9 @@ async def _handle_activate_template(request: web.Request) -> web.Response:
         f"activation:{template_id}:{int(time.time() * 1000.0)}"
     )
     activation_session = await manager.create_session(
-        session_id=activation_session_id
+        session_id=activation_session_id,
+        user_id="dlaas-template-activation",
+        tenant_id=tenant.tenant_id,
     )
     pipeline = IngestionPipeline()
     try:

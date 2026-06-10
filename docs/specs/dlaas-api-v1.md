@@ -145,8 +145,15 @@ visible avatar + relationship UI without a second round-trip:
 | `active_abstract_action` | turn result | Active ETA abstract action, when present. |
 | `rationale_tags` | response | Response rationale tag list. |
 | `expression_intent` | `response_assembly` | Published expression intent (e.g. `support-first`, `direct-answer`). Drives presence `PerformancePlan` when the client forwards it as `ExpressionIntentInput.source="lifeform"`. |
-| `prediction_error` | `prediction_error` | Compact `{magnitude, relationship, task}` projection (numeric axes only when present). |
+| `prediction_error` | `prediction_error` | Compact `{magnitude, relationship, task}` projection. Canonical source is the kernel snapshot's nested `error` axes (`error.magnitude` / `error.relationship_error` / `error.task_error`); flat-attribute values are accepted as a legacy fallback. Numeric axes only when present. |
+| `confidence` | `prediction_error` | Kernel-calibrated forward-looking confidence `[0, 1]` (`next_prediction.confidence`, the PE owner's own readout). The single legal kernel-PE confidence source for a deploy-side collaboration gate (deploy debt `D-collab-pe`). Absent when no PE snapshot was published — the platform never fabricates it. |
+| `confidence_origin` | `prediction_error` | Always `"kernel_pe"` when `confidence` is present; lets the consumer's gate distinguish a real kernel signal from its own `structural` / `fallback` literals. |
 | `relationship_brief` | `relationship_state` | Publisher-authored `description` string only — never raw owner internals (same redaction posture as `/readouts`). |
+
+The OpenAI-compat adapter mirrors the same kernel-PE confidence on the
+`x-lifeform-confidence` response header (absent when unpublished), alongside
+the existing `x-lifeform-pe-magnitude` / `x-lifeform-regime` /
+`x-lifeform-expression-intent` telemetry headers.
 
 The cognition fields are best-effort: they are present when the matching
 snapshot was published for that turn, and absent otherwise. The chat turn is
@@ -948,6 +955,37 @@ external corpus at creation time, the Persona Studio contract marks
 must carry provenance. Engine + readouts live in
 `packages/lifeform-cultivation`; operator console in
 `apps/dlaas-portal` → `/[locale]/cultivation`.
+
+### Session Mentor Intake
+
+Human mentor intervention during an active human-AI collaboration uses a
+session-local intake route:
+
+```http
+POST /v1/sessions/{session_id}/mentor-intakes
+```
+
+Request shape:
+
+```json
+{
+  "guidance": "When this user asks for a plan, first confirm the boundary and then give two options.",
+  "mentor_id": "mentor:alice",
+  "apply_mode": "apply_to_session",
+  "protocol_id": "mentor:plan-boundary-v1",
+  "advisor_name": "Planning Mentor",
+  "reviewer_level": "l4"
+}
+```
+
+`apply_mode`:
+
+- `classify_only`: classify and return the routed owner; no state changes.
+- `apply_to_session`: when classification is `protocol` or `boundary`, extract a `BehaviorProtocol` and load it into the current session's `ProtocolRegistryModule`, affecting the next turn via `ActiveMixtureSnapshot`.
+- `submit_for_review`: reserved for submitting the extracted candidate to the service-level uptake review queue; it does not mutate the current session unless separately applied.
+
+The route deliberately does **not** change `/v1/protocols/.../approve` semantics:
+service-level approved protocols still seed new sessions only. Live mentor intake is a separate session-local path so operator guidance can affect the current collaboration without turning the approved registry into a hidden global runtime owner.
 
 ## Safety Protocol Aliases
 
