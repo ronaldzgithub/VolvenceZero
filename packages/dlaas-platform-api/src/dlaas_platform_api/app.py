@@ -136,6 +136,10 @@ from dlaas_platform_api.debug_analysis import build_debug_analysis
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
 from dlaas_platform_api.intake_router import resolve_intake_decision
 from dlaas_platform_api.snapshot_export import snapshot_to_json
+from dlaas_platform_api.streaming import (
+    interaction_stream_requested,
+    respond_with_interaction_stream,
+)
 from dlaas_platform_api.training_executor import (
     InMemoryTrainingJobStore,
     TrainingJobExecutor,
@@ -2684,7 +2688,7 @@ async def _handle_training_job_promote(request: web.Request) -> web.Response:
     return web.json_response({"status": "promoted", **updated.to_json()})
 
 
-async def _handle_interaction(request: web.Request) -> web.Response:
+async def _handle_interaction(request: web.Request) -> web.StreamResponse:
     """Adapt the HTTP request to a typed dispatch call."""
     try:
         envelope = await _parse_envelope(request)
@@ -2706,7 +2710,7 @@ async def _dispatch_envelope_to_instance(
     request: web.Request,
     ai_id: str,
     envelope: InteractionEnvelope,
-) -> web.Response:
+) -> web.StreamResponse:
     ops_bundle = request.app.get(OPS_BUNDLE_APP_KEY)
     if isinstance(ops_bundle, OpsBundle):
         if await ops_bundle.pause_store.is_paused(
@@ -2755,6 +2759,20 @@ async def _dispatch_envelope_to_instance(
             metric=f"interaction.{envelope.interaction_type.value}",
             quantity=1,
         )
+        if interaction_stream_requested(envelope):
+            # Forwarded pods return the complete body over RPC; frame it
+            # with the same SSE scheme so the wire contract is uniform
+            # regardless of pod placement. Audit/usage already recorded.
+            async def _forwarded_body() -> dict[str, Any]:
+                return body
+
+            return await respond_with_interaction_stream(
+                request,
+                ai_id=ai_id,
+                envelope=envelope,
+                run_dispatch=_forwarded_body,
+                on_success=lambda _body: None,
+            )
         return web.json_response(body)
 
     try:
@@ -2783,6 +2801,52 @@ async def _dispatch_envelope_to_instance(
     except SessionNotFoundError as exc:  # pragma: no cover - get-or-create
         return _json_error(
             status=404, error="session_not_found", detail=str(exc)
+        )
+
+    if interaction_stream_requested(envelope):
+        # SSE branch (debt #12, API layer): identical dispatch + identical
+        # post-dispatch bookkeeping, framed as ack/chunk/act/done events.
+        # DispatchError surfaces as an `error` frame because the `ack` has
+        # already committed the response to text/event-stream.
+        async def _run_dispatch() -> dict[str, Any]:
+            return await dispatch_envelope(
+                envelope=envelope, session=session, ai_id=ai_id
+            )
+
+        def _record_success(_body: dict[str, Any]) -> None:
+            _maybe_record_cognition_snapshot(
+                request,
+                ai_id=ai_id,
+                session=session,
+                session_id=envelope.session_id,
+            )
+            _record_audit(
+                request,
+                event_type=f"interaction_{envelope.interaction_type.value}",
+                ai_id=ai_id,
+                contract_id=envelope.contract_id,
+                session_id=envelope.session_id,
+                payload={
+                    "interaction_type": envelope.interaction_type.value,
+                    "stream": True,
+                },
+            )
+            _maybe_record_experience_debug_event(
+                request, ai_id=ai_id, envelope=envelope
+            )
+            _record_usage(
+                request,
+                ai_id=ai_id,
+                metric=f"interaction.{envelope.interaction_type.value}",
+                quantity=1,
+            )
+
+        return await respond_with_interaction_stream(
+            request,
+            ai_id=ai_id,
+            envelope=envelope,
+            run_dispatch=_run_dispatch,
+            on_success=_record_success,
         )
 
     try:

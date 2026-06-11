@@ -96,6 +96,10 @@ _ERROR_HTTP_STATUS = {
     "not_subscribable": 409,
     "not_subscribed": 409,
     "suspended": 409,
+    # Licensed-bundle fetch (template economy cross-deployment transfer).
+    "not_licensed": 403,
+    "bundle_not_available": 404,
+    "bundle_hash_mismatch": 409,
 }
 
 
@@ -122,6 +126,14 @@ class PersonaMarketStore:
         self._ledger: list[MarketplaceLedgerEntry] = []
         # listing_ref -> certified capability profile.
         self._profiles: dict[str, CapabilityProfileSpec] = {}
+        # listing_ref -> (asset_bundle_hash at publish, full sanitised
+        # licensed bundle). The bundle is the importable re-mint asset
+        # (SOPs / persona / tool contract — never scoped memory or PII);
+        # it is opaque to the platform and only released to the listing
+        # owner or a tenant holding a live entitlement (see
+        # `licensed_bundle`). Kept OUT of `PersonaListingSpec` so listing
+        # browse/detail responses never leak the licensed content.
+        self._asset_bundles: dict[str, tuple[str, dict[str, Any]]] = {}
 
     # ---- listings ----
 
@@ -147,6 +159,7 @@ class PersonaMarketStore:
         visibility: str = PersonaListingVisibility.PLATFORM.value,
         published_by: str = "",
         payout_account_ref: str = "",
+        asset_bundle: dict[str, Any] | None = None,
     ) -> PersonaListingSpec:
         ref = (listing_ref or "").strip() or f"pl_{uuid.uuid4().hex[:16]}"
         existing = self._listings.get(ref)
@@ -178,10 +191,65 @@ class PersonaMarketStore:
             updated_at_ms=now,
         )
         self._listings[ref] = spec
+        if asset_bundle is not None:
+            # The bundle is bound to the hash it was published with; the
+            # licensed fetch re-verifies this binding against the
+            # listing's current hash and fails loudly on drift.
+            self._asset_bundles[ref] = (asset_bundle_hash, dict(asset_bundle))
         return spec
 
     def get(self, listing_ref: str) -> PersonaListingSpec | None:
         return self._listings.get(listing_ref)
+
+    def licensed_bundle(
+        self, *, listing_ref: str, tenant_id: str
+    ) -> tuple[dict[str, Any], str]:
+        """Release the full importable asset bundle to an entitled tenant.
+
+        Entitled = the listing owner, or a tenant whose subscription
+        entitlement is live (``seeded`` / ``active`` / ``grace`` — grace
+        keeps working per the template-economy spec). A suspended listing
+        blocks non-owner fetches until the operator lifts the suspension.
+
+        Fails loudly (``bundle_hash_mismatch``) when the stored bundle's
+        publish-time hash no longer matches the listing's current
+        ``asset_bundle_hash`` — a re-publish that changed the hash without
+        carrying a fresh bundle is a publisher contract violation, never a
+        silent stale-asset release.
+        """
+        listing = self._listings.get(listing_ref)
+        if listing is None:
+            raise PersonaMarketError("not_found", listing_ref)
+        if listing.source_tenant_id != tenant_id:
+            if listing.status == PersonaListingStatus.SUSPENDED:
+                raise PersonaMarketError(
+                    "suspended", "operator must lift suspension"
+                )
+            sub = self.subscription_for(listing_ref, tenant_id)
+            live = (
+                PersonaSubscriptionStatus.SEEDED,
+                PersonaSubscriptionStatus.ACTIVE,
+                PersonaSubscriptionStatus.GRACE,
+            )
+            if sub is None or sub.entitlement_status not in live:
+                raise PersonaMarketError(
+                    "not_licensed",
+                    f"tenant {tenant_id} holds no live entitlement for {listing_ref}",
+                )
+        entry = self._asset_bundles.get(listing_ref)
+        if entry is None:
+            raise PersonaMarketError(
+                "bundle_not_available",
+                f"listing {listing_ref} was published without a full asset bundle",
+            )
+        stored_hash, bundle = entry
+        if stored_hash != listing.asset_bundle_hash:
+            raise PersonaMarketError(
+                "bundle_hash_mismatch",
+                f"stored bundle hash {stored_hash!r} does not match listing "
+                f"asset_bundle_hash {listing.asset_bundle_hash!r}",
+            )
+        return dict(bundle), stored_hash
 
     def available_for(self, tenant_id: str) -> list[PersonaListingSpec]:
         """Listings a tenant can browse: platform-visible OR its own,
@@ -454,6 +522,9 @@ async def _handle_publish_listing(request: web.Request) -> web.Response:
     persona_config = body.get("persona_config") or {}
     if not isinstance(persona_config, dict):
         persona_config = {}
+    asset_bundle = body.get("asset_bundle")
+    if not isinstance(asset_bundle, dict):
+        asset_bundle = None
     try:
         spec = store.publish(
             tenant_id=tenant.tenant_id,
@@ -479,6 +550,7 @@ async def _handle_publish_listing(request: web.Request) -> web.Response:
             ),
             published_by=str(body.get("published_by", "")),
             payout_account_ref=str(body.get("payout_account_ref", "")),
+            asset_bundle=asset_bundle,
         )
     except ValueError as exc:
         return _error(400, "invalid_enum", str(exc))
@@ -552,6 +624,37 @@ async def _handle_delist_listing(request: web.Request) -> web.Response:
     except PersonaMarketError as exc:
         return _market_error_response(exc)
     return web.json_response({"status": "ok", "listing": spec.to_json()})
+
+
+async def _handle_get_listing_bundle(request: web.Request) -> web.Response:
+    """Release the full licensed asset bundle to an entitled tenant.
+
+    The browse/detail listing surface never carries the bundle (it is
+    licensed content); this endpoint is the single release point, gated
+    on ownership or a live subscription entitlement. The bundle's
+    publish-time hash is re-verified against the listing's current
+    ``asset_bundle_hash`` — a mismatch is a loud 409, never a silent
+    stale release.
+    """
+    tenant = await require_tenant_auth(request)
+    store = _get_store(request)
+    listing_ref = request.match_info["listing_ref"]
+    try:
+        bundle, bundle_hash = store.licensed_bundle(
+            listing_ref=listing_ref, tenant_id=tenant.tenant_id
+        )
+    except PersonaMarketError as exc:
+        return _market_error_response(exc)
+    listing = store.get(listing_ref)
+    return web.json_response(
+        {
+            "status": "ok",
+            "listing_ref": listing_ref,
+            "asset_bundle": bundle,
+            "asset_bundle_hash": bundle_hash,
+            "license_scope": listing.license_scope if listing else "",
+        }
+    )
 
 
 async def _handle_suspend_listing(request: web.Request) -> web.Response:
@@ -910,6 +1013,10 @@ def attach_persona_market_routes(app: web.Application) -> web.Application:
     )
     R.add_patch(
         "/dlaas/v1/persona-market/listings/{listing_ref}", _handle_patch_listing
+    )
+    R.add_get(
+        "/dlaas/v1/persona-market/listings/{listing_ref}/bundle",
+        _handle_get_listing_bundle,
     )
     R.add_post(
         "/dlaas/v1/persona-market/listings/{listing_ref}/delist",
