@@ -57,7 +57,9 @@ life = build_digital_employee_lifeform(
 )
 ```
 
-Built-in profiles: `sales-sdr`, `customer-support`, `content-editor`.
+Built-in profiles: `sales-sdr`, `customer-support`, `content-editor`,
+`recruiting-hr`, `ecommerce-ops`, `qa-engineer`, `admin-assistant`,
+`data-analyst`.
 All industry differences are expressed as records — `applicability_scope`
 tags like `industry:sales-sdr`, regime ids, intervention orderings —
 consumed by the existing playbook / boundary owners. There is no

@@ -32,7 +32,16 @@ from lifeform_domain_digital_employee import (
 )
 
 _ROLES = ("org", "twin")
-_BUILTIN_INDUSTRY_IDS = ("sales-sdr", "customer-support", "content-editor")
+_BUILTIN_INDUSTRY_IDS = (
+    "sales-sdr",
+    "customer-support",
+    "content-editor",
+    "recruiting-hr",
+    "ecommerce-ops",
+    "qa-engineer",
+    "admin-assistant",
+    "data-analyst",
+)
 
 
 def _base_package(role: str):

@@ -1137,8 +1137,10 @@ POST /dlaas/interview_runs/{run_id}/turns/{i}/score     # operator score
 POST /dlaas/interview_runs/{run_id}/complete            # verdict
 ```
 
-All routes are tenant-auth with template-ownership checks (mirrors the
-exam surface).
+All routes are dual-auth: operator secrets (`X-Control-Plane-Secret` /
+`X-Service-Secret`) act cross-tenant so the operator console can run and
+score interviews for any tenant's persona; tenant credentials act only
+on templates their tenant owns (mirrors the exam surface).
 
 - Create body: `{ template_id, ai_id?, session_id?, interviewer_kind?,
   question_plan?: [str], pass_threshold? (default 0.6) }`. Question

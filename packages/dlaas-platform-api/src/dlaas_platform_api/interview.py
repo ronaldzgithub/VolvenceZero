@@ -54,6 +54,7 @@ from dlaas_platform_registry import (
     Registry,
     TemplateNotFound,
     TemplateStore,
+    require_control_plane_or_service,
     require_tenant_auth,
 )
 
@@ -128,12 +129,12 @@ def attach_interview_routes(
 
 async def _handle_create(request: web.Request) -> web.Response:
     bundle = _bundle(request)
-    tenant = await require_tenant_auth(request)
+    caller = await _caller(request)
     data = await _read_json(request)
     template_id = str(data.get("template_id", "") or "")
     if not template_id:
         return _error(400, "missing_template_id", "template_id is required")
-    template = await _owned_template(bundle, tenant, template_id)
+    template = await _owned_template(bundle, caller, template_id)
     if isinstance(template, web.Response):
         return template
     raw_kind = str(data.get("interviewer_kind", "operator") or "operator")
@@ -172,8 +173,8 @@ async def _handle_create(request: web.Request) -> web.Response:
 
 async def _handle_get(request: web.Request) -> web.Response:
     bundle = _bundle(request)
-    tenant = await require_tenant_auth(request)
-    run = await _owned_run(request, bundle, tenant)
+    caller = await _caller(request)
+    run = await _owned_run(request, bundle, caller)
     if isinstance(run, web.Response):
         return run
     return web.json_response({"status": "ok", **run.to_json()})
@@ -181,9 +182,9 @@ async def _handle_get(request: web.Request) -> web.Response:
 
 async def _handle_list_for_template(request: web.Request) -> web.Response:
     bundle = _bundle(request)
-    tenant = await require_tenant_auth(request)
+    caller = await _caller(request)
     template_id = request.match_info["template_id"]
-    template = await _owned_template(bundle, tenant, template_id)
+    template = await _owned_template(bundle, caller, template_id)
     if isinstance(template, web.Response):
         return template
     runs = await bundle.runs.list_for_template(template_id)
@@ -196,8 +197,8 @@ async def _handle_record_turn(request: web.Request) -> web.Response:
     """Record a caller-supplied turn (human interviewer / offline transcript)."""
 
     bundle = _bundle(request)
-    tenant = await require_tenant_auth(request)
-    run = await _owned_run(request, bundle, tenant)
+    caller = await _caller(request)
+    run = await _owned_run(request, bundle, caller)
     if isinstance(run, web.Response):
         return run
     data = await _read_json(request)
@@ -231,8 +232,8 @@ async def _handle_execute_turn(request: web.Request) -> web.Response:
     """
 
     bundle = _bundle(request)
-    tenant = await require_tenant_auth(request)
-    run = await _owned_run(request, bundle, tenant)
+    caller = await _caller(request)
+    run = await _owned_run(request, bundle, caller)
     if isinstance(run, web.Response):
         return run
     if not run.ai_id:
@@ -299,8 +300,8 @@ async def _handle_execute_turn(request: web.Request) -> web.Response:
 
 async def _handle_score_turn(request: web.Request) -> web.Response:
     bundle = _bundle(request)
-    tenant = await require_tenant_auth(request)
-    run = await _owned_run(request, bundle, tenant)
+    caller = await _caller(request)
+    run = await _owned_run(request, bundle, caller)
     if isinstance(run, web.Response):
         return run
     data = await _read_json(request)
@@ -326,8 +327,8 @@ async def _handle_score_turn(request: web.Request) -> web.Response:
 
 async def _handle_complete(request: web.Request) -> web.Response:
     bundle = _bundle(request)
-    tenant = await require_tenant_auth(request)
-    run = await _owned_run(request, bundle, tenant)
+    caller = await _caller(request)
+    run = await _owned_run(request, bundle, caller)
     if isinstance(run, web.Response):
         return run
     data = await _read_json(request, allow_empty=True)
@@ -351,30 +352,50 @@ def _bundle(request: web.Request) -> InterviewBundle:
     return request.app[INTERVIEW_BUNDLE_APP_KEY]
 
 
-async def _owned_template(bundle: InterviewBundle, tenant, template_id: str):
+_OPERATOR = "operator"
+
+
+async def _caller(request: web.Request):
+    """Resolve the caller: operator secrets (cross-tenant) or tenant spec.
+
+    Operator credentials (`X-Control-Plane-Secret` / `X-Service-Secret`)
+    let the operator console run and score interviews for any tenant's
+    persona; tenant credentials act only on templates their tenant owns.
+    """
+
+    headers = request.headers
+    if "X-Control-Plane-Secret" in headers or "X-Service-Secret" in headers:
+        require_control_plane_or_service(request)
+        return _OPERATOR
+    return await require_tenant_auth(request)
+
+
+async def _owned_template(bundle: InterviewBundle, caller, template_id: str):
     try:
         template = await bundle.templates.get(template_id)
     except TemplateNotFound:
         return _error(404, "template_not_found", template_id)
-    if template.tenant_id != tenant.tenant_id:
+    if caller is _OPERATOR:
+        return template
+    if template.tenant_id != caller.tenant_id:
         return _error(
             403,
             "tenant_mismatch",
             (
-                f"authenticated tenant_id={tenant.tenant_id!r} cannot act "
+                f"authenticated tenant_id={caller.tenant_id!r} cannot act "
                 f"on a template owned by tenant_id={template.tenant_id!r}"
             ),
         )
     return template
 
 
-async def _owned_run(request: web.Request, bundle: InterviewBundle, tenant):
+async def _owned_run(request: web.Request, bundle: InterviewBundle, caller):
     run_id = request.match_info["run_id"]
     try:
         run = await bundle.runs.get(run_id)
     except InterviewRunNotFound:
         return _error(404, "interview_run_not_found", run_id)
-    template = await _owned_template(bundle, tenant, run.template_id)
+    template = await _owned_template(bundle, caller, run.template_id)
     if isinstance(template, web.Response):
         return template
     return run

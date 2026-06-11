@@ -15,11 +15,26 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from lifeform_domain_digital_employee.industry import IndustryProfile
+from lifeform_domain_digital_employee.profiles.admin_assistant import (
+    build_admin_assistant_profile,
+)
 from lifeform_domain_digital_employee.profiles.content_editor import (
     build_content_editor_profile,
 )
 from lifeform_domain_digital_employee.profiles.customer_support import (
     build_customer_support_profile,
+)
+from lifeform_domain_digital_employee.profiles.data_analyst import (
+    build_data_analyst_profile,
+)
+from lifeform_domain_digital_employee.profiles.ecommerce_ops import (
+    build_ecommerce_ops_profile,
+)
+from lifeform_domain_digital_employee.profiles.qa_engineer import (
+    build_qa_engineer_profile,
+)
+from lifeform_domain_digital_employee.profiles.recruiting_hr import (
+    build_recruiting_hr_profile,
 )
 from lifeform_domain_digital_employee.profiles.sales_sdr import (
     build_sales_sdr_profile,
@@ -29,6 +44,11 @@ BUILTIN_INDUSTRY_PROFILE_BUILDERS: tuple[Callable[[], IndustryProfile], ...] = (
     build_sales_sdr_profile,
     build_customer_support_profile,
     build_content_editor_profile,
+    build_recruiting_hr_profile,
+    build_ecommerce_ops_profile,
+    build_qa_engineer_profile,
+    build_admin_assistant_profile,
+    build_data_analyst_profile,
 )
 
 
@@ -54,8 +74,13 @@ def industry_profile_by_id(industry_id: str) -> IndustryProfile:
 
 __all__ = [
     "BUILTIN_INDUSTRY_PROFILE_BUILDERS",
+    "build_admin_assistant_profile",
     "build_content_editor_profile",
     "build_customer_support_profile",
+    "build_data_analyst_profile",
+    "build_ecommerce_ops_profile",
+    "build_qa_engineer_profile",
+    "build_recruiting_hr_profile",
     "build_sales_sdr_profile",
     "builtin_industry_profiles",
     "industry_profile_by_id",
