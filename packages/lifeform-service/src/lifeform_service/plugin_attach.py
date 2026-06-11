@@ -169,6 +169,8 @@ def http_blueprints_from_plugins(
 def register_http_plugins_after_start(
     lifeform: Lifeform,
     plugins: Sequence["PluginManifest"],
+    *,
+    instance_headers: Mapping[str, str] | None = None,
 ) -> None:
     """Register every HTTP plugin's affordances on a started lifeform.
 
@@ -176,6 +178,13 @@ def register_http_plugins_after_start(
     Otherwise lazily creates the affordance registry + invoker via
     :meth:`Lifeform.ensure_affordance_registry` and attaches each
     blueprint.
+
+    ``instance_headers`` carries the acting instance's identity
+    (``X-DLaaS-AI-ID`` / ``X-DLaaS-Session-ID``) so multi-tenant HTTP
+    act surfaces can attribute the call without trusting
+    LLM-proposed parameters. The lifeform is built per session by
+    :class:`lifeform_service.session_manager.SessionManager`, which
+    is the only place both ids are known at registration time.
 
     Idempotency: re-registering the same plugin against the same
     lifeform raises ``AffordanceAlreadyRegisteredError`` (deliberate
@@ -193,6 +202,7 @@ def register_http_plugins_after_start(
         invoker=invoker,
         blueprints=blueprints,
         entries_by_plugin=entries_by_plugin,
+        extra_headers=instance_headers,
     )
     _LOG.info(
         "plugin_attach: registered %d HTTP affordance(s) from %d plugin(s)",

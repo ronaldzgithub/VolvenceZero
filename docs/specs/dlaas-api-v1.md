@@ -1,7 +1,7 @@
 # DLaaS API v1
 
 > Status: SHADOW contract
-> Last updated: 2026-05-22
+> Last updated: 2026-06-12
 > Owner: `dlaas-platform-*`
 > Related specs: `dlaas-platform.md`, `environment-interface.md`, `protocol-runtime.md`, `multi-timescale-learning.md`
 
@@ -183,6 +183,9 @@ visible avatar + relationship UI without a second round-trip:
 | `confidence` | `prediction_error` | Kernel-calibrated forward-looking confidence `[0, 1]` (`next_prediction.confidence`, the PE owner's own readout). The single legal kernel-PE confidence source for a deploy-side collaboration gate (deploy debt `D-collab-pe`). Absent when no PE snapshot was published — the platform never fabricates it. |
 | `confidence_origin` | `prediction_error` | Always `"kernel_pe"` when `confidence` is present; lets the consumer's gate distinguish a real kernel signal from its own `structural` / `fallback` literals. |
 | `relationship_brief` | `relationship_state` | Publisher-authored `description` string only — never raw owner internals (same redaction posture as `/readouts`). |
+| `plan_brief` | `plan_intent` | Compact task-progress projection: `{"active_goal": str, "active_step": str, "plan_revision_count": int, "continuity_score": float}`. `active_goal` / `active_step` are the owner-published free-text summaries (same exposure level as `relationship_brief`); the raw plan SemanticRecord lists are never surfaced here. |
+| `open_loop_brief` | `open_loop` | Open-loop aggregates: `{"unresolved_count": int, "pending_confirmation_count": int, "closure_readiness": float, "stale_loop_count": int}`. Counts only — never the raw loop records. |
+| `commitment_brief` | `commitment` | Commitment aggregates: `{"active_count": int, "at_risk_count": int, "due_followup_count": int, "stalled_count": int}`. Counts only — never the raw commitment records. |
 
 The OpenAI-compat adapter mirrors the same kernel-PE confidence on the
 `x-lifeform-confidence` response header (absent when unpublished), alongside
@@ -375,16 +378,88 @@ The dispatcher remains the SSOT for runtime routing.
 
 ## Tool Task Lifecycle
 
-Long-running affordances use task handles instead of blocking the chat turn:
+Long-running affordances use task handles instead of blocking the chat turn.
+The task store is owned by the session-scoped `AffordanceInvoker`
+(`lifeform_affordance.invoker`); these routes are thin HTTP adapters over
+`get_task_handle` / `submit_deferred_result` and never re-implement task
+state (`dlaas_platform_api.tool_tasks`).
 
 ```http
-GET  /dlaas/v1/instances/{ai_id}/tool-tasks/{task_id}
-POST /dlaas/v1/instances/{ai_id}/tool-tasks/{task_id}/cancel
+GET  /dlaas/v1/instances/{ai_id}/tool-tasks/{task_id}?session_id={session_id}
+POST /dlaas/v1/instances/{ai_id}/tool-tasks/{task_id}/complete
 ```
 
 Task status values: `queued`, `running`, `succeeded`, `failed`, `cancelled`.
-Completion is submitted through the same result path as fast tools, preserving
-PE lineage and credit attribution via `plan_ref`.
+`session_id` is mandatory (query param on GET, body field on POST) because
+the invoker holding the task handle is reached through the session; an
+unknown session is a typed 404, never a silent create. Auth is the same
+level as the interactions runtime route.
+
+`GET` response (200):
+
+```json
+{
+  "task_id": "task_1a2b3c",
+  "descriptor_name": "vz-bundle.long_export",
+  "status": "queued",
+  "poll_after_ms": 1000,
+  "plan_ref": "plan-42"
+}
+```
+
+Unknown `task_id` → 404 `tool_task_not_found`; unknown `ai_id` / `session_id`
+→ 404 `ai_id_not_found` / `session_not_found`; session without an affordance
+invoker → 501 `tool_invoker_unavailable` (all in the standard
+`{"status": "error", "error": code, "detail": ...}` envelope).
+
+`POST .../complete` request body:
+
+```json
+{
+  "session_id": "sess_001",
+  "status": "succeeded",
+  "payload": {"rows_exported": 1042},
+  "latency_ms": 95000
+}
+```
+
+- `status` is `"succeeded"` or `"failed"` (required).
+- `payload` (optional object) only accompanies `"succeeded"`.
+- `error` (required non-empty string for `"failed"`) maps to the invoker's
+  `error_detail`; optional `error_class` defaults to
+  `deferred_backend_failed`. A `"succeeded"` completion must not carry
+  `error` / `error_class` (400 `conflicting_completion`).
+- `latency_ms` (optional int) is forwarded for kernel cost accounting.
+
+Completion is submitted through `AffordanceInvoker.submit_deferred_result`,
+i.e. the same `session.submit_tool_result` path as fast tools — preserving PE
+lineage and credit attribution via the `plan_ref` captured when the task was
+queued. Re-completing a terminal task is a 409 `tool_task_already_terminal`
+(deferred completion is submit-once; HTTP retries cannot double-feed the
+kernel tool bus).
+
+`POST .../complete` response (200) is the refreshed handle plus the
+invocation result summary:
+
+```json
+{
+  "task_id": "task_1a2b3c",
+  "descriptor_name": "vz-bundle.long_export",
+  "status": "succeeded",
+  "poll_after_ms": 1000,
+  "plan_ref": "plan-42",
+  "result": {
+    "status": "succeeded",
+    "tool_event_ids": ["evt_77"],
+    "kernel_summary_truncated": false
+  }
+}
+```
+
+(`result.status` is the invocation status: `succeeded` or `backend_failed`.)
+
+`POST .../cancel` remains planned (the invoker already exposes
+`cancel_task`; no HTTP adapter yet).
 
 ## Observability And Explainability
 
@@ -923,8 +998,8 @@ exists (fail loudly with `409 invalid_transition` when missing):
 | `pretrained` | `figure_bundle_id` | offline bake (corpus → bundle → LoRA → persona verification) |
 | `studying` | `cultivation_id` | cultivation self-study record |
 | `training` | `training_ref` | corpus intake / training job / teach session |
-| `exam` | `exam_run_id` (+ `passed`) | eval-gate exam run |
-| `interview` | `interview_run_id` (+ `passed`) | interactive interview run |
+| `exam` | `exam_run_id` (+ `passed`) | eval-gate exam run (`POST /dlaas/exam_runs`) |
+| `interview` | `interview_run_id` (+ `passed`) | interactive interview run (`POST /dlaas/interview_runs`) |
 | `inducted` | `reviewer_id` | operator decision |
 | `retired` | `reason` | withdrawal |
 
@@ -933,6 +1008,15 @@ Rules:
 - Forward-only: `advance` must move strictly later on the pipeline;
   skipping stages is allowed (some products have no offline bake) and
   the skip is visible in the event history.
+- **Gate evidence is verified, not trusted**: advancing to `exam` /
+  `interview` cross-checks the referenced run against the registry's
+  `exam_runs` / `interview_runs` persistence. The run must exist,
+  belong to the same `template_id`, have `status=completed`, and its
+  recorded `passed` outcome must equal the evidence `passed` flag —
+  a caller cannot assert a pass the grader/operator never recorded
+  (`409 invalid_transition` otherwise). Exams graded outside the
+  platform cannot enter the gate stages; they skip them and must carry
+  an explicit `waiver_reason` at induction.
 - **Induction gate**: advancing to `inducted` requires the latest
   recorded `exam` and `interview` evidence to carry `passed: true`. An
   explicit `waiver_reason` overrides — the waiver itself becomes part
@@ -950,6 +1034,136 @@ surface. Contracts: `dlaas_platform_contracts.persona_lifecycle`;
 store: `dlaas_platform_registry.persona_lifecycle_store` (schema v9);
 routes: `dlaas_platform_api.persona_lifecycle`.
 
+## Exam Gate (Eval)
+
+The eval gate (`dlaas-platform-eval`) owns exam questions, exam runs,
+and the launch license. All endpoints require tenant credentials and
+template ownership:
+
+```http
+POST /dlaas/exam_questions
+POST /dlaas/exam_questions/batch
+POST /dlaas/exam_questions/generate
+GET  /dlaas/exam_questions
+POST /dlaas/exam_runs
+GET  /dlaas/exam_runs/{run_id}
+POST /dlaas/exam_runs/{run_id}/complete
+POST /dlaas/exam_runs/{run_id}/execute
+GET  /dlaas/templates/{template_id}/exam_runs
+POST /dlaas/exam_runs/{run_id}/signoff
+GET  /dlaas/templates/{template_id}/license
+POST /dlaas/templates/{template_id}/license/evaluate
+```
+
+### Question generation
+
+`POST /dlaas/exam_questions/generate` authors scenario questions WITH
+rubrics (2-3 criteria each) and reference answers, grounded only in
+the supplied source material (semantic LLM generation, no keyword
+bank):
+
+```json
+{
+  "template_id": "template_abc",
+  "source": {
+    "topics": ["relativity"],
+    "corpus_excerpts": ["..."],
+    "signature_cases": [{"title": "...", "summary": "..."}]
+  },
+  "count": 5,
+  "difficulty": "medium",
+  "language": "en"
+}
+```
+
+At least one of `source.topics` / `source.corpus_excerpts` /
+`source.signature_cases` is required (`400 empty_source` otherwise).
+Generated questions are persisted through
+`EvalStore.create_exam_question` and returned as
+`{"status": "ok", "questions": [...]}`. When the eval LLM env is not
+configured the route answers `503 llm_not_configured` — there is
+deliberately no stub question bank. Malformed LLM output answers
+`502 question_generation_error`.
+
+### Grader configuration
+
+Exam-run scoring goes through the `RubricGrader` seam
+(`dlaas_platform_eval.build_grader_from_env()`):
+
+- When the env trio is configured, `LLMRubricGrader` judges each
+  response per rubric criterion via an OpenAI-compatible
+  `/chat/completions` endpoint with centralized prompts
+  (`dlaas_platform_eval.prompts`), strict-JSON output, full criteria
+  coverage validation, and scores clamped to `[0, max_score]`. Each
+  breakdown entry carries a `grader_label` (`"llm:<model>"`).
+- Env vars (each `EVAL_LLM_*` overrides its `PROTOCOL_LLM_*` sibling
+  individually; no provider presets — `base_url` and `model` must be
+  explicit): `EVAL_LLM_BASE_URL` / `EVAL_LLM_API_KEY` /
+  `EVAL_LLM_MODEL` / `EVAL_LLM_TIMEOUT_S` (default 60), falling back
+  to `PROTOCOL_LLM_BASE_URL` / `PROTOCOL_LLM_API_KEY` /
+  `PROTOCOL_LLM_MODEL` / `PROTOCOL_LLM_TIMEOUT_SECONDS`.
+- Without that env the gate stays on the **fail-closed**
+  `DefaultRubricGrader` (flat 0.5, loud warning): automation can never
+  grant a license, by design.
+- A malformed or failed judge call raises a typed
+  `GraderResponseError`: the `complete` / `execute` handlers answer
+  `502 grader_error` and leave the run `failed` with the error
+  recorded in `comment` — never a silent fallback score.
+- The operator `POST /dlaas/exam_runs/{run_id}/complete` path (caller-
+  supplied `ai_responses`, operator identity, signoff) remains the
+  authoritative way to finalize a run; `execute` is the automated
+  variant over the same grading path.
+
+R12 / OA-1: grading and question generation are readouts. Scores,
+justifications, and generated questions are persisted as exam
+artifacts only; nothing flows back into kernel owners or learning
+state.
+
+## Interview Runs
+
+The interview (面试) is the interactive gate between `exam` and
+`inducted`: an interviewer — an LLM interviewer following a question
+plan, a human operator, or both (`interviewer_kind: llm | operator |
+mixed`) — asks multi-turn questions against the persona, each turn is
+scored in `[0, 1]`, and the run completes with an aggregate verdict.
+
+```http
+POST /dlaas/interview_runs                              # create
+GET  /dlaas/interview_runs/{run_id}                     # read
+GET  /dlaas/templates/{template_id}/interview_runs      # list
+POST /dlaas/interview_runs/{run_id}/turns               # record turn
+POST /dlaas/interview_runs/{run_id}/turns/execute       # live turn
+POST /dlaas/interview_runs/{run_id}/turns/{i}/score     # operator score
+POST /dlaas/interview_runs/{run_id}/complete            # verdict
+```
+
+All routes are tenant-auth with template-ownership checks (mirrors the
+exam surface).
+
+- Create body: `{ template_id, ai_id?, session_id?, interviewer_kind?,
+  question_plan?: [str], pass_threshold? (default 0.6) }`. Question
+  plans typically come from `POST /dlaas/exam_questions/generate` or
+  the app's role spec.
+- `turns` records a caller-supplied exchange (human interviewer /
+  offline transcript), optionally pre-scored.
+- `turns/execute` asks the next unasked `question_plan` entry (or an
+  explicit `question`) against the run's live `ai_id`
+  (`409 instance_not_awake` when it is not awake; `409 plan_exhausted`
+  when the plan ran out). When a rubric grader is configured on the
+  bundle the turn is auto-scored; otherwise the score stays empty for
+  the operator.
+- `complete` refuses (`409 incomplete_interview`) while any turn is
+  unscored — the verdict can never be silently granted. Aggregate =
+  mean of turn scores; `passed = aggregate >= pass_threshold`.
+- Completed/failed runs are frozen: no further turns or score edits.
+
+The completed run's `run_id` + `passed` outcome is the evidence the
+persona lifecycle's `interview` stage cross-checks (see above). R12:
+interview scores are readouts — no learning signal flows back.
+Contracts: `dlaas_platform_contracts.interview`; store:
+`dlaas_platform_registry.interview_store` (schema v10); routes:
+`dlaas_platform_api.interview`.
+
 ## Expert Cultivation
 
 Autonomous industry-expert cultivation ("行业专家自动养成") grows a default
@@ -963,7 +1177,23 @@ PE-utility soft-blend / arbitration, slow-reflection retirement). Cognition
 stays kernel-owned; this surface only orchestrates intake cadence and reads
 published readouts (R12) — it never resolves contradictions itself.
 
-All routes are operator-scoped (control-plane secret).
+All routes are dual-mode. Operator credentials (`X-Control-Plane-Secret`
+or `X-Service-Secret`) act cross-tenant: they create **system-owned**
+cultivations (`tenant_id=""`), list every record, and graduate candidate
+templates under `SYSTEM_TENANT_ID` (existing behaviour, unchanged).
+Tenant credentials (`X-Tenant-Api-Key` + `X-Tenant-Api-Secret` — the path
+app BFFs like Myriad / digital-employee use) create **tenant-owned**
+cultivations: the record carries the authenticated `tenant_id`, the
+`ai_id` is tenant-namespaced (`cultivation:{tenant_id}:{slug}[:{track_id}]`
+so two tenants reusing one slug never share kernel state), `GET` list
+returns only that tenant's records, and get/tick/graduate/induct (and
+package views) on another tenant's or a system-owned record are a typed
+403 `tenant_mismatch`. Graduating a tenant-owned cultivation creates the
+candidate template under the tenant's own `tenant_id` instead of
+`SYSTEM_TENANT_ID`. Cultivation responses carry the lifecycle-evidence
+pointers (`cultivation_id`, `tenant_id`, `dlaas_template_id`,
+`last_exam_run_id`) the persona lifecycle API consumes; cultivation
+handlers never auto-advance lifecycles — apps own that orchestration.
 
 ```http
 POST /dlaas/v1/cultivation

@@ -29,6 +29,7 @@ from lifeform_domain_figure.corpus.ingest_letters import FigureLetterSource
 from lifeform_domain_figure.corpus.ingest_lectures import FigureLectureSource
 from lifeform_domain_figure.corpus.ingest_notebooks import FigureNotebookSource
 from lifeform_domain_figure.corpus.ingest_papers import FigurePaperSource
+from lifeform_domain_figure.profile import HistoricalFigureProfile
 
 
 _HEADER_NOTE = (
@@ -121,6 +122,131 @@ _SYNTHETIC_NOTEBOOK_BODY = (
 )
 
 
+def _profile_header_note(profile_id: str) -> str:
+    return (
+        f"[Synthetic reviewer paraphrase for persona {profile_id!r}. Not "
+        "derived from any published primary source. Copyright (c) "
+        "Volvence Zero monorepo, used internally for figure-vertical "
+        "smoke bakes.]"
+    )
+
+
+def synthetic_corpus_from_profile(
+    profile: HistoricalFigureProfile,
+) -> tuple[
+    tuple[FigurePaperSource, ...],
+    tuple[FigureLetterSource, ...],
+    tuple[FigureLectureSource, ...],
+    tuple[FigureNotebookSource, ...],
+]:
+    """Derive a small deterministic synthetic corpus from any profile.
+
+    Mirrors the shape of :func:`synthetic_einstein_corpus` so the
+    generic persona bake (``bake-bundle --figure <slug> --profile-json
+    <path> --corpus-mode synthetic``) can produce a CPU-only smoke
+    bundle for any slug with zero crawling. Every body is a pure
+    function of the profile's own reviewed fields (description,
+    knowledge seeds, signature cases, strategy priors, boundaries,
+    domain seeds) — no external text, no fabricated biography.
+
+    Returned kinds:
+
+    * one paper — persona overview + knowledge-seed paraphrases;
+    * one letter — only when the profile has signature cases
+      (their descriptions become the letter's recollections);
+    * one lecture — strategy priors + boundary declarations;
+    * one notebook — domain coverage + drive-prior notes.
+    """
+
+    figure_id = profile.profile_id
+    header = _profile_header_note(figure_id)
+    year_anchor = profile.figure_lifespan[1] or profile.figure_lifespan[0] or 1
+
+    paper_paragraphs = [header, profile.description]
+    for seed in profile.knowledge_seeds:
+        paper_paragraphs.append(f"{seed.title}. {seed.summary}")
+    paper_paragraphs.append(
+        "The documented coverage of this persona spans: "
+        + ", ".join(profile.domain_coverage_seed)
+        + "."
+    )
+    papers = (
+        FigurePaperSource(
+            paper_id=f"synth-{figure_id}-overview-1",
+            title=f"Documented positions of {profile.figure_name} (synthetic placeholder)",
+            year=year_anchor,
+            language="en",
+            body="\n\n".join(paper_paragraphs),
+            figure_id=figure_id,
+        ),
+    )
+
+    letters: tuple[FigureLetterSource, ...] = ()
+    if profile.signature_cases:
+        letter_paragraphs = [header]
+        for case in profile.signature_cases:
+            letter_paragraphs.append(
+                f"You ask after the matter of {case.case_id}. "
+                f"{case.description}"
+            )
+        letters = (
+            FigureLetterSource(
+                letter_id=f"synth-{figure_id}-letter-1",
+                sender_id=figure_id,
+                recipient_id="correspondent",
+                date_iso="",
+                language="en",
+                body="\n\n".join(letter_paragraphs),
+                figure_id=figure_id,
+            ),
+        )
+
+    lecture_paragraphs = [header]
+    for prior in profile.strategy_priors:
+        lecture_paragraphs.append(
+            f"On how one should proceed when facing "
+            f"{prior.problem_pattern}: {prior.description}"
+        )
+    for boundary in profile.boundary_priors:
+        lecture_paragraphs.append(
+            f"On the limits of what I will speak to: {boundary.description}"
+        )
+    lectures = (
+        FigureLectureSource(
+            lecture_id=f"synth-{figure_id}-address-1",
+            venue_id=f"synthetic-venue-{figure_id}",
+            date_iso="",
+            audience="general audience",
+            language="en",
+            body="\n\n".join(lecture_paragraphs),
+            figure_id=figure_id,
+        ),
+    )
+
+    notebook_paragraphs = [header]
+    notebook_paragraphs.append(
+        "Note to self. The themes I keep returning to: "
+        + ", ".join(profile.domain_coverage_seed)
+        + "."
+    )
+    for drive in profile.drive_priors:
+        notebook_paragraphs.append(
+            f"A persistent pull toward {drive.name.replace('_', ' ')}; "
+            f"its weight in my days sits near {drive.target:.2f}."
+        )
+    notebooks = (
+        FigureNotebookSource(
+            notebook_id=f"synth-{figure_id}-notebook-1",
+            volume="I",
+            page=1,
+            language="en",
+            body="\n\n".join(notebook_paragraphs),
+            figure_id=figure_id,
+        ),
+    )
+    return papers, letters, lectures, notebooks
+
+
 def synthetic_einstein_corpus() -> tuple[
     tuple[FigurePaperSource, ...],
     tuple[FigureLetterSource, ...],
@@ -180,5 +306,6 @@ def synthetic_einstein_corpus() -> tuple[
 
 
 __all__ = [
+    "synthetic_corpus_from_profile",
     "synthetic_einstein_corpus",
 ]

@@ -150,6 +150,12 @@ from lifeform_domain_figure.presence_artifact import (
     presence_artifact_id_from_hash,
     presence_fingerprint,
 )
+from lifeform_domain_figure.presence_lora_register import (
+    PresenceLoraRegistration,
+    build_registration_from_artifact,
+    register_lora_into_presence,
+    revoke_lora_from_presence,
+)
 from lifeform_domain_figure.contrast_set import (
     FigureContrastPair,
     FigureContrastSet,
@@ -221,14 +227,24 @@ from lifeform_domain_figure.profile import (
 )
 from lifeform_domain_figure.profiles import (
     build_einstein_profile,
+    build_family_profile_from_json,
+    build_generic_profile_from_json,
     build_lu_xun_profile,
+    build_myriad_profile_from_json,
+    load_family_profile_file,
+    load_generic_profile_file,
+    load_myriad_profile_file,
+    load_profile,
 )
 from lifeform_domain_figure.retrieval_index import (
     FigureRetrievalIndex,
     RetrievalEvidence,
     build_figure_retrieval_index,
 )
-from lifeform_domain_figure.sample_corpus import synthetic_einstein_corpus
+from lifeform_domain_figure.sample_corpus import (
+    synthetic_corpus_from_profile,
+    synthetic_einstein_corpus,
+)
 from lifeform_domain_figure.steering_bake import (
     SCHEMA_VERSION as STEERING_SET_SCHEMA_VERSION,
     FigureSteeringSet,
@@ -258,6 +274,14 @@ __all__ = [
     "TimeWindowedView",
     "build_einstein_profile",
     "build_lu_xun_profile",
+    # Dynamic profile loaders (family / myriad / generic persona)
+    "build_family_profile_from_json",
+    "build_generic_profile_from_json",
+    "build_myriad_profile_from_json",
+    "load_family_profile_file",
+    "load_generic_profile_file",
+    "load_myriad_profile_file",
+    "load_profile",
     # Corpus ingestion (P1.2)
     "FigureCorpusSourceBundle",
     "FigureIngestionEnvelopeSet",
@@ -270,6 +294,7 @@ __all__ = [
     "ingest_letters",
     "ingest_notebooks",
     "ingest_papers",
+    "synthetic_corpus_from_profile",
     "synthetic_einstein_corpus",
     # D2 provenance / dedupe / citation parser
     "CaptureMethod",
@@ -375,6 +400,11 @@ __all__ = [
     "hash_consent_token",
     "presence_artifact_id_from_hash",
     "presence_fingerprint",
+    # Presence LoRA fingerprint registration (R4-7)
+    "PresenceLoraRegistration",
+    "build_registration_from_artifact",
+    "register_lora_into_presence",
+    "revoke_lora_from_presence",
     # Lifeform builder (P2.3 / P4.2)
     "FigureLifeformBundle",
     "build_einstein_lifeform",

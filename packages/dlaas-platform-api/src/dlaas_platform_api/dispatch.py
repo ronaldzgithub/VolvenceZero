@@ -1177,7 +1177,90 @@ def _cognition_extra(session: Any) -> dict[str, Any]:
     if relationship_brief:
         extra["relationship_brief"] = relationship_brief
 
+    # Digital-employee task progress readout: compact projections of the
+    # three semantic-state owners (plan_intent / open_loop / commitment,
+    # R11) so the product layer can render task progress without an extra
+    # snapshot round-trip. Same redaction posture as relationship_brief:
+    # scalar aggregates + the owner-published free-text goal/step only —
+    # never the raw SemanticRecord lists (those stay on the admin
+    # snapshot-export route).
+    plan_brief = _plan_brief(snapshots.get("plan_intent"))
+    if plan_brief is not None:
+        extra["plan_brief"] = plan_brief
+
+    open_loop_brief = _open_loop_brief(snapshots.get("open_loop"))
+    if open_loop_brief is not None:
+        extra["open_loop_brief"] = open_loop_brief
+
+    commitment_brief = _commitment_brief(snapshots.get("commitment"))
+    if commitment_brief is not None:
+        extra["commitment_brief"] = commitment_brief
+
     return extra
+
+
+def _snapshot_value(snapshot: Any) -> Any:
+    """Read the published ``snapshot.value``; ``None`` when the slot was
+    not published for this turn (documented optional session behaviour,
+    same posture as ``_snapshot_value_field``). Once a value IS present
+    its type is the slot owner's contract — brief builders below access
+    the dataclass fields directly so a contract violation fails loudly
+    instead of silently dropping the readout.
+    """
+    if snapshot is None:
+        return None
+    return getattr(snapshot, "value", None)
+
+
+def _plan_brief(snapshot: Any) -> dict[str, Any] | None:
+    """Compact projection of the ``plan_intent`` owner's PlanIntentSnapshot.
+
+    ``active_goal`` / ``active_step`` are the owner-published free-text
+    summaries (same exposure level as ``relationship_state.description``).
+    """
+    value = _snapshot_value(snapshot)
+    if value is None:
+        return None
+    return {
+        "active_goal": str(value.active_goal),
+        "active_step": str(value.active_step),
+        "plan_revision_count": int(value.plan_revision_count),
+        "continuity_score": float(value.continuity_score),
+    }
+
+
+def _open_loop_brief(snapshot: Any) -> dict[str, Any] | None:
+    """Compact projection of the ``open_loop`` owner's OpenLoopSnapshot.
+
+    Counts only — the raw unresolved/pending SemanticRecord lists are
+    never surfaced here.
+    """
+    value = _snapshot_value(snapshot)
+    if value is None:
+        return None
+    return {
+        "unresolved_count": len(value.unresolved_loops),
+        "pending_confirmation_count": len(value.pending_confirmations),
+        "closure_readiness": float(value.closure_readiness),
+        "stale_loop_count": int(value.stale_loop_count),
+    }
+
+
+def _commitment_brief(snapshot: Any) -> dict[str, Any] | None:
+    """Compact projection of the ``commitment`` owner's CommitmentSnapshot.
+
+    Counts only — the raw active/at-risk SemanticRecord lists are never
+    surfaced here.
+    """
+    value = _snapshot_value(snapshot)
+    if value is None:
+        return None
+    return {
+        "active_count": len(value.active_commitments),
+        "at_risk_count": len(value.at_risk_commitments),
+        "due_followup_count": int(value.due_followup_count),
+        "stalled_count": int(value.stalled_commitment_count),
+    }
 
 
 def _snapshot_value_field(snapshot: Any, field_name: str) -> Any:

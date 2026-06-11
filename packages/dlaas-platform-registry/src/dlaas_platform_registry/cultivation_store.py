@@ -35,6 +35,7 @@ from __future__ import annotations
 import enum
 import json
 import secrets
+import sqlite3
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -67,6 +68,10 @@ class CultivationRecordSpec:
     display_name: str
     domain: str
     runtime_template_id: str
+    # Owning tenant. Empty string = system-owned (operator-created via
+    # the control-plane secret); non-empty = the BFF tenant that seeded
+    # this cultivation through tenant credentials.
+    tenant_id: str = ""
     seed_persona: Mapping[str, Any] = field(default_factory=dict)
     curriculum: Mapping[str, Any] = field(default_factory=dict)
     status: CultivationStatus = CultivationStatus.SEEDING
@@ -96,6 +101,7 @@ class CultivationRecordSpec:
             "display_name": self.display_name,
             "domain": self.domain,
             "runtime_template_id": self.runtime_template_id,
+            "tenant_id": self.tenant_id,
             "seed_persona": dict(self.seed_persona),
             "curriculum": dict(self.curriculum),
             "status": self.status.value,
@@ -129,6 +135,7 @@ class CultivationStore:
 
     def __init__(self, registry: Registry) -> None:
         self._registry = registry
+        _ensure_tenant_column(registry)
 
     async def create(
         self,
@@ -141,6 +148,7 @@ class CultivationStore:
         seed_persona: Mapping[str, Any],
         curriculum: Mapping[str, Any],
         cultivation_id: str | None = None,
+        tenant_id: str = "",
         notes: str = "",
         package_id: str = "",
         track_id: str = "",
@@ -153,10 +161,11 @@ class CultivationStore:
                 """
                 INSERT INTO cultivations (
                     cultivation_id, ai_id, slug, display_name, domain,
-                    runtime_template_id, seed_persona_json, curriculum_json,
+                    runtime_template_id, tenant_id, seed_persona_json,
+                    curriculum_json,
                     status, notes, package_id, track_id, direction_json,
                     created_at_ms, updated_at_ms
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'seeding', ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'seeding', ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     cultivation_id,
@@ -165,6 +174,7 @@ class CultivationStore:
                     display_name,
                     domain,
                     runtime_template_id,
+                    tenant_id,
                     json.dumps(dict(seed_persona), ensure_ascii=False),
                     json.dumps(dict(curriculum), ensure_ascii=False),
                     notes,
@@ -194,10 +204,25 @@ class CultivationStore:
             raise CultivationNotFound(ai_id)
         return _row_to_cultivation(row)
 
-    async def list_all(self) -> tuple[CultivationRecordSpec, ...]:
-        rows = self._registry.conn.execute(
-            "SELECT * FROM cultivations ORDER BY created_at_ms DESC"
-        ).fetchall()
+    async def list_all(
+        self, *, tenant_id: str = ""
+    ) -> tuple[CultivationRecordSpec, ...]:
+        """List cultivations, newest first.
+
+        Empty ``tenant_id`` returns every record (operator view);
+        non-empty restricts to that tenant's own records (tenant view).
+        """
+
+        if tenant_id:
+            rows = self._registry.conn.execute(
+                "SELECT * FROM cultivations WHERE tenant_id = ? "
+                "ORDER BY created_at_ms DESC",
+                (tenant_id,),
+            ).fetchall()
+        else:
+            rows = self._registry.conn.execute(
+                "SELECT * FROM cultivations ORDER BY created_at_ms DESC"
+            ).fetchall()
         return tuple(_row_to_cultivation(row) for row in rows)
 
     async def list_for_package(
@@ -318,11 +343,37 @@ class CultivationStore:
         return await self.get(cultivation_id)
 
 
+def _ensure_tenant_column(registry: Registry) -> None:
+    """Lazily add the ``tenant_id`` column to ``cultivations``.
+
+    Forward-only schema delta owned by this store (the base table is
+    created in :mod:`dlaas_platform_registry.db`). Mirrors the
+    ``_apply_forward_migrations`` style: on SQLite the duplicate-column
+    error is the documented no-op; Postgres supports ``IF NOT EXISTS``
+    natively so re-runs are idempotent there too. Any other failure is
+    re-raised — a half-migrated schema must fail loudly.
+    """
+
+    ddl = "ALTER TABLE cultivations ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''"
+    if registry.backend == "postgres":
+        registry.conn.execute(
+            "ALTER TABLE cultivations "
+            "ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT ''"
+        )
+        return
+    try:
+        registry.conn.execute(ddl)
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
+
+
 def _row_to_cultivation(row) -> CultivationRecordSpec:
     keys = row.keys() if hasattr(row, "keys") else ()
     package_id = row["package_id"] if "package_id" in keys else ""
     track_id = row["track_id"] if "track_id" in keys else ""
     direction_json = row["direction_json"] if "direction_json" in keys else "{}"
+    tenant_id = row["tenant_id"] if "tenant_id" in keys else ""
     return CultivationRecordSpec(
         cultivation_id=row["cultivation_id"],
         ai_id=row["ai_id"],
@@ -330,6 +381,7 @@ def _row_to_cultivation(row) -> CultivationRecordSpec:
         display_name=row["display_name"],
         domain=row["domain"],
         runtime_template_id=row["runtime_template_id"],
+        tenant_id=tenant_id or "",
         seed_persona=json.loads(row["seed_persona_json"] or "{}"),
         curriculum=json.loads(row["curriculum_json"] or "{}"),
         status=CultivationStatus(row["status"]),

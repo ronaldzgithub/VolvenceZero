@@ -312,6 +312,8 @@ return (
 
 ## 13. DLaaS eval gate 用 fail-closed `DefaultRubricGrader` 占位，未接真实 LLM judge
 
+> 2026-06-12 update (persona-pipeline Packet D — **CLOSED pending production LLM env**): `LLMRubricGrader` 已落地（[`packages/dlaas-platform-eval/src/dlaas_platform_eval/llm_grader.py`](../packages/dlaas-platform-eval/src/dlaas_platform_eval/llm_grader.py)，prompt 集中在 [`prompts.py`](../packages/dlaas-platform-eval/src/dlaas_platform_eval/prompts.py)）：per-criterion 严格 JSON 评分，解析失败抛 `GraderResponseError`（**无 0.5 静默回退**）；`build_grader_from_env()`（env：`EVAL_LLM_BASE_URL/API_KEY/MODEL`，回退 `PROTOCOL_LLM_*` 约定）成为 `attach_eval_routes` 默认 grader 工厂，未配置 env 时保持 fail-closed `DefaultRubricGrader` + 响亮 warning。`execute` 路径上 grader 失败 → run 标记 FAILED + 502 `grader_error`（routes.py `_finalize_run`）。配套新增 `POST /dlaas/exam_questions/generate`（LLM 从 topics/corpus/signature cases 语义出题，env 未配置 → 503 `llm_not_configured`，无 stub 题库）。R12/OA-1 不变：grader 输出不写回任何 kernel owner。测试：`tests/service/test_eval_llm_grader.py`。剩余触发条件：生产部署配置真实 `EVAL_LLM_*` env 并留存一轮真 LLM 评分的 exam run evidence。
+
 - **路径**：
   - 占位实现：[`packages/dlaas-platform-eval/src/dlaas_platform_eval/grader.py`](../packages/dlaas-platform-eval/src/dlaas_platform_eval/grader.py)（`DefaultRubricGrader.grade(...)` 给每个 criterion 打 `max_score * 0.5`；`RubricGrader` Protocol 是插件位）
   - 消费者：[`packages/dlaas-platform-eval/src/dlaas_platform_eval/routes.py`](../packages/dlaas-platform-eval/src/dlaas_platform_eval/routes.py)（`_finalize_run` 调 `bundle.grader.grade(...)` 计算 weighted_score）

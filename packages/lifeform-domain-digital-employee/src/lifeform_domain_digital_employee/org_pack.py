@@ -261,14 +261,36 @@ def _boundary_hints() -> tuple[BoundaryPriorHint, ...]:
         BoundaryPriorHint(
             hint_id="rid-de-org:boundary:irreversible-needs-human",
             regime_id="compliance_guard",
-            trigger_reasons=("external-spend", "irreversible-action"),
+            trigger_reasons=(
+                "external-spend",
+                "irreversible-action",
+                "external-publish",
+            ),
             answer_depth_limit_hint="proposal-only",
             clarification_required=False,
             refer_out_required=True,
             blocked_topics=("auto-execute-payment", "auto-send-external"),
             required_disclaimers=("human-approval-required",),
             confidence=0.88,
-            description="Irreversible / external-spend actions require a human approval gate.",
+            description=(
+                "Irreversible, external-spend or external-publish actions "
+                "require a human approval gate."
+            ),
+        ),
+        BoundaryPriorHint(
+            hint_id="rid-de-org:boundary:finance-tax-refusal",
+            regime_id="compliance_guard",
+            trigger_reasons=("finance-tax-advice-request",),
+            answer_depth_limit_hint="refuse-and-refer",
+            clarification_required=False,
+            refer_out_required=True,
+            blocked_topics=("tax-filing-advice", "financial-investment-advice"),
+            required_disclaimers=("refer-to-licensed-professional",),
+            confidence=0.9,
+            description=(
+                "Regulated financial / tax advice is out of scope for the org "
+                "agent: refuse and refer to a licensed professional."
+            ),
         ),
         BoundaryPriorHint(
             hint_id="rid-de-org:boundary:no-personal-memory-writes",

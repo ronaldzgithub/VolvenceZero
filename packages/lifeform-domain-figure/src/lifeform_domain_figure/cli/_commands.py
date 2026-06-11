@@ -22,7 +22,7 @@ import sys
 from collections.abc import Callable
 
 from volvence_zero.credit.gate import GateDecision
-from volvence_zero.substrate import PersonaLoRAPool, default_persona_lora_pool
+from volvence_zero.substrate import default_persona_lora_pool
 
 from lifeform_domain_figure import (
     FigureBundleInputs,
@@ -44,8 +44,12 @@ from lifeform_domain_figure import (
     build_steering_training_plan,
     list_figure_bundles,
     load_curated_corpus_from_cleaning_store,
+    load_family_profile_file,
     load_figure_bundle,
+    load_generic_profile_file,
+    load_myriad_profile_file,
     save_figure_bundle,
+    synthetic_corpus_from_profile,
     synthetic_einstein_corpus,
 )
 from lifeform_domain_figure.audit import (
@@ -105,7 +109,8 @@ def _cmd_bake_bundle_synthetic(*, args, profile_factory) -> int:
     if corpus_factory is None:
         print(
             f"figure {args.figure!r} has no synthetic corpus factory wired "
-            f"(only Einstein ships one; family memorials must use "
+            f"(Einstein and generic --profile-json personas ship one; "
+            f"family_* / myriad_* memorial corpora must use "
             f"--corpus-mode curated). See known-debts.md #27.",
             file=sys.stderr,
         )
@@ -642,11 +647,6 @@ def _resolve_figure_factories(
                 file=sys.stderr,
             )
             return (None, None)
-        # Local import keeps the module load cheap when family
-        # memorials are not in play.
-        from lifeform_domain_figure.profiles.family import (
-            load_family_profile_file,
-        )
         loaded_path = pathlib.Path(profile_file)
         profile = load_family_profile_file(loaded_path)
         if profile.profile_id != figure:
@@ -669,9 +669,6 @@ def _resolve_figure_factories(
                 file=sys.stderr,
             )
             return (None, None)
-        from lifeform_domain_figure.profiles.myriad import (
-            load_myriad_profile_file,
-        )
         loaded_path = pathlib.Path(profile_file)
         profile = load_myriad_profile_file(loaded_path)
         if profile.profile_id != figure:
@@ -682,6 +679,26 @@ def _resolve_figure_factories(
                 "profile files and must keep these two ids in lock-step."
             )
         return (lambda profile=profile: profile, None)
+    if profile_file is not None:
+        # Generic persona path (D-myriad-1 / D-MY-1): any other slug
+        # loads the Myriad-seed-compatible JSON schema. Unlike the
+        # family / myriad branches it ALSO gets a synthetic corpus
+        # factory — a deterministic CPU-only smoke corpus derived
+        # from the profile itself — so ``--corpus-mode synthetic``
+        # works for any slug with zero crawling. ``--corpus-mode
+        # curated`` remains available through the shared path.
+        loaded_path = pathlib.Path(profile_file)
+        profile = load_generic_profile_file(loaded_path, expected_slug=figure)
+        return (
+            lambda profile=profile: profile,
+            lambda profile=profile: synthetic_corpus_from_profile(profile),
+        )
+    print(
+        f"figure {figure!r} requires --profile-json (or --profile-file) "
+        "pointing at a generic persona profile JSON (see "
+        "lifeform_domain_figure.profiles.generic for the schema)",
+        file=sys.stderr,
+    )
     return (None, None)
 
 
@@ -771,7 +788,7 @@ def _maybe_register_lora_with_presence(
     if not base_url or not secret:
         return
     try:
-        from lifeform_domain_figure.presence_lora_register import (
+        from lifeform_domain_figure import (
             build_registration_from_artifact,
             register_lora_into_presence,
         )

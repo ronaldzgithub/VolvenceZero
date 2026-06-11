@@ -7,6 +7,7 @@ Endpoint summary (mirrors DLaaS public surface):
 * ``GET  /dlaas/audience/{profile_id}``
 * ``POST /dlaas/exam_questions``
 * ``POST /dlaas/exam_questions/batch``
+* ``POST /dlaas/exam_questions/generate``
 * ``GET  /dlaas/exam_questions``
 * ``POST /dlaas/exam_runs``
 * ``GET  /dlaas/exam_runs/{run_id}``
@@ -23,6 +24,7 @@ template ownership before allowing reads / writes.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Mapping
@@ -57,7 +59,14 @@ from dlaas_platform_registry import (
     require_tenant_auth,
 )
 
-from dlaas_platform_eval.grader import DefaultRubricGrader, RubricGrader
+from dlaas_platform_eval import question_gen
+from dlaas_platform_eval.grader import RubricGrader
+from dlaas_platform_eval.llm_grader import (
+    GraderResponseError,
+    QuestionGenerationError,
+    build_grader_from_env,
+    resolve_eval_llm_config,
+)
 
 _LOG = logging.getLogger("dlaas_platform_eval")
 
@@ -77,7 +86,11 @@ class EvalBundle:
     ) -> None:
         self.eval_store = EvalStore(registry)
         self.templates = TemplateStore(registry)
-        self.grader = grader or DefaultRubricGrader()
+        # Default grader comes from the env-driven factory: a real
+        # LLMRubricGrader when EVAL_LLM_* / PROTOCOL_LLM_* is
+        # configured, else the fail-closed DefaultRubricGrader (which
+        # logs its loud warning). Tests pass an explicit ``grader=``.
+        self.grader = grader or build_grader_from_env()
 
 
 def attach_eval_routes(
@@ -105,6 +118,9 @@ def attach_eval_routes(
 
     R.add_post("/dlaas/exam_questions", _handle_create_exam_question)
     R.add_post("/dlaas/exam_questions/batch", _handle_create_exam_questions_batch)
+    R.add_post(
+        "/dlaas/exam_questions/generate", _handle_generate_exam_questions
+    )
     R.add_get("/dlaas/exam_questions", _handle_list_exam_questions)
 
     R.add_post("/dlaas/exam_runs", _handle_create_exam_run)
@@ -260,6 +276,90 @@ async def _handle_create_exam_questions_batch(
             reference_answer=str(raw.get("reference_answer", "") or ""),
             tags=tuple(str(t) for t in (raw.get("tags") or ())),
             difficulty=str(raw.get("difficulty", "medium") or "medium"),
+        )
+        created.append(spec.to_json())
+    return web.json_response({"status": "ok", "questions": created})
+
+
+async def _handle_generate_exam_questions(
+    request: web.Request,
+) -> web.Response:
+    """LLM-author scenario exam questions grounded in supplied source.
+
+    Body: ``{ template_id, source: { topics?, corpus_excerpts?,
+    signature_cases? }, count?, difficulty?, language? }``.
+
+    Requires the eval LLM env (``EVAL_LLM_*`` falling back to
+    ``PROTOCOL_LLM_*``); without it the route answers
+    503 ``llm_not_configured`` — there is deliberately no stub
+    question bank. Generated questions are persisted through
+    ``EvalStore.create_exam_question`` (R12: exam artifacts only, no
+    kernel write-back) and returned to the caller.
+    """
+
+    tenant = await require_tenant_auth(request)
+    bundle: EvalBundle = request.app[EVAL_BUNDLE_APP_KEY]
+    data = await _read_json(request)
+    template_id = _required_str(data, "template_id")
+    template = await _resolve_template_for_tenant(bundle, tenant, template_id)
+    if isinstance(template, web.Response):
+        return template
+    config = resolve_eval_llm_config()
+    if config is None:
+        return _error(
+            503,
+            "llm_not_configured",
+            "Question generation requires the eval LLM env "
+            "(EVAL_LLM_BASE_URL / EVAL_LLM_API_KEY / EVAL_LLM_MODEL, "
+            "or the PROTOCOL_LLM_* equivalents).",
+        )
+    raw_source = data.get("source")
+    if not isinstance(raw_source, Mapping):
+        return _error(400, "missing_source", "source must be an object")
+    try:
+        source = question_gen.parse_question_source(raw_source)
+    except ValueError as exc:
+        return _error(400, "invalid_source", str(exc))
+    if source.is_empty():
+        return _error(
+            400,
+            "empty_source",
+            "source must supply topics, corpus_excerpts, and/or "
+            "signature_cases",
+        )
+    try:
+        count = int(data.get("count", 5) or 5)
+    except (TypeError, ValueError):
+        return _error(400, "invalid_count", "count must be an integer")
+    difficulty = str(data.get("difficulty", "medium") or "medium")
+    language = str(data.get("language", "en") or "en")
+    try:
+        generated = await asyncio.to_thread(
+            question_gen.generate_exam_questions,
+            config=config,
+            source=source,
+            count=count,
+            difficulty=difficulty,
+            language=language,
+        )
+    except QuestionGenerationError as exc:
+        _LOG.error(
+            "exam question generation failed for template=%s: %s",
+            template_id,
+            exc,
+        )
+        return _error(502, "question_generation_error", str(exc))
+    created: list[dict[str, Any]] = []
+    for question in generated:
+        spec = await bundle.eval_store.create_exam_question(
+            template_id=template_id,
+            scenario_tag=question.scenario_tag,
+            user_prompt=question.user_prompt,
+            context={"generated": True, "language": language},
+            rubric=question.rubric,
+            reference_answer=question.reference_answer,
+            tags=question.tags,
+            difficulty=question.difficulty,
         )
         created.append(spec.to_json())
     return web.json_response({"status": "ok", "questions": created})
@@ -565,11 +665,42 @@ async def _finalize_run(
         except ExamQuestionNotFound:
             continue
         ai_response = str(ai_responses.get(question_id, "") or "")
-        graded = bundle.grader.grade(
-            rubric=question.rubric,
-            ai_response=ai_response,
-            reference_answer=question.reference_answer,
-        )
+        try:
+            # ``RubricGrader.grade`` is sync by contract; the LLM judge
+            # does blocking network I/O, so run it off the event loop.
+            graded = await asyncio.to_thread(
+                bundle.grader.grade,
+                rubric=question.rubric,
+                ai_response=ai_response,
+                reference_answer=question.reference_answer,
+            )
+        except GraderResponseError as exc:
+            # Fail loudly (no silent 0.5 fallback): record the run as
+            # FAILED with the typed grader error in ``comment`` and
+            # surface 502 to the caller. The operator ``complete`` path
+            # with a working grader — or an explicit re-run — stays the
+            # authoritative way to produce a passing run.
+            _LOG.error(
+                "grader failed on run=%s question=%s: %s",
+                run.run_id,
+                question_id,
+                exc,
+            )
+            await bundle.eval_store.update_exam_run(
+                run_id=run.run_id,
+                status=ExamRunStatus.FAILED,
+                operator_id=operator_id,
+                operator_name=operator_name,
+                comment=f"grader_error on {question_id}: {exc}",
+                ai_id=ai_id,
+                contract_id=contract_id,
+                session_id=session_id,
+                aggregate_score=0.0,
+                passed=False,
+                wrong_set=(),
+                submissions=(),
+            )
+            return _error(502, "grader_error", str(exc))
         submission = ExamSubmissionScore(
             question_id=question_id,
             ai_response=ai_response,

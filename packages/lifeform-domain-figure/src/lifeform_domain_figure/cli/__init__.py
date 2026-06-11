@@ -76,24 +76,33 @@ from lifeform_domain_figure.cli import _commands
 # argparse fails loudly at the boundary.
 _BUILTIN_FIGURES = frozenset(("einstein", "lu_xun"))
 _FAMILY_ID_RE = re.compile(r"^family_[A-Za-z0-9_-]{4,128}$")
+# Generic persona slugs (Myriad historical figures, digital-employee
+# personas, ...) become bundle directory names, so the validator only
+# admits path-safe identifiers; the schema check happens at profile
+# load time (a --profile-json file is mandatory for these slugs).
+_GENERIC_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 
 
 def _validate_figure_arg(value: str) -> str:
-    """argparse type=...: accept built-ins + dynamic family_* ids.
+    """argparse type=...: accept built-ins + dynamic figure ids.
 
-    Static ``choices=`` cannot express the dynamic family-memorial
-    pattern, so we hand-roll a validator that mirrors the original
-    constraint set plus the new dynamic path.
+    Static ``choices=`` cannot express the dynamic family-memorial /
+    generic-persona patterns, so we hand-roll a validator that mirrors
+    the original constraint set plus the dynamic paths. Generic slugs
+    pass the shape check here and are gated on ``--profile-json`` /
+    ``--profile-file`` presence at command time.
     """
 
     if value in _BUILTIN_FIGURES:
         return value
     if _FAMILY_ID_RE.match(value):
         return value
+    if _GENERIC_SLUG_RE.match(value):
+        return value
     raise argparse.ArgumentTypeError(
         f"--figure {value!r} is not recognised; expected one of "
-        f"{sorted(_BUILTIN_FIGURES)} or a string matching "
-        f"family_<id>."
+        f"{sorted(_BUILTIN_FIGURES)}, a string matching family_<id>, "
+        f"or a path-safe persona slug (with --profile-json)."
     )
 
 
@@ -140,19 +149,26 @@ def build_parser() -> argparse.ArgumentParser:
         type=_validate_figure_arg,
         help=(
             "Figure id. Built-in: 'einstein' or 'lu_xun' (reviewer-"
-            "curated profile + synthetic corpus). Dynamic: any id "
-            "starting with 'family_' is loaded from --profile-file at "
-            "bake time (family-memorial product)."
+            "curated profile + synthetic corpus). Dynamic: ids "
+            "starting with 'family_' / 'myriad_' load their dedicated "
+            "JSON schemas from --profile-file; ANY other path-safe "
+            "slug (e.g. 'libai') loads the generic persona schema "
+            "from --profile-json (see "
+            "lifeform_domain_figure.profiles.generic)."
         ),
     )
     bake_bundle.add_argument(
         "--profile-file",
+        "--profile-json",
+        dest="profile_file",
         default=None,
         help=(
-            "Path to a JSON profile descriptor. Required when --figure "
-            "starts with 'family_'. The bake-worker is the only "
-            "authorised producer of this file; see "
-            "lifeform_domain_figure.profiles.family for the schema."
+            "Path to a JSON profile descriptor. Required for every "
+            "non-built-in figure. family_* / myriad_* ids use their "
+            "dedicated schemas (lifeform_domain_figure.profiles."
+            "family / .myriad); any other slug uses the generic "
+            "persona schema (lifeform_domain_figure.profiles.generic, "
+            "compatible with Myriad seed/figures/<slug>/profile.json)."
         ),
     )
     bake_bundle.add_argument(

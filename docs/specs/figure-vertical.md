@@ -191,8 +191,45 @@ steering 和 persona LoRA 的 ModificationGate 集成 mirror [`packages/lifeform
 * **F5 steering** — 真后端。CPU 可跑（量小、线性 readout / contrastive head）。
 * **F6 LoRA** — 双后端：`SyntheticLoRABakeBackend`（确定性合成 LoRA delta，CPU-only，SHADOW / 测试默认）+ `PEFTLoRABakeBackend`（真 PEFT 训练循环，opt-in via `vz-runtime[torch]`）。两者输出 `FigureLoRAArtifact.adapter_layers` 形状统一，`PersonaLoRAPool.register(...)` 接受任一 backend 的产物。Mirror [`packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py`](../../packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py) 现有的 `SyntheticOpenWeightResidualRuntime` / `TransformersOpenWeightResidualRuntime` 双后端格局。
 
+## Generic persona bake（通用 persona 烘焙）
+
+任意 persona slug（Myriad 历史人物 `libai` / `dufu`、digital-employee persona 等）可以从一份 JSON 描述符直接走 corpus → `FigureArtifactBundle` 管线，无需为每个 persona 手写 reviewer-curated Python profile（D-myriad-1 / D-MY-1 closure）。
+
+**Loader**：`lifeform_domain_figure.profiles.generic` —— 公开 `build_generic_profile_from_json` / `load_generic_profile_file` / `load_profile(slug, profile_path=None)`。`load_profile` 解析顺序：内建 slug（`einstein` / `lu_xun`，拒绝 JSON 覆盖）→ `family_*` / `myriad_*`（各自专用 schema）→ 其余 slug 走 generic schema（与 VolvenceDeploy `apps/myriad/seed/figures/<slug>/profile.json` 兼容）。
+
+**JSON schema**（必填：`slug`、`display_name`、`boundary_priors.out_of_scope_topics` 非空；且 `vocation` / `era` / `regime_tags` / `domain_coverage_seed` 至少一项存在以供 L4 coverage seed 推导）：
+
+```json
+{
+  "slug": "libai", "display_name": "李白",
+  "era": "tang", "vocation": "poet", "lifespan": "701-762",
+  "regime_tags": ["scholarly", "artistic"], "recommended_regime": "scholarly",
+  "drive_priors": {"freedom": 0.85},
+  "signature_cases": [{"id": "...", "summary": "...", "regime_tags": ["..."]}],
+  "boundary_priors": {"out_of_scope_topics": ["modern technology"]},
+  "style_prior": {"register": "literary", "verbosity": "concise", "imagery": "..."},
+  "evidence_sources": [{"title": "《李太白集》", "provenance": "Public-domain."}],
+  "time_windows": [{"slug": "youth", "label": "青年游侠"}]
+}
+```
+
+映射决策：`evidence_sources` → `FigureKnowledgeSeed`（`evidence_strength="secondary"`，目录指针而非一手 claim）；`signature_cases` → `FigureSignatureCase`（`outcome_label="stable"`）；`style_prior` + `recommended_regime` → 一条 `FigureStrategyPrior`；`drive_priors` → `FigureDrivePrior`（band = target±0.2/0.1）；仅含 `slug`/`label` 的 `time_windows` 是展示元数据，**不**编译成 `TimeWindowedView`（拒绝捏造年份）；`voice_hint` 属 presence 平面，忽略。缺失必填字段 fail loudly（`ValueError`）。
+
+**Synthetic corpus**：`synthetic_corpus_from_profile(profile)` 从 profile 自身字段（description / knowledge seeds / signature cases / strategy priors / boundaries / drives）确定性派生 paper + letter + lecture + notebook 四类 source，镜像 `synthetic_einstein_corpus()` 形状 —— 任意 slug 零爬取即可 CPU smoke bake。
+
+**CLI**：
+
+```bash
+python -m lifeform_domain_figure.cli bake-bundle \
+  --figure <slug> --profile-json <path/to/profile.json> \
+  --corpus-mode synthetic   # 或 curated（走既有 cleaning-store 路径）
+```
+
+Einstein 默认路径字节级不变；`--profile-json` 是 `--profile-file` 的别名。Deploy 侧消费者：VolvenceDeploy `docker/persona-bake-worker/`（批量烘 Myriad seed profiles 并 POST `/dlaas/control/figure-bundles/rescan`）。Smoke test：`tests/test_generic_persona_bake.py`。
+
 ## 变更日志
 
 - 2026-05-10: 初始版本。落地 vertical scaffold + L1/L2/L3/L4 阶梯定义 + F1-F6 packet 序列描述。
 - 2026-05-12: Wave A-G land — 全链真接通。debt #18 / #20 / #21 / #22 / #24 闭合；synthetic + PEFT 双 LoRA backend；real residual stream contrastive steering；`LoRAAwareResidualRuntime` Protocol + 真 forward-hook hot-swap；DLaaS adopt 主路径自动 hook；synthesizer 嵌入 L1 / L3 / L4 enforcement。剩余开放：debt #19 / #27 / #28 真材料（curated corpus 数据集）。
+- 2026-06-12: Generic persona bake land — `profiles.generic`（`load_profile` resolver + Myriad seed JSON schema）+ `synthetic_corpus_from_profile` + CLI `bake-bundle --figure <any-slug> --profile-json`；CLI 内部 import 全部收口到 wheel 公共面（contract test 复绿）。D-myriad-1 / D-MY-1 closure（deploy 侧 worker 见 VolvenceDeploy `docker/persona-bake-worker/`）。
 - 2026-05-12: Wave H-M land — 真 Einstein 语料管线 piloted。Wave H closure: `parse_by_content_type` 真 dispatch `text/x-wiki`（与 L0 wikisource fetcher derive_content_type 对齐）；Wave I closure: `figure_verify run-batch` 全 7 verifier 覆盖 + `--metadata-mode offline/live` + `--figure-context-file`；Wave J closure: `corpus.loaders.load_curated_corpus_from_cleaning_store` + CLI `bake-bundle --corpus-mode curated --cleaning-root --curated-metadata-file --verification-root --require-verification-pass`；Wave K closure: 第一次真 Einstein 公共领域语料采集 (10 reviewer-staged URLs / 6 SUCCESS / 5 cleaned / 2 reviewed → 真 bundle `figure-bundle:einstein:29eacd226a7cdfd0`, `provenance_fingerprint=c156321de6...`)；Wave L closure: 6 类 robustness integration tests (resumability / ETag idempotent / SSRF / robots fail-closed / cross-archive dedup / bundle byte-stable)，3 个 `@pytest.mark.live_network` 真网络验证全过；Wave M = 本条文档同步。debt #19 / #28 部分关闭（curated mode CLI + 7-axis verifier 全 land；剩 reviewer human-in-the-loop UI + tenant-supplied corpus 留作 follow-up）。

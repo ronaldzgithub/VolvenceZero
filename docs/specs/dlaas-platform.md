@@ -8,7 +8,7 @@
 
 把 EmoGPT 的公开 DLaaS API（参见 `docs/api/DLAAS_README.md`）作为目标形状，在 VZ 现有 8 wheel 之上**新增第三层 wheel 前缀** `dlaas-platform-*`，承担：
 
-1. **Control plane**：tenant / shell / asset / template / template_version / contract / focus_person / identity_link / handoff_ticket / exam / launch_license 的多租户资源治理；
+1. **Control plane**：tenant / shell / asset / template / template_version / contract / focus_person / identity_link / handoff_ticket / exam / interview_run / persona_lifecycle / launch_license 的多租户资源治理；
 2. **Runtime envelope 翻译**：把 typed `InteractionEnvelope`（chat / observe / feedback / teach / task / report / command）翻译成已有的 `LifeformSession.run_turn` / `BrainSession.submit_*_event` / `submit_dialogue_outcome` 调用；
 3. **Ops**：pause / resume / operator-message / handoff queue / SSE conversations stream；
 4. **Eval gate**：audience 分析 / exam runs / launch license（仅 readout，禁止反向写 kernel）。
@@ -79,7 +79,7 @@ wake/sleep/status lifecycle.
 | Wheel | 职责 | 边界规则 |
 |---|---|---|
 | `dlaas-platform-contracts` | 全部 frozen dataclass + JSON schema：`InteractionEnvelope` / `OutputAct` / `TenantSpec` / `ShellSpec` / `AssetSpec` / `TemplateSpec` / `ContractSpec` / `FocusPersonSpec` / `IdentityLinkSpec` / `HandoffTicketSpec` 等 | 零 lifeform / vz import；纯类型 |
-| `dlaas-platform-registry` | SQLite/Postgres-backed 持久化 + auth 中间件；唯一 owner of tenant/shell/asset/template/contract/focus_person/identity_link/handoff_ticket | 不调内核；不调 lifeform-* internals |
+| `dlaas-platform-registry` | SQLite/Postgres-backed 持久化 + auth 中间件；唯一 owner of tenant/shell/asset/template/contract/focus_person/identity_link/handoff_ticket/exam_run/interview_run/persona_lifecycle | 不调内核；不调 lifeform-* internals |
 | `dlaas-platform-launcher` | `InstanceManager`：管 `{ai_id → Lifeform}`，shared substrate，awake/sleep，LRU eviction | 通过 `lifeform-core.Lifeform` facade + `lifeform-service.SessionManager` 进入运行时 |
 | `dlaas-platform-api` | aiohttp `/dlaas/*` router + 三种 auth header 中间件 + `OutputAct` 包装 | 端点入口，不持有任何 cognitive state |
 | `dlaas-platform-ops` | pause/resume/operator-message/handoff queue/SSE conversations stream；ledger | 只读 rupture_state / vitals / pe 快照做 ops 决策 |

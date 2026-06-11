@@ -332,6 +332,7 @@ class InstanceManager:
                 tenant_id=tenant_id,
                 scope_strategy=scope_strategy,
                 protocol_uptake_service=self._protocol_uptake_services.get(ai_id),
+                instance_ai_id=ai_id,
             )
             self._instances[ai_id] = manager
             self._verticals[ai_id] = spec.name
@@ -394,6 +395,7 @@ class InstanceManager:
                     tool_policy_snapshot=tool_policy_snapshot,
                     tenant_id=tenant_id,
                     scope_strategy=scope_strategy,
+                    instance_ai_id=ai_id,
                 )
                 self._instances[ai_id] = manager
                 self._verticals[ai_id] = spec.name

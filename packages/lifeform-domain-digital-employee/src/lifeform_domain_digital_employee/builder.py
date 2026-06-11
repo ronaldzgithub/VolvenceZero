@@ -19,6 +19,10 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from lifeform_domain_digital_employee.industry import (
+    IndustryProfile,
+    build_industry_package,
+)
 from lifeform_domain_digital_employee.org_pack import (
     build_digital_employee_org_package,
 )
@@ -32,6 +36,7 @@ Role = Literal["org", "twin"]
 def build_digital_employee_lifeform(
     *,
     role: Role,
+    industry_profile: IndustryProfile | None = None,
     config: object | None = None,
     use_temporal_bootstrap: bool = True,
     use_regime_bootstrap: bool = True,
@@ -48,6 +53,11 @@ def build_digital_employee_lifeform(
         role: ``"org"`` for the company-level OrgAgent, ``"twin"`` for the
             per-employee EmployeeTwin. Selects which domain experience
             package is compiled into the kernel's application owners.
+        industry_profile: optional reviewed industry overlay (see
+            :mod:`lifeform_domain_digital_employee.profiles`). When given,
+            the compiled package is ``base(role) + industry data`` via
+            :func:`build_industry_package`; when ``None`` the generic
+            role package is used unchanged.
         substrate_runtime: optional shared ``OpenWeightResidualRuntime``;
             when supplied every session shares this one model instance
             (multi-tenant single-GPU path), identical to the companion
@@ -79,6 +89,9 @@ def build_digital_employee_lifeform(
         surface_label = "digital-employee-twin-semantic-surface"
     else:  # pragma: no cover - typed Literal guards this at call sites
         raise ValueError(f"unknown digital-employee role: {role!r}")
+
+    if industry_profile is not None:
+        package = build_industry_package(industry_profile, role=role)
 
     base_config = config if isinstance(config, LifeformConfig) else LifeformConfig()
     brain_overrides: dict[str, Any] = {"rare_heavy_enabled": False}

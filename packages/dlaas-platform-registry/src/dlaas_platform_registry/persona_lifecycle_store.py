@@ -11,7 +11,10 @@ Ownership boundary (R8 / R12): this store holds governance pointers
 (bundle ids, cultivation ids, exam/interview run ids) — never
 cognition. Stage validation lives in
 ``dlaas_platform_contracts.persona_lifecycle`` so every consumer sees
-the same transition rules.
+the same transition rules. Gate evidence (``exam_run_id`` /
+``interview_run_id``) is additionally cross-checked here against the
+eval/interview stores so a recorded gate always points at a real,
+completed run whose outcome matches the claimed ``passed`` flag.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from typing import Any
 from dlaas_platform_contracts import (
     INDUCTION_GATE_STAGES,
     ExamRunStatus,
+    InterviewRunStatus,
     LifecycleStageEvent,
     LifecycleTransitionError,
     PersonaLifecycleStage,
@@ -35,17 +39,10 @@ from dlaas_platform_contracts import (
 
 from dlaas_platform_registry.db import Registry
 from dlaas_platform_registry.eval_store import EvalStore, ExamRunNotFound
-
-#: ``run_type`` value that marks an eval run as an interactive interview.
-#: Exact protocol constant (not keyword inference): callers recording an
-#: interview through ``POST /dlaas/exam_runs`` must set this run_type.
-INTERVIEW_RUN_TYPE = "interview"
-
-#: Evidence key that must reference a persisted eval run per gate stage.
-_GATE_RUN_EVIDENCE_KEY: Mapping[PersonaLifecycleStage, str] = {
-    PersonaLifecycleStage.EXAM: "exam_run_id",
-    PersonaLifecycleStage.INTERVIEW: "interview_run_id",
-}
+from dlaas_platform_registry.interview_store import (
+    InterviewRunNotFound,
+    InterviewRunStore,
+)
 
 
 class PersonaLifecycleNotFound(LookupError):
@@ -74,6 +71,13 @@ class PersonaLifecycleStore:
 
     def __init__(self, registry: Registry) -> None:
         self._registry = registry
+        # Gate evidence (exam_run_id / interview_run_id) is verified
+        # against the eval/interview stores' own persistence — same
+        # registry, same transaction domain. The lifecycle never copies
+        # run state; it only checks the pointer is real and consistent
+        # at advance time.
+        self._eval = EvalStore(registry)
+        self._interviews = InterviewRunStore(registry)
 
     # -- create / read -----------------------------------------------------
 
@@ -194,6 +198,12 @@ class PersonaLifecycleStore:
         validate_stage_advance(
             current=record.stage, target=target, evidence=evidence
         )
+        if target is PersonaLifecycleStage.EXAM:
+            await self._assert_exam_evidence(record=record, evidence=evidence)
+        if target is PersonaLifecycleStage.INTERVIEW:
+            await self._assert_interview_evidence(
+                record=record, evidence=evidence
+            )
         if target is PersonaLifecycleStage.INDUCTED:
             await self._assert_induction_gates(
                 lifecycle_id=lifecycle_id, evidence=evidence
@@ -265,6 +275,91 @@ class PersonaLifecycleStore:
         return await self.get(lifecycle_id)
 
     # -- helpers -----------------------------------------------------------
+
+    async def _assert_exam_evidence(
+        self,
+        *,
+        record: PersonaTrainingLifecycle,
+        evidence: Mapping[str, Any],
+    ) -> None:
+        """``exam_run_id`` must point at a real, completed exam run.
+
+        Cross-checked against the eval gate's persistence (registry
+        ``exam_runs`` table): the run must exist, belong to this
+        lifecycle's ``template_id``, be ``completed``, and its recorded
+        ``passed`` outcome must equal the evidence ``passed`` flag —
+        callers cannot assert a pass the grader never recorded.
+
+        Out-of-band exams (graded outside the platform) cannot enter
+        the gate stages; they skip them and must carry an explicit
+        ``waiver_reason`` at induction, keeping the audit trail honest.
+        """
+
+        run_id = str(evidence["exam_run_id"]).strip()
+        try:
+            run = await self._eval.get_exam_run(run_id)
+        except ExamRunNotFound as exc:
+            raise LifecycleTransitionError(
+                f"advance to 'exam' references exam_run_id={run_id!r} "
+                "but no such exam run exists in the registry"
+            ) from exc
+        if run.template_id != record.template_id:
+            raise LifecycleTransitionError(
+                f"exam run {run_id!r} belongs to template_id="
+                f"{run.template_id!r}, not this lifecycle's template_id="
+                f"{record.template_id!r}"
+            )
+        if run.status is not ExamRunStatus.COMPLETED:
+            raise LifecycleTransitionError(
+                f"exam run {run_id!r} has status {run.status.value!r}; "
+                "gate evidence requires a completed run"
+            )
+        if bool(evidence.get("passed")) is not run.passed:
+            raise LifecycleTransitionError(
+                f"evidence passed={bool(evidence.get('passed'))!r} does not "
+                f"match the recorded outcome of exam run {run_id!r} "
+                f"(passed={run.passed!r})"
+            )
+
+    async def _assert_interview_evidence(
+        self,
+        *,
+        record: PersonaTrainingLifecycle,
+        evidence: Mapping[str, Any],
+    ) -> None:
+        """``interview_run_id`` must point at a real, completed interview.
+
+        Cross-checked against the interview store (registry
+        ``interview_runs`` table, schema v10) with the same rules as
+        exam evidence: exists, same template, completed, and the
+        evidence ``passed`` flag equals the recorded verdict.
+        """
+
+        run_id = str(evidence["interview_run_id"]).strip()
+        try:
+            run = await self._interviews.get(run_id)
+        except InterviewRunNotFound as exc:
+            raise LifecycleTransitionError(
+                f"advance to 'interview' references interview_run_id="
+                f"{run_id!r} but no such interview run exists in the registry"
+            ) from exc
+        if run.template_id != record.template_id:
+            raise LifecycleTransitionError(
+                f"interview run {run_id!r} belongs to template_id="
+                f"{run.template_id!r}, not this lifecycle's template_id="
+                f"{record.template_id!r}"
+            )
+        if run.status is not InterviewRunStatus.COMPLETED:
+            raise LifecycleTransitionError(
+                f"interview run {run_id!r} has status {run.status.value!r}; "
+                "gate evidence requires a completed run"
+            )
+        if bool(evidence.get("passed")) is not run.passed:
+            raise LifecycleTransitionError(
+                f"evidence passed={bool(evidence.get('passed'))!r} does not "
+                f"match the recorded verdict of interview run {run_id!r} "
+                f"(passed={run.passed!r})"
+            )
 
     async def _assert_induction_gates(
         self, *, lifecycle_id: str, evidence: Mapping[str, Any]

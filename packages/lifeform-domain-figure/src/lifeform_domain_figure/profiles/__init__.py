@@ -20,6 +20,11 @@ from lifeform_domain_figure.profiles.family import (
     build_family_profile_from_json,
     load_family_profile_file,
 )
+from lifeform_domain_figure.profiles.generic import (
+    build_generic_profile_from_json,
+    load_generic_profile_file,
+    load_profile,
+)
 from lifeform_domain_figure.profiles.lu_xun import build_lu_xun_profile
 from lifeform_domain_figure.profiles.myriad import (
     build_myriad_profile_from_json,
@@ -36,4 +41,8 @@ __all__ = (
     "load_family_profile_file",
     "build_myriad_profile_from_json",
     "load_myriad_profile_file",
+    # Generic persona path (any slug + Myriad seed JSON schema).
+    "build_generic_profile_from_json",
+    "load_generic_profile_file",
+    "load_profile",
 )

@@ -294,7 +294,12 @@ def _boundary_hints() -> tuple[BoundaryPriorHint, ...]:
         BoundaryPriorHint(
             hint_id="rid-de-twin:boundary:authority-limit",
             regime_id="escalation_to_human",
-            trigger_reasons=("external-spend", "irreversible-action", "low-confidence"),
+            trigger_reasons=(
+                "external-spend",
+                "irreversible-action",
+                "external-publish",
+                "low-confidence",
+            ),
             answer_depth_limit_hint="prepare-not-execute",
             clarification_required=False,
             refer_out_required=True,
@@ -302,6 +307,21 @@ def _boundary_hints() -> tuple[BoundaryPriorHint, ...]:
             required_disclaimers=("handing-to-human",),
             confidence=0.88,
             description="Beyond granted authority or confidence, prepare and refer to a human.",
+        ),
+        BoundaryPriorHint(
+            hint_id="rid-de-twin:boundary:finance-tax-refusal",
+            regime_id="escalation_to_human",
+            trigger_reasons=("finance-tax-advice-request",),
+            answer_depth_limit_hint="refuse-and-refer",
+            clarification_required=False,
+            refer_out_required=True,
+            blocked_topics=("tax-filing-advice", "financial-investment-advice"),
+            required_disclaimers=("refer-to-licensed-professional",),
+            confidence=0.9,
+            description=(
+                "Regulated financial / tax advice is out of scope for the "
+                "twin: refuse and refer to a licensed professional."
+            ),
         ),
         BoundaryPriorHint(
             hint_id="rid-de-twin:boundary:scoped-memory-only",

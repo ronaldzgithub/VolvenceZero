@@ -10,6 +10,10 @@ Public API:
   escalation regime priors).
 * ``build_digital_employee_lifeform`` — convenience factory returning a
   ready-to-run ``Lifeform`` for either role.
+* ``IndustryProfile`` / ``build_industry_package`` — additive,
+  data-only industry overlays (sales SDR / customer support / content
+  editor ship built-in; see ``profiles``) composed onto the org / twin
+  base packages.
 
 Design posture (see also the repo rule ``first-principles-not-patches``):
 
@@ -27,15 +31,27 @@ from __future__ import annotations
 from lifeform_domain_digital_employee.builder import (
     build_digital_employee_lifeform,
 )
+from lifeform_domain_digital_employee.industry import (
+    IndustryProfile,
+    build_industry_package,
+)
 from lifeform_domain_digital_employee.org_pack import (
     build_digital_employee_org_package,
+)
+from lifeform_domain_digital_employee.profiles import (
+    builtin_industry_profiles,
+    industry_profile_by_id,
 )
 from lifeform_domain_digital_employee.twin_pack import (
     build_digital_employee_twin_package,
 )
 
 __all__ = (
+    "IndustryProfile",
     "build_digital_employee_lifeform",
     "build_digital_employee_org_package",
     "build_digital_employee_twin_package",
+    "build_industry_package",
+    "builtin_industry_profiles",
+    "industry_profile_by_id",
 )

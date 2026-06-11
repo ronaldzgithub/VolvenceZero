@@ -374,6 +374,7 @@ def build_http_tool_backend(
     *,
     env_resolver: Callable[[str], str | None] = _DEFAULT_ENV_RESOLVER,
     http_client_factory: Callable[[], Any] | None = None,
+    extra_headers: Mapping[str, str] | None = None,
 ) -> AffordanceBackend:
     """Build the async backend for one endpoint.
 
@@ -381,11 +382,22 @@ def build_http_tool_backend(
     fresh, closed inside) so the backend has no long-lived resources
     to manage. Tests inject ``http_client_factory`` to swap the
     HTTP transport for a stub.
+
+    ``extra_headers`` are caller-identity headers injected by the
+    host at registration time (e.g. ``X-DLaaS-AI-ID`` /
+    ``X-DLaaS-Session-ID`` from ``lifeform-service``). HTTP act
+    surfaces are a trust boundary: a multi-tenant BFF cannot route a
+    tool call to the right tenant from LLM-proposed parameters
+    alone, so the transport carries WHO is acting. They merge over
+    the manifest's ``auth_header_templates`` (identity wins on key
+    collision — the host knows better than the manifest).
     """
 
     headers = _resolve_header_templates(
         blueprint.auth_header_templates, env_resolver
     )
+    if extra_headers:
+        headers.update(extra_headers)
     method = endpoint.method.upper()
     url = blueprint.base_url.rstrip("/") + endpoint.path
     timeout = endpoint.timeout_seconds
@@ -439,6 +451,7 @@ def register_http_blueprints(
     entries_by_plugin: Mapping[str, Mapping[str, HttpToolSafetyEntry]],
     env_resolver: Callable[[str], str | None] = _DEFAULT_ENV_RESOLVER,
     http_client_factory: Callable[[], Any] | None = None,
+    extra_headers: Mapping[str, str] | None = None,
 ) -> tuple[AffordanceDescriptor, ...]:
     """Register every blueprint's descriptors + backends.
 
@@ -446,6 +459,9 @@ def register_http_blueprints(
     ``plugin_name → {endpoint_name → HttpToolSafetyEntry}``. The
     caller (typically :mod:`lifeform_service.plugin_attach`) loads
     each plugin's ``.vzbridge.yaml`` and assembles this map.
+
+    ``extra_headers`` (optional) is forwarded verbatim to every
+    backend built here — see :func:`build_http_tool_backend`.
 
     Returns the flattened tuple of registered descriptors so callers
     can log / audit what was attached.
@@ -483,6 +499,7 @@ def register_http_blueprints(
                 build.endpoint,
                 env_resolver=env_resolver,
                 http_client_factory=http_client_factory,
+                extra_headers=extra_headers,
             )
             invoker.register_backend(build.descriptor.name, backend)
         all_descriptors.extend(build.descriptor for build in builds)

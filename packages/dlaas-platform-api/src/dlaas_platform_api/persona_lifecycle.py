@@ -18,6 +18,14 @@ records pointers to evidence artifacts (figure bundles, cultivation
 rows, exam/interview runs) and gate outcomes. Cognition never lives
 here, no learning signal flows back from this surface, and every
 transition (including rollback) is an immutable audited event.
+
+Gate evidence is verified, not trusted: advancing to ``exam`` /
+``interview`` cross-checks ``exam_run_id`` / ``interview_run_id``
+against the registry's eval (``/dlaas/exam_runs``) and interview
+(``/dlaas/interview_runs``) persistence — the run must exist, belong
+to the same template, be completed, and its recorded outcome must
+match the claimed ``passed`` flag (enforced in
+``dlaas_platform_registry.persona_lifecycle_store``).
 """
 
 from __future__ import annotations

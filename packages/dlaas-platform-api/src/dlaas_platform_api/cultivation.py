@@ -1,6 +1,6 @@
 """aiohttp routes for the autonomous expert-cultivation control plane.
 
-Endpoint summary (all operator-scoped — control-plane secret):
+Endpoint summary:
 
 * ``POST /dlaas/v1/cultivation``                       — seed a new expert
 * ``GET  /dlaas/v1/cultivation``                       — list cultivations
@@ -8,6 +8,14 @@ Endpoint summary (all operator-scoped — control-plane secret):
 * ``POST /dlaas/v1/cultivation/{cultivation_id}/tick`` — run study cycles
 * ``POST /dlaas/v1/cultivation/{cultivation_id}/graduate`` — exam gate
 * ``POST /dlaas/v1/cultivation/{cultivation_id}/induct``    — operator induct
+
+Auth (dual mode): operator credentials (``X-Control-Plane-Secret`` or
+``X-Service-Secret``) act cross-tenant and own *system* cultivations
+(``tenant_id=""``). Tenant credentials (``X-Tenant-Api-Key`` +
+``X-Tenant-Api-Secret``) create tenant-owned cultivations, see only
+their own records, and graduate candidate templates under their own
+``tenant_id``. Cross-tenant access is a typed 403 ``tenant_mismatch``,
+never a silent read.
 
 Layering (R8 / R12):
 
@@ -21,9 +29,11 @@ Layering (R8 / R12):
 Induction is **semi-automatic**: convergence (coherence over threshold)
 plus an attached exam run move a cultivation to ``ready_for_review``;
 the final promotion to a default expert template requires an explicit
-operator ``induct`` call. The deterministic eval grader is fail-closed
-(it never auto-grants a license), so the exam run is recorded as
-*evidence* the operator reviews — it does not silently gate induction.
+operator ``induct`` call. The exam grader comes from the eval wheel's
+``build_grader_from_env`` seam (a real LLM judge when ``EVAL_LLM_*`` /
+``PROTOCOL_LLM_*`` is configured, else the fail-closed deterministic
+default that never auto-grants a license), so the exam run is recorded
+as *evidence* the reviewer weighs — it does not silently gate induction.
 """
 
 from __future__ import annotations
@@ -42,8 +52,9 @@ from dlaas_platform_contracts import (
     RubricEntry,
     TemplateActivationStatus,
     TemplateStatus,
+    TenantSpec,
 )
-from dlaas_platform_eval import DefaultRubricGrader
+from dlaas_platform_eval import build_grader_from_env
 from dlaas_platform_launcher import (
     INSTANCE_MANAGER_APP_KEY,
     InstanceManager,
@@ -59,7 +70,8 @@ from dlaas_platform_registry import (
     TemplateStore,
     TenantNotFound,
     TenantStore,
-    require_control_plane_secret,
+    require_control_plane_or_service,
+    require_tenant_auth,
 )
 from lifeform_core.types import TurnTriggerKind
 from lifeform_cultivation import (
@@ -106,7 +118,10 @@ class CultivationBundle:
         self.eval_store = EvalStore(registry)
         self.templates = TemplateStore(registry)
         self.tenants = TenantStore(registry)
-        self.grader = DefaultRubricGrader()
+        # Deployment seam shared with the interview/eval gates: an
+        # LLMRubricGrader when EVAL_LLM_* (or PROTOCOL_LLM_*) is
+        # configured, else the fail-closed DefaultRubricGrader.
+        self.grader = build_grader_from_env()
         # One ProtocolUptakeService per cultivation ai_id. Holds the
         # approved school protocols (Identity Core + researched theories)
         # that the instance's SessionManager seeds into each study
@@ -156,18 +171,72 @@ def attach_cultivation_routes(
 
 
 # ---------------------------------------------------------------------------
+# Auth (dual mode)
+# ---------------------------------------------------------------------------
+
+
+async def _authenticate(request: web.Request) -> TenantSpec | None:
+    """Resolve the caller for the dual auth mode.
+
+    Operator credentials (``X-Control-Plane-Secret`` or
+    ``X-Service-Secret``) act cross-tenant and return ``None``; any
+    other caller must present tenant credentials and gets back the
+    authenticated :class:`TenantSpec`. Invalid credentials raise the
+    typed 401/403 from the registry auth helpers — never a silent pass.
+    """
+
+    headers = request.headers
+    if "X-Control-Plane-Secret" in headers or "X-Service-Secret" in headers:
+        require_control_plane_or_service(request)
+        return None
+    return await require_tenant_auth(request)
+
+
+def _assert_record_access(
+    tenant: TenantSpec | None, record
+) -> web.Response | None:
+    """403 when a tenant touches a record it does not own.
+
+    Operators (``tenant=None``) pass unconditionally. System-owned
+    records (``tenant_id=""``) are operator-only, so a tenant caller is
+    rejected for those too.
+    """
+
+    if tenant is None:
+        return None
+    if record.tenant_id != tenant.tenant_id:
+        return _error(
+            403,
+            "tenant_mismatch",
+            (
+                f"authenticated tenant_id={tenant.tenant_id!r} cannot act "
+                f"on cultivation {record.cultivation_id!r}"
+            ),
+        )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Create / list / get
 # ---------------------------------------------------------------------------
 
 
 async def _handle_create(request: web.Request) -> web.Response:
-    require_control_plane_secret(request)
+    tenant = await _authenticate(request)
     bundle = _bundle(request)
     data = await _read_json(request)
 
     slug = _required_str(data, "slug")
     seed = _parse_seed(data)
     notes = str(data.get("notes", "") or "")
+    # Operator-created cultivations stay system-owned (tenant_id="");
+    # tenant-created ones carry the authenticated tenant and namespace
+    # their ai_id by tenant so two tenants reusing one slug never share
+    # kernel state (explicit, stable ai_id ownership).
+    tenant_id = tenant.tenant_id if tenant is not None else ""
+    ai_id_prefix = (
+        f"cultivation:{tenant_id}" if tenant_id else "cultivation"
+    )
 
     try:
         directions = parse_directions(data.get("directions"))
@@ -185,13 +254,14 @@ async def _handle_create(request: web.Request) -> web.Response:
         package_id = _fresh_package_id()
         track_records = []
         for direction in directions:
-            track_ai_id = f"cultivation:{slug}:{direction.track_id}"
+            track_ai_id = f"{ai_id_prefix}:{slug}:{direction.track_id}"
             acquired = await _acquire_track(
                 request,
                 bundle=bundle,
                 instance_manager=instance_manager,
                 ai_id=track_ai_id,
                 seed=seed,
+                tenant_id=tenant_id,
             )
             if isinstance(acquired, web.Response):
                 return acquired
@@ -202,6 +272,7 @@ async def _handle_create(request: web.Request) -> web.Response:
                 display_name=f"{seed.display_name} · {direction.display_name}",
                 domain=seed.domain,
                 runtime_template_id=RUNTIME_TEMPLATE_ID,
+                tenant_id=tenant_id,
                 seed_persona=seed.to_json(),
                 curriculum=track_curriculum.to_json(),
                 notes=notes,
@@ -218,15 +289,16 @@ async def _handle_create(request: web.Request) -> web.Response:
             }
         )
 
-    # Legacy single-expert path (unchanged behaviour).
+    # Legacy single-expert path (unchanged behaviour for operators).
     curriculum = _parse_curriculum(data)
-    ai_id = f"cultivation:{slug}"
+    ai_id = f"{ai_id_prefix}:{slug}"
     acquired = await _acquire_track(
         request,
         bundle=bundle,
         instance_manager=instance_manager,
         ai_id=ai_id,
         seed=seed,
+        tenant_id=tenant_id,
     )
     if isinstance(acquired, web.Response):
         return acquired
@@ -237,6 +309,7 @@ async def _handle_create(request: web.Request) -> web.Response:
         display_name=seed.display_name,
         domain=seed.domain,
         runtime_template_id=RUNTIME_TEMPLATE_ID,
+        tenant_id=tenant_id,
         seed_persona=seed.to_json(),
         curriculum=curriculum.to_json(),
         notes=notes,
@@ -251,6 +324,7 @@ async def _acquire_track(
     instance_manager: InstanceManager,
     ai_id: str,
     seed: CultivationSeed,
+    tenant_id: str = "",
 ):
     """Seed the Identity Core + bind uptake + acquire one track instance.
 
@@ -266,7 +340,9 @@ async def _acquire_track(
     instance_manager.set_protocol_uptake_service(ai_id, uptake)
     try:
         return await instance_manager.acquire(
-            ai_id=ai_id, runtime_template_id=RUNTIME_TEMPLATE_ID
+            ai_id=ai_id,
+            runtime_template_id=RUNTIME_TEMPLATE_ID,
+            tenant_id=tenant_id,
         )
     except LookupError:
         return _error(
@@ -282,21 +358,26 @@ def _fresh_package_id() -> str:
 
 
 async def _handle_list(request: web.Request) -> web.Response:
-    require_control_plane_secret(request)
+    tenant = await _authenticate(request)
     bundle = _bundle(request)
-    records = await bundle.cultivations.list_all()
+    records = await bundle.cultivations.list_all(
+        tenant_id=tenant.tenant_id if tenant is not None else ""
+    )
     return web.json_response(
         {"status": "ok", "cultivations": [r.to_json() for r in records]}
     )
 
 
 async def _handle_get(request: web.Request) -> web.Response:
-    require_control_plane_secret(request)
+    tenant = await _authenticate(request)
     bundle = _bundle(request)
     cultivation_id = request.match_info["cultivation_id"]
     record = await _resolve(bundle, cultivation_id)
     if isinstance(record, web.Response):
         return record
+    denied = _assert_record_access(tenant, record)
+    if denied is not None:
+        return denied
     return web.json_response({"status": "ok", **record.to_json()})
 
 
@@ -388,23 +469,34 @@ def _build_package_view(package_id: str, records) -> dict[str, Any]:
 
 
 async def _handle_list_packages(request: web.Request) -> web.Response:
-    require_control_plane_secret(request)
+    tenant = await _authenticate(request)
     bundle = _bundle(request)
     package_ids = await bundle.cultivations.list_package_ids()
     packages = []
     for package_id in package_ids:
         records = await bundle.cultivations.list_for_package(package_id)
+        if tenant is not None:
+            # All tracks of one package share a tenant (single create
+            # call), so this filter keeps whole packages or drops them.
+            records = tuple(
+                r for r in records if r.tenant_id == tenant.tenant_id
+            )
+            if not records:
+                continue
         packages.append(_build_package_view(package_id, records))
     return web.json_response({"status": "ok", "packages": packages})
 
 
 async def _handle_get_package(request: web.Request) -> web.Response:
-    require_control_plane_secret(request)
+    tenant = await _authenticate(request)
     bundle = _bundle(request)
     package_id = request.match_info["package_id"]
     records = await bundle.cultivations.list_for_package(package_id)
     if not records:
         return _error(404, "package_not_found", package_id)
+    denied = _assert_record_access(tenant, records[0])
+    if denied is not None:
+        return denied
     return web.json_response(
         {"status": "ok", **_build_package_view(package_id, records)}
     )
@@ -416,12 +508,15 @@ async def _handle_get_package(request: web.Request) -> web.Response:
 
 
 async def _handle_tick(request: web.Request) -> web.Response:
-    require_control_plane_secret(request)
+    tenant = await _authenticate(request)
     bundle = _bundle(request)
     cultivation_id = request.match_info["cultivation_id"]
     record = await _resolve(bundle, cultivation_id)
     if isinstance(record, web.Response):
         return record
+    denied = _assert_record_access(tenant, record)
+    if denied is not None:
+        return denied
     if record.status in (
         CultivationStatus.READY_FOR_REVIEW,
         CultivationStatus.INDUCTED,
@@ -522,12 +617,15 @@ async def _handle_tick(request: web.Request) -> web.Response:
 
 
 async def _handle_graduate(request: web.Request) -> web.Response:
-    require_control_plane_secret(request)
+    tenant = await _authenticate(request)
     bundle = _bundle(request)
     cultivation_id = request.match_info["cultivation_id"]
     record = await _resolve(bundle, cultivation_id)
     if isinstance(record, web.Response):
         return record
+    denied = _assert_record_access(tenant, record)
+    if denied is not None:
+        return denied
     if record.status not in (
         CultivationStatus.CONVERGING,
         CultivationStatus.EXAM,
@@ -543,8 +641,16 @@ async def _handle_graduate(request: web.Request) -> web.Response:
     seed = CultivationSeed.from_json(dict(record.seed_persona))
     curriculum = CultivationCurriculum.from_json(dict(record.curriculum))
 
-    await _ensure_system_tenant(bundle)
-    template = await _ensure_candidate_template(bundle, record=record, seed=seed)
+    # Tenant-owned cultivations graduate into a candidate template owned
+    # by that tenant; system cultivations keep the SYSTEM_TENANT_ID path.
+    if record.tenant_id:
+        owner_tenant_id = record.tenant_id
+    else:
+        await _ensure_system_tenant(bundle)
+        owner_tenant_id = SYSTEM_TENANT_ID
+    template = await _ensure_candidate_template(
+        bundle, record=record, seed=seed, owner_tenant_id=owner_tenant_id
+    )
 
     session = await _session_for(request, ai_id=record.ai_id, cultivation_id=cultivation_id)
     if isinstance(session, web.Response):
@@ -601,12 +707,15 @@ async def _handle_graduate(request: web.Request) -> web.Response:
 
 
 async def _handle_induct(request: web.Request) -> web.Response:
-    require_control_plane_secret(request)
+    tenant = await _authenticate(request)
     bundle = _bundle(request)
     cultivation_id = request.match_info["cultivation_id"]
     record = await _resolve(bundle, cultivation_id)
     if isinstance(record, web.Response):
         return record
+    denied = _assert_record_access(tenant, record)
+    if denied is not None:
+        return denied
     if record.status is not CultivationStatus.READY_FOR_REVIEW:
         return _error(
             409,
@@ -661,12 +770,19 @@ async def _ensure_system_tenant(bundle: CultivationBundle):
 
 
 async def _ensure_candidate_template(
-    bundle: CultivationBundle, *, record, seed: CultivationSeed
+    bundle: CultivationBundle,
+    *,
+    record,
+    seed: CultivationSeed,
+    owner_tenant_id: str,
 ):
     """Create (or reuse) the activated+published candidate template.
 
     Idempotent across repeated graduate calls: when the cultivation
     already carries a ``dlaas_template_id`` we reuse it.
+    ``owner_tenant_id`` is the template's owning tenant —
+    ``SYSTEM_TENANT_ID`` for operator (system) cultivations, the
+    cultivation's own ``tenant_id`` for tenant-owned ones.
     """
 
     if record.dlaas_template_id:
@@ -714,7 +830,7 @@ async def _ensure_candidate_template(
             )
         }
     template = await bundle.templates.create(
-        tenant_id=SYSTEM_TENANT_ID,
+        tenant_id=owner_tenant_id,
         template_name=seed.display_name,
         domain=seed.domain,
         description=f"Auto-cultivated expert: {seed.display_name} ({seed.domain})",

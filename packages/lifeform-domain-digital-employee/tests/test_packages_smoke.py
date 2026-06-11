@@ -67,3 +67,19 @@ def test_twin_escalates_beyond_authority() -> None:
     )
     assert gate is not None
     assert gate.refer_out_required is True
+
+
+def test_base_packages_compile_to_existing_owners() -> None:
+    from volvence_zero.application import compile_domain_experience_package
+
+    for pkg in (
+        build_digital_employee_org_package(),
+        build_digital_employee_twin_package(),
+    ):
+        compiled = compile_domain_experience_package(pkg)
+        assert compiled.validation_report.valid
+        update = compiled.application_prior_update
+        assert update.domain_knowledge_updates
+        assert update.case_memory_updates
+        assert update.strategy_playbook_updates
+        assert update.boundary_policy_updates

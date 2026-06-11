@@ -163,6 +163,7 @@ class SessionManager:
         tool_policy_snapshot: dict | None = None,
         tenant_id: str = "",
         scope_strategy: str = "",
+        instance_ai_id: str = "",
     ) -> None:
         """Construct a multi-vertical session manager.
 
@@ -272,6 +273,12 @@ class SessionManager:
         self._contract_plugins = tuple(contract_plugins)
         self._contract_id = contract_id
         self._tool_policy_snapshot = dict(tool_policy_snapshot or {})
+        # The platform ai_id this manager serves (DLaaS launcher path;
+        # empty for standalone service lanes). Injected into every HTTP
+        # plugin backend as `X-DLaaS-AI-ID` so multi-tenant act
+        # surfaces can attribute tool calls — identity travels on the
+        # transport, never as an LLM-proposed parameter.
+        self._instance_ai_id = instance_ai_id.strip()
 
     def update_contract_policy(
         self,
@@ -728,8 +735,15 @@ class SessionManager:
                     set_pool(self._persona_lora_pool)
             await life.start()
             if self._contract_plugins:
+                instance_headers: dict[str, str] = {}
+                if self._instance_ai_id:
+                    instance_headers["X-DLaaS-AI-ID"] = self._instance_ai_id
+                if sid:
+                    instance_headers["X-DLaaS-Session-ID"] = sid
                 register_http_plugins_after_start(
-                    life, self._contract_plugins
+                    life,
+                    self._contract_plugins,
+                    instance_headers=instance_headers or None,
                 )
             contract_ids = [self._contract_id] if self._contract_id else []
             if self._contract_id and self._contract_id != "digital-employee":

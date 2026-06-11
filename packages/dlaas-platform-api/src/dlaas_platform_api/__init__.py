@@ -28,12 +28,14 @@ from dlaas_platform_api.app import (
 )
 from dlaas_platform_api.control_plane import attach_control_plane_routes
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
+from dlaas_platform_api.tool_tasks import attach_tool_task_routes
 
 __all__ = (
     "DispatchError",
     "attach_control_plane_routes",
     "attach_dlaas_full_stack",
     "attach_dlaas_routes",
+    "attach_tool_task_routes",
     "build_dlaas_app",
     "dispatch_envelope",
 )

@@ -88,6 +88,7 @@ from dlaas_platform_launcher.instance_manager import default_vertical_resolver
 from dlaas_platform_eval import attach_eval_routes
 
 from dlaas_platform_api.cultivation import attach_cultivation_routes
+from dlaas_platform_api.interview import attach_interview_routes
 from dlaas_platform_api.persona_lifecycle import attach_persona_lifecycle_routes
 from dlaas_platform_ops import (
     OPS_BUNDLE_APP_KEY,
@@ -137,6 +138,7 @@ from dlaas_platform_api.debug_analysis import build_debug_analysis
 from dlaas_platform_api.dispatch import DispatchError, dispatch_envelope
 from dlaas_platform_api.intake_router import resolve_intake_decision
 from dlaas_platform_api.snapshot_export import snapshot_to_json
+from dlaas_platform_api.tool_tasks import attach_tool_task_routes
 from dlaas_platform_api.streaming import (
     interaction_stream_requested,
     respond_with_interaction_stream,
@@ -203,6 +205,7 @@ def attach_dlaas_routes(
         "/dlaas/v1/instances/{ai_id}/interactions",
         _handle_interaction,
     )
+    attach_tool_task_routes(app)
     _add_lifecycle_routes(app)
     return app
 
@@ -251,6 +254,7 @@ def attach_dlaas_full_stack(
         "/dlaas/v1/instances/{ai_id}/interactions",
         _handle_interaction,
     )
+    attach_tool_task_routes(app)
     _add_lifecycle_routes(app)
     attach_control_plane_routes(app, registry=registry)
     attach_plugin_preview_routes(app)
@@ -258,6 +262,7 @@ def attach_dlaas_full_stack(
     attach_eval_routes(app, registry=registry)
     attach_cultivation_routes(app, registry=registry)
     attach_persona_lifecycle_routes(app, registry=registry)
+    attach_interview_routes(app, registry=registry)
     return app
 
 

@@ -770,6 +770,27 @@ class SafetyManifestEntry:
 
 详见 [`docs/specs/mcp-bridge.md`](specs/mcp-bridge.md)。Acceptance：6 个测试 + 外部 bundle template 自带 CI。
 
+### 2.18 Digital-Employee Domain Packages（B2B 数字员工 vertical org/twin + 行业 overlay 契约）
+
+**所在 wheel**：`lifeform-domain-digital-employee`（schema 与数据）
+
+B2B 数字员工产品的两个 persona 形态由该 vertical 唯一拥有 (R8)，全部编译进既有 application owner，**不**新增 kernel runtime owner：
+
+| 构件 | 编译目标 | 说明 |
+|---|---|---|
+| `build_digital_employee_org_package()` | 四个既有 application owner | 公司级 OrgAgent：SOP grounding / intake triage / delegation brief / compliance guard regime priors |
+| `build_digital_employee_twin_package()` | 四个既有 application owner | 成员级 EmployeeTwin：task execution / drafting / clarification / escalation regime priors |
+| `IndustryProfile`（frozen dataclass） | 同上（additive overlay） | 行业 overlay：knowledge / case / playbook / boundary records，经 `build_industry_package(profile, role=…)` 叠加到 role base |
+| 内置行业 profiles（`profiles/`） | 数据注册表 | `sales-sdr` / `customer-support` / `content-editor`；新增行业 = 新增一个数据模块，零代码分支 |
+
+**Digital-employee 不变量**：
+
+- org / twin / 行业差异**只**通过数据表达（`applicability_scope` tag 如 `industry:sales-sdr`、regime id、intervention ordering）；禁止 keyword→behaviour 映射（`no-keyword-matching-hacks.mdc`）
+- 行业 overlay 严格 additive：base record 全部保留，与 base 的 id 冲突 fail loudly；base boundary gate（不可逆 / external-spend / external-publish 必须 human gate；finance/tax 领域 refuse-and-refer）不可被 overlay 移除
+- wheel 不携带租户数据：公司 SOP / 品牌 corpus 经 BFF `observe` envelope 运行时进入；成员习惯存活于 `membership_id`-scoped memory（R14）
+- v0 复用 companion calibration basin（vitals + temporal + regime bootstraps）；行为差异由 data-only `DomainExperiencePackage` 承载，待专属 super-loop 产出 org/twin bootstraps 后仅 `builder.py` 的 `_load_*_bootstrap` 调用变更
+- `lifeform-service.verticals` 注册 `digital-employee.org.v0` / `digital-employee.twin.v0` 两个 runtime template；wheel 缺失或 `VZ_DIGITAL_EMPLOYEE_FORCE_COMPANION=1`（D18 rollback pin）时回退 companion factory，两个分支均打 `[verticals] … resolution=…` stderr breadcrumb，回退不允许静默
+
 ---
 
 ## 3. 模块快照契约
