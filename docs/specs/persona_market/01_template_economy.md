@@ -67,6 +67,7 @@ Ledger settlement: `pending → settled` (or `→ reversed` for corrections).
 | POST | `/listings` | tenant | publish/refresh a listing (source tenant) |
 | GET | `/listings` | tenant | browse active platform listings |
 | GET | `/listings/{ref}` | tenant | listing detail |
+| GET | `/listings/{ref}/bundle` | tenant (owner or live subscriber) | fetch the full licensed asset bundle |
 | PATCH | `/listings/{ref}` | tenant (owner) | update price/status (owner only) |
 | POST | `/listings/{ref}/delist` | tenant (owner) | delist |
 | POST | `/listings/{ref}/suspend` | control-plane | operator suspend |
@@ -75,6 +76,31 @@ Ledger settlement: `pending → settled` (or `→ reversed` for corrections).
 | POST | `/usage-events` | tenant or control-plane | meter usage → ledger entry |
 | GET | `/ledger` | tenant or control-plane | ledger (filter by listing/subscriber/provider) |
 | POST | `/settlements/run` | control-plane | mark a batch settled |
+
+## Licensed bundle release
+
+A publish MAY carry the full sanitised asset bundle as an opaque
+`asset_bundle` JSON object alongside `asset_bundle_hash`. The platform
+stores the bundle bound to the hash it was published with, OUTSIDE the
+listing spec — browse (`GET /listings`) and detail (`GET
+/listings/{ref}`) responses never include it, so the licensed content
+is not exposed to unsubscribed tenants.
+
+`GET /listings/{ref}/bundle` is the single release point:
+
+- Caller must be the listing owner, or hold a subscription whose
+  entitlement is live (`seeded` / `active` / `grace`). Otherwise
+  `403 not_licensed`. A suspended listing blocks non-owner fetches
+  (`409 suspended`).
+- Listing published without a bundle (hash-only, e.g. an older
+  producer) → `404 bundle_not_available`; the consumer decides its own
+  fallback and must surface it, never silently.
+- The bundle's publish-time hash is re-verified against the listing's
+  current `asset_bundle_hash`; a re-publish that changed the hash
+  without a fresh bundle yields a loud `409 bundle_hash_mismatch` —
+  the platform never releases a stale or drifted licensed asset.
+- Response: `{ status, listing_ref, asset_bundle, asset_bundle_hash,
+  license_scope }`.
 
 ## Revenue split
 

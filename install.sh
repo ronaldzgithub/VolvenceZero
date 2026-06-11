@@ -35,6 +35,7 @@ PACKAGES=(
   packages/lifeform-domain-coding
   packages/lifeform-domain-figure
   packages/lifeform-domain-growth-advisor
+  packages/lifeform-domain-digital-employee
   packages/lifeform-cultivation
   packages/companion-bench
   packages/companion-ref-harness

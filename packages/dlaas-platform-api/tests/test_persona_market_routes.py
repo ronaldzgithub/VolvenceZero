@@ -353,6 +353,163 @@ async def test_certify_is_control_plane_only(monkeypatch: pytest.MonkeyPatch) ->
     assert app[pm.PERSONA_MARKET_STORE_KEY].get_profile("pl_guard") is None
 
 
+async def test_licensed_bundle_release_gated_on_entitlement() -> None:
+    """The full asset bundle is only released to the owner or a live
+    subscriber, never via browse/detail, and the publish-time hash is
+    re-verified on every fetch."""
+    app = _app()
+    provider = {"X-Tenant-Id": "tenant-a"}
+    subscriber = {"X-Tenant-Id": "tenant-b"}
+    stranger = {"X-Tenant-Id": "tenant-c"}
+    bundle = {
+        "schema_version": "digital-employee.template_bundle.v1",
+        "template": {"slug": "sales-coach", "display_name": "Sales Coach"},
+        "sops": [{"kind": "sop", "title": "Qualify", "text": "Ask budget."}],
+    }
+
+    await pm._handle_publish_listing(
+        _FakeRequest(
+            app,
+            headers=provider,
+            json_body={
+                "listing_ref": "pl_bundle",
+                "display_name": "Sales Coach",
+                "asset_bundle_hash": "hash_v1",
+                "asset_bundle": bundle,
+                "price_cents": 100,
+            },
+        )
+    )
+    await pm._handle_patch_listing(
+        _FakeRequest(
+            app,
+            headers=provider,
+            match_info={"listing_ref": "pl_bundle"},
+            json_body={"status": "active"},
+        )
+    )
+
+    # Listing detail does NOT leak the bundle.
+    detail = _body(
+        await pm._handle_get_listing(
+            _FakeRequest(
+                app, headers=stranger, match_info={"listing_ref": "pl_bundle"}
+            )
+        )
+    )
+    assert "asset_bundle" not in detail["listing"]
+
+    # Owner can always fetch its own bundle.
+    owner_fetch = await pm._handle_get_listing_bundle(
+        _FakeRequest(
+            app, headers=provider, match_info={"listing_ref": "pl_bundle"}
+        )
+    )
+    assert owner_fetch.status == 200
+    assert _body(owner_fetch)["asset_bundle"] == bundle
+
+    # A tenant without a subscription is rejected.
+    denied = await pm._handle_get_listing_bundle(
+        _FakeRequest(
+            app, headers=stranger, match_info={"listing_ref": "pl_bundle"}
+        )
+    )
+    assert denied.status == 403
+    assert _body(denied)["error"] == "not_licensed"
+
+    # Subscribe -> the licensed fetch succeeds with the matching hash.
+    await pm._handle_subscribe(
+        _FakeRequest(app, headers=subscriber, json_body={"listing_ref": "pl_bundle"})
+    )
+    licensed = _body(
+        await pm._handle_get_listing_bundle(
+            _FakeRequest(
+                app, headers=subscriber, match_info={"listing_ref": "pl_bundle"}
+            )
+        )
+    )
+    assert licensed["asset_bundle"] == bundle
+    assert licensed["asset_bundle_hash"] == "hash_v1"
+
+    # Operator suspension blocks the subscriber's fetch (owner still ok).
+    await pm._handle_suspend_listing(
+        _FakeRequest(
+            app,
+            headers={"X-Control-Plane-Secret": "x"},
+            match_info={"listing_ref": "pl_bundle"},
+            json_body={},
+        )
+    )
+    frozen = await pm._handle_get_listing_bundle(
+        _FakeRequest(
+            app, headers=subscriber, match_info={"listing_ref": "pl_bundle"}
+        )
+    )
+    assert frozen.status == 409
+    assert _body(frozen)["error"] == "suspended"
+
+
+async def test_licensed_bundle_hash_only_listing_and_stale_bundle() -> None:
+    """Hash-only listings 404 (`bundle_not_available`); a re-publish that
+    changes the hash WITHOUT a fresh bundle fails loudly on fetch."""
+    app = _app()
+    provider = {"X-Tenant-Id": "tenant-a"}
+
+    # Published with only the hash (older producer) -> no bundle to release.
+    await pm._handle_publish_listing(
+        _FakeRequest(
+            app,
+            headers=provider,
+            json_body={
+                "listing_ref": "pl_hashonly",
+                "display_name": "X",
+                "asset_bundle_hash": "hash_v1",
+            },
+        )
+    )
+    missing = await pm._handle_get_listing_bundle(
+        _FakeRequest(
+            app, headers=provider, match_info={"listing_ref": "pl_hashonly"}
+        )
+    )
+    assert missing.status == 404
+    assert _body(missing)["error"] == "bundle_not_available"
+
+    # Published WITH a bundle, then re-published with a new hash but no
+    # fresh bundle: the stored bundle is stale -> loud mismatch, never a
+    # silent stale release.
+    await pm._handle_publish_listing(
+        _FakeRequest(
+            app,
+            headers=provider,
+            json_body={
+                "listing_ref": "pl_stale",
+                "display_name": "X",
+                "asset_bundle_hash": "hash_v1",
+                "asset_bundle": {"template": {"slug": "v1"}, "sops": []},
+            },
+        )
+    )
+    await pm._handle_publish_listing(
+        _FakeRequest(
+            app,
+            headers=provider,
+            json_body={
+                "listing_ref": "pl_stale",
+                "display_name": "X",
+                "asset_bundle_hash": "hash_v2",
+            },
+        )
+    )
+    stale = await pm._handle_get_listing_bundle(
+        _FakeRequest(
+            app, headers=provider, match_info={"listing_ref": "pl_stale"}
+        )
+    )
+    assert stale.status == 409
+    assert _body(stale)["error"] == "bundle_hash_mismatch"
+
+
 async def test_get_profile_404_when_uncertified() -> None:
     app = _app()
     await pm._handle_publish_listing(

@@ -132,6 +132,40 @@ These acts are platform delivery wrappers only. They do not create a second
 tool owner; invocation outcomes still enter cognition through the canonical
 environment/tool-result path.
 
+### SSE response (`output_contract.stream=true`)
+
+When the caller sets `output_contract.stream=true` and the interaction type is
+streamable (`chat` / `teach` / `task`), the platform answers
+`Content-Type: text/event-stream` instead of JSON
+(`dlaas_platform_api/streaming.py`, partial close of known-debt #12). Frame
+order:
+
+```text
+event: ack    -> {"ai_id", "session_id", "contract_id", "interaction_type"}
+event: chunk  -> {"content": "<text segment>"}      (0..n, ordered)
+event: act    -> one OutputAct JSON object          (1..n, structured authority)
+event: done   -> full non-streaming JSON body       (terminal on success)
+event: error  -> {"error", "detail", "status"}      (terminal on failure)
+```
+
+Contract invariants:
+
+- `ack` is written **before** the kernel turn runs (immediate accept signal).
+- Concatenated `chunk` contents equal the final text of every
+  `act_type="text"` OutputAct, in order. Today the kernel produces turn text
+  atomically (substrate streaming hooks are still debt #12), so chunks are
+  platform-layer segments of the completed text; when substrate token hooks
+  land, chunks become genuine increments without a wire change.
+- `done` carries the exact body the JSON path would have returned (including
+  the `extra` cognition readout below), so consumers persist from one shape.
+- A typed `DispatchError` after `ack` becomes a terminal `error` frame —
+  never a silent EOF. Errors raised before dispatch (envelope parse, unknown
+  `ai_id`, paused session takeover) still return plain JSON.
+- Non-streamable interaction types degrade silently to JSON per the
+  `OutputContract` best-effort clause; clients must branch on the response
+  `Content-Type` (see `DLAAS_README.md` §"Browser SSE Reader For
+  Interactions").
+
 ### Interaction response `extra` (cognition readout)
 
 Every `chat` / `teach` / `task` / `initiate_proactive_followup` response carries

@@ -137,6 +137,38 @@ def _try_companion() -> VerticalSpec | None:
     )
 
 
+def _digital_employee_force_companion_fallback() -> bool:
+    """Operator rollback pin (D18): force the companion factory.
+
+    ``VZ_DIGITAL_EMPLOYEE_FORCE_COMPANION=1`` makes
+    ``digital-employee.{org,twin}.v0`` resolve through the companion
+    factory even when ``lifeform-domain-digital-employee`` is installed
+    — the documented rollback path for a deployment that needs the
+    pre-specialisation behaviour back without uninstalling the wheel.
+    The pin is logged at discovery time so it can never engage silently.
+    """
+
+    import os
+
+    return os.environ.get(
+        "VZ_DIGITAL_EMPLOYEE_FORCE_COMPANION", ""
+    ).strip() in ("1", "true", "True")
+
+
+def _log_digital_employee_resolution(
+    *, name: str, resolution: str, reason: str
+) -> None:
+    """Single-line stderr breadcrumb so operators can audit D18 wiring."""
+
+    import sys
+
+    print(
+        f"[verticals] {name} resolution={resolution} reason={reason}",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 def _try_digital_employee_role(
     *, name: str, role: str
 ) -> VerticalSpec | None:
@@ -145,10 +177,12 @@ def _try_digital_employee_role(
     When ``lifeform-domain-digital-employee`` is installed, the vertical
     resolves to the role-specialised factory (org / twin) whose
     behavioural differentiation is carried by a data-only
-    ``DomainExperiencePackage``. When that wheel is absent, we fall back
-    to the companion factory so older deployments keep working byte-for-
-    byte (the SHADOW posture: present the real vertical name, lean on
-    companion behaviour until the specialised wheel rolls out).
+    ``DomainExperiencePackage``. When that wheel is absent — or the
+    operator pins ``VZ_DIGITAL_EMPLOYEE_FORCE_COMPANION=1`` as the D18
+    rollback — we fall back to the companion factory so older
+    deployments keep working byte-for-byte. The fallback is never
+    silent: both branches emit a ``[verticals]`` stderr breadcrumb at
+    discovery time stating which factory the vertical resolved to.
 
     Calibration flags (``has_*_bootstrap``) and the chat-browser template
     adapter are inherited from the companion vertical because v0 reuses
@@ -159,13 +193,10 @@ def _try_digital_employee_role(
     if companion is None:
         return None
 
-    try:
-        from lifeform_domain_digital_employee import (
-            build_digital_employee_lifeform,
+    def _companion_fallback_spec(reason: str) -> VerticalSpec:
+        _log_digital_employee_resolution(
+            name=name, resolution="companion-fallback", reason=reason
         )
-    except ImportError:
-        # Specialised wheel not installed — keep the first-class vertical
-        # name resolving via the companion factory (rolling-upgrade safe).
         return VerticalSpec(
             name=name,
             factory=companion.factory,
@@ -177,6 +208,22 @@ def _try_digital_employee_role(
             template_adapter=companion.template_adapter,
             template_subdir=companion.template_subdir,
         )
+
+    if _digital_employee_force_companion_fallback():
+        return _companion_fallback_spec("forced_by_env")
+
+    try:
+        from lifeform_domain_digital_employee import (
+            build_digital_employee_lifeform,
+        )
+    except ImportError:
+        # Specialised wheel not installed — keep the first-class vertical
+        # name resolving via the companion factory (rolling-upgrade safe).
+        return _companion_fallback_spec("wheel_missing")
+
+    _log_digital_employee_resolution(
+        name=name, resolution="dedicated", reason="wheel_installed"
+    )
 
     def factory(runtime):
         return build_digital_employee_lifeform(

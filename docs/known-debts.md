@@ -278,20 +278,35 @@ return (
 
 **Methodology follow-up**（不开 debt）：scenario coverage 多样性是产品方向问题不是架构债。如果未来 evaluation 需要更多类型的 long-form distributional evidence vehicle，可以在 [`packages/lifeform-domain-emogpt/.../scenarios/`](../packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/scenarios/) 增加 30-50 turn 的多 vertical / 多 regime 长 scenario，按 long-form-life-arc 的格式即可。
 
-## 12. DLaaS Slice 5.4 真流式 SSE 未启用（substrate streaming additive 接口）
+## 12. DLaaS Slice 5.4 真流式 SSE（API 层 2026-06-11 已落地；substrate token hook 仍欠）
+
+> 2026-06-11 update（API 层 SSE 落地，debt 部分关闭）：新增
+> [`packages/dlaas-platform-api/src/dlaas_platform_api/streaming.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/streaming.py)，
+> `_dispatch_envelope_to_instance`（本地 + multi-pod forward 两条路径）在
+> `output_contract.stream=true` 且 interaction_type ∈ {chat, teach, task} 时按
+> `DLAAS_README.md` 文档化的 `event: ack → chunk* → act* → done`（失败为终止性
+> `event: error`，绝不 silent EOF）回 SSE；`ack` 在 kernel turn 之前写出，`done`
+> 携带与 JSON 路径完全同形的 body。observe/feedback/report/command 与 paused
+> takeover 路径按 `OutputContract` best-effort 条款静默降级为 JSON。审计 / usage /
+> cognition snapshot 记账与 JSON 路径逐一对齐（audit payload 多带 `stream: true`）。
+> 测试：`packages/dlaas-platform-api/tests/test_interaction_streaming.py`（7 个）。
+> spec 同步：[`docs/specs/dlaas-api-v1.md`](specs/dlaas-api-v1.md) §"SSE response"。
+> **仍欠（本 debt 保持 open 的部分）**：chunk 目前是 kernel 整段产出后的平台层切
+> 段（presentational），不是真 token 增量——wire contract 已就位，token 粒度等
+> substrate streaming additive 接口（下方修法 1-2）单独 review 落地后自动升级。
 
 - **路径**：
-  - 当前实现（一次性 JSON）：[`packages/dlaas-platform-api/src/dlaas_platform_api/dispatch.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/dispatch.py)（chat / teach / task 三个 handler 直接 `await session.run_turn(...)` 后整段返回）
-  - 当前 SSE 仅在 admin ledger：[`packages/dlaas-platform-ops/src/dlaas_platform_ops/routes.py`](../packages/dlaas-platform-ops/src/dlaas_platform_ops/routes.py)（`_handle_conversations_stream`，是 ops 事件广播，不是 token-level 输出流）
+  - API 层 SSE（已落地）：[`packages/dlaas-platform-api/src/dlaas_platform_api/streaming.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/streaming.py)
+  - dispatch（仍是整段产出）：[`packages/dlaas-platform-api/src/dlaas_platform_api/dispatch.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/dispatch.py)（chat / teach / task 三个 handler 直接 `await session.run_turn(...)` 后整段返回）
   - 缺位的 substrate hook：[`packages/vz-substrate/src/volvence_zero/substrate/`](../packages/vz-substrate/src/volvence_zero/substrate/)（`OpenWeightResidualRuntime.generate(...)` 是 sync block；没有 `generate_async` / `stream_tokens` 接口）
-- **问题**：DLaaS 公开 API 文档（`DLAAS_README.md` §"Send A Chat Interaction"）说返回可以是 SSE `event: ack/act/chunk/done`；当前实现只在 client `output_contract.stream=true` 时仍返回整段 JSON 一次性回复，未拆 token chunks。Slice 5.4 在 rollout 阶段 cancel 以保护 vz-* 不被动；该项是 DLaaS 6 切片中**唯一可能动 `vz-substrate` 的位置**。
-- **违反**：纯产品 UX 体验差，不违反 R2/R4/R8 任何铁律——cancel 的理由是"动 substrate 需要单独 review"，不是动了会出错。
-- **风险**：低-中。短期看 mobile / web shell 用户感受到的是"chat 必须等完整生成完才显示"，体验上比真流式差；某些 long-form 输出（report 生成 / 长解释）会让用户以为系统卡住。**不影响功能正确性**。
+- **问题（剩余部分）**：SSE wire contract 已实现，但 chunk 粒度受限于 kernel 的原子整段生成；真 token-level 增量需要 substrate streaming additive 接口。该项是 DLaaS 切片中**唯一可能动 `vz-substrate` 的位置**，需单独 review。
+- **违反**：纯产品 UX 体验差，不违反 R2/R4/R8 任何铁律——cancel 的理由是"动 substrate 需要单独 review"，不是动了会出错。另注意：expression 层 enforcer（GroundedDecoder / ScopeRefuser）作用于完整文本，真 token 流式落地时必须保证 chunk 不绕过这些 gate（在 enforcer 之后流出，或 enforcer 支持增量模式）。
+- **风险**：低。first-byte 延迟已由 `ack` + 平台层 chunk 解决大半；剩余是长生成期间 chunk 仍一次性到达的体验差距。**不影响功能正确性**。
 - **触发条件**：(a) 第一个真实生产集成提出"必须 token-level 流式"的需求；(b) 某个 vertical 的 chat 平均生成时间稳定 > 5s；(c) 接 LLM judge 后发现 evaluation 端的 token 流也需要流式 readout（关联 #13）
-- **推荐修法**：
+- **推荐修法（剩余部分）**：
   1. `vz-substrate` 加 additive `async def generate_async(self, prompt, *, on_chunk: Callable[[str], None]) -> str` 接口（不删 / 不改现有 `generate(...)`，新方法独立测试套）
-  2. `lifeform-expression.LifeformLLMResponseSynthesizer` 加 `synthesize_streaming(...)` 派生方法
-  3. `dlaas-platform-api/dispatch.py` 的 chat / teach / task handler 检测 `envelope.output_contract.stream=True` 时改走 SSE writer：`event: ack` → 多个 `event: chunk` → `event: act`（最终结构化结果）→ `event: done`
+  2. `lifeform-expression.LifeformLLMResponseSynthesizer` 加 `synthesize_streaming(...)` 派生方法（注意 enforcer gate 不被绕过）
+  3. ~~SSE writer~~ —— 已落地（`streaming.py`），token hook 接入时只改 `run_dispatch` 内部产 chunk 的来源，wire contract 不变
   4. 单独 packet review，按 `cursor-convergence-workflow.mdc` 走 SHADOW → ACTIVE
 - **优先级**：低（产品 UX 优化；核心架构不依赖）
 

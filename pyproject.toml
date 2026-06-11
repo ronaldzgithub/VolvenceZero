@@ -37,6 +37,7 @@ dependencies = [
     "lifeform-domain-emogpt==0.1.*",
     "lifeform-domain-coding==0.1.*",
     "lifeform-domain-growth-advisor==0.1.*",
+    "lifeform-domain-digital-employee==0.1.*",
     "lifeform-service==0.1.*",
     "lifeform-evolution==0.1.*",
     "lifeform-openai-compat==0.1.*",
@@ -84,6 +85,7 @@ lifeform-domain-character = { workspace = true }
 lifeform-domain-emogpt = { workspace = true }
 lifeform-domain-coding = { workspace = true }
 lifeform-domain-growth-advisor = { workspace = true }
+lifeform-domain-digital-employee = { workspace = true }
 lifeform-service    = { workspace = true }
 lifeform-evolution  = { workspace = true }
 lifeform-openai-compat = { workspace = true }
