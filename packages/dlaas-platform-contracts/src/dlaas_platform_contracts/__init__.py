@@ -94,6 +94,12 @@ from dlaas_platform_contracts.eval import (
     LaunchLicenseSpec,
     RubricEntry,
 )
+from dlaas_platform_contracts.interview import (
+    InterviewRunSpec,
+    InterviewRunStatus,
+    InterviewTurn,
+    InterviewerKind,
+)
 from dlaas_platform_contracts.lifecycle import (
     InstanceLifecycleState,
     InstanceStatus,
@@ -165,6 +171,17 @@ from dlaas_platform_contracts.persona_market import (
     PersonaSubscriptionStatus,
     SettlementStatus,
     compute_revenue_split,
+)
+from dlaas_platform_contracts.persona_lifecycle import (
+    INDUCTION_GATE_STAGES,
+    LifecycleStageEvent,
+    LifecycleTransitionError,
+    PersonaLifecycleStage,
+    PersonaTrainingLifecycle,
+    REQUIRED_EVIDENCE_BY_STAGE,
+    gate_summary_from_events,
+    stage_order_index,
+    validate_stage_advance,
 )
 from dlaas_platform_contracts.plugins import (
     HttpEndpoint,
@@ -298,6 +315,10 @@ __all__ = (
     "InteractionEnvelope",
     "InteractionMode",
     "InteractionType",
+    "InterviewRunSpec",
+    "InterviewRunStatus",
+    "InterviewTurn",
+    "InterviewerKind",
     "LaunchLicenseSpec",
     "LifeBlueprint",
     "MCPPluginSpec",
@@ -306,12 +327,21 @@ __all__ = (
     "OpsPolicySelection",
     "OutputAct",
     "OutputContract",
+    "INDUCTION_GATE_STAGES",
+    "LifecycleStageEvent",
+    "LifecycleTransitionError",
+    "PersonaLifecycleStage",
     "PersonaListingSpec",
     "PersonaListingStatus",
     "PersonaListingVisibility",
     "PersonaProvenance",
     "PersonaSubscriptionSpec",
     "PersonaSubscriptionStatus",
+    "PersonaTrainingLifecycle",
+    "REQUIRED_EVIDENCE_BY_STAGE",
+    "gate_summary_from_events",
+    "stage_order_index",
+    "validate_stage_advance",
     "PluginKind",
     "PluginManifest",
     "PolicySnapshot",

@@ -88,6 +88,7 @@ from dlaas_platform_launcher.instance_manager import default_vertical_resolver
 from dlaas_platform_eval import attach_eval_routes
 
 from dlaas_platform_api.cultivation import attach_cultivation_routes
+from dlaas_platform_api.persona_lifecycle import attach_persona_lifecycle_routes
 from dlaas_platform_ops import (
     OPS_BUNDLE_APP_KEY,
     OpsBundle,
@@ -256,6 +257,7 @@ def attach_dlaas_full_stack(
     attach_ops_routes(app, registry=registry)
     attach_eval_routes(app, registry=registry)
     attach_cultivation_routes(app, registry=registry)
+    attach_persona_lifecycle_routes(app, registry=registry)
     return app
 
 

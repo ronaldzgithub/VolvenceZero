@@ -29,7 +29,7 @@ from pathlib import Path
 
 from dlaas_platform_registry.pg_dialect import translate_statement
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 10
 
 
 _SCHEMA_SQL = (
@@ -340,6 +340,54 @@ _SCHEMA_SQL = (
         PRIMARY KEY (ai_id, job_id)
     );
     """,
+    """
+    CREATE TABLE IF NOT EXISTS persona_lifecycles (
+        lifecycle_id TEXT PRIMARY KEY,
+        template_id TEXT NOT NULL UNIQUE,
+        tenant_id TEXT NOT NULL DEFAULT '',
+        ai_id TEXT NOT NULL DEFAULT '',
+        display_name TEXT NOT NULL DEFAULT '',
+        app_id TEXT NOT NULL DEFAULT '',
+        stage TEXT NOT NULL DEFAULT 'draft',
+        notes TEXT NOT NULL DEFAULT '',
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS persona_lifecycle_events (
+        event_id TEXT PRIMARY KEY,
+        lifecycle_id TEXT NOT NULL,
+        event_kind TEXT NOT NULL,
+        from_stage TEXT NOT NULL,
+        to_stage TEXT NOT NULL,
+        evidence_json TEXT NOT NULL DEFAULT '{}',
+        actor TEXT NOT NULL DEFAULT '',
+        recorded_at_ms INTEGER NOT NULL,
+        FOREIGN KEY (lifecycle_id) REFERENCES persona_lifecycles(lifecycle_id)
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS interview_runs (
+        run_id TEXT PRIMARY KEY,
+        template_id TEXT NOT NULL,
+        template_version INTEGER NOT NULL DEFAULT 1,
+        ai_id TEXT NOT NULL DEFAULT '',
+        session_id TEXT NOT NULL DEFAULT '',
+        interviewer_kind TEXT NOT NULL DEFAULT 'operator',
+        status TEXT NOT NULL DEFAULT 'pending',
+        question_plan_json TEXT NOT NULL DEFAULT '[]',
+        turns_json TEXT NOT NULL DEFAULT '[]',
+        aggregate_score REAL NOT NULL DEFAULT 0.0,
+        pass_threshold REAL NOT NULL DEFAULT 0.6,
+        passed INTEGER NOT NULL DEFAULT 0,
+        operator_id TEXT NOT NULL DEFAULT '',
+        verdict_comment TEXT NOT NULL DEFAULT '',
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL,
+        FOREIGN KEY (template_id) REFERENCES templates(template_id)
+    );
+    """,
 )
 
 
@@ -489,6 +537,67 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
             direction_json TEXT NOT NULL DEFAULT '{}',
             created_at_ms INTEGER NOT NULL,
             updated_at_ms INTEGER NOT NULL
+        );
+        """
+    )
+
+    # Schema v10: interactive interview runs (面试 gate). Forward-create
+    # for pre-v10 databases; fresh DBs get it from ``_SCHEMA_SQL``.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS interview_runs (
+            run_id TEXT PRIMARY KEY,
+            template_id TEXT NOT NULL,
+            template_version INTEGER NOT NULL DEFAULT 1,
+            ai_id TEXT NOT NULL DEFAULT '',
+            session_id TEXT NOT NULL DEFAULT '',
+            interviewer_kind TEXT NOT NULL DEFAULT 'operator',
+            status TEXT NOT NULL DEFAULT 'pending',
+            question_plan_json TEXT NOT NULL DEFAULT '[]',
+            turns_json TEXT NOT NULL DEFAULT '[]',
+            aggregate_score REAL NOT NULL DEFAULT 0.0,
+            pass_threshold REAL NOT NULL DEFAULT 0.6,
+            passed INTEGER NOT NULL DEFAULT 0,
+            operator_id TEXT NOT NULL DEFAULT '',
+            verdict_comment TEXT NOT NULL DEFAULT '',
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL,
+            FOREIGN KEY (template_id) REFERENCES templates(template_id)
+        );
+        """
+    )
+
+    # Schema v9: unified persona cognitive-training lifecycle. Forward-
+    # create for pre-v9 databases; fresh DBs get them from
+    # ``_SCHEMA_SQL`` above.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS persona_lifecycles (
+            lifecycle_id TEXT PRIMARY KEY,
+            template_id TEXT NOT NULL UNIQUE,
+            tenant_id TEXT NOT NULL DEFAULT '',
+            ai_id TEXT NOT NULL DEFAULT '',
+            display_name TEXT NOT NULL DEFAULT '',
+            app_id TEXT NOT NULL DEFAULT '',
+            stage TEXT NOT NULL DEFAULT 'draft',
+            notes TEXT NOT NULL DEFAULT '',
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL
+        );
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS persona_lifecycle_events (
+            event_id TEXT PRIMARY KEY,
+            lifecycle_id TEXT NOT NULL,
+            event_kind TEXT NOT NULL,
+            from_stage TEXT NOT NULL,
+            to_stage TEXT NOT NULL,
+            evidence_json TEXT NOT NULL DEFAULT '{}',
+            actor TEXT NOT NULL DEFAULT '',
+            recorded_at_ms INTEGER NOT NULL,
+            FOREIGN KEY (lifecycle_id) REFERENCES persona_lifecycles(lifecycle_id)
         );
         """
     )

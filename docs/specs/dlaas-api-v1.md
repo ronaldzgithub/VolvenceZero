@@ -891,6 +891,65 @@ Overview response (grouped, worst-first; no event bodies):
 `DLAAS_APP_STALE_HOURS` / `DLAAS_APP_ERROR_RATE_WATCH` /
 `DLAAS_APP_ERROR_RATE_ALERT` / `DLAAS_APP_MIN_EVENTS_FOR_ERROR`.
 
+## Persona Training Lifecycle
+
+One platform-owned governance record per persona (keyed by `template_id`)
+tracks the unified cognitive-training pipeline across products
+(Myriad figures, digital-employee templates, cultivated experts):
+
+```text
+draft → pretrained → studying → training → exam → interview → inducted
+  └──────────┴──────────┴──────────┴────────┴────────┴──────────┴──▶ retired
+```
+
+```http
+POST /dlaas/v1/personas/{template_id}/lifecycle           # create (stage=draft)
+GET  /dlaas/v1/personas/{template_id}/lifecycle           # record + events + gates
+POST /dlaas/v1/personas/{template_id}/lifecycle/advance   # forward move
+POST /dlaas/v1/personas/{template_id}/lifecycle/rollback  # audited backwards move
+GET  /dlaas/v1/personas/lifecycles                        # list (tenant-scoped)
+```
+
+Auth: operator secrets (`X-Control-Plane-Secret` / `X-Service-Secret`)
+act cross-tenant; tenant credentials act only on templates their tenant
+owns (`tenant_mismatch` 403 otherwise).
+
+`advance` body: `{ to_stage, evidence: { ... } }`. Each target stage has
+mandatory evidence keys — entering a stage asserts the pointed artifact
+exists (fail loudly with `409 invalid_transition` when missing):
+
+| Target stage | Required evidence | Points at |
+|---|---|---|
+| `pretrained` | `figure_bundle_id` | offline bake (corpus → bundle → LoRA → persona verification) |
+| `studying` | `cultivation_id` | cultivation self-study record |
+| `training` | `training_ref` | corpus intake / training job / teach session |
+| `exam` | `exam_run_id` (+ `passed`) | eval-gate exam run |
+| `interview` | `interview_run_id` (+ `passed`) | interactive interview run |
+| `inducted` | `reviewer_id` | operator decision |
+| `retired` | `reason` | withdrawal |
+
+Rules:
+
+- Forward-only: `advance` must move strictly later on the pipeline;
+  skipping stages is allowed (some products have no offline bake) and
+  the skip is visible in the event history.
+- **Induction gate**: advancing to `inducted` requires the latest
+  recorded `exam` and `interview` evidence to carry `passed: true`. An
+  explicit `waiver_reason` overrides — the waiver itself becomes part
+  of the audit trail (no silent pass).
+- `rollback` body `{ to_stage, reason }` is the only backwards move; a
+  non-empty reason is mandatory and the rollback is persisted as an
+  immutable event (R15).
+- `GET .../lifecycle` returns the record, the full ordered event log,
+  and a derived `gates` readout
+  (`{stage: {reached, passed, evidence}}`) consumers render as-is.
+
+Ownership (R8 / R12): the lifecycle stores **pointers to evidence
+artifacts**, never cognition; no learning signal flows back from this
+surface. Contracts: `dlaas_platform_contracts.persona_lifecycle`;
+store: `dlaas_platform_registry.persona_lifecycle_store` (schema v9);
+routes: `dlaas_platform_api.persona_lifecycle`.
+
 ## Expert Cultivation
 
 Autonomous industry-expert cultivation ("行业专家自动养成") grows a default

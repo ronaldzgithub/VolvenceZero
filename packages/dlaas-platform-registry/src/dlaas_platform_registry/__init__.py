@@ -70,6 +70,16 @@ from dlaas_platform_registry.handoff import (
     HandoffTicketNotFound,
     HandoffTicketStore,
 )
+from dlaas_platform_registry.interview_store import (
+    InterviewRunNotFound,
+    InterviewRunStateError,
+    InterviewRunStore,
+)
+from dlaas_platform_registry.persona_lifecycle_store import (
+    PersonaLifecycleConflict,
+    PersonaLifecycleNotFound,
+    PersonaLifecycleStore,
+)
 from dlaas_platform_registry.shells import ShellNotFound, ShellStore
 from dlaas_platform_registry.training_jobs import (
     TrainingJobNotFound,
@@ -109,7 +119,13 @@ __all__ = (
     "GovernanceStore",
     "HandoffTicketNotFound",
     "HandoffTicketStore",
+    "InterviewRunNotFound",
+    "InterviewRunStateError",
+    "InterviewRunStore",
     "LaunchLicenseNotFound",
+    "PersonaLifecycleConflict",
+    "PersonaLifecycleNotFound",
+    "PersonaLifecycleStore",
     "PlatformAuthBundle",
     "PlatformAuthConfig",
     "REGISTRY_APP_KEY",
