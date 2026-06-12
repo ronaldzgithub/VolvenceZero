@@ -621,6 +621,118 @@ Rules:
 - Does not expose mutable object references.
 - Does not create any mutation path back into owners.
 
+### Temporal Time-Node Snapshots And Historical Forks
+
+> Status: SHADOW contract. Required for deploy debt
+> `D-moonlight-temporal-fork`; not implemented by cognition aggregates.
+
+Temporal fork is the platform contract for user-facing "return to a past
+moment" experiences. It is intentionally separate from `/cognition/snapshots`:
+cognition aggregates are observability rows, while `TimeNodeSnapshot` is an
+owner-published, restorable checkpoint bundle.
+
+```http
+GET  /dlaas/v1/instances/{ai_id}/time-nodes?scope_key=family_123:subject_456&session_id=sess_current&since_ms=&until_ms=&limit=200
+GET  /dlaas/v1/instances/{ai_id}/time-nodes/{time_node_id}
+POST /dlaas/v1/instances/{ai_id}/sessions/fork
+```
+
+`TimeNodeSnapshot` response shape:
+
+```json
+{
+  "time_node_id": "tn_20240401_0000",
+  "ai_id": "lfd_subject_456",
+  "scope_key": "family_123:subject_456",
+  "source_session_id": "lfd_subject_456_current",
+  "as_of_ms": 1711929600000,
+  "captured_at_ms": 1711929600123,
+  "snapshot_version": "tn.v1",
+  "restore_status": "ready",
+  "owner_slots": [
+    "memory_checkpoint",
+    "active_regime",
+    "relationship_state",
+    "semantic_state",
+    "experience_receipts"
+  ],
+  "evidence": {
+    "source_count": 18,
+    "latest_source_captured_at_ms": 1711900000000,
+    "watermark": "sha256:..."
+  }
+}
+```
+
+`restore_status` values:
+
+| Status | Meaning |
+|---|---|
+| `pending` | The platform knows the point in time, but at least one required owner has not published a restorable bundle. |
+| `ready` | All required owner bundles exist and the node can be forked. |
+| `not_restorable` | The node is visible for audit/readiness but cannot hydrate a session. |
+| `revoked` | Consent or scoped data removal invalidated the node. |
+| `stale` | The node predates a contract migration and must be reverified before fork. |
+| `error` | Readiness check failed loudly; clients must inspect the typed error. |
+
+`POST .../sessions/fork` request:
+
+```json
+{
+  "source_session_id": "lfd_subject_456_current",
+  "fork_session_id": "lfd_moonlight_456_user_789_20240401",
+  "time_node_id": "tn_20240401_0000",
+  "scope_key": "family_123:subject_456",
+  "mode": "historical_readonly",
+  "metadata": {
+    "moonlight.as_of_ms": 1711929600000,
+    "requester_ref": "user_789"
+  }
+}
+```
+
+Successful fork response:
+
+```json
+{
+  "status": "ok",
+  "ai_id": "lfd_subject_456",
+  "source_session_id": "lfd_subject_456_current",
+  "fork_session_id": "lfd_moonlight_456_user_789_20240401",
+  "time_node_id": "tn_20240401_0000",
+  "snapshot_version": "tn.v1",
+  "mode": "historical_readonly"
+}
+```
+
+Contract invariants:
+
+- `lifeform-service` / `SessionManager` owns fork hydration. DLaaS routes the
+  request to the runtime owner; deploy apps never reconstruct state from
+  transcript text.
+- `historical_readonly` forks may run `chat`, but their learning, feedback,
+  reflection, and memory writes must not mutate the forward/current session.
+- A forked `session_id` is stable and distinct from the source session. Runtime
+  routing must preserve `{ai_id, fork_session_id}` affinity.
+- Owner bundles are published by their owning modules (`vz-memory`,
+  `vz-cognition`, `vz-temporal`, semantic-state owners, experience receipts).
+  Consumers receive readiness and evidence pointers, not mutable internals.
+- Missing owner slots fail closed; clients must not fall back to a current
+  session or prompt-only imitation.
+- The rollout flag is `DLAAS_TEMPORAL_FORK=off|shadow|active`. `shadow` allows
+  listing/readiness checks but rejects `sessions/fork`.
+
+Typed errors:
+
+| Code | HTTP | Meaning |
+|---|---:|---|
+| `time_node_not_found` | 404 | The requested node is absent for the selected `ai_id` / scope. |
+| `snapshot_not_restorable` | 409 | The node exists but `restore_status` is not `ready`. |
+| `scope_not_authorized` | 403 | The caller cannot access the requested scope or source session. |
+| `owner_snapshot_missing` | 424 | At least one required owner bundle is missing or contract-incompatible. |
+| `fork_route_unavailable` | 503 | Runtime placement or `SessionManager` fork support is unavailable. |
+| `temporal_fork_disabled` | 503 | The upstream rollout flag is `off` or `shadow` for mutation. |
+
 ### Explain Trace
 
 ```http
