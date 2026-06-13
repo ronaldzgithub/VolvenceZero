@@ -13,7 +13,7 @@
 # USAGE
 #   ./einstein.sh [--mode smoke|real] [--device cpu|cuda|mps|auto] \
 #                 [--require-verify 0|1|auto] [--run-id <id>] \
-#                 [--skip-collect] [--skip-bake] [--skip-verify] [-h|--help]
+#                 [--skip-collect] [--skip-bake] [--skip-verify] [-h|--help] 
 #
 # Two demo modes:
 #
