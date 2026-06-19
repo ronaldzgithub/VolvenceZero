@@ -910,6 +910,10 @@ class LifeformSession:
         self._pending_mcp_prompts: list[Any] = list(mcp_pending_prompts)
         self._mcp_resources_flushed: bool = False
         self._mcp_prompts_flushed: bool = False
+        self._historical_readonly: bool = False
+        self._historical_source_session_id: str = ""
+        self._historical_as_of_ms: int | None = None
+        self._historical_time_node_id: str = ""
 
     # ------------------------------------------------------------------
     # Read API
@@ -922,6 +926,27 @@ class LifeformSession:
     @property
     def brain_session(self) -> BrainSession:
         return self._brain_session
+
+    @property
+    def historical_readonly(self) -> bool:
+        return self._historical_readonly
+
+    def set_historical_readonly(
+        self,
+        *,
+        source_session_id: str,
+        as_of_ms: int,
+        time_node_id: str,
+    ) -> None:
+        """Mark this session as a Moonlight historical-readonly fork."""
+        if not source_session_id.strip():
+            raise ValueError("source_session_id must be non-empty")
+        if not time_node_id.strip():
+            raise ValueError("time_node_id must be non-empty")
+        self._historical_readonly = True
+        self._historical_source_session_id = source_session_id
+        self._historical_as_of_ms = int(as_of_ms)
+        self._historical_time_node_id = time_node_id
 
     @property
     def tick_engine(self) -> TickEngine:
@@ -1699,7 +1724,8 @@ class LifeformSession:
         # backend (anonymous session). Failures propagate as typed
         # ``HydrationError`` per the no-swallow rule rather than
         # silently dropping the persisted state.
-        self.persist_owners()
+        if not self._historical_readonly:
+            self.persist_owners()
         return closed
 
     # ------------------------------------------------------------------

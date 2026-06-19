@@ -45,9 +45,14 @@ from lifeform_service.figure_bundle_store import (
     register_bundle_persona_lora,
 )
 from lifeform_service.session_manager import (
+    InvalidTemporalForkError,
+    ScopeNotAuthorizedError,
     SessionAlreadyExistsError,
     SessionManager,
     SessionNotFoundError,
+    SnapshotNotRestorableError,
+    TimeNodeNotFoundError,
+    TimeNodeSnapshot,
 )
 from lifeform_service.verticals import (
     VerticalSpec,
@@ -60,9 +65,14 @@ __all__ = (
     "EinsteinBundleResolution",
     "FigureBundleNotFound",
     "FigureBundleStore",
+    "InvalidTemporalForkError",
+    "ScopeNotAuthorizedError",
     "SessionAlreadyExistsError",
     "SessionManager",
     "SessionNotFoundError",
+    "SnapshotNotRestorableError",
+    "TimeNodeNotFoundError",
+    "TimeNodeSnapshot",
     "VerticalSpec",
     "create_app",
     "default_figure_bundle_store",

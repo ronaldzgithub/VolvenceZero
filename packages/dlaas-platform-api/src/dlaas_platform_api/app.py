@@ -109,9 +109,13 @@ from dlaas_platform_registry import (
 )
 from lifeform_service.app import create_app as create_lifeform_app
 from lifeform_service.session_manager import (
+    InvalidTemporalForkError,
+    ScopeNotAuthorizedError,
     SessionAlreadyExistsError,
     SessionManager,
     SessionNotFoundError,
+    SnapshotNotRestorableError,
+    TimeNodeNotFoundError,
 )
 
 from dlaas_platform_api.control_plane import (
@@ -367,6 +371,15 @@ def _add_lifecycle_routes(app: web.Application) -> None:
     app.router.add_get("/dlaas/v1/instances/{ai_id}/status", _handle_instance_status)
     app.router.add_get("/dlaas/v1/instances/{ai_id}/readouts", _handle_readouts)
     app.router.add_get("/dlaas/v1/instances/{ai_id}/explain", _handle_explain)
+    app.router.add_get("/dlaas/v1/instances/{ai_id}/time-nodes", _handle_time_nodes)
+    app.router.add_get(
+        "/dlaas/v1/instances/{ai_id}/time-nodes/{time_node_id}",
+        _handle_time_node_get,
+    )
+    app.router.add_post(
+        "/dlaas/v1/instances/{ai_id}/sessions/fork",
+        _handle_session_fork,
+    )
     app.router.add_post(
         "/dlaas/v1/instances/{ai_id}/data/export", _handle_data_export
     )
@@ -516,6 +529,23 @@ def _ensure_shadow_intake_stores(app: web.Application) -> None:
 
 def _multi_pod_enabled() -> bool:
     return os.environ.get("VZ_MULTI_POD", "").strip() in ("1", "true", "True")
+
+
+def _temporal_fork_mode() -> str:
+    raw = os.environ.get("DLAAS_TEMPORAL_FORK", "off").strip().lower()
+    if raw in {"shadow", "active"}:
+        return raw
+    return "off"
+
+
+def _optional_int_query(request: web.Request, name: str) -> int | None:
+    raw = request.query.get(name)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
 
 
 def _maybe_build_multi_pod_launcher(app: web.Application):
@@ -1905,6 +1935,141 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
     return web.json_response({"status": "ok", **status.to_json()})
 
 
+async def _handle_time_nodes(request: web.Request) -> web.Response:
+    mode = _temporal_fork_mode()
+    if mode == "off":
+        return _json_error(
+            status=503,
+            error="temporal_fork_disabled",
+            detail="DLAAS_TEMPORAL_FORK is off.",
+        )
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+    except _AiIdNotFoundError as exc:
+        return _json_error(status=404, error=exc.code, detail=exc.detail)
+    scope_key = request.query.get("scope_key", "").strip()
+    session_id = request.query.get("session_id", "").strip()
+    since_ms = _optional_int_query(request, "since_ms")
+    until_ms = _optional_int_query(request, "until_ms")
+    limit = _optional_int_query(request, "limit") or 200
+    nodes = await manager.list_time_nodes(
+        scope_key=scope_key,
+        session_id=session_id,
+        since_ms=since_ms,
+        until_ms=until_ms,
+        limit=limit,
+    )
+    return web.json_response(
+        {
+            "status": "ok",
+            "mode": mode,
+            "ai_id": ai_id,
+            "count": len(nodes),
+            "items": [node.to_json() for node in nodes],
+        }
+    )
+
+
+async def _handle_time_node_get(request: web.Request) -> web.Response:
+    mode = _temporal_fork_mode()
+    if mode == "off":
+        return _json_error(
+            status=503,
+            error="temporal_fork_disabled",
+            detail="DLAAS_TEMPORAL_FORK is off.",
+        )
+    ai_id = request.match_info.get("ai_id", "")
+    time_node_id = request.match_info.get("time_node_id", "")
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+        node = await manager.get_time_node(time_node_id)
+    except _AiIdNotFoundError as exc:
+        return _json_error(status=404, error=exc.code, detail=exc.detail)
+    except TimeNodeNotFoundError:
+        return _json_error(
+            status=404,
+            error="time_node_not_found",
+            detail=f"time_node_id={time_node_id!r} is not published.",
+        )
+    return web.json_response({"status": "ok", "mode": mode, **node.to_json()})
+
+
+async def _handle_session_fork(request: web.Request) -> web.Response:
+    mode = _temporal_fork_mode()
+    if mode != "active":
+        return _json_error(
+            status=503,
+            error="temporal_fork_disabled",
+            detail="DLAAS_TEMPORAL_FORK must be active to create a fork.",
+        )
+    ai_id = request.match_info.get("ai_id", "")
+    try:
+        data = await _read_json_object(request)
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_fork_request", detail=str(exc))
+    source_session_id = str(data.get("source_session_id", "") or "").strip()
+    fork_session_id = str(data.get("fork_session_id", "") or "").strip()
+    time_node_id = str(data.get("time_node_id", "") or "").strip()
+    scope_key = str(data.get("scope_key", "") or "").strip()
+    fork_mode = str(data.get("mode", "") or "").strip()
+    metadata = data.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        return _json_error(
+            status=400,
+            error="invalid_fork_request",
+            detail="metadata must be an object when provided.",
+        )
+    if not source_session_id or not fork_session_id or not time_node_id:
+        return _json_error(
+            status=400,
+            error="invalid_fork_request",
+            detail="source_session_id, fork_session_id and time_node_id are required.",
+        )
+    try:
+        manager = _resolve_session_manager(request, ai_id)
+        body = await manager.fork_session(
+            source_session_id=source_session_id,
+            fork_session_id=fork_session_id,
+            time_node_id=time_node_id,
+            scope_key=scope_key,
+            mode=fork_mode,
+            metadata=metadata,
+            user_id=str(metadata.get("requester_ref", "") or "") or None,
+        )
+    except _AiIdNotFoundError as exc:
+        return _json_error(status=404, error=exc.code, detail=exc.detail)
+    except TimeNodeNotFoundError:
+        return _json_error(
+            status=404,
+            error="time_node_not_found",
+            detail=f"time_node_id={time_node_id!r} is not published.",
+        )
+    except SnapshotNotRestorableError as exc:
+        return _json_error(
+            status=409,
+            error="snapshot_not_restorable",
+            detail=str(exc),
+            extra={"restore_status": exc.restore_status},
+        )
+    except ScopeNotAuthorizedError as exc:
+        return _json_error(status=403, error="scope_not_authorized", detail=str(exc))
+    except SessionNotFoundError as exc:
+        return _json_error(status=404, error="session_not_found", detail=str(exc))
+    except SessionAlreadyExistsError as exc:
+        return _json_error(status=409, error="session_already_exists", detail=str(exc))
+    except InvalidTemporalForkError as exc:
+        return _json_error(status=400, error="invalid_fork_request", detail=str(exc))
+    _record_audit(
+        request,
+        event_type="temporal_fork_created",
+        ai_id=ai_id,
+        session_id=fork_session_id,
+        payload={**body, "scope_key": scope_key, "metadata": metadata},
+    )
+    return web.json_response(body, status=201)
+
+
 async def _handle_sleep_instance(request: web.Request) -> web.Response:
     launcher = request.app.get(INSTANCE_MANAGER_APP_KEY)
     if not isinstance(launcher, LauncherProtocol):
@@ -2809,6 +2974,18 @@ async def _dispatch_envelope_to_instance(
         return _json_error(
             status=404, error="session_not_found", detail=str(exc)
         )
+
+    readonly = getattr(manager, "is_historical_readonly", None)
+    if callable(readonly) and readonly(envelope.session_id):
+        if envelope.interaction_type is not InteractionType.CHAT:
+            return _json_error(
+                status=409,
+                error="historical_readonly_violation",
+                detail=(
+                    "historical_readonly fork sessions accept chat only; "
+                    f"interaction_type={envelope.interaction_type.value!r} is not allowed."
+                ),
+            )
 
     if interaction_stream_requested(envelope):
         # SSE branch (debt #12, API layer): identical dispatch + identical

@@ -108,6 +108,36 @@ def _legacy_single_layer_scope_opt_out() -> bool:
 
 
 @dataclass
+class TimeNodeSnapshot:
+    """Restorable timepoint checkpoint metadata published by SessionManager."""
+
+    time_node_id: str
+    ai_id: str
+    scope_key: str
+    source_session_id: str
+    as_of_ms: int
+    captured_at_ms: int
+    snapshot_version: str
+    restore_status: str
+    owner_slots: tuple[str, ...]
+    evidence: dict[str, object]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "time_node_id": self.time_node_id,
+            "ai_id": self.ai_id,
+            "scope_key": self.scope_key,
+            "source_session_id": self.source_session_id,
+            "as_of_ms": self.as_of_ms,
+            "captured_at_ms": self.captured_at_ms,
+            "snapshot_version": self.snapshot_version,
+            "restore_status": self.restore_status,
+            "owner_slots": list(self.owner_slots),
+            "evidence": dict(self.evidence),
+        }
+
+
+@dataclass
 class _SessionEntry:
     session: LifeformSession
     lifeform: Lifeform
@@ -130,6 +160,11 @@ class _SessionEntry:
     # serve the first user's kernel state). Empty string = unknown /
     # legacy session created without a user_id.
     end_user_ref: str = ""
+    historical_readonly: bool = False
+    source_session_id: str = ""
+    fork_as_of_ms: int | None = None
+    time_node_id: str = ""
+    fork_metadata: dict[str, object] | None = None
 
 
 class SessionManager:
@@ -279,6 +314,9 @@ class SessionManager:
         # surfaces can attribute tool calls — identity travels on the
         # transport, never as an LLM-proposed parameter.
         self._instance_ai_id = instance_ai_id.strip()
+        # Restorable Moonlight checkpoints owned by this runtime manager.
+        # BFF apps may mirror the JSON, but do not own the checkpoint.
+        self._time_nodes: dict[str, TimeNodeSnapshot] = {}
 
     def update_contract_policy(
         self,
@@ -770,6 +808,108 @@ class SessionManager:
         await self._shutdown_entries(evicted)
         return session
 
+    async def list_time_nodes(
+        self,
+        *,
+        scope_key: str = "",
+        session_id: str = "",
+        since_ms: int | None = None,
+        until_ms: int | None = None,
+        limit: int = 200,
+    ) -> tuple[TimeNodeSnapshot, ...]:
+        """Return restorable time-node readiness for this runtime."""
+        if limit <= 0:
+            return ()
+        async with self._lock:
+            if session_id and session_id in self._sessions:
+                self._ensure_time_node_locked(
+                    session_id=session_id,
+                    scope_key=scope_key,
+                    as_of_ms=until_ms or _epoch_ms(),
+                )
+            nodes = tuple(self._time_nodes.values())
+        filtered = [
+            node
+            for node in nodes
+            if (not scope_key or node.scope_key == scope_key)
+            and (not session_id or node.source_session_id == session_id)
+            and (since_ms is None or node.as_of_ms >= since_ms)
+            and (until_ms is None or node.as_of_ms <= until_ms)
+        ]
+        filtered.sort(key=lambda node: node.as_of_ms, reverse=True)
+        return tuple(filtered[:limit])
+
+    async def get_time_node(self, time_node_id: str) -> TimeNodeSnapshot:
+        async with self._lock:
+            try:
+                return self._time_nodes[time_node_id]
+            except KeyError as exc:
+                raise TimeNodeNotFoundError(time_node_id) from exc
+
+    async def fork_session(
+        self,
+        *,
+        source_session_id: str,
+        fork_session_id: str,
+        time_node_id: str,
+        scope_key: str,
+        mode: str,
+        metadata: dict[str, object] | None = None,
+        user_id: str | None = None,
+    ) -> dict[str, object]:
+        """Create a distinct historical-readonly session from a time node."""
+        if mode != "historical_readonly":
+            raise InvalidTemporalForkError("mode must be 'historical_readonly'")
+        async with self._lock:
+            source_entry = self._sessions.get(source_session_id)
+            if source_entry is None:
+                raise SessionNotFoundError(source_session_id)
+            node = self._time_nodes.get(time_node_id)
+            if node is None:
+                node = self._ensure_time_node_locked(
+                    session_id=source_session_id,
+                    scope_key=scope_key,
+                    as_of_ms=_coerce_as_of_ms(metadata),
+                )
+            if node.restore_status != "ready":
+                raise SnapshotNotRestorableError(time_node_id, node.restore_status)
+            if scope_key and node.scope_key != scope_key:
+                raise ScopeNotAuthorizedError(scope_key)
+            vertical_name = source_entry.vertical_name or self._registry.default_name
+        fork_user_id = user_id or f"{node.scope_key}:moonlight:{node.as_of_ms}"
+        session = await self.create_session(
+            session_id=fork_session_id,
+            user_id=fork_user_id,
+            vertical_name=vertical_name,
+        )
+        async with self._lock:
+            fork_entry = self._sessions[fork_session_id]
+            fork_entry.historical_readonly = True
+            fork_entry.source_session_id = source_session_id
+            fork_entry.fork_as_of_ms = node.as_of_ms
+            fork_entry.time_node_id = node.time_node_id
+            fork_entry.fork_metadata = dict(metadata or {})
+        marker = getattr(session, "set_historical_readonly", None)
+        if callable(marker):
+            marker(
+                source_session_id=source_session_id,
+                as_of_ms=node.as_of_ms,
+                time_node_id=node.time_node_id,
+            )
+        return {
+            "status": "ok",
+            "ai_id": self._instance_ai_id,
+            "source_session_id": source_session_id,
+            "fork_session_id": fork_session_id,
+            "time_node_id": node.time_node_id,
+            "snapshot_version": node.snapshot_version,
+            "mode": mode,
+        }
+
+    def is_historical_readonly(self, session_id: str) -> bool:
+        entry = self._sessions.get(session_id)
+        return bool(entry and entry.historical_readonly)
+
     async def get_session(self, session_id: str) -> LifeformSession:
         async with self._lock:
             evicted = self._evict_idle_locked()
@@ -829,6 +969,45 @@ class SessionManager:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _ensure_time_node_locked(
+        self,
+        *,
+        session_id: str,
+        scope_key: str,
+        as_of_ms: int,
+    ) -> TimeNodeSnapshot:
+        entry = self._sessions.get(session_id)
+        if entry is None:
+            raise SessionNotFoundError(session_id)
+        normalized_scope = scope_key.strip() or entry.end_user_ref or session_id
+        node_id = _time_node_id(
+            session_id=session_id, scope_key=normalized_scope, as_of_ms=as_of_ms
+        )
+        existing = self._time_nodes.get(node_id)
+        if existing is not None:
+            return existing
+        persisted = entry.session.persist_owners()
+        active_slots = tuple(sorted(entry.session.latest_active_snapshots))
+        owner_slots = tuple(dict.fromkeys((*active_slots, *persisted)))
+        node = TimeNodeSnapshot(
+            time_node_id=node_id,
+            ai_id=self._instance_ai_id,
+            scope_key=normalized_scope,
+            source_session_id=session_id,
+            as_of_ms=as_of_ms,
+            captured_at_ms=_epoch_ms(),
+            snapshot_version="tn.v1",
+            restore_status="ready" if owner_slots else "not_restorable",
+            owner_slots=owner_slots,
+            evidence={
+                "source_count": len(entry.session.turn_summaries),
+                "latest_source_captured_at_ms": as_of_ms,
+                "watermark": f"sha256:{uuid.uuid5(uuid.NAMESPACE_URL, node_id).hex}",
+            },
+        )
+        self._time_nodes[node_id] = node
+        return node
 
     def _inject_uptake_seed_protocols(self, life: Lifeform) -> Lifeform:
         """Append uptake-approved seed protocols onto ``life``.
@@ -900,6 +1079,29 @@ class SessionNotFoundError(LookupError):
     """Raised when a session_id is not in the manager."""
 
 
+class TimeNodeNotFoundError(LookupError):
+    """Raised when a time_node_id is not published by this manager."""
+
+
+class SnapshotNotRestorableError(RuntimeError):
+    """Raised when a visible time node cannot hydrate a fork."""
+
+    def __init__(self, time_node_id: str, restore_status: str) -> None:
+        super().__init__(
+            f"time_node_id={time_node_id!r} restore_status={restore_status!r}"
+        )
+        self.time_node_id = time_node_id
+        self.restore_status = restore_status
+
+
+class ScopeNotAuthorizedError(PermissionError):
+    """Raised when a fork asks for a scope outside the node boundary."""
+
+
+class InvalidTemporalForkError(ValueError):
+    """Raised for malformed historical fork requests."""
+
+
 class SessionAlreadyExistsError(ValueError):
     """Raised when create_session is called with an explicit ID already in use."""
 
@@ -907,6 +1109,29 @@ class SessionAlreadyExistsError(ValueError):
 class TemplatesNotSupportedError(LookupError):
     """Raised when a template operation is requested on a vertical that
     does not register a :class:`VerticalTemplateAdapter`."""
+
+
+def _epoch_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _coerce_as_of_ms(metadata: dict[str, object] | None) -> int:
+    if not metadata:
+        return _epoch_ms()
+    raw = metadata.get("moonlight.as_of_ms") or metadata.get("as_of_ms")
+    if raw is None:
+        return _epoch_ms()
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        raise InvalidTemporalForkError(
+            "metadata moonlight.as_of_ms must be an integer"
+        ) from exc
+
+
+def _time_node_id(*, session_id: str, scope_key: str, as_of_ms: int) -> str:
+    raw = f"{scope_key}:{session_id}:{as_of_ms}"
+    return f"tn_{uuid.uuid5(uuid.NAMESPACE_URL, raw).hex[:16]}"
 
 
 def _resolve_registry_and_templates_root(
