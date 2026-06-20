@@ -165,12 +165,14 @@
 | Spec | 内容 |
 |------|------|
 | [credit-and-self-modification.md](./credit-and-self-modification.md) | prediction error 派生的层级信用分配、语义化奖励记录、门控自修改规则 |
+| [relational-soft-verifier.md](./relational-soft-verifier.md) | （design / SHADOW-only）rBio soft-verifier-RL → 关系域落差分析 + 自我确认证伪实验 + `VZ_RELATIONAL_SOFT_VERIFIER` 三阶升级协议；解决"关系质量无硬奖励"难题 |
 
 **核心不变量**：
 - prediction error / LSS 是所有信用的源头，信用是其聚合层
 - 稀疏奖励是常态，不是边缘情况
 - 自修改有门控：在线/后台/离线/人工审核分层
 - 实时运行期间不可无限制突变基础模型
+- 关系域软验证器奖励必须内禀（R-PE）、只训 z_rel（R2/R4）、外部人审锚只读（R12）、全程可回滚（R15）
 
 ---
 
