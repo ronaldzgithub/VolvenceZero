@@ -87,6 +87,7 @@ from dlaas_platform_launcher import (
 from dlaas_platform_launcher.instance_manager import default_vertical_resolver
 from dlaas_platform_eval import attach_eval_routes
 
+from dlaas_platform_api.bake import attach_bake_routes
 from dlaas_platform_api.cultivation import attach_cultivation_routes
 from dlaas_platform_api.interview import attach_interview_routes
 from dlaas_platform_api.persona_lifecycle import attach_persona_lifecycle_routes
@@ -147,6 +148,7 @@ from dlaas_platform_api.streaming import (
     interaction_stream_requested,
     respond_with_interaction_stream,
 )
+from dlaas_platform_api.third_party_llm import attach_third_party_llm_routes
 from dlaas_platform_api.training_executor import (
     InMemoryTrainingJobStore,
     TrainingJobExecutor,
@@ -267,6 +269,8 @@ def attach_dlaas_full_stack(
     attach_cultivation_routes(app, registry=registry)
     attach_persona_lifecycle_routes(app, registry=registry)
     attach_interview_routes(app, registry=registry)
+    attach_third_party_llm_routes(app, registry=registry)
+    attach_bake_routes(app, registry=registry)
     return app
 
 

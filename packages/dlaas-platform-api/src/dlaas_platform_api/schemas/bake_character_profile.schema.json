@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "displayName": { "type": "string" },
+    "brief": { "type": "string" },
+    "description": { "type": "string" },
+    "knowledge_seeds": { "type": "array", "items": { "type": "object" } },
+    "signature_cases": { "type": "array", "items": { "type": "object" } },
+    "strategy_priors": { "type": "array", "items": { "type": "object" } },
+    "boundary_priors": { "type": "array", "items": { "type": "object" } },
+    "drive_priors": { "type": "array", "items": { "type": "object" } },
+    "arc_scenes": { "type": "array", "items": { "type": "object" } },
+    "teach_challenges": { "type": "array", "items": { "type": "object" } },
+    "evidence_sources": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["displayName", "brief", "description", "knowledge_seeds", "boundary_priors"]
+}

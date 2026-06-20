@@ -67,6 +67,7 @@ from dlaas_platform_registry import (
     EvalStore,
     REGISTRY_APP_KEY,
     Registry,
+    TemplateNotFound,
     TemplateStore,
     TenantNotFound,
     TenantStore,
@@ -83,7 +84,10 @@ from lifeform_cultivation import (
     build_identity_core_protocol,
     parse_directions,
 )
-from lifeform_service.cultivation_bundle import export_protocol_bundle
+from lifeform_service.cultivation_bundle import (
+    build_uptake_service_from_bundle,
+    export_protocol_bundle,
+)
 from lifeform_service.openai_compat_client import build_client_from_env
 from lifeform_service.protocol_uptake import (
     ProtocolUptakeConfig,
@@ -140,6 +144,23 @@ class CultivationBundle:
             self._uptake_services[ai_id] = svc
         return svc
 
+    def hydrate_uptake_from_bundle(
+        self, ai_id: str, bundle_payload: Any
+    ) -> ProtocolUptakeService:
+        """Seed the per-ai_id uptake service from an adopted persona bundle.
+
+        Used by the adopted-seed cultivation path: the source template's
+        ``cultivation_protocol_bundle`` (its converged school) is loaded
+        so the new cultivation *continues* from that school instead of an
+        empty Identity Core. The hydrated service replaces any cached one
+        for this ai_id (creation-time, before acquire), then the caller
+        still loads the seed Identity Core on top.
+        """
+
+        svc = build_uptake_service_from_bundle(bundle_payload)
+        self._uptake_services[ai_id] = svc
+        return svc
+
 
 def attach_cultivation_routes(
     app: web.Application,
@@ -162,7 +183,16 @@ def attach_cultivation_routes(
         "/dlaas/v1/cultivation/packages/{package_id}", _handle_get_package
     )
     R.add_get("/dlaas/v1/cultivation/{cultivation_id}", _handle_get)
+    R.add_get(
+        "/dlaas/v1/cultivation/{cultivation_id}/events", _handle_events
+    )
     R.add_post("/dlaas/v1/cultivation/{cultivation_id}/tick", _handle_tick)
+    # Supervision (self-learning workshop): operator teach correction +
+    # pause/resume + reject (drop a non-chosen school track for R15).
+    R.add_post("/dlaas/v1/cultivation/{cultivation_id}/teach", _handle_teach)
+    R.add_post("/dlaas/v1/cultivation/{cultivation_id}/pause", _handle_pause)
+    R.add_post("/dlaas/v1/cultivation/{cultivation_id}/resume", _handle_resume)
+    R.add_post("/dlaas/v1/cultivation/{cultivation_id}/reject", _handle_reject)
     R.add_post(
         "/dlaas/v1/cultivation/{cultivation_id}/graduate", _handle_graduate
     )
@@ -227,6 +257,26 @@ async def _handle_create(request: web.Request) -> web.Response:
     data = await _read_json(request)
 
     slug = _required_str(data, "slug")
+    # Adopted-seed path: when ``source_template_id`` is given the seed
+    # defaults are filled from the source template's persona_spec (the
+    # operator can still override any field), and the template's converged
+    # school is hydrated into each track at acquire time. Empty seed path
+    # is unchanged (source_template_id == "").
+    source_template_id = str(data.get("source_template_id", "") or "").strip()
+    source_bundle_payload: Any = None
+    provenance: dict[str, Any] = {}
+    if source_template_id:
+        resolved = await _resolve_source_template(
+            bundle, source_template_id, tenant
+        )
+        if isinstance(resolved, web.Response):
+            return resolved
+        source_template, source_bundle_payload = resolved
+        provenance = _source_provenance(
+            data, source_template, source_bundle_payload
+        )
+        data = _seed_defaults_from_template(data, source_template)
+
     seed = _parse_seed(data)
     notes = str(data.get("notes", "") or "")
     # Operator-created cultivations stay system-owned (tenant_id="");
@@ -262,6 +312,7 @@ async def _handle_create(request: web.Request) -> web.Response:
                 ai_id=track_ai_id,
                 seed=seed,
                 tenant_id=tenant_id,
+                source_bundle_payload=source_bundle_payload,
             )
             if isinstance(acquired, web.Response):
                 return acquired
@@ -279,6 +330,8 @@ async def _handle_create(request: web.Request) -> web.Response:
                 package_id=package_id,
                 track_id=direction.track_id,
                 direction=direction.to_json(),
+                source_template_id=source_template_id,
+                provenance=provenance,
             )
             track_records.append(record)
         return web.json_response(
@@ -299,6 +352,7 @@ async def _handle_create(request: web.Request) -> web.Response:
         ai_id=ai_id,
         seed=seed,
         tenant_id=tenant_id,
+        source_bundle_payload=source_bundle_payload,
     )
     if isinstance(acquired, web.Response):
         return acquired
@@ -313,6 +367,8 @@ async def _handle_create(request: web.Request) -> web.Response:
         seed_persona=seed.to_json(),
         curriculum=curriculum.to_json(),
         notes=notes,
+        source_template_id=source_template_id,
+        provenance=provenance,
     )
     return web.json_response({"status": "ok", **record.to_json()})
 
@@ -325,6 +381,7 @@ async def _acquire_track(
     ai_id: str,
     seed: CultivationSeed,
     tenant_id: str = "",
+    source_bundle_payload: Any = None,
 ):
     """Seed the Identity Core + bind uptake + acquire one track instance.
 
@@ -333,9 +390,26 @@ async def _acquire_track(
     InstanceManager BEFORE acquire so the SessionManager seeds it into
     every study session. Returns the acquired manager, or a typed 503
     ``web.Response`` when the runtime vertical is not installed.
+
+    Adopted-seed path: when ``source_bundle_payload`` is a converged
+    cultivation protocol bundle, the uptake service is first hydrated
+    from it so the new cultivation continues from the adopted persona's
+    school; the seed Identity Core is then loaded on top as the anchor.
     """
 
-    uptake = bundle.uptake_service_for(ai_id)
+    if source_bundle_payload:
+        try:
+            uptake = bundle.hydrate_uptake_from_bundle(
+                ai_id, source_bundle_payload
+            )
+        except ValueError as exc:
+            return _error(
+                400,
+                "invalid_source_bundle",
+                f"source template's cultivation_protocol_bundle is malformed: {exc}",
+            )
+    else:
+        uptake = bundle.uptake_service_for(ai_id)
     uptake.registry.load(build_identity_core_protocol(seed))
     instance_manager.set_protocol_uptake_service(ai_id, uptake)
     try:
@@ -521,6 +595,7 @@ async def _handle_tick(request: web.Request) -> web.Response:
         CultivationStatus.READY_FOR_REVIEW,
         CultivationStatus.INDUCTED,
         CultivationStatus.FAILED,
+        CultivationStatus.PAUSED,
     ):
         return _error(
             409,
@@ -540,28 +615,13 @@ async def _handle_tick(request: web.Request) -> web.Response:
     # the Identity Core is idempotent and survives a process restart that
     # would otherwise leave the service empty.
     instance_manager = _instance_manager(request)
-    uptake = bundle.uptake_service_for(record.ai_id)
+    # Durable adopted-seed continuation: re-hydrate the source school when
+    # the in-process uptake service lost it (restart / eviction).
+    uptake = await _ensure_source_hydration(bundle, record)
     uptake.registry.load(build_identity_core_protocol(seed))
     instance_manager.set_protocol_uptake_service(record.ai_id, uptake)
 
-    async def _uptaker(text: str, source_label: str) -> str | None:
-        try:
-            candidate = await uptake.extract_from_markdown_text(
-                text, source_label=source_label
-            )
-        except RuntimeError:
-            # LLM not configured (PROTOCOL_LLM_* unset): degrade to corpus
-            # ingestion in the sink. Not a swallowed error — it is the
-            # documented degraded path the sink falls back to.
-            return None
-        await uptake.submit_candidate(candidate)
-        try:
-            approved = await uptake.approve_pending(
-                candidate.protocol.protocol_id, reviewer_id="cultivation-auto"
-            )
-        except KeyError:
-            return None
-        return approved.protocol_id
+    _uptaker = _make_protocol_uptaker(uptake)
 
     # Fresh session per tick so the SessionManager seeds the currently
     # approved protocol set (protocols approved this tick take effect at
@@ -601,6 +661,41 @@ async def _handle_tick(request: web.Request) -> web.Response:
         coherence_detail=progress.coherence_detail,
         regime_history=progress.regime_history,
     )
+    # Persist the per-cycle study trail as a monitoring readout (R12):
+    # what the loop researched/studied each cycle, for the supervision
+    # console. Never read back as a learning signal.
+    await bundle.cultivations.append_events(
+        cultivation_id=cultivation_id,
+        kind="cycle",
+        events=tuple(e.to_json() for e in progress.events),
+    )
+    # Convergence timeline snapshot (one per tick): the score + dominant
+    # school + distinct-school count so the console can chart how the
+    # school settles over time. Pure readout (R12).
+    detail = dict(progress.coherence_detail)
+    await bundle.cultivations.append_events(
+        cultivation_id=cultivation_id,
+        kind="progress",
+        events=(
+            {
+                "cycle_index": progress.cycles_completed,
+                "coherence_score": progress.coherence_score,
+                "readout_kind": progress.readout_kind,
+                "dominant": str(
+                    detail.get("dominant_protocol")
+                    or detail.get("dominant_regime", "")
+                    or ""
+                ),
+                "distinct_schools": int(
+                    detail.get("distinct_schools")
+                    or detail.get("distinct_regimes", 0)
+                    or 0
+                ),
+                "uptaken_protocols": len(progress.uptaken_protocols),
+                "converged": progress.converged,
+            },
+        ),
+    )
     return web.json_response(
         {
             "status": "ok",
@@ -609,6 +704,250 @@ async def _handle_tick(request: web.Request) -> web.Response:
             **record.to_json(),
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Events — monitoring readout (self-learning workshop)
+# ---------------------------------------------------------------------------
+
+
+async def _handle_events(request: web.Request) -> web.Response:
+    """Return the cultivation's per-cycle study trail + coherence readout.
+
+    Pure readout (R12): the event log is observability for the operator
+    supervision console; it is never read back as a learning signal. The
+    coherence trajectory is the score history the engine published per
+    tick (here the current value + accumulated regime history) so the
+    console can chart convergence without owning cognition.
+    """
+
+    tenant = await _authenticate(request)
+    bundle = _bundle(request)
+    cultivation_id = request.match_info["cultivation_id"]
+    record = await _resolve(bundle, cultivation_id)
+    if isinstance(record, web.Response):
+        return record
+    denied = _assert_record_access(tenant, record)
+    if denied is not None:
+        return denied
+    limit = _optional_int(request.query, "limit", default=500)
+    all_events = await bundle.cultivations.list_events(
+        cultivation_id, limit=limit
+    )
+    # Split the per-tick convergence ``timeline`` (kind="progress") from
+    # the event log (cycles / teach corrections / supervision actions) so
+    # the console can chart convergence and render the trail separately.
+    timeline = [e for e in all_events if e.get("kind") == "progress"]
+    events = [e for e in all_events if e.get("kind") != "progress"]
+    return web.json_response(
+        {
+            "status": "ok",
+            "cultivation_id": cultivation_id,
+            "ai_id": record.ai_id,
+            "cultivation_status": record.status.value,
+            "cycles_completed": record.cycles_completed,
+            "coherence_score": record.coherence_score,
+            "coherence_detail": dict(record.coherence_detail),
+            "regime_history": list(record.regime_history),
+            "provenance": dict(record.provenance),
+            "source_template_id": record.source_template_id,
+            "events": events,
+            "timeline": timeline,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Supervise — operator teach correction + pause / resume / reject
+# ---------------------------------------------------------------------------
+
+# Statuses a teach correction can be injected into (in-flight study).
+_TEACHABLE = (
+    CultivationStatus.SEEDING,
+    CultivationStatus.STUDYING,
+    CultivationStatus.CONVERGING,
+    CultivationStatus.EXAM,
+    CultivationStatus.PAUSED,
+)
+# Statuses that can be paused (actively-running study only).
+_PAUSABLE = (
+    CultivationStatus.SEEDING,
+    CultivationStatus.STUDYING,
+    CultivationStatus.CONVERGING,
+)
+
+
+async def _handle_teach(request: web.Request) -> web.Response:
+    """Inject an operator apprentice correction into a running cultivation.
+
+    The correction text is re-homed through the same uptake service as
+    autonomous research (so it competes in the active mixture on PE
+    utility — never a hardcoded rule, R4) and run as one apprentice study
+    turn. It does not advance the study cycle counter; the next tick
+    recomputes coherence with the correction in the mixture. Recorded as
+    a ``teach`` event for the supervision console.
+    """
+
+    tenant = await _authenticate(request)
+    bundle = _bundle(request)
+    cultivation_id = request.match_info["cultivation_id"]
+    record = await _resolve(bundle, cultivation_id)
+    if isinstance(record, web.Response):
+        return record
+    denied = _assert_record_access(tenant, record)
+    if denied is not None:
+        return denied
+    if record.status not in _TEACHABLE:
+        return _error(
+            409,
+            "cultivation_not_teachable",
+            f"cultivation status={record.status.value!r} does not accept "
+            "teach corrections.",
+        )
+    data = await _read_json(request)
+    correction = _required_str(data, "text")
+    source_label = str(data.get("source_label", "") or "operator:teach")
+
+    seed = CultivationSeed.from_json(dict(record.seed_persona))
+    instance_manager = _instance_manager(request)
+    uptake = await _ensure_source_hydration(bundle, record)
+    uptake.registry.load(build_identity_core_protocol(seed))
+    instance_manager.set_protocol_uptake_service(record.ai_id, uptake)
+    uptaker = _make_protocol_uptaker(uptake)
+
+    session = await _fresh_tick_session(
+        request,
+        ai_id=record.ai_id,
+        cultivation_id=cultivation_id,
+        seq=record.cycles_completed,
+    )
+    if isinstance(session, web.Response):
+        return session
+
+    sink = SessionCultivationSink(session=session, protocol_uptaker=uptaker)
+    protocol_id = await sink.uptake_protocol(
+        corpus_text=correction, source_label=source_label
+    )
+    turn = await sink.study(correction)
+
+    event = {
+        "cycle_index": record.cycles_completed,
+        "kind_detail": "operator_teach",
+        "text": correction[:2000],
+        "source_label": source_label,
+        "protocol_uptaken": protocol_id or "",
+        "active_regime": turn.active_regime,
+        "response": turn.text[:2000],
+    }
+    await bundle.cultivations.append_events(
+        cultivation_id=cultivation_id, kind="teach", events=(event,)
+    )
+    return web.json_response(
+        {
+            "status": "ok",
+            "protocol_uptaken": protocol_id or "",
+            "active_regime": turn.active_regime,
+            "response": turn.text,
+            **record.to_json(),
+        }
+    )
+
+
+async def _handle_pause(request: web.Request) -> web.Response:
+    tenant = await _authenticate(request)
+    bundle = _bundle(request)
+    cultivation_id = request.match_info["cultivation_id"]
+    record = await _resolve(bundle, cultivation_id)
+    if isinstance(record, web.Response):
+        return record
+    denied = _assert_record_access(tenant, record)
+    if denied is not None:
+        return denied
+    if record.status not in _PAUSABLE:
+        return _error(
+            409,
+            "cultivation_not_pausable",
+            f"cultivation status={record.status.value!r} cannot be paused.",
+        )
+    record = await bundle.cultivations.update_status(
+        cultivation_id=cultivation_id, status=CultivationStatus.PAUSED
+    )
+    await bundle.cultivations.append_events(
+        cultivation_id=cultivation_id,
+        kind="pause",
+        events=({"cycle_index": record.cycles_completed},),
+    )
+    return web.json_response({"status": "ok", **record.to_json()})
+
+
+async def _handle_resume(request: web.Request) -> web.Response:
+    tenant = await _authenticate(request)
+    bundle = _bundle(request)
+    cultivation_id = request.match_info["cultivation_id"]
+    record = await _resolve(bundle, cultivation_id)
+    if isinstance(record, web.Response):
+        return record
+    denied = _assert_record_access(tenant, record)
+    if denied is not None:
+        return denied
+    if record.status is not CultivationStatus.PAUSED:
+        return _error(
+            409,
+            "cultivation_not_paused",
+            f"resume requires status=paused (got {record.status.value!r}).",
+        )
+    # Resume to STUDYING; the next tick recomputes coherence and may move
+    # the record back to CONVERGING. (We do not persist the pre-pause
+    # status separately because it is a pure function of coherence.)
+    record = await bundle.cultivations.update_status(
+        cultivation_id=cultivation_id, status=CultivationStatus.STUDYING
+    )
+    await bundle.cultivations.append_events(
+        cultivation_id=cultivation_id,
+        kind="resume",
+        events=({"cycle_index": record.cycles_completed},),
+    )
+    return web.json_response({"status": "ok", **record.to_json()})
+
+
+async def _handle_reject(request: web.Request) -> web.Response:
+    """Abandon a cultivation / school track (multi-school selection, R15).
+
+    Used when the operator picks one self-consistent school from a
+    package and retires the others. Marks the record ``failed`` with an
+    optional reason; an inducted expert cannot be rejected through this
+    path (retire it via template lifecycle instead).
+    """
+
+    tenant = await _authenticate(request)
+    bundle = _bundle(request)
+    cultivation_id = request.match_info["cultivation_id"]
+    record = await _resolve(bundle, cultivation_id)
+    if isinstance(record, web.Response):
+        return record
+    denied = _assert_record_access(tenant, record)
+    if denied is not None:
+        return denied
+    if record.status is CultivationStatus.INDUCTED:
+        return _error(
+            409,
+            "cultivation_inducted",
+            "an inducted expert cannot be rejected; retire its template "
+            "via the lifecycle instead.",
+        )
+    data = await _read_json(request, allow_empty=True)
+    reason = str(data.get("reason", "") or "operator_rejected")
+    record = await bundle.cultivations.update_status(
+        cultivation_id=cultivation_id,
+        status=CultivationStatus.FAILED,
+        notes=reason,
+    )
+    await bundle.cultivations.append_events(
+        cultivation_id=cultivation_id,
+        kind="reject",
+        events=({"cycle_index": record.cycles_completed, "reason": reason},),
+    )
+    return web.json_response({"status": "ok", **record.to_json()})
 
 
 # ---------------------------------------------------------------------------
@@ -640,6 +979,11 @@ async def _handle_graduate(request: web.Request) -> web.Response:
 
     seed = CultivationSeed.from_json(dict(record.seed_persona))
     curriculum = CultivationCurriculum.from_json(dict(record.curriculum))
+
+    # Durable adopted-seed continuation: ensure the source school is
+    # hydrated before the candidate template exports the learned protocol
+    # bundle (so a restarted adopted cultivation still carries its school).
+    await _ensure_source_hydration(bundle, record)
 
     # Tenant-owned cultivations graduate into a candidate template owned
     # by that tenant; system cultivations keep the SYSTEM_TENANT_ID path.
@@ -810,6 +1154,11 @@ async def _ensure_candidate_template(
         # package back together (R15).
         "package_id": record.package_id,
         "track_id": record.track_id,
+        # Adopted-seed provenance: which baked role this expert grew from
+        # (character / author / interpreter / expert) and whether it
+        # continued a real learned-state bundle or persona metadata only.
+        "source_template_id": record.source_template_id,
+        "source_provenance": dict(record.provenance),
     }
     # R15 portability: export the *learned* school (the converged approved
     # protocol set) into the template's seed_config so adoption re-hydrates
@@ -972,6 +1321,36 @@ def _instance_manager(request: web.Request) -> InstanceManager:
     return instance_manager
 
 
+def _make_protocol_uptaker(uptake: ProtocolUptakeService):
+    """Build the (text, source_label) -> approved protocol_id|None uptaker.
+
+    Shared by the autonomous tick loop and the operator teach correction:
+    researched/taught material is extracted into a BehaviorProtocol
+    candidate, submitted, and auto-approved into the uptake registry so it
+    competes in the active mixture. Returns ``None`` on the documented
+    degraded path (LLM not configured), which the sink turns into raw
+    corpus ingestion instead.
+    """
+
+    async def _uptaker(text: str, source_label: str) -> str | None:
+        try:
+            candidate = await uptake.extract_from_markdown_text(
+                text, source_label=source_label
+            )
+        except RuntimeError:
+            return None
+        await uptake.submit_candidate(candidate)
+        try:
+            approved = await uptake.approve_pending(
+                candidate.protocol.protocol_id, reviewer_id="cultivation-auto"
+            )
+        except KeyError:
+            return None
+        return approved.protocol_id
+
+    return _uptaker
+
+
 async def _fresh_tick_session(
     request: web.Request, *, ai_id: str, cultivation_id: str, seq: int
 ):
@@ -1032,6 +1411,158 @@ async def _resolve(bundle: CultivationBundle, cultivation_id: str):
         return await bundle.cultivations.get(cultivation_id)
     except CultivationNotFound:
         return _error(404, "cultivation_not_found", cultivation_id)
+
+
+async def _resolve_source_template(
+    bundle: CultivationBundle,
+    source_template_id: str,
+    tenant: TenantSpec | None,
+):
+    """Fetch the adopted-seed source template + its protocol bundle.
+
+    Returns ``(TemplateSpec, bundle_payload | None)`` or a typed
+    ``web.Response`` on failure. ``bundle_payload`` is the source
+    template's converged ``cultivation_protocol_bundle`` when present (a
+    previously-cultivated/inducted expert); ``None`` for a baked persona
+    that carries only ``persona_spec`` metadata, in which case the
+    cultivation continues from the persona anchor via the seed Identity
+    Core (documented metadata-only continuation, not an error).
+
+    Trust boundary: a tenant caller may adopt only a template it owns or
+    one that is PUBLISHED (the platform's adoptable contract); operators
+    (``tenant=None``) may adopt cross-tenant. Cross-tenant adoption of a
+    non-published template is a typed 403, never a silent read.
+    """
+
+    try:
+        template = await bundle.templates.get(source_template_id)
+    except TemplateNotFound:
+        return _error(
+            404,
+            "source_template_not_found",
+            f"source_template_id={source_template_id!r} does not exist.",
+        )
+    if tenant is not None:
+        owns = template.tenant_id == tenant.tenant_id
+        adoptable = template.status is TemplateStatus.PUBLISHED
+        if not owns and not adoptable:
+            return _error(
+                403,
+                "source_template_forbidden",
+                (
+                    f"tenant_id={tenant.tenant_id!r} cannot adopt template "
+                    f"{source_template_id!r}: not owned and not published."
+                ),
+            )
+    seed_config = dict(template.seed_config or {})
+    payload = seed_config.get("cultivation_protocol_bundle")
+    return template, payload
+
+
+def _source_provenance(
+    data: Mapping[str, Any], template, payload: Any
+) -> dict[str, Any]:
+    """Build adopted-seed provenance (role semantics + continuation mode).
+
+    ``source_kind`` / ``source_angle`` preserve whether the adopted source
+    was a character / author / interpreter / expert (inferred from the
+    template's ``persona_spec`` / figure artifact, overridable by the
+    caller). ``continuation_mode`` records whether the cultivation
+    continues from a real learned-state bundle or only the persona anchor,
+    so operators are never misled about what was carried over.
+    """
+
+    persona = dict(template.persona_spec or {})
+    kind = (
+        str(data.get("source_kind", "") or "").strip()
+        or str(
+            persona.get("source_kind")
+            or persona.get("bake_angle")
+            or persona.get("artifact_kind")
+            or ""
+        ).strip()
+    )
+    if not kind and template.figure_artifact_id:
+        kind = "figure"
+    kind = kind or "expert"
+    angle = (
+        str(data.get("source_angle", "") or "").strip()
+        or str(persona.get("source_angle") or "").strip()
+        or kind
+    )
+    return {
+        "source_template_id": template.template_id,
+        "source_kind": kind,
+        "source_angle": angle,
+        "continuation_mode": "protocol_bundle" if payload else "metadata_only",
+    }
+
+
+async def _ensure_source_hydration(bundle: CultivationBundle, record):
+    """Return the per-ai_id uptake service, re-hydrating the adopted seed.
+
+    Durability fix: the uptake service lives in process memory, so a
+    restart (or LRU eviction) empties it and an adopted cultivation would
+    otherwise collapse to persona-metadata-only on the next tick. When the
+    record was seeded from a source template and the service currently
+    holds no approved protocols, re-hydrate the source template's
+    ``cultivation_protocol_bundle`` so the adopted school is restored
+    before study continues. Empty-seed records are untouched.
+    """
+
+    svc = bundle.uptake_service_for(record.ai_id)
+    if not record.source_template_id:
+        return svc
+    if svc.loaded_approved_snapshot():
+        return svc
+    try:
+        template = await bundle.templates.get(record.source_template_id)
+    except TemplateNotFound:
+        return svc
+    payload = dict(template.seed_config or {}).get("cultivation_protocol_bundle")
+    if not payload:
+        return svc
+    try:
+        return bundle.hydrate_uptake_from_bundle(record.ai_id, payload)
+    except ValueError:
+        return bundle.uptake_service_for(record.ai_id)
+
+
+def _seed_defaults_from_template(
+    data: Mapping[str, Any], template
+) -> dict[str, Any]:
+    """Fill seed fields from a source template's persona_spec.
+
+    Operator-supplied fields win; only blanks are filled from the
+    template so the adopted seed inherits the persona's identity while
+    staying overridable. ``role_archetype`` falls back to a domain-based
+    label so :class:`CultivationSeed` parsing never fails on a baked
+    template that omitted it.
+    """
+
+    persona = dict(template.persona_spec or {})
+    merged: dict[str, Any] = dict(data)
+
+    def _fill(key: str, value: Any) -> None:
+        existing = merged.get(key)
+        if existing is None or (isinstance(existing, str) and not existing.strip()):
+            if value not in (None, ""):
+                merged[key] = value
+
+    domain = str(persona.get("domain") or template.domain or "").strip()
+    _fill("display_name", persona.get("display_name") or template.template_name)
+    _fill("domain", domain)
+    _fill(
+        "role_archetype",
+        persona.get("role_archetype") or (f"{domain}专家" if domain else ""),
+    )
+    _fill("focus", persona.get("focus"))
+    _fill("single_school_objective", persona.get("single_school_objective"))
+    if not merged.get("value_boundaries"):
+        boundaries = persona.get("value_boundaries")
+        if isinstance(boundaries, list):
+            merged["value_boundaries"] = boundaries
+    return merged
 
 
 def _parse_seed(data: Mapping[str, Any]) -> CultivationSeed:

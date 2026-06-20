@@ -56,6 +56,11 @@ class CultivationStatus(str, enum.Enum):
     READY_FOR_REVIEW = "ready_for_review"
     INDUCTED = "inducted"
     FAILED = "failed"
+    # Operator-held: ticks are gated until resume (self-learning
+    # workshop supervision). A paused cultivation keeps all its
+    # accumulated study progress; resume restores the prior runnable
+    # status recorded in ``notes``-independent state.
+    PAUSED = "paused"
 
 
 @dataclass(frozen=True)
@@ -90,6 +95,17 @@ class CultivationRecordSpec:
     package_id: str = ""
     track_id: str = ""
     direction: Mapping[str, Any] = field(default_factory=dict)
+    # Schema v11: when non-empty, this cultivation was seeded from an
+    # existing baked persona/template (an "adopted seed") rather than an
+    # empty seed; the adopted template's converged school is hydrated
+    # into the study instance at acquire time. Provenance only.
+    source_template_id: str = ""
+    # Schema v12: adopted-seed role semantics + continuation provenance.
+    # ``source_kind`` / ``source_angle`` preserve whether the source was a
+    # character / author / interpreter / expert; ``continuation_mode`` is
+    # ``protocol_bundle`` (true learned-state continuation) or
+    # ``metadata_only`` (persona anchor only). Readout/audit only.
+    provenance: Mapping[str, Any] = field(default_factory=dict)
     created_at_ms: int = 0
     updated_at_ms: int = 0
 
@@ -116,6 +132,8 @@ class CultivationRecordSpec:
             "package_id": self.package_id,
             "track_id": self.track_id,
             "direction": dict(self.direction),
+            "source_template_id": self.source_template_id,
+            "provenance": dict(self.provenance),
             "created_at_ms": self.created_at_ms,
             "updated_at_ms": self.updated_at_ms,
         }
@@ -136,6 +154,9 @@ class CultivationStore:
     def __init__(self, registry: Registry) -> None:
         self._registry = registry
         _ensure_tenant_column(registry)
+        _ensure_source_template_column(registry)
+        _ensure_provenance_column(registry)
+        _ensure_events_table(registry)
 
     async def create(
         self,
@@ -153,6 +174,8 @@ class CultivationStore:
         package_id: str = "",
         track_id: str = "",
         direction: Mapping[str, Any] | None = None,
+        source_template_id: str = "",
+        provenance: Mapping[str, Any] | None = None,
     ) -> CultivationRecordSpec:
         cultivation_id = cultivation_id or _fresh_cultivation_id()
         now = int(time.time() * 1000.0)
@@ -164,8 +187,9 @@ class CultivationStore:
                     runtime_template_id, tenant_id, seed_persona_json,
                     curriculum_json,
                     status, notes, package_id, track_id, direction_json,
+                    source_template_id, provenance_json,
                     created_at_ms, updated_at_ms
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'seeding', ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'seeding', ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     cultivation_id,
@@ -181,6 +205,8 @@ class CultivationStore:
                     package_id,
                     track_id,
                     json.dumps(dict(direction or {}), ensure_ascii=False),
+                    source_template_id,
+                    json.dumps(dict(provenance or {}), ensure_ascii=False),
                     now,
                     now,
                 ),
@@ -342,6 +368,108 @@ class CultivationStore:
             )
         return await self.get(cultivation_id)
 
+    # ------------------------------------------------------------------
+    # Monitoring event log (self-learning workshop)
+    # ------------------------------------------------------------------
+    #
+    # Append-only readout of what the autonomous loop did each cycle plus
+    # operator teach corrections. This is governance/observability data,
+    # never a learning signal that flows back into the kernel (R8 / R12):
+    # the cognition owner is still the per-ai_id session.
+
+    async def append_events(
+        self,
+        *,
+        cultivation_id: str,
+        kind: str,
+        events: tuple[Mapping[str, Any], ...],
+    ) -> int:
+        """Append a batch of typed events for one cultivation.
+
+        ``events`` are the engine's per-cycle ``CycleEvent.to_json()``
+        payloads (kind=``"cycle"``) or a single operator-correction
+        payload (kind=``"teach"``). The ``seq`` is read from each
+        event's ``cycle_index`` when present, else a monotonic-by-time
+        ordering via ``recorded_at_ms``. Returns the number written.
+        """
+
+        if not events:
+            return 0
+        now = int(time.time() * 1000.0)
+        rows = []
+        for event in events:
+            seq_raw = event.get("cycle_index", 0)
+            try:
+                seq = int(seq_raw)
+            except (TypeError, ValueError):
+                seq = 0
+            rows.append(
+                (
+                    f"cev_{secrets.token_hex(6)}",
+                    cultivation_id,
+                    seq,
+                    kind,
+                    json.dumps(dict(event), ensure_ascii=False),
+                    now,
+                )
+            )
+        async with self._registry.write_lock:
+            self._registry.conn.executemany(
+                """
+                INSERT INTO cultivation_events (
+                    event_id, cultivation_id, seq, kind, event_json,
+                    recorded_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+        return len(rows)
+
+    async def list_events(
+        self,
+        cultivation_id: str,
+        *,
+        limit: int = 500,
+        kinds: tuple[str, ...] | None = None,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return the cultivation's event log, oldest first (capped).
+
+        Each item is ``{event_id, seq, kind, recorded_at_ms, **payload}``
+        so the operator console can render the per-cycle research/study
+        trail, teach corrections, supervision actions and per-tick
+        ``progress`` snapshots without reshaping on the client. When
+        ``kinds`` is given, only those event kinds are returned (e.g.
+        split the convergence ``timeline`` from the event log).
+        """
+
+        if kinds:
+            placeholders = ",".join("?" for _ in kinds)
+            rows = self._registry.conn.execute(
+                "SELECT * FROM cultivation_events WHERE cultivation_id = ? "
+                f"AND kind IN ({placeholders}) "
+                "ORDER BY recorded_at_ms ASC, seq ASC LIMIT ?",
+                (cultivation_id, *kinds, int(limit)),
+            ).fetchall()
+        else:
+            rows = self._registry.conn.execute(
+                "SELECT * FROM cultivation_events WHERE cultivation_id = ? "
+                "ORDER BY recorded_at_ms ASC, seq ASC LIMIT ?",
+                (cultivation_id, int(limit)),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            payload = json.loads(row["event_json"] or "{}")
+            out.append(
+                {
+                    "event_id": row["event_id"],
+                    "seq": int(row["seq"]),
+                    "kind": row["kind"],
+                    "recorded_at_ms": int(row["recorded_at_ms"]),
+                    **payload,
+                }
+            )
+        return tuple(out)
+
 
 def _ensure_tenant_column(registry: Registry) -> None:
     """Lazily add the ``tenant_id`` column to ``cultivations``.
@@ -368,12 +496,86 @@ def _ensure_tenant_column(registry: Registry) -> None:
             raise
 
 
+def _ensure_source_template_column(registry: Registry) -> None:
+    """Lazily add the schema-v11 ``source_template_id`` column.
+
+    Same forward-only delta contract as :func:`_ensure_tenant_column`
+    (adopted-seed provenance). Empty default = legacy empty-seed
+    cultivation.
+    """
+
+    if registry.backend == "postgres":
+        registry.conn.execute(
+            "ALTER TABLE cultivations "
+            "ADD COLUMN IF NOT EXISTS source_template_id TEXT NOT NULL DEFAULT ''"
+        )
+        return
+    try:
+        registry.conn.execute(
+            "ALTER TABLE cultivations "
+            "ADD COLUMN source_template_id TEXT NOT NULL DEFAULT ''"
+        )
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
+
+
+def _ensure_provenance_column(registry: Registry) -> None:
+    """Lazily add the schema-v12 ``provenance_json`` column.
+
+    Holds adopted-seed role semantics + continuation mode. Same
+    forward-only delta contract as :func:`_ensure_tenant_column`.
+    """
+
+    if registry.backend == "postgres":
+        registry.conn.execute(
+            "ALTER TABLE cultivations "
+            "ADD COLUMN IF NOT EXISTS provenance_json TEXT NOT NULL DEFAULT '{}'"
+        )
+        return
+    try:
+        registry.conn.execute(
+            "ALTER TABLE cultivations "
+            "ADD COLUMN provenance_json TEXT NOT NULL DEFAULT '{}'"
+        )
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
+
+
+def _ensure_events_table(registry: Registry) -> None:
+    """Lazily create the schema-v11 ``cultivation_events`` table.
+
+    ``CREATE TABLE IF NOT EXISTS`` is idempotent on both backends, so a
+    re-run is a no-op; any other failure is a real error and re-raised.
+    """
+
+    registry.conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cultivation_events (
+            event_id TEXT PRIMARY KEY,
+            cultivation_id TEXT NOT NULL,
+            seq INTEGER NOT NULL DEFAULT 0,
+            kind TEXT NOT NULL DEFAULT 'cycle',
+            event_json TEXT NOT NULL DEFAULT '{}',
+            recorded_at_ms INTEGER NOT NULL
+        )
+        """
+    )
+
+
 def _row_to_cultivation(row) -> CultivationRecordSpec:
     keys = row.keys() if hasattr(row, "keys") else ()
     package_id = row["package_id"] if "package_id" in keys else ""
     track_id = row["track_id"] if "track_id" in keys else ""
     direction_json = row["direction_json"] if "direction_json" in keys else "{}"
     tenant_id = row["tenant_id"] if "tenant_id" in keys else ""
+    source_template_id = (
+        row["source_template_id"] if "source_template_id" in keys else ""
+    )
+    provenance_json = (
+        row["provenance_json"] if "provenance_json" in keys else "{}"
+    )
     return CultivationRecordSpec(
         cultivation_id=row["cultivation_id"],
         ai_id=row["ai_id"],
@@ -396,6 +598,8 @@ def _row_to_cultivation(row) -> CultivationRecordSpec:
         package_id=package_id or "",
         track_id=track_id or "",
         direction=json.loads(direction_json or "{}"),
+        source_template_id=source_template_id or "",
+        provenance=json.loads(provenance_json or "{}"),
         created_at_ms=int(row["created_at_ms"]),
         updated_at_ms=int(row["updated_at_ms"]),
     )

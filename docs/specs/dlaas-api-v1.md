@@ -1078,6 +1078,152 @@ Overview response (grouped, worst-first; no event bodies):
 `DLAAS_APP_STALE_HOURS` / `DLAAS_APP_ERROR_RATE_WATCH` /
 `DLAAS_APP_ERROR_RATE_ALERT` / `DLAAS_APP_MIN_EVENTS_FOR_ERROR`.
 
+## Multi-Angle Bake
+
+One platform-owned **bake plane** turns a single set of raw materials
+(a work, a corpus, reviewed sources) into one or more grounded personas,
+each cut at a distinct **angle**. A single request fans out into N
+per-angle jobs that share the raw materials but route to different
+verticals and produce one template each.
+
+Angles (`dlaas_platform_contracts.bake.BakeAngleKind`):
+
+| Angle | Routes to | Meaning |
+|---|---|---|
+| `author` | figure vertical | the real creator/author as a primary-source figure |
+| `interpreter` | figure vertical | 诠释者 / narrator-commentator that explains the work |
+| `character` | character vertical | an in-world 角色; one persona per named character |
+
+```http
+POST /dlaas/v1/bake                  # submit a multi-angle bake run (202)
+GET  /dlaas/v1/bake                  # list runs (tenant-scoped)
+GET  /dlaas/v1/bake/{run_id}         # run aggregate + per-angle job states
+GET  /dlaas/v1/bake/{run_id}/events  # SSE progress stream (monitor)
+POST /dlaas/v1/bake/{run_id}/cancel  # request cancellation
+GET  /dlaas/v1/bake/{run_id}/result  # per-angle produced templates
+```
+
+Auth: operator secrets act cross-tenant; tenant credentials bake only
+for their own tenant (`tenant_mismatch` 403 otherwise).
+
+`POST /dlaas/v1/bake` body:
+
+```json
+{
+  "source_ref": "work:dream-of-red-chamber",
+  "corpus_mode": "curated",
+  "runtime_template_id": "",
+  "shared_profile": { },
+  "angles": [
+    { "kind": "author", "slug": "caoxueqin", "display_name": "曹雪芹" },
+    { "kind": "interpreter", "slug": "narrator" },
+    { "kind": "character", "slug": "jiabaoyu", "display_name": "贾宝玉",
+      "style_prior": { }, "boundary_priors": [], "target_contexts": [],
+      "time_window": "", "profile_overrides": { } }
+  ],
+  "raw_materials": [
+    { "kind": "text", "text": "第一回 ...", "angle_slugs": ["narrator"] },
+    { "kind": "uri", "ref": "https://example/hlm.txt" }
+  ]
+}
+```
+
+- `angles` is required and non-empty; each `(kind, slug)` must be unique.
+- `raw_materials[].kind` is one of `text` | `asset_ref` | `uri`. A
+  material with empty `angle_slugs` feeds every angle; a non-empty list
+  routes it to specific angle slugs only.
+- `corpus_mode` is `synthetic` (default) | `curated`.
+
+Per-angle progress mirrors the proven figure pipeline so a shared
+monitor renders the same bar for every app:
+
+```text
+queued → staging → cleaning → verifying → baking → registering → done
+                                                              ↘ failed | cancelled
+```
+
+The run aggregate rolls up its angles (SSOT
+`dlaas_platform_contracts.bake.rollup_run_status`): `running` while any
+angle is non-terminal, then `done` (all done), `failed` (all failed),
+`partial` (mixed), or `cancelled` (all cancelled).
+
+`GET /dlaas/v1/bake/{run_id}/events` is an SSE stream emitting
+`run` / `angle` / `done` / `error` events (`event:` + JSON `data:`),
+replays the backlog for late subscribers, and closes with a
+`: stream-end` comment when the run is terminal.
+
+`GET /dlaas/v1/bake/{run_id}/result` returns one entry per finished
+angle: `{ angle_kind, angle_slug, template_id, figure_artifact_id,
+bundle_id, lifecycle_stage, integrity_hash }`.
+
+Ownership (R8 / R12 / R15): the bake plane is **orchestration**, not a
+second owner of the baked bundle. Each angle runs three explicit seams:
+
+1. **解析 / analysis (third-party LLM)** — raw materials (饲料) are turned
+   into a structured per-angle profile via the third-party LLM plane
+   (`/dlaas/v1/third-party-llm/json`). The LLM ONLY does this
+   decomposition.
+2. **吸收 / absorption (VZ, never LLM)** — `VzBakeAngleCompiler` compiles
+   the profile into a real figure/character artifact through
+   `lifeform_domain_figure` / `lifeform_domain_character`. What substrate
+   VZ uses underneath is the platform's own config.
+3. **register (control plane)** — `RegistryBakeArtifactRegistrar`
+   registers the figure bundle into the runtime store, mints the
+   template, and advances the persona lifecycle to `pretrained`
+   (tenant-scoped; deferred with a note when the run has no tenant).
+
+**Default runner is `third_party_llm`** (`VZ_BAKE_RUNNER`); the
+deterministic GPU-free `synthetic` runner is the explicit CI/dev
+fallback (`VZ_BAKE_RUNNER=synthetic`, no LLM, no registration).
+`VZ_BAKE_REGISTER=0` disables the register seam (write-only artifacts).
+When `third_party_llm` is selected but the provider is unconfigured,
+each angle fails loud with `third_party_llm_unconfigured` — never a
+silent success. Contracts: `dlaas_platform_contracts.bake`; routes:
+`dlaas_platform_api.bake`.
+
+## Third-Party LLM Plane
+
+The third-party LLM plane is compile-time infrastructure for bake and
+future document/protocol extraction. It is deliberately separate from
+the VZ/lifeform runtime `/v1/chat/completions` path.
+
+```http
+GET  /dlaas/v1/third-party-llm/status            # provider readiness, no secrets
+POST /dlaas/v1/third-party-llm/chat/completions  # OpenAI-compatible proxy
+POST /dlaas/v1/third-party-llm/json              # schema-enforced JSON output
+```
+
+Auth: operator/service credentials only (`X-Control-Plane-Secret` or
+`X-Service-Secret`). The endpoint is not public user chat.
+
+Environment:
+
+- `THIRD_PARTY_LLM_PROVIDER` (`openai`, `qwen`, `dashscope`, `vllm`, or custom)
+- `THIRD_PARTY_LLM_API_KEY`
+- `THIRD_PARTY_LLM_BASE_URL` (optional for known providers)
+- `THIRD_PARTY_LLM_MODEL`
+- `THIRD_PARTY_LLM_TIMEOUT_SECONDS`
+- `THIRD_PARTY_LLM_ALLOW_PROTOCOL_FALLBACK=1` permits explicit fallback
+  to `PROTOCOL_LLM_*` credentials.
+
+`POST /dlaas/v1/third-party-llm/json` body:
+
+```json
+{
+  "system_prompt": "centralized prompt text loaded by the platform",
+  "user_prompt": "raw materials / task context",
+  "schema_name": "bake_author_profile",
+  "schema": { "type": "object", "required": ["slug"] },
+  "temperature": 0,
+  "metadata": { "dlaas.bake.run_id": "..." }
+}
+```
+
+Response: `{ status: "ok", content, provider, model, response_id, usage }`.
+Errors are typed: `third_party_llm_unconfigured`,
+`third_party_llm_invalid_request`, `third_party_llm_upstream_error`,
+`third_party_llm_invalid_json`, `third_party_llm_schema_validation_failed`.
+
 ## Persona Training Lifecycle
 
 One platform-owned governance record per persona (keyed by `template_id`)
@@ -1315,7 +1461,12 @@ GET  /dlaas/v1/cultivation
 GET  /dlaas/v1/cultivation/packages
 GET  /dlaas/v1/cultivation/packages/{package_id}
 GET  /dlaas/v1/cultivation/{cultivation_id}
+GET  /dlaas/v1/cultivation/{cultivation_id}/events
 POST /dlaas/v1/cultivation/{cultivation_id}/tick
+POST /dlaas/v1/cultivation/{cultivation_id}/teach
+POST /dlaas/v1/cultivation/{cultivation_id}/pause
+POST /dlaas/v1/cultivation/{cultivation_id}/resume
+POST /dlaas/v1/cultivation/{cultivation_id}/reject
 POST /dlaas/v1/cultivation/{cultivation_id}/graduate
 POST /dlaas/v1/cultivation/{cultivation_id}/induct
 ```
@@ -1327,6 +1478,19 @@ POST /dlaas/v1/cultivation/{cultivation_id}/induct
   `BehaviorProtocol` (value boundaries become a hard-block union — the anchor
   that resists drift from shallow inputs) loaded into the instance, and binds
   a per-`ai_id` `ProtocolUptakeService`.
+- **Adopted seed (empty vs adopted entry).** `POST /cultivation` also accepts
+  an optional `source_template_id`. When present, the new cultivation is
+  seeded from an existing baked persona/template instead of an empty seed:
+  the seed fields default from the source template's `persona_spec`
+  (operator-supplied fields still win), and — when the source template carries
+  a `cultivation_protocol_bundle` in its `seed_config` — that converged school
+  is hydrated into the per-`ai_id` `ProtocolUptakeService` *before* acquire so
+  the cultivation **continues** from the adopted persona's school rather than a
+  blank Identity Core. A baked template without a bundle continues from its
+  `persona_spec` anchor only (documented degraded continuation). The
+  `source_template_id` is persisted on the record as provenance. The runtime
+  vertical stays `cultivation.expert.v0` (the study loop is unchanged); only
+  the starting cognition differs.
 - `POST .../tick { cycles? }` runs autonomous study cycles: research
   (`search_web` / `fetch_webpage`) → DocumentUptake (researched theory →
   `BehaviorProtocol` candidate → review → load, NOT raw corpus) → apprentice
@@ -1342,6 +1506,33 @@ POST /dlaas/v1/cultivation/{cultivation_id}/induct
   has converged — moves the record to `ready_for_review`.
 - `POST .../induct` is the **operator approval** that promotes the published
   template to a default system expert.
+
+**Monitoring + supervision (self-learning workshop).** The operator console
+needs to watch and steer an in-flight cultivation, not just poll status:
+
+- `GET .../events { limit? }` returns the append-only study trail —
+  per-cycle events (`{ cycle_index, topic, docs_researched, protocols_uptaken,
+  active_regime, reflected }`, persisted from each `tick`) plus `teach`
+  correction events — oldest first, alongside the current `coherence_score`,
+  `coherence_detail`, and `regime_history` so the console can chart
+  convergence. This is a pure **readout** (R12): the event log is never read
+  back as a learning signal.
+- `POST .../teach { text, source_label? }` injects an **operator apprentice
+  correction** into a running cultivation. The text is re-homed through the
+  same `ProtocolUptakeService` as autonomous research (it competes in the
+  active mixture on PE utility — never a hardcoded rule, R4) and run as one
+  apprentice study turn. It does not advance the cycle counter; the next
+  `tick` recomputes coherence with the correction in the mixture. Recorded as
+  a `teach` event. Allowed while `seeding | studying | converging | exam |
+  paused`.
+- `POST .../pause` holds a runnable cultivation (`seeding | studying |
+  converging`) in `paused` so `tick` returns `409 cultivation_not_runnable`;
+  `POST .../resume` returns it to `studying` (the next tick recomputes
+  coherence). Accumulated progress is preserved.
+- `POST .../reject { reason? }` abandons a cultivation / school track
+  (status → `failed`). This is the multi-school selection path: the operator
+  inducts the chosen self-consistent school from a package and rejects the
+  others (R15). An `inducted` expert cannot be rejected through this path.
 
 **Multi-direction packages.** A seed may carry an optional `directions[]`
 list — each entry `{ track_id, display_name, topics[], source_hints?[],

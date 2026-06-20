@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "slug": { "type": "string" },
+    "display_name": { "type": "string" },
+    "description": { "type": "string" },
+    "source_uri": { "type": "string" },
+    "domain_coverage_seed": { "type": "array", "items": { "type": "string" } },
+    "knowledge_seeds": { "type": "array", "items": { "type": "object" } },
+    "signature_cases": { "type": "array", "items": { "type": "object" } },
+    "strategy_priors": { "type": "array", "items": { "type": "object" } },
+    "boundary_priors": { "type": "object" },
+    "drive_priors": { "type": "object" },
+    "style_prior": { "type": "object" },
+    "evidence_sources": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["slug", "display_name", "description", "domain_coverage_seed", "knowledge_seeds", "boundary_priors"]
+}

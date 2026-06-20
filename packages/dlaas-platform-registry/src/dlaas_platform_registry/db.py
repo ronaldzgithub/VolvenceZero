@@ -29,7 +29,7 @@ from pathlib import Path
 
 from dlaas_platform_registry.pg_dialect import translate_statement
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 12
 
 
 _SCHEMA_SQL = (
@@ -292,8 +292,20 @@ _SCHEMA_SQL = (
         package_id TEXT NOT NULL DEFAULT '',
         track_id TEXT NOT NULL DEFAULT '',
         direction_json TEXT NOT NULL DEFAULT '{}',
+        source_template_id TEXT NOT NULL DEFAULT '',
+        provenance_json TEXT NOT NULL DEFAULT '{}',
         created_at_ms INTEGER NOT NULL,
         updated_at_ms INTEGER NOT NULL
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS cultivation_events (
+        event_id TEXT PRIMARY KEY,
+        cultivation_id TEXT NOT NULL,
+        seq INTEGER NOT NULL DEFAULT 0,
+        kind TEXT NOT NULL DEFAULT 'cycle',
+        event_json TEXT NOT NULL DEFAULT '{}',
+        recorded_at_ms INTEGER NOT NULL
     );
     """,
     """
@@ -535,8 +547,28 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
             package_id TEXT NOT NULL DEFAULT '',
             track_id TEXT NOT NULL DEFAULT '',
             direction_json TEXT NOT NULL DEFAULT '{}',
+            source_template_id TEXT NOT NULL DEFAULT '',
+            provenance_json TEXT NOT NULL DEFAULT '{}',
             created_at_ms INTEGER NOT NULL,
             updated_at_ms INTEGER NOT NULL
+        );
+        """
+    )
+
+    # Schema v11: cultivation monitoring event log (self-learning
+    # workshop). Forward-create for databases that pre-date the table;
+    # fresh DBs get it from ``_SCHEMA_SQL`` above. Append-only readout
+    # of per-cycle study events + operator teach corrections; never a
+    # learning signal back into the kernel (R12).
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cultivation_events (
+            event_id TEXT PRIMARY KEY,
+            cultivation_id TEXT NOT NULL,
+            seq INTEGER NOT NULL DEFAULT 0,
+            kind TEXT NOT NULL DEFAULT 'cycle',
+            event_json TEXT NOT NULL DEFAULT '{}',
+            recorded_at_ms INTEGER NOT NULL
         );
         """
     )
@@ -610,6 +642,12 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
         ("package_id", "TEXT NOT NULL DEFAULT ''"),
         ("track_id", "TEXT NOT NULL DEFAULT ''"),
         ("direction_json", "TEXT NOT NULL DEFAULT '{}'"),
+        # Schema v11: adopted-seed provenance (cultivation seeded from an
+        # existing baked persona/template instead of an empty seed).
+        ("source_template_id", "TEXT NOT NULL DEFAULT ''"),
+        # Schema v12: source role semantics + continuation provenance
+        # (source_kind/source_angle, protocol_bundle vs metadata_only).
+        ("provenance_json", "TEXT NOT NULL DEFAULT '{}'"),
     )
     for column, column_type in cultivation_v8_columns:
         try:
