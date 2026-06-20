@@ -185,6 +185,7 @@ debt #11 修法 (3) 方法论：先写 38-turn 长 scenario（[`packages/lifefor
 
 ## 变更日志
 
+- 2026-06-20: 登记关联设计 spec [`relational-soft-verifier.md`](./relational-soft-verifier.md)（design / SHADOW-only）：拟把 `relationship_error` 轴的 epistemic 部分（复用 `PEDecomposition.improvement_magnitude`）作为关系域软验证器奖励来源；未改动本 owner，待 SHADOW 自我确认证伪实验通过后再新增 §"关系域软验证器奖励来源"。
 - 2026-05-06: Phase 1.B 上线 owner-internal Curiosity-Critic running-stats 分解（`PEDecomposition` + `_PECriticHead`）；`PredictionErrorSnapshot.pe_decomposition` 为 optional 字段，bootstrap 时为 `None`；`evaluation` 新增 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 两个 report-only metric。Phase 2.B learned critic head 登记为后续 uplift。
 - 2026-05-02: 重写对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的依赖口径：PE 消费 temporal segment closure 与可观察 outcome context，不新增 trace owner 或 learning primitive
 - 2026-05-28: 新增 `VZ_PE_EVALUATION_DECOUPLED` gate（默认 SHADOW，可回滚），ACTIVE 时 evaluation 不再进入 PE actual outcome 与 evaluation-derived credit；契约测试 `tests/test_pe_evaluation_credit_decoupling.py`

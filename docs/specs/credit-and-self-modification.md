@@ -184,6 +184,7 @@ class FramingAwarenessCheck:
 
 ## 变更日志
 
+- 2026-06-20: 登记关联设计 spec [`relational-soft-verifier.md`](./relational-soft-verifier.md)（design / SHADOW-only）：拟在 `credit` owner 引入"可组合验证器 + 逐源漂移监控"与新 gate `VZ_RELATIONAL_SOFT_VERIFIER`（三阶升级，复用本 spec Wave E3 的 readout-only→acceptance-gate 协议 + rollback drill）；组内归一化 advantage 作用在 z_rel 控制器空间而非 token；外部人审锚只读不回灌。未改动本 owner，待 SHADOW 证据通过后再落地。
 - 2026-05-09: Wave E3 (debt #6 闭合候选) 增补 promotion criteria 表格，明确 `readout-only` -> `readout-with-acceptance` -> `acceptance gate` 的三阶升级标准 + rollback drill 准入要求；不修改任何运行时 owner，仅是路线图侧的契约增强。
 - 2026-05-22: OA-3 最小切片。新增 typed `FramingAwarenessCheck` / `FramingRiskKind`，并让 `evaluate_gate_reasons(...)` 在高风险且缺少 inoculation 声明时 fail-closed；不引入任何关键词推断。
 - 2026-05-22: COG-1 最小切片。新增 `LeastControlReadout` / `CreditSnapshot.least_control_readout`，并让 evaluation mid layer 从 credit owner readout 抽取 `least_control_score` / `least_control_effort`；不改变 credit 作为 PE 下游聚合层的边界。

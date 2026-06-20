@@ -2327,6 +2327,34 @@ return (
 
 ---
 
+## 85. 关系域软验证器（rBio soft-verifier-RL 迁移）evidence run 未跑：中心实验 $\rho_{\text{ext}}$ 被 #51 / #10B 卡住
+
+- **路径**：
+  - 设计 spec：[`docs/specs/relational-soft-verifier.md`](specs/relational-soft-verifier.md)（design / SHADOW-only，已登记 `00_INDEX.md` §7）
+  - 来源研究：[`research/neolabs-2026-06/labs/czi-virtual-cell/analysis.md`](../research/neolabs-2026-06/labs/czi-virtual-cell/analysis.md)（rBio 软验证器 RL）+ [`research/probe/11_vz_implications.md`](../research/probe/11_vz_implications.md) R-PE / R10 行动清单
+  - 复用零件：`PEDecomposition`（已上线，`volvence_zero.prediction.error`）+ 外部锚 [`docs/specs/relationship-continuity-external-validation.md`](specs/relationship-continuity-external-validation.md)（债 [#51](#51)）
+- **问题**：VZ 产品命脉（关系/EQ/信任）没有可验证标量奖励。rBio 在生物域定量证明"冻结预测世界模型当软验证器发软概率奖励 ≈ 硬标签奖励"，但它把奖励外包给外部模型 + 在 token 空间做 GRPO，踩 R-PE / R4 红线。正确迁移是把验证器换成 VZ 自身双轨 World/Self 预测基底、优化挪到 z_rel 控制器空间、用可组合验证器防漂移。**设计已就绪，但决定这条路成不成立的中心实验（自我确认证伪：$\rho_{\text{ext}}$ vs $\rho_{\text{self}}$）现在跑不了**。
+- **违反**：不违反 R 铁律。spec 本身把不变量（验证器内禀 R-PE / 只训 z_rel R2·R4 / 双轨不互读 R7 / 外部锚只读 R12 / 可回滚 R15）写死；本债是"机制设计已落，evidence 未跑"的预算 + 前置依赖债。
+- **风险**：**中**。短期：design-only，不阻塞任何 milestone；中-长期：若不验证，整套"养成式数字生命"押注的关系域学习信号始终停在类比层，融资尽调一问"你怎么证明关系质量能当学习信号且不自欺"就答不上。
+- **前置依赖（硬阻塞 Stage 1）**：
+  - 债 [#51](#51)：外部人审锚 evidence run 仍 OPEN（评估员招募 + 30-turn 片段采集 + 双盲三臂评分未做）→ 没有 $\rho_{\text{ext}}$ 对照真值。
+  - 债 [#10B](#10)：LLM runtime evidence run 需 ≥24GB RAM / GPU；默认 NoOp 下 ToM/CG owner 产 0 record → 生不出真实关系行为可打分。
+  - 债 [#6](#6) / [#7](#7)：SHADOW→ACTIVE 升级需 ≥200 / ≥500 turn 真 trace（同瓶颈）。
+- **触发条件**：(a) 债 #51 + #10B 任一就绪；(b) 决定是否把关系域学习从"PE readout"推进到"epistemic 奖励驱动 z_rel"前；(c) 任何对外主张"VZ 关系质量是被学习出来的、不是 prompt 出来的"之前。
+- **分阶段 EXIT（对齐 spec 三阶升级协议）**：
+  - **Stage 0（无 GPU，现在可做）**：deterministic 影子探针，在 scripted 关系轨迹上驱动真实 `PredictionErrorModule`，产出 readout-only 证据：`relationship_error` 轴的 epistemic 部分（$r_{\text{soft}}$ 序列）、epistemic/aleatoric 占比、$\rho_{\text{self}}$ 自一致性、逐源贡献。**EXIT(0)**：探针产出非空 JSON + epistemic 占比不恒为 0 + $\rho_{\text{self}}$ 可计算。**能验证**管路通不通 / epistemic 是否塌缩 / 单源漂移；**验证不了**自我确认。
+  - **Stage 1（blocked on #51 + #10B）**：中心实验。在 held-out 会话上同时收外部人审锚，算 $\rho_{\text{ext}}$ / $\rho_{\text{self}}$。**EXIT(1) 通过**：$\rho_{\text{ext}}\ge 0.2$ 显著为正且不被 $\rho_{\text{self}}$ 主导 → 可升 readout-with-acceptance。**EXIT(1) 证伪**：$\rho_{\text{self}}$ 高而 $\rho_{\text{ext}}\le 0$ → 停在 SHADOW，把"关系域软验证器不可用"写成硬结论。
+  - **Stage 2（终态）**：≥500 turn + ≥2 批外部锚 $\rho_{\text{ext}}\ge 0.35$ + rollback drill 通过 → acceptance gate，epistemic 奖励驱动 z_rel 有界 RL。
+- **诚实声明**：本债能验证的上限是"软验证器在关系域可用且不自欺"，**不能**证明能造出高质量关系——后者还依赖 World/Self 预测基底是否在足量真实关系交互数据上训练过（czi analysis 反证 D）。若 Stage 1 $\rho_{\text{ext}}$ 长期上不去，最可能根因在预测基底关系数据覆盖不足，应另开独立 blocker。
+- **推荐修法**：
+  1. Stage 0：`scripts/probe_relational_soft_verifier.py`（驱动真实 `_PECriticHead`）→ `artifacts/eq_uplift/relational_soft_verifier_shadow.json`；report-only metric `rsv_rho_self` / `rsv_epistemic_ratio`（不进任何 acceptance gate）。
+  2. Stage 1：与债 #51 evidence run + 债 #10B LLM runtime 同 packet 设计；外部锚只读，禁止回灌学习链路。
+  3. rollback drill：升 readout-with-acceptance 时加 `tests/contracts/test_relational_soft_verifier_rollback_drill.py`。
+- **进展（2026-06-20，Stage 0 EXIT(0) PASS）**：`scripts/probe_relational_soft_verifier.py` 首跑通过——20-turn deterministic 关系轨迹（stable→rupture→repair）驱动真实 PE critic head：`rsv_epistemic_ratio=0.67`（epistemic 未塌缩）、`rsv_rho_self=−0.15`（不自循环）、phase_mean_r_soft stable 0.12 / rupture 0.68 / repair 0.21（软验证器在意外破裂上点亮、修复中变暗）、4 轴逐源 epistemic 可分离。**Stage 0 只验证机器,不验证自我确认（$\rho_{\text{ext}}$）**。证据：`artifacts/eq_uplift/relational_soft_verifier_shadow.json` + spec "Stage 0 证据"段。**Stage 1 仍 blocked on #51 + #10B**。（探针放 `scripts/` 而非 `artifacts/`：后者被工具写策略锁，运行时仍输出到 `artifacts/eq_uplift/`。）
+- **优先级**：**中**（Stage 0 已做；Stage 1 与 #51 / #10B 同节奏，Phase B 中期）
+
+---
+
 ## 已关闭的债务（参考）
 
 这些在 2026-05-04 至 2026-05-06 的 SSOT 收敛中已修完，留作对照：
