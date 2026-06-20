@@ -86,10 +86,23 @@ CZI 的 **rBio** 在生物域定量证明了同构难题的一个解法：在没
 
 ### 落地点（建议，SHADOW 阶段只需前两项）
 
-- **探针**：`artifacts/eq_uplift/probe_relational_soft_verifier.py` → 输出 `artifacts/eq_uplift/relational_soft_verifier_shadow.json`（含 $\rho_{\text{ext}}$ / $\rho_{\text{self}}$ / per-source 贡献 / epistemic 占比），模仿 `probe_pe_window_long_form.py` 的写法。
+- **探针（Stage 0 已落地）**：`scripts/probe_relational_soft_verifier.py` → 输出 `artifacts/eq_uplift/relational_soft_verifier_shadow.json`（含 $\rho_{\text{self}}$ / per-source 贡献 / epistemic 占比；$\rho_{\text{ext}}$ 留待 Stage 1）。直接驱动真实 `_PECriticHead`，deterministic，无需 GPU/LLM。Stage 0 首跑结果见下方"Stage 0 证据"。
 - **长 scenario**：复用 `long-form-life-arc.json` 一类 ≥ 38-turn scenario，叠加债 #51 的外部锚收集点。
 - **report-only metric**：`evaluation` 新增 `rsv_rho_external` / `rsv_rho_self` / `rsv_epistemic_ratio`，**严格 report-only**，不进任何 acceptance gate（同 `pe_aleatoric_magnitude` 先例）。
 - **rollback drill**：`tests/contracts/test_relational_soft_verifier_rollback_drill.py`（升到 readout-with-acceptance 时才需要）。
+
+### Stage 0 证据（2026-06-20 首跑，EXIT(0) PASS）
+
+deterministic 脚本化关系轨迹（stable 8 turn → rupture 3 turn → repair 9 turn，共 20 turn，单 `companion` regime bucket）驱动真实 `_PECriticHead`：
+
+| 指标 | 值 | 含义 |
+|---|---|---|
+| `rsv_epistemic_ratio` | 0.67 | epistemic 占 relationship PE 的主体，**未塌缩到 0** |
+| `rsv_rho_self` | −0.15 | 软奖励**不是**简单复读 critic 自身预测（自一致性低，plumbing 健康） |
+| `phase_mean_r_soft` | stable 0.12 / rupture 0.68 / repair 0.21 | 软验证器在**意外的破裂**上点亮、在可预测的修复中变暗——正是 epistemic-only 奖励应有的形状 |
+| `per_source_mean_epistemic` | rel 0.24 / task 0.19 / action 0.17 / regime 0.07 | 4 轴逐源贡献可分离（可组合验证器 + 单源漂移监控面就位） |
+
+**Stage 0 结论**：机制管路通、epistemic 分离不塌缩、逐源面可用、$\rho_{\text{self}}$ 可计算且不自循环。**注意**：这只验证机器,**没有也不能**验证自我确认问题($\rho_{\text{ext}}$)——那需要外部人审锚（债 #51）+ LLM runtime（债 #10B）。
 
 ## 风险地图 / 会证伪整条路径的条件
 
@@ -123,4 +136,5 @@ CZI 的 **rBio** 在生物域定量证明了同构难题的一个解法：在没
 
 ## 变更日志
 
+- 2026-06-20: Stage 0 探针落地并首跑通过（EXIT(0) PASS）。`scripts/probe_relational_soft_verifier.py` 驱动真实 `_PECriticHead`，产出 `artifacts/eq_uplift/relational_soft_verifier_shadow.json`；结果见"Stage 0 证据"段。仍 design / SHADOW-only：未改动任何 owner，未进入任何 acceptance gate。债务追踪见 `known-debts.md` #85。
 - 2026-06-20: 初始版本。基于 research `czi-virtual-cell/analysis.md` 的 rBio soft-verifier-RL，建立关系域落差分析 + SHADOW 验证设计；中心实验为"自我确认证伪"（$\rho_{\text{ext}}$ vs $\rho_{\text{self}}$）；定义 `VZ_RELATIONAL_SOFT_VERIFIER` 三阶升级协议。本 spec 为 design-only，未改动任何 owner 或运行时行为。
