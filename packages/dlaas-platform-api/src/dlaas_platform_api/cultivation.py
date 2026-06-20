@@ -501,6 +501,11 @@ def _track_view(record) -> dict[str, Any]:
         view["template_id"] = template_id
     if record.last_exam_run_id:
         view["exam_run_id"] = record.last_exam_run_id
+    prov = dict(record.provenance)
+    if prov.get("source_kind"):
+        view["source_kind"] = str(prov["source_kind"])
+    if prov.get("continuation_mode"):
+        view["continuation_mode"] = str(prov["continuation_mode"])
     return view
 
 

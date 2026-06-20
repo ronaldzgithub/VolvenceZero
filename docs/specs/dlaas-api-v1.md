@@ -1479,18 +1479,33 @@ POST /dlaas/v1/cultivation/{cultivation_id}/induct
   that resists drift from shallow inputs) loaded into the instance, and binds
   a per-`ai_id` `ProtocolUptakeService`.
 - **Adopted seed (empty vs adopted entry).** `POST /cultivation` also accepts
-  an optional `source_template_id`. When present, the new cultivation is
-  seeded from an existing baked persona/template instead of an empty seed:
-  the seed fields default from the source template's `persona_spec`
-  (operator-supplied fields still win), and — when the source template carries
-  a `cultivation_protocol_bundle` in its `seed_config` — that converged school
-  is hydrated into the per-`ai_id` `ProtocolUptakeService` *before* acquire so
-  the cultivation **continues** from the adopted persona's school rather than a
-  blank Identity Core. A baked template without a bundle continues from its
-  `persona_spec` anchor only (documented degraded continuation). The
-  `source_template_id` is persisted on the record as provenance. The runtime
-  vertical stays `cultivation.expert.v0` (the study loop is unchanged); only
-  the starting cognition differs.
+  an optional `source_template_id` (plus optional `source_kind` / `source_angle`
+  overrides). When present, the new cultivation is seeded from an existing baked
+  persona/template instead of an empty seed: the seed fields default from the
+  source template's `persona_spec` (operator-supplied fields still win), and —
+  when the source template carries a `cultivation_protocol_bundle` in its
+  `seed_config` — that converged school is hydrated into the per-`ai_id`
+  `ProtocolUptakeService` *before* acquire so the cultivation **continues** from
+  the adopted persona's school rather than a blank Identity Core. The runtime
+  vertical stays `cultivation.expert.v0` (the study loop is unchanged); only the
+  starting cognition differs.
+  - **Trust boundary.** In tenant-auth mode a `source_template_id` may only be a
+    template the tenant owns or one that is `PUBLISHED` (the adoptable contract);
+    otherwise the create fails with `403 source_template_forbidden`. A missing
+    template is `404 source_template_not_found`; a malformed bundle is
+    `400 invalid_source_bundle`. Control-plane / service callers adopt
+    cross-tenant.
+  - **Durable continuation.** The uptake service is in-process, so `tick`,
+    `teach`, and `graduate` re-hydrate the source bundle when the service has
+    lost it (restart / eviction) — an adopted seed never silently collapses to
+    persona-metadata-only between runs.
+  - **Provenance.** The record persists `source_template_id` and a `provenance`
+    object `{ source_kind, source_angle, continuation_mode }`, where
+    `continuation_mode` is `protocol_bundle` (real learned-state continuation) or
+    `metadata_only` (persona anchor only). `source_kind` preserves whether the
+    source was a `character` / `author` / `interpreter` / `expert`. Provenance is
+    propagated into the graduated template `persona_spec.source_provenance` and
+    surfaced on package track views.
 - `POST .../tick { cycles? }` runs autonomous study cycles: research
   (`search_web` / `fetch_webpage`) → DocumentUptake (researched theory →
   `BehaviorProtocol` candidate → review → load, NOT raw corpus) → apprentice
@@ -1510,13 +1525,22 @@ POST /dlaas/v1/cultivation/{cultivation_id}/induct
 **Monitoring + supervision (self-learning workshop).** The operator console
 needs to watch and steer an in-flight cultivation, not just poll status:
 
-- `GET .../events { limit? }` returns the append-only study trail —
-  per-cycle events (`{ cycle_index, topic, docs_researched, protocols_uptaken,
-  active_regime, reflected }`, persisted from each `tick`) plus `teach`
-  correction events — oldest first, alongside the current `coherence_score`,
-  `coherence_detail`, and `regime_history` so the console can chart
-  convergence. This is a pure **readout** (R12): the event log is never read
-  back as a learning signal.
+- `GET .../events { limit? }` returns the append-only study trail split into
+  two lists, oldest first: `events` (per-cycle `{ cycle_index, topic,
+  docs_researched, protocols_uptaken, active_regime, reflected }`, plus `teach`
+  corrections and `pause` / `resume` / `reject` supervision actions) and
+  `timeline` (one `progress` snapshot per tick: `{ cycle_index,
+  coherence_score, readout_kind, dominant, distinct_schools, uptaken_protocols,
+  converged }`) so the console can chart how the school converges over time. The
+  response also echoes the current `coherence_score`, `coherence_detail`,
+  `regime_history`, `provenance`, and `source_template_id`. This is a pure
+  **readout** (R12): nothing here is read back as a learning signal.
+- **Apprentice retraining** of an inducted/adopted instance uses the existing
+  runtime surfaces: `POST /dlaas/v1/instances/{ai_id}/interactions` with
+  `interaction_type: teach` (apprentice turn) or `feedback` (outcome), and
+  `POST /dlaas/v1/instances/{ai_id}/training/corpus` for reviewed corpus / case
+  material. The workshop console orchestrates these over HTTP and renders the
+  `readouts`; no learning state is written from the deploy layer.
 - `POST .../teach { text, source_label? }` injects an **operator apprentice
   correction** into a running cultivation. The text is re-homed through the
   same `ProtocolUptakeService` as autonomous research (it competes in the

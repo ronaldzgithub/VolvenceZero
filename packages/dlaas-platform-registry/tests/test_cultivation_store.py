@@ -124,6 +124,76 @@ def test_events_append_and_list_oldest_first() -> None:
     asyncio.run(run())
 
 
+def test_provenance_round_trips() -> None:
+    async def run() -> None:
+        registry = _build_registry()
+        store = CultivationStore(registry)
+        prov = {
+            "source_template_id": "tpl_src",
+            "source_kind": "character",
+            "source_angle": "character",
+            "continuation_mode": "protocol_bundle",
+        }
+        record = await _create_basic(
+            store, source_template_id="tpl_src", provenance=prov
+        )
+        assert record.provenance == prov
+        fetched = await store.get(record.cultivation_id)
+        assert fetched.provenance["source_kind"] == "character"
+        assert (
+            fetched.to_json()["provenance"]["continuation_mode"]
+            == "protocol_bundle"
+        )
+        registry.close()
+
+    asyncio.run(run())
+
+
+def test_provenance_defaults_empty() -> None:
+    async def run() -> None:
+        registry = _build_registry()
+        store = CultivationStore(registry)
+        record = await _create_basic(store)
+        assert record.provenance == {}
+        registry.close()
+
+    asyncio.run(run())
+
+
+def test_timeline_kind_filter_splits_progress_from_log() -> None:
+    async def run() -> None:
+        registry = _build_registry()
+        store = CultivationStore(registry)
+        record = await _create_basic(store)
+        cid = record.cultivation_id
+        await store.append_events(
+            cultivation_id=cid,
+            kind="cycle",
+            events=({"cycle_index": 0, "topic": "依恋"},),
+        )
+        await store.append_events(
+            cultivation_id=cid,
+            kind="progress",
+            events=({"cycle_index": 4, "coherence_score": 0.8},),
+        )
+        await store.append_events(
+            cultivation_id=cid,
+            kind="pause",
+            events=({"cycle_index": 4},),
+        )
+        timeline = await store.list_events(cid, kinds=("progress",))
+        assert len(timeline) == 1
+        assert timeline[0]["kind"] == "progress"
+        assert timeline[0]["coherence_score"] == 0.8
+        # The full log still returns every kind.
+        every = await store.list_events(cid)
+        kinds = {e["kind"] for e in every}
+        assert kinds == {"cycle", "progress", "pause"}
+        registry.close()
+
+    asyncio.run(run())
+
+
 def test_events_empty_batch_is_noop() -> None:
     async def run() -> None:
         registry = _build_registry()
@@ -236,6 +306,7 @@ def test_schema_migration_adds_v11_column_and_events_table(tmp_path) -> None:
     init_schema(new_conn)
     columns = {row[1] for row in new_conn.execute("PRAGMA table_info(cultivations)")}
     assert "source_template_id" in columns
+    assert "provenance_json" in columns
     tables = {
         row[0]
         for row in new_conn.execute(
