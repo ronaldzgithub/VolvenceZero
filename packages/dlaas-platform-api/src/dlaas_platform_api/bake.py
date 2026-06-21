@@ -403,10 +403,29 @@ class RegistryBakeArtifactRegistrar:
         from dlaas_platform_registry import (  # typed errors
             PersonaLifecycleConflict,
         )
+        from dlaas_platform_registry.tenants import TenantNotFound, TenantStore
         from dlaas_platform_contracts import (
             LifecycleTransitionError,
             PersonaLifecycleStage,
         )
+
+        # Template mint has a tenant_id FK. If the caller passed a tenant
+        # that is not provisioned in this registry, do NOT hard-fail the
+        # angle — defer template/lifecycle (the figure bundle is already
+        # registered and resolvable) and record why. This keeps an
+        # operator who set a tenant env without provisioning the tenant
+        # row in the same safe state as the no-tenant path.
+        try:
+            await TenantStore(self._registry).get(run.tenant_id)
+        except TenantNotFound:
+            return RegisteredArtifact(
+                template_id=template_id,
+                lifecycle_stage="",
+                note=(
+                    f"bundle_registered; template/lifecycle deferred "
+                    f"(tenant {run.tenant_id!r} not provisioned)"
+                ),
+            )
 
         templates = TemplateStore(self._registry)
         lifecycles = PersonaLifecycleStore(self._registry)
@@ -1173,13 +1192,48 @@ async def _handle_submit(request: web.Request) -> web.Response:
             )
         tenant_id = actor_tenant_id
     bundle = _bundle(request)
+    run_id, run = submit_bake_run(request.app, bake_request, tenant_id=tenant_id)
+    _LOG.info(
+        "bake run %s submitted by %s: %d angles from %s",
+        run_id,
+        actor_label,
+        len(bake_request.angles),
+        bake_request.source_ref,
+    )
+    return web.json_response(
+        {
+            "status": "ok",
+            "run_id": run_id,
+            "run": run.to_json(jobs=bundle.store.list_jobs(run_id)),
+        },
+        status=202,
+    )
+
+
+def submit_bake_run(
+    app: web.Application,
+    bake_request: BakeRequest,
+    *,
+    tenant_id: str | None = None,
+) -> tuple[str, BakeRun]:
+    """Create + queue a bake run in-process (the HTTP submit path's core).
+
+    Extracted so other parts of the platform-api workflow (e.g. the
+    cultivation induct step) can submit a bake run without an HTTP round
+    trip. Requires :func:`attach_bake_routes` to have bound the bake bundle
+    to ``app``; raises ``KeyError`` otherwise (a wiring contract violation
+    that must fail loudly). ``tenant_id`` overrides the request's tenant
+    when given (operator/system callers).
+    """
+
+    bundle: BakeBundle = app[BAKE_BUNDLE_APP_KEY]
     run_id = f"bake_{uuid.uuid4().hex[:16]}"
     now = _now_ms()
     run = BakeRun(
         run_id=run_id,
         source_ref=bake_request.source_ref,
         status=BakeRunStatus.QUEUED,
-        tenant_id=tenant_id,
+        tenant_id=tenant_id if tenant_id is not None else bake_request.tenant_id,
         app_id=bake_request.app_id,
         corpus_mode=bake_request.corpus_mode,
         runtime_template_id=bake_request.runtime_template_id,
@@ -1199,22 +1253,8 @@ async def _handle_submit(request: web.Request) -> web.Response:
     ]
     bundle.store.create_run(run=run, jobs=jobs)
     _REQUESTS[run_id] = bake_request
-    _LOG.info(
-        "bake run %s submitted by %s: %d angles from %s",
-        run_id,
-        actor_label,
-        len(jobs),
-        bake_request.source_ref,
-    )
     bundle.executor.submit(run_id)
-    return web.json_response(
-        {
-            "status": "ok",
-            "run_id": run_id,
-            "run": run.to_json(jobs=bundle.store.list_jobs(run_id)),
-        },
-        status=202,
-    )
+    return run_id, run
 
 
 async def _handle_list(request: web.Request) -> web.Response:
@@ -1420,6 +1460,7 @@ __all__ = [
     "SyntheticBakeAngleRunner",
     "ThirdPartyLlmBakeAngleRunner",
     "VzBakeAngleCompiler",
+    "submit_bake_run",
     "attach_bake_routes",
     "default_bake_runner",
 ]

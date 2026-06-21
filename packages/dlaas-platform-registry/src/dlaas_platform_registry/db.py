@@ -29,7 +29,7 @@ from pathlib import Path
 
 from dlaas_platform_registry.pg_dialect import translate_statement
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 
 _SCHEMA_SQL = (
@@ -294,6 +294,8 @@ _SCHEMA_SQL = (
         direction_json TEXT NOT NULL DEFAULT '{}',
         source_template_id TEXT NOT NULL DEFAULT '',
         provenance_json TEXT NOT NULL DEFAULT '{}',
+        bake_run_id TEXT NOT NULL DEFAULT '',
+        baked_template_id TEXT NOT NULL DEFAULT '',
         created_at_ms INTEGER NOT NULL,
         updated_at_ms INTEGER NOT NULL
     );
@@ -549,6 +551,8 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
             direction_json TEXT NOT NULL DEFAULT '{}',
             source_template_id TEXT NOT NULL DEFAULT '',
             provenance_json TEXT NOT NULL DEFAULT '{}',
+            bake_run_id TEXT NOT NULL DEFAULT '',
+            baked_template_id TEXT NOT NULL DEFAULT '',
             created_at_ms INTEGER NOT NULL,
             updated_at_ms INTEGER NOT NULL
         );
@@ -648,6 +652,10 @@ def _apply_forward_migrations(conn: sqlite3.Connection) -> None:
         # Schema v12: source role semantics + continuation provenance
         # (source_kind/source_angle, protocol_bundle vs metadata_only).
         ("provenance_json", "TEXT NOT NULL DEFAULT '{}'"),
+        # Schema v13: bake composed into self-learning (induct may submit a
+        # bake run; the produced figure/character template is the release).
+        ("bake_run_id", "TEXT NOT NULL DEFAULT ''"),
+        ("baked_template_id", "TEXT NOT NULL DEFAULT ''"),
     )
     for column, column_type in cultivation_v8_columns:
         try:

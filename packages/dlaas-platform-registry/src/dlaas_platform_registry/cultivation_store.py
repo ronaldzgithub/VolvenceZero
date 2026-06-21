@@ -106,6 +106,11 @@ class CultivationRecordSpec:
     # ``protocol_bundle`` (true learned-state continuation) or
     # ``metadata_only`` (persona anchor only). Readout/audit only.
     provenance: Mapping[str, Any] = field(default_factory=dict)
+    # Schema v13: bake composed into self-learning. ``bake_run_id`` is the
+    # bake run submitted at induct (async); ``baked_template_id`` is the
+    # figure/character template that run produced (the release artifact).
+    bake_run_id: str = ""
+    baked_template_id: str = ""
     created_at_ms: int = 0
     updated_at_ms: int = 0
 
@@ -134,6 +139,8 @@ class CultivationRecordSpec:
             "direction": dict(self.direction),
             "source_template_id": self.source_template_id,
             "provenance": dict(self.provenance),
+            "bake_run_id": self.bake_run_id,
+            "baked_template_id": self.baked_template_id,
             "created_at_ms": self.created_at_ms,
             "updated_at_ms": self.updated_at_ms,
         }
@@ -156,6 +163,7 @@ class CultivationStore:
         _ensure_tenant_column(registry)
         _ensure_source_template_column(registry)
         _ensure_provenance_column(registry)
+        _ensure_bake_columns(registry)
         _ensure_events_table(registry)
 
     async def create(
@@ -368,6 +376,30 @@ class CultivationStore:
             )
         return await self.get(cultivation_id)
 
+    async def set_bake_run(
+        self,
+        *,
+        cultivation_id: str,
+        bake_run_id: str,
+        baked_template_id: str = "",
+    ) -> CultivationRecordSpec:
+        """Record the bake run (and optionally its template) on induct.
+
+        Composed-bake provenance: the bake runs async, so induct records
+        ``bake_run_id`` immediately; ``baked_template_id`` is filled in
+        later when the run completes (a readout, not a cognition owner).
+        """
+
+        now = int(time.time() * 1000.0)
+        async with self._registry.write_lock:
+            self._registry.conn.execute(
+                "UPDATE cultivations SET bake_run_id = ?, "
+                "baked_template_id = ?, updated_at_ms = ? "
+                "WHERE cultivation_id = ?",
+                (bake_run_id, baked_template_id, now, cultivation_id),
+            )
+        return await self.get(cultivation_id)
+
     # ------------------------------------------------------------------
     # Monitoring event log (self-learning workshop)
     # ------------------------------------------------------------------
@@ -543,6 +575,33 @@ def _ensure_provenance_column(registry: Registry) -> None:
             raise
 
 
+def _ensure_bake_columns(registry: Registry) -> None:
+    """Lazily add the schema-v13 ``bake_run_id`` / ``baked_template_id``.
+
+    Composed-bake provenance (induct may submit a bake run). Same forward-
+    only delta contract as the earlier column adds.
+    """
+
+    columns = (
+        ("bake_run_id", "TEXT NOT NULL DEFAULT ''"),
+        ("baked_template_id", "TEXT NOT NULL DEFAULT ''"),
+    )
+    for name, col_type in columns:
+        if registry.backend == "postgres":
+            registry.conn.execute(
+                "ALTER TABLE cultivations "
+                f"ADD COLUMN IF NOT EXISTS {name} {col_type}"
+            )
+            continue
+        try:
+            registry.conn.execute(
+                f"ALTER TABLE cultivations ADD COLUMN {name} {col_type}"
+            )
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
+
+
 def _ensure_events_table(registry: Registry) -> None:
     """Lazily create the schema-v11 ``cultivation_events`` table.
 
@@ -576,6 +635,10 @@ def _row_to_cultivation(row) -> CultivationRecordSpec:
     provenance_json = (
         row["provenance_json"] if "provenance_json" in keys else "{}"
     )
+    bake_run_id = row["bake_run_id"] if "bake_run_id" in keys else ""
+    baked_template_id = (
+        row["baked_template_id"] if "baked_template_id" in keys else ""
+    )
     return CultivationRecordSpec(
         cultivation_id=row["cultivation_id"],
         ai_id=row["ai_id"],
@@ -600,6 +663,8 @@ def _row_to_cultivation(row) -> CultivationRecordSpec:
         direction=json.loads(direction_json or "{}"),
         source_template_id=source_template_id or "",
         provenance=json.loads(provenance_json or "{}"),
+        bake_run_id=bake_run_id or "",
+        baked_template_id=baked_template_id or "",
         created_at_ms=int(row["created_at_ms"]),
         updated_at_ms=int(row["updated_at_ms"]),
     )

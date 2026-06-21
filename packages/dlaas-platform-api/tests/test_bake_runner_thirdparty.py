@@ -141,3 +141,57 @@ async def test_runner_requires_materials_or_profile() -> None:
         await runner.run(
             run=_run(), angle=_angle("author", "a"), materials=(), shared_profile={}
         )
+
+
+@pytest.mark.asyncio
+async def test_registrar_defers_then_mints_for_tenant() -> None:
+    """A configured-but-unprovisioned tenant defers (not fails); once the
+    tenant exists the same register() mints + advances the lifecycle.
+
+    This is the safety net that lets the six app bake wrappers thread a
+    `tenant_id` unconditionally: the figure bundle always registers, and
+    template/lifecycle only mint when the operator tenant is provisioned.
+    """
+    from dlaas_platform_api.bake import (
+        CompiledArtifact,
+        RegistryBakeArtifactRegistrar,
+    )
+    from dlaas_platform_registry.db import Registry
+    from dlaas_platform_registry.tenants import TenantStore
+
+    def _compiled() -> CompiledArtifact:
+        return CompiledArtifact(
+            angle_kind=BakeAngleKind.CHARACTER,
+            angle_slug="c",
+            is_figure=False,
+            bundle_id="character-template:c:deadbeef",
+            figure_artifact_id="",
+            integrity_hash="deadbeef",
+            figure_id="c",
+            display_name="C",
+            bundle_root="",
+        )
+
+    registry = Registry(db_path=":memory:")
+    registrar = RegistryBakeArtifactRegistrar(registry)
+    angle = _angle("character", "c")
+    run = BakeRun(
+        run_id="r1",
+        source_ref="work:test",
+        status=BakeRunStatus.RUNNING,
+        tenant_id="ghost_tenant",
+        runtime_template_id="rt.v0",
+    )
+
+    deferred = await registrar.register(run=run, angle=angle, compiled=_compiled())
+    assert deferred.lifecycle_stage == ""
+    assert "not provisioned" in (deferred.note or "")
+
+    await TenantStore(registry).create(
+        tenant_name="Ghost Operator",
+        contact_email="ops@example.com",
+        tenant_id="ghost_tenant",
+    )
+    minted = await registrar.register(run=run, angle=angle, compiled=_compiled())
+    assert minted.lifecycle_stage == "pretrained"
+    assert minted.template_id

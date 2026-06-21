@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import secrets
 from collections.abc import Mapping
 from typing import Any
@@ -640,7 +641,14 @@ async def _handle_tick(request: web.Request) -> web.Response:
     if isinstance(session, web.Response):
         return session
 
-    sink = SessionCultivationSink(session=session, protocol_uptaker=_uptaker)
+    search_tool, fetch_tool, tool_consents = _cultivation_browse_config()
+    sink = SessionCultivationSink(
+        session=session,
+        protocol_uptaker=_uptaker,
+        search_tool=search_tool,
+        fetch_tool=fetch_tool,
+        tool_consents=tool_consents,
+    )
     engine = CultivationEngine(curriculum=curriculum, domain=seed.domain)
 
     seeded_chunks = 0
@@ -829,7 +837,14 @@ async def _handle_teach(request: web.Request) -> web.Response:
     if isinstance(session, web.Response):
         return session
 
-    sink = SessionCultivationSink(session=session, protocol_uptaker=uptaker)
+    search_tool, fetch_tool, tool_consents = _cultivation_browse_config()
+    sink = SessionCultivationSink(
+        session=session,
+        protocol_uptaker=uptaker,
+        search_tool=search_tool,
+        fetch_tool=fetch_tool,
+        tool_consents=tool_consents,
+    )
     protocol_id = await sink.uptake_protocol(
         corpus_text=correction, source_label=source_label
     )
@@ -1096,9 +1111,145 @@ async def _handle_induct(request: web.Request) -> web.Response:
         cultivation_id=cultivation_id,
         inducted_template_id=template.template_id,
     )
-    return web.json_response(
-        {"status": "ok", "template": template.to_json(), **record.to_json()}
+    # Compose bake into the self-learning workflow (flag-gated): submit a
+    # bake run from the cultivated profile so the release also carries a
+    # compiled figure/character bundle. The run is async; we record its id.
+    seed = CultivationSeed.from_json(dict(record.seed_persona))
+    curriculum = CultivationCurriculum.from_json(dict(record.curriculum))
+    owner_tenant_id = record.tenant_id or SYSTEM_TENANT_ID
+    bake_run_id = await _maybe_submit_cultivation_bake(
+        request,
+        record=record,
+        seed=seed,
+        topics=curriculum.topics,
+        owner_tenant_id=owner_tenant_id,
     )
+    if bake_run_id:
+        record = await bundle.cultivations.set_bake_run(
+            cultivation_id=cultivation_id, bake_run_id=bake_run_id
+        )
+    return web.json_response(
+        {
+            "status": "ok",
+            "template": template.to_json(),
+            "bake_run_id": bake_run_id or "",
+            **record.to_json(),
+        }
+    )
+
+
+def _bake_on_induct_enabled() -> bool:
+    """Whether induct should compose a bake run (default off)."""
+
+    raw = os.environ.get("CULTIVATION_BAKE_ON_INDUCT", "").strip().lower()
+    return raw in ("1", "true", "on", "yes")
+
+
+def _resolve_bake_angle(record) -> str:
+    """Map the cultivation's source provenance to a bake angle kind.
+
+    character -> character; interpreter -> interpreter; author / figure /
+    expert / unknown -> author (the figure vertical). Returns a
+    ``BakeAngleKind`` string value.
+    """
+
+    prov = dict(record.provenance)
+    raw = str(prov.get("source_angle") or prov.get("source_kind") or "").strip().lower()
+    if raw == "character":
+        return "character"
+    if raw == "interpreter":
+        return "interpreter"
+    return "author"
+
+
+async def _maybe_submit_cultivation_bake(
+    request: web.Request,
+    *,
+    record,
+    seed: CultivationSeed,
+    topics: tuple[str, ...],
+    owner_tenant_id: str,
+) -> str | None:
+    """Best-effort: submit a bake run from the cultivated profile at induct.
+
+    Gated by ``CULTIVATION_BAKE_ON_INDUCT`` and the bake plane being
+    attached. Failures are logged and return ``None`` so a bake problem
+    never blocks the operator's induction (the protocol-bundle template is
+    already the adoptable artifact; the bake is an additive release
+    snapshot). R8: this composes the platform's own bake capability; it
+    does not become a second owner of the cultivated cognition.
+    """
+
+    if not _bake_on_induct_enabled():
+        return None
+    from dlaas_platform_api.bake import BAKE_BUNDLE_APP_KEY, submit_bake_run
+    from dlaas_platform_contracts import BakeContractError, BakeRequest
+
+    if BAKE_BUNDLE_APP_KEY not in request.app:
+        _LOG.info(
+            "cultivation bake-on-induct enabled but bake plane not attached; "
+            "skipping (cultivation_id=%s)",
+            record.cultivation_id,
+        )
+        return None
+
+    detail = dict(record.coherence_detail)
+    dominant = str(
+        detail.get("dominant_protocol") or detail.get("dominant_regime", "") or ""
+    )
+    materials_text = (
+        f"# {seed.display_name}（{seed.role_archetype}）\n"
+        f"领域：{seed.domain}\n"
+        f"关注：{seed.focus or '（未指定）'}\n"
+        f"收敛流派：{dominant or '（未读出）'}\n"
+        f"课程主题：{', '.join(topics) if topics else '（无）'}\n"
+        f"价值边界：{('、'.join(seed.value_boundaries)) if seed.value_boundaries else '无'}"
+    )
+    payload = {
+        "source_ref": f"cultivation:{record.slug}",
+        "tenant_id": owner_tenant_id,
+        "angles": [
+            {
+                "kind": _resolve_bake_angle(record),
+                "slug": record.slug,
+                "display_name": seed.display_name,
+            }
+        ],
+        "raw_materials": [
+            {
+                "kind": "text",
+                "text": materials_text,
+                "angle_slugs": [record.slug],
+                "metadata": {"cultivation_id": record.cultivation_id},
+            }
+        ],
+    }
+    try:
+        bake_request = BakeRequest.from_json(payload)
+    except BakeContractError as exc:
+        _LOG.warning(
+            "cultivation bake-on-induct: invalid bake request (%s): %s",
+            record.cultivation_id,
+            exc,
+        )
+        return None
+    try:
+        run_id, _run = submit_bake_run(
+            request.app, bake_request, tenant_id=owner_tenant_id
+        )
+    except (KeyError, RuntimeError, ValueError) as exc:
+        _LOG.warning(
+            "cultivation bake-on-induct: submit failed (%s): %s",
+            record.cultivation_id,
+            exc,
+        )
+        return None
+    _LOG.info(
+        "cultivation %s inducted with bake run %s",
+        record.cultivation_id,
+        run_id,
+    )
+    return run_id
 
 
 # ---------------------------------------------------------------------------
@@ -1324,6 +1475,31 @@ def _instance_manager(request: web.Request) -> InstanceManager:
             content_type="application/json",
         )
     return instance_manager
+
+
+def _cultivation_browse_config() -> tuple[str, str, frozenset[str]]:
+    """Resolve the browse-tool descriptors + consents for the study loop.
+
+    The vz-bundle browse tools register under the MCP-bridge namespace
+    (``vz-bundle.search_web`` / ``vz-bundle.fetch_webpage``) and require the
+    ``network_egress`` consent; the cultivation tick runs without a tenant
+    contract, so the platform grants these explicitly. All three are env-
+    overridable per deployment (e.g. a different search backend) without a
+    code change. When the tools are absent the sink's documented degraded
+    path (study + reflect only) still applies.
+    """
+
+    search_tool = (
+        os.environ.get("CULTIVATION_SEARCH_TOOL", "").strip()
+        or "vz-bundle.search_web"
+    )
+    fetch_tool = (
+        os.environ.get("CULTIVATION_FETCH_TOOL", "").strip()
+        or "vz-bundle.fetch_webpage"
+    )
+    raw = os.environ.get("CULTIVATION_TOOL_CONSENTS", "network_egress")
+    consents = frozenset(c.strip() for c in raw.split(",") if c.strip())
+    return search_tool, fetch_tool, consents
 
 
 def _make_protocol_uptaker(uptake: ProtocolUptakeService):

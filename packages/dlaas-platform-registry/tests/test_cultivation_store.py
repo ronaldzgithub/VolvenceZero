@@ -160,6 +160,26 @@ def test_provenance_defaults_empty() -> None:
     asyncio.run(run())
 
 
+def test_bake_run_round_trips() -> None:
+    async def run() -> None:
+        registry = _build_registry()
+        store = CultivationStore(registry)
+        record = await _create_basic(store)
+        assert record.bake_run_id == ""
+        updated = await store.set_bake_run(
+            cultivation_id=record.cultivation_id,
+            bake_run_id="bake_deadbeef",
+            baked_template_id="tpl_author_x",
+        )
+        assert updated.bake_run_id == "bake_deadbeef"
+        assert updated.baked_template_id == "tpl_author_x"
+        fetched = await store.get(record.cultivation_id)
+        assert fetched.to_json()["bake_run_id"] == "bake_deadbeef"
+        registry.close()
+
+    asyncio.run(run())
+
+
 def test_timeline_kind_filter_splits_progress_from_log() -> None:
     async def run() -> None:
         registry = _build_registry()
@@ -307,6 +327,8 @@ def test_schema_migration_adds_v11_column_and_events_table(tmp_path) -> None:
     columns = {row[1] for row in new_conn.execute("PRAGMA table_info(cultivations)")}
     assert "source_template_id" in columns
     assert "provenance_json" in columns
+    assert "bake_run_id" in columns
+    assert "baked_template_id" in columns
     tables = {
         row[0]
         for row in new_conn.execute(

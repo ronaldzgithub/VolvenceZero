@@ -274,6 +274,38 @@ class PersonaLifecycleStore:
             )
         return await self.get(lifecycle_id)
 
+    async def set_ai_id(self, *, template_id: str, ai_id: str) -> bool:
+        """Link an adopted/woken instance ``ai_id`` onto the lifecycle.
+
+        The template->ai_id binding is created at adopt time on the
+        ``contracts`` row; this mirrors it onto the persona lifecycle so
+        the (operator-listable, cross-tenant) lifecycle becomes the SSOT
+        join a management console can use to attach a soul to its live
+        instance + cognition health.
+
+        Fail-soft: when no lifecycle row exists for ``template_id`` (e.g.
+        a template adopted without an offline bake), this is a no-op and
+        returns ``False`` — adoption must not break because there is no
+        lifecycle to annotate. Returns ``True`` when a row was updated.
+
+        Note (multi-instance): ``persona_lifecycles.template_id`` is
+        unique, so one template keeps a single (latest) ``ai_id``. Exact
+        per-instance monitoring of a template adopted by many instances
+        is a follow-up via the ``contracts`` join.
+        """
+
+        ai_id = (ai_id or "").strip()
+        if not ai_id:
+            return False
+        now = int(time.time() * 1000.0)
+        async with self._registry.write_lock:
+            cursor = self._registry.conn.execute(
+                "UPDATE persona_lifecycles SET ai_id = ?, updated_at_ms = ? "
+                "WHERE template_id = ?",
+                (ai_id, now, template_id),
+            )
+            return bool(getattr(cursor, "rowcount", 0))
+
     # -- helpers -----------------------------------------------------------
 
     async def _assert_exam_evidence(

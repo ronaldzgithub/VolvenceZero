@@ -58,6 +58,7 @@ from dlaas_platform_registry import (
     AssetStore,
     ContractNotFound,
     ContractStore,
+    PersonaLifecycleStore,
     REGISTRY_APP_KEY,
     Registry,
     ShellNotFound,
@@ -297,6 +298,7 @@ class _Stores:
         "templates",
         "contracts",
         "applications",
+        "lifecycles",
     )
 
     def __init__(self, registry: Registry) -> None:
@@ -307,6 +309,7 @@ class _Stores:
         self.templates = TemplateStore(registry)
         self.contracts = ContractStore(registry)
         self.applications = ApplicationStore(registry)
+        self.lifecycles = PersonaLifecycleStore(registry)
 
 
 # ---------------------------------------------------------------------------
@@ -1818,6 +1821,23 @@ async def _handle_adopt(request: web.Request) -> web.Response:
                 final_contract.ai_id,
                 bind_result.reason,
             ),
+        )
+
+    # Mirror the adopted ai_id onto the persona lifecycle (if one exists
+    # for this template) so the operator-listable lifecycle becomes the
+    # template->ai_id join a management console uses to attach a soul to
+    # its live instance + health. Fail-soft: adoption must not break when
+    # there is no lifecycle row (template adopted without offline bake).
+    try:
+        await stores.lifecycles.set_ai_id(
+            template_id=template_id, ai_id=final_contract.ai_id
+        )
+    except Exception as exc:  # noqa: BLE001 - never break adopt on annotate
+        _LOG.warning(
+            "adopt: failed to link ai_id=%s onto lifecycle for template=%s: %s",
+            final_contract.ai_id,
+            template_id,
+            exc,
         )
 
     persons_registered: list[dict[str, Any]] = []

@@ -1789,6 +1789,7 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
         wake_tenant_id = ""
         wake_scope_strategy = ""
         wake_substrate_profile = ""
+        wake_link_template_id = ""
         stores = request.app.get(CONTROL_PLANE_STORES_KEY)
         if stores is not None:
             try:
@@ -1797,6 +1798,9 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
                 contract_id = contract.contract_id
                 tool_policy_snapshot = dict(contract.tool_policy_snapshot)
                 wake_tenant_id = str(getattr(contract, "tenant_id", "") or "")
+                wake_link_template_id = str(
+                    getattr(contract, "template_id", "") or ""
+                )
                 _adoption = contract.service_contract.get("adoption_config", {})
                 wake_scope_strategy = str(
                     _adoption.get("memory", {}).get("scope_strategy", "") or ""
@@ -1857,6 +1861,23 @@ async def _handle_wake_instance(request: web.Request) -> web.Response:
             scope_strategy=wake_scope_strategy,
             substrate_profile=wake_substrate_profile,
         )
+        # Fallback link-back (wake-only path): mirror ai_id onto the
+        # persona lifecycle for this template so the soul console can
+        # attach the live instance + health. Fail-soft; never break wake.
+        _link_template_id = (wake.template_id or wake_link_template_id).strip()
+        if _link_template_id and stores is not None:
+            try:
+                await stores.lifecycles.set_ai_id(
+                    template_id=_link_template_id, ai_id=ai_id
+                )
+            except Exception as exc:  # noqa: BLE001 - never break wake
+                _LOG.warning(
+                    "wake: failed to link ai_id=%s onto lifecycle "
+                    "for template=%s: %s",
+                    ai_id,
+                    _link_template_id,
+                    exc,
+                )
     except InstanceNotFound:
         return _json_error(
             status=404,

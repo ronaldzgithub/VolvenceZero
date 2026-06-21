@@ -85,6 +85,8 @@ class SessionCultivationSink:
         fetch_tool: str = "fetch_webpage",
         uploader: str = "cultivation",
         protocol_uptaker: "Callable[[str, str], Awaitable[str | None]] | None" = None,
+        tool_consents: frozenset[str] = frozenset(),
+        search_count_arg: str = "top_k",
     ) -> None:
         self._session = session
         self._contract_id = contract_id
@@ -92,6 +94,13 @@ class SessionCultivationSink:
         self._search_tool = search_tool
         self._fetch_tool = fetch_tool
         self._uploader = uploader
+        # Consents the platform grants the browse tools for autonomous
+        # research (the vz-bundle browse tools require ``network_egress``);
+        # an empty set keeps the legacy behaviour. The result-count arg name
+        # matches the search tool's schema (vz-bundle ``search_web`` expects
+        # ``top_k``, not ``max_results``).
+        self._tool_consents = tool_consents
+        self._search_count_arg = search_count_arg
         # Bound by the platform layer to a ProtocolUptakeService:
         # (corpus_text, source_label) -> approved protocol_id | None.
         # When absent the sink degrades to raw corpus ingestion (which
@@ -105,9 +114,10 @@ class SessionCultivationSink:
         invoker = self._session.mcp_invoker
         search_result = await invoker.invoke(
             self._search_tool,
-            {"query": query, "max_results": max_results},
+            {"query": query, self._search_count_arg: max_results},
             session=None,
             contract_id=self._contract_id or None,
+            granted_consents=self._tool_consents,
         )
         if not _succeeded(search_result):
             # Web-research tools are not enabled on this instance's
@@ -126,6 +136,7 @@ class SessionCultivationSink:
                 {"url": url},
                 session=None,
                 contract_id=self._contract_id or None,
+                granted_consents=self._tool_consents,
             )
             if not _succeeded(fetch_result):
                 continue

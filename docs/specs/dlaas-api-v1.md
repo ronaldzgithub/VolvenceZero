@@ -1170,12 +1170,7 @@ second owner of the baked bundle. Each angle runs three explicit seams:
 3. **register (control plane)** — `RegistryBakeArtifactRegistrar`
    registers the figure bundle into the runtime store, mints the
    template, and advances the persona lifecycle to `pretrained`
-   (tenant-scoped; deferred with a note when the run has no tenant). The
-   minted template records the bake provenance as a first-class field —
-   `persona_spec.bake = { angle, angle_slug, source_ref, bake_run_id,
-   app_id }` — and the lifecycle `notes` carry the angle, so a management
-   console can categorize souls by angle (author/interpreter/character)
-   without parsing the `template_id` string.
+   (tenant-scoped; deferred with a note when the run has no tenant).
 
 **Default runner is `third_party_llm`** (`VZ_BAKE_RUNNER`); the
 deterministic GPU-free `synthetic` runner is the explicit CI/dev
@@ -1525,7 +1520,18 @@ POST /dlaas/v1/cultivation/{cultivation_id}/induct
   runs an eval exam as evidence (reuses the eval gate), and — when the school
   has converged — moves the record to `ready_for_review`.
 - `POST .../induct` is the **operator approval** that promotes the published
-  template to a default system expert.
+  template to a default system expert. When `CULTIVATION_BAKE_ON_INDUCT` is set
+  and the bake plane is attached, induct also **composes a bake run** from the
+  cultivated profile (angle resolved from `provenance.source_angle` /
+  `source_kind`, default `author`) by submitting to the existing bake plane;
+  the run id is persisted as `bake_run_id` on the record and returned in the
+  induct response. The bake runs async and produces a figure/character template
+  (the release snapshot) + advances the persona lifecycle to `pretrained`. This
+  is additive and best-effort: a bake failure is logged and never blocks
+  induction. R8: the `cultivation_protocol_bundle` template remains the
+  online-learned artifact; the baked bundle is a derivative release linked by
+  `bake_run_id`, not a second owner. (Cultivation thus both *consumes* a baked
+  template as an adopted seed and *emits* a bake at induct.)
 
 **Monitoring + supervision (self-learning workshop).** The operator console
 needs to watch and steer an in-flight cultivation, not just poll status:
