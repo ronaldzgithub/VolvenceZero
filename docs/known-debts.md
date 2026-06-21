@@ -1,7 +1,8 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: **2026-05-29** (DLaaS scale/isolation/rare-heavy packet — per-end-user identity safety, rare-heavy training executor, multi-process/multi-GPU pod routing; advances #17 / #46 / #69 / #76 + rare-heavy executor)
+> Last updated: **2026-06-21** (新增 **#86** — 认知闭环 "learned vs 手工启发式" 占比未量化 + 规模化学习增益未证明的综合架构诚实债；交叉引用 #6 / #7 / #43 / #44 / #51 / #79 / #80 / #81 / #82 / #83 / #85，不重复造债)
+> Earlier: **2026-05-29** (DLaaS scale/isolation/rare-heavy packet — per-end-user identity safety, rare-heavy training executor, multi-process/multi-GPU pod routing; advances #17 / #46 / #69 / #76 + rare-heavy executor)
 
 > 2026-05-29 update v2 (DLaaS scale + isolation + rare-heavy executor packet — P0/P1/P2 全实现, backward-compatible/opt-in): 把"负载均衡/substrate 分配 / rare-heavy 调度 / digital-life 隔离 / end-user id 管理"四块从评估出的缺口一次性补齐,默认行为不变,新能力 env opt-in。**P0 per-end-user 身份安全**:(a) session 复用一致性守门 —— `_get_or_create_session` 复用同 `session_id` 但 `end_user_ref` 不一致时返回 `409 session_end_user_mismatch`(默认开,`VZ_ALLOW_SESSION_END_USER_REMAP=1` 关;DLaaS + OpenAI-compat 两路都接;堵住跨用户内核状态泄漏);(b) 两层 `tenant:end_user` scope —— `tenant_id` 经 adopt→`InstanceManager.acquire`→`SessionManager` 线程化,`VZ_TWO_LAYER_SCOPE=1` + `scope_strategy=="tenant_ai_end_user"` 时走 `bind_session` 两层(默认仍单层,避免重键现有 closed-alpha 磁盘 memory);(c) per-ai_id memory root —— `VZ_PER_AI_MEMORY_ROOT=1` 时 `acquire` 算 `{base}/{tenant}/{ai_id}` 根目录传给 SessionManager(两 ai_id 不再共享磁盘 memory)。**P1 rare-heavy 平台执行器**(补 [#17 评估] 指出的"平台无 executor"缺口):新 `training_jobs` 持久表([`dlaas-platform-registry/training_jobs.py`](../packages/dlaas-platform-registry/src/dlaas_platform_registry/training_jobs.py),schema v7 additive)+ `TrainingJobExecutor` 队列 + 后台 worker(`VZ_TRAINING_WORKER=1` 启用)推进 `pending→running→succeeded/failed`,可插拔 runner(`synthetic` 默认 / `figure_lora` 受门控);job create 强制 `allow_adapter_training` / `allow_rare_heavy_refresh`→`403`;promote 仍需 gate_evidence([`training_executor.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/training_executor.py))。默认 worker 关 → 旧"只建记录不执行"行为不变。**P2 多进程/多 GPU pod 路由**(#17 第二阶段真接线):`LauncherProtocol` 让 api 不再硬 `isinstance(InstanceManager)`;`RemoteInstanceManager`(HTTP 代理,可注入 transport)+ `MultiPodLauncher`(placement sticky 路由 + `forward_interaction` 远程转发 + placement 派生 status/overview)+ `PodProcessSupervisor`/`pod_server`(每 GPU spawn 子进程,`CUDA_VISIBLE_DEVICES`);`_dispatch_envelope_to_instance` 当 launcher 暴露 `forward_interaction` 时把整个 envelope RPC 转发给属主 pod(否则本地);`substrate_profile_id`+`runtime_backend` 经 `build_runtime_for_profile` 真选 transformers/vLLM runtime,adopt 时校验 backend 不匹配→`409`;`build_dlaas_app` 在 `VZ_MULTI_POD=1`+`VZ_MULTI_POD_SPECS` 时建 MultiPodLauncher+supervisor,否则默认单 InstanceManager。**测试**:P0 9 + P1 13 + P2 16 + dispatch-forward 2 全绿(fakes/injectable transport/loopback);真 GPU/vLLM 多进程 e2e 仍需运维多卡环境验证(本环境无多 GPU,只 fake/单测)。**仍 SHADOW/待真机**:多 pod 真子进程 spawn + RPC 流式(SSE over RPC)未端到端验证;rare-heavy `figure_lora` runner 的真 PEFT bake 需 GPU+corpus(base 实现 delegate 给运维 override);两层 scope 切换需 memory 迁移说明(不静默重键)。详见 plan [`dlaas scale isolation rareheavy`](../../.cursor/plans/dlaas_scale_isolation_rareheavy_6e7b1db0.plan.md)。
 
@@ -2352,6 +2353,35 @@ return (
   3. rollback drill：升 readout-with-acceptance 时加 `tests/contracts/test_relational_soft_verifier_rollback_drill.py`。
 - **进展（2026-06-20，Stage 0 EXIT(0) PASS）**：`scripts/probe_relational_soft_verifier.py` 首跑通过——20-turn deterministic 关系轨迹（stable→rupture→repair）驱动真实 PE critic head：`rsv_epistemic_ratio=0.67`（epistemic 未塌缩）、`rsv_rho_self=−0.15`（不自循环）、phase_mean_r_soft stable 0.12 / rupture 0.68 / repair 0.21（软验证器在意外破裂上点亮、修复中变暗）、4 轴逐源 epistemic 可分离。**Stage 0 只验证机器,不验证自我确认（$\rho_{\text{ext}}$）**。证据：`artifacts/eq_uplift/relational_soft_verifier_shadow.json` + spec "Stage 0 证据"段。**Stage 1 仍 blocked on #51 + #10B**。（探针放 `scripts/` 而非 `artifacts/`：后者被工具写策略锁，运行时仍输出到 `artifacts/eq_uplift/`。）
 - **优先级**：**中**（Stage 0 已做；Stage 1 与 #51 / #10B 同节奏，Phase B 中期）
+
+---
+
+## 86. 认知闭环 "learned vs 手工启发式" 占比未量化 + 规模化学习增益未证明（综合架构诚实债）
+
+- **路径**：
+  - metacontroller：[`packages/vz-temporal/src/volvence_zero/temporal/metacontroller_components.py`](../packages/vz-temporal/src/volvence_zero/temporal/metacontroller_components.py)（`SequenceEncoder` / `SwitchUnit` / `ResidualDecoder` 为手写 float-tuple 算子；`NdimSequenceEncoder` / `NdimSwitchUnit` / `NdimResidualDecoder` 是 `DEFAULT_N_Z=16` 的 GRU/FFN 变体；`torch` 在 [`packages/vz-temporal/pyproject.toml`](../packages/vz-temporal/pyproject.toml) 是 optional extra）
+  - PE learned critic：[`packages/vz-cognition/src/volvence_zero/prediction/error.py`](../packages/vz-cognition/src/volvence_zero/prediction/error.py) 的 `_PELearnedCritic`（`_FEATURE_DIM=18` 有界线性回归 + validation-gate 在线更新）
+  - 设计源：[`docs/next_gen_emogpt.md`](next_gen_emogpt.md)（R3 / R4 / R-PE）+ [`archetecture.md`](../archetecture.md)
+- **问题**：对全仓做第一性原理评估后得到的**综合判断**——认知闭环（PE → credit → `z_t`/`β_t` → action family → reflection）的**骨架、契约、快照隔离、回滚机制是真实且完整的**，但闭环里真正承担"学习"的部件目前**绝大多数是手工设计的数值启发式控制器 + 极少量很小的 bounded learned head**（线性回归 / `n_z=16` GRU），`torch` 仍是 optional。当前**没有任何单一文档量化"内核里 learned 部件 vs 手工启发式"的覆盖占比**，也**没有一处实验证明"把控制器 / head 的容量 scale 上去后，闭环的学习增益持续放大"**（区别于 [#44](#44) 的单点候选实验：本债要的是 capacity → gain 的**趋势曲线**）。这正是 [`docs/prd.md`](prd.md) / paradigmshift 自述"先在小而完整环境证明架构成立、再 scale"中**第一步已证明、第二步未证明**的诚实缺口。
+- **核心含义**：
+  - (a) 对外"认知 AGI / 在线持续学习"叙事的技术尽调会用"闭环里 learned 部分有多大 + 能不能 scale"来检验，当前答案是"架构齐、肌肉小、scale 未证"；
+  - (b) 现在能 demo 的差异化很多是**结构性**（如 figure L4 拒答、regime 持久身份、关系状态机）而非 learned 出来的；
+  - (c) 没有 coverage map → 无法回答"哪些行为是学出来的、哪些是写死的"，与 first-principles 规则"禁止硬编码替代系统应**学习**的东西"存在长期张力。
+- **违反**：不违反 R 铁律（手工控制器在小规模是合规的有界自适应层，符合 R2）；属于"架构成立已证明 → 规模化学习增益 + learned 覆盖度未证明"的 evidence + 诚实度债。
+- **风险**：**中-高**（融资尽调 + 长期可演化性）。短期不阻塞运行；中期 DD 一问即露（"learned vs hand-crafted 占比 / scale 曲线"）；长期若 learned 部件始终停在 toy 规模，"经验可学习 / 可积累 / 可传承"的核心押注缺乏 scale evidence 支撑。
+- **触发条件**：(a) 任何对外主张"认知是学出来的、不是 prompt / 规则写出来的"之前；(b) GPU 预算到位、SYS-1（[#44](#44)）或 rare-heavy 真训练启动前需先有 baseline coverage map；(c) 融资 DD 询问 learned-vs-hand-crafted 占比。
+- **推荐修法**：
+  1. **coverage map（无 GPU，现在可做，零成本）**：出一份 `docs/specs/learned-vs-heuristic-coverage.md`，逐 owner（PE / credit / temporal / regime / dual_track / memory / social / semantic_state）标注每个决策点是 `hand-crafted` / `bounded-learned` / `frozen-substrate`，给出 learned 占比基线，并标注哪些是"应该 learned 但当前 hand-crafted"（汇总 [#79](#79) / [#80](#80) / [#81](#81) 的字符串硬编码债为子项）。
+  2. **capacity → gain ablation（gate on GPU）**：对已有 learned head（PE critic [#7](#7) / COCOA rewarding-state head [#6](#6) / ndim metacontroller）做容量阶梯（如 `n_z ∈ {3,16,64,256}`）× ≥ 500 turn 真 trace 的增益曲线，证明"增益随容量单调上升且未饱和"；落 `artifacts/` evidence + verdict。与 [#44](#44) Stage C/D、[#43](#43) Arch Uplift Phase 2 合并 packet。
+  3. **诚实声明**：在 [`archetecture.md`](../archetecture.md) / 对外技术文档显式写明"当前 learned 部件规模 + scale evidence 状态"，避免"原理免疫 vs 工程已实现"混淆（对齐 [`docs/moving forward/summary.md`](moving%20forward/summary.md) §2 既有警告）。
+- **优先级**：**中-高**（coverage map 可立即做且零成本；ablation 与 [#6](#6) / [#7](#7) / [#44](#44) 同 GPU 节奏）
+- **关联**：
+  - [#6](#6) / [#7](#7)：已落地的两个 learned head，是 capacity→gain ablation 的直接对象
+  - [#43](#43)：Arch Uplift Phase 2 follow-up（合并 packet）
+  - [#44](#44)：Stage C/D 单点候选实验——本债是其**上位的 capacity→gain 趋势版**
+  - [#51](#51) / [#85](#85)：关系域学习信号真值，是 learned 部件能否在产品命脉域生效的前置
+  - [#79](#79) / [#80](#80) / [#81](#81)：具体 hand-coded 决策点，coverage map 的子条目
+  - [#82](#82) / [#83](#83)：商业 evidence 缺口——与本架构 evidence 缺口共同构成融资 DD 的"技术 + 商业"两面
 
 ---
 
