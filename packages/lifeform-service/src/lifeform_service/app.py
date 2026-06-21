@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pathlib
 from hashlib import sha256
 from collections.abc import Mapping
@@ -64,8 +65,12 @@ from lifeform_protocol_runtime import (
     MentorIntakeApplyMode,
     MentorIntakeKind,
     MentorIntakeRequest,
+    build_protocol_revision_proposal,
     classify_mentor_intake,
     extract_protocol_from_description,
+    extract_reviewed_knowledge_from_guidance,
+    extract_signature_case_from_guidance,
+    resolve_experience_outcome_kind,
 )
 from lifeform_service.openai_utterance_client import (
     build_utterance_client_from_env,
@@ -917,12 +922,21 @@ async def _handle_mentor_intake(request: web.Request) -> web.Response:
         MentorIntakeKind.PROTOCOL,
         MentorIntakeKind.BOUNDARY,
     }:
-        response["unsupported_reason"] = decision.unsupported_reason or (
-            f"{decision.intake_kind.value} intake is not supported for "
-            "session-local apply yet."
+        return await _apply_extended_mentor_intake(
+            request,
+            manager=manager,
+            session_id=session_id,
+            decision=decision,
+            response=response,
+            apply_mode=apply_mode,
+            guidance=guidance,
+            llm_client=llm_client,
+            mentor_id=mentor_id,
+            advisor_name=advisor_name,
+            protocol_id=protocol_id,
+            reviewer_level=reviewer_level,
+            payload=payload,
         )
-        status = 202 if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW else 422
-        return _json_ok(response, status=status)
 
     try:
         candidate = extract_protocol_from_description(
@@ -990,6 +1004,266 @@ async def _handle_mentor_intake(request: web.Request) -> web.Response:
         "signature_case_count": len(approved_protocol.signature_cases),
     }
     return _json_ok(response)
+
+
+async def _apply_extended_mentor_intake(
+    request: web.Request,
+    *,
+    manager: SessionManager,
+    session_id: str,
+    decision: Any,
+    response: dict[str, Any],
+    apply_mode: MentorIntakeApplyMode,
+    guidance: str,
+    llm_client: LlmJsonClient,
+    mentor_id: str,
+    advisor_name: str,
+    protocol_id: str,
+    reviewer_level: ReviewLevel,
+    payload: dict[str, Any],
+) -> web.Response:
+    """Apply the non-protocol mentor-intake kinds to their canonical owners.
+
+    knowledge -> domain_knowledge; case -> case_memory; experience ->
+    experience consolidation (background-slow record); protocol_revision ->
+    R10 ModificationGate. Gated behind ``LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS``
+    so the whole surface reverts to classified-only (the pre-existing
+    behaviour) when the flag is off.
+    """
+
+    kind = decision.intake_kind
+
+    if not _mentor_intake_extended_kinds_enabled():
+        response["unsupported_reason"] = decision.unsupported_reason or (
+            f"{kind.value} intake apply is disabled "
+            "(set LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS=1 to enable)."
+        )
+        status = 202 if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW else 422
+        return _json_ok(response, status=status)
+
+    # submit_for_review persistence queues for these kinds are not wired yet;
+    # apply_to_session is the supported live path. Be loud about the gap
+    # rather than silently treating review as apply.
+    if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW and kind in {
+        MentorIntakeKind.KNOWLEDGE,
+        MentorIntakeKind.CASE,
+        MentorIntakeKind.EXPERIENCE,
+    }:
+        response["submitted_for_review"] = False
+        response["unsupported_reason"] = (
+            f"{kind.value} submit_for_review queue is not wired; use "
+            "apply_to_session for live application."
+        )
+        return _json_ok(response, status=202)
+
+    session = await manager.get_session(session_id)
+
+    if kind is MentorIntakeKind.KNOWLEDGE:
+        try:
+            draft = extract_reviewed_knowledge_from_guidance(
+                guidance,
+                llm_client=llm_client,
+                knowledge_id=_mentor_knowledge_id(
+                    session_id=session_id, guidance=guidance
+                ),
+                mentor_id=mentor_id,
+            )
+        except (ValueError, RuntimeError) as exc:
+            return _json_error(
+                status=422,
+                error="mentor_knowledge_extraction_failed",
+                detail=str(exc),
+            )
+        try:
+            applied = session.apply_mentor_knowledge(
+                knowledge_id=draft.knowledge_id,
+                summary=draft.summary,
+                detail=draft.detail,
+                confidence=draft.confidence,
+                reviewer_id=mentor_id,
+                source_label=draft.source_label,
+                relevance_hint=draft.relevance_hint,
+            )
+        except (ValueError, TypeError) as exc:
+            return _json_error(
+                status=400,
+                error="mentor_intake_apply_failed",
+                detail=str(exc),
+            )
+        response["applied"] = True
+        response["application"] = applied
+        return _json_ok(response)
+
+    if kind is MentorIntakeKind.CASE:
+        try:
+            case = extract_signature_case_from_guidance(
+                guidance,
+                llm_client=llm_client,
+                case_id=_mentor_case_id(session_id=session_id, guidance=guidance),
+                mentor_id=mentor_id,
+            )
+        except (ValueError, RuntimeError) as exc:
+            return _json_error(
+                status=422,
+                error="mentor_case_extraction_failed",
+                detail=str(exc),
+            )
+        try:
+            applied = session.apply_mentor_case(
+                case,
+                protocol_id=protocol_id,
+                advisor_name=advisor_name,
+                reviewer_id=mentor_id,
+                reviewer_level=reviewer_level,
+                note=f"mentor-intake:{apply_mode.value}",
+            )
+        except (PermissionError, ValueError, TypeError) as exc:
+            return _json_error(
+                status=403 if isinstance(exc, PermissionError) else 400,
+                error="mentor_intake_apply_failed",
+                detail=str(exc),
+            )
+        response["applied"] = True
+        response["application"] = applied
+        return _json_ok(response)
+
+    if kind is MentorIntakeKind.EXPERIENCE:
+        try:
+            outcome_kind = resolve_experience_outcome_kind(
+                payload.get("outcome_kind")
+            )
+        except ValueError as exc:
+            return _json_error(
+                status=422,
+                error="mentor_experience_outcome_required",
+                detail=str(exc),
+            )
+        try:
+            recorded = session.record_mentor_experience(
+                outcome_kind=outcome_kind,
+                reviewer_id=mentor_id,
+                description=guidance,
+                confidence=_clamp_unit_or(payload.get("confidence"), 0.9),
+                evidence_ref=_optional_str(payload.get("evidence_ref")),
+            )
+        except (ValueError, TypeError) as exc:
+            return _json_error(
+                status=400,
+                error="mentor_intake_apply_failed",
+                detail=str(exc),
+            )
+        # Recorded successfully, but consolidation is background-slow: the
+        # outcome does not change the next turn. ``applied`` reflects that the
+        # record was accepted, with the async semantics surfaced in the body.
+        response["applied"] = True
+        response["application"] = recorded
+        return _json_ok(response)
+
+    if kind is MentorIntakeKind.PROTOCOL_REVISION:
+        rev_target_protocol = _optional_str(payload.get("target_protocol_id"))
+        target_entry_id = _optional_str(payload.get("target_entry_id"))
+        target_field = _optional_str(payload.get("target_field"))
+        change_kind = _optional_str(payload.get("change_kind"))
+        missing = [
+            name
+            for name, value in (
+                ("target_protocol_id", rev_target_protocol),
+                ("target_entry_id", target_entry_id),
+                ("target_field", target_field),
+                ("change_kind", change_kind),
+            )
+            if value is None
+        ]
+        if missing:
+            return _json_error(
+                status=422,
+                error="mentor_revision_targets_required",
+                detail=(
+                    "protocol_revision requires explicit targets; missing: "
+                    + ", ".join(missing)
+                ),
+            )
+        proposed_payload = payload.get("proposed_payload")
+        if proposed_payload is not None and not isinstance(proposed_payload, dict):
+            return _json_error(
+                status=422,
+                error="mentor_revision_payload_invalid",
+                detail="proposed_payload must be a JSON object when provided.",
+            )
+        try:
+            proposal = build_protocol_revision_proposal(
+                proposal_id=_mentor_revision_id(
+                    session_id=session_id, guidance=guidance
+                ),
+                target_protocol_id=rev_target_protocol or "",
+                target_field=target_field or "",
+                target_entry_id=target_entry_id or "",
+                change_kind=change_kind or "",
+                summary=guidance,
+                proposed_payload=proposed_payload,
+                required_review_level=reviewer_level,
+            )
+        except ValueError as exc:
+            return _json_error(
+                status=422,
+                error="mentor_revision_build_failed",
+                detail=str(exc),
+            )
+        try:
+            result = session.apply_mentor_protocol_revision(
+                proposal,
+                reviewer_id=mentor_id,
+            )
+        except (ValueError, TypeError) as exc:
+            return _json_error(
+                status=400,
+                error="mentor_intake_apply_failed",
+                detail=str(exc),
+            )
+        response["applied"] = bool(result.get("applies_to_current_session"))
+        response["application"] = result
+        # AUTO_APPROVED + applied -> 200; gate queued / rejected -> 202.
+        status = 200 if response["applied"] else 202
+        return _json_ok(response, status=status)
+
+    # Unknown kind reaching here is a contract violation, not a silent no-op.
+    return _json_error(
+        status=422,
+        error="mentor_intake_kind_unsupported",
+        detail=f"intake_kind {kind.value!r} has no apply path.",
+    )
+
+
+def _mentor_intake_extended_kinds_enabled() -> bool:
+    raw = os.environ.get("LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS", "").strip()
+    return raw == "1" or raw.lower() in {"true", "yes", "on"}
+
+
+def _mentor_knowledge_id(*, session_id: str, guidance: str) -> str:
+    digest = sha256(f"{session_id}:{guidance}".encode("utf-8")).hexdigest()[:12]
+    return f"mentor-knowledge:{session_id}:{digest}"
+
+
+def _mentor_case_id(*, session_id: str, guidance: str) -> str:
+    digest = sha256(f"{session_id}:{guidance}".encode("utf-8")).hexdigest()[:12]
+    return f"case:{digest}"
+
+
+def _mentor_revision_id(*, session_id: str, guidance: str) -> str:
+    digest = sha256(f"{session_id}:{guidance}".encode("utf-8")).hexdigest()[:12]
+    return f"mentor-revision:{session_id}:{digest}"
+
+
+def _clamp_unit_or(raw: object, default: float) -> float:
+    try:
+        value = float(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
 
 
 def _derive_llm_envelope(

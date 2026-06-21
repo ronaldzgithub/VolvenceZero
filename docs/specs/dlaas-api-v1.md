@@ -1669,11 +1669,72 @@ Request shape:
 `apply_mode`:
 
 - `classify_only`: classify and return the routed owner; no state changes.
-- `apply_to_session`: when classification is `protocol` or `boundary`, extract a `BehaviorProtocol` and load it into the current session's `ProtocolRegistryModule`, affecting the next turn via `ActiveMixtureSnapshot`.
-- `submit_for_review`: reserved for submitting the extracted candidate to the service-level uptake review queue; it does not mutate the current session unless separately applied.
+- `apply_to_session`: extract the typed artifact for the classified kind and apply it to the current session's canonical owner (see per-kind table below).
+- `submit_for_review`: submit the extracted candidate to the service-level uptake review queue (`protocol` / `boundary` only); it does not mutate the current session unless separately applied.
+
+#### Per-kind `apply_to_session` semantics
+
+Each kind routes to its canonical owner; mentor intake stays a routing step and never becomes a second owner. The non-protocol kinds are gated behind the `LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS` env flag (default off → those kinds revert to classified-only, the legacy behaviour).
+
+- `protocol` / `boundary`: extract a `BehaviorProtocol` and load it into the session's `ProtocolRegistryModule`, affecting the next turn via `ActiveMixtureSnapshot`.
+- `knowledge`: extract a reviewed-knowledge record (LLM-structured) and submit it via `submit_reviewed_knowledge_event` → `domain_knowledge` owner; retrievable next turn.
+- `case`: extract a `SignatureCase` and seed it into `case_memory` via the protocol compile path (a minimal carrier protocol, `protocol:{id}:case:{case_id}` lineage). `intervention_ordering` must be non-empty.
+- `experience`: requires an explicit typed `outcome_kind` from the closed `DialogueExternalOutcomeKind` vocabulary (the mentor is a `HUMAN_REVIEW` source; the outcome is never free-text inferred). Recorded via `submit_dialogue_outcome` and consolidated **background-slow** — it does NOT change the next turn (`applies_to_current_session=false`).
+- `protocol_revision`: requires explicit `target_protocol_id`, `target_entry_id`, `target_field`, and `change_kind` (optional `proposed_payload`). Builds a `ProtocolRevisionProposal`, runs it through the R10 ModificationGate (`evaluate_protocol_revision`), and applies via `apply_revision` only when the gate `AUTO_APPROVED` it; `QUEUED_FOR_HUMAN` / `REJECTED` are reported (HTTP 202) without mutating the registry. The supported revision surface is narrow (`weight_decay` / `deactivate` / `weight_reinforce` / `add_strategy` on `strategy_prior`; `archive` on `knowledge_seed` / `signature_case`; `boundary_refinement`; `identity_clarification`; field-agnostic `protocol_retirement`). Adding net-new content uses the `protocol` kind instead.
+
+Additional request fields (per kind): `outcome_kind`, `evidence_ref` (experience); `target_protocol_id`, `target_entry_id`, `target_field`, `change_kind`, `proposed_payload` (protocol_revision).
 
 The route deliberately does **not** change `/v1/protocols/.../approve` semantics:
 service-level approved protocols still seed new sessions only. Live mentor intake is a separate session-local path so operator guidance can affect the current collaboration without turning the approved registry into a hidden global runtime owner.
+
+## Save A Live Instance As A Template
+
+Two operator capabilities turn an already-adopted soul into durable DLaaS
+assets, both owner-clean composes (R8) — no kernel cognition is
+re-derived.
+
+### Self-learning entry (reuse the cultivation plane)
+
+A soul "self-learns" by seeding a **new cultivation from its template**
+and running the existing autonomous study loop — there is no separate
+"run cultivation on the live adopted runtime" path (the live instance's
+runtime vertical is not the cultivation engine, and hijacking it would
+make the platform a second owner of cognition):
+
+```http
+POST /dlaas/v1/cultivation   { "slug": "...", "source_template_id": "tpl_...", "curriculum": { "topics": [...] } }
+POST /dlaas/v1/cultivation/{cultivation_id}/tick   { "cycles": 4 }
+```
+
+The portal soul console exposes this as "开始自学", then lands the operator
+in the `/workshop/{cultivationId}` supervision console (tick / teach /
+graduate / induct).
+
+### Save as new template
+
+```http
+POST /dlaas/v1/instances/{ai_id}/export-template
+  Auth: X-Control-Plane-Secret | X-Service-Secret  (operator)
+  Body: { "source_template_id": "tpl_...", "template_name"?: str, "tenant_id"?: str, "notes"?: str }
+```
+
+Flag-gated by `DLAAS_INSTANCE_EXPORT_TEMPLATE_ENABLED` (default OFF → 404).
+Mints a NEW published `TemplateSpec` from the soul's bound source
+template and opens a persona lifecycle so the saved soul appears in the
+soul console. Learned-state capture is honest:
+
+- `learned_state="protocol_bundle"` — the instance's self-learned school
+  (the cultivation uptake bundle held in-process for this `ai_id`) is
+  exported into `seed_config.cultivation_protocol_bundle`, so adoption
+  re-hydrates the cultivated cognition.
+- `learned_state="template_clone"` — no in-process learned bundle is held
+  for the `ai_id`, so the source template's `seed_config` is cloned (the
+  adoptable baseline). The live in-session online-learning of an arbitrary
+  adopted instance is not serialisable without a kernel export API — see
+  the deploy known-debt; this snapshots the baseline rather than
+  fabricating a capture.
+
+Response: `{ status, template_id, source_template_id, ai_id, learned_state, ...TemplateSpec }`.
 
 ## Safety Protocol Aliases
 

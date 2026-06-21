@@ -113,16 +113,18 @@ def classify_mentor_intake(
     if not actionable_summary:
         actionable_summary = request.guidance.strip()
 
+    # protocol / boundary / knowledge / case / protocol_revision are all
+    # session-applicable: each routes to its canonical owner. ``experience``
+    # is applicable too, but the closed ``DialogueExternalOutcomeKind``
+    # vocabulary requires a typed evidence source, so the apply path needs an
+    # explicit mentor-supplied ``outcome_kind`` (it is never free-text
+    # inferred here).
     unsupported_reason = ""
-    if kind in {
-        MentorIntakeKind.KNOWLEDGE,
-        MentorIntakeKind.CASE,
-        MentorIntakeKind.EXPERIENCE,
-        MentorIntakeKind.PROTOCOL_REVISION,
-    }:
+    if kind is MentorIntakeKind.EXPERIENCE:
         unsupported_reason = (
-            f"{kind.value} mentor intake is classified but not live-applied "
-            "by the session-local protocol path yet."
+            "experience mentor intake records a typed dialogue outcome; the "
+            "apply path requires an explicit outcome_kind (free-text "
+            "inference is not a typed source) and consolidates asynchronously."
         )
 
     return MentorIntakeDecision(

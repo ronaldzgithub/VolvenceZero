@@ -70,6 +70,7 @@ from dlaas_platform_registry import (
     assert_tenant_id_matches,
     merge_plugins_from_applications,
     require_application_auth,
+    require_control_plane_or_service,
     require_control_plane_secret,
     require_tenant_auth,
 )
@@ -671,6 +672,14 @@ def attach_control_plane_routes(
         _handle_list_tenant_applications,
     )
 
+    # Save a LIVE adopted instance as a NEW DLaaS template ("另存为模板").
+    # Operator-only, flag-gated, owner-clean compose of TemplateStore +
+    # PersonaLifecycleStore (+ the instance's self-learned protocol bundle
+    # when present). See `_handle_export_instance_template`.
+    R.add_post(
+        "/dlaas/v1/instances/{ai_id}/export-template",
+        _handle_export_instance_template,
+    )
     R.add_post(
         "/dlaas/instances/{ai_id}/persons",
         _handle_add_focus_persons,
@@ -931,6 +940,186 @@ async def _handle_control_plane_template_create(
             "tenant_id": tenant_id,
             "template_id": spec.template_id,
             "version": spec.current_version,
+            **spec.to_json(),
+        }
+    )
+
+
+def _instance_export_template_enabled() -> bool:
+    """Whether ``POST /instances/{ai_id}/export-template`` is enabled.
+
+    Default OFF (`DLAAS_INSTANCE_EXPORT_TEMPLATE_ENABLED`) so the new
+    write surface is opt-in and reversible: an operator flips the flag to
+    expose it, and clearing it makes the route fail closed (404).
+    """
+
+    raw = os.environ.get("DLAAS_INSTANCE_EXPORT_TEMPLATE_ENABLED", "").strip().lower()
+    return raw in ("1", "true", "on", "yes")
+
+
+def _capture_instance_learned_state(
+    request: web.Request, *, ai_id: str, source: TemplateSpec
+) -> tuple[dict[str, Any], str]:
+    """Capture an adopted instance's learned state for save-as-template.
+
+    Returns ``(seed_config, learned_state_kind)``. Owner-clean (R8) — we
+    never re-derive cognition, we only export what the kernel already
+    published:
+
+    * ``protocol_bundle`` — the instance's self-learned school
+      (the cultivation uptake bundle for this ``ai_id``) is exported so
+      the new template re-hydrates the cultivated cognition on adoption.
+      This is the path that makes "save the self-learned soul" real.
+    * ``template_clone`` — no learned bundle is held in-process for this
+      ai_id, so we clone the source template's ``seed_config`` (the
+      baseline the live instance reincarnates from). Honest: the live
+      in-session online-learning of an arbitrary adopted instance is not
+      serialisable without a kernel export API (tracked debt), so this
+      faithfully snapshots the adoptable baseline rather than fabricating
+      a capture.
+    """
+
+    try:
+        from dlaas_platform_api.cultivation import CULTIVATION_BUNDLE_APP_KEY
+        from lifeform_service.cultivation_bundle import export_protocol_bundle
+
+        bundle = request.app.get(CULTIVATION_BUNDLE_APP_KEY)
+        services = getattr(bundle, "_uptake_services", None) if bundle else None
+        svc = services.get(ai_id) if isinstance(services, dict) else None
+        approved = svc.loaded_approved_snapshot() if svc is not None else ()
+        if approved:
+            return (
+                {
+                    "cultivation_protocol_bundle": export_protocol_bundle(
+                        approved, source_ai_id=ai_id, cultivation_id=""
+                    )
+                },
+                "protocol_bundle",
+            )
+    except Exception:  # noqa: BLE001 -- capture is best-effort, never 500
+        _LOG.exception(
+            "instance-export: protocol bundle capture failed for ai_id=%s", ai_id
+        )
+
+    seed = dict(source.seed_config or {})
+    return seed, ("template_clone" if seed else "metadata_only")
+
+
+async def _handle_export_instance_template(request: web.Request) -> web.Response:
+    """Save a LIVE adopted instance as a NEW DLaaS template ("另存为模板").
+
+    Operator-only (``X-Control-Plane-Secret`` / ``X-Service-Secret``),
+    flag-gated, owner-clean compose: mints a fresh ``TemplateSpec`` from
+    the instance's bound source template, capturing the instance's
+    self-learned protocol school when present (else cloning the source
+    seed_config), then activates + publishes it and opens a persona
+    lifecycle so the new soul shows up in the soul console. R8: no
+    cognition is re-derived; this composes existing owners only.
+
+    Body: ``{ "source_template_id": "tpl_...", "template_name"?: str,
+              "tenant_id"?: str, "notes"?: str }``. ``source_template_id``
+    is the soul's current template (the soul console passes it).
+    """
+
+    if not _instance_export_template_enabled():
+        return _error(
+            404,
+            "instance_export_disabled",
+            "instance->template export is not enabled on this deployment "
+            "(set DLAAS_INSTANCE_EXPORT_TEMPLATE_ENABLED=1).",
+        )
+    require_control_plane_or_service(request)
+    ai_id = request.match_info.get("ai_id", "")
+    if not ai_id:
+        return _error(400, "missing_ai_id", "ai_id path segment is required.")
+    data = await _read_json(request)
+    source_template_id = _required_str(data, "source_template_id")
+    stores: _Stores = request.app[CONTROL_PLANE_STORES_KEY]
+    try:
+        source = await stores.templates.get(source_template_id)
+    except TemplateNotFound:
+        return _error(
+            404,
+            "source_template_not_found",
+            f"source_template_id={source_template_id!r} does not exist.",
+        )
+
+    tenant_id = str(data.get("tenant_id", "") or "") or source.tenant_id
+    saved_at_ms = int(time.time() * 1000.0)
+    template_name = (
+        str(data.get("template_name", "") or "").strip()
+        or f"{source.template_name} (saved)"
+    )
+    seed_config, learned_state = _capture_instance_learned_state(
+        request, ai_id=ai_id, source=source
+    )
+    persona_spec = dict(source.persona_spec or {})
+    persona_spec["saved_from_instance"] = {
+        "ai_id": ai_id,
+        "source_template_id": source_template_id,
+        "saved_at_ms": saved_at_ms,
+        "learned_state": learned_state,
+        "notes": str(data.get("notes", "") or ""),
+    }
+
+    spec = await stores.templates.create(
+        tenant_id=tenant_id,
+        template_name=template_name,
+        domain=source.domain,
+        description=(
+            f"Saved from live instance {ai_id} (source {source_template_id})"
+        ),
+        runtime_template_id=source.runtime_template_id,
+        base_persona=dict(source.base_persona or {}),
+        persona_spec=persona_spec,
+        seed_config=seed_config,
+        figure_artifact_id=source.figure_artifact_id,
+        citation_policy=source.citation_policy,
+        coverage_policy=source.coverage_policy,
+        figure_time_window=source.figure_time_window,
+    )
+    await stores.templates.update_activation(
+        template_id=spec.template_id,
+        activation_status=TemplateActivationStatus.ACTIVATED,
+        activation_stats={
+            "saved_from_ai_id": ai_id,
+            "source_template_id": source_template_id,
+            "learned_state": learned_state,
+        },
+    )
+    spec = await stores.templates.patch(
+        template_id=spec.template_id,
+        status=TemplateStatus.PUBLISHED,
+        version_note="instance-export",
+    )
+    # Open a persona lifecycle so the saved soul appears in the soul
+    # console. Fail-soft: a lifecycle hiccup must not lose the minted
+    # template (the template is already the durable artifact).
+    try:
+        await stores.lifecycles.create(
+            template_id=spec.template_id,
+            tenant_id=tenant_id,
+            display_name=template_name,
+            app_id=str(persona_spec.get("app_id", "") or ""),
+            notes=(
+                f"saved from instance ai_id={ai_id}; "
+                f"source={source_template_id}; learned={learned_state}"
+            ),
+            actor="operator:instance-export",
+        )
+    except Exception:  # noqa: BLE001 -- lifecycle is additive, never blocks
+        _LOG.exception(
+            "instance-export: lifecycle create failed for template=%s",
+            spec.template_id,
+        )
+
+    return web.json_response(
+        {
+            "status": "ok",
+            "template_id": spec.template_id,
+            "source_template_id": source_template_id,
+            "ai_id": ai_id,
+            "learned_state": learned_state,
             **spec.to_json(),
         }
     )

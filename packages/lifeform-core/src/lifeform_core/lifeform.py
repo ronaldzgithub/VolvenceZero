@@ -1105,6 +1105,203 @@ class LifeformSession:
             "routed_owner": "protocol_registry",
         }
 
+    def apply_mentor_knowledge(
+        self,
+        *,
+        knowledge_id: str,
+        summary: str,
+        detail: str,
+        confidence: float,
+        reviewer_id: str,
+        source_label: str = "mentor-intake",
+        relevance_hint: str = "",
+    ) -> dict[str, object]:
+        """Submit a mentor's reviewed knowledge into this live session.
+
+        Routes to the kernel-owned ``domain_knowledge`` owner via
+        ``submit_reviewed_knowledge_event`` so the new fact is retrievable on
+        the next turn. Mentor intake stays a routing step: ``domain_knowledge``
+        remains the canonical owner; this adapter never re-stores the content.
+        """
+
+        if not reviewer_id.strip():
+            raise ValueError("apply_mentor_knowledge.reviewer_id must be non-empty")
+        if not knowledge_id.strip():
+            raise ValueError("apply_mentor_knowledge.knowledge_id must be non-empty")
+        event_ids = self.submit_reviewed_knowledge_event(
+            event_id=f"mentor:{knowledge_id}",
+            knowledge_id=knowledge_id,
+            summary=summary,
+            detail=detail,
+            source_label=source_label,
+            confidence=confidence,
+            relevance_hint=relevance_hint,
+        )
+        return {
+            "knowledge_id": knowledge_id,
+            "reviewer_id": reviewer_id,
+            "submitted_event_ids": list(event_ids),
+            "applies_to_current_session": True,
+            "routed_owner": "domain_knowledge",
+        }
+
+    def apply_mentor_case(
+        self,
+        case: Any,
+        *,
+        protocol_id: str,
+        advisor_name: str,
+        reviewer_id: str,
+        reviewer_level: ReviewLevel = ReviewLevel.L4,
+        note: str = "",
+    ) -> dict[str, object]:
+        """Seed a mentor's reviewed ``SignatureCase`` into ``case_memory``.
+
+        There is no single-case session API, so we reuse the proven protocol
+        compile path: wrap the case in a minimal carrier ``BehaviorProtocol``
+        (``legacy_fixture=True``, no drives) and load it through the kernel's
+        ``ProtocolRegistryModule``. ``load_protocol`` compiles the
+        ``signature_cases`` into the kernel-owned ``case_memory`` store with
+        ``protocol:{protocol_id}:case:{case_id}`` lineage — case_memory stays
+        the canonical owner.
+        """
+
+        from volvence_zero.behavior_protocol import (
+            ActivationConditions,
+            BehaviorProtocol,
+            IdentityAssertion,
+            ProtocolSourceKind,
+            ReviewStatus,
+            TemporalArc,
+        )
+
+        if not reviewer_id.strip():
+            raise ValueError("apply_mentor_case.reviewer_id must be non-empty")
+        if not protocol_id.strip():
+            raise ValueError("apply_mentor_case.protocol_id must be non-empty")
+        carrier = BehaviorProtocol(
+            protocol_id=protocol_id,
+            version="0.1.0",
+            advisor_name=advisor_name or reviewer_id,
+            description=f"Mentor case carrier ({case.case_id}).",
+            source_kind=ProtocolSourceKind.TASK_DESCRIPTION,
+            source_locator=f"mentor-intake://{protocol_id}",
+            identity_assertion=IdentityAssertion(
+                requires_self_traits=(),
+                forbidden_self_traits=(),
+                required_regime_compatibility=(),
+            ),
+            boundary_contracts=(),
+            activation_conditions=ActivationConditions(),
+            strategy_priors=(),
+            temporal_arc=TemporalArc(),
+            success_signals=(),
+            failure_signals=(),
+            signature_cases=(case,),
+            review_status=ReviewStatus.ACTIVE,
+            legacy_fixture=True,
+        )
+        registry_module = self._brain_session.runner._protocol_registry_module
+        registry_module.load_protocol(
+            carrier,
+            load_context=LoadContext(
+                reviewer_id=reviewer_id,
+                reviewer_level=reviewer_level,
+                note=note,
+            ),
+        )
+        return {
+            "protocol_id": protocol_id,
+            "case_id": case.case_id,
+            "reviewer_id": reviewer_id,
+            "reviewer_level": reviewer_level.value,
+            "applies_to_current_session": True,
+            "routed_owner": "case_memory",
+        }
+
+    def record_mentor_experience(
+        self,
+        *,
+        outcome_kind: DialogueExternalOutcomeKind,
+        reviewer_id: str,
+        description: str = "",
+        confidence: float = 0.9,
+        turn_index: int | None = None,
+        evidence_ref: str | None = None,
+    ) -> dict[str, object]:
+        """Record a mentor-attested dialogue outcome (experience intake).
+
+        The mentor is a typed ``HUMAN_REVIEW`` evidence source, so the outcome
+        is recorded — never free-text inferred — via ``submit_dialogue_outcome``
+        and consolidated by the background-slow experience/reflection owners.
+        It therefore does NOT change the next turn (R5/R6); we report
+        ``applies_to_current_session=False`` honestly.
+        """
+
+        if not reviewer_id.strip():
+            raise ValueError("record_mentor_experience.reviewer_id must be non-empty")
+        self.submit_dialogue_outcome(
+            kind=outcome_kind,
+            source=DialogueExternalOutcomeEvidenceSource.HUMAN_REVIEW,
+            confidence=confidence,
+            turn_index=turn_index,
+            evidence_ref=evidence_ref,
+            description=description,
+        )
+        return {
+            "outcome_kind": outcome_kind.value,
+            "reviewer_id": reviewer_id,
+            "evidence_ref": evidence_ref,
+            "applies_to_current_session": False,
+            "consolidation": "background-slow",
+            "routed_owner": "experience_consolidation",
+        }
+
+    def apply_mentor_protocol_revision(
+        self,
+        proposal: Any,
+        *,
+        reviewer_id: str,
+    ) -> dict[str, object]:
+        """Route a mentor revision proposal through the R10 ModificationGate.
+
+        Mirrors ``ProtocolRevisionQueueModule``: evaluate the proposal with
+        ``evaluate_protocol_revision`` (the gate), then apply only when the
+        gate ``AUTO_APPROVED`` it. ``QUEUED_FOR_HUMAN`` / ``REJECTED`` outcomes
+        are reported without mutating the registry, so a single mentor
+        utterance cannot silently rewrite a loaded protocol.
+        """
+
+        from volvence_zero.protocol_runtime.revision_queue import (
+            ApprovalOutcome,
+            evaluate_protocol_revision,
+        )
+
+        if not reviewer_id.strip():
+            raise ValueError(
+                "apply_mentor_protocol_revision.reviewer_id must be non-empty"
+            )
+        decision = evaluate_protocol_revision(proposal)
+        applied = False
+        apply_error = ""
+        if decision.outcome is ApprovalOutcome.AUTO_APPROVED:
+            registry_module = self._brain_session.runner._protocol_registry_module
+            try:
+                registry_module.apply_revision(proposal)
+                applied = True
+            except (ValueError, KeyError, NotImplementedError) as exc:
+                apply_error = f"{type(exc).__name__}: {exc}"
+        return {
+            "proposal_id": proposal.proposal_id,
+            "target_protocol_id": proposal.target_protocol_id,
+            "reviewer_id": reviewer_id,
+            "gate_outcome": decision.outcome.value,
+            "gate_rationale": decision.rationale,
+            "applies_to_current_session": applied,
+            "apply_error": apply_error,
+            "routed_owner": "protocol_registry",
+        }
+
     def persist_owners(self) -> tuple[str, ...]:
         """Packet D (long-horizon-closure): export + persist all
         hydratable owners (kernel + lifeform side) through the brain

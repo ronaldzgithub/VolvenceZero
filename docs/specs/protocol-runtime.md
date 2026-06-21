@@ -86,14 +86,16 @@
 
 分类结果包括：
 
-| intake_kind | 判定口径 | 路由 |
-|---|---|---|
-| `protocol` | 改变后续行动姿态、任务集、策略顺序、时间阶段或成功/失败定义 | `TaskDescriptionUptake` → `BehaviorProtocol` → `ProtocolRegistryModule.load_protocol` |
-| `protocol_revision` | 修改已加载协议中的某条 strategy / knowledge / case 权重或生命周期 | `ProtocolRevisionProposal` → review / queue → `ProtocolRegistryModule.apply_revision` |
-| `boundary` | 新增/收紧禁止行为、升级、人审或 hard block 条件 | 编译为 `BehaviorProtocol.boundary_contracts`，经 `ProtocolRegistryModule.load_protocol` 进入 boundary owner |
-| `knowledge` | 只增加事实/领域知识，不要求立即改变行动姿态 | ingestion / reviewed knowledge path → `domain_knowledge` owner |
-| `case` | 记录一个具体情境、对话或处理样例 | case ingestion path → `case_memory` owner |
-| `experience` | 记录"发生了什么、效果如何、PE/信用如何归因" | experience / consolidation owners；不得直接冒充协议 |
+| intake_kind | 判定口径 | 路由 | session-local apply 状态 |
+|---|---|---|---|
+| `protocol` | 改变后续行动姿态、任务集、策略顺序、时间阶段或成功/失败定义 | `TaskDescriptionUptake` → `BehaviorProtocol` → `ProtocolRegistryModule.load_protocol` | ✅ 已实现 |
+| `protocol_revision` | 修改已加载协议中的某条 strategy / knowledge / case 权重或生命周期 | `ProtocolRevisionProposal` → R10 `evaluate_protocol_revision` gate → `ProtocolRegistryModule.apply_revision` | ✅ 已实现（窄面 + gate；非 AUTO_APPROVED 不落地） |
+| `boundary` | 新增/收紧禁止行为、升级、人审或 hard block 条件 | 编译为 `BehaviorProtocol.boundary_contracts`，经 `ProtocolRegistryModule.load_protocol` 进入 boundary owner | ✅ 已实现 |
+| `knowledge` | 只增加事实/领域知识，不要求立即改变行动姿态 | reviewed knowledge path → `submit_reviewed_knowledge_event` → `domain_knowledge` owner | ✅ 已实现 |
+| `case` | 记录一个具体情境、对话或处理样例 | case compile path（carrier protocol）→ `case_memory` owner | ✅ 已实现 |
+| `experience` | 记录"发生了什么、效果如何、PE/信用如何归因" | 显式 typed `outcome_kind` → `submit_dialogue_outcome`（HUMAN_REVIEW）→ experience / consolidation owners；不得直接冒充协议 | ✅ 已实现（仅记录，background-slow，不改下一轮） |
+
+> session-local apply 由 `lifeform-service` 的 `POST /v1/sessions/{id}/mentor-intakes` 提供，非 `protocol`/`boundary` 的四类受 `LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS` flag 守卫（默认关 = classified-only，可回滚）。`experience` 因封闭词表 `DialogueExternalOutcomeKind` 需要 typed evidence source，apply 路径要求 mentor 显式给定 `outcome_kind`，不从自由文本推断。
 
 运行时不变量：
 
