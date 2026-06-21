@@ -73,6 +73,16 @@ _VALID_MODES: frozenset[str] = frozenset({"lifeform", "raw"})
 _OPENAI_CHAT_ROUTE: str = "/v1/chat/completions"
 _AUTH_APP_KEY: str = "openai_compat_api_keys"
 
+# Optional post-turn observability hook. A full-stack DLaaS host registers
+# a callable here (``dlaas_platform_api`` sets ``_record_openai_compat_
+# snapshot``) so a successful lifeform ``/v1/chat/completions`` turn also
+# writes a DLaaS cognition snapshot — aligning OpenAI-path observability
+# with the native typed-envelope dispatch. The adapter stays decoupled:
+# the value is an opaque callable, never an import of the recorder. Absent
+# key = no-op (e.g. a bare lifeform-service host), so this is additive and
+# reversible. Signature: ``hook(request, *, ai_id, session, session_id)``.
+_ON_TURN_APP_KEY: str = "openai_compat_on_turn"
+
 
 def add_openai_routes(
     app: web.Application,
@@ -251,6 +261,7 @@ async def _dispatch_lifeform(
             error="internal_error",
             detail="lifeform run_turn failed; check service logs.",
         )
+    _invoke_on_turn_hook(request=request, parsed=parsed, result=result)
     headers = _lifeform_telemetry_headers(result)
     payload = result.response.to_json()
     if streaming:
@@ -440,6 +451,41 @@ async def _emit_sse(
     await response.write(b"data: [DONE]\n\n")
     await response.write_eof()
     return response
+
+
+def _invoke_on_turn_hook(
+    *,
+    request: web.Request,
+    parsed: ChatCompletionRequest,
+    result: LifeformCompletionResult,
+) -> None:
+    """Best-effort post-turn observability hook (additive, decoupled).
+
+    When the host registered ``app['openai_compat_on_turn']`` (a full-stack
+    DLaaS app does), hand it the resolved session so it can record a
+    cognition snapshot for this turn — making the OpenAI front door as
+    observable as the native ``/interactions`` dispatch. Bare
+    lifeform-service hosts register no hook, so this is a no-op there.
+
+    Wrapped in a broad ``except``: the chat completion is the user-visible
+    response and must never 500 because an observability sink failed.
+    """
+    hook = request.app.get(_ON_TURN_APP_KEY)
+    if hook is None or result.session is None:
+        return
+    ai_id = parsed.metadata.get("dlaas.ai_id", "").strip()
+    if not ai_id:
+        # No adopted instance bound → nothing to attribute a snapshot to.
+        return
+    try:
+        hook(
+            request,
+            ai_id=ai_id,
+            session=result.session,
+            session_id=result.resolution.session_id,
+        )
+    except Exception as exc:  # pragma: no cover - defensive sink
+        _LOG.warning("openai_compat on-turn hook failed: %s", exc)
 
 
 def _lifeform_telemetry_headers(result: LifeformCompletionResult) -> dict[str, str]:

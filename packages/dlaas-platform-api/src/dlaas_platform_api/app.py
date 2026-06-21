@@ -33,6 +33,7 @@ import logging
 import os
 import time
 import uuid
+from collections.abc import Mapping
 from typing import Any
 
 from aiohttp import web
@@ -130,6 +131,7 @@ from dlaas_platform_api.plugin_preview import attach_plugin_preview_routes
 from dlaas_platform_registry import TemplateNotFound
 from dlaas_platform_api.cognition import (
     attach_cognition_routes,
+    cognition_store,
     ensure_cognition_store,
     record_cognition_snapshot,
 )
@@ -161,6 +163,14 @@ _TRAINING_EXECUTOR_KEY = "dlaas_training_executor"
 
 DLAAS_APP_AI_ID_KEY = "dlaas_default_ai_id"
 """``app[DLAAS_APP_AI_ID_KEY]`` — Slice 1 hardcoded ``ai_id`` fallback."""
+
+_OPENAI_COMPAT_ON_TURN_KEY = "openai_compat_on_turn"
+"""``app[_OPENAI_COMPAT_ON_TURN_KEY]`` — optional post-turn hook the
+OpenAI-compat router invokes after a successful ``/v1/chat/completions``
+lifeform turn. Must match ``lifeform_openai_compat.router._ON_TURN_APP_KEY``.
+DLaaS registers ``_record_openai_compat_snapshot`` here so both front doors
+write cognition snapshots; the value stays an opaque callable on the wire
+so the openai-compat wheel never imports this package."""
 
 _PROTOCOL_SUBMISSIONS_KEY = "dlaas_protocol_submissions"
 _TRAINING_JOBS_KEY = "dlaas_training_jobs"
@@ -203,6 +213,7 @@ def attach_dlaas_routes(
         )
     app[DLAAS_APP_AI_ID_KEY] = default_ai_id
     _ensure_shadow_intake_stores(app)
+    _register_openai_compat_cognition_hook(app)
     app.router.add_post(
         "/dlaas/instances/{ai_id}/interactions",
         _handle_interaction,
@@ -214,6 +225,20 @@ def attach_dlaas_routes(
     attach_tool_task_routes(app)
     _add_lifecycle_routes(app)
     return app
+
+
+def _register_openai_compat_cognition_hook(app: web.Application) -> None:
+    """Wire the OpenAI-compat post-turn snapshot recorder onto the app.
+
+    Additive + reversible: sets ``app['openai_compat_on_turn']`` (the key
+    ``lifeform_openai_compat.router`` reads) only when not already set, so
+    an operator who wants the legacy behaviour (no OpenAI-path snapshots)
+    can register a no-op hook before attaching DLaaS routes, and a host
+    that never mounts the OpenAI route is entirely unaffected.
+    """
+    if _OPENAI_COMPAT_ON_TURN_KEY in app:
+        return
+    app[_OPENAI_COMPAT_ON_TURN_KEY] = _record_openai_compat_snapshot
 
 
 def attach_dlaas_full_stack(
@@ -249,6 +274,7 @@ def attach_dlaas_full_stack(
     app[_GOVERNANCE_STORE_KEY] = GovernanceStore(registry)
     app[DLAAS_APP_AI_ID_KEY] = default_ai_id
     _ensure_shadow_intake_stores(app)
+    _register_openai_compat_cognition_hook(app)
     _maybe_wire_training_executor(app, registry=registry)
     if platform_endpoint:
         app["dlaas_platform_endpoint"] = platform_endpoint
@@ -1727,15 +1753,107 @@ async def _handle_explain(request: web.Request) -> web.Response:
     session_or_response = await _session_from_query(request, ai_id)
     if isinstance(session_or_response, web.Response):
         return session_or_response
-    turn_index = request.query.get("turn_index", "latest")
-    snapshots = session_or_response.latest_active_snapshots
+    session = session_or_response
+    session_id = session.session_id
+    turn_index_raw = request.query.get("turn_index", "latest").strip() or "latest"
+
+    # Persisted per-turn cognition snapshots for this (ai_id, session_id),
+    # oldest first, so an integer turn_index maps to a real recorded turn.
+    history = _persisted_turn_snapshots(request, ai_id=ai_id, session_id=session_id)
+
+    if turn_index_raw == "latest":
+        # Live path: read the kernel's current published snapshots and
+        # build the full owner-internal chain.
+        chain = _build_explain_chain(session.latest_active_snapshots)
+        resolved = {
+            "source": "live",
+            "turn_index": "latest",
+            "available_turns": len(history),
+        }
+        trace = ExplainTrace(
+            ai_id=ai_id, session_id=session_id, turn_index="latest", chain=chain
+        )
+        return web.json_response(
+            {"status": "ok", "resolved": resolved, **trace.to_json()}
+        )
+
+    # Historical path: resolve an integer index honestly against the
+    # persisted snapshots. Negative indexes count from the end
+    # (``-1`` == most recent recorded turn); non-negative are 0-based
+    # from the first recorded turn. Out-of-range is a 404, NOT a silent
+    # fallback to the latest live state (which would mislabel the turn).
+    try:
+        idx = int(turn_index_raw)
+    except ValueError:
+        return _json_error(
+            status=400,
+            error="invalid_turn_index",
+            detail=(
+                f"turn_index must be 'latest' or an integer; got {turn_index_raw!r}."
+            ),
+        )
+    if not history:
+        return _json_error(
+            status=404,
+            error="turn_not_found",
+            detail=(
+                f"No persisted cognition snapshots for ai_id={ai_id!r} "
+                f"session_id={session_id!r}; historical explain is unavailable."
+            ),
+        )
+    resolved_pos = idx if idx >= 0 else len(history) + idx
+    if resolved_pos < 0 or resolved_pos >= len(history):
+        return _json_error(
+            status=404,
+            error="turn_not_found",
+            detail=(
+                f"turn_index={idx} is out of range; "
+                f"{len(history)} turns recorded (valid: 0..{len(history) - 1} "
+                f"or -1..-{len(history)})."
+            ),
+        )
+    row = history[resolved_pos]
+    chain = _explain_chain_from_readout(row.get("raw_readout") or {})
+    resolved = {
+        "source": "historical",
+        "turn_index": resolved_pos,
+        "captured_at_ms": int(row.get("captured_at_ms", 0) or 0),
+        "snapshot_id": str(row.get("snapshot_id", "") or ""),
+        "snapshot_source": str(row.get("source", "") or ""),
+        "available_turns": len(history),
+    }
     trace = ExplainTrace(
         ai_id=ai_id,
-        session_id=session_or_response.session_id,
-        turn_index=turn_index,
-        chain=_build_explain_chain(snapshots),
+        session_id=session_id,
+        turn_index=str(resolved_pos),
+        chain=chain,
     )
-    return web.json_response({"status": "ok", **trace.to_json()})
+    return web.json_response(
+        {"status": "ok", "resolved": resolved, **trace.to_json()}
+    )
+
+
+def _persisted_turn_snapshots(
+    request: web.Request, *, ai_id: str, session_id: str
+) -> list[dict[str, Any]]:
+    """Persisted cognition snapshots for one (ai_id, session_id), oldest first.
+
+    Reads the same cognition snapshot store the interaction + OpenAI-compat
+    paths write to, so ``/explain`` can resolve a historical turn index to
+    the readout that was actually captured at that turn. Best-effort: a
+    missing/empty store yields an empty list (callers map that to a 404).
+    """
+    try:
+        rows = [
+            row
+            for row in cognition_store(request)
+            if str(row.get("ai_id", "")) == ai_id
+            and str(row.get("session_id", "")) == session_id
+        ]
+    except Exception:  # noqa: BLE001 -- explain must not 500 on a read miss
+        return []
+    rows.sort(key=lambda row: int(row.get("captured_at_ms", 0) or 0))
+    return rows
 
 
 async def _handle_list_instances(request: web.Request) -> web.Response:
@@ -3164,6 +3282,7 @@ def _maybe_record_cognition_snapshot(
     ai_id: str,
     session: Any,
     session_id: str,
+    source: str = "interaction",
 ) -> None:
     """Record one ``CognitionSnapshot`` per successful interaction.
 
@@ -3171,6 +3290,12 @@ def _maybe_record_cognition_snapshot(
     user-visible request; a bad readout or a missing slot must never
     surface as a 500 to the caller. Logged so ops can spot if every
     interaction is silently failing the snapshot write.
+
+    ``source`` distinguishes the entry point that produced the turn:
+    ``"interaction"`` for the native typed-envelope dispatch and
+    ``"openai_compat"`` for the OpenAI ``/v1/chat/completions`` path
+    (see ``_record_openai_compat_snapshot``), so cognition health /
+    readouts / explain observe BOTH front doors uniformly.
     """
     try:
         snapshots = session.latest_active_snapshots
@@ -3187,10 +3312,44 @@ def _maybe_record_cognition_snapshot(
             session_id=session_id,
             snapshots=snapshots,
             readout_bundle_json=bundle.to_json(),
-            source="interaction",
+            source=source,
         )
     except Exception:  # noqa: BLE001 -- never block dispatch
         _LOG.exception("cognition snapshot write failed for ai_id=%s", ai_id)
+
+
+def _record_openai_compat_snapshot(
+    request: web.Request,
+    *,
+    ai_id: str,
+    session: Any,
+    session_id: str,
+) -> None:
+    """Post-turn observability hook for the OpenAI-compat front door.
+
+    Registered on the app as ``app['openai_compat_on_turn']`` by
+    ``attach_dlaas_routes`` / ``attach_dlaas_full_stack`` and invoked
+    best-effort by ``lifeform_openai_compat.router`` after a successful
+    ``/v1/chat/completions`` lifeform turn. This closes the observability
+    gap where OpenAI-path turns previously advanced kernel state but wrote
+    no ``CognitionSnapshot`` — leaving ``/cognition/health``, ``/readouts``
+    and ``/explain`` blind to that front door.
+
+    Skips silently when no ``ai_id`` was bound (e.g. a bench harness that
+    does not pass ``metadata['dlaas.ai_id']``): a turn with no adopted
+    instance has nothing to attribute a snapshot to, and fabricating one
+    would be dishonest. The openai-compat package stays decoupled — it
+    only knows this opaque app-key callable, never imports the recorder.
+    """
+    if not ai_id:
+        return
+    _maybe_record_cognition_snapshot(
+        request,
+        ai_id=ai_id,
+        session=session,
+        session_id=session_id,
+        source="openai_compat",
+    )
 
 
 def _resolve_session_manager(
@@ -4095,6 +4254,75 @@ def _build_explain_chain(snapshots: dict[str, Any]) -> tuple[dict[str, Any], ...
         },
         {"step": "prediction_error", "description": _description(prediction_error)},
     )
+
+
+def _explain_chain_from_readout(
+    readout: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Rebuild an explain chain from a PERSISTED readout-bundle JSON.
+
+    The live ``_build_explain_chain`` reads owner-internal snapshot objects,
+    but the cognition store only retains the summary readout bundle (the
+    ``raw_readout`` field). For a historical turn we therefore project the
+    same step shape from exactly what was captured — honest about being a
+    persisted summary rather than re-deriving owner internals. Every field
+    falls back to an empty/zero default so a partial historical readout
+    never raises.
+    """
+    cognition = _as_mapping(readout.get("cognition"))
+    knowledge = _as_mapping(readout.get("knowledge"))
+    strategy = _as_mapping(readout.get("strategy"))
+    safety = _as_mapping(readout.get("safety"))
+    protocol = _as_mapping(readout.get("protocol"))
+    prediction_error = _as_mapping(cognition.get("prediction_error"))
+    retrieval = _as_mapping(knowledge.get("retrieval"))
+    playbook = _as_mapping(strategy.get("playbook"))
+    boundary_policy = _as_mapping(safety.get("boundary_policy"))
+    return (
+        {
+            "step": "input_event",
+            "description": "persisted LifeformSession turn (historical readout)",
+        },
+        {
+            "step": "regime",
+            "regime_id": cognition.get("active_regime"),
+            "description": "",
+        },
+        {
+            "step": "protocol",
+            "active_protocols": protocol.get("active_protocols", []),
+            "boundary_union_ids": protocol.get("boundary_union_ids", []),
+            "strategy_weights": protocol.get("strategy_weights", []),
+            "description": str(protocol.get("description", "") or ""),
+        },
+        {
+            "step": "boundary",
+            "description": str(boundary_policy.get("description", "") or ""),
+        },
+        {
+            "step": "strategy",
+            "description": str(playbook.get("description", "") or ""),
+            "matched_rule_count": int(strategy.get("matched_rule_count", 0) or 0),
+        },
+        {
+            "step": "knowledge",
+            "description": str(retrieval.get("description", "") or ""),
+        },
+        {
+            "step": "response",
+            "expression_intent": cognition.get("expression_intent"),
+            "description": "",
+        },
+        {
+            "step": "prediction_error",
+            "description": str(prediction_error.get("description", "") or ""),
+        },
+    )
+
+
+def _as_mapping(value: Any) -> Mapping[str, Any]:
+    """Coerce a possibly-missing readout sub-object to a mapping."""
+    return value if isinstance(value, Mapping) else {}
 
 
 def _protocol_readout(snapshot: Any) -> dict[str, Any]:

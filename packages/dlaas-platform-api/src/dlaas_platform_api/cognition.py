@@ -106,7 +106,7 @@ LEARNING_FAMILY_KEYS: tuple[str, ...] = (
 # Accepted source markers; we only enforce shape, not enum membership,
 # so future writers can stamp new sources without a schema bump.
 ALLOWED_SOURCES: frozenset[str] = frozenset(
-    {"interaction", "session_end", "sampler", "manual"}
+    {"interaction", "openai_compat", "session_end", "sampler", "manual"}
 )
 
 _DEFAULT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000

@@ -296,6 +296,13 @@ class LifeformCompletionResult:
     # gate can consume a REAL kernel-PE signal (deploy debt
     # ``D-collab-pe``). ``None`` when the turn published no PE snapshot.
     confidence: float | None = None
+    # The resolved ``LifeformSession`` this turn ran on. Carried so the
+    # router can hand it to an optional post-turn observability hook
+    # (``app['openai_compat_on_turn']``) that records a DLaaS cognition
+    # snapshot — closing the gap where OpenAI-path turns advanced kernel
+    # state but were invisible to ``/cognition/health`` / ``/readouts`` /
+    # ``/explain``. ``None`` only on the early tool-call return path.
+    session: Any | None = None
 
 
 async def lifeform_complete(
@@ -437,6 +444,7 @@ async def lifeform_complete(
         evidence_pointers=evidence_pointers,
         expression_intent=expression_intent,
         confidence=confidence,
+        session=session,
     )
 
 
