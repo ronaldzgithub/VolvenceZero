@@ -1170,7 +1170,12 @@ second owner of the baked bundle. Each angle runs three explicit seams:
 3. **register (control plane)** — `RegistryBakeArtifactRegistrar`
    registers the figure bundle into the runtime store, mints the
    template, and advances the persona lifecycle to `pretrained`
-   (tenant-scoped; deferred with a note when the run has no tenant).
+   (tenant-scoped; deferred with a note when the run has no tenant). The
+   minted template records the bake provenance as a first-class field —
+   `persona_spec.bake = { angle, angle_slug, source_ref, bake_run_id,
+   app_id }` — and the lifecycle `notes` carry the angle, so a management
+   console can categorize souls by angle (author/interpreter/character)
+   without parsing the `template_id` string.
 
 **Default runner is `third_party_llm`** (`VZ_BAKE_RUNNER`); the
 deterministic GPU-free `synthetic` runner is the explicit CI/dev

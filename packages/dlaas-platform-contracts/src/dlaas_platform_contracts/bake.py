@@ -456,6 +456,7 @@ class BakeRun:
     tenant_id: str = ""
     app_id: str = ""
     corpus_mode: str = "synthetic"
+    runtime_template_id: str = ""
     notes: str = ""
     created_at_ms: int = 0
     updated_at_ms: int = 0
@@ -470,6 +471,7 @@ class BakeRun:
             "tenant_id": self.tenant_id,
             "app_id": self.app_id,
             "corpus_mode": self.corpus_mode,
+            "runtime_template_id": self.runtime_template_id,
             "notes": self.notes,
             "created_at_ms": self.created_at_ms,
             "updated_at_ms": self.updated_at_ms,

@@ -410,6 +410,17 @@ class RegistryBakeArtifactRegistrar:
 
         templates = TemplateStore(self._registry)
         lifecycles = PersonaLifecycleStore(self._registry)
+        # Persist the bake angle (大师/旁观者/人物) + provenance as a
+        # first-class field so a management console can categorize souls
+        # without parsing the template_id string. `angle` is the SSOT a
+        # consumer reads; template_id prefix remains a fallback.
+        bake_meta = {
+            "angle": compiled.angle_kind.value,
+            "angle_slug": compiled.angle_slug,
+            "source_ref": run.source_ref,
+            "bake_run_id": run.run_id,
+            "app_id": run.app_id,
+        }
         try:
             await templates.get(template_id)
         except TemplateNotFound:
@@ -420,6 +431,7 @@ class RegistryBakeArtifactRegistrar:
                 runtime_template_id=run.runtime_template_id,
                 figure_artifact_id=compiled.figure_artifact_id,
                 template_id=template_id,
+                persona_spec={"bake": bake_meta},
             )
         try:
             await lifecycles.create(
@@ -427,6 +439,10 @@ class RegistryBakeArtifactRegistrar:
                 tenant_id=run.tenant_id,
                 display_name=compiled.display_name,
                 app_id=run.app_id,
+                notes=(
+                    f"bake angle={bake_meta['angle']}; "
+                    f"source_ref={run.source_ref}; run={run.run_id}"
+                ),
                 actor="bake",
             )
         except PersonaLifecycleConflict:
@@ -1166,6 +1182,7 @@ async def _handle_submit(request: web.Request) -> web.Response:
         tenant_id=tenant_id,
         app_id=bake_request.app_id,
         corpus_mode=bake_request.corpus_mode,
+        runtime_template_id=bake_request.runtime_template_id,
         notes=bake_request.notes,
         created_at_ms=now,
         updated_at_ms=now,
