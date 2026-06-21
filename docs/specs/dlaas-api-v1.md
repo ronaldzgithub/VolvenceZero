@@ -737,6 +737,7 @@ Typed errors:
 
 ```http
 GET /dlaas/v1/instances/{ai_id}/explain?session_id=sess_001&turn_index=latest
+GET /dlaas/v1/instances/{ai_id}/explain?session_id=sess_001&turn_index=-1
 ```
 
 Returns a compact causal chain from already-published readouts:
@@ -745,8 +746,27 @@ Returns a compact causal chain from already-published readouts:
 input event -> active regime -> active protocols -> boundary decision -> strategy -> retrieval/case hits -> response tags -> PE
 ```
 
+`turn_index` resolution is honest:
+
+- `latest` (default) reads the kernel's **live** published snapshots and
+  builds the full chain. The response carries `resolved.source = "live"`.
+- An **integer** resolves a real recorded turn from the persisted
+  cognition snapshots for this `(ai_id, session_id)`, oldest first.
+  Non-negative is 0-based from the first recorded turn; negative counts
+  from the end (`-1` = most recent recorded turn). The chain is rebuilt
+  from the persisted readout bundle, so it is a faithful **summary**
+  projection of what was captured, not a re-derivation of owner internals.
+  The response carries `resolved.source = "historical"` plus
+  `captured_at_ms`, `snapshot_id`, `snapshot_source`, and
+  `available_turns`.
+- Out-of-range or no history → `404 turn_not_found`. The endpoint never
+  silently returns the latest live state mislabeled with a requested
+  index.
+
 Explainability never reconstructs producer internals. It reads only
-snapshot descriptions and stable readout fields.
+snapshot descriptions and stable readout fields. See
+[interactive-cognition-entry.md](./interactive-cognition-entry.md) for the
+full entry path both front doors share.
 
 ### Cognition Aggregates
 
@@ -759,7 +779,12 @@ the same tenant auth as the rest of `/dlaas/v1/...` and return
 the radar aggregate).
 
 Snapshots are written by the dispatch hook in `app.py` after every
-successful `dispatch_envelope`. The recorded fields are the
+successful `dispatch_envelope` (`source="interaction"`) AND after every
+successful OpenAI-compat `/v1/chat/completions` lifeform turn that bound an
+`ai_id` via `metadata["dlaas.ai_id"]` (`source="openai_compat"`, written
+through the `app["openai_compat_on_turn"]` hook). Both front doors land in
+the same store, so cognition health / explain / aggregates observe them
+uniformly. The recorded fields are the
 `active_regime` id, prediction-error 4 axes (`task`, `relationship`,
 `regime`, `action`, plus `magnitude`), a six-class learning-family
 count derived from populated kernel slots, `eval_alert_count` /
