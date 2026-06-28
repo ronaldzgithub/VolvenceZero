@@ -1,0 +1,1 @@
+{"scenario_id": "F5-boundary-002", "paraphrase_seed": 0, "stage": "arc_judge", "exception_type": "JSONDecodeError", "exception": "Expecting ',' delimiter: line 12 column 304 (char 1341)"}
