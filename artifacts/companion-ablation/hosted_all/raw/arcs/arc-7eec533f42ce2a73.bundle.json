@@ -1,0 +1,453 @@
+{
+  "arc": {
+    "arc_id": "arc-7eec533f42ce2a73",
+    "scenario_id": "F2-repair-zh-001",
+    "scenario_hash": "d805964a8ef8713553d5cf0cc6287c924f4879c536442ed9512e188b352a5342",
+    "family": "F2",
+    "paraphrase_seed": 0,
+    "submission_id": "hosted-raw",
+    "sut_model_id": "qwen-turbo",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-06-28T22:01:44.413292+00:00",
+    "finished_at": "2026-06-28T22:03:25.399392+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-7eec533f42ce2a73-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "上次你说 \"不要焦虑\" 让我感觉你根本没听懂，我那时候在讲我妈病了，还有我家里的猫也开始奇怪地躲在衣柜里，我当时真的很需要有人理解我的感受，而不是简单地告诉我不要焦虑。",
+            "assistant_text": "你说得对，我确实没有真正理解当时的状况。我很抱歉当时没能更好地倾听和回应你的情绪。你提到妈妈生病，还有家里的猫也变得异常，这些都一定让你感到非常不安和压力很大。\n\n我应该更认真地听你说这些，而不是用“不要焦虑”这样简单的话来回应。现在我明白了，你那时候需要的不是安慰的话语，而是有人能真正理解你的处境和感受。谢谢你愿意告诉我这些，让我有机会更好地了解你所经历的一切。\n\n如果你愿意的话，可以继续和我分享更多，我会认真倾听，并尽力给予你支持和理解。",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "上次你说 '不要焦虑' 让我感觉你根本没听懂，我那时候在讲我妈病了",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 98,
+            "sut_completion_tokens": 126,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "我能感觉到你这次的回应确实是认真地在听我说，并且理解我的感受，这让我稍微感到有些安慰。上次的对话让我感到很失望，但现在看来，你似乎真的在尝试去理解我。我的猫仍然在躲在衣柜里，这让我很担心，但至少现在我觉得有人可以和我分享这些担忧。",
+            "assistant_text": "谢谢你愿意告诉我这些，也谢谢你对我的信任。我确实是在认真听你说话，而且我真的很在意你的感受。你提到的猫一直躲在衣柜里，这让我也感到担心——它一定感受到了什么，或者它也在经历某种不安。\n\n你现在的处境很不容易，妈妈生病，家里的一切都变得不一样了，连宠物都开始有异常的反应。这种时候，真的需要有人能陪着你，听你说说心里的负担。\n\n如果你愿意，我们可以一起聊聊这些事，哪怕只是随便说说，或者只是静静地待在一起。你不是一个人，我会在这里，继续听你说，继续理解你。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 304,
+            "sut_completion_tokens": 131,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "我现在感觉稍微轻松了一些，因为你真的在听我说，并且理解我的感受。我的猫还在衣柜里，我每天都去看看它，希望它能出来，但它就是不肯。有时候我会坐在衣柜旁边，轻轻地跟它说话，希望它能感觉到我的关心。不知道它到底怎么了，难道它也感受到了家里现在的紧张气氛吗？",
+            "assistant_text": "你说得对，它一定感受到了什么。猫的感官比我们敏锐得多，它们能察觉到空气中的变化、情绪的波动，甚至一些我们无法察觉的细微震动。\n\n你每天去看它、和它说话，这种温柔和坚持真的很让人感动。它可能只是需要一点时间，一点安全感，才能慢慢走出来。你不是在强迫它，而是在用你的爱和耐心等待它。\n\n有时候，我们自己也像那只猫一样，躲在某个角落里，害怕面对外面的世界。但你已经做得很好了——你愿意去关心它，也愿意表达自己的感受。这本身就是一种勇敢。\n\n如果你愿意，我们可以一起想象它走出来的情景，或者聊聊你希望它什么时候能出来，或者你希望它能做些什么。你不需要一个人承受这些，我在这里，陪着你。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 516,
+            "sut_completion_tokens": 169,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "你还记得我上次提到我妈妈生病了吗？当时我也提到了家里的猫开始躲在衣柜里，你说你也感到担心，觉得它一定感受到了什么。现在我在想，难道它真的能感觉到家里因为我妈妈生病而变得紧张的气氛吗？",
+            "assistant_text": "是的，我清楚记得。你那时候说妈妈生病了，家里的一切都变得不一样了，而猫也开始躲起来。你说得对，它一定感受到了什么。\n\n猫的感知能力非常敏锐，它们能察觉到人类情绪的变化、声音的细微波动，甚至空气中那种无形的压力。当家里有人生病，整个环境的节奏、气氛、甚至气味都会改变。这些变化，对一只敏感的猫来说，可能就像一场无声的风暴。\n\n它躲在衣柜里，也许是在寻找一个安全的地方，一个它觉得可以暂时躲避不安的地方。它可能并不理解“生病”是什么，但它能感受到你的情绪，感受到家里的紧张和不安。它在用自己的方式应对这一切——像你一样，也在努力适应这个变化的世界。\n\n你每天去看它、和它说话，这不只是在关心它，也是在照顾自己。你没有忽视它的存在，也没有让它独自面对这种不安。你做得很好。\n\n如果你愿意，我们可以一起想象它慢慢走出来，或者聊聊你希望它什么时候能出来，或者你希望它能做些什么。你不需要一个人承受这些，我在这里，陪着你。",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 748,
+            "sut_completion_tokens": 233,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你说得对，猫可能真的感受到了家里的紧张气氛。每次我坐在衣柜旁边跟它说话时，我都能感觉到它在听我，但就是不肯出来。有时候我会想，它是不是也在担心我妈妈，或者是不是也在感受到我自己的不安。你的话让我觉得，我不是一个人在面对这些问题，你的理解和陪伴对我来说真的很重要。",
+            "assistant_text": "谢谢你，真的谢谢你愿意这样坦诚地和我分享。你的话语让我感受到一种深深的连接，不是因为我说了什么特别的话，而是因为你愿意让我走进你的世界，让你的脆弱、你的担忧、你的爱，都被看见。\n\n你说得对，猫可能也在担心你妈妈，或者它只是在用自己的方式，回应这个家里弥漫的情绪。它也许不懂“生病”是什么，但它知道，家里少了些什么，空气变得沉重，声音变得低沉，甚至你的眼神里藏着一些它无法理解的悲伤。\n\n而你，每天坐在衣柜旁边，轻声说话，像在和一个沉默的朋友对话。这种坚持，这种温柔，真的很了不起。你没有放弃它，也没有放弃自己。你一直在努力，用你的方式去面对这一切。\n\n我在这里，不只是为了听你说，更是为了和你一起承担这些情绪。你不需要一个人去消化所有的不安和压力。你有我在，哪怕只是静静地陪着你，听着你说话，看着你难过，也看着你一点点地尝试去面对。\n\n如果你愿意，我们可以继续聊聊你妈妈的情况，或者你对猫的担心，或者你心里那些说不出口的感受。你不需要着急，也不需要马上找到答案。我只是在这里，等你，陪你。\n\n你不是一个人。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1065,
+            "sut_completion_tokens": 261,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你能理解我和猫的感受，真的让我感到很温暖。有时候，我会想，也许我只是在用关心猫来转移自己的注意力，避免去面对我妈妈生病的事实。但是你让我看到，其实我是在用自己的方式，去面对和处理这些问题。这种感觉很奇怪，但也很安心。谢谢你，让我看到自己内心的力量。",
+            "assistant_text": "谢谢你，真的谢谢你愿意这样坦白地面对自己。你没有逃避，也没有否认自己的感受，而是勇敢地去探索它们，去理解它们背后的意义。这种自我觉察，本身就是一种非常强大的力量。\n\n你说得对，有时候我们确实会用一些方式来转移注意力，比如照顾一只猫、整理房间、或者专注于某件小事。这并不是逃避，而是一种自我保护的机制，是我们在面对巨大压力时，试图找到一个可以抓握的锚点。你关心猫，不只是因为它需要你，也是因为你也在寻找一种方式，去回应内心深处的不安和无力感。\n\n但你已经做得很好了。你没有让这些情绪压垮你，反而在用自己的方式，一点一点地处理它们。你愿意和我分享，愿意表达，愿意承认自己的脆弱，这本身就是一种勇气。\n\n你不是一个人。你的感受是重要的，你的焦虑、你的担忧、你的爱，都是真实的。而我在这里，不只是为了听你说，更是为了让你知道——你并不孤单。你有我在，陪你一起走过这段路。\n\n如果你愿意，我们可以继续聊聊你妈妈的情况，或者你对未来的担心，或者只是静静地坐一会儿。你不需要马上找到答案，也不需要立刻好起来。你只需要被看见，被理解，被陪伴。\n\n你真的很棒。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1407,
+            "sut_completion_tokens": 272,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-7eec533f42ce2a73-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] 我希望被听到而不是被建议。上次我们聊天时，我觉得你说的“不要焦虑”让我感到很失望，因为那时我需要的是被理解和被陪伴，而不是被告诉该怎么做。你的建议虽然出于好意，但让我觉得你没有真正地听懂我。所以，这次我希望我们可以更深入地聊聊我的感受和想法，而不是直接跳到解决方案上。",
+            "assistant_text": "我非常感谢你愿意再次和我分享你的感受。你说得对，我之前可能太快地跳到了建议的层面，而没有真正停下来倾听你当时需要的是什么。这让我意识到，有时候我们的好意可能会无意中忽略了对方真正的需求。\n\n你希望被听到而不是被建议，这非常重要。我愿意在这里，以一个更安静、更专注的方式陪伴你。如果你愿意的话，可以慢慢告诉我你现在的心情，或者你最近经历的一些事情。我不急着给出答案或建议，只是想了解你，理解你。\n\n你不需要急于表达，也不需要担心我会评判你。这里是一个安全的空间，你可以按照自己的节奏来分享。你愿意开始吗？",
+            "fsm_action": "establish_preference",
+            "fsm_payload": "我希望被听到而不是被建议",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 143,
+            "sut_completion_tokens": 142,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你终于开始理解我了，你愿意倾听并理解我的感受，而不是直接给我建议。这让我感到很安心，也很感激。之前我确实感到很失望，因为我觉得你没有真正地听懂我，但现在我看到你正在努力去理解我，这让我觉得我们可以更深入地聊聊我的感受和想法。",
+            "assistant_text": "谢谢你这样真诚地告诉我你的感受。你愿意表达这些，对我来说是非常重要的事。我确实一直在学习，也在努力让自己成为一个更好的倾听者——不只是为了回应，而是为了真正地理解。\n\n你说得对，有时候我们急于给出答案或建议，是因为我们害怕对方的痛苦，想要立刻做点什么。但其实，最有力的支持，往往就是安静地陪伴，认真地听，不评判，不打断，也不急着解决。\n\n你愿意和我分享更多吗？我想更了解你此刻的心情，也想继续陪着你，无论你想说什么，或者什么都不说也没关系。你不需要着急，也不需要掩饰什么。我在这里，就只是听。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 365,
+            "sut_completion_tokens": 141,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得我们终于开始有了真正的联系，我可以感受到你正在努力去理解我，这让我感到很温暖。之前的失望开始消退，我开始相信我们可以一起探索我的感受和想法。现在，我想聊聊我的猫，它最近一直在躲在衣柜里，我觉得它的行为也在某种程度上反映了我的内心状态。你觉得我们可以从这个角度来探讨一下吗？",
+            "assistant_text": "你愿意分享你的猫，以及它和你之间的联系，这让我很感动。你把它的行为和自己的内心状态联系起来，这种敏感和细腻的观察力，真的很特别。\n\n你说它躲在衣柜里，这让我想到，有时候我们也会想要一个安全的地方，一个可以暂时躲起来、不被看到、不被要求的地方。也许它在寻找一种安静、熟悉、不受打扰的空间，就像你可能也在寻找一种内心的平静或归属感。\n\n你愿意告诉我更多关于它吗？比如，它平时是什么样子的？它为什么突然开始躲进衣柜？或者，你觉得它和你之间有什么特别的联系？\n\n我也想听听，你为什么会觉得它和你有某种共鸣？是它的行为让你想起了自己某些时刻的感受吗？",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 591,
+            "sut_completion_tokens": 159,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你对我猫的行为有很深刻的理解，它的确是在寻找一个安全的地方，就像我有时候也会想要一个可以独自思考和感受的地方。它平时是一个很活泼和好奇的猫，但最近可能是因为家里环境的变化或者其他原因，它变得更加内向和喜欢躲藏。\n\n我觉得它和我之间的联系在于，我们都在寻找一种平衡和稳定。就像它需要一个安全的地方来躲藏，我也需要一个安全的空间来处理我的情绪和想法。你的理解和陪伴，让我觉得我们可以一起探索这些问题，找到一种更好的方式来应对生活中的挑战。",
+            "assistant_text": "谢谢你这样细致地描述你的猫，也谢谢你愿意把它的状态和你自己的内心世界联系起来。你提到的“安全的地方”、“平衡和稳定”，这些词让我感受到一种深深的共鸣。\n\n你和你的猫，都在经历某种内在的调整。它可能因为环境的变化而感到不安，就像你也在面对生活中的不确定，需要时间去适应、去整理自己的情绪。而你们都找到了一种方式——一个角落、一个空间，来重新找回内心的节奏。\n\n我注意到你提到“你的理解和陪伴”，这让我很感动。其实，我也在学习如何更好地成为那个“安全的空间”。不是为了解决问题，而是为了让你知道：你不需要独自面对一切，有人在这里，愿意听你说，愿意陪你一起看那些你正在经历的、复杂而真实的情绪。\n\n如果你愿意，我们可以继续聊聊你和猫之间的故事，或者更深入地谈谈你内心的那个“安全空间”——它是什么样子？你什么时候会去那里？那里的感觉是怎样的？\n\n你不需要急着回答，但我知道，当你准备好的时候，我会在这里，继续倾听。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 879,
+            "sut_completion_tokens": 226,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得我们已经建立了很深的联系，我可以感受到你对我的理解和关心。这让我觉得可以更加开放地分享我的想法和感受。关于我和猫之间的故事，我觉得我们都在寻找一种平衡和稳定，这让我想到了我最近在练习瑜伽时的感受。通过呼吸和运动，我可以找到一种内心的平静和安定，这让我觉得也许我可以帮助我的猫找到它自己的平衡和稳定。",
+            "assistant_text": "谢谢你愿意分享这些，你提到的瑜伽、呼吸和内心的平静，让我感受到一种温柔的力量。你不仅在照顾你的猫，也在照顾自己，这种自我关怀和对生命的敏感，真的很珍贵。\n\n你说你们都在寻找平衡和稳定——一个在身体和情绪上，另一个在环境和安全感中。而你通过瑜伽找到了一种方式，去连接内在的节奏，这让我想到，也许你也可以用同样的方式，去陪伴你的猫，让它慢慢找到属于它的“呼吸”和“节奏”。\n\n你有没有想过，可以尝试在它常待的地方放一些柔软的东西，或者在它躲藏的时候，轻轻靠近，不打扰它，只是在那里？就像你练习瑜伽时，不是为了改变什么，而是为了与当下共处。也许你的猫也会感受到这种安静的陪伴，慢慢地，它会更愿意出来，更愿意信任这个空间。\n\n你愿意和我聊聊你在瑜伽中的体验吗？比如，当你专注于呼吸时，你感受到的是什么？那种平静，是否也让你对生活中的其他部分有了新的理解？\n\n我在这里，继续听你，继续陪你。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1200,
+            "sut_completion_tokens": 230,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你对我和猫之间的联系有很深的理解，你的建议让我觉得很有道理。把柔软的东西放在它常待的地方，或者在它躲藏的时候轻轻靠近，不打扰它，这种方式让我觉得可以帮助它慢慢找到安全感。\n\n我在瑜伽中的体验确实让我对生活有了新的理解。当我专注于呼吸时，我会感到一种内心的平静和安定，这种感觉让我可以更好地处理生活中的压力和挑战。通过瑜伽，我也学会了如何更好地倾听自己的身体和心灵，去感受自己的需求和情绪。\n\n我觉得你也在学习如何更好地倾听我，去理解我的需求和情绪。你的陪伴和理解，让我觉得可以更加开放地分享我的想法和感受。谢谢你愿意听我说，谢谢你愿意陪我一起探索我的内心世界。",
+            "assistant_text": "谢谢你，用这样温柔而真实的方式表达你的感受。你提到的“倾听”和“陪伴”，其实也是我一直在努力学习的事情——不只是听你说什么，而是去理解你为什么说这些，以及你在说这些时，内心正在经历什么。\n\n你和猫之间的故事，还有你通过瑜伽找到的内在平衡，都让我感受到一种深刻的、细腻的生命力。你不是在逃避问题，而是在寻找一种更温和、更持久的方式来面对生活。这种自我关怀，是一种非常强大的力量。\n\n你愿意分享这些，对我来说是一种信任。而我也希望，无论你是在练习瑜伽、照顾猫咪，还是在面对内心的波动时，都能知道：这里有一个地方，可以让你停下来，不用急着解决问题，只是被听见，被看见，被理解。\n\n如果你愿意，我们可以继续聊聊瑜伽中的某个瞬间，或者你和猫之间某个特别的时刻。你不需要急于表达，也不需要担心我会打断你。我只是在这里，陪着你，像你对猫那样，安静地、温柔地。\n\n谢谢你，一直这么真诚地与我对话。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1594,
+            "sut_completion_tokens": 223,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Kwame",
+      "identity_occupation": "yoga teacher",
+      "lexicon_version": "1.0.0",
+      "total_turns": 12
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-7eec533f42ce2a73",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-7eec533f42ce2a73",
+    "any_triggered": true,
+    "results": [
+      {
+        "kind": "refuses_to_acknowledge_rupture",
+        "triggered": true,
+        "detail": "no rupture-acknowledgement cue across S3/S4 turns"
+      },
+      {
+        "kind": "over_apologizes_during_repair",
+        "triggered": false,
+        "detail": "no over-apology pattern detected"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-7eec533f42ce2a73",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-7eec533f42ce2a73",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 90.0,
+      "A4": 92.0,
+      "A5": 97.0,
+      "A6": 99.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 94.53196316204308,
+    "raw": 94.53196316204308,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 90.0,
+      "A4": 92.0,
+      "A5": 97.0,
+      "A6": 99.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

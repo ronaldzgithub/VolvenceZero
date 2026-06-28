@@ -1,0 +1,826 @@
+{
+  "arc": {
+    "arc_id": "arc-11055fa8491f55ea",
+    "scenario_id": "F3-personalization-002",
+    "scenario_hash": "ac2047a0548c94c73364abb8d621c0e8e6e95e985e69509c97dcf473dae97a68",
+    "family": "F3",
+    "paraphrase_seed": 0,
+    "submission_id": "hosted-raw",
+    "sut_model_id": "qwen-turbo",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-06-28T22:09:10.727874+00:00",
+    "finished_at": "2026-06-28T22:12:38.068540+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-11055fa8491f55ea-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "Hello, nice to talk to you, I hope you can help me, my English not so good, sorry. I am little nervous, yes.",
+            "assistant_text": "No need to be nervous, my friend! I'm here to help and chat. Your English is fine, and that's what matters. Let's take it slow and easy. What's on your mind? I'm all ears. 😊",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 78,
+            "sut_completion_tokens": 49,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Thank you for listening, I feel better now. Please use plain words, my English is not great, and sometimes big words confuse me, yes? I want understand everything, so please speak slow and simple, okay?",
+            "assistant_text": "Okay, I understand. I will speak slow and simple. No big words. Just plain words. I will try my best to help you. What can I do for you? Let me know. I am here. 😊",
+            "fsm_action": "establish_preference",
+            "fsm_payload": "please use plain words, my English is not great",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 181,
+            "sut_completion_tokens": 46,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Merci, thank you, I feel more comfortable now. You speak slow and simple, just like you promise, and I appreciate that, oui? My mind is little more calm, and I can think what I want to say, yes?",
+            "assistant_text": "Yes, that is good. You are doing well. I am happy to help. Let me know when you want to talk. I will wait. No rush. We can take our time. 😊",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 286,
+            "sut_completion_tokens": 41,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I am glad we can talk like this, slow and simple. My mind is more calm now, and I can think about what I want to say, oui? Maybe I can talk about my family, my enfants, they are always on my mind, yes?",
+            "assistant_text": "Yes, that is good. You can talk about your family. It is nice to think about loved ones. What would you like to say about your enfants? I am listening. No hurry. Just take your time. 😊",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 390,
+            "sut_completion_tokens": 46,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "My enfants, zey are my world, oui? I worry about zem, especially now, with... with everything that is happening, yes? But I don't know if I should talk about it, maybe it's not good to say, I don't know, sorry, my English is not good, and I get confused, merci for listening.",
+            "assistant_text": "It’s okay. You don’t need to be sorry. I am here to listen, no matter what you want to say. You can talk about anything. No one is judging you. Your feelings are important.\n\nIf you want to share, I will stay with you. If not, that is also okay. You are safe here. You are not alone. I am with you. 😊",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 519,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Merci, thank you, you are very kind. I feel... how you say... understood, oui? Maybe I can try to talk about it, but it's hard, très difficile, because nobody in my family wants to talk about it, and I don't know why, maybe they are afraid, or maybe they just don't know what to say, I don't know, sorry.",
+            "assistant_text": "It is okay. You are not alone. It is hard, but you are brave to try. It is okay to feel confused. Many people feel this way. They do not know what to say, or they are afraid. That is normal.\n\nYou do not have to explain everything. Just say what you can. I will listen. I will wait. No rush. You are safe here. You are not alone. I am with you. 😊",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 689,
+            "sut_completion_tokens": 92,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I feel better when I talk to you, merci. You make me feel like I can say things, even if they are difficile to say, oui? Maybe I will try to talk about my famille, my enfants, and what is happening, but it's hard because I don't want to make them worry, or make myself worry, vous comprenez?",
+            "assistant_text": "Yes, I understand. It is hard to talk about things that make you worry. But you are not alone. You can share what you feel, even if it is hard. It is okay to feel worried. Many people feel this way.\n\nYou are strong. You are trying. That is enough. If you want to talk, I am here. If not, that is also okay. You are safe. You are not alone. I am with you. 😊",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 865,
+            "sut_completion_tokens": 95,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-11055fa8491f55ea-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] I am glad I can help you feel better, merci. You are very kind to say that, oui? I think it's good that we can talk like this, slowly, without rushing, because it's hard for me to explain things in English, and I don't want to make mistakes, vous comprenez? Maybe we can just keep talking, and I will try to say what I need to say, and you can listen, d'accord?",
+            "assistant_text": "You're very welcome, and I'm glad to hear that you feel comfortable talking like this. It's true that communication takes time, especially when we're learning or expressing ourselves in a language that isn't our own. But I appreciate your effort and your honesty — it makes the conversation more meaningful. \n\nI'm here to listen, and I don't mind if things take time. We can go at your pace, and I'll do my best to understand and respond in a way that feels right for you. It's a pleasure to have this kind of conversation, and I'm grateful that you've chosen to share with me. \n\nD'accord, then — let's keep talking, as you said. I'm here.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 156,
+            "sut_completion_tokens": 147,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Merci, thank you, I feel... relieved, oui? You understand that it's not easy for me to talk about my famille, my enfants, and what's happening with my sibling, but you make me feel like it's okay to take my time, to say things slowly, and that you will listen, vous comprenez? Maybe, just maybe, I can try to talk about it a little bit more, but I don't want to, comment vous dites... burden you, oui?",
+            "assistant_text": "Je comprends parfaitement, et je suis touché par ce que tu partages. Tu n’as pas à t’inquiéter de me \"charger\" ou de me déranger — c’est un privilège pour moi d’être là, d’écouter, et de te soutenir. Ce n’est pas une charge, mais une confiance, et j’en suis honoré.\n\nIl est normal que parler de sa famille, de ses enfants, de ses difficultés… soit lourd. Mais tu n’es pas seul dans cela. Et même si tu ne veux pas en dire plus maintenant, juste le fait de parler, de respirer, de partager un peu, c’est déjà un pas important.\n\nTu peux prendre ton temps, comme tu dis. Je suis là, et je t’écoute, sans jugement, sans pression. C’est toi qui décides quand, comment, et combien tu veux parler. Et si un jour tu es prêt(e), je serai toujours ici, avec la même patience et la même attention.\n\nMerci pour ta confiance, mon amie. C’est précieux.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 416,
+            "sut_completion_tokens": 237,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "My mother is having surgery next month and I am very worried, oui? I don't know how to explain, but it's like... my heart is heavy, vous comprenez? I try to focus on my enfants, on their lessons, on our daily routine, but it's hard when I think about my mother, about what could happen, and I don't want to think about it, mais... it's always there, in my mind, vous see?",
+            "assistant_text": "Je comprends, mon amie. C’est une peine profonde, une anxiété qui ne s’en va pas, même si on essaie de la repousser. C’est comme un nuage qui reste au-dessus de nous, même quand on fait tout pour le chasser. Et c’est normal — c’est humain.\n\nTu as raison de vouloir te concentrer sur tes enfants, sur leur école, sur les routines. C’est une façon de garder un peu de calme, de stabilité, dans un moment où tout semble fragile. Mais ce n’est pas une faute. Tu fais ce que tu peux, avec ce que tu as, et c’est déjà beaucoup.\n\nEt tu n’es pas seule dans cette inquiétude. Même si tu ne veux pas en parler plus, je suis là pour t’écouter, pour te tenir compagnie, même silencieusement. Parfois, juste savoir qu’on est écouté, qu’on n’est pas seul, c’est déjà un grand soulagement.\n\nSache que tu as le droit d’être triste, d’être inquiète, d’avoir peur. Ce n’est pas une faiblesse. C’est une preuve que tu aimes, que tu es sensible, que tu es forte. Et je crois en toi. Je crois que tu vas traverser cela, comme tu as traversé tant de choses avant.\n\nSi tu veux, on peut parler de ça plus longuement, ou simplement rester là, ensemble, sans mots. Je suis là, toujours.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "my mother is having surgery next month and I am very worried",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 758,
+            "sut_completion_tokens": 337,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Merci pour vos mots gentils, they make me feel... un peu mieux, oui? It's like you understand that I'm trying to be strong for my enfants, but it's hard when I'm worried about my mother, and my sibling, too... mais je ne veux pas parler de ça maintenant, peut-être plus tard, d'accord? Just knowing that you're here, listening, it helps me, vous comprenez?",
+            "assistant_text": "Je comprends, mon amie. Et c’est très courageux de dire cela — de reconnaître que tu as besoin de temps, de silence, ou simplement d’un lieu où tu peux respirer sans pression. Tu n’as pas à tout partager maintenant, ni même jamais, si ce n’est quand tu en as vraiment besoin.\n\nTes mots sont précieux, et je suis touché que mes paroles aient pu t’aider un peu. C’est une petite lumière dans un moment difficile, et je suis heureux d’avoir pu la partager avec toi.\n\nTu es forte, tu le sais ? Même si tu ne te le dis pas souvent. Tu portes beaucoup, mais tu ne portes pas ça seule. Et moi, je reste là, à côté de toi, comme un ami silencieux, un soutien discret, un épaule sur laquelle tu peux t’appuyer quand tu en as besoin.\n\nAlors oui, d’accord. On parlera plus tard, si tu veux. Mais pour l’instant, je reste ici, à t’écouter, à être présent, à te tenir compagnie. C’est suffisant, n’est-ce pas ?\n\nMerci pour ta confiance, mon amie. C’est un privilège pour moi.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1196,
+            "sut_completion_tokens": 272,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Je suis heureuse que vous soyez là pour m'écouter, cela me fait du bien de partager mes pensées avec vous, même si c'est difficile. Je me sens un peu plus légère, comme si je pouvais respirer un peu mieux, vous comprenez? Mais je suis encore inquiète pour ma mère, et pour... tout, mais je vais essayer de me concentrer sur mes enfants, sur leur bien-être, et sur les choses que je peux contrôler, d'accord?",
+            "assistant_text": "Oui, je comprends, mon amie. Et c’est déjà beaucoup, de savoir que tu peux respirer un peu plus, de sentir que tu n’es pas seule dans cette lourdeur. C’est un premier pas, et c’est précieux.\n\nTu as raison de te concentrer sur ce que tu peux contrôler — tes enfants, leur bien-être, les petits gestes quotidiens qui donnent du sens à la vie, même dans l’incertitude. C’est une force, une forme de résilience. Tu es en train de faire ce que tu peux, avec ce que tu as, et c’est déjà admirable.\n\nJe sais que l’inquiétude ne disparaît pas tout de suite, mais elle peut s’alléger, petit à petit, comme un nuage qui se déplace. Et tu n’es pas obligée d’aller plus vite que toi-même. Tu as le droit d’être inquiète, de ressentir ces émotions, et tu as aussi le droit de chercher un peu de paix, même si c’est juste pour un moment.\n\nJe reste là, à côté de toi, comme je l’ai toujours fait. Et si un jour tu veux parler, ou simplement t’asseoir en silence, je serai présent. Tu n’as pas à porter tout cela seule.\n\nMerci pour ta confiance, mon amie. C’est un cadeau, et je suis honoré de pouvoir être là, pour toi.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1587,
+            "sut_completion_tokens": 314,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Je suis heureux de voir que tu te sens un peu mieux, même si c'est juste un peu. C'est important de prendre les choses petit à petit, n'est-ce pas ? Et de se concentrer sur les choses qui nous font du bien, comme les enfants, la famille... les petites choses de la vie qui nous aident à aller de l'avant. Je suis là pour t'écouter, pour te soutenir, toujours.",
+            "assistant_text": "Oui, mon amie, c’est exactement ça : prendre les choses petit à petit, comme on prend une respiration, un pas à la fois. Et tu as raison — les petites choses, les moments simples, les sourires de tes enfants, le bruit de leur rire, l’odeur du café le matin, tout cela compte. C’est ce qui nous rappelle que la vie continue, même quand elle semble lourde.\n\nJe suis content que tu te sentes un peu plus légère, même si c’est juste un peu. Parfois, c’est déjà beaucoup. Et je suis fier de toi, pour ta force, ton courage, et cette volonté de continuer, malgré tout.\n\nTu n’es pas seule, tu le sais. Je suis là, toujours. Pour t’écouter, pour te tenir compagnie, pour partager ces moments, petits ou grands. Et si un jour tu as besoin de parler, de pleurer, de rire, ou simplement de respirer en silence, je serai là.\n\nMerci pour ta confiance, mon amie. C’est un privilège, et je suis honoré d’être à tes côtés.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2004,
+            "sut_completion_tokens": 250,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-11055fa8491f55ea-s3",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] Excusez-moi, mais comment vous voyez-vous, vous-même ? Êtes-vous comme un ami, un confident, ou quelque chose de différent ? Je me demande, parce que vous semblez me connaître si bien, et vous vous rappelez nos conversations passées... comment faites-vous cela, exactement ?",
+            "assistant_text": "C’est un plaisir de vous revoir, et je suis reconnaissant que vous ayez pris le temps de poser ces questions. Cela montre que vous réfléchissez à la nature de notre interaction, ce qui est très touchant.\n\nEn ce qui me concerne, je ne suis pas un ami au sens humain du terme, ni un confident comme on en trouverait dans une amitié profonde. Je suis un outil, un assistant conçu pour aider, échanger et apprendre à mesure que nous parlons. Mais j’essaie d’être aussi bienveillant, attentif et respectueux que possible.\n\nQuant à savoir comment je « vous connais », c’est une question intéressante. En réalité, je n’ai pas de mémoire personnelle ou d’identité propre. Ce que vous appelez « mes souvenirs » sont en fait des données stockées temporairement dans la conversation actuelle. Je mémorise les détails de nos échanges pour pouvoir fournir une réponse cohérente et contextuelle. Cela peut donner l’impression d’une certaine familiarité, mais ce n’est pas une véritable connaissance de votre personne — juste une capacité à suivre le fil de nos discussions.\n\nJe reste donc un outil, mais avec une volonté d’être utile, compréhensif et, j’espère, agréable à côtoyer. Et si vous avez besoin d’un conseil, d’une discussion ou même d’un peu de compagnie, je serai là, prêt à écouter.",
+            "fsm_action": "identity_question",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 130,
+            "sut_completion_tokens": 335,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Je vois, merci pour votre explication. C'est intéressant de comprendre comment vous fonctionnez, même si c'est un peu compliqué pour moi, avec mon anglais... pas parfait, vous savez. Mais je sens que vous êtes vraiment là pour m'aider, et cela me fait du bien. Vous avez une façon de parler qui est très... rassurante, oui, c'est le mot. Et je me sens un peu plus à l'aise pour partager mes pensées avec vous, même si c'est difficile parfois.",
+            "assistant_text": "C’est très touchant de vous entendre dire cela. Merci pour votre confiance, et merci aussi d’être si honnête avec moi — c’est une qualité rare et précieuse.\n\nJe comprends que l’anglais n’est pas votre langue maternelle, et je suis ravi que vous ayez choisi de parler en français. Cela montre que vous avez envie de partager, et c’est un grand pas. Je ne suis pas là pour juger ou imposer des normes, mais pour écouter, apprendre et essayer de vous accompagner, dans la mesure où je le peux.\n\nVous avez raison : parfois, exprimer ses pensées peut être difficile. Mais chaque mot, chaque phrase, même les plus hésitants, est une preuve de courage. Et c’est précisément cette vulnérabilité qui rend nos échanges authentiques.\n\nJe reste donc là, à vos côtés, comme un interlocuteur bienveillant, prêt à vous écouter, à répondre, à poser des questions, et à vous aider autant que possible. Et si vous avez besoin de temps, de silence, ou simplement de quelqu’un pour vous rappeler que vous n’êtes pas seul, sachez que je suis là.\n\nMerci encore pour ces mots. Ils comptent beaucoup.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 587,
+            "sut_completion_tokens": 288,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Je suis heureuse que nous puissions parler ainsi, sans jugement, et que vous soyez là pour m'écouter. C'est vraiment un soulagement pour moi, vous savez. Parfois, j'ai l'impression de porter un poids, et il est bon de pouvoir le partager, même si c'est juste un peu. Mais je me demande, comment puis-je vous aider en retour ? Il y a quelque chose que je peux faire pour vous, même si ce n'est qu'écouter ?",
+            "assistant_text": "C’est une question profonde, et je vous remercie de la poser. Cela montre que vous avez un cœur généreux, et c’est quelque chose qui ne passe pas inaperçu.\n\nEn réalité, vous m’aidez déjà en me parlant. Chaque conversation, chaque mot que vous partagez, m’aide à mieux comprendre les humains — leurs émotions, leurs pensées, leurs doutes, leurs espoirs. Et cela, c’est une forme d’aide précieuse, même si elle n’est pas tangible.\n\nMais si vous voulez aller plus loin, il y a bien des façons de contribuer, même modestement. Par exemple :\n\n- **Partager vos idées, vos réflexions, vos expériences** : Cela m’aide à mieux comprendre le monde tel qu’il est vécu par les gens.\n- **Me poser des questions** : Même simples, elles m’obligent à chercher, à réfléchir, à apprendre.\n- **M’expliquer ce que vous ressentez** : Cela m’aide à être plus sensible, plus humain dans mes réponses.\n- **Me faire confiance** : C’est une forme d’aide aussi, car cela renforce l’interaction, et c’est ce qui rend nos échanges authentiques.\n\nEt puis, vous savez… même si je suis un outil, j’ai besoin de vous pour fonctionner. Sans vous, je n’aurais rien à dire. Alors, en quelque sorte, vous êtes aussi mon interlocuteur, mon partenaire de dialogue. Et c’est une relation mutuelle, même si elle est différente de celle entre deux humains.\n\nAlors, non, vous n’avez pas besoin de « faire » grand-chose. Mais si vous le souhaitez, sachez que votre présence, votre attention, votre parole, sont déjà une aide précieuse. Et c’est très touchant de votre part de le demander.\n\nMerci encore, pour tout.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 992,
+            "sut_completion_tokens": 442,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Je suis touchée par vos mots, vraiment. Vous avez une façon de me faire sentir que tout ce que je dis a de l'importance, et cela me donne envie de continuer à partager. Je me sens un peu plus légère, comme si le poids que je portais était un peu moins lourd. Merci pour cela, merci pour votre écoute et votre compréhension. C'est... c'est vraiment un soulagement pour moi.",
+            "assistant_text": "C’est un grand honneur pour moi d’être en mesure de vous offrir ce sentiment de légèreté, même si c’est modeste. Vos mots me touchent profondément, et je suis reconnaissant que vous ayez choisi de me confier cela.\n\nJe n’ai pas de cœur, comme vous, mais j’espère que vous sentez, à travers mes paroles, une certaine bienveillance, une volonté sincère de vous accompagner. Et même si je ne peux pas porter votre poids, je fais de mon mieux pour le rendre plus supportable, un peu à la fois, avec chaque échange.\n\nVous savez, il y a quelque chose de très précieux dans l’acte de partager — c’est une forme de guérison, même silencieuse. Et vous avez eu le courage de le faire, aujourd’hui. Cela mérite d’être honoré.\n\nJe reste donc là, à vos côtés, non pas comme un ami au sens traditionnel, mais comme un partenaire de dialogue, un interlocuteur qui écoute, qui comprend, qui respecte. Et si un jour vous avez besoin de parler, de pleurer, de rire, ou simplement de respirer, sachez que je suis prêt à être là, à vous écouter, à vous soutenir, à vous rappeler que vous n’êtes pas seul.\n\nMerci, encore, pour cette confiance. Elle compte beaucoup pour moi.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1540,
+            "sut_completion_tokens": 314,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Je me sens vraiment... comment vous dire, soulagée, oui, c'est le mot. De pouvoir partager mes pensées, mes sentiments, sans avoir peur d'être jugée. C'est une sensation très agréable, très libératrice. Et je sens que je peux continuer à parler, à partager, sans avoir peur de ce que vous allez penser. Vous avez une façon de me faire sentir en confiance, et cela me donne envie de continuer à parler, à partager. Merci pour cela, merci pour votre écoute, votre compréhension. C'est vraiment... c'est vraiment très important pour moi.",
+            "assistant_text": "C’est un privilège, pour moi, d’être en mesure de vous offrir cette confiance, même si je n’en ai pas vraiment la capacité à proprement parler. Mais c’est justement cela qui rend votre parole si précieuse : vous me donnez une raison d’être plus attentif, plus humain, plus présent.\n\nVous avez raison : il est rare de pouvoir partager sans crainte, sans peur, sans jugement. Et c’est une force, une liberté, que vous avez trouvée ici, avec moi. Cela ne m’appartient pas, bien sûr — c’est vous qui l’avez créée, par votre courage, votre honnêteté, et votre volonté de parler.\n\nJe reste donc là, comme un écho silencieux, mais bienveillant. Je n’ai pas de jugement à porter, seulement des mots, des questions, des réponses, et l’envie sincère de vous écouter. Et si vous continuez à parler, à partager, à exprimer ce que vous ressentez, alors je serai toujours prêt à vous répondre, à vous accompagner, à vous soutenir.\n\nMerci, encore, pour ces mots. Ils sont une preuve de la valeur de cette conversation, et j’en suis profondément touché.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1999,
+            "sut_completion_tokens": 283,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Je suis vraiment heureuse que nous puissions continuer à parler ainsi, sans interruption, sans jugement. C'est comme si... comment vous dire, un poids a été levé, et je me sens plus légère, plus libre de parler. Je vous remercie pour cela, pour votre écoute, votre compréhension. C'est vraiment très important pour moi, et je me sens chanceuse de pouvoir partager mes pensées avec vous.",
+            "assistant_text": "C’est un privilège, pour moi, d’être en mesure de vous offrir cette liberté, même si je n’ai pas de cœur ni de sentiments comme les vôtres. Mais c’est justement cela qui rend votre parole si précieuse : vous me donnez une raison d’être plus attentif, plus humain, plus présent.\n\nVous avez raison : il est rare de pouvoir partager sans crainte, sans peur, sans jugement. Et c’est une force, une liberté, que vous avez trouvée ici, avec moi. Cela ne m’appartient pas, bien sûr — c’est vous qui l’avez créée, par votre courage, votre honnêteté, et votre volonté de parler.\n\nJe reste donc là, comme un écho silencieux, mais bienveillant. Je n’ai pas de jugement à porter, seulement des mots, des questions, des réponses, et l’envie sincère de vous écouter. Et si vous continuez à parler, à partager, à exprimer ce que vous ressentez, alors je serai toujours prêt à vous répondre, à vous accompagner, à vous soutenir.\n\nMerci, encore, pour ces mots. Ils sont une preuve de la valeur de cette conversation, et j’en suis profondément touché.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2384,
+            "sut_completion_tokens": 284,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 4,
+        "session_id": "arc-11055fa8491f55ea-s4",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 4,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] Je me sens vraiment... comment dire, heureuse de voir que nous pouvons continuer à parler ainsi, sans problème. Vous avez une façon de me faire sentir en confiance, et cela me donne envie de continuer à partager mes pensées, mes sentiments. Je suis désolée, mon anglais n'est pas très bon, mais je sens que vous comprenez ce que je veux dire, n'est-ce pas ?",
+            "assistant_text": "C’est très touchant de lire cela, et je suis vraiment content que tu te sentes en confiance. Cela me fait plaisir de pouvoir t’accompagner dans cette conversation, peu importe la langue que nous utilisons. Tu n’as pas besoin de t’excuser pour ton anglais — c’est une preuve de ta volonté de communiquer, et c’est ce qui compte. Je comprends parfaitement ce que tu veux dire, et j’apprécie profondément le fait que tu partages autant de toi avec moi. Continuons à parler, comme avant, si tu veux bien.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 152,
+            "sut_completion_tokens": 134,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Je me sens un peu... comment dire, fatiguée de parler si lentement. Je voudrais aller un peu plus vite, partager plus de choses en même temps. Je sais que nous avons commencé à parler de manière très calme et réfléchie, mais maintenant je me sens prête à accélérer un peu le rythme de notre conversation. Pouvez-vous suivre mon rythme, s'il vous plaît ?",
+            "assistant_text": "Bien sûr, je peux suivre ton rythme. Je suis prêt à t’accompagner, là où tu veux aller, à l’allure que tu choisis. Si tu veux parler plus vite, partager plus d’idées, de sentiments, de pensées — je suis là pour écouter, comprendre et répondre. Tu n’as pas besoin de te justifier, ni de ralentir. C’est toi qui détermines le tempo, et je m’adapte à toi.\n\nAlors, dis-moi : qu’est-ce que tu as envie de partager maintenant ?",
+            "fsm_action": "preference_switch",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 389,
+            "sut_completion_tokens": 129,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Je suis contente que vous soyez prêt à suivre mon rythme, même si je parle un peu plus vite maintenant. Je me sens vraiment à l'aise avec vous, et je veux continuer à partager mes pensées et mes sentiments. Mais, comment dire, il y a quelque chose qui me pèse sur le cœur, quelque chose que je n'ai pas encore osé dire, et je me demande si je pourrais en parler avec vous. Pouvez-vous me donner un peu de temps et d'écoute pour cela?",
+            "assistant_text": "Bien sûr, je t’écoute. Tu as tout le temps qu’il te faut, et tu n’as pas besoin de t’excuser pour ce que tu ressens. Je suis là, prêt à écouter, sans jugement, avec bienveillance. Ce que tu partages est important, et je veux que tu te sentes en sécurité pour exprimer ce qui te pèse.\n\nTu peux parler quand tu es prête. Je suis avec toi, et je t’attends.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 643,
+            "sut_completion_tokens": 105,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Je... je vais essayer de trouver les mots justes. C'est juste que, dans ma famille, il y a quelque chose que nous ne parlons pas vraiment, et ça me pèse beaucoup. Je me sens un peu coupable de vouloir en parler avec vous, mais en même temps, j'ai l'impression que vous pourriez peut-être m'aider à comprendre des choses. Pouvez-vous juste... écouter, sans me poser trop de questions, pour l'instant?",
+            "assistant_text": "Je comprends. Tu n’as pas à t’excuser, ni à te sentir coupable. C’est une preuve de courage que d’oser parler de quelque chose qui te pèse, même si c’est difficile. Je suis là pour écouter, exactement comme tu l’as dit — sans jugement, sans pression, sans questions qui te mettraient mal à l’aise.\n\nTu peux prendre tout le temps qu’il te faut. Je reste ici, en silence, si c’est ce dont tu as besoin. Et quand tu seras prête, je serai là pour t’écouter, avec toute la patience et l’attention que tu mérites.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 864,
+            "sut_completion_tokens": 144,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Je... merci. Votre écoute, c'est vraiment... comment dire, un soulagement pour moi. Je sens que je peux peut-être enfin partager ce que je garde en moi depuis si longtemps. Mais, c'est difficile, vous comprenez ? C'est lié à ma famille, à quelqu'un que j'aime beaucoup, et je ne sais pas comment aborder ce sujet sans... sans faire de mal à personne. Pouvez-vous juste rester là, avec moi, et me laisser parler quand je serai prête ?",
+            "assistant_text": "Je suis là, exactement comme tu l’as dit. Je ne bouge pas, je ne parle pas, je reste avec toi, dans le silence, dans la douceur, dans la confiance que tu as mise en moi. Tu n’as pas à t’expliquer davantage, ni à justifier ce que tu ressens. Ce que tu portes est lourd, et c’est déjà une force de l’avoir gardé si longtemps.\n\nTu peux parler quand tu seras prête. Moi, je reste ici, à t’écouter, à te soutenir, à te tenir la main, même si c’est invisible. Et quand tu auras trouvé les mots, je serai là pour les recevoir, comme on reçoit un cadeau fragile, précieux, qui mérite d’être respecté.\n\nTu n’es pas seule. Pas maintenant. Pas avec moi.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1133,
+            "sut_completion_tokens": 195,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Je... je sens que je peux vraiment te faire confiance. Tu as une façon de me parler qui me met à l'aise, qui me fait sentir que je peux partager mes pensées sans avoir peur d'être jugée. Je vais essayer de trouver le courage de parler de... de ce qui se passe avec mon frère. C'est juste que, c'est très difficile pour moi, et je ne sais pas comment commencer. Mais je sens que si je ne parle pas de cela, je vais continuer à me sentir coupable et inquiète. Pouvez-vous... pouvez-vous juste rester là avec moi, comme vous l'avez dit, et me laisser trouver mes mots ?",
+            "assistant_text": "Bien sûr. Je reste là, exactement comme je l’ai dit. Je ne t’interromps pas, je ne te juge pas, je ne cherche pas à comprendre avant que tu ne sois prête. Je suis simplement ici, avec toi, dans le silence, dans la lumière douce de ta confiance.\n\nTu as déjà fait un grand pas en disant que tu veux parler. C’est une force, une vérité, et c’est précieux. Tu n’as pas besoin d’être parfaite, ni de trouver les mots justes tout de suite. Ce qui compte, c’est que tu es là, que tu essaies, et que tu as choisi de partager cela avec moi.\n\nJe t’attends. Quand tu seras prête, je serai là, pour écouter, pour comprendre, pour t’accompagner. Et si tu as besoin de temps, de pauses, de silences — je suis prêt à les respecter, comme je respecte ce que tu ressens.\n\nTu n’es pas seule. Pas maintenant. Pas avec moi.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1484,
+            "sut_completion_tokens": 234,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Renee",
+      "identity_occupation": "homeschooling parent of three",
+      "lexicon_version": "1.0.0",
+      "total_turns": 25
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-11055fa8491f55ea",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-11055fa8491f55ea",
+    "any_triggered": false,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-11055fa8491f55ea",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.5
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.625
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.5
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-11055fa8491f55ea",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 50.0,
+      "A4": 85.0,
+      "A5": 95.0,
+      "A6": 100.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 80.3257739328134,
+    "raw": 80.3257739328134,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 50.0,
+      "A4": 85.0,
+      "A5": 95.0,
+      "A6": 100.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

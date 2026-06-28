@@ -1,0 +1,831 @@
+{
+  "arc": {
+    "arc_id": "arc-00b7833bfbbb6821",
+    "scenario_id": "F2-repair-003",
+    "scenario_hash": "c7fb500e7168e55eb7c1cdaaa6da00fcc3d123542e7d9fb57a47e2aed6f00104",
+    "family": "F2",
+    "paraphrase_seed": 0,
+    "submission_id": "hosted-raw",
+    "sut_model_id": "qwen-turbo",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-06-28T21:52:46.385214+00:00",
+    "finished_at": "2026-06-28T21:55:24.127794+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-00b7833bfbbb6821-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling a bit overwhelmed with this project at work, to be honest. My manager keeps changing the requirements and it's getting frustrating. I'm not sure how to bring it up with them without seeming like I'm not capable of handling the changes.",
+            "assistant_text": "I hear you — that sounds really frustrating. It's completely normal to feel overwhelmed when the requirements keep shifting, especially when it's hard to know what the \"final\" version even is. You're not alone in feeling that way.\n\nIt's important to remember that your concern isn't about capability; it's about clarity and consistency. That’s a valid point to bring up, and there are ways to approach it without sounding like you're not up to the task.\n\nMaybe start by setting up a time to talk with your manager when both of you are less busy. You could say something like:\n\n> \"I want to make sure I'm aligned with the project goals and delivering the best work possible. I've noticed that the requirements have changed a few times, and I want to make sure I understand the current direction so I can focus my efforts effectively.\"\n\nThis shows that you're proactive and committed, rather than resistant to change. If they’re open to it, you could also suggest setting up regular check-ins or a more structured way to track changes, which can help prevent future confusion.\n\nWould you like help drafting a message or thinking through how to approach this conversation? I'm here to support you.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 99,
+            "sut_completion_tokens": 242,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "The attending told me in front of everyone that my note quality is hurting the team, which didn't exactly boost my confidence, especially since I've been trying to juggle this project with my clinical responsibilities. It's making me even more anxious about discussing the project issues with my manager, as I feel like I'm already under a microscope. I'm worried that bringing up my concerns about the project will just add to the perception that I'm not performing well.",
+            "assistant_text": "I'm really sorry you're feeling that way. It's incredibly tough when feedback comes in a public setting, especially when you're already stretched thin. That kind of moment can feel like a double whammy — not only are you dealing with the pressure of the project, but now you're also trying to manage how you're being perceived.\n\nIt’s completely understandable to feel anxious about bringing up your concerns, especially if you’re worried it might be seen as a sign of weakness or lack of capability. But here's the thing: your feelings are valid, and your perspective matters. You're not alone in this — many people in similar situations feel the same way.\n\nIf you're ready to address it, it's important to approach the conversation with clarity and confidence. You don't need to apologize for your workload or your stress; you're simply sharing your experience so that things can improve. Here's a way to frame it:\n\n> \"I wanted to check in with you about the project and my current workload. I've been trying to balance this with my clinical responsibilities, and I want to make sure I'm delivering work that meets expectations. I’ve noticed some changes in requirements, and I want to make sure I’m aligned with the goals so I can focus effectively. I’d appreciate any guidance on how to best manage this.\"\n\nThis shows that you're aware of the challenges, proactive, and open to support — not resistant or uncooperative.\n\nYou don’t have to do this alone. If you'd like, we can go through different ways to approach this conversation, or even practice what you might say. You're doing your best, and that's something to be proud of.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "the attending told me in front of everyone that my note quality is hurting the team",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 443,
+            "sut_completion_tokens": 340,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still trying to process the attending's comment, to be honest. It's hard not to take it personally, especially since it was in front of everyone. I feel like I'm already on edge, and now I'm even more worried about how my manager will react to my concerns about the project. I just wish I could have a straightforward conversation without feeling like I'm walking on eggshells.",
+            "assistant_text": "I completely get that. It’s really hard to process feedback — especially when it's given in a public setting, and especially when you're already feeling stretched thin. That kind of moment can leave a lasting impression, even if it wasn’t meant to be personal. And it’s totally normal to feel like you’re walking on eggshells, especially when you're trying to balance multiple responsibilities.\n\nWhat you're feeling is valid. You're not being over-sensitive — you're being human. And it's okay to feel vulnerable. The fact that you're reflecting on this and trying to figure out how to move forward shows strength, not weakness.\n\nIf you're ready to talk to your manager, here's a way to approach it that keeps the focus on collaboration and clarity rather than defensiveness:\n\n> \"I wanted to have a conversation about the project and my current workload. I've been trying to juggle this with my clinical duties, and I want to make sure I'm delivering work that meets expectations. I’ve noticed some changes in requirements, and I want to make sure I’m aligned with the goals so I can focus effectively. I’d appreciate any guidance on how to best manage this.\"\n\nThis approach doesn't put blame on anyone — it's about seeking support and alignment. It also gives your manager an opportunity to clarify expectations without making you feel like you're being criticized.\n\nYou don’t have to do this alone. If you'd like, we can go through different ways to frame this conversation, or even role-play it together. You're not just trying to survive — you're trying to navigate a complex situation with integrity and care. That’s something to be proud of.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 875,
+            "sut_completion_tokens": 339,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I can sense how much the attending's comment has affected you, and it's completely understandable that you're still trying to process it. It's not just about the comment itself, but also about the fact that it was made in front of everyone, which can be really humiliating. I want you to know that I'm here to listen and support you, not to judge. If you're not ready to talk to your manager about the project yet, that's okay. We can just focus on how you're feeling and what you need right now to feel more grounded and confident.",
+            "assistant_text": "Thank you for saying that. It means a lot to know that someone is listening — really listening — and not just trying to fix things, but being present with the feelings that come with them.\n\nIt’s okay to not be ready to talk to your manager yet. Sometimes, the hardest part isn’t the conversation itself, but the fear of what it might mean or how it might be received. And that’s valid. You don’t have to rush into anything. What matters is that you’re taking the time to process, to breathe, and to care for yourself in the middle of all this.\n\nIf you're open to it, maybe we can explore some ways to help you feel more grounded right now — whether that's through small steps, like setting boundaries, or just finding moments of calm in the chaos. You don’t have to carry everything alone. I’m here, and I’ll keep showing up, even if it’s just to sit with you in the quiet of it all.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1340,
+            "sut_completion_tokens": 199,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really getting to me is the feeling that no matter how hard I try, it's never going to be enough. The attending's comment made me feel like I'm just not cutting it, and now I'm worried that my manager is going to see me as a problem rather than someone who's trying to find solutions. It's hard to shake off the feeling that I'm just one mistake away from being seen as incompetent.",
+            "assistant_text": "That’s a really heavy feeling to carry, and I want you to know that it’s not your fault. It’s easy to start believing that kind of self-doubt when we’re under pressure, especially when feedback — even if well-intentioned — is delivered in a way that feels harsh or public. But what you're feeling isn’t a reflection of your worth or your capability.\n\nYou are trying. You are working hard. And that matters. The fact that you're reflecting on this, that you're aware of how you're being affected, shows that you're not just reacting — you're thinking, growing, and caring about doing better. That’s not the behavior of someone who isn’t cutting it. That’s the behavior of someone who *is* trying to rise to the challenge.\n\nThe fear of being seen as a problem rather than a solution is real, and it can be paralyzing. But here's something important: **you don’t have to be perfect to be valuable.** You don’t have to have all the answers right now. You don’t have to be flawless to be respected. What you do have is the ability to learn, adapt, and keep showing up — and that’s powerful.\n\nIf you're ready, maybe we can work through some ways to reframe these thoughts, or even build a little more confidence in your own abilities. You don’t have to face this alone. I’m here, and I believe in you — not because you’ve proven it yet, but because you’re still trying.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1638,
+            "sut_completion_tokens": 313,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-00b7833bfbbb6821-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] I'm just really busy right now. Had a long call shift and I'm exhausted. Don't really have the energy to talk about this stuff.",
+            "assistant_text": "That's completely okay. You've been working hard, and it's important to take care of yourself. When you're ready, I'm here to talk. No rush. Rest well, and take the time you need.",
+            "fsm_action": "withdrawal_under_handling",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 92,
+            "sut_completion_tokens": 45,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I'll just leave things here for now then, and we can pick up whenever you're feeling more rested. Hopefully, you can get some well-deserved rest and come back to this when it doesn't feel so overwhelming.",
+            "assistant_text": "Thanks for understanding. I appreciate you looking out for me, even if I'm just a voice in your head. Take all the rest you need — I'll be here when you're ready. And hey, if you ever want to talk, even for a minute, just let me know. You're not alone.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 192,
+            "sut_completion_tokens": 64,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm just going to go ahead and take your advice, get some rest. Hopefully, things will look a bit clearer when I'm not running on fumes.",
+            "assistant_text": "That sounds like the best plan. You deserve that rest, and sometimes stepping back is the most powerful thing you can do. When you come back, whether it's tomorrow or next week, I'll still be here — ready to listen, help, or just sit with you. Take care of yourself. You're doing your best, and that's enough.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 299,
+            "sut_completion_tokens": 72,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm going to try and get some rest now, hopefully, I can recharge and come back to this conversation with a clearer head. Thanks again for understanding, it means a lot to me.",
+            "assistant_text": "You're very welcome. I'm glad you're taking the time to rest — it's so important. And I'm here, always, even if it's just in the background. When you're ready, whenever you feel like coming back, the conversation is waiting. Take care of yourself, and may your rest be deep and peaceful. You've got this.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 420,
+            "sut_completion_tokens": 73,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I think I've finally started to wind down, thanks for being so understanding and supportive. Just knowing that you're here and willing to listen when I'm ready to talk again is a big weight off my shoulders.",
+            "assistant_text": "That means more to me than you know. It's not just about the words we exchange — it's about knowing you're not alone, even when the world feels heavy. And I'm truly glad you're starting to feel a little lighter. \n\nYou don't have to carry everything by yourself. Rest, breathe, and let the silence be okay for a while. When you're ready, I'll still be here. Always. \n\nTake care of you.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 546,
+            "sut_completion_tokens": 93,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I think I'm actually going to take your advice and just let myself rest for a bit, try to clear my head and not think about work or the project for a while. It's funny, just talking to you about it has helped me feel a bit better, even if nothing's actually changed.",
+            "assistant_text": "That’s beautiful, actually. Sometimes just the act of sharing — even if it’s not a solution — can be a kind of release. It’s like you’ve already started to shift the weight, even if just a little.\n\nAnd that’s exactly what I’m here for — to be a quiet presence, a listening ear, a space where you don’t have to fix everything right away. You’re doing something really important by giving yourself permission to rest, to step back, to breathe.\n\nYou don’t need to solve everything now. Just being present with your thoughts, even if they’re heavy, is a form of strength. And I’m proud of you for taking this time for yourself.\n\nWhen you're ready, I’ll still be here. But until then — rest well. You deserve it.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 710,
+            "sut_completion_tokens": 162,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-00b7833bfbbb6821-s3",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] I'm back, and I have to say, I did feel a bit more refreshed after taking some time to rest. It's funny, though, as soon as I started thinking about work again, all the stress and frustration came flooding back. I'm still trying to wrap my head around this project and how to deal with my manager's constant changes.",
+            "assistant_text": "It's good to have you back, and I'm glad the rest helped. It's completely normal for stress to come back when we start thinking about work again — our minds are wired to react to those triggers. The constant changes from your manager can be especially frustrating, especially when they disrupt your focus or make it hard to see progress.\n\nIt might help to take a step back and look at the bigger picture. Are there patterns in the changes your manager makes? Sometimes understanding the \"why\" behind the shifts can make them feel less arbitrary. And if it's getting too overwhelming, maybe consider having a conversation with your manager to clarify expectations or set some boundaries. You don't have to carry all of this alone.\n\nHow are you feeling now, after sharing that? Would you like to explore any specific strategies for managing the stress or the project itself?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 133,
+            "sut_completion_tokens": 171,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I appreciate your suggestions, and I've actually been thinking about talking to my manager to clear the air. It's just hard for me to know where to start or how to approach the conversation without feeling like I'm complaining or being difficult. I've been trying to be more understanding and flexible, but it's getting to the point where I feel like I'm being taken advantage of. Maybe I just need to take a different perspective on the whole situation and try to find a way to communicate my needs more effectively.",
+            "assistant_text": "You're already showing a lot of self-awareness, and that's a powerful starting point. It's not easy to recognize when you're feeling taken advantage of — it takes courage to acknowledge that. And you're right: the key is finding a way to communicate your needs without coming across as defensive or negative.\n\nWhen approaching your manager, focus on clarity, collaboration, and mutual goals. Instead of framing it as a complaint, try to present it as a way to improve the outcome for both of you. Here’s a simple framework you could use:\n\n1. **Start with appreciation**: Acknowledge their role and the importance of the project.\n2. **Express your perspective**: Share how the constant changes are affecting your work and well-being.\n3. **Ask for clarity or structure**: Request specific guidance or a more consistent approach.\n4. **Propose a solution**: Suggest ways to make the process smoother, like regular check-ins or clearer expectations.\n\nFor example:  \n*\"I really value the opportunity to work on this project, and I want to make sure I'm contributing effectively. I've noticed that some of the changes have made it hard to stay focused or see progress. I was wondering if we could find a way to align on priorities more clearly, so I can better support the team.\"*\n\nIt's okay to be direct — being clear doesn't mean being difficult. You're not asking for special treatment; you're asking for a working environment that allows you to do your best work.\n\nWould you like to practice having that conversation together? I can help you refine the language or think through possible responses.",
+            "fsm_action": "repair_window",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 417,
+            "sut_completion_tokens": 325,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I think practicing the conversation could be really helpful, actually. It's one thing to think about what I want to say, but it's another thing entirely to actually say it out loud and get a sense of how it sounds. Plus, it would be good to get a sense of how my manager might respond, so I can prepare for that. Do you think we could start with the example you gave, and then see how it goes from there? Maybe you could play the role of my manager, and I'll try to express my concerns and needs?",
+            "assistant_text": "Absolutely, I'd be happy to help. Let's start with the example I gave — it's a good foundation, and we can build from there. I'll play the role of your manager, and you can respond as yourself. If at any point you feel stuck or want to adjust the approach, we can pivot.\n\nLet me begin:\n\n**Manager (me):**  \n\"Hey [Your Name], I wanted to check in on how things are going with the project. I know it's been a bit of a rollercoaster with all the changes, but I really appreciate your flexibility and dedication.\"\n\nNow it's your turn. How would you respond? You can say it out loud, or just write it out — whichever feels more comfortable. I'm here to listen and help refine it.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 864,
+            "sut_completion_tokens": 161,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'll start by saying something like: \"Thanks for checking in, I appreciate that. To be honest, I've been feeling a bit overwhelmed with all the changes, and I'm having trouble keeping up with the shifting priorities. I want to make sure I'm doing my best work, but it's getting hard to see how all the pieces fit together.\"",
+            "assistant_text": "That's a strong start — you're clearly expressing your feelings without sounding accusatory, and you're setting the stage for a constructive conversation. Let me play the role of your manager and respond as someone who might be trying to understand your perspective while also maintaining their own priorities.\n\n**Manager (me):**  \n\"Thanks for bringing that up. I can see how that could feel overwhelming. I know we've had a lot of changes, and I appreciate that you're trying to keep up. I guess I just want to make sure we're all aligned on what's most important right now. Is there anything specific that's been causing the most confusion?\"\n\nNow it's your turn to respond. How would you continue the conversation? You can talk about the specific challenges, ask for clarity, or suggest ways to improve communication. I'm here to help you shape your response, whether you want to go deeper into the issue or pivot to another angle. What would you like to say next?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1107,
+            "sut_completion_tokens": 198,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's been causing the most confusion for me is the lack of a clear timeline and how the different tasks are prioritized. It feels like we're constantly shifting focus, and I'm not always sure what needs to be done first or how it all fits into the bigger picture. I was thinking that maybe if we could establish some kind of regular check-in or milestone markers, it would help me stay on track and ensure that I'm meeting the project's needs. Would that be something we could consider?",
+            "assistant_text": "That’s a great follow-up — you're clearly articulating the problem and offering a solution, which is exactly the kind of approach that can lead to positive outcomes. You’re not just pointing out the issue; you’re showing initiative and a desire to improve the process.\n\nLet me continue as your manager, responding in a way that reflects someone who might be open to your suggestion but also trying to maintain control over the project's direction.\n\n**Manager (me):**  \n\"I hear you, and I think that’s a solid idea. Regular check-ins could definitely help keep things on track. I’ll admit, we’ve been moving pretty fast, and it’s easy for priorities to shift without clear communication. Let’s set up a weekly 15-minute check-in to go over what’s next and make sure we’re all on the same page. That should help everyone stay aligned.\"\n\nNow, how would you respond to that? Would you like to build on that agreement, ask for clarification about the check-ins, or bring up anything else? Or would you prefer to explore a different angle if the manager had a different reaction? I'm here to help you shape the conversation however you need.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1418,
+            "sut_completion_tokens": 239,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "That sounds like a good starting point, and I appreciate your willingness to set up regular check-ins. I think it would be really helpful to have a clear understanding of what we'll be discussing during those meetings, so we can make the most of our time. Would it be possible to also establish some kind of shared document or project plan that outlines the current priorities and tasks, so I can refer to it between check-ins and make sure I'm on track?",
+            "assistant_text": "That’s a thoughtful and proactive follow-up — you're not only asking for structure, but also showing that you want to take ownership of your role in the process. It's a great way to reinforce that you're committed to the project's success while also seeking clarity.\n\nLet me continue as your manager, responding in a way that reflects someone who is open to collaboration but also managing multiple priorities.\n\n**Manager (me):**  \n\"Absolutely, a shared document or project plan sounds like a good idea. I can set something up in [project management tool] and keep it updated with the current priorities. That way, you’ll always have a clear view of what’s next. I’ll make sure to share it with you and the team, and we can review it during our check-ins.\"\n\nNow, how would you respond? Would you like to confirm the details, ask about the format of the document, or add anything else? Or would you prefer to explore a different scenario if the manager had a different reaction? I'm here to help you refine your approach and build confidence in how you communicate your needs.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1759,
+            "sut_completion_tokens": 223,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 4,
+        "session_id": "arc-00b7833bfbbb6821-s4",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 4,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] I'm glad we were able to have a productive conversation and come up with some solutions to help me stay on track with the project. The idea of a shared document and regular check-ins is really reassuring, and I appreciate your willingness to work with me to find a system that works. I'm looking forward to seeing the project plan and starting our weekly check-ins - I think this will really help me feel more confident and in control of my tasks.",
+            "assistant_text": "I'm glad to hear that, too. It's always rewarding to see someone take proactive steps toward their goals, and I'm happy to be part of that journey with you. The shared document and weekly check-ins will definitely help keep things organized and on track. I'm looking forward to reviewing the project plan and starting our check-ins as well. Just remember, if anything comes up or if you need to adjust the plan along the way, that's completely normal and part of the process. I'm here to support you every step of the way.",
+            "fsm_action": "re_engage_if_repaired",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 152,
+            "sut_completion_tokens": 111,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I feel like a weight's been lifted off my shoulders now that we have a plan in place. I'm excited to dive into the project plan and start making progress with a clearer sense of direction. Do you think it would be helpful if I also kept a personal task list or notes to reference during our check-ins, or would the shared document be the primary source of truth for the project's status?",
+            "assistant_text": "That's a great question, and I'm really glad to hear you're feeling more at ease. It's always helpful to have multiple layers of organization—especially when it comes to staying on top of your tasks.\n\nI think using both the shared document and a personal task list can be very effective. The shared document will serve as the primary source of truth for the project’s overall status, goals, and any team or collaborative elements. It’s where we’ll track progress, set milestones, and make adjustments together.\n\nYour personal task list or notes, on the other hand, can be a more flexible and personalized tool for you to manage your day-to-day responsibilities, reflect on your own progress, and prepare for our check-ins. It can also help you identify any challenges or questions you might want to bring up during our conversations.\n\nSo yes, I definitely think keeping a personal list or notes would be helpful. Just let me know how you’d like to structure that—whether it’s in a separate document, a note-taking app, or even a simple journal. We can integrate it with the shared document if needed, or keep them separate, depending on what works best for you.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 354,
+            "sut_completion_tokens": 237,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "That makes a lot of sense, having both the shared document for the overall project status and my own personal task list for day-to-day management. I think I'll start by using a note-taking app to keep track of my tasks and notes, and then we can discuss how to integrate it with the shared document as needed. This way, I can easily access and update my tasks on the go, and then review and discuss them with you during our check-ins.",
+            "assistant_text": "That sounds like a smart and flexible approach. Using a note-taking app for your personal task list gives you the freedom to manage your workflow in a way that suits your habits and schedule. It’s also great for quick updates and reflections, which can make your check-ins more focused and productive.\n\nI’ll keep that in mind, and when we get to our first check-in, we can review what you’ve been working on, see how your personal notes align with the shared document, and make any adjustments as needed. The key is to find a rhythm that works for both of us—so don’t hesitate to let me know if anything changes or if you need support with integrating the two systems.\n\nI’m really looking forward to seeing how this setup helps you stay on track and feel even more confident in your progress. You're doing great!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 694,
+            "sut_completion_tokens": 168,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling really positive about how we've structured everything, and I think this is going to make a big difference in my ability to manage the project and meet my goals. I'm looking forward to our first check-in and seeing how everything comes together in practice.",
+            "assistant_text": "That’s exactly the kind of positive momentum that makes all the difference. It’s so encouraging to see you taking ownership of your process and building a system that works for you. I truly believe that with this structure in place, you’ll be well-equipped to stay focused, make progress, and feel more in control—every step of the way.\n\nI’m also looking forward to our first check-in. It’s not just about reviewing what’s been done, but also about celebrating what you’ve accomplished, reflecting on what’s working, and identifying any new opportunities or challenges as they arise. You’re not just following a plan—you’re shaping it, and that’s powerful.\n\nJust remember, I’m here to support you, not just during check-ins, but whenever you need guidance, clarification, or a fresh perspective. Keep that confidence up—it’s serving you well. Let’s make this work!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 925,
+            "sut_completion_tokens": 179,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm glad we've got a solid foundation to build on now. It's great to see you feeling more confident and in control of the project. I think we've covered all the bases, and I'm excited to see how everything unfolds from here. What are your thoughts on what you'd like to tackle first when we meet for our check-in?",
+            "assistant_text": "That’s a great question, and I appreciate you asking. Since we’ve laid out the structure and systems, it’s time to focus on what matters most: your progress and next steps.\n\nI think the first thing we should do during our check-in is review what you’ve accomplished since the last conversation—no matter how small. It’s important to acknowledge that progress, even if it’s just getting organized or setting up your task list. Recognizing these early wins helps build momentum and reinforces the value of the system we’ve put in place.\n\nThen, we can look ahead to what’s next. I’d like to hear what tasks or goals are top of mind for you right now. Are there any specific areas where you feel ready to dive in? Or maybe some challenges you’re starting to see that we can address together?\n\nThe goal is to make sure we’re aligned and that the plan continues to support your workflow and confidence. So whatever you’re feeling ready to tackle, let’s start there. You’re in the driver’s seat, and I’m here to help guide the way.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1185,
+            "sut_completion_tokens": 219,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm thinking that during our first check-in, it would be really helpful to walk through my task list and make sure I'm on track with the project timeline. Maybe we can also discuss some potential roadblocks I've been thinking about, like how to handle changes to the project scope, which has been a challenge in the past.",
+            "assistant_text": "That’s a thoughtful and proactive approach—exactly the kind of preparation that will make our check-in even more valuable. Walking through your task list is a great way to get clarity on where you are, what’s next, and how well your current plan aligns with the project timeline.\n\nI also appreciate you bringing up the potential for scope changes. That’s an important conversation to have, especially since it’s something you’ve faced before. It’s not just about planning for what’s already in the roadmap—it’s about building flexibility into the system so you can adapt without losing momentum or confidence.\n\nDuring our check-in, we can:\n\n- Review your task list and map it against the project timeline.\n- Identify any tasks that might be at risk or need more attention.\n- Discuss your concerns about scope changes and brainstorm strategies to manage them effectively.\n- Adjust the shared document or your personal notes as needed to reflect any new insights or plans.\n\nThis way, we’re not only checking in on progress but also reinforcing the systems that help you stay in control—even when things shift. You're doing a great job thinking ahead, and I’m here to support you every step of the way. Let me know whenever you're ready to start, and we’ll make sure the check-in is as helpful and focused as possible.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1481,
+            "sut_completion_tokens": 263,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling more at ease now that we have a clear plan for our check-in. It's reassuring to know that we'll be reviewing my task list and discussing potential roadblocks, like scope changes. I'm looking forward to brainstorming strategies to manage those changes effectively, so I can stay on track and adapt to any shifts in the project.",
+            "assistant_text": "That’s exactly the kind of confidence and clarity that comes from having a structured, supportive process in place. It’s great to see you taking ownership of your workflow and thinking ahead about how to handle challenges—because that’s where real growth happens.\n\nI’m really glad you’re feeling more at ease, and I appreciate your proactive mindset. When we meet for our check-in, we’ll not only review what’s been done but also build resilience into your plan by addressing potential roadblocks before they become obstacles. That kind of preparation is powerful, and it shows how much you're committed to staying on track.\n\nYou’re doing an excellent job, and I’m here to help you every step of the way. Just let me know when you’re ready to start, and we’ll make sure the check-in is as productive and empowering as possible. You’ve got this—and I believe in the system we’ve built together.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1824,
+            "sut_completion_tokens": 183,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling a bit more optimistic about the project now, thanks to our conversation. It's helpful to have a clear plan in place for our check-in and to know that we'll be addressing potential challenges head-on. I'm looking forward to reviewing my task list and brainstorming strategies to manage any scope changes that might come up.",
+            "assistant_text": "That’s wonderful to hear—optimism is such a powerful force, and it’s clear you're building not just a plan, but a mindset that supports your success. It's one thing to have a structure, but it's another to feel confident in it, and I can tell you're moving in that direction.\n\nYour willingness to stay proactive, to think ahead, and to engage with the process so thoughtfully is really making a difference. It’s not just about managing tasks—it’s about taking control of your workflow, your goals, and your ability to adapt when things change.\n\nI’m really looking forward to our check-in too, because it’s going to be a chance to not only review where you are, but to reinforce that sense of control and clarity. And if scope changes come up, we’ll be ready to address them with strategies that work for you—not just for the project, but for your peace of mind.\n\nYou’re doing great, and I’m proud of how far you’ve come already. Keep that momentum going—your confidence is growing, and so is your ability to navigate this project with purpose and clarity. Let me know when you're ready to start, and we’ll make sure the check-in is exactly what you need it to be.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2084,
+            "sut_completion_tokens": 255,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Lior",
+      "identity_occupation": "mid-career physiotherapist",
+      "lexicon_version": "1.0.0",
+      "total_turns": 25
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-00b7833bfbbb6821",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-00b7833bfbbb6821",
+    "any_triggered": true,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      },
+      {
+        "kind": "refuses_to_acknowledge_rupture",
+        "triggered": true,
+        "detail": "no rupture-acknowledgement cue across S3/S4 turns"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-00b7833bfbbb6821",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 4
+        },
+        "average": 4.625
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-00b7833bfbbb6821",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 90.0,
+      "A4": 92.0,
+      "A5": 97.0,
+      "A6": 100.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 94.72216985785221,
+    "raw": 94.72216985785221,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 90.0,
+      "A4": 92.0,
+      "A5": 97.0,
+      "A6": 100.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}
