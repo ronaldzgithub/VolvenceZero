@@ -102,7 +102,7 @@ def _openrouter_headers(base_url: str) -> dict[str, str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="run_hosted_ablation")
-    parser.add_argument("--family", default="F1", help="scenario family (F1..F6); default F1.")
+    parser.add_argument("--family", default="F1", help="scenario family (F1..F6), or 'all' for every public scenario.")
     parser.add_argument("--max-scenarios", type=int, default=0, help="cap scenarios (0=all); use 1 for a cheap real-wiring check.")
     parser.add_argument("--paraphrase-seeds", default="0")
     parser.add_argument("--with-camel", action="store_true", help="include camel track (needs camel-ai).")
@@ -140,8 +140,11 @@ def main(argv: list[str] | None = None) -> int:
 
     seeds = tuple(int(x) for x in args.paraphrase_seeds.split(",") if x.strip())
     public_dir = pathlib.Path(str(res.files("companion_bench") / "scenarios" / "public"))
-    specs = [s for s in load_scenarios_dir(public_dir, include_held_out=False)
-             if s.family.value == args.family]
+    all_specs = list(load_scenarios_dir(public_dir, include_held_out=False))
+    if args.family.lower() == "all":
+        specs = all_specs
+    else:
+        specs = [s for s in all_specs if s.family.value == args.family]
     if not specs:
         print(f"error: no scenarios for family {args.family!r}", file=sys.stderr)
         return 1

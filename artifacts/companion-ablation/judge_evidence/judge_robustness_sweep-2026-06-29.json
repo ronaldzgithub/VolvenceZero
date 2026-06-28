@@ -1,0 +1,26 @@
+{
+  "scaffold_status": "SHADOW",
+  "sweep_kind": "judge_robustness",
+  "judge_families": [
+    "gpt5",
+    "claude47",
+    "deepseek4",
+    "qwen3",
+    "gemini25"
+  ],
+  "reference_sut": [
+    "vz",
+    "gpt5",
+    "claude47",
+    "deepseek4",
+    "qwen3"
+  ],
+  "scenario_pack": "public-24",
+  "seed": 42,
+  "dry_run": true,
+  "per_axis_variance_sigma": null,
+  "spearman_matrix": null,
+  "worst_case_ranking_change": null,
+  "estimated_token_cost_usd": null,
+  "notes": "P5 #48 SHADOW. Real sweep runs ~5*5 judge\u00d7SUT \u00d7 scenarios; estimated cost goes through scripts/companion_bench/estimate_quarterly_cost.py (#56). See docs/external/companion-bench-judge-robustness-v0.md."
+}

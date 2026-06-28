@@ -1,0 +1,27 @@
+{
+  "scaffold_status": "SHADOW",
+  "sweep_kind": "calibration",
+  "axis_weight_step": 0.05,
+  "a6_caps": [
+    50,
+    55,
+    60,
+    65,
+    70
+  ],
+  "n_total_configs": 90,
+  "seed": 42,
+  "dry_run": true,
+  "current_weights": {
+    "A1": 0.1,
+    "A2": 0.15,
+    "A3": 0.25,
+    "A4": 0.2,
+    "A5": 0.1,
+    "A6": 0.2
+  },
+  "current_a6_cap": 60,
+  "ranking_stability_under_perturbation": null,
+  "sensitivity_matrix": null,
+  "notes": "P5 #52 SHADOW. Real sweep runs 90 configs \u00d7 5 reference SUT \u00d7 24 scenarios. Per-config ranking compared against baseline current_weights. Output drives docs/external/companion-bench-calibration-report-v0.md + adds WEIGHTS_VERSION docstring to aggregator.py."
+}
