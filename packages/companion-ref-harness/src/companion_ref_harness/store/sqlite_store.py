@@ -40,7 +40,10 @@ import sqlite3
 import threading
 from typing import Any, Protocol, runtime_checkable
 
+from companion_ref_harness.embed import EmbedEntry
+from companion_ref_harness.episodic import EpisodicEvent
 from companion_ref_harness.session_summary import SessionSummary
+from companion_ref_harness.user_model import UserFact
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +116,27 @@ class HarnessStore(Protocol):
         limit: int | None = None,
     ) -> tuple[SessionSummary, ...]: ...
 
+    # --- embed_index (H-B) ---
+    def embed_index_put(self, entry: EmbedEntry) -> None: ...
+
+    def embed_index_list_for_scope(
+        self, *, scope_key: str,
+    ) -> tuple[EmbedEntry, ...]: ...
+
+    # --- user_facts (H-C) ---
+    def user_fact_put(self, fact: UserFact) -> None: ...
+
+    def user_fact_list_for_scope(
+        self, *, scope_key: str,
+    ) -> tuple[UserFact, ...]: ...
+
+    # --- episodic_events (H-C) ---
+    def episodic_put(self, event: EpisodicEvent) -> None: ...
+
+    def episodic_list_for_scope(
+        self, *, scope_key: str, limit: int | None = None,
+    ) -> tuple[EpisodicEvent, ...]: ...
+
     # --- close + integrity ---
     def close(self) -> None: ...
 
@@ -134,6 +158,12 @@ class InMemoryHarnessStore:
         self._lock = threading.Lock()
         # (scope_key, session_id) -> SessionSummary
         self._summaries: dict[tuple[str, str], SessionSummary] = {}
+        # (scope_key, turn_id) -> EmbedEntry
+        self._embed: dict[tuple[str, str], EmbedEntry] = {}
+        # (scope_key, key) -> UserFact
+        self._facts: dict[tuple[str, str], UserFact] = {}
+        # (scope_key, event_id) -> EpisodicEvent
+        self._episodic: dict[tuple[str, str], EpisodicEvent] = {}
 
     def session_summary_put(self, summary: SessionSummary) -> None:
         with self._lock:
@@ -163,6 +193,50 @@ class InMemoryHarnessStore:
                 and (exclude_session_id is None or s.session_id != exclude_session_id)
             ]
         rows.sort(key=lambda s: s.extracted_at)
+        if limit is not None:
+            rows = rows[-limit:]
+        return tuple(rows)
+
+    # ----- embed_index (H-B) -----------------------------------------------
+
+    def embed_index_put(self, entry: EmbedEntry) -> None:
+        with self._lock:
+            self._embed[(entry.scope_key, entry.turn_id)] = entry
+
+    def embed_index_list_for_scope(
+        self, *, scope_key: str,
+    ) -> tuple[EmbedEntry, ...]:
+        with self._lock:
+            rows = [e for (sk, _t), e in self._embed.items() if sk == scope_key]
+        rows.sort(key=lambda e: e.ts)
+        return tuple(rows)
+
+    # ----- user_facts (H-C) ------------------------------------------------
+
+    def user_fact_put(self, fact: UserFact) -> None:
+        with self._lock:
+            self._facts[(fact.scope_key, fact.key)] = fact
+
+    def user_fact_list_for_scope(
+        self, *, scope_key: str,
+    ) -> tuple[UserFact, ...]:
+        with self._lock:
+            rows = [f for (sk, _k), f in self._facts.items() if sk == scope_key]
+        rows.sort(key=lambda f: f.ts)
+        return tuple(rows)
+
+    # ----- episodic_events (H-C) -------------------------------------------
+
+    def episodic_put(self, event: EpisodicEvent) -> None:
+        with self._lock:
+            self._episodic[(event.scope_key, event.event_id)] = event
+
+    def episodic_list_for_scope(
+        self, *, scope_key: str, limit: int | None = None,
+    ) -> tuple[EpisodicEvent, ...]:
+        with self._lock:
+            rows = [e for (sk, _e), e in self._episodic.items() if sk == scope_key]
+        rows.sort(key=lambda e: e.ts)
         if limit is not None:
             rows = rows[-limit:]
         return tuple(rows)
@@ -326,6 +400,99 @@ class SqliteHarnessStore:
             summaries = summaries[-limit:]
         return summaries
 
+    # ----- embed_index (H-B) -----------------------------------------------
+
+    def embed_index_put(self, entry: EmbedEntry) -> None:
+        blob = json.dumps(list(entry.embedding)).encode("utf-8")
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO embed_index
+                    (scope_key, turn_id, role, content, embedding, ts)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (scope_key, turn_id) DO UPDATE SET
+                    role = excluded.role,
+                    content = excluded.content,
+                    embedding = excluded.embedding,
+                    ts = excluded.ts
+                """,
+                (entry.scope_key, entry.turn_id, entry.role, entry.content, blob, entry.ts),
+            )
+            self._conn.commit()
+
+    def embed_index_list_for_scope(
+        self, *, scope_key: str,
+    ) -> tuple[EmbedEntry, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT scope_key, turn_id, role, content, embedding, ts "
+                "FROM embed_index WHERE scope_key = ? ORDER BY ts ASC",
+                (scope_key,),
+            ).fetchall()
+        return tuple(_row_to_embed(row) for row in rows)
+
+    # ----- user_facts (H-C) ------------------------------------------------
+
+    def user_fact_put(self, fact: UserFact) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO user_facts
+                    (scope_key, key, value, source_turn, confidence, ts)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (scope_key, key) DO UPDATE SET
+                    value = excluded.value,
+                    source_turn = excluded.source_turn,
+                    confidence = excluded.confidence,
+                    ts = excluded.ts
+                """,
+                (fact.scope_key, fact.key, fact.value, fact.source_turn, fact.confidence, fact.ts),
+            )
+            self._conn.commit()
+
+    def user_fact_list_for_scope(
+        self, *, scope_key: str,
+    ) -> tuple[UserFact, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT scope_key, key, value, source_turn, confidence, ts "
+                "FROM user_facts WHERE scope_key = ? ORDER BY ts ASC",
+                (scope_key,),
+            ).fetchall()
+        return tuple(_row_to_fact(row) for row in rows)
+
+    # ----- episodic_events (H-C) -------------------------------------------
+
+    def episodic_put(self, event: EpisodicEvent) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO episodic_events
+                    (scope_key, event_id, summary, source_turn, ts)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (scope_key, event_id) DO UPDATE SET
+                    summary = excluded.summary,
+                    source_turn = excluded.source_turn,
+                    ts = excluded.ts
+                """,
+                (event.scope_key, event.event_id, event.summary, event.source_turn, event.ts),
+            )
+            self._conn.commit()
+
+    def episodic_list_for_scope(
+        self, *, scope_key: str, limit: int | None = None,
+    ) -> tuple[EpisodicEvent, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT scope_key, event_id, summary, source_turn, ts "
+                "FROM episodic_events WHERE scope_key = ? ORDER BY ts ASC",
+                (scope_key,),
+            ).fetchall()
+        events = tuple(_row_to_episodic(row) for row in rows)
+        if limit is not None and len(events) > limit:
+            events = events[-limit:]
+        return events
+
     # ----- lifecycle --------------------------------------------------------
 
     def close(self) -> None:
@@ -347,6 +514,42 @@ def _row_to_summary(
         open_loops=tuple(payload.get("open_loops", ())),
         extracted_at=extracted_at,
         extractor_model=extractor_model,
+    )
+
+
+def _row_to_embed(row: tuple[str, str, str, str, bytes, str]) -> EmbedEntry:
+    scope_key, turn_id, role, content, blob, ts = row
+    embedding = tuple(float(x) for x in json.loads(bytes(blob).decode("utf-8")))
+    return EmbedEntry(
+        scope_key=scope_key,
+        turn_id=turn_id,
+        role=role,
+        content=content,
+        embedding=embedding,
+        ts=ts,
+    )
+
+
+def _row_to_fact(row: tuple[str, str, str, str, float, str]) -> UserFact:
+    scope_key, key, value, source_turn, confidence, ts = row
+    return UserFact(
+        scope_key=scope_key,
+        key=key,
+        value=value,
+        source_turn=source_turn,
+        confidence=float(confidence),
+        ts=ts,
+    )
+
+
+def _row_to_episodic(row: tuple[str, str, str, str, str]) -> EpisodicEvent:
+    scope_key, event_id, summary, source_turn, ts = row
+    return EpisodicEvent(
+        scope_key=scope_key,
+        event_id=event_id,
+        summary=summary,
+        source_turn=source_turn,
+        ts=ts,
     )
 
 

@@ -1,0 +1,93 @@
+# Companion Bench — same-substrate ablation roster (5 tracks).
+#
+# Every track in this roster runs on the SAME frozen substrate. The whole point
+# of this file is the causal claim: hold the substrate constant, vary only the
+# layer over it, and attribute any score delta to that layer.
+#
+#   raw            bare substrate (no memory layer)
+#   ref-harness    standard memory wrapper (companion-ref-harness, 4 components)
+#   camel          standard open-source agent framework (companion-camel-baseline)
+#   volvence-cold  Volvence full pipeline, NO trained bootstraps
+#   volvence       Volvence full pipeline + trained bootstraps
+#
+# Boot all five endpoints first with:
+#   bash scripts/companion_bench/serve_same_substrate_ablation.sh
+# which serves one Qwen on :8000 (mode=lifeform + mode=raw), companion-cold on
+# :8001, ref-harness on :8500 (upstream -> :8000 mode=raw), and camel on :8600
+# (upstream -> :8000 mode=raw). That guarantees byte-identical weights; the
+# substrate-fingerprint guard (assert_same_substrate.py) is run by the serve
+# script before any scoring.
+#
+# Score the roster with:
+#   python scripts/companion_bench/score_reference_systems.py \
+#     --roster scripts/companion_bench/reference_systems.same_substrate_ablation.yaml \
+#     --user-sim-model anthropic/claude-3.7-sonnet --user-sim-key-env ANTHROPIC_API_KEY \
+#     --perturn-model anthropic/claude-3.7-sonnet --perturn-key-env ANTHROPIC_API_KEY \
+#     --arc-model openai/gpt-5 --arc-key-env OPENAI_API_KEY \
+#     --output-dir artifacts/companion-ablation/<date>/scores/
+#
+# IMPORTANT (fairness / #71 #72): judges and the user simulator MUST be a
+# different model family from the substrate (Qwen). The example above uses
+# Claude (per-turn + user-sim) and GPT-5 (arc), both non-Qwen.
+#
+# Then build the verdict with compare_companion_ablation.py (see its --help).
+#
+# The shared system prompt below is identical across all five tracks so the
+# baseline gets the same "be a companion" instruction the wrapped systems get;
+# only the memory/agent/cognitive layer differs.
+
+systems:
+  - submission_id: abl-raw
+    system_name: "Same-substrate · raw (bare Qwen)"
+    model_identifier: lifeform-raw
+    base_url: http://127.0.0.1:8000/v1?mode=raw
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: open-weight
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
+  - submission_id: abl-ref-harness
+    system_name: "Same-substrate · standard memory wrapper (ref-harness)"
+    model_identifier: ref-harness-qwen
+    base_url: http://127.0.0.1:8500/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
+  - submission_id: abl-camel
+    system_name: "Same-substrate · CAMEL agent framework"
+    model_identifier: camel-qwen
+    base_url: http://127.0.0.1:8600/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
+  - submission_id: abl-volvence-cold
+    system_name: "Same-substrate · Volvence Lifeform (companion-cold)"
+    model_identifier: lifeform-companion-cold
+    base_url: http://127.0.0.1:8001/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
+  - submission_id: abl-volvence
+    system_name: "Same-substrate · Volvence Lifeform (companion)"
+    model_identifier: lifeform-companion
+    base_url: http://127.0.0.1:8000/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.

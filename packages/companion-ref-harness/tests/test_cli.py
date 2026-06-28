@@ -123,29 +123,29 @@ def test_build_upstream_openai_compat_with_missing_env_fails_loudly(
 
 
 def test_build_extractor_stub_when_flag_set() -> None:
-    extractor = cli._build_summary_extractor(
+    resolved = cli._build_extractor_call(
         args=_ns(use_stub_summary_extractor=True),
         family=cli.UpstreamFamily.PASSTHROUGH,
     )
-    assert isinstance(extractor, cli.StubSummaryExtractor)
+    assert isinstance(cli._build_summary_extractor(resolved), cli.StubSummaryExtractor)
 
 
 def test_build_extractor_passthrough_family_forces_stub() -> None:
     """passthrough has no LLM to call, so the factory should produce a stub."""
-    extractor = cli._build_summary_extractor(
+    resolved = cli._build_extractor_call(
         args=_ns(
             use_stub_summary_extractor=False,
             summary_extractor_family="passthrough",
         ),
         family=cli.UpstreamFamily.OPENAI_COMPAT,
     )
-    assert isinstance(extractor, cli.StubSummaryExtractor)
+    assert isinstance(cli._build_summary_extractor(resolved), cli.StubSummaryExtractor)
 
 
 def test_build_extractor_with_no_target_fails_loudly() -> None:
     """If neither flags nor upstream provide a target, we should fail clean."""
-    with pytest.raises(SystemExit, match="summary extractor requires"):
-        cli._build_summary_extractor(
+    with pytest.raises(SystemExit, match="memory extractors require"):
+        cli._build_extractor_call(
             args=_ns(
                 use_stub_summary_extractor=False,
                 upstream_base_url=None,
@@ -154,3 +154,22 @@ def test_build_extractor_with_no_target_fails_loudly() -> None:
             ),
             family=cli.UpstreamFamily.OPENAI_COMPAT,
         )
+
+
+def test_build_components_for_full_stack() -> None:
+    """All four memory components build their handlers when enabled."""
+    from companion_ref_harness.policy import parse_component_set
+
+    components = parse_component_set("summary,embed,user_model,episodic")
+    resolved = cli._build_extractor_call(
+        args=_ns(use_stub_summary_extractor=True),
+        family=cli.UpstreamFamily.PASSTHROUGH,
+    )
+    assert cli._build_embedder(components) is not None
+    assert cli._build_user_fact_extractor(components, resolved) is not None
+    assert cli._build_episodic_extractor(components, resolved) is not None
+    # Disabled components return None.
+    summary_only = parse_component_set("summary")
+    assert cli._build_embedder(summary_only) is None
+    assert cli._build_user_fact_extractor(summary_only, resolved) is None
+    assert cli._build_episodic_extractor(summary_only, resolved) is None

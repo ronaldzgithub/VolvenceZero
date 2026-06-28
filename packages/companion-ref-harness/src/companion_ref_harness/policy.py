@@ -27,7 +27,10 @@ import dataclasses
 import enum
 from typing import Iterable
 
+from companion_ref_harness.embed import EmbedEntry
+from companion_ref_harness.episodic import EpisodicEvent
 from companion_ref_harness.session_summary import SessionSummary
+from companion_ref_harness.user_model import UserFact
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +116,13 @@ def parse_component_set(raw: str | None) -> ComponentSet:
 SYSTEM_PREFIX_HEADER: str = "[ref-harness · cross-session memory ↓]"
 SYSTEM_PREFIX_FOOTER: str = "[ref-harness · end memory]"
 
+# Per-component sub-section tags. Public so analysis scripts can grep the exact
+# contribution of each component in collected transcripts.
+SUMMARY_SECTION_TAG: str = "[ref-harness · prior-session summaries]"
+RETRIEVAL_SECTION_TAG: str = "[ref-harness · retrieved relevant turns]"
+USER_MODEL_SECTION_TAG: str = "[ref-harness · known user facts]"
+EPISODIC_SECTION_TAG: str = "[ref-harness · past events]"
+
 # Maximum number of prior session summaries we list in the system prefix.
 # Public constant; changing this changes the cross-session memory budget
 # and is part of the reproducibility contract.
@@ -149,21 +159,15 @@ class HarnessPolicy:
     store per call. State lives entirely in the store, which is the
     SSOT for component-owned data.
 
-    H-A scope: only :class:`HarnessComponent.SUMMARY` is wired. The
-    remaining components are accepted in :class:`ComponentSet` but
-    raise :class:`NotImplementedError` when applied (so H-B / H-C
-    development cannot accidentally pretend to be active).
+    All four components (summary / embed / user_model / episodic) are wired.
+    Each enabled component contributes a tagged sub-section to the system
+    prefix. The server gathers each component's snapshot from the store and
+    passes them in; the policy is the single place that composes them into the
+    outgoing prompt.
     """
 
     def __init__(self, components: ComponentSet) -> None:
         self._components = components
-        for c in components.components:
-            if c is not HarnessComponent.SUMMARY:
-                raise NotImplementedError(
-                    f"component {c.value!r} is reserved for H-B / H-C; "
-                    "H-A wires only 'summary'. Adjust --components or upgrade "
-                    "to the H-B/H-C wheel when available."
-                )
 
     @property
     def components(self) -> ComponentSet:
@@ -175,23 +179,44 @@ class HarnessPolicy:
         scope_key: str,
         session_id: str,
         messages: list[dict[str, str]],
-        prior_summaries: Iterable[SessionSummary],
+        prior_summaries: Iterable[SessionSummary] = (),
+        retrieved_turns: Iterable[EmbedEntry] = (),
+        user_facts: Iterable[UserFact] = (),
+        episodic_events: Iterable[EpisodicEvent] = (),
     ) -> BlendedMessages:
         """Return a new ``messages`` list with component prefixes spliced in.
 
-        The input ``messages`` is **not** mutated; a fresh list is
-        returned. The original request can be logged unmodified.
+        The input ``messages`` is **not** mutated; a fresh list is returned, so
+        the original request can be logged unmodified.
         """
 
         if self._components.is_empty():
             return BlendedMessages(messages=list(messages), blended=False)
 
-        prefix_block: str | None = None
+        sections: list[str] = []
         if self._components.has(HarnessComponent.SUMMARY):
-            prefix_block = _build_summary_prefix(prior_summaries)
-        if prefix_block is None:
+            block = _build_summary_section(prior_summaries)
+            if block:
+                sections.append(block)
+        if self._components.has(HarnessComponent.EMBED):
+            block = _build_retrieval_section(retrieved_turns)
+            if block:
+                sections.append(block)
+        if self._components.has(HarnessComponent.USER_MODEL):
+            block = _build_user_model_section(user_facts)
+            if block:
+                sections.append(block)
+        if self._components.has(HarnessComponent.EPISODIC):
+            block = _build_episodic_section(episodic_events)
+            if block:
+                sections.append(block)
+
+        if not sections:
             return BlendedMessages(messages=list(messages), blended=False)
 
+        prefix_block = "\n".join(
+            [SYSTEM_PREFIX_HEADER, "", *_interleave(sections), SYSTEM_PREFIX_FOOTER]
+        )
         spliced = _splice_system_prefix(messages, prefix_block)
         return BlendedMessages(messages=spliced, blended=True)
 
@@ -201,20 +226,63 @@ class HarnessPolicy:
 # ---------------------------------------------------------------------------
 
 
-def _build_summary_prefix(
+def _interleave(sections: list[str]) -> list[str]:
+    """Join section blocks with a blank line between them."""
+
+    out: list[str] = []
+    for i, section in enumerate(sections):
+        if i > 0:
+            out.append("")
+        out.append(section)
+    out.append("")
+    return out
+
+
+def _build_summary_section(
     prior_summaries: Iterable[SessionSummary],
 ) -> str | None:
-    """Render the prior-session summaries block, or ``None`` if empty."""
+    """Render the prior-session summaries sub-section, or ``None`` if empty."""
 
     materialized = list(prior_summaries)[-MAX_PRIOR_SUMMARIES:]
     if not materialized:
         return None
-    lines: list[str] = [SYSTEM_PREFIX_HEADER, ""]
+    lines: list[str] = [SUMMARY_SECTION_TAG]
     for s in materialized:
         lines.append(f"### session {s.session_id} (extracted {s.extracted_at})")
         lines.append(s.to_prompt_block())
-        lines.append("")
-    lines.append(SYSTEM_PREFIX_FOOTER)
+    return "\n".join(lines)
+
+
+def _build_retrieval_section(
+    retrieved_turns: Iterable[EmbedEntry],
+) -> str | None:
+    materialized = list(retrieved_turns)
+    if not materialized:
+        return None
+    lines: list[str] = [RETRIEVAL_SECTION_TAG]
+    lines.extend(e.to_prompt_line() for e in materialized)
+    return "\n".join(lines)
+
+
+def _build_user_model_section(
+    user_facts: Iterable[UserFact],
+) -> str | None:
+    materialized = list(user_facts)
+    if not materialized:
+        return None
+    lines: list[str] = [USER_MODEL_SECTION_TAG]
+    lines.extend(f.to_prompt_line() for f in materialized)
+    return "\n".join(lines)
+
+
+def _build_episodic_section(
+    episodic_events: Iterable[EpisodicEvent],
+) -> str | None:
+    materialized = list(episodic_events)
+    if not materialized:
+        return None
+    lines: list[str] = [EPISODIC_SECTION_TAG]
+    lines.extend(e.to_prompt_line() for e in materialized)
     return "\n".join(lines)
 
 

@@ -59,14 +59,16 @@ def test_parse_component_set_csv_canonicalises() -> None:
 
 
 # ---------------------------------------------------------------------------
-# HarnessPolicy gating (H-A only wires summary)
+# HarnessPolicy construction (all four components wired)
 # ---------------------------------------------------------------------------
 
 
-def test_policy_rejects_h_b_h_c_components() -> None:
-    cs = ComponentSet(frozenset({HarnessComponent.SUMMARY, HarnessComponent.EMBED}))
-    with pytest.raises(NotImplementedError, match="reserved for H-B"):
-        HarnessPolicy(cs)
+def test_policy_accepts_all_components() -> None:
+    cs = ComponentSet(frozenset(HarnessComponent))
+    policy = HarnessPolicy(cs)
+    assert policy.components.has(HarnessComponent.EMBED)
+    assert policy.components.has(HarnessComponent.USER_MODEL)
+    assert policy.components.has(HarnessComponent.EPISODIC)
 
 
 def test_policy_accepts_empty_set() -> None:

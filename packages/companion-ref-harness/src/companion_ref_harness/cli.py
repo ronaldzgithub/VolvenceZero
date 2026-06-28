@@ -18,13 +18,20 @@ exactly, with no implicit defaults beyond OpenAI-compat shape.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import logging
 import os
 import pathlib
 import sys
 
 from companion_ref_harness import __version__
-from companion_ref_harness.policy import parse_component_set, HarnessComponent
+from companion_ref_harness.embed import Embedder, HashingEmbedder
+from companion_ref_harness.episodic import (
+    EpisodicExtractor,
+    LLMEpisodicExtractor,
+    StubEpisodicExtractor,
+)
+from companion_ref_harness.policy import ComponentSet, parse_component_set, HarnessComponent
 from companion_ref_harness.session_summary import (
     LLMSummaryExtractor,
     StubSummaryExtractor,
@@ -38,6 +45,11 @@ from companion_ref_harness.upstream_client import (
     UpstreamClient,
     UpstreamFamily,
     parse_upstream_family,
+)
+from companion_ref_harness.user_model import (
+    LLMUserFactExtractor,
+    StubUserFactExtractor,
+    UserFactExtractor,
 )
 
 
@@ -132,8 +144,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "comma-separated component set. Allowed: "
             f"{','.join(c.value for c in HarnessComponent)}. "
-            "Use '' (empty) for passthrough mode. H-A wires only "
-            "'summary'; other components are reserved for H-B / H-C."
+            "Use '' (empty) for passthrough mode. All four components are "
+            "wired (summary + embed retrieval + user_model + episodic)."
         ),
     )
     # --- summary extractor ---
@@ -226,7 +238,11 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     components = parse_component_set(args.components)
     family = parse_upstream_family(args.upstream_family)
     upstream = _build_upstream_client(args=args, family=family)
-    extractor = _build_summary_extractor(args=args, family=family)
+    extractor_call = _build_extractor_call(args=args, family=family)
+    summary_extractor = _build_summary_extractor(extractor_call)
+    embedder = _build_embedder(components)
+    user_fact_extractor = _build_user_fact_extractor(components, extractor_call)
+    episodic_extractor = _build_episodic_extractor(components, extractor_call)
     store_mode = StoreMode(args.store_mode)
     store_path = (
         pathlib.Path(args.store_path)
@@ -238,7 +254,10 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         upstream=upstream,
         store=store,
         components=components,
-        summary_extractor=extractor,
+        summary_extractor=summary_extractor,
+        embedder=embedder,
+        user_fact_extractor=user_fact_extractor,
+        episodic_extractor=episodic_extractor,
     )
     _LOG.info(
         "companion-ref-harness serving on http://%s:%d (components=%s family=%s model=%s store=%s)",
@@ -284,41 +303,50 @@ def _build_upstream_client(
     raise SystemExit(f"unhandled upstream family: {family.value}")  # pragma: no cover
 
 
-def _build_summary_extractor(
+@dataclasses.dataclass(frozen=True)
+class _ExtractorCall:
+    """Resolved LLM extractor target shared by summary / user-model / episodic.
+
+    ``call`` is ``None`` when the deterministic stub extractors should be used
+    (``--use-stub-summary-extractor`` or a passthrough family).
+    """
+
+    model: str | None
+    call: "object | None"  # Callable[[list[dict[str,str]]], Awaitable[str]] | None
+
+
+def _build_extractor_call(
     *,
     args: argparse.Namespace,
     family: UpstreamFamily,
-) -> SummaryExtractor:
+) -> _ExtractorCall:
+    """Resolve the single cross-family extractor target used by all close
+    components. Stub mode (no LLM) returns an empty :class:`_ExtractorCall`."""
+
     if args.use_stub_summary_extractor:
-        return StubSummaryExtractor()
-    # Resolve summary extractor target (fallback to upstream config).
+        return _ExtractorCall(model=None, call=None)
     extractor_family = parse_upstream_family(
         args.summary_extractor_family or family.value,
     )
     if extractor_family is UpstreamFamily.PASSTHROUGH:
-        # Passthrough has no meaningful LLM call; force stub.
-        return StubSummaryExtractor()
+        return _ExtractorCall(model=None, call=None)
     base_url = args.summary_extractor_base_url or args.upstream_base_url
     model = args.summary_extractor_model or args.upstream_model
     key_env = args.summary_extractor_key_env or args.upstream_key_env
     if not base_url or not model or not key_env:
         raise SystemExit(
-            "summary extractor requires base_url, model, and key_env. "
-            "Either set --summary-extractor-* flags, or fall back to "
-            "--upstream-* flags, or set --use-stub-summary-extractor."
+            "memory extractors require base_url, model, and key_env. Either set "
+            "--summary-extractor-* flags, fall back to --upstream-* flags, or "
+            "set --use-stub-summary-extractor."
         )
     api_key = _required_env(key_env)
     if extractor_family is UpstreamFamily.OPENAI_COMPAT:
-        client = OpenAICompatUpstreamClient(
-            base_url=base_url, api_key=api_key, model=model,
-        )
+        client = OpenAICompatUpstreamClient(base_url=base_url, api_key=api_key, model=model)
     elif extractor_family is UpstreamFamily.ANTHROPIC:
-        client = AnthropicUpstreamClient(
-            base_url=base_url, api_key=api_key, model=model,
-        )
+        client = AnthropicUpstreamClient(base_url=base_url, api_key=api_key, model=model)
     else:
         raise SystemExit(
-            f"unhandled summary extractor family: {extractor_family.value}"
+            f"unhandled extractor family: {extractor_family.value}"
         )  # pragma: no cover
 
     async def _call(messages: list[dict[str, str]]) -> str:
@@ -331,7 +359,39 @@ def _build_summary_extractor(
         )
         return resp.text
 
-    return LLMSummaryExtractor(model=model, upstream_call=_call)
+    return _ExtractorCall(model=model, call=_call)
+
+
+def _build_summary_extractor(resolved: _ExtractorCall) -> SummaryExtractor:
+    if resolved.call is None or resolved.model is None:
+        return StubSummaryExtractor()
+    return LLMSummaryExtractor(model=resolved.model, upstream_call=resolved.call)
+
+
+def _build_embedder(components: ComponentSet) -> Embedder | None:
+    if not components.has(HarnessComponent.EMBED):
+        return None
+    return HashingEmbedder()
+
+
+def _build_user_fact_extractor(
+    components: ComponentSet, resolved: _ExtractorCall,
+) -> UserFactExtractor | None:
+    if not components.has(HarnessComponent.USER_MODEL):
+        return None
+    if resolved.call is None or resolved.model is None:
+        return StubUserFactExtractor()
+    return LLMUserFactExtractor(model=resolved.model, upstream_call=resolved.call)
+
+
+def _build_episodic_extractor(
+    components: ComponentSet, resolved: _ExtractorCall,
+) -> EpisodicExtractor | None:
+    if not components.has(HarnessComponent.EPISODIC):
+        return None
+    if resolved.call is None or resolved.model is None:
+        return StubEpisodicExtractor()
+    return LLMEpisodicExtractor(model=resolved.model, upstream_call=resolved.call)
 
 
 def _required_env(name: str) -> str:

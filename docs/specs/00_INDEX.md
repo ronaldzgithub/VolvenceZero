@@ -199,11 +199,13 @@
 | Spec | 内容 |
 |------|------|
 | [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
+| [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：5-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence）、#87 four-claim retain verdict、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 
 **核心不变量**：
 - 对外主张必须映射到 required gates、artifact 与 verdict
 - 盲评外发包不得泄漏 profile 条件
 - 证据结论必须可回溯到 manifest / provenance / 原始 artifact
+- same-substrate ablation：五 track 必须字节级同基底（fingerprint 守门）；裁判/用户模拟器非 substrate 家族；`first-stage-retained` 才可称人类世界模型 thesis 第一阶段成立，物理侧扩张需独立 benchmark
 
 ---
 

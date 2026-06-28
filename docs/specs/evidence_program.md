@@ -102,6 +102,25 @@
   - 当前轻量 verdict 先绑定 `semantic-spine-ready`、`canonical_mean_semantic_spine_coverage`、`canonical_mean_cognitive_loop_readiness` 与 `cross-session-growth`，作为完整 companion 证据前的地基门
 - repeated-run verdict 优先使用 paper-suite secondary metric summary 的 sample count / mean，避免只看单次 reference dashboard
 
+### Same-substrate Companion Bench ablation claims（debt #87；详见 [`companion-ablation.md`](./companion-ablation.md)）
+
+这组 claim 把"人类世界模型 thesis 第一阶段"压成可证伪、同基底的 matched-control。所有 track 跑同一份冻结 Qwen，由 `compare_companion_ablation.py` 产出 verdict（retain 需 delta>0 且 bootstrap CI 非重叠下界 ci_low>0）。
+
+- `claim_pipeline_gt_raw`
+  - 命题：volvence 完整 pipeline 在 Companion Bench 上优于裸 Qwen
+  - 需要：`raw` 与 `volvence` track 同基底；final_mean delta>0 且 ci_low>0
+- `claim_gt_standard_layers`
+  - 命题：volvence 优于标准 memory wrapper（ref-harness）**且**优于标准开源 agent 框架（camel）——回应"给 GPT/Claude 套个 wrapper 你们还赢吗"
+  - 需要：`ref-harness` 与 `camel` track 同基底；两条 pairwise effect 都 retain
+- `claim_training_adds_value`
+  - 命题：训练 bootstrap 有增量（volvence > volvence-cold）
+  - 需要：`volvence-cold` 与 `volvence` 同基底；delta>0 且 ci_low>0
+- `claim_heldout_cohort_stable`
+  - 命题：优势在 held-out 场景跨 seed 稳定
+  - 需要：held-out + 多 seed 跑（arc_count 足够）+ 相对 CI 半宽足够紧
+- 红线（缺一不可，否则 verdict 不可外引）：same-substrate guard VERIFIED；裁判/用户模拟器非 Qwen（#71/#72）；4 条 CompanionBench attestation 全 True；judge robustness/calibration 证据在档；held-out 文本无泄漏
+- 四态结论：`kill-criteria-triggered` / `wiring-ready` / `weak-positive` / `first-stage-retained`；`world-model-extension-ready` 需物理侧独立 benchmark，本链不产出
+
 ## Dialogue Paper-Suite Evidence Map
 
 本节冻结 dialogue paper-suite 当前 claim 的可操作证据口径。这里的 claim verdict 是 rollout / 外部汇报层的证据读数，不改变 runtime slot，也不成为学习源头。

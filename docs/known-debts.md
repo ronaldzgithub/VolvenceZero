@@ -1,8 +1,11 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: **2026-06-21** (新增 **#86** — 认知闭环 "learned vs 手工启发式" 占比未量化 + 规模化学习增益未证明的综合架构诚实债；交叉引用 #6 / #7 / #43 / #44 / #51 / #79 / #80 / #81 / #82 / #83 / #85，不重复造债)
+> Last updated: **2026-06-28** (v2 — same-substrate Companion Bench ablation **工具链全套落地**：CAMEL agent-framework baseline wheel + ref-harness H-B/H-C + 5-track roster + serve 编排 + substrate-fingerprint 守门 + #87 four-claim verdict comparator + P0 wiring smoke 通过；推进 **#84**(几近关闭) / **#82**(reference SUT 真跑路径) / **#87**(从 design 进到 tooling-ready)。真跑 P1/P2 待 GPU+keys)
+> Earlier: **2026-06-28** (v1 — 新增 **#87** — 人类世界模型 thesis ablation 的"流程可跑通"与"结果足以证明"混淆风险；交叉引用 #29 / #37 / #48 / #68 / #71 / #72 / #82 / #86，不重复造债)
 > Earlier: **2026-05-29** (DLaaS scale/isolation/rare-heavy packet — per-end-user identity safety, rare-heavy training executor, multi-process/multi-GPU pod routing; advances #17 / #46 / #69 / #76 + rare-heavy executor)
+
+> 2026-06-28 update (same-substrate Companion Bench ablation tooling land): 把 [`docs/specs/companion-ablation.md`](specs/companion-ablation.md) 描述的同基底因果 ablation 从想法推进到 **tooling-ready + P0 wiring smoke 通过**。**已 land**：(a) 新 wheel [`packages/companion-camel-baseline/`](../packages/companion-camel-baseline/)(Apache 2.0，CAMEL ChatAgent + cross-session memory 包成 OpenAI-compat 端点，upstream 指向同一 Qwen `mode=raw`；21 测试全绿 + AST no-internal-imports 守门)；(b) [`packages/companion-ref-harness/`](../packages/companion-ref-harness/) 从 H-A(summary) 补齐到 **H-B(embed retrieval) + H-C(user_model + episodic)** 四件全开(76 测试全绿，去掉 H-A 的 NotImplementedError 守门)；(c) 5-track roster [`reference_systems.same_substrate_ablation.yaml`](../scripts/companion_bench/reference_systems.same_substrate_ablation.yaml)；(d) 同基底服务编排 [`serve_same_substrate_ablation.sh`](../scripts/companion_bench/serve_same_substrate_ablation.sh) + [`assert_same_substrate.py`](../scripts/companion_bench/assert_same_substrate.py) fingerprint 守门；(e) #87 四 claim verdict 比较器 [`compare_companion_ablation.py`](../scripts/companion_bench/compare_companion_ablation.py)(retain/weak/fail/insufficient + 四态 state)；(f) phased driver [`run_same_substrate_ablation.py`](../scripts/companion_bench/run_same_substrate_ablation.py)(p0-smoke / judge-evidence / p1 / p2，p1/p2 入口拒绝 Qwen 裁判)。**P0 wiring smoke 真跑通**(5 track deterministic-fake → summary.json → comparator → verdict JSON，39 个新测试全绿)。**仍待真跑(gate on GPU+keys，operator step)**：P1(公开 24×1 seed 真 Qwen+跨家族裁判) / P2(24 公开 + 96 held-out × 3 seed) + judge robustness/calibration 真 sweep(#48/#71 仍 SHADOW)。结果记录模板 [`docs/external/companion-ablation-results-internal.md`](external/companion-ablation-results-internal.md)。**#84 ref-harness baseline + CAMEL baseline 缺位几近关闭**(剩真跑 evidence)；**#82** reference SUT 真跑路径打通(同基底 roster + 编排就位)；**#87** 从"design/缺口"推进到"tooling-ready"，当前命中态为 `wiring-ready`(真跑前不可宣称任何正结果)。
 
 > 2026-05-29 update v2 (DLaaS scale + isolation + rare-heavy executor packet — P0/P1/P2 全实现, backward-compatible/opt-in): 把"负载均衡/substrate 分配 / rare-heavy 调度 / digital-life 隔离 / end-user id 管理"四块从评估出的缺口一次性补齐,默认行为不变,新能力 env opt-in。**P0 per-end-user 身份安全**:(a) session 复用一致性守门 —— `_get_or_create_session` 复用同 `session_id` 但 `end_user_ref` 不一致时返回 `409 session_end_user_mismatch`(默认开,`VZ_ALLOW_SESSION_END_USER_REMAP=1` 关;DLaaS + OpenAI-compat 两路都接;堵住跨用户内核状态泄漏);(b) 两层 `tenant:end_user` scope —— `tenant_id` 经 adopt→`InstanceManager.acquire`→`SessionManager` 线程化,`VZ_TWO_LAYER_SCOPE=1` + `scope_strategy=="tenant_ai_end_user"` 时走 `bind_session` 两层(默认仍单层,避免重键现有 closed-alpha 磁盘 memory);(c) per-ai_id memory root —— `VZ_PER_AI_MEMORY_ROOT=1` 时 `acquire` 算 `{base}/{tenant}/{ai_id}` 根目录传给 SessionManager(两 ai_id 不再共享磁盘 memory)。**P1 rare-heavy 平台执行器**(补 [#17 评估] 指出的"平台无 executor"缺口):新 `training_jobs` 持久表([`dlaas-platform-registry/training_jobs.py`](../packages/dlaas-platform-registry/src/dlaas_platform_registry/training_jobs.py),schema v7 additive)+ `TrainingJobExecutor` 队列 + 后台 worker(`VZ_TRAINING_WORKER=1` 启用)推进 `pending→running→succeeded/failed`,可插拔 runner(`synthetic` 默认 / `figure_lora` 受门控);job create 强制 `allow_adapter_training` / `allow_rare_heavy_refresh`→`403`;promote 仍需 gate_evidence([`training_executor.py`](../packages/dlaas-platform-api/src/dlaas_platform_api/training_executor.py))。默认 worker 关 → 旧"只建记录不执行"行为不变。**P2 多进程/多 GPU pod 路由**(#17 第二阶段真接线):`LauncherProtocol` 让 api 不再硬 `isinstance(InstanceManager)`;`RemoteInstanceManager`(HTTP 代理,可注入 transport)+ `MultiPodLauncher`(placement sticky 路由 + `forward_interaction` 远程转发 + placement 派生 status/overview)+ `PodProcessSupervisor`/`pod_server`(每 GPU spawn 子进程,`CUDA_VISIBLE_DEVICES`);`_dispatch_envelope_to_instance` 当 launcher 暴露 `forward_interaction` 时把整个 envelope RPC 转发给属主 pod(否则本地);`substrate_profile_id`+`runtime_backend` 经 `build_runtime_for_profile` 真选 transformers/vLLM runtime,adopt 时校验 backend 不匹配→`409`;`build_dlaas_app` 在 `VZ_MULTI_POD=1`+`VZ_MULTI_POD_SPECS` 时建 MultiPodLauncher+supervisor,否则默认单 InstanceManager。**测试**:P0 9 + P1 13 + P2 16 + dispatch-forward 2 全绿(fakes/injectable transport/loopback);真 GPU/vLLM 多进程 e2e 仍需运维多卡环境验证(本环境无多 GPU,只 fake/单测)。**仍 SHADOW/待真机**:多 pod 真子进程 spawn + RPC 流式(SSE over RPC)未端到端验证;rare-heavy `figure_lora` runner 的真 PEFT bake 需 GPU+corpus(base 实现 delegate 给运维 override);两层 scope 切换需 memory 迁移说明(不静默重键)。详见 plan [`dlaas scale isolation rareheavy`](../../.cursor/plans/dlaas_scale_isolation_rareheavy_6e7b1db0.plan.md)。
 
@@ -2302,6 +2305,8 @@ return (
 
 ## 84. Reference Companion Harness baseline 缺位（closed-api 列在测"裸 API 没有 memory"而不是测"模型是不是好的 companion 基底"）
 
+> **2026-06-28 状态（几近关闭，剩真跑 evidence）**：ref-harness 已从 H-A(summary) 补齐到 H-B(embed retrieval) + H-C(user_model + episodic) 四件全开；同时新增 [`packages/companion-camel-baseline/`](../packages/companion-camel-baseline/) 作为"标准开源 agent 框架"baseline。两条 baseline + 同基底 roster + 编排 + verdict comparator 全部就位（见顶部 2026-06-28 update）。剩余仅"真跑 6 substrate × 3 slice evidence"，与 [`#82`](#82) 共享 launch 路径。
+
 - **路径**：新 wheel [`packages/companion-ref-harness/`](../packages/companion-ref-harness/) Apache 2.0（与 [`packages/companion-bench/`](../packages/companion-bench/) 并列）+ packet [`docs/moving forward/companion-ref-harness-packet.md`](moving%20forward/companion-ref-harness-packet.md) 5 个 sub-packet (H-A/H-B/H-C/H-D/H-E)
 - **问题**：截至 2026-05-18，CompanionBench `closed-api` track 有两个结构性洞：(a) [`scripts/companion_bench/reference_systems.yaml`](../scripts/companion_bench/reference_systems.yaml) 把 GPT-5 / Claude Opus 4.6 / Gemini 3 Pro / DeepSeek V3 / Llama-3-70B / Qwen 2.5-72B / Mistral Large 全部按 raw `/v1/chat/completions` 端点配置；(b) [`packages/companion-bench/src/companion_bench/arc_runner.py`](../packages/companion-bench/src/companion_bench/arc_runner.py) 第 217 行 `transcript_messages = _fresh_history()` 在每个 non-S1 session 开始时清空历史 → raw API 跨 session 的 A3（continuity，weight 0.25，RFC §4 最大权重）**结构上**就是 0 分。两个洞叠加 → 当前 `closed-api` 列在测"裸 API 没有 memory"而不是测"模型是不是好的 companion 基底"，VolvenceZero Lifeform 与 GPT-5 同图出现就构成 [`commercialization-assessment.md`](business/commercialization-assessment.md) §10.2 反目标"benchmark 价值归零"的同构红线触发条件。
 - **核心含义**：
@@ -2382,6 +2387,50 @@ return (
   - [#51](#51) / [#85](#85)：关系域学习信号真值，是 learned 部件能否在产品命脉域生效的前置
   - [#79](#79) / [#80](#80) / [#81](#81)：具体 hand-coded 决策点，coverage map 的子条目
   - [#82](#82) / [#83](#83)：商业 evidence 缺口——与本架构 evidence 缺口共同构成融资 DD 的"技术 + 商业"两面
+
+---
+
+## 87. 人类世界模型 thesis ablation：流程可跑通 ≠ 结果足以证明 thesis（融资验证轮诚实债）
+
+> **2026-06-28 状态**：本债的 ablation 工具链已全套落地并通过 P0 wiring smoke（见顶部 update + [`docs/specs/companion-ablation.md`](specs/companion-ablation.md)）。当前命中态 = `wiring-ready`（流程跑通、未跑真 substrate）。债**不关闭**：本债的关闭条件是 P2 真跑产出 `first-stage-retained` verdict + judge-bias 证据；在那之前一切对外口径仍受本债约束。
+
+- **路径**：
+  - thesis：[`research/strategy/human-world-model-thesis-2026-06.md`](../research/strategy/human-world-model-thesis-2026-06.md)（"先证明人类世界模型，再 enable 更广义世界模型"；人类侧 ablation 是物理侧扩张门槛）
+  - 证据计划：[`docs/specs/evidence_program.md`](specs/evidence_program.md)（claim registry / retain verdict / artifact provenance）+ [`docs/EVALUATION_SYSTEM.md`](EVALUATION_SYSTEM.md)（`ci-smoke` / `paper-suite-small` / `paper-suite-full` 三层）
+  - 外部 benchmark：[`docs/external/eqbench3-results-internal.md`](external/eqbench3-results-internal.md)（截至本债创建仍为 `TEMPLATE -- awaiting first run`）+ [`scripts/external_bench/run_eqbench3.py`](../scripts/external_bench/run_eqbench3.py) + [`scripts/external_bench/compare_ablation.py`](../scripts/external_bench/compare_ablation.py)
+  - vertical ablation：[`docs/specs/growth-advisor-drive-ablation-evidence.md`](specs/growth-advisor-drive-ablation-evidence.md)（截至本债创建为 `scaffold v0.1 (SHADOW)`，4 condition × 4 boundary 矩阵 `TBD`）
+- **问题**：仓库已经有较完整的 ablation harness、claim-to-evidence 框架、contract tests、paper-suite 分层和若干 synthetic / smoke / SHADOW artifact；因此**跑通 ablation 流程、产出可审计 artifact 的信心较高**。但这不等于 thesis 级结论已经成立。真正要证明的是：在同一人类个体化任务 / 同一 substrate / 同一评估口径下，`PE + 主动学习 + 多时间尺度控制器` 稳定优于 `普通 LLM + memory` / RAG / LoRA-adapter / 随机采样等 baseline，且增益不能由 prompt、benchmark 泄漏、judge 偏差、raw substrate 能力或产品 wrapper 解释。截至本债创建，这组 retain-level verdict 尚未落档。
+- **当前主观风险评估（用于 DD 口径，不作为实验结论）**：
+  - **流程跑通 / artifact 可归档**：信心约 75-85%（harness 与 evidence schema 已较完整，主要剩真实 substrate / judge / 多 seed / cohort 执行）
+  - **拿到局部正结果**：信心约 60-70%（局部 vertical / controlled scenario 上可能显示 full pipeline 优于 raw 或 cold）
+  - **足以支撑"人类世界模型第一阶段 thesis closed"的稳定结果**：信心约 40-50%（需要多 baseline、多 seed、多 cohort、held-out、人评 / judge 一致性与机制拆分同时成立）
+  - **直接支撑完整世界模型 enablement thesis（含物理 / 具身降本）**：信心 <20%（物理侧必须独立 benchmark；人类侧成功不能自动外推）
+- **核心含义**：
+  - (a) `ci-smoke` / SHADOW / synthetic dry-run 只能证明 wiring、schema、回归与可诊断性，不能替代 paper-grade retain verdict；
+  - (b) 一个 EQ-Bench / Companion Bench / Growth-Advisor 单点结果不能单独关闭 thesis；必须形成 matched-control evidence bundle；
+  - (c) 对外可以说"验证框架与 ablation 设计已就位"，不能说"已证明认知回路正确"或"已证明能降低广义世界模型成本"；
+  - (d) 若 full pipeline 只优于 raw substrate 但不优于 memory/RAG/LoRA 或随机采样 baseline，则 thesis 应收缩为 product memory / companion evidence，而非 world-model enablement evidence。
+- **违反**：不违反 R 铁律；属于 evidence 口径与融资叙事诚实债。它专门防止把工程可运行性、contract correctness、局部 demo 或单 benchmark 分数误写成 thesis proof。
+- **风险**：**高（融资尽调 / 对外叙事）**，**中（工程路线）**。短期不会导致系统行为错误；但如果 pitch / deck / thesis 文档把 harness-ready 写成 thesis-proven，会在 DD 中被 senior reviewer 以 baseline、judge bias、seed variance、held-out leakage 和 causal ablation 直接击穿。
+- **触发条件**：
+  - (a) 任何对外声明"人类世界模型已证明"、"认知回路已验证"、"低数据持续个体化已成立"之前；
+  - (b) EQ-Bench / Companion Bench / Growth-Advisor / paper-suite 任一结果准备进入 pitch deck、投资人 memo、public leaderboard 或 press material 之前；
+  - (c) 物理 / 具身世界模型合作 benchmark 对外启动之前；
+  - (d) `human-world-model-thesis-2026-06.md` 被改写为更强承诺版本之前。
+- **推荐修法**：
+  1. **冻结 thesis claim registry**：在 `docs/specs/evidence_program.md` 或独立 `docs/specs/human-world-model-ablation.md` 中把第一阶段 claim 拆成最少 4 个 retain verdict：`pipeline > raw substrate`、`full > memory/RAG baseline`、`PE/ETA/active-learning positive causal contribution`、`held-out/cohort stability`。
+  2. **统一 matched-control matrix**：至少包含 `full` / `PE-off` / `ETA-off` / `active-learning-off or random-sampling` / `memory-only` / `RAG` / `LoRA-adapter` / `raw substrate`，并要求同 substrate、同 prompt budget、同 context budget、同 judge / human protocol。
+  3. **证据门槛**：每个 claim 必须有 manifest、git sha、seed schedule、artifact provenance、pairwise effect、uncertainty interval、leakage attestation、judge-bias check（对齐 [#48](#48) / [#71](#71)），以及至少一组 blinded human review 或 cross-family judge sanity check。
+  4. **结果口径分级**：把输出分成 `wiring-ready` / `weak-positive` / `first-stage-retained` / `world-model-extension-ready` 四态；只有 `first-stage-retained` 允许写"人类世界模型第一阶段 thesis closed"，只有物理侧独立 benchmark retained 后才能写"world-model enablement evidence"。
+  5. **杀死条件显式化**：若主动学习不优于随机采样、控制器不优于 memory/RAG、PE 信号无法稳定定义、或增益主要来自 raw substrate / prompt wrapper，则把 thesis 收缩为 product memory / companion company 口径，并在 thesis 文档中同步降级。
+- **优先级**：**高**（先做文档 / claim registry，零 GPU；真跑与 #29 / #37 / #68 / #82 同预算节奏）
+- **关联**：
+  - [#29](#29) / [#37](#37)：EQ-Bench 3 P10 真 Qwen substrate + 真 judge + 三轨 ablation + verdict
+  - [#48](#48) / [#71](#71)：LLM judge bias / cross-family sweep
+  - [#68](#68)：Growth-Advisor drive ablation 因果矩阵待回填
+  - [#72](#72)：synthetic substrate smoke 不可外引为 architecture evidence
+  - [#82](#82)：Companion Bench reference SUT 真跑缺位
+  - [#86](#86)：learned-vs-heuristic 与 capacity→gain 未证；本债关注 thesis ablation 的 retain verdict，不重复记录 learned coverage
 
 ---
 

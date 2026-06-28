@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "companion-camel-baseline"
+version = "0.1.0a0"
+description = "Companion Bench CAMEL agent-framework baseline. Wraps the CAMEL open-source agent framework (ChatAgent + memory) behind an OpenAI-compatible endpoint so a multi-session companion benchmark can compare a frozen substrate under a standard off-the-shelf agent stack, on the SAME substrate as the bare model and as the system under test. See docs/specs/companion-ablation.md for the same-substrate ablation it serves."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Companion Bench Contributors" }]
+keywords = ["benchmark", "evaluation", "companion-ai", "long-session", "companion-bench", "agent-framework", "camel", "reference-baseline"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "aiohttp>=3.9",
+]
+
+[project.optional-dependencies]
+# The real CAMEL backend lazily imports camel-ai. It is an OPTIONAL extra so
+# the wheel installs (and the deterministic-fake smoke path runs) without the
+# heavy dependency tree. Install with: pip install companion-camel-baseline[camel]
+camel = [
+    "camel-ai>=0.2",
+]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-aiohttp>=1.0",
+]
+
+[project.scripts]
+companion-camel-baseline = "companion_camel_baseline.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["companion_camel_baseline*"]

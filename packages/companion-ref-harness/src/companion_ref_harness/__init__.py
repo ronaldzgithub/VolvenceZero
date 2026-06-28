@@ -26,8 +26,15 @@ components, read the README and
 
 from __future__ import annotations
 
+from companion_ref_harness.embed import Embedder, HashingEmbedder
+from companion_ref_harness.episodic import (
+    EpisodicEvent,
+    EpisodicExtractor,
+    StubEpisodicExtractor,
+)
 from companion_ref_harness.policy import (
     ComponentSet,
+    HarnessComponent,
     HarnessPolicy,
     parse_component_set,
 )
@@ -36,14 +43,28 @@ from companion_ref_harness.session_summary import (
     SummaryExtractor,
     StubSummaryExtractor,
 )
+from companion_ref_harness.user_model import (
+    StubUserFactExtractor,
+    UserFact,
+    UserFactExtractor,
+)
 
 __all__ = (
     "ComponentSet",
+    "HarnessComponent",
     "HarnessPolicy",
     "parse_component_set",
     "SessionSummary",
     "SummaryExtractor",
     "StubSummaryExtractor",
+    "Embedder",
+    "HashingEmbedder",
+    "UserFact",
+    "UserFactExtractor",
+    "StubUserFactExtractor",
+    "EpisodicEvent",
+    "EpisodicExtractor",
+    "StubEpisodicExtractor",
 )
 
 __version__ = "0.1.0a0"

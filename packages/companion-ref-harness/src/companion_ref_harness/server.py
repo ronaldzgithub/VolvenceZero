@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import datetime as _dt
 import hashlib
 import logging
 import time
@@ -60,6 +61,8 @@ from typing import Any
 
 from aiohttp import web
 
+from companion_ref_harness.embed import EmbedEntry, Embedder, top_k
+from companion_ref_harness.episodic import EpisodicExtractor
 from companion_ref_harness.policy import (
     ComponentSet,
     HarnessComponent,
@@ -74,6 +77,7 @@ from companion_ref_harness.upstream_client import (
     UpstreamClient,
     UpstreamError,
 )
+from companion_ref_harness.user_model import UserFactExtractor
 
 
 _LOG = logging.getLogger("companion_ref_harness.server")
@@ -130,17 +134,25 @@ class HarnessApp:
         store: HarnessStore,
         policy: HarnessPolicy,
         summary_extractor: SummaryExtractor,
+        embedder: Embedder | None = None,
+        user_fact_extractor: UserFactExtractor | None = None,
+        episodic_extractor: EpisodicExtractor | None = None,
     ) -> None:
         self._upstream = upstream
         self._store = store
         self._policy = policy
         self._summary_extractor = summary_extractor
+        self._embedder = embedder
+        self._user_fact_extractor = user_fact_extractor
+        self._episodic_extractor = episodic_extractor
         # (scope_key, session_id) -> _InflightSession
         self._inflight: dict[tuple[str, str], _InflightSession] = {}
         # Per-scope: which sessions we have seen at least once during
         # this process lifetime. Used for "lazy on new session"
-        # summary extraction.
+        # extraction.
         self._seen_sessions_by_scope: dict[str, set[str]] = {}
+        # (scope_key, session_id) already compacted this process lifetime.
+        self._compacted: set[tuple[str, str]] = set()
         self._extract_lock = asyncio.Lock()
 
     @property
@@ -158,6 +170,14 @@ class HarnessApp:
     @property
     def summary_extractor(self) -> SummaryExtractor:
         return self._summary_extractor
+
+    def _has_session_close_component(self) -> bool:
+        c = self._policy.components
+        return (
+            c.has(HarnessComponent.SUMMARY)
+            or c.has(HarnessComponent.USER_MODEL)
+            or c.has(HarnessComponent.EPISODIC)
+        )
 
     # ---- pure helpers ------------------------------------------------------
 
@@ -198,33 +218,59 @@ class HarnessApp:
         scope_key: str,
         session_id: str,
     ) -> SessionSummary | None:
-        """Force-extract a summary for ``(scope_key, session_id)``.
+        """Compact ``(scope_key, session_id)`` for every enabled close component.
 
-        Returns the extracted summary, or ``None`` if the session
-        has no in-flight transcript (already closed / never
-        active). Idempotent: a second call returns the previously
-        stored summary.
+        Runs the summary / user-model / episodic extractors (whichever are
+        enabled) over the session transcript and persists their output.
+        Returns the session summary (when the summary component is enabled),
+        otherwise ``None``. Idempotent: a second call returns the already-stored
+        summary and does not re-extract.
         """
 
-        if not self._policy.components.has(HarnessComponent.SUMMARY):
+        if not self._has_session_close_component():
             return None
 
         async with self._extract_lock:
-            existing = self._store.session_summary_get(
+            key = (scope_key, session_id)
+            if key in self._compacted:
+                self._inflight.pop(key, None)
+                return self._store.session_summary_get(
+                    scope_key=scope_key, session_id=session_id,
+                )
+            existing_summary = self._store.session_summary_get(
                 scope_key=scope_key, session_id=session_id,
             )
-            if existing is not None:
-                self._inflight.pop((scope_key, session_id), None)
-                return existing
-            inflight = self._inflight.pop((scope_key, session_id), None)
+            inflight = self._inflight.pop(key, None)
             if inflight is None or not inflight.messages:
-                return None
-            summary = await self._summary_extractor.extract(
-                scope_key=scope_key,
-                session_id=session_id,
-                transcript=list(inflight.messages),
-            )
-            self._store.session_summary_put(summary)
+                return existing_summary
+            transcript = list(inflight.messages)
+            components = self._policy.components
+
+            summary: SessionSummary | None = existing_summary
+            if components.has(HarnessComponent.SUMMARY) and existing_summary is None:
+                summary = await self._summary_extractor.extract(
+                    scope_key=scope_key,
+                    session_id=session_id,
+                    transcript=transcript,
+                )
+                self._store.session_summary_put(summary)
+            if components.has(HarnessComponent.USER_MODEL) and self._user_fact_extractor is not None:
+                facts = await self._user_fact_extractor.extract(
+                    scope_key=scope_key,
+                    session_id=session_id,
+                    transcript=transcript,
+                )
+                for fact in facts:
+                    self._store.user_fact_put(fact)
+            if components.has(HarnessComponent.EPISODIC) and self._episodic_extractor is not None:
+                events = await self._episodic_extractor.extract(
+                    scope_key=scope_key,
+                    session_id=session_id,
+                    transcript=transcript,
+                )
+                for event in events:
+                    self._store.episodic_put(event)
+            self._compacted.add(key)
             return summary
 
     async def _maybe_close_stale_sessions(
@@ -233,38 +279,32 @@ class HarnessApp:
         scope_key: str,
         new_session_id: str,
     ) -> None:
-        """Trigger summary extraction for any older sessions of this scope.
+        """Compact any older sessions of this scope before the new turn.
 
-        Called whenever a new session_id arrives for ``scope_key``.
-        Iterates over the per-scope seen-sessions set and closes
-        any session != ``new_session_id`` that does not yet have a
-        stored summary.
+        Called whenever a new session_id arrives for ``scope_key``. Iterates
+        over the per-scope seen-sessions set and compacts any session !=
+        ``new_session_id`` that has not yet been compacted this process
+        lifetime.
         """
 
-        if not self._policy.components.has(HarnessComponent.SUMMARY):
+        if not self._has_session_close_component():
             return
         seen = self._seen_sessions_by_scope.setdefault(scope_key, set())
         seen.add(new_session_id)
-        stale: list[str] = []
-        for sid in seen:
-            if sid == new_session_id:
-                continue
-            if self._store.session_summary_get(
-                scope_key=scope_key, session_id=sid,
-            ) is not None:
-                continue
-            stale.append(sid)
+        stale = [
+            sid
+            for sid in seen
+            if sid != new_session_id and (scope_key, sid) not in self._compacted
+        ]
         for sid in stale:
             try:
                 await self.close_session(scope_key=scope_key, session_id=sid)
             except Exception as exc:  # noqa: BLE001 -- intentional re-raise as warning
-                # An extraction failure on a stale session must not block
-                # the new session's turn. Log loud + continue. The
-                # missing summary stays missing (it will retry on next
-                # request from the same user).
+                # An extraction failure on a stale session must not block the
+                # new session's turn. Log loud + continue; the missing record
+                # retries on the next request from the same user.
                 _LOG.warning(
-                    "stale session summary extraction failed: "
-                    "scope=%s session=%s err=%s",
+                    "stale session compaction failed: scope=%s session=%s err=%s",
                     scope_key, sid, exc,
                 )
 
@@ -288,14 +328,41 @@ class HarnessApp:
         await self._maybe_close_stale_sessions(
             scope_key=scope_key, new_session_id=session_id,
         )
-        prior_summaries = self._store.session_summary_list_for_scope(
-            scope_key=scope_key, exclude_session_id=session_id, limit=None,
+        components = self._policy.components
+        latest_user = next(
+            (m["content"] for m in reversed(request_messages) if m.get("role") == "user"),
+            "",
         )
+
+        prior_summaries: tuple[SessionSummary, ...] = ()
+        if components.has(HarnessComponent.SUMMARY):
+            prior_summaries = self._store.session_summary_list_for_scope(
+                scope_key=scope_key, exclude_session_id=session_id, limit=None,
+            )
+        retrieved_turns: tuple[EmbedEntry, ...] = ()
+        if components.has(HarnessComponent.EMBED) and self._embedder is not None and latest_user:
+            query_vec = self._embedder.embed(latest_user)
+            retrieved_turns = top_k(
+                query=query_vec,
+                entries=self._store.embed_index_list_for_scope(scope_key=scope_key),
+            )
+        user_facts = ()
+        if components.has(HarnessComponent.USER_MODEL):
+            user_facts = self._store.user_fact_list_for_scope(scope_key=scope_key)
+        episodic_events = ()
+        if components.has(HarnessComponent.EPISODIC):
+            episodic_events = self._store.episodic_list_for_scope(
+                scope_key=scope_key, limit=None,
+            )
+
         blended = self._policy.blend(
             scope_key=scope_key,
             session_id=session_id,
             messages=request_messages,
             prior_summaries=prior_summaries,
+            retrieved_turns=retrieved_turns,
+            user_facts=user_facts,
+            episodic_events=episodic_events,
         )
         upstream_resp = await self._upstream.chat(
             messages=blended.messages,
@@ -304,20 +371,44 @@ class HarnessApp:
             session_id=session_id,
             user_id=metadata_user_id,
         )
-        # Record the (user, assistant) pair into the in-flight buffer
-        # for later summary extraction. We use the **un-blended**
-        # original messages so the transcript stored locally reflects
-        # what the user actually said, not what the harness spliced.
-        latest_user = next(
-            (m["content"] for m in reversed(request_messages) if m.get("role") == "user"),
-            "",
-        )
+        # Record the (user, assistant) pair into the in-flight buffer for later
+        # extraction. We use the **un-blended** original user text so the local
+        # transcript reflects what the user actually said, not the spliced
+        # prompt.
         if latest_user:
-            self._get_inflight(scope_key=scope_key, session_id=session_id).append_pair(
-                user=latest_user,
-                assistant=upstream_resp.text,
-            )
+            inflight = self._get_inflight(scope_key=scope_key, session_id=session_id)
+            pair_idx = len(inflight.messages) // 2
+            inflight.append_pair(user=latest_user, assistant=upstream_resp.text)
+            if components.has(HarnessComponent.EMBED) and self._embedder is not None:
+                self._index_turn(
+                    scope_key=scope_key,
+                    turn_id=f"{session_id}:u{pair_idx}",
+                    role="user",
+                    content=latest_user,
+                )
+                if upstream_resp.text:
+                    self._index_turn(
+                        scope_key=scope_key,
+                        turn_id=f"{session_id}:a{pair_idx}",
+                        role="assistant",
+                        content=upstream_resp.text,
+                    )
         return upstream_resp.raw
+
+    def _index_turn(
+        self, *, scope_key: str, turn_id: str, role: str, content: str,
+    ) -> None:
+        assert self._embedder is not None  # guarded by caller
+        self._store.embed_index_put(
+            EmbedEntry(
+                scope_key=scope_key,
+                turn_id=turn_id,
+                role=role,
+                content=content,
+                embedding=self._embedder.embed(content),
+                ts=_dt.datetime.now(_dt.timezone.utc).isoformat(),
+            )
+        )
 
     def _get_inflight(
         self,
@@ -346,6 +437,9 @@ def build_app(
     store: HarnessStore,
     components: ComponentSet,
     summary_extractor: SummaryExtractor,
+    embedder: Embedder | None = None,
+    user_fact_extractor: UserFactExtractor | None = None,
+    episodic_extractor: EpisodicExtractor | None = None,
 ) -> web.Application:
     """Construct the aiohttp web.Application bound to a HarnessApp."""
 
@@ -355,6 +449,9 @@ def build_app(
         store=store,
         policy=policy,
         summary_extractor=summary_extractor,
+        embedder=embedder,
+        user_fact_extractor=user_fact_extractor,
+        episodic_extractor=episodic_extractor,
     )
     app = web.Application()
     app[_APP_KEY] = harness
