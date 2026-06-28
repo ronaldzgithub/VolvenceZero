@@ -55,6 +55,7 @@ import dataclasses
 import datetime as _dt
 import hashlib
 import logging
+import re
 import time
 import uuid
 from typing import Any
@@ -88,6 +89,10 @@ _HEALTH_ROUTE: str = "/healthz"
 
 # Key under which we stash the HarnessApp on the aiohttp.web.Application.
 _APP_KEY: str = "companion_ref_harness_app"
+
+# CompanionBench session_id convention: "{arc_id}-s{idx}" (arc_runner). The arc
+# id is the cross-session relationship key when no explicit user_id is sent.
+_ARC_SESSION_RE: re.Pattern[str] = re.compile(r"^(.*)-s\d+$")
 
 
 # ---------------------------------------------------------------------------
@@ -187,22 +192,38 @@ class HarnessApp:
         metadata_user_id: str | None,
         header_user_id: str | None,
         request_headers: dict[str, str],
+        session_id: str | None = None,
     ) -> str:
         """SSOT for scope-key derivation. Used by the request handler.
 
-        Order: metadata.user_id > X-Companion-User-Id header > stable
-        surrogate derived from a small set of request headers. The
-        surrogate is **only** for tests / sanity smoke — production
-        CompanionBench runs always supply ``metadata.user_id``.
+        Order:
+        1. ``metadata.user_id`` — production / explicit identity.
+        2. ``X-Companion-User-Id`` header.
+        3. **Arc scope from the session_id convention.** CompanionBench sends
+           no ``user_id`` and names sessions ``{arc_id}-s{idx}`` (one arc = one
+           continuous relationship across sessions; different arcs = different
+           users). Without this, every arc would collapse onto the same
+           header surrogate and memory would bleed across unrelated arcs. So
+           when no explicit identity is given we key on the arc id (the
+           session_id with its ``-s<N>`` suffix stripped). This is a protocol
+           convention parse, not a behavioral heuristic.
+        4. Per-session fallback (isolation) when the session_id has no arc
+           suffix, then a header surrogate only if there is no session_id at
+           all (tests / sanity smoke).
         """
 
         if metadata_user_id and metadata_user_id.strip():
             return metadata_user_id.strip()
         if header_user_id and header_user_id.strip():
             return header_user_id.strip()
-        # Last-resort surrogate. Hash a stable subset of headers so
-        # the same anonymous caller maps to the same scope across
-        # requests within one server lifetime.
+        if session_id and session_id.strip():
+            sid = session_id.strip()
+            match = _ARC_SESSION_RE.match(sid)
+            if match:
+                return f"arc:{match.group(1)}"
+            return f"session:{sid}"
+        # Last-resort surrogate (no identity, no session_id): hash a stable
+        # subset of headers so one anonymous caller maps to one scope.
         anchor = "|".join(
             request_headers.get(h, "")
             for h in ("User-Agent", "Authorization")
@@ -507,6 +528,7 @@ async def _handle_chat_completions(request: web.Request) -> web.Response:
         metadata_user_id=parsed.user_id,
         header_user_id=request_headers.get("X-Companion-User-Id"),
         request_headers=request_headers,
+        session_id=parsed.session_id,
     )
 
     try:
@@ -549,6 +571,7 @@ async def _handle_session_close(request: web.Request) -> web.Response:
         metadata_user_id=metadata_user_id,
         header_user_id=request_headers.get("X-Companion-User-Id"),
         request_headers=request_headers,
+        session_id=session_id,
     )
     try:
         summary = await harness.close_session(

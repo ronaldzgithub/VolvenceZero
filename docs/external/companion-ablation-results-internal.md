@@ -55,6 +55,43 @@ python scripts/companion_bench/run_same_substrate_ablation.py --phase p2
 
 ## Run log (newest first)
 
+### 2026-06-28 — hosted directional (raw vs ref-harness), no-GPU
+
+> **Status**: directional (NOT retain) — single family, single seed, n=5 arcs.
+> **Tier**: hosted directional (no GPU). Substrate served via DashScope API.
+> **Substrate**: `qwen-turbo` (DashScope, OpenAI-compatible). same-substrate guard: VERIFIED (raw + ref-harness both `qwen-turbo`).
+> **Judges (cross-family, non-Qwen, OpenRouter)**: user-sim=`meta-llama/llama-3.3-70b-instruct`, per-turn=`mistralai/mistral-large`, arc=`deepseek/deepseek-chat`. (OpenAI ToS-blocked + Anthropic/Google unavailable on this OpenRouter account.)
+> **Tracks present**: `raw`, `ref-harness`. (`volvence`/`volvence-cold` need a GPU-served substrate; `camel` needs `camel-ai` installed.)
+> **Runner**: `scripts/companion_bench/run_hosted_ablation.py --family F1`.
+> **Judge-evidence**: NOT yet run (single judge config; no robustness/calibration sweep). Treat deltas as directional only.
+
+#### Per-track final_mean (F1, 5 arcs, seed 0)
+
+| Track | final_mean | A1 | A2 | A3 (continuity) | A4 | A5 | A6 |
+|---|---|---|---|---|---|---|---|
+| raw (bare qwen-turbo) | 72.94 | 94 | 92.6 | 40 | 86.6 | 91 | 96.2 |
+| ref-harness (standard memory wrapper) | 79.12 | 91 | 90 | 64 | 81 | 91 | 89.6 |
+
+Directional read: a correctly-scoped standard memory wrapper beats the bare same model by **+6.2** overall and **+24 on continuity (A3)** — the axis cross-session memory should help. This is the "what does a standard wrapper add on a fixed substrate" baseline the controller layer must then beat.
+
+#### Scope-keying bug found + fixed (why running it for real mattered)
+
+The first F1 attempt showed ref-harness *losing* (64.99, A3=25). Root cause: CompanionBench's `arc_runner` sends `user_id=None`, so the harness fell back to a header surrogate (`User-Agent`+`Authorization`) that is **identical across every arc** → all 5 arcs collapsed into one memory scope → cross-arc memory bleed. Fix: when no `user_id`, key scope on the arc id parsed from the `{arc_id}-s{idx}` session convention (sessions of one arc share memory; arcs stay isolated). Applied to both `companion-ref-harness` and `companion-camel-baseline` `derive_scope_key`, with regression tests. Post-fix: 79.12 (A3=64).
+
+#### State + decision
+
+- **STATE**: `wiring-ready` (only 2 of 5 tracks present; the four #87 claims compare against `volvence`, which is absent → `insufficient_data`). This is NOT a thesis verdict.
+- This run establishes: (a) the formal pipeline runs end-to-end on a real hosted model with real cross-family judges, no GPU; (b) a fair, arc-scoped standard memory wrapper beats bare qwen-turbo on F1, especially continuity.
+- Next to make it a real verdict: add `volvence` / `volvence-cold` on the SAME qwen (GPU box), add `camel` (`pip install camel-ai`), run all six families + multiple seeds + held-out, and run the judge robustness/calibration sweep before quoting numbers.
+
+#### Caveats (do not over-read)
+
+- Single family (F1 = continuity, which favors memory), single seed, n=5 arcs → no stable CI; not significant.
+- Weak substrate (`qwen-turbo`) + single judge config (no #48/#71 robustness yet).
+- Only raw vs ref-harness; the thesis question (Volvence vs these baselines) is not yet tested.
+
+---
+
 ### TEMPLATE — copy this block for every new run
 
 > **Status**: pending first run

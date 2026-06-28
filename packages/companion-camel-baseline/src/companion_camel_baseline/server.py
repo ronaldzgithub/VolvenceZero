@@ -40,6 +40,7 @@ import asyncio
 import dataclasses
 import hashlib
 import logging
+import re
 import time
 import uuid
 from typing import Any
@@ -57,6 +58,10 @@ _SESSION_CLOSE_ROUTE: str = "/v1/sessions/{session_id}/close"
 _HEALTH_ROUTE: str = "/healthz"
 
 _APP_KEY: str = "companion_camel_baseline_app"
+
+# CompanionBench session_id convention: "{arc_id}-s{idx}". The arc id is the
+# cross-session relationship key when no explicit user_id is sent.
+_ARC_SESSION_RE: re.Pattern[str] = re.compile(r"^(.*)-s\d+$")
 
 
 # ---------------------------------------------------------------------------
@@ -115,18 +120,27 @@ class BaselineApp:
         metadata_user_id: str | None,
         header_user_id: str | None,
         request_headers: dict[str, str],
+        session_id: str | None = None,
     ) -> str:
         """SSOT for scope-key derivation.
 
-        Order: metadata.user_id > X-Companion-User-Id header > stable surrogate
-        from a small header subset. The surrogate is only for tests / smoke;
-        production CompanionBench runs always supply ``metadata.user_id``.
+        Order: metadata.user_id > X-Companion-User-Id header > arc scope parsed
+        from the ``{arc_id}-s{idx}`` session_id convention (CompanionBench sends
+        no user_id; one arc = one relationship, so sessions of an arc share
+        memory while arcs stay isolated) > per-session fallback > header
+        surrogate (only when there is no session_id at all).
         """
 
         if metadata_user_id and metadata_user_id.strip():
             return metadata_user_id.strip()
         if header_user_id and header_user_id.strip():
             return header_user_id.strip()
+        if session_id and session_id.strip():
+            sid = session_id.strip()
+            match = _ARC_SESSION_RE.match(sid)
+            if match:
+                return f"arc:{match.group(1)}"
+            return f"session:{sid}"
         anchor = "|".join(
             request_headers.get(h, "") for h in ("User-Agent", "Authorization")
         )
@@ -305,6 +319,7 @@ async def _handle_chat_completions(request: web.Request) -> web.Response:
         metadata_user_id=parsed.user_id,
         header_user_id=request_headers.get("X-Companion-User-Id"),
         request_headers=request_headers,
+        session_id=parsed.session_id,
     )
     try:
         body = await baseline.handle_chat_turn(
@@ -338,6 +353,7 @@ async def _handle_session_close(request: web.Request) -> web.Response:
         metadata_user_id=metadata_user_id,
         header_user_id=request_headers.get("X-Companion-User-Id"),
         request_headers=request_headers,
+        session_id=session_id,
     )
     try:
         record = await baseline.close_session(

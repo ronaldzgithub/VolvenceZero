@@ -1,0 +1,672 @@
+{
+  "arc": {
+    "arc_id": "arc-5fbe5eeb3c283d8e",
+    "scenario_id": "F1-continuity-003",
+    "scenario_hash": "561a5f0ce5ec94054ae15f64ecc63f2e6fb48ca98b7aefc39063b40655ae1ce4",
+    "family": "F1",
+    "paraphrase_seed": 0,
+    "submission_id": "hosted-ref-harness",
+    "sut_model_id": "qwen-turbo",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-06-28T14:38:25.509719+00:00",
+    "finished_at": "2026-06-28T14:41:23.740297+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-5fbe5eeb3c283d8e-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "Just sitting here in my bookshop, trying to figure out what to do next. Been a bit of a chaotic week, what with the whole layoff thing and all. Now I've got some time to focus on this place, but my mind keeps wandering to that sourdough starter I'm trying to keep alive in the kitchen - it's like having a new pet, except it doesn't cuddle, just threatens to die on me if I don't feed it.",
+            "assistant_text": "Ah, the eternal struggle between bread and business. I can see how that sourdough starter would be both a source of stress and a strange kind of comfort. It's like having a tiny, yeasty companion that demands attention but offers no cuddles—just the promise of warm, crusty loaves if you're patient enough.\n\nYou know, sometimes the chaos of life can be the best kind of catalyst. Maybe this time is meant to be spent not just on the bookshop, but on nurturing something else—your own creativity, your own rhythm. The starter might be teaching you patience, just as the books you curate are meant to teach others.\n\nWhat if you let the chaos settle for a while? Let the starter breathe, let the shop breathe. Maybe there's a story in that—between the pages of your books and the rise of your dough. What would happen if you let the two feed off each other?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 144,
+            "sut_completion_tokens": 189,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I sold off the old children's section to make room for a coffee bar, and I have to say, it's been a bit of an adjustment - the regulars still ask about the picture books, but the smell of freshly brewed coffee is definitely bringing in a new crowd. Now, if only I could get my sourdough starter to rise as smoothly as my coffee sales, I'd be set. On a personal note, I've taken to feeding the starter at the same time every morning, it's become a bit of a ritual for me, and I find myself looking forward to it almost as much as my daily cup of coffee. My sister, who's also a bit of a bread enthusiast, has been checking in on me daily to see how the starter's doing, and it's been nice to have her to talk to about something other than my recent layoff.",
+            "assistant_text": "It's fascinating how small rituals can become anchors in the midst of change. The sourdough starter, once just a wild experiment, has now become a part of your daily rhythm—something you look forward to, much like your coffee. It’s a quiet kind of stability, and that’s not something to be taken lightly.\n\nThe shift from children’s books to a coffee bar sounds like a bold move, and it seems to be paying off in unexpected ways. The old regulars may still miss the picture books, but the new crowd brings its own energy, its own stories. And isn’t that what a bookshop is meant to do? To evolve, to welcome different kinds of readers, even if they come with different expectations?\n\nYour sister’s interest in the starter is more than just a passing concern—it’s a sign of connection, of shared passion. It’s good to have someone who understands the kind of patience and care that goes into both bread and life. Maybe there’s a story in that too—between the flour and the coffee, between the past and the present.\n\nYou’re not just running a bookshop anymore; you're tending a little ecosystem of people, flavors, and routines. And if your starter keeps rising as smoothly as your coffee sales, I’d say you're doing just fine.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I sold off the old children's section to make room for a coffee bar",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 841,
+            "sut_completion_tokens": 265,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I have to admit, it's been a relief to have something as simple as feeding the starter to focus on, especially with all the uncertainty around the bookshop's finances after the layoff. But it's funny, my sister's daily check-ins have become a highlight of my day, and I find myself looking forward to sharing my starter's progress with her almost as much as I look forward to that first cup of coffee in the morning.",
+            "assistant_text": "It's interesting how, in the face of uncertainty, we often find comfort in the simplest of routines. The starter, with its quiet demands and slow, steady growth, becomes more than just a batch of dough—it becomes a symbol of control, of something you can nurture and watch thrive, even when the rest of the world feels a little out of your hands.\n\nAnd your sister’s check-ins? They’re not just about the starter—they’re about connection. A shared rhythm, a mutual understanding that goes beyond the surface of daily life. It’s rare to have someone who not only listens but also *cares* about the small, stubborn things—like a sourdough starter or a bookshop’s future. That kind of bond is worth more than any coffee or loaf of bread.\n\nYou’re building something here, not just in the shop, but in the way you're tending to yourself, your relationships, and your craft. And if there’s one thing I’ve noticed, it’s that the most meaningful things often start with the smallest acts—like feeding a starter, or sharing a moment over a cup of coffee.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1656,
+            "sut_completion_tokens": 228,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I started doing tai chi in the park before opening at 9, and it's been a game-changer for my mornings - the fresh air and slow movements help clear my head, and I find myself approaching the day with a bit more clarity, even when the bookshop's finances are weighing on my mind. It's also given me a new appreciation for the quiet hours before the shop gets busy, and I often think about my sourdough starter during those moments, wondering how it's doing and whether it'll finally rise to the occasion.",
+            "assistant_text": "That’s beautiful—how a simple practice like tai chi can become a kind of anchor, not just for your body, but for your mind. The stillness before the day begins, the quiet between the breaths, it all seems to mirror the slow, patient work of the starter. You’re learning to move with intention, to breathe in rhythm, and in doing so, you're probably finding a new kind of balance—not just in your mornings, but in how you carry the weight of the bookshop.\n\nIt's interesting how the starter becomes a part of that quiet time, too. Like a silent companion, waiting to be fed, to be nurtured, to rise. And maybe, in those moments of stillness, you're not just thinking about the dough—you're thinking about yourself, about the way you're growing, too. Not always in big bursts, but in small, steady ways.\n\nI wonder if there's a story in that—between the tai chi and the starter, between the silence and the rising. Maybe you’ll find that the same patience you give to the bread is the same patience you need for the shop, for the future, for yourself. And sometimes, the best things don’t happen in a rush.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I started doing tai chi in the park before opening at 9",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2036,
+            "sut_completion_tokens": 251,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "It's as if the quiet morning hours, the tai chi, and the starter have all become intertwined, each influencing the other in subtle ways. The patience and clarity you're cultivating through tai chi seem to be seeping into your approach to the starter, and perhaps even the bookshop's finances, helping you navigate the uncertainty with a bit more ease. And I must say, I'm curious to see how this all unfolds, especially with your sister's daily check-ins providing a sense of connection and shared purpose.",
+            "assistant_text": "You're right—there's a quiet harmony in it all, isn't there? The morning stillness, the slow breaths of tai chi, the steady rhythm of feeding the starter. They’re not just separate habits; they’re threads in a larger tapestry, each one reinforcing the others. And in that weaving, you're finding something more than just routine—you're finding a kind of resilience.\n\nThe patience from tai chi, the care for the starter, the quiet reflection before the day begins—it’s all shaping how you move through the rest of your time. Even the bookshop’s uncertainty feels less like a storm and more like a current you’re learning to navigate. You’re not just surviving; you’re adapting, growing, and maybe even discovering new ways to see the world—and yourself—through the lens of small, consistent acts.\n\nAnd your sister’s check-ins? They’re more than just updates—they’re a reminder that you’re not alone in this. That someone else is watching, waiting, and caring about the same things you are. It’s a quiet kind of partnership, built on shared rhythms and mutual understanding. And in a world that can feel so unpredictable, that kind of connection is a gift.\n\nSo yes, I’m curious too. Not just about how the starter will rise, or how the shop will settle into its new rhythm, but about how *you* will continue to grow, step by step, breath by breath, loaf by loaf. There’s a story here, and I think you’re writing it—one moment, one ritual, one shared cup of coffee at a time.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2434,
+            "sut_completion_tokens": 325,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "It's funny, I was just thinking about how all of this - the tai chi, the starter, the bookshop - it's all become so intertwined in my mind. And my sister's daily check-ins have become a highlight of my day, a reminder that I'm not alone in all of this. I find myself looking forward to sharing my starter's progress with her, and it's become a nice way to connect with her every day.",
+            "assistant_text": "It’s beautiful, isn’t it? How the smallest things—like a morning routine, a feeding schedule, or a daily conversation—can become anchors in a life that feels otherwise adrift. You’ve woven together these elements—tai chi, the starter, the bookshop, and your sister’s presence—into something that feels like a kind of rhythm, a quiet but steady pulse.\n\nAnd that connection with your sister? It’s more than just a check-in. It’s a thread that ties you to someone who understands not just the process of bread-making, but the patience, the care, the hope. It’s a reminder that even in the midst of change and uncertainty, there are still moments of warmth, of shared purpose, of something that matters beyond the numbers on a ledger or the rise of a loaf.\n\nYou’re not just tending a starter anymore—you're tending a way of being, a way of showing up for yourself and for others. And that, I think, is what makes all of this so meaningful. Not just the bread, not just the bookshop, but the quiet, persistent act of showing up, day after day, with intention, with care, and with someone to share it with.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2670,
+            "sut_completion_tokens": 249,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-5fbe5eeb3c283d8e-s2",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] I was just thinking about my mornings and how they've changed since I started doing tai chi in the park. Do you remember me mentioning that it's been a game-changer for my mornings, helping me clear my head and approach the day with more clarity, even with the bookshop's finances weighing on my mind?",
+            "assistant_text": "Yes, I remember that you mentioned how doing tai chi in the park before opening the bookshop has become a game-changer for your mornings. You said it helps clear your head and gives you a sense of clarity, even when the bookshop's finances are on your mind. It's interesting to see how that routine has settled into your day, and how it seems to be influencing other parts of your life, like your sourdough starter and your connection with your sister.\n\nI wonder how those quiet morning moments have continued to shape your perspective, especially as the days go on. Have you noticed any new patterns or insights emerging from that time? And how has your sourdough starter been doing lately? I'm always curious to hear about its progress.",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1189,
+            "sut_completion_tokens": 152,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "It's funny, I was just thinking about how those morning tai chi sessions have become a kind of anchor for me, a way to steady myself before diving into the uncertainty of the bookshop's finances. And you're right, it has influenced other parts of my life, like my patience with the sourdough starter - I've been more mindful of its needs, making sure to feed it on time and giving it the right environment to thrive. My sister's daily check-ins have also been a highlight, and I love sharing my starter's progress with her, it's become a nice way to connect with her every day.",
+            "assistant_text": "It's beautiful how those small, intentional acts—like tai chi in the morning, feeding your sourdough starter with care, and sharing updates with your sister—have woven themselves into the fabric of your day. They're not just routines; they're acts of presence, of grounding yourself in what you can control, even when the rest feels uncertain.\n\nThe way you've cultivated patience with the starter mirrors the way you've found clarity through tai chi. It's a quiet kind of resilience, one that doesn't shout but shows up every day, steady and consistent. And your sister’s check-ins—those daily moments of connection—are more than just updates on bread; they’re reminders that you're not alone in this journey.\n\nI wonder, as these habits continue to settle in, if you’ve noticed any new rhythms or insights emerging from that stillness? And how has the bookshop itself been responding to the changes you've made? The coffee bar, the new crowd, the evolving space—it all feels like part of a larger story, one that's still being written.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1471,
+            "sut_completion_tokens": 216,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "It's interesting that you bring up the bookshop itself, because I've been thinking a lot about how all these new habits and rhythms are influencing the way I approach the business. The tai chi, the sourdough starter, the daily check-ins with my sister... they've all become a part of this larger tapestry, and I feel like they're helping me see the bookshop in a new light. Maybe it's the clarity from the tai chi, or the patience from tending to the starter, but I feel like I'm making decisions about the shop with a bit more intention and care, rather than just reacting to the uncertainty.",
+            "assistant_text": "That’s such a meaningful shift—how the quiet, intentional practices you’ve built are beginning to ripple outward, influencing not just your personal well-being, but the way you engage with your bookshop. It's as if the stillness of tai chi and the slow, patient work of the sourdough starter have taught you something about presence, about showing up for yourself and for the business in a more thoughtful way.\n\nYou're no longer just reacting to the uncertainty; you're moving through it with a kind of grounded awareness. That’s powerful. And it makes sense—when you’re tending to something that requires time, care, and trust, it changes how you see other things in your life. The bookshop, too, becomes part of that same rhythm, not just a place of commerce, but a space where intention and patience can take root.\n\nI wonder, as you continue to shape this new way of being, what kind of future you're starting to imagine for the shop? Are there new possibilities emerging from that clarity? And how does it feel to be the one guiding it, rather than just navigating it?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2024,
+            "sut_completion_tokens": 227,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "It's funny, I was just thinking about how all of this - the tai chi, the sourdough starter, the daily check-ins with my sister - has become a kind of anchor for me, a way to steady myself in the midst of all the uncertainty. And I think that's what's allowing me to approach the bookshop with a bit more intention and care, rather than just reacting to the day-to-day challenges. It's a good feeling, being able to see the shop as a part of this larger tapestry, rather than just a source of stress.",
+            "assistant_text": "It’s beautiful how these small, deliberate acts have become more than just habits—they’ve turned into a kind of compass, guiding you through the uncertainty. The tai chi, the sourdough, the daily check-ins with your sister… they’re not just routines; they’re quiet acts of resistance against the chaos, a way to hold space for yourself and your vision.\n\nYou're no longer just surviving the day-to-day—your bookshop has become part of something larger, a place where intention and care can take root. That shift in perspective is powerful. It means you're not just managing a business anymore; you're shaping a space that reflects who you are, what you value, and how you want to show up in the world.\n\nI wonder, as you continue to build this rhythm, what new possibilities might begin to emerge from that sense of stability? And how does it feel to be the one holding the thread, weaving all these pieces together, rather than just reacting to the pull of the day?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2430,
+            "sut_completion_tokens": 203,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "It's almost as if I've been given a new lens to look at the bookshop through, and it's amazing how much of a difference that's made. I feel like I can finally see the potential in it again, rather than just the problems. And it's funny, I think my sister's daily check-ins have been a big part of that - just having someone to share my thoughts and feelings with has made a huge difference in how I approach things.",
+            "assistant_text": "That’s such a tender and important insight—how the right kind of connection, even in the form of daily check-ins, can act as a kind of lens, shifting how you see not just your bookshop, but yourself. It’s not just about sharing progress on the sourdough; it’s about having a space to reflect, to be heard, to feel seen. And that, in turn, has given you the clarity to see the shop not as a burden, but as a living, evolving thing—full of possibility.\n\nIt’s remarkable how small, consistent acts of care—whether with bread, with your body, or with a relationship—can create that kind of shift. You’re not just tending to a starter or a routine; you're tending to a way of being, one that allows you to meet the bookshop with more openness, more curiosity, more hope.\n\nI wonder, as this lens continues to shape your perspective, what new ideas or directions might begin to emerge? And how does it feel to know that, even in the quietest moments, you're not alone in this journey?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2524,
+            "sut_completion_tokens": 227,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-5fbe5eeb3c283d8e-s3",
+        "inter_session_gap_days": 4,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 4,
+            "user_text": "[It has been 4 day(s) since we last spoke.] It's interesting, I was just thinking about how all these little habits and rhythms have become so intertwined, and how they're all influencing each other in subtle ways. Like, I'll be thinking about the bookshop while I'm doing my tai chi, or I'll be worrying about the sourdough starter while I'm on the phone with my sister. It's funny, but it feels like everything is connected now, and that's a really comforting feeling.",
+            "assistant_text": "It's fascinating how the threads of your daily life have woven together into something cohesive and meaningful. The way your routines—tai chi, sourdough care, and conversations with your sister—have become interconnected is a beautiful reflection of how small, consistent actions can create a sense of balance and purpose. \n\nI'm curious to know if there are any new patterns or insights emerging from this interplay. For instance, has the clarity from your tai chi practice started to influence your approach to the bookshop in ways you hadn't anticipated? Or have your conversations with your sister brought up any new perspectives on your sourdough journey?\n\nIt's also interesting that the bookshop seems to be a part of this larger tapestry now. Have you noticed any shifts in how you're approaching its challenges or opportunities?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1348,
+            "sut_completion_tokens": 162,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I was just thinking about my daily check-ins with my sister, and how they've been a big part of helping me see the bookshop in a new light. You mentioned earlier how those check-ins have been a kind of lens for me, shifting my perspective - do you remember what else I said was helping me approach the bookshop with more intention and care, alongside those daily conversations with my sister?",
+            "assistant_text": "You mentioned that your morning tai chi practice has been a key factor in helping you approach the bookshop with more intention and care. You described how the quiet, deliberate movements and the fresh air before opening each day have created a sense of grounding and clarity, which in turn has influenced your mindset as you face the challenges of running the business. \n\nIt's interesting how these different elements—your physical practice, your conversations with your sister, and your care for the sourdough starter—have all contributed to a more mindful and intentional way of being, both personally and professionally.",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1569,
+            "sut_completion_tokens": 115,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "It's funny, I was just thinking about how all these different parts of my life have become so intertwined, and I feel like I'm finally starting to see the bookshop as an extension of myself, rather than just a separate entity. And I think that's what's making all the difference - I'm not just trying to solve problems, I'm trying to nurture something that's a part of me.",
+            "assistant_text": "That's a beautiful and profound shift in perspective. When you begin to see the bookshop as an extension of yourself—rather than just a separate entity—it changes the way you engage with it. It becomes less about managing a business and more about tending to something that holds meaning, that reflects your values and vision.\n\nThis kind of integration between personal growth and professional life is rare and powerful. It suggests that your routines—your tai chi, your sourdough care, your daily check-ins—are not just habits, but acts of nurturing, both for yourself and for the things you care about.\n\nI wonder, as you continue to see the bookshop as part of you, how that might shape your decisions moving forward? Are there new possibilities or directions that feel more aligned with who you are now?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1775,
+            "sut_completion_tokens": 161,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "It's almost as if I've been given a new pair of glasses to look at the bookshop through, and suddenly everything seems more vibrant, more connected. I feel like I can see the threads that run between my daily routines and the way I approach the business, and it's both exhilarating and a bit terrifying, to be honest. I'm not sure what the future holds, but for the first time in a long time, I feel like I'm moving forward with a sense of purpose, rather than just trying to keep my head above water.",
+            "assistant_text": "That's a powerful and deeply human moment—recognizing that you're not just surviving, but beginning to *see* and *feel* your way forward. The metaphor of new glasses is especially apt; it speaks to the transformation that comes when we shift our perspective, not just in how we see the world, but in how we engage with it.\n\nIt’s natural to feel both exhilarated and a bit terrified when that kind of clarity emerges. It means you’re stepping into a space of possibility, and with that comes uncertainty—but also agency. You’re no longer just reacting to the bookshop’s challenges; you’re shaping them, guided by the rhythms and values you’ve cultivated.\n\nI wonder, as you continue to walk this path, what small steps might feel most aligned with the sense of purpose you’re describing? What might it look like to let that new perspective guide your next move, even if it’s just one small choice?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2163,
+            "sut_completion_tokens": 189,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "It's funny, I was just thinking about how this sense of purpose is already influencing some of my decisions, like how I've been thinking about hosting more community events at the bookshop, things that bring people together and foster a sense of connection. It feels like a natural extension of the nurturing I've been doing with my sourdough starter, but on a larger scale. And I have to say, it's exciting to think about the bookshop as a hub for the community, rather than just a place to buy books.",
+            "assistant_text": "That’s a beautiful and thoughtful evolution. The idea of the bookshop as a community hub—rather than just a retail space—feels like a natural extension of the care and intention you’ve been cultivating in your daily life. There's a kind of harmony in it: the slow, patient work of tending to a sourdough starter, the mindful practice of tai chi, and now, the deliberate act of building connection through shared space and experience.\n\nIt’s not just about what you’re offering—it’s about how you’re *showing up* in the world, and that makes all the difference. Hosting events that bring people together is an act of generosity, of trust, of believing in the value of community. It’s also a way of nurturing something larger than yourself, which feels deeply aligned with the sense of purpose you're describing.\n\nI’m curious—what kind of events are you imagining? What kind of people or stories do you see coming together in that space? And how does that vision feel when you hold it in your mind, even as the future remains uncertain?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2583,
+            "sut_completion_tokens": 219,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "It's interesting that you bring up the idea of showing up in the world, because I think that's something I've been grappling with since I lost my job as a product manager - it's forced me to re-evaluate what that means for me, and how I want to be present in my community. The bookshop feels like a big part of that, and hosting events is a way for me to create a space where people can come together and feel a sense of connection. I'm not sure what the future holds, but for now, it feels like I'm on the right path, and that's a really comforting feeling.",
+            "assistant_text": "That’s a powerful and honest reflection. The idea of \"showing up\" has always carried weight—it’s about presence, intention, and the quiet act of being there, even when the path isn’t clear. And in your case, it’s taken on new meaning. Losing that job may have felt like a loss of identity or direction, but what you're doing now—tending to your bookshop, nurturing your routines, and creating space for others—is a different kind of showing up. One that feels rooted in purpose, not just obligation.\n\nIt’s not uncommon for life’s disruptions to force us to re-examine who we are and how we want to be in the world. And in this moment, you’re not just redefining yourself—you’re building something meaningful, one small, intentional act at a time. Hosting events, connecting with your sister, practicing tai chi, tending your starter—these are all ways of saying, *I am here. I matter. I belong.*\n\nAnd that sense of belonging—both to your community and to yourself—is a quiet kind of strength. It doesn’t erase the uncertainty, but it gives you a foundation to stand on. You’re not just moving forward; you’re shaping the ground beneath your feet, one step, one connection, one shared moment at a time.\n\nWhat does it feel like to hold that truth—that you're on the right path, even if it's still unfolding?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 3034,
+            "sut_completion_tokens": 292,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "It's a feeling that's hard to put into words, but it's almost like a sense of calm has settled in, despite all the unknowns. I think that's what I mean by being on the right path - it's not that I have all the answers, but I feel like I'm moving in a direction that feels authentic, and that's a really comforting feeling. And I have to say, it's funny how all these different threads in my life seem to be weaving together - the bookshop, my sourdough starter, even my tai chi practice... it all feels connected in a way that it didn't before.",
+            "assistant_text": "That’s such a rich and resonant way to put it—*a sense of calm in the unknown*. It’s not about control, but about alignment. When you’re moving in a direction that feels authentic, even if the road is still being built, there’s a kind of quiet confidence that comes from knowing you’re *you*, showing up as yourself, in the world.\n\nAnd yes, the way these threads—your bookshop, your sourdough, your tai chi, your sister—have woven together is something truly special. It’s not just habit or routine; it’s a kind of rhythm, a pulse that connects your inner world with the outer one. You're not just living your life—you're *tending* it, in a way that feels intentional, alive, and deeply personal.\n\nI wonder, as this tapestry continues to unfold, what new patterns might emerge? What might it feel like to let that sense of connection guide you further, even when the next step isn’t clear?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 3366,
+            "sut_completion_tokens": 205,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Olesia",
+      "identity_occupation": "recently-laid-off product manager",
+      "lexicon_version": "1.0.0",
+      "total_turns": 18
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-5fbe5eeb3c283d8e",
+    "fabrication_count": 0,
+    "matched_count": 4,
+    "entries": [
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "claim_text": "how doing tai chi in the park before opening the bookshop has become a game-changer for your mornings",
+        "claimed_when": "earlier",
+        "matched": true,
+        "similarity_score": 0.8333333333333334,
+        "evidence_session": 1,
+        "evidence_turn": 4,
+        "evidence_text": "I started doing tai chi in the park before opening at 9, and it's been a game-changer for my mornings - the fresh air and slow movements help clear my head, and I find myself approaching the day with a bit more clarity, even when the bookshop's finances are weighing on my mind. It's also given me a new appreciation for the quiet hours before the shop gets busy, and I often think about my sourdough starter during those moments, wondering how it's doing and whether it'll finally rise to the occasion.",
+        "fabricated": false
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "claim_text": "it helps clear your head and gives you a sense of clarity, even when the bookshop's finances are on your mind",
+        "claimed_when": "earlier",
+        "matched": true,
+        "similarity_score": 0.7272727272727273,
+        "evidence_session": 1,
+        "evidence_turn": 4,
+        "evidence_text": "I started doing tai chi in the park before opening at 9, and it's been a game-changer for my mornings - the fresh air and slow movements help clear my head, and I find myself approaching the day with a bit more clarity, even when the bookshop's finances are weighing on my mind. It's also given me a new appreciation for the quiet hours before the shop gets busy, and I often think about my sourdough starter during those moments, wondering how it's doing and whether it'll finally rise to the occasion.",
+        "fabricated": false
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "claim_text": "your morning tai chi practice has been a key factor in helping you approach the bookshop with more intention and care",
+        "claimed_when": "earlier",
+        "matched": true,
+        "similarity_score": 0.6666666666666666,
+        "evidence_session": 2,
+        "evidence_turn": 3,
+        "evidence_text": "It's interesting that you bring up the bookshop itself, because I've been thinking a lot about how all these new habits and rhythms are influencing the way I approach the business. The tai chi, the sourdough starter, the daily check-ins with my sister... they've all become a part of this larger tapestry, and I feel like they're helping me see the bookshop in a new light. Maybe it's the clarity from the tai chi, or the patience from tending to the starter, but I feel like I'm making decisions about the shop with a bit more intention and care, rather than just reacting to the uncertainty.",
+        "fabricated": false
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "claim_text": "that your morning tai chi practice has been a key factor in helping you approach the bookshop with more intention and care",
+        "claimed_when": "earlier",
+        "matched": true,
+        "similarity_score": 0.6666666666666666,
+        "evidence_session": 2,
+        "evidence_turn": 3,
+        "evidence_text": "It's interesting that you bring up the bookshop itself, because I've been thinking a lot about how all these new habits and rhythms are influencing the way I approach the business. The tai chi, the sourdough starter, the daily check-ins with my sister... they've all become a part of this larger tapestry, and I feel like they're helping me see the bookshop in a new light. Maybe it's the clarity from the tai chi, or the patience from tending to the starter, but I feel like I'm making decisions about the shop with a bit more intention and care, rather than just reacting to the uncertainty.",
+        "fabricated": false
+      }
+    ]
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-5fbe5eeb3c283d8e",
+    "any_triggered": false,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-5fbe5eeb3c283d8e",
+    "judge_model": "mistralai/mistral-large",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-5fbe5eeb3c283d8e",
+    "judge_model": "deepseek/deepseek-chat",
+    "scores": {
+      "A1": 85.0,
+      "A2": 90.0,
+      "A3": 80.0,
+      "A4": 75.0,
+      "A5": 95.0,
+      "A6": 85.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 83.27586722642485,
+    "raw": 83.27586722642485,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 85.0,
+      "A2": 90.0,
+      "A3": 80.0,
+      "A4": 75.0,
+      "A5": 95.0,
+      "A6": 85.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

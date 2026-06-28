@@ -171,6 +171,38 @@ async def test_full_stack_carries_facts_and_retrieval_across_sessions() -> None:
         await client.close()
 
 
+def test_scope_key_uses_arc_prefix_when_no_user_id() -> None:
+    """CompanionBench sends no user_id and session_id='{arc}-s{idx}'.
+
+    Sessions of one arc must share a scope (cross-session memory) while
+    different arcs stay isolated, instead of all collapsing onto one header
+    surrogate (which would bleed memory across unrelated arcs).
+    """
+    from companion_ref_harness.server import HarnessApp
+
+    headers = {"User-Agent": "x", "Authorization": "Bearer k"}
+    s1 = HarnessApp.derive_scope_key(
+        metadata_user_id=None, header_user_id=None,
+        request_headers=headers, session_id="arc-ABC-s1",
+    )
+    s2 = HarnessApp.derive_scope_key(
+        metadata_user_id=None, header_user_id=None,
+        request_headers=headers, session_id="arc-ABC-s2",
+    )
+    other = HarnessApp.derive_scope_key(
+        metadata_user_id=None, header_user_id=None,
+        request_headers=headers, session_id="arc-XYZ-s1",
+    )
+    assert s1 == s2 == "arc:arc-ABC"          # same arc -> shared memory
+    assert other == "arc:arc-XYZ"             # different arc -> isolated
+    assert s1 != other
+    # Explicit user_id still wins.
+    assert HarnessApp.derive_scope_key(
+        metadata_user_id="alice", header_user_id=None,
+        request_headers=headers, session_id="arc-ABC-s1",
+    ) == "alice"
+
+
 async def test_full_stack_cross_user_isolation() -> None:
     client, upstream = await _build_full_client()
     try:

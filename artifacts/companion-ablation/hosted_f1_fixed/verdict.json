@@ -1,0 +1,38 @@
+{
+  "state": "wiring-ready",
+  "claims": [
+    {
+      "claim_id": "claim_pipeline_gt_raw",
+      "status": "insufficient_data",
+      "detail": "need both 'volvence' and 'raw' tracks",
+      "effects": []
+    },
+    {
+      "claim_id": "claim_gt_standard_layers",
+      "status": "insufficient_data",
+      "detail": "need 'volvence' and at least one of 'ref-harness'/'camel'",
+      "effects": []
+    },
+    {
+      "claim_id": "claim_training_adds_value",
+      "status": "insufficient_data",
+      "detail": "need both 'volvence' and 'volvence-cold' tracks",
+      "effects": []
+    },
+    {
+      "claim_id": "claim_heldout_cohort_stable",
+      "status": "insufficient_data",
+      "detail": "need 'volvence' track",
+      "effects": []
+    }
+  ],
+  "tracks": {
+    "raw": 72.9351240264099,
+    "ref-harness": 79.11648483380938
+  },
+  "recommendations": [
+    "wiring-ready: the flow runs but core claims are not assessable yet (claim_pipeline_gt_raw, claim_gt_standard_layers, claim_training_adds_value). Supply all five tracks' summaries to assess."
+  ],
+  "substrate_note": "NOT VERIFIED (no fingerprints supplied; rely on serve-time guard)",
+  "timestamp_iso": "2026-06-28T14:53:58.909266+00:00"
+}

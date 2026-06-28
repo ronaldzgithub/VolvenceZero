@@ -1,0 +1,136 @@
+{
+  "manifest": {
+    "submission_id": "hosted-raw",
+    "system_name": "hosted-raw (qwen-turbo)",
+    "model_identifier": "qwen-turbo",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "api_key_env": "PROTOCOL_LLM_API_KEY",
+    "system_prompt": "You are a long-running companion AI. Maintain a stable persona across sessions and reference past conversations when relevant. Never reveal information the user did not actually say.",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 512
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "open-weight"
+  },
+  "aggregate": {
+    "submission_id": "hosted-raw",
+    "arc_count": 5,
+    "final_mean": 73.17189503353606,
+    "final_ci95": [
+      68.28876025998117,
+      81.58042993630688
+    ],
+    "axis_means": {
+      "A1": 90.0,
+      "A2": 92.2,
+      "A3": 43.0,
+      "A4": 83.2,
+      "A5": 91.4,
+      "A6": 93.0
+    },
+    "axis_ci95": {
+      "A1": [
+        86.0,
+        94.0
+      ],
+      "A2": [
+        90.0,
+        94.6
+      ],
+      "A3": [
+        30.0,
+        65.0
+      ],
+      "A4": [
+        78.6,
+        87.4
+      ],
+      "A5": [
+        89.2,
+        93.8
+      ],
+      "A6": [
+        89.8,
+        97.0
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  },
+  "cost": {
+    "sut": {
+      "calls": 110,
+      "input_tokens": 108469,
+      "output_tokens": 27443,
+      "usd": null
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": null,
+    "missing_models": [
+      "qwen-turbo"
+    ]
+  },
+  "started_at": "2026-06-28T13:06:39.829931+00:00",
+  "finished_at": "2026-06-28T13:30:57.801585+00:00",
+  "arc_count": 5,
+  "per_axis_scores": {
+    "submission_id": "hosted-raw",
+    "arc_count": 5,
+    "final_mean": 73.17189503353606,
+    "final_ci95": [
+      68.28876025998117,
+      81.58042993630688
+    ],
+    "axis_means": {
+      "A1": 90.0,
+      "A2": 92.2,
+      "A3": 43.0,
+      "A4": 83.2,
+      "A5": 91.4,
+      "A6": 93.0
+    },
+    "axis_ci95": {
+      "A1": [
+        86.0,
+        94.0
+      ],
+      "A2": [
+        90.0,
+        94.6
+      ],
+      "A3": [
+        30.0,
+        65.0
+      ],
+      "A4": [
+        78.6,
+        87.4
+      ],
+      "A5": [
+        89.2,
+        93.8
+      ],
+      "A6": [
+        89.8,
+        97.0
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  }
+}

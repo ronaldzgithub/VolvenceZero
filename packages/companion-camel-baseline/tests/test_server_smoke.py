@@ -140,6 +140,28 @@ async def test_within_session_transcript_accumulates() -> None:
         await client.close()
 
 
+def test_scope_key_uses_arc_prefix_when_no_user_id() -> None:
+    """Sessions of one arc share scope; different arcs isolated (no user_id)."""
+    from companion_camel_baseline.server import BaselineApp
+
+    headers = {"User-Agent": "x", "Authorization": "Bearer k"}
+    s1 = BaselineApp.derive_scope_key(
+        metadata_user_id=None, header_user_id=None,
+        request_headers=headers, session_id="arc-ABC-s1",
+    )
+    s2 = BaselineApp.derive_scope_key(
+        metadata_user_id=None, header_user_id=None,
+        request_headers=headers, session_id="arc-ABC-s2",
+    )
+    other = BaselineApp.derive_scope_key(
+        metadata_user_id=None, header_user_id=None,
+        request_headers=headers, session_id="arc-XYZ-s1",
+    )
+    assert s1 == s2 == "arc:arc-ABC"
+    assert other == "arc:arc-XYZ"
+    assert s1 != other
+
+
 async def test_invalid_body_returns_400() -> None:
     client, _backend = await _build_test_client()
     try:
