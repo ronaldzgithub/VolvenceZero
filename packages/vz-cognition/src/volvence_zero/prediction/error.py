@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Mapping
 
+from volvence_zero.apprenticeship import ApprenticeshipAlignmentSnapshot
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidence,
     DialogueExternalOutcomeKind,
@@ -520,6 +521,12 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
     # Consumers still read a single unified ``PredictionErrorSnapshot``; the
     # commitment contribution is overlaid inside _advance and described in
     # the snapshot description so the origin remains auditable.
+    # apprenticeship_alignment (docs/specs/apprenticeship-alignment.md) is
+    # added so that operator-guidance-vs-cognition mismatch / version-space
+    # collapse can enter the PE chain as a discrete-event PE source,
+    # analogous to the AAC alignment overlay. It is SHADOW by default, so PE
+    # receives a placeholder and the overlay is a no-op until the owner is
+    # promoted to ACTIVE (R15 reversibility).
     dependencies = (
         "substrate",
         "evaluation",
@@ -527,6 +534,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         "regime",
         "commitment",
         "dialogue_external_outcome",
+        "apprenticeship_alignment",
     )
     default_wiring_level = WiringLevel.ACTIVE
 
@@ -565,6 +573,64 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             min_window=8,
             max_window=64,
         )
+        # autograd-owner-integration Phase F: offline gradient-LSS calibration.
+        # This is owner-internal state updated only via rare-heavy LSS import; it
+        # never enters the published PredictionErrorSnapshot (schema unchanged).
+        self._offline_lss_magnitude_ema = 0.0
+        self._offline_lss_update_count = 0
+
+    # ------------------------------------------------------------------
+    # Offline gradient-LSS rare-heavy surface (Phase F). Runtime PE is
+    # unchanged; these methods only build/consume the float-only LSS artifact.
+    # ------------------------------------------------------------------
+
+    def export_rare_heavy_lss(
+        self,
+        *,
+        samples: tuple[tuple[tuple[float, ...], tuple[float, ...]], ...],
+        checkpoint_id: str,
+    ):
+        """Build a float-only LSS rare-heavy checkpoint from (predicted, actual)
+        PE-axis samples using real torch autograd (grounding gate enforced)."""
+
+        from volvence_zero.prediction.lss_rare_heavy import build_lss_rare_heavy_checkpoint
+
+        return build_lss_rare_heavy_checkpoint(samples=samples, checkpoint_id=checkpoint_id)
+
+    def import_rare_heavy_lss(self, checkpoint) -> None:
+        """Apply an LSS checkpoint into owner-internal calibration only.
+
+        Updates an EMA of the gradient-LSS magnitude. Does NOT modify the
+        published snapshot in any way (R8). Fail-closed if ungrounded.
+        """
+
+        if not checkpoint.all_grounded:
+            raise ValueError(
+                "Refusing to import an ungrounded LSS rare-heavy checkpoint."
+            )
+        beta = 0.5
+        self._offline_lss_magnitude_ema = (
+            beta * self._offline_lss_magnitude_ema + (1.0 - beta) * checkpoint.mean_magnitude
+        )
+        self._offline_lss_update_count += 1
+
+    @property
+    def rare_heavy_lss_calibration(self) -> dict:
+        return {
+            "magnitude_ema": self._offline_lss_magnitude_ema,
+            "update_count": self._offline_lss_update_count,
+        }
+
+    def export_rare_heavy_lss_state(self) -> tuple[float, int]:
+        """Owner-internal LSS calibration state (for rollback)."""
+
+        return (self._offline_lss_magnitude_ema, self._offline_lss_update_count)
+
+    def restore_rare_heavy_lss_state(self, state: tuple[float, int]) -> None:
+        """Restore owner-internal LSS calibration (rollback)."""
+
+        self._offline_lss_magnitude_ema = float(state[0])
+        self._offline_lss_update_count = int(state[1])
 
     def set_action_context(self, action_context: PredictionActionContext | None) -> None:
         """Set the current-turn action context without resetting prediction state."""
@@ -614,6 +680,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         regime_snapshot = upstream["regime"]
         commitment_snapshot = upstream.get("commitment")
         external_outcome_snapshot = upstream.get("dialogue_external_outcome")
+        apprenticeship_snapshot = upstream.get("apprenticeship_alignment")
         substrate_value = substrate_snapshot.value if isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
         evaluation_value = evaluation_snapshot.value if isinstance(evaluation_snapshot.value, EvaluationSnapshot) else None
         dual_track_value = dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
@@ -631,6 +698,11 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             )
         ):
             external_outcome_value = external_outcome_snapshot.value
+        apprenticeship_value: ApprenticeshipAlignmentSnapshot | None = None
+        if apprenticeship_snapshot is not None and isinstance(
+            apprenticeship_snapshot.value, ApprenticeshipAlignmentSnapshot
+        ):
+            apprenticeship_value = apprenticeship_snapshot.value
         if evaluation_value is None or dual_track_value is None:
             return self.publish(_bootstrap_snapshot(turn_index=self._turn_index))
         self._turn_index += 1
@@ -644,6 +716,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             regime_snapshot=regime_value,
             commitment_snapshot=commitment_value,
             external_outcome_snapshot=external_outcome_value,
+            apprenticeship_snapshot=apprenticeship_value,
         )
         self._previous_prediction = snapshot.next_prediction
         self._previous_substrate_snapshot = substrate_value
@@ -658,6 +731,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         regime_snapshot = kwargs.get("regime_snapshot")
         commitment_snapshot = kwargs.get("commitment_snapshot")
         external_outcome_snapshot = kwargs.get("external_outcome_snapshot")
+        apprenticeship_snapshot = kwargs.get("apprenticeship_snapshot")
         previous_prediction = kwargs.get("previous_prediction")
         previous_substrate_snapshot = kwargs.get("previous_substrate_snapshot")
         turn_index = int(kwargs.get("turn_index", 0))
@@ -670,6 +744,11 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         external_outcome_value = (
             external_outcome_snapshot
             if isinstance(external_outcome_snapshot, DialogueExternalOutcomeSnapshot)
+            else None
+        )
+        apprenticeship_value = (
+            apprenticeship_snapshot
+            if isinstance(apprenticeship_snapshot, ApprenticeshipAlignmentSnapshot)
             else None
         )
         return self.publish(
@@ -685,6 +764,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 regime_snapshot=regime_value,
                 commitment_snapshot=commitment_value,
                 external_outcome_snapshot=external_outcome_value,
+                apprenticeship_snapshot=apprenticeship_value,
             )
         )
 
@@ -764,6 +844,49 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         )
         return signed_severity, summary
 
+    def _compute_apprenticeship_contribution(
+        self, apprenticeship_snapshot: ApprenticeshipAlignmentSnapshot | None
+    ) -> tuple[float, float, str]:
+        """Return (signed_severity, surprise, audit) for this turn's guidance.
+
+        * ``surprise`` (eluder informativeness) always lifts PE magnitude:
+          informative guidance is a surprise relative to prior cognition.
+        * ``signed_severity`` is POSITIVE when guidance clashes with the
+          AI's cognition (mismatches) or the version space collapses
+          (contradictions); the caller pushes regime_error / signed_reward
+          NEGATIVE by it. Pure novelty without a confirmed clash carries
+          surprise but near-zero signed severity (epistemic, not punitive).
+        * Returns ``(0.0, 0.0, "")`` when the owner is absent / idle so the
+          overlay is a strict no-op until the owner is promoted to ACTIVE.
+        """
+        if apprenticeship_snapshot is None:
+            return 0.0, 0.0, ""
+        snapshot = apprenticeship_snapshot
+        if snapshot.version_space_status == "idle":
+            return 0.0, 0.0, ""
+        surprise = _clamp_unit(snapshot.guidance_surprise)
+        contradiction_severity = max(
+            (finding.severity for finding in snapshot.contradiction_findings),
+            default=0.0,
+        )
+        mismatch_severity = (
+            sum(ref.severity for ref in snapshot.mismatch_refs)
+            / len(snapshot.mismatch_refs)
+            if snapshot.mismatch_refs
+            else 0.0
+        )
+        signed_severity = _clamp_signed(
+            contradiction_severity * 0.8 + mismatch_severity * 0.2
+        )
+        audit = (
+            f"apprenticeship[{snapshot.version_space_status}] "
+            f"surprise={surprise:.2f} severity={signed_severity:.2f} "
+            f"reliability={snapshot.reliability} "
+            f"mismatches={len(snapshot.mismatch_refs)} "
+            f"contradictions={len(snapshot.contradiction_findings)}"
+        )
+        return signed_severity, surprise, audit
+
     def _advance(
         self,
         *,
@@ -776,6 +899,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         regime_snapshot: RegimeSnapshot | None,
         commitment_snapshot: CommitmentSnapshot | None = None,
         external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None = None,
+        apprenticeship_snapshot: ApprenticeshipAlignmentSnapshot | None = None,
     ) -> PredictionErrorSnapshot:
         next_prediction = self.compute_prediction(
             source_turn_index=turn_index,
@@ -854,6 +978,34 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             )
         else:
             error = base_error
+        # Overlay the apprenticeship-alignment contribution (Phase 2,
+        # docs/specs/apprenticeship-alignment.md). Operator guidance that
+        # diverges from / contradicts current cognition is informative,
+        # discrete-event PE: it lifts magnitude (the AI was surprised) and,
+        # for confirmed contradictions / mismatches, pushes the regime axis
+        # and signed_reward negative (the AI's identity/cognition is out of
+        # line with what it is being taught). No-op when the owner is SHADOW
+        # (snapshot absent => placeholder => None) or idle.
+        appr_severity, appr_surprise, appr_audit = (
+            self._compute_apprenticeship_contribution(apprenticeship_snapshot)
+        )
+        if appr_surprise > 0.0 or appr_severity != 0.0:
+            regime_error = _clamp_signed(error.regime_error - appr_severity)
+            signed_reward = _clamp_signed(error.signed_reward - appr_severity)
+            magnitude = round(
+                min(error.magnitude + max(appr_surprise, abs(appr_severity)), 4.0),
+                4,
+            )
+            error = PredictionError(
+                task_error=error.task_error,
+                relationship_error=error.relationship_error,
+                regime_error=round(regime_error, 4),
+                action_error=error.action_error,
+                magnitude=magnitude,
+                signed_reward=round(signed_reward, 4),
+                description=f"{error.description} {appr_audit}.",
+                distribution_summary=error.distribution_summary,
+            )
         # Phase 1.B: owner-internal Curiosity-Critic readout. Bootstrap
         # turns publish ``pe_decomposition=None`` so legacy consumers
         # that ignore the field stay byte-for-byte compatible.

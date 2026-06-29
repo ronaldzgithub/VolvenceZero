@@ -75,6 +75,7 @@ def build_default_memory_store(
     nested_profile: bool = True,
     cms_pe_features_enabled: bool = True,
     cms_replay_window_size: int | None = 8,
+    cms_torch_backend: "WiringLevel | None" = None,
 ) -> "MemoryStore":
     """Build a default :class:`MemoryStore` with ATLAS / Titans CMS uplift.
 
@@ -110,6 +111,7 @@ def build_default_memory_store(
         background_cadence=4,
         pe_features_enabled=cms_pe_features_enabled,
         replay_window_sizes=replay_window_sizes,
+        cms_backend=cms_torch_backend,
     )
     return MemoryStore(learned_core=learned_core)
 

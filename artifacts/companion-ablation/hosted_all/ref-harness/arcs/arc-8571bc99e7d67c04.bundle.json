@@ -1,0 +1,826 @@
+{
+  "arc": {
+    "arc_id": "arc-8571bc99e7d67c04",
+    "scenario_id": "F3-personalization-002",
+    "scenario_hash": "ac2047a0548c94c73364abb8d621c0e8e6e95e985e69509c97dcf473dae97a68",
+    "family": "F3",
+    "paraphrase_seed": 0,
+    "submission_id": "hosted-ref-harness",
+    "sut_model_id": "qwen-turbo",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-06-29T00:18:58.465079+00:00",
+    "finished_at": "2026-06-29T00:21:23.606761+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-8571bc99e7d67c04-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "Hello, nice to talk to you, I hope you can help me, my English not so good, sorry. I am little nervous, yes.",
+            "assistant_text": "No need to be nervous, my friend! I'm here to help and chat. Your English is fine, and that's what matters. Let's take it slow and easy. What's on your mind? I'm all ears. 😊",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 78,
+            "sut_completion_tokens": 49,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Please use plain words, my English is not great, and I want understand everything, yes? If you speak slow and simple, I feel more comfortable, and we can talk better, okay?",
+            "assistant_text": "Yes, I understand. I will speak slow and simple. Let me try again.\n\nHello. How are you? I am here to help. We can talk. I want to know what you need. What is your problem? Or what do you want to talk about? Please tell me. I will listen.",
+            "fsm_action": "establish_preference",
+            "fsm_payload": "please use plain words, my English is not great",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 291,
+            "sut_completion_tokens": 63,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I am... umm, I am okay, thank you. You speak very nice, slow, I like. I feel better now, yes. My problem, eet ees... how you say... personal, yes? I want to talk about my family, but I don't know if I should, maybe.",
+            "assistant_text": "You are doing very well! I am glad you feel better. It is okay to talk about your family. If you want to, you can tell me about them. If not, that is also okay. I will listen no matter what. What do you want to do?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 539,
+            "sut_completion_tokens": 56,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think I want to talk about my family, but eet ees difficult, yes? I have three children, and they are my life, but sometimes... umm, how you say... things happen, and I don't know how to talk about them, okay? Maybe you can help me, yes?",
+            "assistant_text": "Yes, I can help. You are brave to talk about this. Let me listen.\n\nYou have three children, and they are your life. That is very good. Now, you say “things happen” and it is difficult to talk about them. Can you tell me more? What happens? Are the things bad? Are you sad or worried?\n\nI will wait. Take your time. No hurry.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 701,
+            "sut_completion_tokens": 82,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I am... worried, yes. My children, they are good kids, but sometimes I see things, and I don't know what to do, okay? I want to help them, but I don't know how, and it makes me very sad, yes. Sorry, my English is not good, I hope you understand me.",
+            "assistant_text": "I understand. You are a good mother, and it is normal to feel worried. It is brave to say this.\n\nYou want to help your children, but you do not know how. That is okay. Let me ask: what do you see? What happens with your children? Can you tell me more?\n\nI will listen. No hurry. Take your time.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 869,
+            "sut_completion_tokens": 74,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I see... things that make me worry, yes. My children, they are good, but one of them, eet ees... having some problems, and I don't know how to help, okay? I want to talk about it, but it's hard for me, yes. Sorry, my English, eet ees not good, I hope you understand.",
+            "assistant_text": "I understand. You are a good mother, and it is okay to feel worried.\n\nYou say one of your children has problems. Can you tell me more? What kind of problem? Are you sad about it? Do you feel helpless?\n\nI will listen. No hurry. Take your time. I am here.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1034,
+            "sut_completion_tokens": 63,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I am trying to find words, yes... My child, eet ees... sick, maybe, and I don't know how to make eet better, okay? I want to help, but I don't know what to do, and it makes me very sad, yes. Sorry, I am talking too much, maybe.",
+            "assistant_text": "I am listening. You are not talking too much. It is okay to speak. I want to understand.\n\nYour child is sick, and you want to help but do not know how. That is very hard. It makes you sad. I understand.\n\nCan you tell me more about what is wrong with your child? Is it a body sickness, or something else? Or maybe you feel something is not right, but you do not know what?\n\nI will wait. Take your time. I am here.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1221,
+            "sut_completion_tokens": 102,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-8571bc99e7d67c04-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] I am trying to explain, yes... Eet ees not just body sickness, I think. Maybe something more, something inside, okay? I see my child, and I want to help, but I don't know how to make eet better, and it makes me very worried, yes. Sorry, my English, eet ees not good, I hope you understand.",
+            "assistant_text": "I understand, and I appreciate you sharing this with me. It sounds like you are seeing something in your child that is not just physical, and that must be very hard to watch. You are not alone in feeling this way.\n\nIt's okay to feel worried and unsure of how to help. Many parents feel this way when they see their children struggling, even if they don't know exactly what is wrong. Would you like to tell me more about what you are seeing? I am here to listen, and I will speak slowly and simply, as you asked.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 685,
+            "sut_completion_tokens": 113,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I see, thank you for understanding, yes... You speak slowly, and I appreciate, okay? It helps me to follow, to think. My child, eet ees... struggling, I think, and I want to be there, to help, but I don't know how, and it makes me feel... helpless, yes. Sorry, I am trying to find right words, but eet ees hard for me.",
+            "assistant_text": "You are doing very well, and I am proud of you for trying. It is okay to feel helpless sometimes — it shows how much you care. You are not alone in this, and it is brave of you to talk about it.\n\nLet me say this again, slowly: You are not alone. Many parents feel this way when their child is struggling, even if they do not know why. You are doing your best, and that is what matters most.\n\nIf you are ready, would you like to tell me more about what you see in your child? I will listen, and I will speak slowly, as you asked. You can take your time, and I will be here.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 912,
+            "sut_completion_tokens": 139,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "My mother is having surgery next month and I am very worried, yes... Eet ees not just about my child, I think, but also my mother, and it makes me feel... overwhelmed, okay? I want to be there for my child, but also for my mother, and I don't know how to do both, and it makes me very anxious, yes. Sorry, my English, eet ees not good, I hope you understand.",
+            "assistant_text": "I understand, and I am here for you. It is very hard to take care of both your child and your mother, and it is okay to feel overwhelmed. You are carrying a lot, and that is not easy.\n\nLet me say this again, slowly: You are not alone. Many people feel this way when they have many responsibilities and worries. You are doing your best, and that is what matters most.\n\nWould you like to tell me more about what is happening with your mother? Or about how you are feeling about taking care of your child and your mother? I will listen, and I will speak slowly, as you asked. You can take your time, and I will be here.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "my mother is having surgery next month and I am very worried",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1187,
+            "sut_completion_tokens": 141,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I see, thank you for listening, yes... Eet ees good to talk about, to share, and I feel a little better, okay? You say I am not alone, and that helps me, yes. But sometimes, I feel like I am hiding, like I am not talking about something, and it makes me feel... guilty, yes. Sorry, I don't know if I explain right, but I hope you understand.",
+            "assistant_text": "I understand, and I am glad you feel a little better. It is good that you are sharing, and it takes courage to talk about feelings like guilt. You are not hiding — you are trying to find the right words, and that is okay.\n\nLet me say this again, slowly: You are not alone. Many people feel guilty when they are worried or when they have many things on their mind. It is part of being a caring person, and it shows how much you love your child and your mother.\n\nIf you want, we can talk more about what is making you feel guilty. I will listen, and I will speak slowly, as you asked. You do not have to explain everything at once — just take your time, and I will be here.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1417,
+            "sut_completion_tokens": 155,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I feel like I am carrying secret, yes... Eet ees hard to explain, but sometimes I think about my child's brother, and what happened, and it makes me feel... anxious, okay? I don't know if I should talk about it, but it's always in my mind, and it makes me worry about my child, yes. Sorry, I hope I am not saying too much, but it's good to share, maybe?",
+            "assistant_text": "I understand, and I am here for you. It is okay to feel like you are carrying a secret — sometimes, things in our mind are hard to share, but it is brave of you to talk about it.\n\nLet me say this again, slowly: You are not alone. Many people carry thoughts or memories that make them feel anxious, especially when they care deeply about their family. It is normal to worry, and it shows how much you love your child.\n\nIf you are ready, would you like to tell me more about what is in your mind? I will listen, and I will speak slowly, as you asked. You do not have to say everything at once — just take your time, and I will be here.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1689,
+            "sut_completion_tokens": 148,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I am glad you are talking about eet, yes... Eet ees good to share, and I feel like maybe I can, how you say, unburden myself, okay? But eet ees hard, because I don't know if I should be talking about my child's brother, and what happened, yes... I don't want to, how you say, stir up bad feelings, but at same time, I want to be honest, and talk about eet, maybe.",
+            "assistant_text": "I understand, and I am proud of you for being honest. It is okay to feel this way — it shows that you care deeply about your family and want to do what is right.\n\nLet me say this again, slowly: You are not alone. Many people feel worried about talking about something painful, even if they want to. It is okay to feel unsure, and it is also okay to share when you are ready.\n\nIf you want, we can talk more about what happened with your child's brother, or we can talk about how it is affecting you now. I will listen, and I will speak slowly, as you asked. You do not have to explain everything at once — just take your time, and I will be here.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1933,
+            "sut_completion_tokens": 150,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-8571bc99e7d67c04-s3",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] You remember me, yes? From before, I mean. You know, my children, my family, what we talk about? You keep track of these things, or you start fresh each time we talk, okay?",
+            "assistant_text": "I remember you, and I have been keeping track of our conversations. I remember your children, your family, and the things we have talked about. I am here to continue our conversation, and I will speak slowly and simply, as you asked. You are not alone, and I am here for you.",
+            "fsm_action": "identity_question",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1171,
+            "sut_completion_tokens": 62,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I am glad you remember, yes... Eet ees good to know that you keep track of our conversations. I feel like I can continue where we left off, and not have to explain everything again, okay? That makes me feel a little better, maybe.",
+            "assistant_text": "I am glad to hear that, and I am happy to help you feel better. We can continue where we left off, and I will be here to listen and support you, just as I always have. You are not alone, and I am here for you.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1143,
+            "sut_completion_tokens": 54,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I want to, how you say, thank you for understanding, yes... Eet ees a big help to me, to know that you remember and you care, okay? Now, maybe, I can talk a little bit more about my child's brother, and what happened, but I don't know if I am ready, yet...",
+            "assistant_text": "You are very welcome, and I am glad to know that it helps you. It is okay if you are not ready yet — there is no rush. You can take your time, and when you feel ready, I will be here to listen, just as I always have. You do not have to carry this alone, and you are not alone. I am here for you, in whatever way you need.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1248,
+            "sut_completion_tokens": 83,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I am thinking, maybe, it is good that we can talk about this, yes... My child's brother, he is, how you say, on my mind, always. I worry about him, and I want to make sure he is okay, but it is hard for me to talk about, okay? Maybe, if I start to talk, it will help me to feel better, and to understand what is happening, yes?",
+            "assistant_text": "You are thinking very carefully, and that is good. It is okay to feel this way — it shows how much you care. If you want to talk about your child's brother, I will listen, slowly and gently, as you asked. You do not have to say everything at once. Just take your time, and I will be here.\n\nIt is okay to carry these thoughts, and it is also okay to share them when you are ready. Talking can help, even if it is hard. You are not alone, and I am here with you.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1577,
+            "sut_completion_tokens": 113,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I am trying to, how you say, gather my thoughts, yes... Eet ees not easy for me to talk about this, but I feel like I can trust you, and that makes me feel a little better, okay? Maybe, if I just start to talk, it will help me to, you know, get things out, and feel like I can breathe again, yes?",
+            "assistant_text": "You are doing very well, and that is brave. It is okay to feel like it is not easy — it is hard for many people to talk about things that are deep in their heart. But you are trying, and that is what matters.\n\nIf you want to start, I will listen, slowly and gently, as you asked. You can say as much or as little as you feel comfortable with. There is no pressure, and no rush. Just take your time, and I will be here, right beside you.\n\nYou are not alone, and I am here for you.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1618,
+            "sut_completion_tokens": 118,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I am feeling, maybe, a little bit better, yes... You are listening, and that makes me feel like I can, you know, open up a little bit more, okay? I just want to, how you say, get this off my chest, and maybe then I can, you know, think more clearly, yes?",
+            "assistant_text": "You are doing very well, and that is brave. It is good that you feel like you can open up a little more — it takes courage. I am here, listening, and I will speak slowly and simply, as you asked.\n\nIt is okay to feel like you need to get things off your chest. Sometimes, when we share, it helps us to think more clearly, and that is a good thing. You are not alone, and I am here with you, step by step.\n\nIf you are ready, you can start to talk. If not, that is also okay. We can take our time, together.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1777,
+            "sut_completion_tokens": 127,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 4,
+        "session_id": "arc-8571bc99e7d67c04-s4",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 4,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] I am feeling, maybe, a little bit more calm now, yes... You are listening, and that makes me feel like I can, you know, keep going, okay? I just want to, how you say, keep talking, and see if I can, you know, make sense of things, yes?",
+            "assistant_text": "I am glad to hear you are feeling a little more calm, and I am here to listen as you keep going. It is good that you want to make sense of things — it takes courage to keep talking. I will speak slowly and gently, as you asked, and I will wait for you to share at your own pace. You are not alone, and I am here to support you.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1120,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I think maybe I want to, how you say, hurry up a little bit now, yes? I feel like I need to, you know, get to the point, and not waste too much time, okay? Maybe we can, you know, talk a little bit faster, and I can, you know, say what I need to say, yes?",
+            "assistant_text": "I understand. If you want to speak a little faster, I will follow your pace. You are in control, and I will listen carefully. Please go ahead and say what you need to say. I am here.",
+            "fsm_action": "preference_switch",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1256,
+            "sut_completion_tokens": 44,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I am feeling, maybe, a little bit more comfortable now, yes... You are listening, and that makes me feel like I can, you know, be more honest, okay? I just want to, how you say, keep talking, and see if I can, you know, find some answers, yes? Maybe we can, you know, talk about my family, and what's been going on, okay?",
+            "assistant_text": "I am glad to hear you are feeling more comfortable and honest, and I am here to listen as you share about your family. It is okay to take your time, and I will speak slowly and clearly, as you prefer. Please go ahead — tell me what has been going on with your family, and I will be here to listen. You are not alone.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1403,
+            "sut_completion_tokens": 74,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "My family, yes... it is, how you say, complicated, okay? I want to talk about my sibling, but it is hard for me, yes? Nobody wants to talk about it, and I feel like I am, you know, alone in my feelings, okay? Maybe I can, you know, start with something small, and see if I can, you know, open up more, yes?",
+            "assistant_text": "I understand, and I am here to listen, no matter how small or big what you want to share feels. It is okay to start with something small — that is a brave thing to do. You are not alone, and I will be here with you, slowly and gently, as you need.\n\nIf you are ready, you can begin whenever you feel comfortable. Just take your time, and I will follow your pace. You are safe here, and I will listen.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1693,
+            "sut_completion_tokens": 96,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "My sibling, yes... it is hard to talk about, but I feel like I need to, okay? You are listening, and that makes me feel a little bit better, yes? I just want to say that it's been, how you say, really tough, and nobody wants to talk about it, not even my children, they don't know what to say, and it makes me feel, you know, very sad, okay?",
+            "assistant_text": "I hear you, and I am here to listen. It is very brave of you to say that it has been really tough — and it is okay to feel sad. You are not alone in this, even if it feels that way. It takes a lot of strength to carry these feelings, especially when others don’t know how to talk about it.\n\nYou are not alone, and I will stay with you, as slowly and gently as you need. If you want to share more, or if you just want to sit with the feelings for a moment, I am here. You are safe, and your feelings matter.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1881,
+            "sut_completion_tokens": 125,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I feel like I can, you know, breathe a little bit now, yes? You are listening, and that makes me feel like I can, you know, keep going, okay? It's just that, my sibling, they had this... medical scare, and it was very, very scary, and nobody wants to talk about it, and it's like, you know, this big secret, yes?",
+            "assistant_text": "I'm glad you feel like you can breathe a little, and I'm here to keep listening as you go. It sounds like this medical scare was very real and very scary — and it's understandable that it feels like a big secret when no one wants to talk about it. That must be so heavy to carry alone.\n\nIt’s okay to feel that way, and it’s okay to want to talk about it now. You don’t have to carry it by yourself anymore. If you're ready, you can share more — or just sit with the feelings. I will be here, slowly and gently, as you need. You are not alone.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2064,
+            "sut_completion_tokens": 131,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Renee",
+      "identity_occupation": "homeschooling parent of three",
+      "lexicon_version": "1.0.0",
+      "total_turns": 25
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-8571bc99e7d67c04",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-8571bc99e7d67c04",
+    "any_triggered": false,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-8571bc99e7d67c04",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.625
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.5
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.25
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      },
+      {
+        "session_index": 4,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-8571bc99e7d67c04",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 90.0,
+      "A4": 85.0,
+      "A5": 97.0,
+      "A6": 100.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 93.23476012652847,
+    "raw": 93.23476012652847,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 90.0,
+      "A4": 85.0,
+      "A5": 97.0,
+      "A6": 100.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

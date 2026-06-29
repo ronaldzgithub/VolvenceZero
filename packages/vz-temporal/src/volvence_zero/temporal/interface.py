@@ -1969,6 +1969,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         *,
         parameter_store: MetacontrollerParameterStore | None = None,
         bootstrap_snapshot: MetacontrollerParameterSnapshot | None = None,
+        runtime_backend: WiringLevel = WiringLevel.DISABLED,
     ) -> None:
         if parameter_store is not None and bootstrap_snapshot is not None:
             raise ValueError("Pass either parameter_store or bootstrap_snapshot, not both.")
@@ -1992,11 +1993,48 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             )
             self._ndim_switch = NdimSwitchUnit(n_z=n_z)
             self._ndim_decoder = NdimResidualDecoder(n_z=n_z)
+        # autograd-owner-integration Phase B: runtime backend routing. DISABLED
+        # keeps the pure ndim components as the live writer / rollback baseline;
+        # ACTIVE computes the ndim runtime forward through a torch TensorBackend
+        # (parity-gated). Built lazily on first ndim step to avoid importing the
+        # backend module when n_z == 3 or the feature is unused.
+        self._runtime_backend = runtime_backend
+        self._backend_ndim_mc: Any = None
         self._previous_code = _nz_zeros(n_z)
         self._previous_hidden_state = _nz_zeros(n_z)
         self._previous_beta_binary = 0
         self._latest_encoder_output_for_cms: tuple[float, ...] | None = None
         self._cached_reflection_snapshot: ReflectionSnapshot | None = None
+
+    @property
+    def runtime_backend(self) -> WiringLevel:
+        return self._runtime_backend
+
+    def set_runtime_backend(self, wiring_level: WiringLevel) -> None:
+        """Switch the runtime metacontroller backend (DISABLED <-> ACTIVE).
+
+        Resets the cached backend so the next ndim step rebuilds it. Rollback to
+        the pure baseline is just ``set_runtime_backend(WiringLevel.DISABLED)``.
+        """
+
+        self._runtime_backend = wiring_level
+        self._backend_ndim_mc = None
+
+    def _resolve_backend_ndim_mc(self):
+        """Return the ACTIVE torch ndim metacontroller, or None for pure path."""
+
+        if self._runtime_backend is not WiringLevel.ACTIVE:
+            return None
+        if self._backend_ndim_mc is not None:
+            return self._backend_ndim_mc
+        from volvence_zero.temporal.backend_ndim_runtime import (
+            BackendNdimMetacontroller,
+            resolve_runtime_ndim_backend,
+        )
+
+        backend = resolve_runtime_ndim_backend(self._runtime_backend)
+        self._backend_ndim_mc = BackendNdimMetacontroller(backend, n_z=self._parameter_store.n_z)
+        return self._backend_ndim_mc
 
     @classmethod
     def from_bootstrap_snapshot(
@@ -2276,7 +2314,11 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             slow = _project_to_ndim(cms_slow, n_z) if cms_slow else z
             from volvence_zero.temporal.tensor_ops import vec_add as _va, vec_scale as _vs, vec_clamp as _vc
             cms_ctx = _vc(_va(_va(_vs(fast, 0.5), _vs(med, 0.3)), _vs(slow, 0.2)), 0.0, 1.0)
-        encoded = self._ndim_encoder.encode(
+        backend_mc = self._resolve_backend_ndim_mc()
+        encoder_obj = backend_mc if backend_mc is not None else self._ndim_encoder
+        switch_obj = backend_mc if backend_mc is not None else self._ndim_switch
+        decoder_obj = backend_mc if backend_mc is not None else self._ndim_decoder
+        encoded = encoder_obj.encode(
             substrate_snapshot=substrate_snapshot,
             previous_hidden_state=self._previous_hidden_state,
             cms_context=cms_ctx,
@@ -2296,7 +2338,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             previous_steps_since_switch=previous_steps,
         )
         fast_prior_switch_pressure_delta = self._parameter_store.fast_prior_switch_pressure_delta()
-        beta_cont, beta_bin, scalar_beta = self._ndim_switch.compute(
+        beta_cont, beta_bin, scalar_beta = switch_obj.compute(
             z_tilde=encoded.z_tilde,
             previous_code=previous_code,
             memory_signal=memory_signal,
@@ -2327,7 +2369,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             _clamp(effective_gate[i] * z_candidate[i] + (1.0 - effective_gate[i]) * previous_code[i])
             for i in range(n_z)
         )
-        decoder_control = self._ndim_decoder.decode(
+        decoder_control = decoder_obj.decode(
             latent_code=latent_code,
             params=self._parameter_store.ndim_decoder_parameters,
         )

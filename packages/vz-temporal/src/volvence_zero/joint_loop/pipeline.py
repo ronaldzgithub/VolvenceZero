@@ -149,6 +149,11 @@ class RareHeavyArtifact:
     description: str
     training_evidence: "RareHeavyTrainingEvidence | None" = None
     application_checkpoint: ApplicationRareHeavyCheckpoint | None = None
+    # autograd-owner-integration Phase F: optional float-only gradient-LSS
+    # checkpoint. Carried alongside the other owner checkpoints; the runtime
+    # prediction_error snapshot schema is unchanged. ``object`` typing avoids a
+    # hard import of the prediction module into this dataclass header.
+    lss_checkpoint: object | None = None
 
 
 def _clamp(v: float) -> float:
@@ -737,6 +742,7 @@ class SSLRLTrainingPipeline:
         artifact_id: str | None = None,
         include_memory: bool = True,
         include_substrate: bool = True,
+        lss_checkpoint: object | None = None,
     ) -> RareHeavyArtifact:
         final_ssl = self._ssl_loss_history[-1] if self._ssl_loss_history else 0.0
         final_reward = self._rl_reward_history[-1] if self._rl_reward_history else 0.0
@@ -755,6 +761,7 @@ class SSLRLTrainingPipeline:
             final_ssl_loss=final_ssl,
             final_total_reward=final_reward,
             training_evidence=self._training_evidence,
+            lss_checkpoint=lss_checkpoint,
             description=(
                 f"Rare-heavy artifact exported from {self.owner_path} with phase={self._phase.value}, "
                 f"transition_step={self._transition_step}, ssl_loss={final_ssl:.3f}, reward={final_reward:.3f}, "

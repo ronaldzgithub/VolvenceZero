@@ -14,6 +14,14 @@ dependencies = [
     "vz-substrate==0.1.*",
 ]
 
+# Optional real-autograd backend for CMS bands (Phase 4 of the NL/ETA
+# full-autograd migration). Pure-Python CMS remains the default / rollback
+# baseline; torch is only required when CMS is wired to WiringLevel.ACTIVE.
+[project.optional-dependencies]
+torch = [
+    "torch>=2.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["volvence_zero*"]

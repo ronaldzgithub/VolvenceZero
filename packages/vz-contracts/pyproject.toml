@@ -11,6 +11,14 @@ authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = []
 
+# Optional real-autograd backend (volvence_zero.tensor_backend). Pure-Python
+# tuple math is the zero-dependency default / rollback baseline; torch is only
+# needed when an owner is wired to the autograd backend (WiringLevel.ACTIVE).
+[project.optional-dependencies]
+torch = [
+    "torch>=2.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["volvence_zero*"]

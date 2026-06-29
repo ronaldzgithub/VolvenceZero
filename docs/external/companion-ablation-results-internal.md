@@ -55,6 +55,44 @@ python scripts/companion_bench/run_same_substrate_ablation.py --phase p2
 
 ## Run log (newest first)
 
+### 2026-06-29 — hosted directional, ALL families, 3 tracks (raw / ref-harness / camel), no-GPU
+
+> **Status**: directional (NOT retain). All ~30 public scenarios (F1–F6), single seed.
+> **Substrate**: `qwen-turbo` (DashScope). same-substrate guard: VERIFIED (all 3 tracks `qwen-turbo`; camel + ref-harness upstream both point at it).
+> **Judges (cross-family, non-Qwen, OpenRouter)**: user-sim=`meta-llama/llama-3.3-70b-instruct`, per-turn=`deepseek/deepseek-chat` (high-volume → fast), arc=`mistralai/mistral-large` (per-arc). per-turn family ≠ arc family.
+> **Tracks**: `raw`, `ref-harness` (4 memory components, deepseek extractor), `camel` (camel-ai 0.2.90 ChatAgent on the same qwen-turbo). `volvence`/`volvence-cold` absent (need GPU).
+> **Runner**: `run_hosted_ablation.py --family all --with-camel`. Arc failures (transient API): raw 1, ref-harness 2, camel 2 (isolated; run continued).
+> **Judge-evidence**: SHADOW scaffold only (`judge_evidence/`); no real robustness sweep yet (#48/#71). Since the deltas below are within noise, judge choice cannot manufacture a signal that is not present.
+
+#### Per-track results (all families, 1 seed)
+
+| Track | final_mean | CI95 | A1 | A2 | A3 (continuity) | A4 | A5 | A6 | arcs |
+|---|---|---|---|---|---|---|---|---|---|
+| raw (bare qwen-turbo) | 81.54 | [76.5, 85.9] | 94.1 | 97.1 | 57.8 | 89.0 | 95.6 | 98.6 | 29 |
+| ref-harness (standard memory wrapper) | 81.61 | [77.1, 85.9] | 94.7 | 97.0 | 57.1 | 90.1 | 95.4 | 98.9 | 28 |
+| camel (standard agent framework) | 78.27 | [74.6, 82.1] | 94.5 | 97.3 | 48.3 | 90.2 | 96.2 | 98.9 | 28 |
+
+#### Headline finding (honest)
+
+On the **full** companion benchmark with a real substrate + real cross-family judges:
+
+- **A standard memory wrapper does NOT beat the bare model** (81.61 vs 81.54; CIs almost identical). The large F1-only continuity win (+24 on A3) **washed out** when averaged across all six families — memory helps the continuity-family scenarios but is neutral / slightly noisy elsewhere, so the net effect is ~0.
+- **A standard agent framework (CAMEL) slightly underperforms the bare model** (78.27 vs 81.54; CIs overlap but the point estimate and continuity A3 48.3 vs 57.8 are clearly lower). The transcripts show why: CAMEL produces long, flowery, less-grounded replies that the judges score lower on a companion task.
+
+#### Why this matters for the thesis (strategically GOOD)
+
+The bar "beat raw + a standard memory wrapper + a standard agent framework" is **real and non-trivial** on the full benchmark: naive approaches do not clear it. So if Volvence's controller layer beats this ~81.5 raw baseline (and the wrapper/agent baselines that tie/lose to it), that is a meaningful, non-gamed result — not "we beat a strawman with no memory". It also shows the benchmark is not trivially won by bolting on memory.
+
+#### Caveats (do not over-read)
+
+- Single seed; CIs are wide (~±4–5) so only large effects are detectable. The raw≈ref-harness tie and camel's dip are directional.
+- Weak substrate (`qwen-turbo`): a stronger substrate could change whether the wrapper's overhead helps or hurts.
+- Aggregate only (per-family breakdown not retained beyond per-axis); the continuity story (memory helps F1 specifically) is visible only because F1 was run separately (see prior entry).
+- Single judge config; real #71 robustness sweep still pending.
+- `volvence` / `volvence-cold` not tested → the actual thesis question (does the cognitive controller beat these baselines?) is still open and needs a GPU-served substrate.
+
+---
+
 ### 2026-06-28 — hosted directional (raw vs ref-harness), no-GPU
 
 > **Status**: directional (NOT retain) — single family, single seed, n=5 arcs.

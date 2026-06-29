@@ -1,7 +1,67 @@
 # Contract Migration Log
 
 > Status: migration / implementation log
-> Last updated: 2026-05-03
+> Last updated: 2026-06-29
+
+## autograd-owner-integration (2026-06-29): torch paths wired into owners
+
+Bridges the torch/autograd modules from sidecar proofs into the real owner
+paths, all gated by `WiringLevel` (DISABLED default / SHADOW / ACTIVE) with the
+pure-Python path retained as the rollback baseline. No public snapshot schema
+changed; append-only evidence fields only:
+
+- `SSLTrainingReport` += `torch_backend`, `torch_prediction_loss`, `torch_kl_loss`,
+  `torch_switch_sparsity`, `torch_parameters_changed`, `torch_grad_norm`,
+  `torch_wrote_back` (all defaulted; DISABLED leaves them at defaults).
+- `OptimizationReport` (internal_rl) += `torch_backend`, `torch_parameters_changed`,
+  `torch_policy_loss`, `torch_value_loss`, `torch_approx_kl`, `torch_wrote_back`.
+- `RareHeavyArtifact` += optional `lss_checkpoint` (float-only
+  `LSSRareHeavyCheckpoint`); `export_rare_heavy_artifact(lss_checkpoint=...)`.
+- New owner-internal (non-snapshot) calibration on `PredictionErrorModule`:
+  `export/import_rare_heavy_lss`, `rare_heavy_lss_calibration`,
+  `export/restore_rare_heavy_lss_state`.
+
+Constructor knobs (default DISABLED, reversible): `MetacontrollerSSLTrainer(
+ssl_backend=...)`, `FullLearnedTemporalPolicy(runtime_backend=...)` +
+`set_runtime_backend`, `InternalRLSandbox(rl_backend=...)` /
+`CausalZPolicy(rl_backend=...)` + `set_rl_backend`, `CMSMemoryCore(cms_backend=...)`
+/ `build_default_memory_store(cms_torch_backend=...)`.
+
+`prediction.lss_rare_heavy` was added to the prediction facade (torch-free).
+`prediction` is already an allowed upstream tier for vz-temporal, so the
+rare-heavy pipeline carries `lss_checkpoint` via `object` typing without a new
+module-level import. Import-boundary table unchanged from the prior
+full-autograd migration entry.
+
+Bugfix recorded here for traceability: the ndim switch `gate_input = delta +
+z_tilde` is tuple CONCATENATION (2*n_z dims, matching the n_z*2-column gate W1),
+not an elementwise add. The Phase B/SSL torch forwards were corrected to
+concatenate + use the full W1, restoring pure<->torch parity.
+
+## NL/ETA full-autograd migration (2026-06-29): no public schema drift
+
+Phases 0–5 of the NL/ETA full-autograd uplift add real torch autograd paths
+(metacontroller SSL with Eq.3 `N(0,I)` KL + STE switch, PPO on `z_t`, runtime
+metacontroller + CMS band, delta-momentum, gradient LSS) **without changing any
+public snapshot schema**. Mechanism:
+
+- The torch numeric backend (`volvence_zero.tensor_backend`, in `vz-contracts`)
+  keeps torch tensors owner-internal; everything published into a snapshot is
+  converted back to float tuples at the boundary (`to_floats`).
+- New artifacts (`TorchMetacontrollerArtifact`, `CMSBandWeights`,
+  `LSSArtifact`, …) carry floats/ints only and travel via the existing
+  rare-heavy artifact path; they are not registered as runtime slots.
+- The pure-Python path remains the rollback baseline; torch advances per-owner
+  through `WiringLevel` `DISABLED -> SHADOW -> ACTIVE` with parity + latency
+  gates. `temporal_abstraction`, `memory`, and `prediction_error` slot schemas
+  are unchanged.
+
+Import-boundary note: `volvence_zero.tensor_backend` /
+`tensor_backend_parity` were added to the allowed upstream set for
+`vz-memory`, `vz-temporal`, `vz-cognition`, and `vz-runtime` in
+`tests/contracts/test_import_boundaries.py` (they live in the zero-upstream
+`vz-contracts`, so no pyproject dependency direction changed). `torch` is an
+optional `[torch]` extra on `vz-contracts` / `vz-memory` / `vz-temporal`.
 
 ## Slice C.2 (2026-05-03): Semantic spine readiness evidence chain
 

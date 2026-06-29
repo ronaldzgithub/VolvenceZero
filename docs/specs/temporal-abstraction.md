@@ -146,6 +146,16 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 后续可平滑替换为 learned-lite 或 full learned policy，而不改变 snapshot schema
 - SYS-1 最小切片新增 `CPDSwitchReadout`，由 `TrackTemporalConsolidationModule` 在消费 `prediction_error` 时发布到 `TemporalConsolidationSnapshot.cpd_switch_readout`。该 readout 只根据 typed PE 数值计算 `pe_spike_score` / `reward_shift_score` / `switch_recommended`，不从文本或关键词推断，不新增第二个 `beta_t` owner，也不直接改变 live `beta_t`。后续 `cpd-beta-switch` SHADOW profile 才能把它接成 switch-pressure evidence。
 
+### NL/ETA 全量真 autograd 迁移（Phase 0–3，full-autograd target line）
+
+目标线已从“纯 Python 有界近似 + 论文语义补齐”提升为**全面真 autograd（torch），含 runtime metacontroller**。纯 Python tuple 数学降级为**回滚基线**，torch 路径通过 `WiringLevel`（`DISABLED -> SHADOW -> ACTIVE`）逐 owner 推进，每步有 parity 证据，可随时回退。与 R2 不冲突：autograd 作用于 metacontroller 控制器层，基础 LLM substrate 仍冻结；与 R8 不冲突：torch 张量只活在 owner 内部，发布前转回 float tuple，公共 `temporal_abstraction` snapshot schema 不变。
+
+- **Phase 0（基石）**：`volvence_zero.tensor_backend`（位于 vz-contracts，零上游，vz-temporal/vz-memory 共享）提供 `TensorBackend` 抽象 —— `PurePythonBackend`（回滚基线 / DISABLED）与 `TorchBackend`（真 autograd / ACTIVE）。`tensor_backend_parity` 提供 GRU/FFN 前向 parity harness；float64 下 pure↔torch 逐字段一致（容差 1e-9）。`configure_determinism()` 固定 seed + deterministic 算法，保证 SHADOW 双跑可比对。torch 缺失时 `resolve_backend` 显式回落 pure（named reason，不静默吞错）。
+- **Phase 1（offline SSL 真 autograd）**：`volvence_zero.temporal.torch_metacontroller` 用真 backprop 训练 GRU encoder + switch + decoder。**Eq.3 对齐**：默认 KL 切到 `D_KL(q ‖ N(0,I))`（`KLTarget.STANDARD_NORMAL`），保留 learned-prior 为 CMS-enhanced 变体（appendix C.2）；action loss 用 MSE。**STE 切换**：前向二值、反向直通，替换固定 0.55 阈值，切换稀疏由 `alpha · D_KL` 涌现驱动。`compare_kl_targets` 是 matched ablation，验证 standard-normal KL 随 alpha 增大而压缩（变分瓶颈签名），且 alpha 对切换有因果影响、两种 KL target 不塌缩为同一切换行为。参数快照经 `TorchMetacontrollerArtifact`（仅 float）走 rare-heavy 路径导出/导入。
+- **Phase 2（offline Internal RL 真 autograd）**：`volvence_zero.internal_rl.torch_internal_rl` 把因果策略 `pi(z_t | e_{1:t})` 与 critic 实现为真 torch 模块，PPO（GAE + clipped surrogate + entropy + value regression）全程 autograd（替换 `math.sin` 伪随机与解析步）。环境是分层 sparse/delayed-reward proof episode（reward 只在 terminal 交付）。matched control（`no-optimize`）不更新、不提升；full 提升 terminal return 并击败 control。
+- **Phase 3（runtime metacontroller SHADOW -> ACTIVE）**：`volvence_zero.temporal.backend_metacontroller` 用 backend-agnostic 前向（同权重可在 pure/torch 上跑），`shadow_dual_run` 逐字段比对 z_t/beta/control 并量延迟；`promotable = within_tolerance and latency_ok`。`resolve_runtime_backend(WiringLevel)` 路由：DISABLED/SHADOW 走 pure（torch 并行只在 shadow 比对，不上 live 路径），ACTIVE 走 torch（显式 pure fallback）。pure↔torch parity 在 float64 下 ≤1e-7（n_z=16 ≤1e-6）——torch 路径是**同一函数**而非 look-alike，故回滚精确。
+- `learned-lite` / 旧 `full-learned`（纯 Python heuristic）仍保留为 fallback / rollback baseline；torch 路径默认 DISABLED，需显式 WiringLevel 提升。
+
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.2 节
 
 ## 与其他能力域的关系
@@ -162,6 +172,8 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-06-29: autograd-owner-integration —— 把 torch 路径从 sidecar 接入 owner 主链。`MetacontrollerSSLTrainer(ssl_backend=WiringLevel)` 经 `temporal/torch_store_ssl.py` 直接对 store 的 `Ndim*Parameters` 做真 autograd（ACTIVE 写回同一 store；SHADOW 仅证据），`SSLTrainingReport` 追加 `torch_*` 证据字段。`FullLearnedTemporalPolicy(runtime_backend=WiringLevel)` 经 `temporal/backend_ndim_runtime.py` 在 `_step_impl_ndim` 路由 encode/switch/decode（ACTIVE 走 torch backend；`runtime_ndim_shadow_compare` 给 pure↔torch parity+latency gate）。`InternalRLSandbox(rl_backend=WiringLevel)` / `CausalZPolicy` 经 `internal_rl/torch_causal_ppo.py` 对真实 `ZTransition` batch 做 PPO autograd（ACTIVE 写回 track weights+critic），`OptimizationReport` 追加 `torch_*` 字段，checkpoint/rollback 不变。修正：ndim 切换 `gate_input = delta + z_tilde` 实为 tuple **拼接**（2·n_z 维），backend/SSL torch 路径已对齐。新增 `temporal/torch_metacontroller.run_strict_eta_evidence` 在受控分层 suite 上严格证明 alpha 单调驱动 switch sparsity + held-out family reuse。默认仍 DISABLED（纯 Python 基线）。
+- 2026-06-29: NL/ETA 全量真 autograd 迁移 Phase 0–3 落地。新增 `volvence_zero.tensor_backend`（pure/torch backend 抽象 + parity + 确定性，vz-contracts）、`torch_metacontroller`（Eq.3 对齐 `D_KL(q‖N(0,I))` + STE 切换 + 真 backprop SSL + KL-target matched ablation + artifact roundtrip）、`internal_rl/torch_internal_rl`（真 PPO autograd z-policy + critic + GAE + matched control）、`backend_metacontroller`（runtime backend-agnostic 前向 + SHADOW 双跑 parity + 延迟 gate + WiringLevel 路由）。纯 Python 路径降级为回滚基线，torch 默认 DISABLED。
 - 2026-04-25: ETA proof harness 新增 `transformers-open-weight` real residual evidence lane、prefix-step real snapshot contract、open-weight paper-suite manifest 与 runtime gating 口径；真实 residual-control claim 不再只依赖 synthetic proof harness
 - 2026-05-22: SYS-1 最小切片。新增 temporal owner 内部的 read-only `CPDSwitchReadout`，把 PE spike + reward shift 转成 beta switch evidence；不新增 runtime slot，不直接改 live switch gate。
 - 2026-04-26: real residual evidence 口径细化：actual hook fire rate 与 planned layer fraction 分离，proof rollout 改为 prefix-aligned intervention，并新增 frozen residual signature calibration

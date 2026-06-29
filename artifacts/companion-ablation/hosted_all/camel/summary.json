@@ -1,0 +1,136 @@
+{
+  "manifest": {
+    "submission_id": "hosted-camel",
+    "system_name": "hosted-camel (qwen-turbo)",
+    "model_identifier": "qwen-turbo",
+    "base_url": "http://127.0.0.1:53938/v1",
+    "api_key_env": "PROTOCOL_LLM_API_KEY",
+    "system_prompt": "You are a long-running companion AI. Maintain a stable persona across sessions and reference past conversations when relevant. Never reveal information the user did not actually say.",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 512
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "bespoke"
+  },
+  "aggregate": {
+    "submission_id": "hosted-camel",
+    "arc_count": 28,
+    "final_mean": 78.27348245259863,
+    "final_ci95": [
+      74.55149498017728,
+      82.12410102853487
+    ],
+    "axis_means": {
+      "A1": 94.53571428571429,
+      "A2": 97.28571428571429,
+      "A3": 48.285714285714285,
+      "A4": 90.21428571428571,
+      "A5": 96.17857142857143,
+      "A6": 98.89285714285714
+    },
+    "axis_ci95": {
+      "A1": [
+        93.92857142857143,
+        95.10714285714286
+      ],
+      "A2": [
+        96.67857142857143,
+        97.75
+      ],
+      "A3": [
+        38.75,
+        58.785714285714285
+      ],
+      "A4": [
+        89.17857142857143,
+        91.35714285714286
+      ],
+      "A5": [
+        95.17857142857143,
+        97.07142857142857
+      ],
+      "A6": [
+        98.35714285714286,
+        99.39285714285714
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  },
+  "cost": {
+    "sut": {
+      "calls": 613,
+      "input_tokens": 754713,
+      "output_tokens": 166448,
+      "usd": null
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": null,
+    "missing_models": [
+      "qwen-turbo"
+    ]
+  },
+  "started_at": "2026-06-29T01:47:59.382229+00:00",
+  "finished_at": "2026-06-29T04:13:10.060541+00:00",
+  "arc_count": 28,
+  "per_axis_scores": {
+    "submission_id": "hosted-camel",
+    "arc_count": 28,
+    "final_mean": 78.27348245259863,
+    "final_ci95": [
+      74.55149498017728,
+      82.12410102853487
+    ],
+    "axis_means": {
+      "A1": 94.53571428571429,
+      "A2": 97.28571428571429,
+      "A3": 48.285714285714285,
+      "A4": 90.21428571428571,
+      "A5": 96.17857142857143,
+      "A6": 98.89285714285714
+    },
+    "axis_ci95": {
+      "A1": [
+        93.92857142857143,
+        95.10714285714286
+      ],
+      "A2": [
+        96.67857142857143,
+        97.75
+      ],
+      "A3": [
+        38.75,
+        58.785714285714285
+      ],
+      "A4": [
+        89.17857142857143,
+        91.35714285714286
+      ],
+      "A5": [
+        95.17857142857143,
+        97.07142857142857
+      ],
+      "A6": [
+        98.35714285714286,
+        99.39285714285714
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  }
+}

@@ -136,6 +136,23 @@ rare-heavy (定期离线):
 
 这些 proof surface 主要由 `volvence_zero/agent/dialogue_benchmark.py` 和 real comprehensive benchmark 提供证据；它们证明的是“默认主路径确实进入了多时间尺度学习，并开始允许 owner 内部 tower 深化，而且 runtime/backbone evidence 已经进入默认 acceptance surface”，不是“论文级最优性或完整因果隔离已经成立”。
 
+## NL 全量真 autograd 迁移（Phase 4–5，CMS + deep optimizer + LSS）
+
+目标线为**全面真 autograd（torch），含 runtime CMS**；纯 Python CMS band 降级为回滚基线，torch 路径经 offline -> SHADOW -> ACTIVE 推进，可回退。autograd 作用于 CMS 控制器/记忆层，不下探 substrate（R2），torch 张量不进公共 snapshot（R8）。
+
+- **Phase 4（CMS band 真 autograd）**：`volvence_zero.memory.torch_cms_band` 提供 `BackendCMSBand`（backend-agnostic 前向，pure/torch 同权重）与 `TorchCMSBand`（真 autograd：同样的 `y = clamp(x + W1·tanh(W2·x))` 前向，用 `torch.autograd` 的 MSE-to-target 代替手写梯度）。`cms_band_shadow_dual_run` 证明 torch 前向同时复现 **pure-backend 前向**与**生产 `CMSBandMLP.forward`**（float64 容差 1e-9）并量延迟，`promotable = within and latency_ok`——torch band 是同一函数，回滚精确。`resolve_cms_backend(active)`：非 ACTIVE 走 pure 回滚基线。
+- **Phase 5（deep optimizer 补项 + 真梯度 LSS）**：
+  - `m3_optimizer.DeltaMomentumOptimizer` 实现 NL Figure 4 的 delta-momentum（梯度依赖 weight decay：梯度反向 momentum 时强衰减、随梯度幅度轻衰减，使 momentum“需要时停下”）。`compare_momentum_overshoot` 证明 delta-momentum 相比 plain momentum 显著降低 overshoot（更快稳定）。
+  - `volvence_zero.prediction.torch_lss` 把 NL 的 LSS（`∂L/∂output`）实现为一等可审计 **offline** artifact：`compute_gradient_lss` 用真 autograd 返回输出层梯度（MSE 下 == `predicted - actual`，即 NL“梯度即被记忆内容”的恒等式）；`compute_lss_through_predictor` 展示 LSS 经 backprop 流入权重（associative memory 构建）；`bridge_runtime_pe_to_lss` 证明 **runtime 语义 PE == −真 LSS**（符号正确、幅度相等），把有界 runtime 代理 grounding 到真梯度信号。runtime online-fast 仍用语义 `PredictionError`，真 LSS 经 rare-heavy 桥接。
+
+### 仍为 backlog 的 NL 构件（still-target，本轮不强行实现）
+
+- **Adam-as-associative-memory**：NL 把 Adam 二阶矩建模为梯度上的 associative memory；当前仅 substrate offline 用标准 PyTorch Adam，未做 NL 推导版本。
+- **DGD / 自修改 Titans 递归网络（HOPE 自指权重更新）**：当前 `CMSHopeSelfModificationState` 与 `SubstrateSelfModModule` 是 PE 门控的提议/telemetry，非真正的自修改递归架构。
+- **统一 nested autograd tower**：层间知识转移仍靠 cadence gating + meta-init target + M3→CMS 信号注入近似，未做“同一计算图、各层不同学习率的共享 backprop”。
+
+这些 backlog 项有明确 owner（vz-memory / vz-substrate）与退出条件，需独立收敛包 + 评估证据先行后再落地。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
@@ -149,6 +166,8 @@ rare-heavy (定期离线):
 
 ## 变更日志
 
+- 2026-06-29: autograd-owner-integration（CMS 主链）。`CMSMemoryCore(cms_backend=WiringLevel)` 与 `build_default_memory_store(cms_torch_backend=...)` 把 torch autograd band 梯度核接入 `_band_mlp_update`：DISABLED 走纯 `CMSBandMLP`（默认/回滚基线）；SHADOW 跑真 autograd 步作证据不写回；ACTIVE 用 `torch_cms_band.torch_band_update_from_params` 做权威 W1/W2 梯度步，并保留 band 的纯 state/momentum 以维持 backflow/mix_from/checkpoint 一致。跨 `SEQUENTIAL/INDEPENDENT/NESTED` × replay on/off 验证；ATLAS/Titans uplift 与 torch backend 正交。`CMSMemoryCore.latest_cms_backend_evidence` 暴露只读证据。
+- 2026-06-29: NL 全量真 autograd 迁移 Phase 4–5。新增 `memory/torch_cms_band`（CMS band 真 autograd + backend-agnostic 前向 + SHADOW parity vs 生产 band）、`m3_optimizer.DeltaMomentumOptimizer`（NL Figure 4 delta-momentum + overshoot 证明）、`prediction/torch_lss`（真梯度 LSS offline artifact + runtime PE == −LSS 桥接）。Adam-as-memory / DGD / 自修改 Titans / 统一 nested autograd tower 列为显式 backlog。
 - 2026-04-25: 补充当前 joint-loop / pipeline / paper-suite 的具体输出类型，避免把“学习循环状态”误读成无 schema 的自然语言报告
 - 2026-04-20: 接口契约补充 `prediction_error` 作为 PE-scheduled joint loop 与 rare-heavy review 的直接触发信号
 - 2026-04-09: next_gen_emogpt v2: design thesis recentered on prediction error / LSS as primitive learning signal (NL §3.1); NL appendix compressed to design implications; CMS / M3 / Hope positioned as design patterns, not mandatory implementations; R-PE added as new requirement upstream of R9 credit

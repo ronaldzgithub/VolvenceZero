@@ -355,6 +355,25 @@
 
 ---
 
+### 16A. Reliable Apprenticeship Alignment（可靠学徒对齐）
+
+**对应需求**：R-PE（PE 为原始学习信号）、R7（双轨）、R8（契约优先）、R11（内部状态可发布）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [apprenticeship-alignment.md](./apprenticeship-alignment.md) | `apprenticeship_alignment` owner：把 operator 指导与当前认知实时对比；版本空间 + agreement/disagreement（可靠性）+ eluder surprise + Massart/Tsybakov 噪声门控；CLAIRE 失配分级；版本空间塌空检测训练材料内部矛盾；AGM 最小改动信念修正 |
+
+**理论主干**：Hanneke, Yang, Wang & Song《Reliable Active Apprenticeship Learning》（ALT 2025, PMLR 272:512-538）。
+
+**核心不变量**：
+- owner 只消费公共快照、只发布不可变快照；不直接调用其他 owner（R8）
+- 失配/惊奇经 PE owner 进入学习主链（R-PE），owner 不重建 PE 内部状态
+- 信念修正只发 `SemanticProposal`，经单写者 store 落地（不绕过 belief/goal owner）
+- 矛盾只在可靠性 margin 或 recurrence 确认后才判定（不把 operator 口误当材料缺陷）
+- 默认 SHADOW，PE overlay 在 SHADOW 时为 no-op（R15 可回滚）
+
+---
+
 ### 17. Character Soul Bootstrap
 
 **对应需求**：R5（连续记忆）、R6（反思与沉淀）、R7（双轨学习）、R8（快照优先）、R11（内部状态可发布）、R14（regime 持久身份）、R15（可回滚演进）

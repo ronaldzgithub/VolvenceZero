@@ -40,6 +40,7 @@ from volvence_zero.application.storage import (
     build_default_case_memory_store,
     build_default_domain_knowledge_store,
 )
+from volvence_zero.apprenticeship import ApprenticeshipAlignmentModule
 from volvence_zero.audit import AuditModule
 from volvence_zero.credit.gate import (
     CreditSnapshot,
@@ -190,6 +191,11 @@ class FinalRolloutConfig:
     boundary_policy: WiringLevel = WiringLevel.ACTIVE
     response_assembly: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
+    # Reliable-apprenticeship alignment owner
+    # (docs/specs/apprenticeship-alignment.md). SHADOW by default: the
+    # owner validates against PE / belief snapshots before promotion;
+    # PE consumes it but the overlay is a no-op while SHADOW (R15).
+    apprenticeship_alignment: WiringLevel = WiringLevel.SHADOW
     evaluation: WiringLevel = WiringLevel.ACTIVE
     prediction_error: WiringLevel = WiringLevel.ACTIVE
     regime: WiringLevel = WiringLevel.ACTIVE
@@ -354,6 +360,7 @@ class FinalRolloutConfig:
             "boundary_policy": self.boundary_policy,
             "response_assembly": self.response_assembly,
             "dual_track": self.dual_track,
+            "apprenticeship_alignment": self.apprenticeship_alignment,
             "evaluation": self.evaluation,
             "prediction_error": self.prediction_error,
             "regime": self.regime,
@@ -1594,6 +1601,14 @@ def build_final_runtime_modules(
         DualTrackModule(
             wiring_level=config.level_for("dual_track", WiringLevel.SHADOW),
             identity_seed=identity_seed,
+        ),
+        ApprenticeshipAlignmentModule(
+            wiring_level=config.level_for(
+                "apprenticeship_alignment", WiringLevel.SHADOW
+            ),
+            user_input=user_input,
+            turn_index=turn_index,
+            apprenticeship=True,
         ),
         ExperienceFastPriorModule(
             wiring_level=config.level_for("experience_fast_prior", WiringLevel.SHADOW),

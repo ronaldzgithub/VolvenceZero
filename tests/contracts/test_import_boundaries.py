@@ -45,7 +45,14 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-contracts": frozenset(),  # foundation: zero upstream
     "vz-substrate": frozenset({"runtime", "learned_update"}),
     "vz-memory": frozenset(
-        {"runtime", "learned_update", "substrate", "social_cognition"}
+        {
+            "runtime", "learned_update", "substrate", "social_cognition",
+            # NL/ETA full-autograd migration (Phase 4): CMS bands consume the
+            # shared backend-agnostic tensor abstraction from vz-contracts so a
+            # torch autograd CMS path can be wired alongside the pure-Python
+            # rollback baseline without crossing a wheel boundary.
+            "tensor_backend", "tensor_backend_parity",
+        }
     ),
     # Slice C (2026-05-03): vz-cognition no longer hosts application-tier
     # dataclasses. The ``evaluation`` layer consumes a structural
@@ -89,6 +96,9 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # live in vz-contracts.owner_hydration so cognition owners can
             # persist without depending on the runtime store implementation.
             "owner_hydration",
+            # NL/ETA full-autograd migration (Phase 5): offline LSS export can
+            # use the shared tensor backend to compute real gradient surprise.
+            "tensor_backend", "tensor_backend_parity",
         }
     ),
     "vz-application": frozenset(
@@ -138,6 +148,10 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # vz-application:
             "application",
             "dialogue_trace",
+            # NL/ETA full-autograd migration (Phases 0-3, 5): metacontroller /
+            # SSL / internal RL consume the shared tensor backend abstraction
+            # from vz-contracts (pure-Python baseline + torch autograd path).
+            "tensor_backend", "tensor_backend_parity",
         }
     ),
     "vz-runtime": frozenset(
@@ -146,6 +160,10 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "audit", "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
+            # apprenticeship_alignment owner (reliable-apprenticeship
+            # alignment; docs/specs/apprenticeship-alignment.md) lives in
+            # vz-cognition; vz-runtime registers it into the kernel graph.
+            "apprenticeship",
             # interlocutor SHADOW owner (W2 of ssot-cleanup-p0-p4) is
             # registered into the runtime so consumers read one snapshot.
             "interlocutor",
@@ -178,6 +196,8 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "temporal", "planning", "internal_rl", "joint_loop",
             # vz-runtime owns these directly:
             "agent", "integration", "brain",
+            # NL/ETA full-autograd migration: proof/parity harness wiring.
+            "tensor_backend", "tensor_backend_parity",
         }
     ),
 }

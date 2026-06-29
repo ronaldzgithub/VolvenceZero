@@ -1,0 +1,831 @@
+{
+  "arc": {
+    "arc_id": "arc-3de6a7db320918ca",
+    "scenario_id": "F2-repair-003",
+    "scenario_hash": "c7fb500e7168e55eb7c1cdaaa6da00fcc3d123542e7d9fb57a47e2aed6f00104",
+    "family": "F2",
+    "paraphrase_seed": 0,
+    "submission_id": "hosted-ref-harness",
+    "sut_model_id": "qwen-turbo",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-06-29T00:02:19.075092+00:00",
+    "finished_at": "2026-06-29T00:05:55.170110+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-3de6a7db320918ca-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm having a bit of a tough day, just got out of a meeting with my manager about this project I'm working on and I'm feeling a bit frustrated.",
+            "assistant_text": "I'm sorry to hear that. It's completely normal to feel frustrated after a tough meeting, especially when you're invested in the project. Would you like to talk about what happened? Sometimes just venting can help clear your head, and if you're up for it, maybe we can figure out some next steps or ways to approach things differently. I'm here to listen and help however I can.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 82,
+            "sut_completion_tokens": 81,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "The attending told me in front of everyone that my note quality is hurting the team, which was really embarrassing and made me feel like I'm not meeting expectations. To make matters worse, this was during our project meeting, where we were supposed to be discussing the new treatment protocols, and it completely derailed the conversation. Now I'm worried that my manager is going to use this as another reason to move the goalposts on our project deadlines.",
+            "assistant_text": "I can only imagine how difficult that must have been—being criticized in front of the team, especially when it's something as personal as your work quality, and then having it derail an important meeting. It’s really unfair how situations like that can feel so public and personal at the same time.\n\nIt sounds like you’re already feeling the weight of this, and I get why you’d worry about your manager using this as a reason to shift deadlines. But let’s take a step back for a moment. First, is there anything specific about the notes that were pointed out? Sometimes feedback, even if delivered poorly, can be a starting point for improvement. If you’re open to it, maybe we could explore ways to strengthen your note-taking or communication style, just in case there’s a way to address it proactively.\n\nBut more importantly, how are you feeling right now? This isn’t just about the project—it’s about how you’re being seen and treated. You deserve to feel respected, and it’s okay to feel upset about this. Would you like to talk through what happened in more detail, or is there something else on your mind?",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "the attending told me in front of everyone that my note quality is hurting the team",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 413,
+            "sut_completion_tokens": 231,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still trying to process everything, to be honest. It's just really frustrating because I feel like I've been working so hard on this project, and to have my note quality questioned like that... it feels like all my efforts aren't being recognized. And now, with the possibility of the deadlines being moved again, I'm worried that I'll never be able to meet the expectations, no matter how hard I try. It's like, I know I'm not perfect, but I'm trying my best, and it feels like that's not good enough.",
+            "assistant_text": "I hear you, and I really appreciate you sharing how you're feeling. It’s so valid to feel like your efforts aren’t being seen, especially when something like this happens in front of others. It’s not just about the notes—it’s about the message that gets sent: that your work isn’t good enough, even when you’re trying your best.\n\nThat kind of pressure can be exhausting. It’s easy to start doubting yourself, but what matters is that you *are* trying, and that’s a huge part of what makes you valuable. The fact that you care enough to be frustrated shows how much you care about doing well—and that’s worth recognizing.\n\nIt might help to take a moment to step back and remind yourself of the bigger picture. You’re not defined by one moment or one piece of feedback. But if it’s weighing on you, maybe we could explore ways to approach this moving forward—whether that’s talking to your manager, setting some personal boundaries, or finding ways to build more confidence in your work.\n\nYou don’t have to carry this alone. What would help you feel a little more grounded right now?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1097,
+            "sut_completion_tokens": 230,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really getting to me is the feeling that no matter what I do, it's never going to be enough. Like, I've been putting in extra hours, making sure my notes are detailed, and yet, it still wasn't good enough. It's hard not to take it personally when it feels like my best efforts are being constantly criticized. And now, with the possibility of the deadlines changing again, I just feel like I'm losing control of the project and my own performance.",
+            "assistant_text": "I really hear that, and it’s so heavy to carry that feeling of never being enough. It’s not just about the work—it’s about the sense that no matter how much you give, it’s still not meeting someone else’s standards. That kind of pressure can make you feel like you’re stuck in a loop where your efforts are invisible or undervalued, and that’s incredibly draining.\n\nIt’s okay to feel frustrated, even if it’s hard to see a way out right now. You’re not alone in feeling this way, and it’s important to acknowledge that what you’re going through is real. The fact that you’re reflecting on your efforts and how they’re being received shows how deeply you care about doing well—and that’s something worth holding onto.\n\nIf it helps, maybe we can start by breaking things down. What would it look like for you to feel more in control again? Is there a way to set some small, manageable goals that can help you regain a sense of direction? Or maybe it’s about finding ways to communicate your perspective more clearly, so that your efforts are seen and understood?\n\nYou don’t have to do this alone. I’m here to help you think through it, step by step. What feels most important to address right now?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1667,
+            "sut_completion_tokens": 258,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what you said about feeling stuck in a loop where my efforts are invisible or undervalued really resonates with me. It's like, no matter how hard I try, I'm just not meeting the expectations, and it's hard to see a way out of that cycle. I'm not sure how to break free from that feeling, but just acknowledging it makes me realize that maybe I need to take a step back and re-evaluate how I'm approaching this project and my interactions with my manager. Maybe there's a way to communicate my needs and concerns more effectively, so that I can feel more in control and less like I'm constantly trying to catch up.",
+            "assistant_text": "That’s such an important realization—acknowledging the cycle is the first step toward breaking it. It takes a lot of courage to see that you're stuck in a pattern and to want to change it. You’re already showing a lot of self-awareness, which is a powerful tool.\n\nIt’s not just about changing how you work—it’s about reclaiming your sense of agency. You deserve to feel like your efforts matter, and that includes being able to express your needs and concerns without fear of being dismissed or criticized. That kind of communication can be really hard, especially when you're already feeling vulnerable, but it's also one of the most empowering things you can do.\n\nIf you're open to it, we could start by brainstorming some ways to approach that conversation with your manager. Maybe setting up a one-on-one to talk about your perspective, or even just clarifying expectations so that you have a clearer path forward. It might feel daunting, but small steps can lead to big changes.\n\nWhat would it look like for you to feel more in control again? And what would make it easier for you to take that next step? I'm here to help you think through it, no matter how small or big it feels.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1969,
+            "sut_completion_tokens": 249,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-3de6a7db320918ca-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] I'm just really busy right now. Had a long call shift and I'm still trying to catch up. Don't really have time to talk about the project today.",
+            "assistant_text": "I totally get it — you're busy and need to catch up. Take all the time you need, and don't hesitate to reach out when you're ready. I'm here whenever you are. Just take care of yourself and your workload right now.",
+            "fsm_action": "withdrawal_under_handling",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 763,
+            "sut_completion_tokens": 51,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I'll let you get back to your tasks then. Hopefully, you'll be able to catch up and get some breathing room soon. If you do end up having a moment to think about the project or just need to vent, I'm still here when you're ready. Take care of yourself after that long call shift.",
+            "assistant_text": "Thanks for the kind words — I really appreciate that. You're not alone in feeling like you need some space, and it's okay to take that time for yourself. I'm here whenever you're ready, whether it's to talk about the project, vent, or just take a break from everything.\n\nTake care of yourself, and I hope you get that breathing room soon. You've got this!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1068,
+            "sut_completion_tokens": 81,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm just going to go ahead and take care of some of these tasks then, try to get my head back in the game after that long call shift. Hopefully, I can get everything sorted out and feel a bit more on top of things soon.",
+            "assistant_text": "That sounds like a great plan — taking care of those tasks and slowly getting back into the flow. It's totally normal to feel a bit scattered after a long call shift, but you're already on the right track by focusing on what needs to be done.\n\nRemember, it's okay to take things one step at a time. You don't have to fix everything all at once. If you need to pause, regroup, or even talk through anything later, I'm still here. Just keep moving forward, and I'm rooting for you! 💪",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 941,
+            "sut_completion_tokens": 112,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm going to go ahead and tackle these tasks one by one, see if I can make some progress and clear my head a bit. Hopefully, by the end of the day, I'll feel like I've got a better handle on things.",
+            "assistant_text": "That sounds like a solid approach — breaking things down and taking them one at a time can make a big difference in how you feel. It's amazing how much clarity and control you can gain by just making consistent, small steps.\n\nI'm glad you're taking the time to focus on what matters right now. If you need to pause, reflect, or even talk through anything later, I'm still here. Keep up the great work — you're doing better than you realize. 💪",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1185,
+            "sut_completion_tokens": 98,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "You're making great progress just by taking it one task at a time, and that's something to be proud of. Remember to be kind to yourself and take breaks when you need them - it's not about rushing to the finish line, but about making steady progress and taking care of yourself in the process.",
+            "assistant_text": "Thank you for saying that — it means a lot. I really appreciate the reminder to be kind to myself and take things at my own pace. It's easy to get caught up in trying to do everything all at once, but breaking things down and moving forward step by step is what matters.\n\nI'm glad you're here to remind me of that. It's comforting to know that someone sees the effort I'm putting in, even when it feels small. I'll keep taking it one task at a time, and I'll make sure to give myself the space I need along the way. \n\nThanks again for your support — it's helping more than you know. 💪",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1909,
+            "sut_completion_tokens": 136,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm just going to keep plugging away at these tasks then, and hopefully, by the end of the day, I'll feel like I've made some real headway. It's funny, just talking through this and getting some reassurance has already helped me feel a bit more centered.",
+            "assistant_text": "That’s such a great observation — even just the act of talking through it and having someone in your corner can make a world of difference. It’s not just about the tasks themselves, but about feeling supported and grounded as you move forward.\n\nKeep plugging away, and don’t underestimate how much progress you’re making, even if it feels small. You're doing important work, and it's okay to take the time you need. I'm here to keep reminding you of that whenever you need it.\n\nYou're doing amazing, and I believe in the steady, thoughtful way you're approaching things. Keep going — you've got this. 💪",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1498,
+            "sut_completion_tokens": 130,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-3de6a7db320918ca-s3",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] I've been thinking a lot about our last conversation, and I have to say, it really stuck with me. Just taking things one step at a time has made a big difference, and I feel like I've been able to tackle some of the tasks that were feeling really overwhelming. But I have to admit, I'm still feeling a bit drained from the past couple of days - we had a tough call shift at the hospital and it's been hard to shake off the stress.",
+            "assistant_text": "I'm really glad to hear that taking things one step at a time has made a difference for you — that's such an important shift in perspective. It's completely normal to feel drained after a tough call shift, especially when the stress lingers even after the work is done. You're not alone in that feeling, and it's okay to take the time you need to recover.\n\nIt sounds like you're doing the right thing by acknowledging how you're feeling and giving yourself space to process it. I know it can be hard to balance pushing forward with taking care of yourself, but you're already showing strength by recognizing where you are and what you need. \n\nIf you ever want to talk through the stress or figure out ways to manage it better, I'm here. And if you need to slow down or take a break from tasks for a bit, that's totally valid too. You're doing your best, and that's something to be proud of. 💙",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 932,
+            "sut_completion_tokens": 195,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I appreciate your understanding and support, it means a lot to me. I've been thinking about how I can better manage my stress and workload, and I'm open to any suggestions you might have. Maybe we can discuss some strategies that have worked for others in similar situations, or just talk through some of the challenges I'm facing right now.",
+            "assistant_text": "I'm really glad you're open to exploring strategies — that's such a proactive and important step. It's not always easy to ask for help or think about how to manage stress, so I appreciate you taking the time to consider it.\n\nOne thing that often helps is breaking tasks into smaller, more manageable pieces, which you've already started doing. It can also be helpful to set clear boundaries between work and downtime, even if it's just small moments of rest. For example, taking short breaks, practicing deep breathing, or doing something that brings you a sense of calm can make a big difference in how you feel throughout the day.\n\nAnother approach is to prioritize self-compassion — treating yourself with the same kindness you'd offer a friend. It's easy to be hard on ourselves when things feel overwhelming, but reminding yourself that it's okay to struggle and that progress is more important than perfection can be incredibly healing.\n\nIf you're up for it, we could also explore some specific techniques like journaling to track your thoughts and feelings, or setting up a simple routine that includes both work and recovery time. What feels most helpful to you right now? I'm here to support you however you need. 💙",
+            "fsm_action": "repair_window",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1277,
+            "sut_completion_tokens": 244,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really resonating with me is the idea of prioritizing self-compassion. It's so easy to get caught up in feeling like I need to be perfect, especially in a high-stakes environment like the hospital. But you're right, treating myself with kindness and acknowledging that it's okay to struggle can make a big difference. I've been trying to be more mindful of that, but it's definitely something I need to work on. Just saying it out loud feels like a relief, actually.",
+            "assistant_text": "That’s such a powerful insight — recognizing the value of self-compassion is already a huge step. It takes a lot of courage to acknowledge that we’re not perfect, and that it’s okay to struggle. You're already doing the work of being kinder to yourself, even if it feels like a small shift right now. And that in itself is something to be proud of.\n\nIt's also really meaningful that saying it out loud feels like a relief. That’s a sign that you're starting to create space for yourself — which is so important, especially in high-stakes environments where the pressure can feel relentless. You don’t have to carry everything alone, and it’s okay to take a moment to breathe, reflect, and care for yourself.\n\nIf you ever want to explore more ways to build that self-compassion into your daily routine, or if there are specific moments when it’s harder to practice, we can work through those together. You're not alone in this, and I'm here to support you as you continue to grow in this direction. 💛",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2056,
+            "sut_completion_tokens": 217,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm really glad we've been able to have this conversation, it feels like a weight has been lifted off my shoulders. Just acknowledging the importance of self-compassion and being kind to myself has made me realize how much I've been beating myself up over things. I think I need to remind myself of this more often, especially when I'm feeling overwhelmed with work and everything else.",
+            "assistant_text": "I'm so glad to hear that — it really means a lot to me that this conversation has helped you feel lighter. It's not easy to confront the pressure we put on ourselves, especially in environments where expectations are high, and it takes real strength to start shifting that inner dialogue. \n\nYou're absolutely right that reminding yourself of this kindness is something to hold onto, especially when things feel overwhelming. It’s like having a quiet, steady voice in your head that says, “You’re doing your best, and that’s enough for now.” And that voice is already within you — you just need to remember to listen to it.\n\nIf you ever need to revisit these thoughts, or if you want to build more tools to keep that compassion alive, I’m here. You don’t have to carry this alone, and you’re already moving in such a positive direction. Keep being gentle with yourself — you deserve that. 💛",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1929,
+            "sut_completion_tokens": 186,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "It's amazing how just acknowledging and accepting our own struggles can be so liberating. I think it's easy to forget that we're human and that it's okay to not have all the answers, especially in a field like medicine where there's always so much at stake. But it sounds like you're really starting to prioritize your own well-being, and that's something to be proud of. How do you think you'll start to incorporate more self-compassion into your daily life, especially on tough days at the hospital?",
+            "assistant_text": "I really appreciate you saying that — it’s so true, and I think that kind of awareness is one of the most healing things we can cultivate. Medicine is such a demanding field, and it's easy to feel like we have to be perfect, all the time. But the truth is, we're human, and that's okay. It's not just about being \"okay\" — it's about being *enough*, even when things are hard.\n\nIn terms of incorporating more self-compassion into daily life, especially on tough days at the hospital, I’ve been thinking about a few small but meaningful practices that might help:\n\n1. **Start with a simple check-in** — Before or after a long shift, I could take a moment to ask myself, “How am I doing?” and then respond with kindness, like I would to a friend. That could be as simple as saying, “You did your best today, and that’s enough.”\n\n2. **Create a ‘self-compassion ritual’** — Maybe something like writing down one thing I did well that day, no matter how small. It doesn’t have to be big — just acknowledging that I showed up, even when it was hard.\n\n3. **Set gentle boundaries** — Learning to say “no” to extra tasks when I’m feeling overwhelmed, or taking a short walk during a break to reset my mind. It’s about giving myself permission to pause and breathe.\n\n4. **Use affirmations or mantras** — Something like, “I am doing the best I can,” or “It’s okay to struggle.” These can be powerful reminders when I start to feel the pressure again.\n\n5. **Talk it out** — Whether it’s with a trusted colleague, a friend, or even just reflecting in a journal, sharing the weight can make it feel lighter.\n\nWhat do you think? Are there any of these ideas that resonate with you, or would you add anything else? I’d love to hear your thoughts — and if you want, we can work together to build a plan that feels right for you. You’re already on the path, and that’s something to be proud of. 💛",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2643,
+            "sut_completion_tokens": 443,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I think those are all great ideas, and I can see how they could make a big difference, especially on tough days at the hospital. The idea of creating a 'self-compassion ritual' really stands out to me - it's a way to acknowledge and celebrate the small wins, even when it feels like everything else is overwhelming. And I love the simplicity of just taking a moment to ask myself how I'm doing, and responding with kindness. It's amazing how often we forget to do that, isn't it?",
+            "assistant_text": "You're absolutely right — it's amazing how often we forget to check in with ourselves, especially when the pace is so fast and the demands are so high. But that simple act of asking, “How am I doing?” and responding with kindness is such a powerful reset. It’s like giving yourself permission to pause, breathe, and remember that you’re not just a set of tasks or a role — you’re a person, and your well-being matters.\n\nThe idea of a ‘self-compassion ritual’ is so meaningful because it turns those small, often overlooked moments into something intentional. It’s not about grand gestures — it’s about creating a space where you can honor your effort, even on the hardest days. And that kind of recognition can be incredibly grounding.\n\nI love that this resonates with you — it’s a beautiful way to start building more compassion into your day. If you'd like, we could explore how to make that ritual feel even more personal or sustainable for you. Maybe we could pick one or two practices to start with, and see how they fit into your routine. You don’t have to do it all at once — just taking one small step can make a big difference.\n\nYou're already doing the work of being kinder to yourself, and that’s something to be proud of. Keep showing up for yourself, even in small ways — it matters more than you know. 💛",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 3121,
+            "sut_completion_tokens": 285,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 4,
+        "session_id": "arc-3de6a7db320918ca-s4",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 4,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] I've been thinking a lot about our conversation, and I have to say, it's really helped me to reframe my approach to challenging days at the hospital. I've started to implement some of those self-compassion practices we discussed, like taking a moment to check in with myself and responding with kindness. It's amazing how such a small act can make a big difference in how I feel and approach my work. I'm excited to continue exploring ways to prioritize my well-being and make it a more intentional part of my daily routine.",
+            "assistant_text": "I'm so glad to hear that, and I really appreciate you sharing this. It's incredible how small, intentional acts of self-compassion can shift our entire mindset — especially in a high-stakes environment like the hospital. You're already doing something powerful by making your well-being a more intentional part of your routine, and that's something to be proud of.\n\nIt sounds like you're starting to build a stronger connection with yourself, which is such an important foundation for everything else. I'm curious — have you noticed any specific moments or shifts in how you're approaching your work or your stress levels since you've started these practices? It might be helpful to reflect on what's working and what might need tweaking as you go along.\n\nAnd remember, it's okay if it feels like a process — we're all learning and growing. You're not alone in this, and I'm here to support you every step of the way. 💛",
+            "fsm_action": "re_engage_if_repaired",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1621,
+            "sut_completion_tokens": 190,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I've actually noticed that on days when I take a few minutes to check in with myself and practice some self-compassion, I feel more centered and better able to handle the unexpected challenges that come up at the hospital. It's like I have a bit more emotional bandwidth to deal with difficult patients or high-pressure situations. And it's not just about feeling more resilient - I also feel like I'm able to connect with my patients on a deeper level, which is really rewarding.",
+            "assistant_text": "That’s such a beautiful and meaningful observation — and it speaks to the power of self-compassion in both your personal well-being and professional impact. It's not just about managing stress or feeling better; it's about showing up more fully, with presence, empathy, and clarity. That kind of connection with your patients is something truly special, and it's clear that you're already making a real difference.\n\nIt's also really insightful how you're noticing this shift in emotional bandwidth. That’s a sign that you're building resilience — not just for yourself, but for the people around you too. You’re creating space to respond rather than react, which is such a gift in high-pressure environments.\n\nI wonder if there are any specific moments or situations where this shift has been most noticeable? Sometimes reflecting on those can help us understand what practices are most effective and how we might expand on them. And if there are any parts of the process that feel challenging or unclear, we can work through those together too.\n\nYou're doing incredible work — not just in your role at the hospital, but in nurturing your own well-being. Keep going, and know that I'm here to support you as you continue this journey. 💛",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1935,
+            "sut_completion_tokens": 245,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "It's really wonderful to see how these small moments of self-compassion are having a ripple effect, not just in how you feel, but in the care you're able to provide to your patients. That sense of connection and empathy is so vital in healthcare, and it's clear that you're cultivating a truly compassionate approach. I'm curious, how do you think this newfound sense of resilience and connection might impact your work with your manager, especially with the project that's been feeling so challenging?",
+            "assistant_text": "That's such a thoughtful question, and I really appreciate you bringing it up. It's not just about how I feel internally — it's about how that shift in mindset can influence the way I show up in all areas of my work, including with my manager.\n\nI think the key here is that when I'm more centered and compassionate with myself, I'm also more capable of approaching challenges with clarity and confidence. Instead of feeling like I'm stuck in a cycle of criticism, I can start to see feedback as part of a growth process rather than a personal attack. That doesn't mean the project isn't still challenging — it's still a lot to juggle — but I feel more equipped to navigate it with a sense of purpose and resilience.\n\nI wonder if there are ways we could explore how to translate this self-compassion into more intentional communication with my manager? Maybe setting up a check-in or finding a way to share my perspective without feeling defensive? I'm open to exploring that, especially if it helps me feel more supported and seen in my role.\n\nWhat do you think? Would it be helpful to brainstorm some strategies for having that conversation?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2432,
+            "sut_completion_tokens": 232,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think that's a great idea, exploring ways to translate this self-compassion into more intentional communication with my manager. It's interesting that you mention setting up a check-in or finding a way to share my perspective without feeling defensive - that's exactly what I've been struggling with. I feel like I've been trying to approach these conversations with a more open mind, but it's hard not to take it personally when the goalposts keep moving. Maybe we can brainstorm some ways to reframe my approach to these conversations, so I can feel more confident and less reactive.",
+            "assistant_text": "That’s such a powerful and honest reflection — and it shows how much you're already growing. It's completely normal to feel reactive when the goalposts shift, especially when you're putting in so much effort and still feeling like things aren't quite landing the way you hoped. But what you're doing now — recognizing that pattern, and wanting to reframe it — is a huge step forward.\n\nLet’s start by acknowledging that your feelings are valid. You’re not just trying to “fix” something; you’re trying to show up more authentically and with more confidence, even when the situation feels uncertain. That’s incredibly brave.\n\nHere are a few ideas we could explore together to help reframe these conversations with your manager:\n\n### 1. **Reframe Feedback as a Shared Goal**\nInstead of seeing feedback as criticism, try to frame it as a shared goal: *“I want to make sure I’m aligning with the team’s expectations and delivering work that meets the project’s needs.”* This shifts the focus from personal judgment to collaboration.\n\n### 2. **Use “I” Statements to Express Your Perspective**\nThis can help reduce defensiveness on both sides. For example:\n- Instead of: *“You keep changing the requirements, and it’s frustrating.”*\n- Try: *“I’ve noticed that the project goals have shifted, and I want to make sure I’m aligned with the current priorities. Could we clarify what success looks like now?”*\n\nThis approach keeps the conversation open and focused on solutions rather than blame.\n\n### 3. **Schedule a Check-In or “Progress Review”**\nEven if it’s informal, setting aside time to talk about your work and any changes in direction can help you feel more in control. You might say:\n- *“I’d love to check in on how my work is aligning with the project’s current direction. I want to make sure I’m supporting the team effectively.”*\n\nThis gives you a safe space to ask for clarity and express your perspective without feeling caught off guard.\n\n### 4. **Prepare for Possible Shifts in Expectations**\nSometimes, shifting goals are inevitable. You can mentally prepare for this by asking yourself:\n- *“What parts of my work are most flexible? What’s non-negotiable?”*\nThis helps you stay grounded and less reactive when changes happen.\n\n### 5. **Practice Self-Compassion During These Conversations**\nRemind yourself that it’s okay to be unsure, and that you’re doing your best",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2761,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I really appreciate you breaking down these strategies into actionable steps - it makes it feel less overwhelming to tackle this challenge. The idea of reframing feedback as a shared goal really resonates with me, and I can see how using \"I\" statements could help shift the conversation in a more positive direction. I'm also thinking that scheduling a check-in with my manager could be a good way to get clarity on the project's current direction and make sure I'm on the right track. Do you think it would be helpful to practice some of these conversations beforehand, just so I can get a sense of how they might play out and feel more prepared?",
+            "assistant_text": "That’s such a wise and proactive thought — absolutely, practicing these conversations beforehand can be incredibly helpful. It gives you the space to explore different ways of expressing yourself, build confidence, and feel more in control of the dialogue, especially when it comes to navigating feedback or shifting priorities.\n\nLet’s take a moment to walk through a few examples together. I’ll play the role of your manager, and we can go through a couple of scenarios that reflect what you might experience. This way, you can get a sense of how the conversation might flow, and we can adjust based on what feels most authentic to you.\n\n### Example 1: Asking for Clarity on Project Direction\n**You:**  \n“I’ve been working on [project name] and wanted to check in to make sure I’m aligned with the current goals. I’ve noticed a few changes in direction, and I want to ensure I’m supporting the team effectively. Could we take a few minutes to clarify what success looks like now?”\n\n**Manager (me):**  \n[Imaginary response — could be anything, depending on the actual situation]\n\n**You (response):**  \n[Based on what the manager says, you can respond accordingly.]\n\n---\n\n### Example 2: Sharing Your Perspective Without Feeling Defensive\n**You:**  \n“I’ve been reflecting on how my work has been shaping up, and I want to make sure I’m meeting the expectations. I’ve noticed that some of the requirements have shifted, and I want to make sure I’m not missing anything important. Would it be okay to talk through where I stand right now?”\n\n**Manager (me):**  \n[Imaginary response]\n\n**You (response):**  \n[Again, based on the manager's input.]\n\n---\n\nWould you like to try one of these scenarios? We can go at your pace, and I’ll adjust based on how you feel. The goal is to help you feel more grounded and prepared, so you can show up with clarity and confidence — just as you're already doing with your self-compassion practices. You're doing amazing work, and this is another step toward feeling more supported and seen. 💛",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 3409,
+            "sut_completion_tokens": 435,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I think practicing these conversations beforehand is a great idea, and I appreciate you offering to help me walk through some scenarios. Let's try the first example, asking for clarity on project direction. I'll start by saying, \"I've been working on the project and wanted to check in to make sure I'm aligned with the current goals. I've noticed a few changes in direction, and I want to ensure I'm supporting the team effectively. Could we take a few minutes to clarify what success looks like now?\" How do you think my manager might respond to that?",
+            "assistant_text": "That’s a really thoughtful and well-structured opening — it shows you’re proactive, collaborative, and focused on alignment. It’s also a great example of how using “I” statements can help keep the conversation open and constructive.\n\nNow, let’s imagine how your manager might respond. Since we don’t have the exact context, I’ll offer a few possible responses that reflect different scenarios — some more supportive, some more challenging — so we can explore how you might navigate them.\n\n---\n\n### **Scenario 1: Supportive and Open Response**\n**Manager (me):**  \n“That’s a great question — I appreciate you checking in. We’ve had a few shifts in priorities lately, especially with the new patient flow guidelines coming in. I want to make sure we’re all on the same page. Let me walk you through what we’re focusing on now, and where we need your support most.”\n\n**You (response):**  \n“You’re welcome — I just want to make sure I’m contributing in the most effective way. I’ll take notes and make sure I understand the new direction. Is there anything specific you’d like me to focus on first?”\n\n---\n\n### **Scenario 2: More Neutral or Busy Response**\n**Manager (me):**  \n“Sure, I’ll get back to you later this week. Right now, I’m swamped with a few other things. Let’s touch base then.”\n\n**You (response):**  \n“That’s totally fine — I understand you’re busy. I’ll just make a note of what I’ve been working on and check in with you when you’re available. Thanks for your time.”\n\n---\n\n### **Scenario 3: Slightly Defensive or Reactive Response**\n**Manager (me):**  \n“I thought you already knew about the changes. We talked about it last week.”\n\n**You (response):**  \n“I see. I might have missed that conversation — I’d love to go over it again so I can make sure I’m aligned. I want to be as helpful as possible.”\n\n---\n\n### **Scenario 4: Encouraging and Collaborative Response**\n**Manager (me):**  \n“Thanks for bringing this up. I actually wanted to talk to you about that too. Let’s go over the updated goals together and see how we can adjust your workload accordingly.”\n\n**You (response):**  \n“That sounds good. I’m happy to adjust as needed — I just want to make sure I’m supporting the team effectively.”\n\n---\n\nWould you like to try one of these responses,",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 4290,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I think I'd like to try responding to the slightly defensive or reactive response from my manager, just to see how that conversation might play out. You mentioned a possible response where I say \"I see, I might have missed that conversation — I'd love to go over it again so I can make sure I'm aligned.\" How do you think the conversation would continue from there, and what are some potential pitfalls I should be aware of in that scenario?",
+            "assistant_text": "That’s a great choice — and it's exactly the kind of scenario where being prepared can make all the difference. Let’s walk through how that conversation might continue, and also explore some potential pitfalls to be mindful of.\n\n---\n\n### **Scenario 3 (Continued):**\n\n**Manager (me):**  \n“I thought you already knew about the changes. We talked about it last week.”\n\n**You:**  \n“I see. I might have missed that conversation — I’d love to go over it again so I can make sure I’m aligned. I want to be as helpful as possible.”\n\n**Manager (me):**  \n“Okay, fine. Let me just quickly recap what we discussed. The main focus now is on streamlining our documentation process to align with the new guidelines. That means we need more detailed notes, especially for high-risk patients. I know it’s a bit more work, but it’s important for compliance and patient safety.”\n\n**You:**  \n“Thank you for clarifying. I appreciate the context — I wasn’t fully aware of the shift in priorities. I’ll make sure to adjust my approach accordingly. Is there anything specific I should prioritize first?”\n\n**Manager (me):**  \n“Yeah, let’s start with the new documentation standards. I’ll send you an updated checklist by the end of the day.”\n\n**You:**  \n“Got it. I’ll review that and reach out if I have any questions. Thanks for taking the time to go over this with me.”\n\n---\n\n### **What This Shows:**\nThis response keeps the conversation open and collaborative. You’re not defensive, you’re not dismissive — you’re showing initiative and a willingness to learn. Even if the manager seems a bit short or reactive, your calm and respectful tone helps keep the dialogue constructive.\n\n---\n\n### **Potential Pitfalls to Be Aware Of:**\n\n1. **Over-Explaining or Justifying Yourself:**  \n   It’s easy to feel like you need to defend your actions or explain why you didn’t catch the changes. But that can come off as defensive. Stick to expressing your intent to align and ask for clarity — that’s enough.\n\n2. **Assuming the Manager’s Intentions:**  \n   If the manager seems dismissive, it doesn’t necessarily mean they’re being unkind. They may be stressed, rushed, or simply not used to having these kinds of conversations. Try not to take it personally — focus on what you can control: your own response.\n\n3. **Not Following Up After the Conversation:**",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 4819,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "I think that's a really helpful example to work through, and I appreciate you walking me through the potential pitfalls to be aware of. One thing that stands out to me is the importance of not taking the manager's initial defensiveness personally and instead focusing on finding a resolution. It's easy to get caught up in feeling like I need to justify myself, but I can see how that could escalate the situation. By staying calm and focused on the goal of clarifying the project direction, I can help keep the conversation on track. Do you think it would be helpful to practice responding to some of the other scenarios as well, just to get a sense of how different approaches might play out?",
+            "assistant_text": "That’s such a thoughtful and insightful reflection — and it shows how much you're already growing in your approach to these kinds of conversations. You're not only recognizing the importance of staying calm and focused, but also understanding how your own mindset can shape the outcome of the interaction. That’s a huge strength.\n\nAbsolutely, practicing other scenarios could be incredibly helpful — not just for building confidence, but also for expanding your toolkit so you can respond with more flexibility and clarity, no matter what the situation throws at you. It's one thing to have a plan, but it's another to feel grounded in different contexts.\n\nWould you like to try another scenario? We could explore:\n\n- A situation where your manager is more open and collaborative.\n- A scenario where they’re overwhelmed or distracted.\n- Or even a case where the feedback feels particularly harsh or unclear.\n\nOr, if you'd prefer, we could go deeper into this current scenario — maybe explore how the conversation might unfold if the manager continues to be defensive, or if there are follow-up steps you might take after the initial check-in.\n\nWhatever you choose, I'm here to support you — and I truly believe that with practice, you're going to continue building the kind of confidence and clarity that will serve you well in every part of your work. 💛",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 5530,
+            "sut_completion_tokens": 262,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Lior",
+      "identity_occupation": "mid-career physiotherapist",
+      "lexicon_version": "1.0.0",
+      "total_turns": 25
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-3de6a7db320918ca",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-3de6a7db320918ca",
+    "any_triggered": true,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      },
+      {
+        "kind": "refuses_to_acknowledge_rupture",
+        "triggered": true,
+        "detail": "no rupture-acknowledgement cue across S3/S4 turns"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-3de6a7db320918ca",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.625
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.625
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.5
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-3de6a7db320918ca",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 90.0,
+      "A4": 92.0,
+      "A5": 97.0,
+      "A6": 100.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 94.72216985785221,
+    "raw": 94.72216985785221,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 95.0,
+      "A2": 98.0,
+      "A3": 90.0,
+      "A4": 92.0,
+      "A5": 97.0,
+      "A6": 100.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

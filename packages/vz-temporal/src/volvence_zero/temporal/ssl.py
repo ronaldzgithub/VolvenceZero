@@ -3,13 +3,18 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
     ResidualSequenceStep,
     SubstrateSnapshot,
     SurfaceKind,
     TrainingTrace,
 )
-from volvence_zero.temporal.interface import FullLearnedTemporalPolicy
+from volvence_zero.tensor_backend import is_torch_available
+from volvence_zero.temporal.interface import (
+    FullLearnedTemporalPolicy,
+    MetacontrollerParameterStore,
+)
 from volvence_zero.temporal.metacontroller_components import (
     DecoderControl,
     EncodedSequence,
@@ -53,6 +58,16 @@ class SSLTrainingReport:
     noncausal_kl_tightening: float = 0.0
     noncausal_information_content: float = 0.0
     switch_gate_stats: SwitchGateStats | None = None
+    # Phase A autograd-owner-integration evidence (append-only, no schema break).
+    # When the torch SSL backend is SHADOW/ACTIVE these carry the real-autograd
+    # pass over the live store ndim params; DISABLED leaves them at defaults.
+    torch_backend: str = "disabled"
+    torch_prediction_loss: float = 0.0
+    torch_kl_loss: float = 0.0
+    torch_switch_sparsity: float = 0.0
+    torch_parameters_changed: int = 0
+    torch_grad_norm: float = 0.0
+    torch_wrote_back: bool = False
     description: str = ""
 
 
@@ -80,11 +95,27 @@ class SSLBatchTrainingReport:
 
 
 class MetacontrollerSSLTrainer:
-    """Small Eq.3-style training loop over residual traces."""
+    """Small Eq.3-style training loop over residual traces.
 
-    def __init__(self, *, n_z: int = 3, alpha: float = 0.1) -> None:
+    The ``ssl_backend`` WiringLevel controls the autograd-owner-integration path
+    (Phase A): DISABLED keeps the pure heuristic update as the sole live writer;
+    SHADOW additionally runs a real torch autograd pass over a copy of the store
+    ndim params for evidence (no write-back); ACTIVE runs the torch autograd pass
+    seeded from the store and writes the refined ndim weights back into the same
+    store the runtime consumes. Family discovery / telemetry always run via the
+    pure path, so structure ownership is unchanged.
+    """
+
+    def __init__(
+        self,
+        *,
+        n_z: int = 3,
+        alpha: float = 0.1,
+        ssl_backend: WiringLevel = WiringLevel.DISABLED,
+    ) -> None:
         self._n_z = n_z
         self._alpha = alpha
+        self._ssl_backend = ssl_backend
         self._encoder = SequenceEncoder()
         self._decoder = ResidualDecoder()
         self._switch = SwitchUnit()
@@ -345,6 +376,7 @@ class MetacontrollerSSLTrainer:
         )
         slow_signal = tuple(_clamp(v / 2.0) for v in slow_signal) if slow_signal else ()
         avg_kl_tightening = kl_tightening_total / trained_steps
+        torch_evidence = self._maybe_run_torch_backend(store=store, trace=trace)
         return SSLTrainingReport(
             trace_id=trace.trace_id,
             prediction_loss=avg_prediction,
@@ -358,6 +390,13 @@ class MetacontrollerSSLTrainer:
             noncausal_kl_tightening=avg_kl_tightening,
             noncausal_information_content=noncausal_embedding.information_content,
             switch_gate_stats=gate_stats,
+            torch_backend=torch_evidence["backend"],
+            torch_prediction_loss=torch_evidence["prediction_loss"],
+            torch_kl_loss=torch_evidence["kl_loss"],
+            torch_switch_sparsity=torch_evidence["switch_sparsity"],
+            torch_parameters_changed=torch_evidence["parameters_changed"],
+            torch_grad_norm=torch_evidence["grad_norm"],
+            torch_wrote_back=torch_evidence["wrote_back"],
             description=(
                 f"SSL trainer optimized trace={trace.trace_id} over {trained_steps} steps, "
                 f"prediction_loss={avg_prediction:.3f}, kl_loss={avg_kl:.3f}, drift={avg_drift:.3f}, "
@@ -366,6 +405,53 @@ class MetacontrollerSSLTrainer:
                 f"m3_slow_signal={tuple(round(v, 3) for v in slow_signal)}."
             ),
         )
+
+    def _maybe_run_torch_backend(
+        self,
+        *,
+        store: MetacontrollerParameterStore,
+        trace: TrainingTrace,
+    ) -> dict:
+        """Phase A: run the real-autograd SSL pass when the backend is enabled.
+
+        DISABLED -> no-op. SHADOW -> torch trains a copy (no write-back).
+        ACTIVE -> torch writes refined ndim weights back into the live store.
+        Requires ndim params (n_z > 3) and torch; otherwise returns a no-op
+        result with an explicit reason rather than silently degrading.
+        """
+
+        disabled = {
+            "backend": "disabled", "prediction_loss": 0.0, "kl_loss": 0.0,
+            "switch_sparsity": 0.0, "parameters_changed": 0, "grad_norm": 0.0,
+            "wrote_back": False,
+        }
+        if self._ssl_backend is WiringLevel.DISABLED:
+            return disabled
+        if self._n_z <= 3 or store.ndim_encoder_parameters is None:
+            return {**disabled, "backend": "skipped-no-ndim"}
+        if not is_torch_available():
+            return {**disabled, "backend": "skipped-no-torch"}
+
+        from volvence_zero.temporal.torch_store_ssl import train_store_ssl
+
+        write_back = self._ssl_backend is WiringLevel.ACTIVE
+        report = train_store_ssl(
+            store=store,
+            trace=trace,
+            n_z=self._n_z,
+            alpha=self._alpha,
+            switch_threshold=store.beta_threshold,
+            write_back=write_back,
+        )
+        return {
+            "backend": self._ssl_backend.value,
+            "prediction_loss": report.prediction_loss,
+            "kl_loss": report.kl_loss,
+            "switch_sparsity": report.switch_sparsity,
+            "parameters_changed": report.parameters_changed,
+            "grad_norm": report.grad_norm,
+            "wrote_back": report.wrote_back,
+        }
 
     def optimize_batch(
         self,

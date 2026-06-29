@@ -168,6 +168,14 @@ debt #11 修法 (3) 方法论：先写 38-turn 长 scenario（[`packages/lifefor
 
 **快照 schema 扩展**：`PredictionError` append-only 新增 `distribution_summary: DistributionSummary | None`；`DistributionSummary` 字段 `(window_size, iqr, entropy, asymmetry, description)` 全部 frozen，未来扩展只能新增字段（不能改顺序 / 类型 / 单位）。
 
+## 真梯度 LSS（NL）与 runtime 语义 PE 的关系（Phase 5）
+
+NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂output`，并指出“用 backprop 训练一层等价于构建一个把输入映射到其 prediction error 的 associative memory”，该梯度本身就是被记忆的内容。
+
+- **runtime 仍用语义 PE 作为有界代理**：live online-fast 路径继续用 turn 级 `PredictionError`（无需 autograd、每 turn 可跑），不改本 owner 主链与 schema。
+- **新增真梯度 LSS 作为 offline 一等 artifact**：`volvence_zero.prediction.torch_lss`（torch，lazy import，不进 facade）用真 autograd 计算 `∂L/∂output`。MSE 下 `LSS == predicted - actual`，正是“梯度即被记忆内容”的恒等式。
+- **代理被 grounding，而非主张**：`bridge_runtime_pe_to_lss` 证明 runtime 语义 PE 的 signed error（`actual - predicted`）**恰等于 −真 LSS**（符号正确、幅度相等），所以有界 runtime 信号是真梯度 surprise 的忠实 stand-in。真 LSS artifact 经 rare-heavy 路径桥接，不进公共 snapshot（R8）。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
@@ -185,6 +193,8 @@ debt #11 修法 (3) 方法论：先写 38-turn 长 scenario（[`packages/lifefor
 
 ## 变更日志
 
+- 2026-06-29: autograd-owner-integration（LSS rare-heavy 接入）。新增 torch-free `prediction/lss_rare_heavy.py`（`LSSRareHeavyCheckpoint` + `build_lss_rare_heavy_checkpoint`，float-only，grounding gate 强制 runtime PE == −真 LSS，fail-closed）。`PredictionErrorModule` 新增 offline surface：`export_rare_heavy_lss` / `import_rare_heavy_lss` / `rare_heavy_lss_calibration` / `export|restore_rare_heavy_lss_state`，import 只改 owner-internal LSS 校准（EMA），**不**触碰 `PredictionErrorSnapshot`（schema 不变）。`RareHeavyArtifact` 追加 optional `lss_checkpoint` 字段并随 `export_rare_heavy_artifact(lss_checkpoint=...)` 携带。
+- 2026-06-29: NL/ETA full-autograd 迁移 Phase 5。新增 `prediction/torch_lss`：真梯度 LSS（`∂L/∂output`）作为 offline 可审计 artifact，并证明 runtime 语义 PE == −真 LSS（符号正确、幅度相等）。runtime PE 主链与 schema 不变；真 LSS 经 rare-heavy 桥接，不进公共 snapshot。
 - 2026-06-20: 登记关联设计 spec [`relational-soft-verifier.md`](./relational-soft-verifier.md)（design / SHADOW-only）：拟把 `relationship_error` 轴的 epistemic 部分（复用 `PEDecomposition.improvement_magnitude`）作为关系域软验证器奖励来源；未改动本 owner，待 SHADOW 自我确认证伪实验通过后再新增 §"关系域软验证器奖励来源"。
 - 2026-05-06: Phase 1.B 上线 owner-internal Curiosity-Critic running-stats 分解（`PEDecomposition` + `_PECriticHead`）；`PredictionErrorSnapshot.pe_decomposition` 为 optional 字段，bootstrap 时为 `None`；`evaluation` 新增 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 两个 report-only metric。Phase 2.B learned critic head 登记为后续 uplift。
 - 2026-05-02: 重写对 Emergent Action Abstraction（`docs/specs/emergent-action-abstraction.md`）的依赖口径：PE 消费 temporal segment closure 与可观察 outcome context，不新增 trace owner 或 learning primitive

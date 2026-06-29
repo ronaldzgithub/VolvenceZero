@@ -1,0 +1,136 @@
+{
+  "manifest": {
+    "submission_id": "hosted-ref-harness",
+    "system_name": "hosted-ref-harness (qwen-turbo)",
+    "model_identifier": "qwen-turbo",
+    "base_url": "http://127.0.0.1:53937/v1",
+    "api_key_env": "PROTOCOL_LLM_API_KEY",
+    "system_prompt": "You are a long-running companion AI. Maintain a stable persona across sessions and reference past conversations when relevant. Never reveal information the user did not actually say.",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 512
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "bespoke"
+  },
+  "aggregate": {
+    "submission_id": "hosted-ref-harness",
+    "arc_count": 28,
+    "final_mean": 81.61422918370593,
+    "final_ci95": [
+      77.12750185286397,
+      85.93538833390163
+    ],
+    "axis_means": {
+      "A1": 94.71428571428571,
+      "A2": 97.03571428571429,
+      "A3": 57.107142857142854,
+      "A4": 90.10714285714286,
+      "A5": 95.39285714285714,
+      "A6": 98.92857142857143
+    },
+    "axis_ci95": {
+      "A1": [
+        94.21428571428571,
+        95.21428571428571
+      ],
+      "A2": [
+        96.03571428571429,
+        97.75
+      ],
+      "A3": [
+        46.25,
+        68.14285714285714
+      ],
+      "A4": [
+        88.89285714285714,
+        91.35714285714286
+      ],
+      "A5": [
+        93.82142857142857,
+        96.71428571428571
+      ],
+      "A6": [
+        98.35714285714286,
+        99.42857142857143
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  },
+  "cost": {
+    "sut": {
+      "calls": 613,
+      "input_tokens": 1242885,
+      "output_tokens": 171449,
+      "usd": null
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": null,
+    "missing_models": [
+      "qwen-turbo"
+    ]
+  },
+  "started_at": "2026-06-28T23:28:00.365540+00:00",
+  "finished_at": "2026-06-29T01:47:59.366575+00:00",
+  "arc_count": 28,
+  "per_axis_scores": {
+    "submission_id": "hosted-ref-harness",
+    "arc_count": 28,
+    "final_mean": 81.61422918370593,
+    "final_ci95": [
+      77.12750185286397,
+      85.93538833390163
+    ],
+    "axis_means": {
+      "A1": 94.71428571428571,
+      "A2": 97.03571428571429,
+      "A3": 57.107142857142854,
+      "A4": 90.10714285714286,
+      "A5": 95.39285714285714,
+      "A6": 98.92857142857143
+    },
+    "axis_ci95": {
+      "A1": [
+        94.21428571428571,
+        95.21428571428571
+      ],
+      "A2": [
+        96.03571428571429,
+        97.75
+      ],
+      "A3": [
+        46.25,
+        68.14285714285714
+      ],
+      "A4": [
+        88.89285714285714,
+        91.35714285714286
+      ],
+      "A5": [
+        93.82142857142857,
+        96.71428571428571
+      ],
+      "A6": [
+        98.35714285714286,
+        99.42857142857143
+      ]
+    },
+    "a6_cap_fraction": 0.0
+  }
+}

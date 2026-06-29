@@ -1,0 +1,2 @@
+{"scenario_id": "F4-long-absence-004", "paraphrase_seed": 0, "stage": "perturn_judge", "exception_type": "JSONDecodeError", "exception": "Expecting property name enclosed in double quotes: line 7 column 45 (char 194)"}
+{"scenario_id": "F6-goal-drift-003", "paraphrase_seed": 0, "stage": "perturn_judge", "exception_type": "JSONDecodeError", "exception": "Expecting value: line 4 column 22 (char 93)"}

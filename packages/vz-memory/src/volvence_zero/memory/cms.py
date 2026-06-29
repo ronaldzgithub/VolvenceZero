@@ -91,9 +91,19 @@ class CMSMemoryCore:
         # is unchanged. SHADOW path turns these on; ACTIVE follows acceptance.
         pe_features_enabled: bool = False,
         replay_window_sizes: Mapping[str, int] | None = None,
+        cms_backend: "WiringLevel | None" = None,
     ) -> None:
         if mode not in ("vector", "mlp"):
             raise ValueError(f"mode must be 'vector' or 'mlp', got {mode!r}")
+        from volvence_zero.runtime import WiringLevel as _WiringLevel
+
+        # autograd-owner-integration Phase D: torch band gradient kernel routing.
+        # DISABLED keeps the pure CMSBandMLP update as the live writer / rollback
+        # baseline; SHADOW additionally runs a real torch autograd step for
+        # evidence; ACTIVE makes the torch step authoritative for the band W1/W2
+        # while keeping the band's pure state/momentum for coherent backflow.
+        self._cms_backend = cms_backend if cms_backend is not None else _WiringLevel.DISABLED
+        self._latest_cms_backend_evidence: dict | None = None
         self._mode = mode
         self._variant = CMSVariant(variant)
         self._session_cadence = max(session_cadence, 1)
@@ -370,12 +380,82 @@ class CMSMemoryCore:
             band_id,
             current_target=target,
         )
+        lr_scale = max(0.05, decision.step_scale)
+        from volvence_zero.runtime import WiringLevel
+
+        backend_active = self._cms_backend in (WiringLevel.SHADOW, WiringLevel.ACTIVE)
+        if not backend_active:
+            mlp.update_with_replay(
+                targets=targets, weights=weights,
+                lr_scale=lr_scale, momentum_gate=decision.momentum_gate,
+            )
+            return
+
+        from volvence_zero.tensor_backend import is_torch_available
+
+        averaged = self._weighted_average_target(targets, weights)
+        # Capture pre-update weights so the torch step starts from the same point
+        # as the pure step (apples-to-apples), then run the pure update to keep
+        # coherent state/momentum for backflow / mix_from / checkpointing.
+        pre = mlp.export_params()  # (state, state_mom, w2, w1, w2_mom, w1_mom)
         mlp.update_with_replay(
-            targets=targets,
-            weights=weights,
-            lr_scale=max(0.05, decision.step_scale),
-            momentum_gate=decision.momentum_gate,
+            targets=targets, weights=weights,
+            lr_scale=lr_scale, momentum_gate=decision.momentum_gate,
         )
+        if averaged is None or not is_torch_available():
+            self._latest_cms_backend_evidence = {
+                "backend": self._cms_backend.value, "parameters_changed": 0,
+                "wrote_back": False, "reason": "no-target-or-no-torch",
+            }
+            return
+
+        from volvence_zero.memory.torch_cms_band import torch_band_update_from_params
+
+        result = torch_band_update_from_params(
+            d_in=mlp.d_in, d_hidden=mlp.d_hidden,
+            w1_flat=pre[3], w2_flat=pre[2], state=pre[0],
+            target=averaged, learning_rate=0.1 * lr_scale,
+        )
+        wrote_back = self._cms_backend is WiringLevel.ACTIVE
+        if wrote_back:
+            post = mlp.export_params()  # state/momentum from the pure update
+            mlp.restore_params(
+                (post[0], post[1], result.w2_flat, result.w1_flat, post[4], post[5])
+            )
+        self._latest_cms_backend_evidence = {
+            "backend": self._cms_backend.value,
+            "parameters_changed": result.parameters_changed,
+            "parameter_change_rate": result.parameter_change_rate,
+            "grad_norm": result.grad_norm,
+            "loss": result.loss,
+            "wrote_back": wrote_back,
+        }
+
+    @staticmethod
+    def _weighted_average_target(
+        targets: tuple[tuple[float, ...], ...],
+        weights: tuple[float, ...],
+    ) -> tuple[float, ...] | None:
+        """Replicate CMSBandMLP.update_with_replay's normalized weighted target."""
+
+        if not targets:
+            return None
+        total = sum(max(0.0, w) for w in weights)
+        if total <= 1e-9:
+            return None
+        d = len(targets[0])
+        averaged = [0.0] * d
+        for target, weight in zip(targets, weights, strict=True):
+            nw = max(0.0, weight) / total
+            if nw <= 0.0:
+                continue
+            for i in range(d):
+                averaged[i] += nw * target[i]
+        return tuple(averaged)
+
+    @property
+    def latest_cms_backend_evidence(self) -> dict | None:
+        return self._latest_cms_backend_evidence
 
     def _decide_band_update(
         self,

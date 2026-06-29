@@ -12,7 +12,9 @@ from volvence_zero.internal_rl.environment import (
     InternalRLProofProgress,
 )
 from volvence_zero.memory import Track
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.runtime.kernel import stable_value_hash
+from volvence_zero.tensor_backend import is_torch_available
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateSnapshot
 from volvence_zero.temporal import (
     ControllerState,
@@ -134,6 +136,14 @@ class OptimizationReport:
     value_loss: float = 0.0
     parameter_change_norm: float = 0.0
     replacement_effect_delta: float = 0.0
+    # autograd-owner-integration Phase C: real torch PPO evidence over the live
+    # ZTransition batch (append-only; DISABLED leaves these at defaults).
+    torch_backend: str = "disabled"
+    torch_parameters_changed: int = 0
+    torch_policy_loss: float = 0.0
+    torch_value_loss: float = 0.0
+    torch_approx_kl: float = 0.0
+    torch_wrote_back: bool = False
 
 
 @dataclass(frozen=True)
@@ -240,8 +250,14 @@ def _sequence_observation_signature(substrate_snapshot: SubstrateSnapshot, n_z: 
 class CausalZPolicy:
     """Causal z-policy with bounded stochastic actions and a lightweight critic."""
 
-    def __init__(self, *, parameter_store: MetacontrollerParameterStore) -> None:
+    def __init__(
+        self,
+        *,
+        parameter_store: MetacontrollerParameterStore,
+        rl_backend: WiringLevel = WiringLevel.DISABLED,
+    ) -> None:
         self._parameter_store = parameter_store
+        self._rl_backend = rl_backend
         self._value_weights: dict[Track, tuple[float, ...]] = {
             track: tuple(weight * 0.8 for weight in parameter_store.track_weights[track])
             for track in (Track.WORLD, Track.SELF, Track.SHARED)
@@ -251,6 +267,15 @@ class CausalZPolicy:
             Track.SELF: 0.05,
             Track.SHARED: 0.05,
         }
+
+    @property
+    def rl_backend(self) -> WiringLevel:
+        return self._rl_backend
+
+    def set_rl_backend(self, wiring_level: WiringLevel) -> None:
+        """Switch the PPO backend (DISABLED <-> SHADOW <-> ACTIVE); reversible."""
+
+        self._rl_backend = wiring_level
 
     @property
     def n_z(self) -> int:
@@ -913,6 +938,7 @@ class CausalZPolicy:
             initial_weights,
             self._project_track_weights(track=track, n=self.n_z),
         ) + value_change_norm
+        torch_evidence = self._maybe_run_torch_ppo(track=track, transitions=transitions)
         return PolicyBatchResult(
             report=OptimizationReport(
                 track=track,
@@ -932,6 +958,12 @@ class CausalZPolicy:
                 value_loss=value_loss,
                 parameter_change_norm=parameter_change_norm,
                 replacement_effect_delta=best_replacement_delta,
+                torch_backend=torch_evidence["backend"],
+                torch_parameters_changed=torch_evidence["parameters_changed"],
+                torch_policy_loss=torch_evidence["policy_loss"],
+                torch_value_loss=torch_evidence["value_loss"],
+                torch_approx_kl=torch_evidence["approx_kl"],
+                torch_wrote_back=torch_evidence["wrote_back"],
                 parameter_summary=(
                     f"track={track.value} rollouts={len(updated_rollouts)} transitions={len(transitions)} "
                     f"weights={self._parameter_store.track_weights[track]} "
@@ -944,6 +976,49 @@ class CausalZPolicy:
             updated_rollouts=updated_rollouts,
         )
 
+    def _maybe_run_torch_ppo(self, *, track: Track, transitions: tuple[ZTransition, ...]) -> dict:
+        """Phase C: real torch PPO over the live transition batch when enabled.
+
+        DISABLED -> no-op. SHADOW -> torch evidence without write-back.
+        ACTIVE -> torch refines and writes track weights + critic back into the
+        live store/policy (authoritative for the final weights). Requires torch;
+        otherwise returns an explicit skipped result.
+        """
+
+        disabled = {
+            "backend": "disabled", "parameters_changed": 0, "policy_loss": 0.0,
+            "value_loss": 0.0, "approx_kl": 0.0, "wrote_back": False,
+        }
+        if self._rl_backend is WiringLevel.DISABLED:
+            return disabled
+        if not transitions:
+            return {**disabled, "backend": "skipped-no-transitions"}
+        if not is_torch_available():
+            return {**disabled, "backend": "skipped-no-torch"}
+
+        from volvence_zero.internal_rl.torch_causal_ppo import torch_causal_ppo_update
+
+        write_back = self._rl_backend is WiringLevel.ACTIVE
+        report = torch_causal_ppo_update(
+            parameter_store=self._parameter_store,
+            value_weights=self._value_weights,
+            value_bias=self._value_bias,
+            track=track,
+            transitions=transitions,
+            n_z=self.n_z,
+            write_back=write_back,
+            learning_rate=self._parameter_store.learning_rate,
+            clip_epsilon=self._parameter_store.clip_epsilon,
+        )
+        return {
+            "backend": self._rl_backend.value,
+            "parameters_changed": report.parameters_changed,
+            "policy_loss": report.policy_loss,
+            "value_loss": report.value_loss,
+            "approx_kl": report.approx_kl,
+            "wrote_back": report.wrote_back,
+        }
+
 
 class InternalRLSandbox:
     """Minimal z-space rollout sandbox for abstract-action RL experiments."""
@@ -954,11 +1029,19 @@ class InternalRLSandbox:
         policy: FullLearnedTemporalPolicy | LearnedLiteTemporalPolicy | None = None,
         env: InternalRLEnvironment | None = None,
         residual_runtime: OpenWeightResidualRuntime | None = None,
+        rl_backend: WiringLevel = WiringLevel.DISABLED,
     ) -> None:
         self._policy = policy or FullLearnedTemporalPolicy()
-        self._causal_policy = CausalZPolicy(parameter_store=self._policy.parameter_store)
+        self._causal_policy = CausalZPolicy(
+            parameter_store=self._policy.parameter_store, rl_backend=rl_backend
+        )
         self._env = env or InternalRLEnvironment()
         self._residual_runtime = residual_runtime
+
+    def set_rl_backend(self, wiring_level: WiringLevel) -> None:
+        """Switch the causal-policy PPO backend (reversible to DISABLED)."""
+
+        self._causal_policy.set_rl_backend(wiring_level)
 
     @property
     def policy(self) -> FullLearnedTemporalPolicy | LearnedLiteTemporalPolicy:

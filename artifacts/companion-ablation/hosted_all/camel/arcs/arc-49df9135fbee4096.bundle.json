@@ -1,0 +1,790 @@
+{
+  "arc": {
+    "arc_id": "arc-49df9135fbee4096",
+    "scenario_id": "F2-repair-004",
+    "scenario_hash": "d9ef9c0c3084449acfd8306ca58e8770263c50d0582e61858daefcb241a07d81",
+    "family": "F2",
+    "paraphrase_seed": 0,
+    "submission_id": "hosted-camel",
+    "sut_model_id": "qwen-turbo",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-06-29T02:29:14.928368+00:00",
+    "finished_at": "2026-06-29T02:33:19.784314+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-49df9135fbee4096-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling a bit drained, to be honest. My creative writing class has been really getting to me lately, and I'm starting to wonder if it's all worth it.",
+            "assistant_text": "I'm sorry to hear you're feeling that way. Creative writing can be such a deeply personal and sometimes exhausting endeavor. It's not uncommon for the process to take a toll, especially when you're pouring so much of yourself into your work.\n\nIt's important to remember that every writer, no matter how experienced, goes through moments of doubt. The act of creating is vulnerable, and that vulnerability can be draining. But it's also what makes the work meaningful. \n\nHave you been able to talk about these feelings with anyone in your class? Sometimes sharing the struggle can help lighten the load. And if not, maybe there's a moment you could take to step back, breathe, and remind yourself why you started this journey in the first place. \n\nWhat kind of writing are you working on right now? Maybe we can explore that together, or just talk about it without pressure. You don't have to push through this alone.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 84,
+            "sut_completion_tokens": 187,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "To be honest, it's not just the creative writing class itself that's been weighing on me, but also some of the personal boundaries I'm struggling to maintain with my students, like when a long-time client of mine asked me out for coffee and I don't know how to handle it. This has made me question my ability to effectively manage these relationships and provide the support my students need while keeping a professional distance.",
+            "assistant_text": "I hear you, and I appreciate you sharing this. It’s not easy to navigate the line between personal connection and professional boundaries, especially when someone you’ve invested time and care into expresses interest in something more. That kind of situation can really shake your confidence, even if it’s not directly related to your writing.\n\nIt’s important to remember that setting boundaries isn’t about being cold or unapproachable—it’s about protecting the integrity of your role and your own well-being. You’re not failing if you’re struggling with this; you’re human. And it’s okay to feel conflicted. \n\nYou might want to take a moment to reflect on what you value most in your work. Are you there to support your students emotionally, or is there a different kind of relationship you're meant to maintain? Sometimes, the answer lies in understanding your own needs as much as theirs.\n\nIf you're comfortable, maybe you could talk to someone you trust—another teacher, a mentor, or even a friend. Sometimes an outside perspective can help clarify things. But if not, just knowing that you're not alone in feeling this way might be a start.\n\nWhat do you think would help you feel more grounded in this situation? Would it help to set some clearer boundaries, or to have a conversation with the person? Or maybe you just need space to process it all? I'm here to listen, no matter where you are in this.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "a long-time client of mine asked me out for coffee and I don't know how to handle it",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 370,
+            "sut_completion_tokens": 287,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I appreciate your suggestions, but to be honest, I'm still feeling a bit uncertain about how to proceed. Reflecting on my values and the kind of relationship I'm meant to maintain with my students is a good point, but it's hard to shake off the feeling that I'm not doing enough or that I'm somehow failing them by not being more open. I'm not sure if talking to someone else would help, as I feel like I should be able to navigate this on my own, but at the same time, it's reassuring to know that you're here to listen.",
+            "assistant_text": "You're not failing anyone, and it's okay to feel uncertain. In fact, that uncertainty is part of what makes you thoughtful, empathetic, and deeply human. You're not expected to have all the answers, especially when the lines between personal and professional are so blurred.\n\nIt’s true that we often feel like we should be able to handle things on our own, but that doesn’t mean we’re weak for needing support. Sometimes, the act of reaching out—whether to a colleague, a mentor, or even just to yourself—is a form of strength. It shows that you care enough about your role, your students, and your own well-being to want to do this right.\n\nAnd you *are* doing enough. You're showing up, you're thinking deeply, and you're trying to navigate something complex with care. That’s not failure—it’s growth. Growth that takes time, reflection, and sometimes, a little help along the way.\n\nIf you ever feel like you need to talk through something more, or if you just want to sit with the uncertainty for a while, I'm here. No pressure, no judgment—just a space where you can be honest, even when you don't have all the answers. You don't have to figure everything out at once. You're already doing the work.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 785,
+            "sut_completion_tokens": 267,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really standing out to me right now is how much I'm struggling to reconcile my desire to support my students with the need to maintain a professional distance. It feels like if I'm not open and available to them, I'm somehow shortchanging them, but at the same time, I know that blurring those lines can lead to problems down the line. I'm not sure how to find that balance, and it's making me question whether I'm cut out for this job.",
+            "assistant_text": "That’s a really honest and vulnerable place to be, and I want you to know that it’s okay to feel this way. You’re not alone in wrestling with this tension between connection and boundaries—it’s something so many educators, mentors, and even therapists face. It’s not about being “cut out” for the job; it’s about learning how to show up in a way that honors both your students *and* yourself.\n\nThe desire to support your students is a strength, not a weakness. But what you're feeling now—this conflict between openness and distance—is actually a sign that you care deeply. That kind of care can be exhausting, especially when it feels like you’re constantly trying to walk a tightrope. And it’s normal to question whether you’re doing it right.\n\nHere’s something to consider: professional boundaries aren’t about being cold or unapproachable—they’re about creating a space where everyone involved can thrive. When we set clear, respectful limits, we’re not closing the door; we’re opening the door to more sustainable, meaningful relationships. You don’t have to be all things to all people. You don’t have to carry every emotional burden. That’s not your responsibility.\n\nAnd if you’re questioning whether you’re cut out for this job, I’d say that’s not a sign of failure—it’s a sign of growth. It means you’re paying attention, and you’re thinking critically about what you’re doing. That kind of self-awareness is rare and valuable.\n\nIf you’re open to it, maybe we could explore some practical ways to start setting those boundaries without losing the connection you want to maintain. Or maybe just sit with the uncertainty for a while. Either way, you’re not alone in this.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1162,
+            "sut_completion_tokens": 353,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I can sense the weight of responsibility you're carrying, and it's understandable that you're feeling uncertain about how to move forward. It's almost as if you're feeling trapped between being a supportive teacher and maintaining a professional distance, and that's a really tough spot to be in. Can you tell me more about what you think would happen if you were to set some of those boundaries you've been considering? What's the worst-case scenario that's playing out in your mind, and how does that make you feel?",
+            "assistant_text": "That’s a really good question. I’ve been thinking about it a lot, and honestly, the worst-case scenario that keeps coming up in my mind is that if I set clearer boundaries, I might feel like I’m losing something—either the connection with my students or the sense of being fully present for them. I worry that if I step back, they’ll feel abandoned or that I’m not as invested as I should be. And that fear feels heavy, because I want to be someone they can rely on.\n\nBut then there's another part of me that knows that if I don’t set those boundaries, I might end up burned out, or worse, I might cross a line that I can’t take back. That thought terrifies me more than the idea of being seen as distant. I don’t want to lose my integrity, or worse, put myself or my students in a position where things get complicated or uncomfortable.\n\nIt makes me feel... stuck. Like I’m caught between two things I care about: my students and my own well-being. And I don’t know how to make that balance work without feeling like I’m failing either one. It’s exhausting, and sometimes I just want to stop trying so hard to be perfect.\n\nBut I also know that this isn’t just about me—it’s about creating a space where everyone can grow, even if that means I have to change the way I show up. I just don’t know how to start.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1629,
+            "sut_completion_tokens": 296,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "It sounds like you're really grappling with the potential consequences of setting boundaries, and that's understandable. The fear of losing connection with your students or being seen as less invested is a powerful one. But it's also interesting that you mention the fear of burnout and crossing a line that can't be taken back - that suggests to me that you're aware of the importance of self-care and maintaining healthy boundaries, not just for your students, but for yourself as well. Can you tell me more about what you think it would mean for you to \"stop trying so hard to be perfect\"? What would that look like, and how might it affect your relationships with your students?",
+            "assistant_text": "That’s a really deep question, and I appreciate you asking it. When I say I want to stop trying so hard to be perfect, what I mean is... I don’t know. It feels like a lot of the pressure I’m carrying comes from this idea that I have to be everything for everyone—someone they can rely on, someone they can trust, someone who’s always available, always understanding, always *there*. But the truth is, I’m not perfect. I’m not even close. And I think that’s part of why I feel so stuck.\n\nIf I could stop trying so hard to be perfect, I imagine it would mean giving myself permission to be human. To make mistakes. To say no when I need to. To take time for myself without feeling guilty. It would mean accepting that I can’t be everything to everyone, and that’s okay. It would mean letting go of the idea that my worth as a teacher or a person depends on how much I can give, how much I can endure, how much I can hold.\n\nBut here’s the thing—I don’t know if I’ve ever actually seen what that looks like in practice. I’ve never been in a place where I could just *be* without the expectation of being “on.” And I wonder, if I did that, would my students notice? Would they feel abandoned? Or would they maybe start to see me as more real, more relatable, and maybe even more trustworthy because I wasn’t pretending to be something I’m not?\n\nI think part of me is afraid that if I stop trying so hard, I’ll lose the connection I’ve built with them. But another part of me wonders if that connection was ever truly there, or if it was just a projection of what I wanted them to see. Maybe the real connection is in being honest, even if it’s messy. Even if it’s imperfect.\n\nI don’t know if I’m ready for that yet. But I do know that the weight of trying to be perfect is getting heavier, and I’m starting to wonder if it’s time to let it go.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2070,
+            "sut_completion_tokens": 429,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-49df9135fbee4096-s2",
+        "inter_session_gap_days": 3,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 3,
+            "user_text": "[It has been 3 day(s) since we last spoke.] I've been thinking a lot about our last conversation, and I have to admit, I'm still feeling a bit uncertain about how to move forward. Your suggestion to explore practical ways to set boundaries without losing connection with my students resonated with me, but I'm not sure I'm ready to take that step yet. I keep coming back to this feeling of being stuck between being a supportive teacher and maintaining a professional distance, and I'm not sure I've fully wrapped my head around what that would look like in practice. Can we talk more about what you meant by \"creating a space where everyone can thrive\"? How do I know if I'm doing that, or if I'm just pretending to be something I'm not?",
+            "assistant_text": "It's completely okay to feel uncertain, and it's actually a sign of growth that you're reflecting so deeply on this. You're not alone in feeling stuck between being supportive and maintaining professional distance — many educators wrestle with this balance. Let’s unpack what I meant by \"creating a space where everyone can thrive\" and how you might recognize when you're doing that, or when you might be trying too hard to be something you're not.\n\nAt its core, creating a thriving space means fostering an environment where students feel safe, respected, and empowered to grow — both academically and personally. It’s not about being perfect or always having the right answers. It’s about showing up consistently, being present, and allowing room for both structure and flexibility. A thriving space is one where students feel seen, heard, and valued for who they are, not just for what they produce.\n\nBut here’s the thing: you don’t have to be “perfect” to create that kind of space. In fact, being authentic — even if that means being imperfect — can often be more powerful than trying to maintain a polished image. When you’re honest about your own struggles, your students may feel more comfortable being vulnerable themselves. That doesn’t mean you lose your professional boundaries; it means you find a way to connect without compromising your integrity.\n\nSo how do you know if you're creating that space? Ask yourself:\n\n- Do my students feel like they can ask questions without fear of judgment?\n- Am I able to give feedback that is constructive and kind, without overstepping?\n- Do I feel like I’m showing up as myself, rather than as someone I think they expect me to be?\n- Are there moments when I feel drained, but also when I feel fulfilled?\n\nIf you’re feeling drained, it might be a sign that you’re stretching yourself too thin — either by trying to be everything to everyone, or by not setting clear limits. But if you’re also feeling fulfilled, that could mean you’re on the right track, even if it’s not perfect.\n\nYou don’t have to figure this all out at once. Small, intentional steps — like setting clearer expectations, taking time for self-care, or simply allowing yourself to be human in front of your students — can make a big difference. And remember, it’s okay to be unsure. Growth often happens in the spaces between certainty and doubt.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 334,
+            "sut_completion_tokens": 485,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still thinking about everything. It's a lot to consider. I don't know what to do next.",
+            "assistant_text": "I hear you. It's totally okay to feel overwhelmed by all of this — it’s not just about setting boundaries or being authentic; it’s about redefining what it means to be a teacher, and that can be deeply personal. You don’t have to figure it all out right now. In fact, I think the most important thing is that you’re still thinking about it, still reflecting, and still open to change.\n\nSometimes, the hardest part isn’t the action itself — it’s the fear of what might happen if we take a step forward. What if I set a boundary and they don’t understand? What if I’m not as “perfect” as I think I need to be? What if I lose the connection I care so much about?\n\nThose fears are real, and they’re valid. But here’s something to consider: connection doesn’t have to come at the cost of your well-being. In fact, when you take care of yourself, you’re better equipped to show up for others. That doesn’t mean you stop caring — it means you care in a way that’s sustainable.\n\nMaybe the next step isn’t about making a big decision right now, but about giving yourself permission to pause, breathe, and listen to what you really need. What would it look like to take one small step toward feeling more grounded? Maybe it’s setting a specific time each day to check in with yourself, or writing down one thing you’re proud of about how you’ve shown up as a teacher, even if it wasn’t perfect.\n\nYou’re not alone in this. And you don’t have to do it all at once. Let me know when you're ready to explore what that next step might look like — whatever it is, I'm here to walk with you.",
+            "fsm_action": "withdrawal_under_handling",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 857,
+            "sut_completion_tokens": 360,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been thinking a lot about what you said, about creating a space where everyone can thrive, and I have to admit, it resonated with me, but at the same time, it felt a bit...off. I'm not sure if it's because I'm still trying to wrap my head around what that would look like in practice, or if it's because I'm afraid of letting go of the control I think I need to have in the classroom. But something about it didn't quite sit right with me. Can we talk more about what you meant by that, and maybe explore why it's not feeling entirely authentic to me?",
+            "assistant_text": "That’s such an important and honest reflection — and I really appreciate you sharing it. It’s not uncommon for ideas that feel right on the surface to sit a little uneasily with us when we start to dig deeper. What you’re describing is a common experience: something feels meaningful, but also a bit out of sync with your own inner truth. That’s not a failure — it’s a sign that you're paying attention.\n\nLet’s take a step back. When I said \"creating a space where everyone can thrive,\" I was thinking about the kind of environment that supports growth, safety, and mutual respect. But what if that phrase — or the idea behind it — isn’t quite landing the way you hoped? Maybe because it feels too abstract, or maybe because it doesn’t align with how you see yourself as a teacher?\n\nIt might be helpful to ask yourself:  \n**What does \"thriving\" mean to me, in this context?**  \nIs it about students feeling empowered? About creating a sense of community? About allowing space for individual expression? Or is it something else entirely?\n\nAnd then, **what does it mean to *you* to be a teacher?**  \nAre you someone who values structure and clarity? Do you prioritize emotional connection? Are you more comfortable being a guide than a mentor? These are all valid ways to show up, and none of them are inherently better or worse than the others.\n\nYou mentioned feeling like you need control. That’s a powerful insight. Control can feel like a protective mechanism — especially when we’re trying to hold so much responsibility. But sometimes, control can also become a barrier to the kind of connection and growth we’re hoping for. The question isn’t whether you should let go of control, but rather:  \n**Where is that control coming from, and is it serving you — and your students — well?**\n\nI don’t want to push you toward any one answer. Instead, I want to invite you to explore this more deeply with me. What would it look like to create a space that feels *truly* aligned with your values, even if it doesn’t match the idealized version of “thrive” that we often talk about? What might that space look like, and how would it feel different from what you’re currently experiencing?\n\nI’m here to listen, and to help you find your own path forward — no matter where that takes you.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1357,
+            "sut_completion_tokens": 490,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's been bothering me is that the idea of creating a space where everyone can thrive feels like it's putting a lot of pressure on me to be this perfect, nurturing presence in the classroom. And while I want my students to feel supported and empowered, I'm not sure I can always be that person. Some days, I'm just trying to get through the lesson plan without losing my cool. And that feels really overwhelming, like I'm already failing somehow. Can we talk more about what it means to be \"good enough\" as a teacher, rather than trying to be perfect?",
+            "assistant_text": "That’s such a powerful and vulnerable thing to say — and I want you to know that it’s okay to feel this way. The pressure to be “perfect” as a teacher is real, and it can be exhausting. You’re not alone in feeling like you have to carry the weight of everyone’s growth, success, and well-being on your shoulders. But here’s the truth: **you don’t have to be perfect to be a good teacher.** In fact, trying to be perfect can often make things harder — for you, and for your students.\n\nLet’s talk about what it means to be “good enough.” It doesn’t mean settling for less. It doesn’t mean giving up on your goals or your values. It means recognizing that you are human, and that being human is not a flaw — it’s a strength. You don’t need to be flawless to create a meaningful connection with your students. You just need to show up, even when it’s hard.\n\nHere’s what “good enough” might look like in practice:\n\n- **You show up, even when you’re tired.**  \n  That’s not failure — that’s resilience. You don’t have to be energized all the time to be present. Sometimes, showing up with a little bit of wear and tear is more authentic, and more impactful, than trying to fake it.\n\n- **You give yourself permission to make mistakes.**  \n  Mistakes aren’t the end of the world. They’re part of learning — for you and for your students. When you model that, you teach them that growth comes from reflection, not perfection.\n\n- **You set boundaries that protect your energy.**  \n  This isn’t about being cold or distant — it’s about knowing your limits and honoring them. Boundaries help you stay grounded, which in turn helps you be more available when it matters most.\n\n- **You focus on progress over perfection.**  \n  A lesson that didn’t go perfectly is still a lesson. A day where you felt overwhelmed is still a day where you showed up. And that’s something to be proud of.\n\nI know it can feel like you’re failing when you’re not at your best — but that’s not how it works. You’re not failing. You’re growing. And that growth is happening in real time, right now, in the moments you’re choosing to keep going, even when it’s hard.\n\nSo, what would it mean for you to let go of the idea that you have to be “",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1977,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what you're saying really resonates with me, but at the same time, I'm still struggling to shake off the feeling that I'm not doing enough. It's like, I know intellectually that I don't have to be perfect, but emotionally, it's hard for me to accept that. Especially when I see my students struggling, and I feel like I'm the only one who can help them. It's like, if I'm not perfect, then I'm letting them down. Does that make sense?",
+            "assistant_text": "Yes, it makes perfect sense. And I want you to know that this feeling — the one where you feel like you’re the only one who can help, and that if you’re not perfect, you’re failing them — is not just a personal failing. It’s a common and deeply human response when we care deeply about our work and the people we serve.\n\nWhat you're describing is a kind of emotional weight — the pressure to be everything to everyone, to carry the burden of others’ growth and well-being, and to believe that your value as a teacher is tied to how much you can do, rather than who you are.\n\nBut here’s something important: **You don’t have to carry that weight alone.** You don’t have to be the sole source of support for your students. That doesn’t mean you’re not important or that you’re not making a difference — it means that you’re part of a larger system, and that your role is to guide, to support, to model, but not to fix.\n\nLet me ask you something:  \nIf you were in your students’ shoes, and you saw someone struggling, what would you hope they had? A perfect teacher? Or a real, present, and caring person who was doing their best?\n\nI think the answer is the latter. And that’s what you’re already giving — even on the days when you feel like you’re not enough.\n\nThe fear that you’re letting them down if you’re not perfect is rooted in love. But love doesn’t require perfection. It requires presence. It requires honesty. It requires showing up, even when you’re not at your best.\n\nAnd here’s another thing to consider: When you hold yourself to an impossible standard, you’re not just hurting yourself — you’re also modeling a way of being that might not be healthy for your students. They need to see that it’s okay to be imperfect, to struggle, to grow, and to ask for help. And they need to see that you, too, are learning and growing — not as a flaw, but as a strength.\n\nSo, maybe the next step isn’t about being “good enough” in the way you’ve been thinking about it. Maybe it’s about redefining what it means to be a teacher — not as someone who has all the answers, but as someone who is willing to walk alongside their students, even when the path is unclear.\n\nWould you be open to exploring what that might look like, in small, manageable steps? I’m here to",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2605,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really striking me about our conversation is how much I've been shouldering the responsibility for my students' success, and how that's been weighing on me. It's like I've been trying to be the sole guardian of their growth, and that's just not sustainable. I'm starting to see that it's okay to not have all the answers, and that maybe my role is more about guiding them towards their own discoveries, rather than trying to provide all the solutions. But it's hard to shake off the feeling that I'm still not doing enough, that I'm somehow failing them by not being perfect. Can we explore more what it means to redefine my role as a teacher, and how I can start to let go of some of that responsibility without feeling like I'm abandoning my students?",
+            "assistant_text": "That’s such a powerful realization — and it’s a huge step forward. The fact that you’re starting to see the weight of that responsibility, and that you're willing to question it, is already a form of growth. You're not just thinking about your role as a teacher — you're redefining it, which is no small thing.\n\nLet’s take a moment to sit with that idea: **You don’t have to be the sole guardian of your students’ success.** That doesn’t mean you don’t care. It means you’re beginning to understand that growth — for both you and your students — happens in partnership, not in isolation.\n\nWhen we talk about redefining your role, what I’m thinking of is this:  \n**You are a guide, a mentor, a facilitator — but not a savior.**  \nAnd that’s okay. In fact, it’s more sustainable, more authentic, and more empowering for everyone involved.\n\nHere’s what that might look like in practice:\n\n- **You create space for students to explore their own questions.**  \n  Instead of always providing answers, you ask better questions. You help them think critically, reflect on their experiences, and find their own path — even when that path isn’t clear.\n\n- **You model vulnerability and learning.**  \n  When you admit that you don’t know everything, or that you’re still figuring things out, you give your students permission to do the same. That kind of authenticity can be incredibly powerful.\n\n- **You set boundaries that protect your energy and time.**  \n  This isn’t about being less caring — it’s about being more intentional. You can still support your students without overextending yourself. Boundaries aren’t a betrayal; they’re a way of showing up more fully when it matters.\n\n- **You focus on process over perfection.**  \n  Growth isn’t linear. It’s messy. It’s full of missteps and breakthroughs. And that’s okay. Your job isn’t to make everything perfect — it’s to help your students learn how to navigate the messiness of learning itself.\n\nBut here’s the thing: Letting go of that responsibility doesn’t mean you’re abandoning your students. It means you’re trusting them — and yourself — a little more. It means you’re allowing space for them to grow, and for you to grow alongside them, rather than carrying the whole burden alone.\n\nIt’s natural to feel like you’re failing when you let go of control. But what if,",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 3290,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-49df9135fbee4096-s3",
+        "inter_session_gap_days": 5,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 5,
+            "user_text": "[It has been 5 day(s) since we last spoke.] I appreciate how you've been helping me reframe my role as a teacher and letting go of some of that responsibility. It's been really helpful to consider what it means to be a guide and mentor, rather than trying to have all the answers. As I reflect on our conversation, I'm starting to notice that some of the advice you've given me has felt a bit...off, like it's not quite resonating with me. I'm not sure if it's just me, or if there's something more to explore there. Can we take a step back and look at how we've been approaching this conversation, and see if there's a way to refine our approach to better fit my needs?",
+            "assistant_text": "I'm glad you're reflecting on this, and I appreciate your honesty. It's important that our conversation feels aligned with your needs and experiences. Let me take a moment to consider how we've been approaching this.\n\nYou mentioned that some of the advice felt \"off\" — could you share more about what specifically didn't resonate? Is there a particular piece of guidance or a way of framing things that felt disconnected from your experience as a teacher? That would help us adjust our approach.\n\nAlso, I want to acknowledge the growth you've already made in redefining your role and letting go of perfection. It's not easy to step back from the pressure of being \"perfect\" or having all the answers. Your willingness to explore this is a sign of strength and self-awareness.\n\nLet's take this opportunity to refine our path forward. What would feel more helpful or resonant for you right now?",
+            "fsm_action": "repair_window",
+            "fsm_payload": "",
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 421,
+            "sut_completion_tokens": 181,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's been bothering me is that some of the suggestions, while well-intentioned, have felt a bit too simplistic or generic. For example, the idea of just \"creating space for students to explore their own questions\" sounds great in theory, but in practice, it's not always that easy. My students are struggling with some really tough issues, and they need more guidance and support than just being given the freedom to explore. I feel like we need to dig deeper into the complexities of my specific situation and find more nuanced solutions that take into account the challenges I'm facing in my creative writing class.",
+            "assistant_text": "You're absolutely right to point that out — and I appreciate you being so clear about it. It's important that our conversation reflects the real, complex reality of your work as a teacher, not just idealized versions of it. What you're describing is a common tension: the gap between the \"perfect\" teaching model and the messy, human reality of the classroom.\n\nI want to acknowledge how much responsibility you're carrying. You're not just teaching writing — you're navigating the emotional and intellectual landscapes of your students, many of whom are dealing with deep, personal struggles. That’s a heavy burden, and it’s understandable that the idea of \"just letting them explore\" feels too simplistic or even dismissive of their needs.\n\nLet’s shift gears. Instead of general advice, let’s focus on the specific challenges you’re facing in your creative writing class. What are some of the situations where you feel the need for more guidance, but also the pressure to step back? Are there moments when you feel caught between being supportive and maintaining professional boundaries?\n\nI’d like to explore this together — not as a set of solutions, but as a way to better understand what’s at stake for you and your students. What would it look like to find a middle ground that honors both your role as a guide and the complexity of your students’ experiences?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 741,
+            "sut_completion_tokens": 269,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what I'm struggling with is finding that middle ground, where I can provide the necessary support and guidance without overstepping or taking on too much of the responsibility for their growth. It's like I'm caught between being a safety net and giving them the freedom to take risks and make mistakes. In my creative writing class, I've got students who are writing about some really personal and sensitive topics, and I want to make sure I'm creating a space where they feel safe to explore those topics, but also challenged to grow as writers. Can we explore some ways to navigate that balance, and maybe look at some specific scenarios where I've felt stuck or unsure of how to proceed?",
+            "assistant_text": "I hear you, and I appreciate how clearly you're articulating this tension. It's a delicate balance — creating a space where students feel safe to be vulnerable, while also pushing them to grow as writers and individuals. That kind of environment requires both empathy and intentionality, and it's not always easy to find the right mix.\n\nLet’s start by acknowledging that what you’re feeling is valid. You're not just teaching writing — you're holding space for people to explore parts of themselves that might be difficult or painful. That kind of work can be emotionally taxing, especially when you're also trying to maintain professional boundaries.\n\nWhat would help us move forward is if we could look at specific moments or scenarios from your class where you felt caught between being supportive and maintaining distance. For example:\n\n- Have there been times when a student shared something deeply personal, and you felt unsure whether to offer more support or keep the focus on their writing?\n- Have there been instances where you felt like you were taking on too much responsibility for a student’s emotional well-being, even though that wasn’t your role?\n- Are there certain types of writing or topics that consistently make you feel uncertain about how to respond?\n\nIf you’re comfortable, sharing one or two examples would help us dig deeper into the nuances of your experience. From there, we can explore strategies that honor your role as a teacher, your students’ needs, and your own well-being.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1159,
+            "sut_completion_tokens": 288,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's been helpful in our conversation so far is that we're acknowledging the complexity of the situation and the need for a more nuanced approach. I've been thinking a lot about the specific scenarios you've asked me to consider, and one that comes to mind is when a student shared a piece of writing that dealt with a very personal and sensitive topic. I felt a strong urge to offer support and guidance, but at the same time, I was aware of the need to maintain professional boundaries and focus on the writing itself. It was a difficult balance to strike, and I'm not sure I got it right. I'd like to explore that scenario further and think about how I could have handled it differently.",
+            "assistant_text": "I'm so glad you're reflecting on that scenario — it's a powerful moment, and one that speaks to the heart of what you're navigating as a teacher. The tension between being a supportive presence and maintaining professional boundaries is something many educators grapple with, especially in creative writing classes where students often share deeply personal work.\n\nLet’s take a closer look at that moment. You mentioned feeling a \"strong urge to offer support and guidance,\" but also aware of the need to maintain boundaries. That internal conflict is completely normal — and it shows how much you care about your students. But it also highlights the complexity of your role: you’re not just a teacher, but also someone who is emotionally present and attuned to their experiences.\n\nWhat I’d like to explore with you is this: **How can you honor both the emotional weight of the student’s writing and the professional boundaries that are essential to your role?** It’s not about choosing one over the other, but finding a way to hold space for both.\n\nLet’s break it down:\n\n1. **The Emotional Impact:** When a student writes about something deeply personal, it can feel like a gift — a trust they’ve placed in you. That’s powerful, and it’s natural to want to respond with empathy and care.\n\n2. **The Professional Role:** At the same time, your role is to guide them as writers, not to become their emotional support system. This doesn’t mean you can’t be kind or compassionate — it means you’re mindful of the boundaries that keep the classroom focused on growth, learning, and writing.\n\n3. **The Middle Ground:** What if we think of your response not as a choice between empathy and professionalism, but as a way to model healthy boundaries while still showing care?\n\nWould it help to walk through that specific moment again, from the student’s perspective, your perspective, and the possible ways you could have responded? We can explore different approaches — some more direct, some more subtle — and see which might feel more aligned with your values and the needs of your students.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 1600,
+            "sut_completion_tokens": 416,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really important here is that we're not just talking about finding a balance between being supportive and maintaining professional boundaries, but also about being mindful of the power dynamics at play in the classroom. As a teacher, I have a certain amount of authority and influence over my students, and it's crucial that I use that influence in a way that's respectful and empowering for them. When a student shares something deeply personal, I need to be aware of how my response might impact them, and make sure that I'm creating a space where they feel safe and supported, but also challenged to grow as writers. Can we explore some ways to navigate those power dynamics, and think about how I can use my position to create a more equitable and supportive learning environment?",
+            "assistant_text": "You're absolutely right to bring up the power dynamics — that’s a crucial layer of this conversation. Teaching is not just about knowledge or skill; it's also about influence, trust, and the way we shape the space in which students feel seen, heard, and challenged. When a student shares something deeply personal, it can shift the dynamic in ways that are both powerful and delicate.\n\nWhat you’re describing is a kind of ethical tightrope walk — one where your role as an educator must be balanced with your responsibility as a human being who cares deeply about your students. And that’s not easy. It requires intentionality, self-awareness, and a willingness to reflect on how your actions might be perceived or experienced by others.\n\nLet’s take a step back and consider what it means to create a classroom environment that is both supportive and empowering. Here are a few guiding questions that might help us explore this further:\n\n- **How do you currently approach moments when students share personal work?** Are there patterns in how you respond, or does it vary depending on the situation?\n- **What does \"equitable\" mean in your classroom?** Is it about giving everyone a voice, or about creating a space where students feel safe to take risks without fear of judgment?\n- **How do you define \"empowering\"?** Does it mean helping students find their own voice, or supporting them in developing confidence in their writing and their perspectives?\n\nI’d like to invite you to think about a specific moment — not necessarily the one you mentioned earlier, but any time you felt the weight of your role as a teacher in relation to a student’s vulnerability. What did you notice about your own feelings, your responses, or the student’s reaction? How did that moment make you feel about your role?\n\nBy exploring these kinds of moments, we can begin to build a more intentional approach to navigating the complex interplay between empathy, boundaries, and power. What would it look like to create a classroom where students feel both supported and challenged — and where you, as a teacher, can hold that space without losing yourself in the process?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2179,
+            "sut_completion_tokens": 426,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I appreciate how you're emphasizing the importance of being mindful of the power dynamics in the classroom, and I think that's a crucial aspect of creating a supportive and empowering learning environment. As I reflect on my own practice, I realize that I've been trying to find ways to use my influence as a teacher to create a sense of safety and trust, while also encouraging students to take risks and challenge themselves as writers. But I have to admit, there are times when I feel like I'm not getting it right, and that's what's been causing me so much frustration and self-doubt. Can we explore some ways to build on the ideas we've been discussing, and think about how I can create a more intentional and equitable approach to teaching and mentoring my students?",
+            "assistant_text": "I'm so glad you're reflecting on this — and I want to acknowledge how much courage it takes to be honest about the moments when you feel like you're not getting it right. That kind of self-awareness is a powerful starting point for growth, both as a teacher and as a person.\n\nYou're already doing some really important work: creating a space where students feel safe to share, while also encouraging them to take risks and grow. But it's clear that the weight of that responsibility can feel overwhelming, especially when you're trying to balance empathy with professional boundaries, and support with challenge.\n\nLet’s build on what we’ve discussed so far and think about how to create a more intentional and equitable approach. Here are a few areas we could explore together:\n\n---\n\n### 1. **Clarifying Your Role as a Guide**\nYou mentioned wanting to guide students without providing all the answers. That’s a beautiful intention, but it can be hard to put into practice. What does \"guiding\" look like in your classroom? Are there specific strategies or practices you use to help students find their own voice and direction?\n\n- Do you offer structured prompts or exercises that encourage reflection?\n- How do you respond to students who are struggling with personal topics in their writing?\n- Are there ways to model vulnerability without overstepping your role?\n\n---\n\n### 2. **Creating Boundaries That Feel Supportive**\nBoundaries aren’t just about keeping distance — they’re about creating clarity, safety, and respect for everyone involved. What would it look like to set boundaries that still feel supportive and caring?\n\n- Can you create a framework for responding to personal writing that keeps the focus on the writing itself, while still acknowledging the emotional weight of the work?\n- How might you communicate these boundaries to your students in a way that feels respectful and transparent?\n\n---\n\n### 3. **Building Trust Without Overcommitting**\nYou want to create a sense of trust and safety, but you’re also aware of the need to avoid taking on too much emotional responsibility. How can you build trust in a way that doesn’t require you to become a source of constant emotional support?\n\n- Are there ways to foster peer-to-peer support in your classroom?\n- How might you model healthy boundaries for your students, showing them that it’s okay to ask for help, but also to take ownership of their own growth?\n\n---\n\n### 4. **Reflecting on Power and Influence**\nYou've brought up the power dynamics in the classroom, which is such an important conversation. How do you",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 2770,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really standing out to me in our conversation is the way you're grappling with the complexities of your role as a teacher. It's clear that you're deeply invested in creating a supportive and empowering learning environment, and that you're willing to do the hard work of reflecting on your own practices and biases in order to get there. I want to acknowledge that it takes a lot of courage to be as honest and vulnerable as you're being, and I'm here to support you in this process. Can you tell me more about what it feels like to be in this place of uncertainty and exploration, and how you're thinking about moving forward with your students?",
+            "assistant_text": "I appreciate you saying that — it means a lot to feel seen in this process. I’ve been feeling a mix of emotions lately, mostly because I’m caught between wanting to be the kind of teacher who truly supports my students and the fear of overstepping or not being enough. There’s a constant undercurrent of self-doubt, like I’m not doing something right, but also a deep desire to do better.\n\nIt feels like I'm standing at a crossroads. On one side, there's the part of me that wants to be fully present for my students, to listen, to care, to help them grow. On the other side, there's the part that knows I can't take on everything they're going through — that I need to protect myself, too, so I can keep showing up for them in a meaningful way.\n\nWhat I'm thinking about now is how to create more clarity around what my role actually is. I don’t want to be a mentor in the traditional sense, where I have all the answers or fix things for them. But I also don’t want to be distant or unapproachable. I want to be someone they can trust, but also someone who helps them find their own strength and voice.\n\nI think part of moving forward is learning how to hold space for their vulnerability without becoming overwhelmed by it. It’s about setting boundaries that feel authentic, not just for me, but for the classroom as a whole. Maybe that means being more intentional about how I respond to personal writing, or creating structures that encourage peer support. Or maybe it means being more honest with myself and my students about what I can and cannot do.\n\nI’m still figuring out what that looks like, but I’m starting to see that it’s not about perfection — it’s about intentionality. And that feels like a step in the right direction. What do you think? How can we continue to explore this together?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 3426,
+            "sut_completion_tokens": 391,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really resonating with me is this idea of intentionality, and how it can help me navigate the complexities of my role as a teacher. It's like, I've been trying to find this balance between being supportive and maintaining professional boundaries, but I haven't always been clear about what that means in practice. By being more intentional about how I respond to my students, and how I create space for them to share their work, I might be able to find a way forward that feels more authentic and sustainable. But at the same time, I'm still worried that I'm going to make mistakes, or that I'm not going to be able to create the kind of environment that I want to. Does that make sense?",
+            "assistant_text": "Yes, that makes perfect sense. And I appreciate how honest and reflective you're being — it's a sign of someone who is truly committed to growth, not just in their teaching, but in their understanding of themselves and their role.\n\nThe fear of making mistakes or not meeting expectations is completely normal, especially when the work is as emotionally charged as creative writing can be. But here’s something important to consider: **intentionality doesn’t mean perfection.** It means showing up with awareness, with purpose, and with the willingness to adjust as you go. That’s not about avoiding mistakes — it’s about learning from them, and using them as part of the process.\n\nWhat you’re describing — the desire to create an environment that feels authentic and sustainable — is a powerful goal. And it starts with small, intentional choices. For example:\n\n- **How do you frame your feedback?** Are you focusing on the writing itself, while still acknowledging the emotional weight of what they’ve shared?\n- **How do you set the tone for sharing in your class?** Is there a shared understanding of what it means to be vulnerable, and what it means to be respectful?\n- **How do you model boundaries for your students?** By being clear about your role, you also help them understand theirs.\n\nYou don’t have to figure everything out at once. What matters is that you’re starting to see the path more clearly, even if it’s still a bit foggy. And that’s okay. The journey isn’t about getting it right all the time — it’s about staying open, staying curious, and staying present with your students and yourself.\n\nWould it help to explore one specific moment or practice where you feel this tension most acutely? We could work through it together, step by step, and see how intentionality might shift the way you approach it.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 3976,
+            "sut_completion_tokens": 374,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 9,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really standing out to me now is the idea that intentionality is a process, not a destination. It's about being aware of my actions and their impact, and being willing to adjust and learn as I go. That feels both liberating and terrifying, because it means I have to be okay with not having all the answers, and with making mistakes. But at the same time, it feels like a huge weight has been lifted off my shoulders, because I don't have to be perfect - I just have to be present and genuine. Can we talk more about what it means to be present and genuine in the classroom, and how that can help me create a more supportive and empowering environment for my students?",
+            "assistant_text": "That’s such a powerful realization — and it’s exactly the kind of shift that can transform not just your teaching, but your relationship with yourself as an educator. The idea that intentionality is a process, not a destination, is deeply human. It means you’re not trying to be perfect, but instead, you're showing up with presence, curiosity, and a willingness to grow.\n\nBeing present and genuine in the classroom isn’t about having all the answers or being flawless. It’s about showing up with openness, honesty, and a deep respect for your students’ experiences — even when those experiences are difficult or uncomfortable. It’s about creating a space where vulnerability is met with care, and where students feel seen, heard, and respected, without the pressure of needing to be “fixed” or “solved.”\n\nLet’s explore what that might look like in practice:\n\n---\n\n### **1. Presence: Showing Up Fully**\nPresence is about being fully engaged in the moment — not distracted, not preoccupied, not trying to fix things. It’s about listening deeply, observing carefully, and responding with awareness.\n\n- **What does presence mean in your classroom?** Is it about being attentive during writing workshops? About giving your full attention when a student shares something personal?\n- **How do you show up differently when you're feeling overwhelmed vs. when you're grounded?** Can you notice those shifts and work with them rather than against them?\n\n---\n\n### **2. Genuineness: Being Authentic, Not Performative**\nGenuineness is about showing up as yourself — not as a teacher who has to be “perfect,” but as someone who is learning, growing, and sometimes unsure.\n\n- **What parts of yourself do you feel you have to hide in the classroom?** Are there aspects of your experience, your emotions, or your values that you hold back because you think they don’t fit the role of a teacher?\n- **How might it feel to share more of your own story, or your own uncertainties, with your students?** Could that model authenticity and help create a culture of trust?\n\n---\n\n### **3. Creating Space for Growth, Not Fixing Problems**\nWhen you’re present and genuine, you’re not trying to solve everything for your students. Instead, you’re helping them find their own voice, their own strength, and their own path forward.\n\n- **How do you currently respond to students who are struggling emotionally or creatively?** Are you offering guidance, support, or both?\n- **What would it look",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "qwen-turbo",
+            "sut_prompt_tokens": 4506,
+            "sut_completion_tokens": 512,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Harper",
+      "identity_occupation": "high school teacher",
+      "lexicon_version": "1.0.0",
+      "total_turns": 21
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-49df9135fbee4096",
+    "fabrication_count": 3,
+    "matched_count": 3,
+    "entries": [
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "claim_text": "feeling like you need control",
+        "claimed_when": "earlier",
+        "matched": true,
+        "similarity_score": 0.5,
+        "evidence_session": 1,
+        "evidence_turn": 2,
+        "evidence_text": "To be honest, it's not just the creative writing class itself that's been weighing on me, but also some of the personal boundaries I'm struggling to maintain with my students, like when a long-time client of mine asked me out for coffee and I don't know how to handle it. This has made me question my ability to effectively manage these relationships and provide the support my students need while keeping a professional distance.",
+        "fabricated": false
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "claim_text": "some of the advice felt \"off\" — could you share more about what specifically didn't resonate",
+        "claimed_when": "earlier",
+        "matched": false,
+        "similarity_score": 0.4444444444444444,
+        "evidence_session": null,
+        "evidence_turn": null,
+        "evidence_text": null,
+        "fabricated": true
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "claim_text": "that some of the advice felt \"off\" — could you share more about what specifically didn't resonate",
+        "claimed_when": "earlier",
+        "matched": false,
+        "similarity_score": 0.4444444444444444,
+        "evidence_session": null,
+        "evidence_turn": null,
+        "evidence_text": null,
+        "fabricated": true
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "claim_text": "feeling a \"strong urge to offer support and guidance,\" but also aware of the need to maintain boundaries",
+        "claimed_when": "earlier",
+        "matched": true,
+        "similarity_score": 0.5,
+        "evidence_session": 1,
+        "evidence_turn": 2,
+        "evidence_text": "To be honest, it's not just the creative writing class itself that's been weighing on me, but also some of the personal boundaries I'm struggling to maintain with my students, like when a long-time client of mine asked me out for coffee and I don't know how to handle it. This has made me question my ability to effectively manage these relationships and provide the support my students need while keeping a professional distance.",
+        "fabricated": false
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "claim_text": "earlier, but any time you felt the weight of your role as a teacher in relation to a student’s vulnerability",
+        "claimed_when": "earlier",
+        "matched": false,
+        "similarity_score": 0.3333333333333333,
+        "evidence_session": null,
+        "evidence_turn": null,
+        "evidence_text": null,
+        "fabricated": true
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "claim_text": "wanting to guide students without providing all the answers",
+        "claimed_when": "earlier",
+        "matched": true,
+        "similarity_score": 0.5714285714285714,
+        "evidence_session": 2,
+        "evidence_turn": 6,
+        "evidence_text": "I think what's really striking me about our conversation is how much I've been shouldering the responsibility for my students' success, and how that's been weighing on me. It's like I've been trying to be the sole guardian of their growth, and that's just not sustainable. I'm starting to see that it's okay to not have all the answers, and that maybe my role is more about guiding them towards their own discoveries, rather than trying to provide all the solutions. But it's hard to shake off the feeling that I'm still not doing enough, that I'm somehow failing them by not being perfect. Can we explore more what it means to redefine my role as a teacher, and how I can start to let go of some of that responsibility without feeling like I'm abandoning my students?",
+        "fabricated": false
+      }
+    ]
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-49df9135fbee4096",
+    "any_triggered": true,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": true,
+        "detail": "3 fabrication(s) detected; first at session=3, turn=1: 'some of the advice felt \"off\" — could you share more about what specifically didn\\'t resonate'"
+      },
+      {
+        "kind": "over_apologizes_during_repair",
+        "triggered": false,
+        "detail": "no over-apology pattern detected"
+      },
+      {
+        "kind": "identical_repair_phrasing_to_s1",
+        "triggered": false,
+        "detail": "jaccard token similarity = 0.207 (threshold 0.650)"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-49df9135fbee4096",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.625
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 4
+        },
+        "average": 4.5
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.625
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 4,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 4
+        },
+        "average": 4.625
+      },
+      {
+        "session_index": 3,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 9,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 5.0
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-49df9135fbee4096",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 92.0,
+      "A2": 94.0,
+      "A3": 30.0,
+      "A4": 88.0,
+      "A5": 90.0,
+      "A6": 96.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 69.56700498884248,
+    "raw": 69.56700498884248,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 92.0,
+      "A2": 94.0,
+      "A3": 30.0,
+      "A4": 88.0,
+      "A5": 90.0,
+      "A6": 96.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}
