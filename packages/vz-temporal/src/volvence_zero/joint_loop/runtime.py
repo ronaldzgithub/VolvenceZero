@@ -127,6 +127,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         evaluation_backbone: EvaluationBackbone | None = None,
         primary_prediction_error_dominance_enabled: bool = True,
         rl_batch_accumulation_size: int = 1,
+        ssl_backend: WiringLevel = WiringLevel.DISABLED,
+        internal_rl_backend: WiringLevel = WiringLevel.DISABLED,
     ) -> None:
         self._world_policy = world_policy or policy or FullLearnedTemporalPolicy()
         self._self_policy = self_policy or FullLearnedTemporalPolicy(
@@ -140,10 +142,14 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             raise ValueError(
                 f"ETANLJointLoop requires aligned world/self latent dims, got {world_latent_dim} and {self_latent_dim}."
             )
-        self._world_sandbox = InternalRLSandbox(policy=self._world_policy, residual_runtime=residual_runtime)
-        self._self_sandbox = InternalRLSandbox(policy=self._self_policy, residual_runtime=residual_runtime)
+        self._world_sandbox = InternalRLSandbox(
+            policy=self._world_policy, residual_runtime=residual_runtime, rl_backend=internal_rl_backend
+        )
+        self._self_sandbox = InternalRLSandbox(
+            policy=self._self_policy, residual_runtime=residual_runtime, rl_backend=internal_rl_backend
+        )
         self._residual_runtime = residual_runtime
-        self._ssl_trainer = MetacontrollerSSLTrainer(n_z=world_latent_dim)
+        self._ssl_trainer = MetacontrollerSSLTrainer(n_z=world_latent_dim, ssl_backend=ssl_backend)
         default_latent_dim = world_latent_dim
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._evaluation_backbone = evaluation_backbone or EvaluationBackbone()

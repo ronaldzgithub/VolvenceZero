@@ -3,6 +3,27 @@
 > Status: migration / implementation log
 > Last updated: 2026-06-29
 
+## autograd-owner-integration deploy form (2026-06-29): runtime-configurable
+
+The four torch autograd backends are now reachable through the canonical runtime
+config and thread to the owners, so they are production-deployable rather than
+class-level-only. New `FinalRolloutConfig` fields (all default `DISABLED` =
+unchanged behavior; rollback = reset to `DISABLED`):
+
+- `temporal_ssl_backend` -> `ETANLJointLoop` -> `MetacontrollerSSLTrainer(ssl_backend=...)`
+- `temporal_runtime_backend` -> `AgentSessionRunner` / `build_final_runtime_modules`
+  -> `FullLearnedTemporalPolicy.set_runtime_backend(...)` (world + self tracks)
+- `internal_rl_backend` -> `ETANLJointLoop` -> `InternalRLSandbox(rl_backend=...)`
+  -> `CausalZPolicy`
+- `cms_torch_backend` -> `build_default_memory_store(cms_torch_backend=...)`
+  -> `CMSMemoryCore(cms_backend=...)`
+
+`ETANLJointLoop.__init__` gained `ssl_backend` / `internal_rl_backend` kwargs
+(default DISABLED). No public snapshot schema changed; defaults keep the pure
+path as the live writer. Verified by `tests/test_autograd_backend_deploy_wiring.py`
+(config threads to every owner; defaults DISABLED; rollback trivial) with the
+default-path regression (`test_final_wiring`, real-runtime suites) unchanged.
+
 ## autograd-owner-integration (2026-06-29): torch paths wired into owners
 
 Bridges the torch/autograd modules from sidecar proofs into the real owner

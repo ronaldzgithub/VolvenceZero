@@ -166,6 +166,7 @@ rare-heavy (定期离线):
 
 ## 变更日志
 
+- 2026-06-29: autograd-owner-integration 上线形式（CMS）。CMS torch backend 现可经 `FinalRolloutConfig.cms_torch_backend` 运行时配置 —— `AgentSessionRunner` / `build_final_runtime_modules` 把它线进 `build_default_memory_store(cms_torch_backend=...)` -> `CMSMemoryCore(cms_backend=...)`。默认 `DISABLED`（纯 band 基线，行为不变),回滚即重置。
 - 2026-06-29: autograd-owner-integration（CMS 主链）。`CMSMemoryCore(cms_backend=WiringLevel)` 与 `build_default_memory_store(cms_torch_backend=...)` 把 torch autograd band 梯度核接入 `_band_mlp_update`：DISABLED 走纯 `CMSBandMLP`（默认/回滚基线）；SHADOW 跑真 autograd 步作证据不写回；ACTIVE 用 `torch_cms_band.torch_band_update_from_params` 做权威 W1/W2 梯度步，并保留 band 的纯 state/momentum 以维持 backflow/mix_from/checkpoint 一致。跨 `SEQUENTIAL/INDEPENDENT/NESTED` × replay on/off 验证；ATLAS/Titans uplift 与 torch backend 正交。`CMSMemoryCore.latest_cms_backend_evidence` 暴露只读证据。
 - 2026-06-29: NL 全量真 autograd 迁移 Phase 4–5。新增 `memory/torch_cms_band`（CMS band 真 autograd + backend-agnostic 前向 + SHADOW parity vs 生产 band）、`m3_optimizer.DeltaMomentumOptimizer`（NL Figure 4 delta-momentum + overshoot 证明）、`prediction/torch_lss`（真梯度 LSS offline artifact + runtime PE == −LSS 桥接）。Adam-as-memory / DGD / 自修改 Titans / 统一 nested autograd tower 列为显式 backlog。
 - 2026-04-25: 补充当前 joint-loop / pipeline / paper-suite 的具体输出类型，避免把“学习循环状态”误读成无 schema 的自然语言报告
