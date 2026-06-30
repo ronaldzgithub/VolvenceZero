@@ -107,6 +107,12 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "audit", "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
+            # apprenticeship_alignment owner (vz-cognition) is consumed by the
+            # application-tier ApprenticeshipProtocolAlignmentModule, which
+            # compares its enriched guidance_constraints against compiled
+            # protocol artifacts. See
+            # docs/specs/apprenticeship-alignment-protocol-layer-draft.md.
+            "apprenticeship",
             "social", "social_cognition", "environment",
             "dialogue_trace",
             # Stub semantic embedding SSOT (known-debts #3 closure).

@@ -529,6 +529,14 @@ class AgentSessionRunner(
         else:
             self._self_temporal_policy = self._world_temporal_policy
         self._temporal_policy = self._world_temporal_policy
+        # autograd-owner-integration: apply the configured runtime metacontroller
+        # backend (DISABLED default = pure rollback baseline). Reversible via
+        # FinalRolloutConfig.temporal_runtime_backend.
+        _runtime_backend = self._config.temporal_runtime_backend
+        if isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
+            self._world_temporal_policy.set_runtime_backend(_runtime_backend)
+        if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
+            self._self_temporal_policy.set_runtime_backend(_runtime_backend)
         self._evaluation_backbone = EvaluationBackbone()
         self._application_rare_heavy_state = ApplicationRareHeavyState()
         domain_backend = None
@@ -563,7 +571,10 @@ class AgentSessionRunner(
             default_latent_dim = self._world_temporal_policy.parameter_store.n_z
         else:
             default_latent_dim = 16
-        self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
+        self._memory_store = memory_store or build_default_memory_store(
+            latent_dim=default_latent_dim,
+            cms_torch_backend=self._config.cms_torch_backend,
+        )
         self._semantic_state_store = SemanticStateStore()
         # Packet D (long-horizon-closure): when an OwnerHydrationStore
         # is supplied (the orchestrator built it from
@@ -712,6 +723,8 @@ class AgentSessionRunner(
             residual_runtime=self._default_residual_runtime,
             evaluation_backbone=self._evaluation_backbone,
             primary_prediction_error_dominance_enabled=primary_prediction_error_dominance_enabled,
+            ssl_backend=self._config.temporal_ssl_backend,
+            internal_rl_backend=self._config.internal_rl_backend,
         )
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         self._joint_schedule = joint_schedule or JointLoopSchedule()
@@ -877,6 +890,7 @@ class AgentSessionRunner(
         user_input: str,
         *,
         environment_event: EnvironmentEvent | None = None,
+        apprenticeship_turn: bool = False,
     ) -> AgentTurnResult:
         deferred_writeback_result = self._collect_session_post_writeback_result()
         self._session_post_queue.schedule()
@@ -985,6 +999,7 @@ class AgentSessionRunner(
                 environment_event=environment_event,
                 environment_outcome_id=environment_outcome_id,
                 environment_prediction_id=environment_prediction_id,
+                apprenticeship_turn=apprenticeship_turn,
                 credit_proposals=self._credit_proposals,
                 reflection_mode=self._reflection_mode,
                 world_temporal_policy=self._world_temporal_policy,

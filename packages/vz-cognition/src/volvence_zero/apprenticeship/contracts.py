@@ -175,6 +175,13 @@ class ApprenticeshipAlignmentSnapshot:
     revision_proposal_refs: tuple[str, ...]
     description: str
     memory_retrieval_facets: tuple[str, ...] = field(default=())
+    # Enriched publisher (R8): the constraints extracted from this turn's
+    # guidance, exposed so a downstream protocol-layer consumer
+    # (vz-application ApprenticeshipProtocolAlignmentModule) can compare
+    # them against compiled protocol artifacts WITHOUT re-extracting.
+    # Default empty preserves backwards compatibility for any snapshot
+    # constructed before this field existed.
+    guidance_constraints: tuple[IntentConstraint, ...] = field(default=())
 
 
 def clamp_unit(value: float) -> float:

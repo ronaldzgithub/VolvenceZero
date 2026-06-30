@@ -10,6 +10,7 @@ from volvence_zero.application.runtime import (
     ApplicationPriorUpdate,
     ApplicationPriorWritebackReport,
     ApplicationRareHeavyState,
+    ApprenticeshipProtocolAlignmentModule,
     BoundaryPolicyModule,
     BoundaryPolicySnapshot,
     CaseMemoryModule,
@@ -196,6 +197,12 @@ class FinalRolloutConfig:
     # owner validates against PE / belief snapshots before promotion;
     # PE consumes it but the overlay is a no-op while SHADOW (R15).
     apprenticeship_alignment: WiringLevel = WiringLevel.SHADOW
+    # Protocol-layer apprenticeship alignment (vz-application; DRAFT
+    # Packet 1). SHADOW: compares guidance constraints against compiled
+    # protocol artifacts. Inert until apprenticeship_alignment is ACTIVE
+    # (a SHADOW owner's output is not in the active chain), so this is a
+    # no-op in the default all-SHADOW config; validated via standalone.
+    apprenticeship_protocol_alignment: WiringLevel = WiringLevel.SHADOW
     evaluation: WiringLevel = WiringLevel.ACTIVE
     prediction_error: WiringLevel = WiringLevel.ACTIVE
     regime: WiringLevel = WiringLevel.ACTIVE
@@ -203,6 +210,19 @@ class FinalRolloutConfig:
     reflection: WiringLevel = WiringLevel.ACTIVE
     temporal: WiringLevel = WiringLevel.ACTIVE
     eta_open_weight_runtime: WiringLevel = WiringLevel.SHADOW
+    # autograd-owner-integration: per-owner torch autograd backends. DISABLED by
+    # default (pure-Python rollback baseline = unchanged behavior). Set to SHADOW
+    # to dual-run for parity evidence, or ACTIVE to make the torch autograd path
+    # authoritative. Rollback is just resetting the field to DISABLED.
+    #   - temporal_ssl_backend: MetacontrollerSSLTrainer ndim store autograd SSL
+    #   - temporal_runtime_backend: FullLearnedTemporalPolicy runtime forward
+    #   - internal_rl_backend: CausalZPolicy PPO over live ZTransition batches
+    #   - cms_torch_backend: CMSMemoryCore band gradient kernel
+    # See docs/specs/temporal-abstraction.md / multi-timescale-learning.md.
+    temporal_ssl_backend: WiringLevel = WiringLevel.DISABLED
+    temporal_runtime_backend: WiringLevel = WiringLevel.DISABLED
+    internal_rl_backend: WiringLevel = WiringLevel.DISABLED
+    cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # Phase 2 W2.B of the EQ-owner uplift: session_post_slow_loop is
     # ACTIVE by default. The module's own ``default_wiring_level`` is
     # already ACTIVE; the previous SHADOW override was a treatment-mode
@@ -361,6 +381,7 @@ class FinalRolloutConfig:
             "response_assembly": self.response_assembly,
             "dual_track": self.dual_track,
             "apprenticeship_alignment": self.apprenticeship_alignment,
+            "apprenticeship_protocol_alignment": self.apprenticeship_protocol_alignment,
             "evaluation": self.evaluation,
             "prediction_error": self.prediction_error,
             "regime": self.regime,
@@ -1297,6 +1318,12 @@ def build_final_runtime_modules(
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
     turn_index: int = 0,
+    # Reliable-apprenticeship gate: only on genuine APPRENTICE / INGESTION
+    # turns is the operator's input treated as teaching guidance. Default
+    # False so normal turns publish an idle apprenticeship snapshot (no
+    # per-turn surprise injected into PE). The caller (lifeform run_turn,
+    # which knows trigger_kind) sets this True for apprentice turns.
+    apprenticeship_turn: bool = False,
     substrate_self_mod_pe_magnitude: float = 0.0,
     substrate_self_mod_pe_reward: float = 0.0,
     substrate_self_mod_pe_threshold: float = 0.18,
@@ -1334,6 +1361,14 @@ def build_final_runtime_modules(
         resolved_self_temporal_policy = clone_full_learned_temporal_policy(resolved_world_temporal_policy)
     else:
         resolved_self_temporal_policy = resolved_world_temporal_policy
+    # autograd-owner-integration: apply the configured runtime metacontroller
+    # backend so direct build_final_runtime_modules callers honor the config
+    # (DISABLED default = pure baseline; reversible).
+    _runtime_backend = config.temporal_runtime_backend
+    if isinstance(resolved_world_temporal_policy, FullLearnedTemporalPolicy):
+        resolved_world_temporal_policy.set_runtime_backend(_runtime_backend)
+    if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
+        resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
     semantic_store = semantic_state_store or SemanticStateStore()
     semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
     # Phase 1 W1.C of the EQ-owner uplift: when an explicit
@@ -1523,7 +1558,9 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("multi_party_identity", WiringLevel.SHADOW),
         ),
         MemoryModule(
-            store=memory_store or build_default_memory_store(),
+            store=memory_store or build_default_memory_store(
+                cms_torch_backend=config.cms_torch_backend
+            ),
             wiring_level=config.level_for("memory", WiringLevel.SHADOW),
             user_text=user_input,
         ),
@@ -1608,7 +1645,7 @@ def build_final_runtime_modules(
             ),
             user_input=user_input,
             turn_index=turn_index,
-            apprenticeship=True,
+            apprenticeship=apprenticeship_turn,
         ),
         ExperienceFastPriorModule(
             wiring_level=config.level_for("experience_fast_prior", WiringLevel.SHADOW),
@@ -1645,6 +1682,11 @@ def build_final_runtime_modules(
         StrategyPlaybookModule(
             rare_heavy_state=application_rare_heavy_state,
             wiring_level=config.level_for("strategy_playbook", WiringLevel.SHADOW),
+        ),
+        ApprenticeshipProtocolAlignmentModule(
+            wiring_level=config.level_for(
+                "apprenticeship_protocol_alignment", WiringLevel.SHADOW
+            ),
         ),
         BoundaryPolicyModule(
             rare_heavy_state=application_rare_heavy_state,
@@ -1722,6 +1764,7 @@ async def run_final_wiring_turn(
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
     turn_index: int = 0,
+    apprenticeship_turn: bool = False,
     apply_slow_writeback: bool = True,
     substrate_self_mod_pe_magnitude: float = 0.0,
     substrate_self_mod_pe_reward: float = 0.0,
@@ -1768,6 +1811,7 @@ async def run_final_wiring_turn(
         session_id=session_id,
         wave_id=wave_id,
         turn_index=turn_index,
+        apprenticeship_turn=apprenticeship_turn,
         substrate_self_mod_pe_magnitude=substrate_self_mod_pe_magnitude,
         substrate_self_mod_pe_reward=substrate_self_mod_pe_reward,
         substrate_self_mod_pe_threshold=substrate_self_mod_pe_threshold,

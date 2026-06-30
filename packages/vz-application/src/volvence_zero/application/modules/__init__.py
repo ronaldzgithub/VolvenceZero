@@ -6,6 +6,7 @@ via ``from volvence_zero.application.runtime import XModule``
 keep working through the runtime re-export shell.
 """
 
+from .apprenticeship_protocol_alignment import ApprenticeshipProtocolAlignmentModule
 from .boundary_policy import BoundaryPolicyModule
 from .case_memory import CaseMemoryModule
 from .domain_knowledge import DomainKnowledgeModule
@@ -16,6 +17,7 @@ from .retrieval_policy import RetrievalPolicyModule
 from .strategy_playbook import StrategyPlaybookModule
 
 __all__ = [
+    "ApprenticeshipProtocolAlignmentModule",
     "BoundaryPolicyModule",
     "CaseMemoryModule",
     "DomainKnowledgeModule",

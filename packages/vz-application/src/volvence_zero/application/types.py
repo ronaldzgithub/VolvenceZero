@@ -357,6 +357,54 @@ class StrategyPlaybookSnapshot:
 
 
 @dataclass(frozen=True)
+class ProtocolAlignmentRef:
+    """One guidance-vs-active-protocol comparison result.
+
+    ``layer`` is which protocol artifact the comparison was against
+    (``strategy`` / ``knowledge`` / ``boundary``); ``relation`` is the
+    reliable-apprenticeship verdict at the protocol layer:
+    ``covered`` (guidance reinforces an active protocol element =>
+    agreement region), ``novel`` (no active element covers it =>
+    disagreement region / informative), ``conflict`` (guidance opposes
+    an active element, e.g. endorses an ``avoid_patterns`` entry or
+    negates an active rule => protocol-layer contradiction).
+    ``target_ref`` is the matched ``rule_id`` / ``hit_id`` /
+    ``decision_id`` (empty for ``novel``).
+    """
+
+    guidance_constraint_id: str
+    layer: str
+    relation: str
+    target_ref: str
+    severity: float
+    description: str
+
+
+@dataclass(frozen=True)
+class ApprenticeshipProtocolAlignmentSnapshot:
+    """Protocol-layer reliable-apprenticeship readout (DRAFT Packet 1).
+
+    Compares the operator-guidance constraints published by the
+    vz-cognition ``apprenticeship_alignment`` owner against the
+    currently-active, compiled protocol artifacts (``strategy_playbook``
+    / ``domain_knowledge`` / ``boundary_policy``) — a FINITE structured
+    option set, where the reliable-active-apprenticeship reliability /
+    eluder notions are well-defined (unlike the open content layer).
+    SHADOW-only readout in Packet 1: no PE overlay, no belief/protocol
+    revision. See ``docs/specs/apprenticeship-alignment-protocol-layer-draft.md``.
+    """
+
+    version_space_status: str
+    reliability: str
+    in_agreement_region: bool
+    guidance_surprise: float
+    matched_protocol_count: int
+    alignment_refs: tuple[ProtocolAlignmentRef, ...]
+    contradiction_refs: tuple[ProtocolAlignmentRef, ...]
+    description: str
+
+
+@dataclass(frozen=True)
 class ApplicationOutcomeAttribution:
     attribution_id: str
     source_context_session_id: str

@@ -18,6 +18,7 @@ directly to this shell.
 from __future__ import annotations
 
 from volvence_zero.application.modules import (  # noqa: F401
+    ApprenticeshipProtocolAlignmentModule,
     BoundaryPolicyModule,
     CaseMemoryModule,
     DomainKnowledgeModule,

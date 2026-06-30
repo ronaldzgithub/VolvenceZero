@@ -1732,13 +1732,17 @@ class LifeformSession:
             )
             run_turn_async = self._brain_session.run_turn_async
             signature = inspect.signature(run_turn_async)
+            call_kwargs: dict[str, object] = {}
             if "environment_event" in signature.parameters:
-                result = await run_turn_async(
-                    user_input,
-                    environment_event=environment_event,
-                )
-            else:
-                result = await run_turn_async(user_input)
+                call_kwargs["environment_event"] = environment_event
+            # Reliable-apprenticeship gate: forward whether this is an
+            # apprentice/ingestion turn so the kernel only treats the
+            # input as teaching guidance then (no per-turn surprise on
+            # ordinary chat turns). Guarded by signature so older runners
+            # without the parameter keep working.
+            if "apprenticeship_turn" in signature.parameters:
+                call_kwargs["apprenticeship_turn"] = apprentice_turn
+            result = await run_turn_async(user_input, **call_kwargs)
         finally:
             # Leak-free invariant: restore the prior override state
             # regardless of whether the kernel raised. Nested calls

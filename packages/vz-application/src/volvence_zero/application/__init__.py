@@ -1,6 +1,8 @@
 from volvence_zero.application.runtime import (
     ApplicationPriorUpdate,
     ApplicationPriorWritebackReport,
+    ApprenticeshipProtocolAlignmentModule,
+    ApprenticeshipProtocolAlignmentSnapshot,
     ApplicationOutcomeAttribution,
     ApplicationSequencePayoff,
     ApplicationCaseCluster,
@@ -97,6 +99,8 @@ __all__ = [
     "ApplicationCaseCluster",
     "ApplicationPriorUpdate",
     "ApplicationPriorWritebackReport",
+    "ApprenticeshipProtocolAlignmentModule",
+    "ApprenticeshipProtocolAlignmentSnapshot",
     "ApplicationOutcomeAttribution",
     "ApplicationSequencePayoff",
     "apply_compiled_domain_experience_packages",

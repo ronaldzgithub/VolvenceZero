@@ -285,10 +285,12 @@ class BrainSession:
         user_input: str,
         *,
         environment_event: EnvironmentEvent | None = None,
+        apprenticeship_turn: bool = False,
     ) -> AgentTurnResult:
         return await self._runner.run_turn(
             user_input,
             environment_event=environment_event,
+            apprenticeship_turn=apprenticeship_turn,
         )
 
     def run_turn(
@@ -296,6 +298,7 @@ class BrainSession:
         user_input: str,
         *,
         environment_event: EnvironmentEvent | None = None,
+        apprenticeship_turn: bool = False,
     ) -> AgentTurnResult:
         try:
             asyncio.get_running_loop()
@@ -304,6 +307,7 @@ class BrainSession:
                 self.run_turn_async(
                     user_input,
                     environment_event=environment_event,
+                    apprenticeship_turn=apprenticeship_turn,
                 )
             )
         raise RuntimeError("BrainSession.run_turn() cannot be used inside a running event loop; use run_turn_async().")

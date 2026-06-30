@@ -708,6 +708,7 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
             contradiction_findings=contradictions,
             revision_proposal_refs=revision_refs,
             description=description,
+            guidance_constraints=tuple(new_constraints),
         )
 
     def _build_revision_proposals(
