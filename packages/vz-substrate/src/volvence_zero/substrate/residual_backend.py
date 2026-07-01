@@ -540,6 +540,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
         generation_constraints: "GenerationConstraints | None" = None,
+        capture_residuals: bool = True,
     ) -> GenerationResult:
         effective_max_new_tokens = max_new_tokens
         effective_temperature = temperature
@@ -579,16 +580,28 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 track_scale=(control_scale, control_scale, control_scale),
             )
         captured_layers: dict[int, object] = {}
-        hooks = [
-            self._block_modules[layer_index].register_forward_hook(
-                self._make_capture_hook(
-                    layer_index=layer_index,
-                    captured_layers=captured_layers,
-                    control_delta=control_delta,
+        # ``capture_residuals=False`` (raw pass-through path) skips both the
+        # forward hooks and the post-generate full-prompt re-forward that
+        # builds the runtime capture. That re-forward (line ~622 below) runs
+        # a second full attention pass over the *entire* prompt with all
+        # target layers' hidden states materialised — a memory spike that
+        # scales with prompt length and OOM/native-crashes the process on
+        # long multi-turn contexts. The raw ablation track never reads the
+        # capture, so skipping it is both correct and the memory fix.
+        hooks = (
+            [
+                self._block_modules[layer_index].register_forward_hook(
+                    self._make_capture_hook(
+                        layer_index=layer_index,
+                        captured_layers=captured_layers,
+                        control_delta=control_delta,
+                    )
                 )
-            )
-            for layer_index in self._layer_indices
-        ]
+                for layer_index in self._layer_indices
+            ]
+            if capture_residuals
+            else []
+        )
         try:
             with self._torch.no_grad():
                 generate_kwargs: dict[str, object] = {

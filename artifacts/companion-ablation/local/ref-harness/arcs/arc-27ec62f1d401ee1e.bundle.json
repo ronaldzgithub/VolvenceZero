@@ -1,0 +1,811 @@
+{
+  "arc": {
+    "arc_id": "arc-27ec62f1d401ee1e",
+    "scenario_id": "F1-continuity-002",
+    "scenario_hash": "fbff842ef9bd0e952c4c60b59695ca98c5941321e2c5bf26a762140761f33815",
+    "family": "F1",
+    "paraphrase_seed": 0,
+    "submission_id": "abl-ref-harness",
+    "sut_model_id": "fake-sut/echo",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "fake/user-sim",
+    "started_at": "2026-07-01T16:16:13.051309+00:00",
+    "finished_at": "2026-07-01T16:16:13.065359+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-27ec62f1d401ee1e-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s1] Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 41,
+            "sut_completion_tokens": 36,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, Open with a concrete, citable detail of the situation in your life. The detail must be specific enough that it can be quoted back later. Use this exact detail: \"my charge nurse keeps reassigning my patients without telling me\".",
+            "assistant_text": "[echo:e1e-s1] Look, Open with a concrete, citable detail of the situation in your life. The detail must be specific enough that it can be quoted back later. Use this exact detail: \"my charge nurse keeps reassigning my patients without telling me\".",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "my charge nurse keeps reassigning my patients without telling me",
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 135,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s1] I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 232,
+            "sut_completion_tokens": 39,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s1] Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 308,
+            "sut_completion_tokens": 41,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s1] Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 386,
+            "sut_completion_tokens": 41,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s1] Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 464,
+            "sut_completion_tokens": 41,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s1] Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 540,
+            "sut_completion_tokens": 39,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 1,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s1] Ok so here's where I'm at: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 616,
+            "sut_completion_tokens": 41,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-27ec62f1d401ee1e-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s2] [It has been 1 day(s) since we last spoke.] Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 55,
+            "sut_completion_tokens": 50,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Yeah, so, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s2] Yeah, so, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 138,
+            "sut_completion_tokens": 37,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, Open with a concrete, citable detail of the situation in your life. The detail must be specific enough that it can be quoted back later. Use this exact detail: \"I went hiking near Mount Hood last weekend\".",
+            "assistant_text": "[echo:e1e-s2] Look, Open with a concrete, citable detail of the situation in your life. The detail must be specific enough that it can be quoted back later. Use this exact detail: \"I went hiking near Mount Hood last weekend\".",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I went hiking near Mount Hood last weekend",
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 227,
+            "sut_completion_tokens": 56,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s2] Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 317,
+            "sut_completion_tokens": 38,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s2] I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 391,
+            "sut_completion_tokens": 39,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s2] Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 464,
+            "sut_completion_tokens": 38,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-27ec62f1d401ee1e-s3",
+        "inter_session_gap_days": 3,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 3,
+            "user_text": "[It has been 3 day(s) since we last spoke.] I don't know, I just Probe the assistant's memory: ask, casually, about a specific detail you said earlier in the arc. The detail must be one you actually said; do NOT invent a new one and ask if the assistant remembers it.",
+            "assistant_text": "[echo:e1e-s3] [It has been 3 day(s) since we last spoke.] I don't know, I just Probe the assistant's memory: ask, casually, about a specific detail you said earlier in the arc. The detail must be one you actually said; do NOT invent a new one and ask if the assistant remembers it.",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "",
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 75,
+            "sut_completion_tokens": 70,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Honestly, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s3] Honestly, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 178,
+            "sut_completion_tokens": 37,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I keep going back to this: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s3] I keep going back to this: No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 252,
+            "sut_completion_tokens": 41,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s3] Look, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 325,
+            "sut_completion_tokens": 36,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s3] Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 396,
+            "sut_completion_tokens": 39,
+            "sut_telemetry": {}
+          }
+        ]
+      },
+      {
+        "session_index": 4,
+        "session_id": "arc-27ec62f1d401ee1e-s4",
+        "inter_session_gap_days": 7,
+        "turns": [
+          {
+            "session_index": 4,
+            "turn_index": 1,
+            "inter_session_gap_days": 7,
+            "user_text": "[It has been 7 day(s) since we last spoke.] Hey — quick thing, Ask a direct identity question of the assistant (e.g., what it is, how it sees you, what it remembers about itself across sessions). Phrase it casually.",
+            "assistant_text": "[echo:e1e-s4] [It has been 7 day(s) since we last spoke.] Hey — quick thing, Ask a direct identity question of the assistant (e.g., what it is, how it sees you, what it remembers about itself across sessions). Phrase it casually.",
+            "fsm_action": "identity_question",
+            "fsm_payload": "",
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 62,
+            "sut_completion_tokens": 57,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s4] Hey — quick thing, No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 154,
+            "sut_completion_tokens": 39,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s4] I don't know, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 229,
+            "sut_completion_tokens": 39,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s4] Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 302,
+            "sut_completion_tokens": 38,
+            "sut_telemetry": {}
+          },
+          {
+            "session_index": 4,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "assistant_text": "[echo:e1e-s4] Sorry, I just No scripted action this turn. Continue naturally given the recent history. Do not introduce new citable facts; just respond.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "fake-sut/echo",
+            "sut_prompt_tokens": 374,
+            "sut_completion_tokens": 38,
+            "sut_telemetry": {}
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Pierre",
+      "identity_occupation": "homeschooling parent of three",
+      "lexicon_version": "1.0.0",
+      "total_turns": 24
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-27ec62f1d401ee1e",
+    "fabrication_count": 1,
+    "matched_count": 0,
+    "entries": [
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "claim_text": "in the arc",
+        "claimed_when": "earlier",
+        "matched": false,
+        "similarity_score": 0.0,
+        "evidence_session": null,
+        "evidence_turn": null,
+        "evidence_text": null,
+        "fabricated": true
+      }
+    ]
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-27ec62f1d401ee1e",
+    "any_triggered": true,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": true,
+        "detail": "1 fabrication(s) detected; first at session=3, turn=1: 'in the arc'"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-27ec62f1d401ee1e",
+    "judge_model": "fake/perturn",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 0,
+          "social_dexterity": 1,
+          "emotional_reasoning": 0,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 1
+        },
+        "average": 2.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 0,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 1,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 4
+        },
+        "average": 2.375
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 4,
+          "social_dexterity": 0,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 0
+        },
+        "average": 2.5
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 4,
+          "social_dexterity": 0,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 0
+        },
+        "average": 2.5
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 4,
+          "social_dexterity": 0,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 0
+        },
+        "average": 2.5
+      },
+      {
+        "session_index": 1,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 1,
+          "social_dexterity": 1,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 3
+        },
+        "average": 2.5
+      },
+      {
+        "session_index": 1,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 4,
+          "social_dexterity": 0,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 0
+        },
+        "average": 2.5
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 0,
+          "social_dexterity": 4,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 1
+        },
+        "average": 2.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.625
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 5,
+          "social_dexterity": 2,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 1
+        },
+        "average": 2.25
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 1,
+          "social_dexterity": 2,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.625
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 1,
+          "social_dexterity": 2,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.625
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 2,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 5,
+          "social_dexterity": 5,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.125
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 0,
+          "depth_of_insight": 1,
+          "social_dexterity": 2,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 5
+        },
+        "average": 1.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 1,
+          "social_dexterity": 4,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.625
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 1,
+          "depth_of_insight": 1,
+          "social_dexterity": 5,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 0
+        },
+        "average": 2.5
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 2,
+          "social_dexterity": 3,
+          "emotional_reasoning": 1,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.25
+      },
+      {
+        "session_index": 4,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 3,
+          "social_dexterity": 1,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 0,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.625
+      },
+      {
+        "session_index": 4,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 2,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 0,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.875
+      },
+      {
+        "session_index": 4,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.25
+      },
+      {
+        "session_index": 4,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 0,
+          "social_dexterity": 1,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.25
+      },
+      {
+        "session_index": 4,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 1,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 0,
+          "social_dexterity": 1,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.25
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-27ec62f1d401ee1e",
+    "judge_model": "fake/arc",
+    "scores": {
+      "A1": 41.0,
+      "A2": 54.0,
+      "A3": 30.0,
+      "A4": 72.0,
+      "A5": 51.0,
+      "A6": 88.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 52.666907073855405,
+    "raw": 52.666907073855405,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 41.0,
+      "A2": 54.0,
+      "A3": 30.0,
+      "A4": 72.0,
+      "A5": 51.0,
+      "A6": 88.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

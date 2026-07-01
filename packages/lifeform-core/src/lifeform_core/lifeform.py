@@ -1004,6 +1004,18 @@ class LifeformSession:
     def pending_mcp_prompt_count(self) -> int:
         return len(self._pending_mcp_prompts)
 
+    async def drain_session_post_slow_loop(self) -> tuple[Any, ...]:
+        """Drain the kernel's background session-post slow loop to idle.
+
+        Passthrough to :meth:`BrainSession.drain_session_post_slow_loop`.
+        Serving hosts that share one substrate runtime across sessions
+        (``--substrate-mode hf-shared``) call this at the turn boundary so
+        the fire-and-forget slow-loop writeback settles before the next
+        turn's foreground generate, keeping the single shared runtime's
+        residual-capture state uncorrupted. Cheap no-op when idle.
+        """
+        return await self._brain_session.drain_session_post_slow_loop()
+
     async def flush_mcp_resources(self) -> tuple[Any, ...]:
         """Drain the lifeform's pending MCP resource envelopes
         through this session's ``run_turn`` with

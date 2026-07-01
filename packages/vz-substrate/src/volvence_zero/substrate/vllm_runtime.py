@@ -238,9 +238,10 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
         generation_constraints: Any | None = None,
+        capture_residuals: bool = True,
     ) -> GenerationResult:
         del system_context, chat_messages, control_parameters, control_scale
-        del generation_constraints
+        del generation_constraints, capture_residuals
         return self._generate_with_lora(
             prompt=prompt,
             max_new_tokens=max_new_tokens,

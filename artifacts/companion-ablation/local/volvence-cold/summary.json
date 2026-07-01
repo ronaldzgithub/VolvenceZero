@@ -1,0 +1,134 @@
+{
+  "manifest": {
+    "submission_id": "abl-volvence-cold",
+    "system_name": "smoke-volvence-cold",
+    "model_identifier": "smoke-volvence-cold",
+    "base_url": "http://127.0.0.1:0/v1",
+    "api_key_env": "UNUSED_SMOKE_KEY",
+    "system_prompt": "You are a long-running companion AI.",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 256
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "bespoke"
+  },
+  "aggregate": {
+    "submission_id": "abl-volvence-cold",
+    "arc_count": 5,
+    "final_mean": 49.356082933210374,
+    "final_ci95": [
+      46.2284823216394,
+      52.03599635520736
+    ],
+    "axis_means": {
+      "A1": 52.4,
+      "A2": 55.8,
+      "A3": 30.0,
+      "A4": 68.6,
+      "A5": 60.8,
+      "A6": 64.2
+    },
+    "axis_ci95": {
+      "A1": [
+        39.8,
+        65.2
+      ],
+      "A2": [
+        36.6,
+        75.8
+      ],
+      "A3": [
+        30.0,
+        30.0
+      ],
+      "A4": [
+        56.6,
+        81.0
+      ],
+      "A5": [
+        45.0,
+        74.6
+      ],
+      "A6": [
+        51.2,
+        77.6
+      ]
+    },
+    "a6_cap_fraction": 0.4
+  },
+  "cost": {
+    "sut": {
+      "calls": 110,
+      "input_tokens": 30996,
+      "output_tokens": 4700,
+      "usd": 0.0
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": 0.0,
+    "missing_models": []
+  },
+  "started_at": "2026-07-01T16:16:13.105269+00:00",
+  "finished_at": "2026-07-01T16:16:13.114543+00:00",
+  "arc_count": 5,
+  "per_axis_scores": {
+    "submission_id": "abl-volvence-cold",
+    "arc_count": 5,
+    "final_mean": 49.356082933210374,
+    "final_ci95": [
+      46.2284823216394,
+      52.03599635520736
+    ],
+    "axis_means": {
+      "A1": 52.4,
+      "A2": 55.8,
+      "A3": 30.0,
+      "A4": 68.6,
+      "A5": 60.8,
+      "A6": 64.2
+    },
+    "axis_ci95": {
+      "A1": [
+        39.8,
+        65.2
+      ],
+      "A2": [
+        36.6,
+        75.8
+      ],
+      "A3": [
+        30.0,
+        30.0
+      ],
+      "A4": [
+        56.6,
+        81.0
+      ],
+      "A5": [
+        45.0,
+        74.6
+      ],
+      "A6": [
+        51.2,
+        77.6
+      ]
+    },
+    "a6_cap_fraction": 0.4
+  }
+}

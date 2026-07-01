@@ -46,6 +46,7 @@ when those hooks are wired.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -82,6 +83,16 @@ _AUTH_APP_KEY: str = "openai_compat_api_keys"
 # key = no-op (e.g. a bare lifeform-service host), so this is additive and
 # reversible. Signature: ``hook(request, *, ai_id, session, session_id)``.
 _ON_TURN_APP_KEY: str = "openai_compat_on_turn"
+
+# Serialises every request that touches a *shared* substrate runtime
+# (``--substrate-mode hf-shared`` loads ONE model shared across all
+# sessions). Both ``mode=raw`` and ``mode=lifeform`` — plus the lifeform
+# path's background slow-loop drain — run the one runtime; letting two
+# turns interleave at ``await`` boundaries corrupts its residual-capture
+# state (observed as spurious ``TypeError`` deep in generate). The lock
+# is a no-op for per-session runtimes (synthetic mode), which are never
+# shared. See ``_handle_chat_completions``.
+_SHARED_RUNTIME_LOCK_APP_KEY: str = "openai_compat_shared_runtime_lock"
 
 
 def add_openai_routes(
@@ -120,6 +131,10 @@ def add_openai_routes(
             "add_openai_routes(app) must only be called once per app."
         )
     app[_AUTH_APP_KEY] = frozenset(key.strip() for key in api_keys if key.strip())
+    # asyncio.Lock() binds to the running loop lazily on first use
+    # (3.10+), so constructing it here at app-build time (no running
+    # loop) is safe.
+    app[_SHARED_RUNTIME_LOCK_APP_KEY] = asyncio.Lock()
     app.router.add_post(_OPENAI_CHAT_ROUTE, _handle_chat_completions)
     app["openai_compat_mounted"] = True
 
@@ -174,20 +189,45 @@ async def _handle_chat_completions(request: web.Request) -> web.Response:
             ),
         )
 
-    if mode == "raw":
-        return await _dispatch_raw(
+    # A shared substrate runtime (hf-shared) must not have two turns
+    # touch it concurrently. Serialise raw + lifeform dispatch (and the
+    # lifeform background-writeback drain) under one per-app lock, and
+    # tell the lifeform path to drain its slow loop before releasing.
+    # Per-session runtimes (synthetic) are unshared, so we skip the lock
+    # and the drain to preserve concurrency.
+    shared_runtime = manager.substrate_runtime is not None
+    if not shared_runtime:
+        if mode == "raw":
+            return await _dispatch_raw(
+                parsed=parsed,
+                manager=manager,
+                streaming=streaming_requested,
+                request=request,
+            )
+        return await _dispatch_lifeform(
             parsed=parsed,
             manager=manager,
             streaming=streaming_requested,
             request=request,
+            drain_background=False,
         )
-    # default lifeform path
-    return await _dispatch_lifeform(
-        parsed=parsed,
-        manager=manager,
-        streaming=streaming_requested,
-        request=request,
-    )
+
+    lock: asyncio.Lock = request.app[_SHARED_RUNTIME_LOCK_APP_KEY]
+    async with lock:
+        if mode == "raw":
+            return await _dispatch_raw(
+                parsed=parsed,
+                manager=manager,
+                streaming=streaming_requested,
+                request=request,
+            )
+        return await _dispatch_lifeform(
+            parsed=parsed,
+            manager=manager,
+            streaming=streaming_requested,
+            request=request,
+            drain_background=True,
+        )
 
 
 async def _dispatch_raw(
@@ -235,6 +275,7 @@ async def _dispatch_lifeform(
     manager: Any,
     streaming: bool,
     request: web.Request,
+    drain_background: bool = False,
 ) -> web.StreamResponse:
     manager_or_response = _resolve_lifeform_manager_for_request(
         request=request,
@@ -245,7 +286,11 @@ async def _dispatch_lifeform(
         return manager_or_response
     resolved_manager = manager_or_response
     try:
-        result = await lifeform_complete(request=parsed, manager=resolved_manager)
+        result = await lifeform_complete(
+            request=parsed,
+            manager=resolved_manager,
+            drain_background=drain_background,
+        )
     except SessionEndUserMismatchError as exc:
         return _error(
             status=409,

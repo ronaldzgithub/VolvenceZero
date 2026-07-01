@@ -293,6 +293,22 @@ class BrainSession:
             apprenticeship_turn=apprenticeship_turn,
         )
 
+    async def drain_session_post_slow_loop(self) -> tuple[Any, ...]:
+        """Drain the runner's background session-post slow loop to idle.
+
+        ``run_turn`` fires the slow loop as a fire-and-forget background
+        task (``schedule()``). Under a *shared* substrate runtime
+        (``--substrate-mode hf-shared``) that background task touches the
+        one runtime concurrently with the next turn's foreground generate
+        at ``await`` boundaries, corrupting the runtime's residual-capture
+        state. Serving hosts that share a runtime call this at the turn
+        boundary so the writeback settles before the next turn starts,
+        preserving the "single shared runtime → all access serialised"
+        invariant. Cheap no-op when nothing is pending.
+        """
+
+        return await self._runner.drain_session_post_slow_loop()
+
     def run_turn(
         self,
         user_input: str,

@@ -230,6 +230,10 @@ def raw_substrate_complete(
         chat_messages=history,
         max_new_tokens=max_new,
         temperature=temperature,
+        # Raw pass-through never reads the residual capture; skipping it
+        # avoids the post-generate full-prompt re-forward that OOM/native-
+        # crashes the shared runtime on long multi-turn arc contexts.
+        capture_residuals=False,
     )
 
     text = getattr(result, "text", "")

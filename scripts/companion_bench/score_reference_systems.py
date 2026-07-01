@@ -106,7 +106,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--family",
         default=None,
-        help="Optional: restrict run to one family (F1..F6). Passed through to run_real_submission.",
+        help=(
+            "Optional: restrict run to one or more families (F1..F6), single "
+            "or comma-separated (e.g. 'F1' or 'F1,F2,F3'). Passed through to "
+            "run_real_submission."
+        ),
     )
     p.add_argument("--include-heldout", action="store_true")
     p.add_argument("--require-heldout", action="store_true")
