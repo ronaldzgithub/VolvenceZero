@@ -19,6 +19,22 @@ from __future__ import annotations
 import dataclasses
 import json
 from typing import Any, Mapping, Protocol, runtime_checkable
+from urllib.parse import urlsplit, urlunsplit
+
+
+def _compose_chat_completions_url(base_url: str) -> str:
+    """Append ``/chat/completions`` to ``base_url`` preserving any query string.
+
+    A naive ``base_url + "/chat/completions"`` breaks when ``base_url`` carries
+    a query (e.g. the same-substrate ablation raw track uses
+    ``http://127.0.0.1:8000/v1?mode=raw`` to select the OpenAI-compat router's
+    raw dispatch): the query would swallow the appended path. Splitting the URL
+    and inserting the path component keeps the query intact.
+    """
+
+    parts = urlsplit(base_url)
+    path = parts.path.rstrip("/") + "/chat/completions"
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -75,6 +91,7 @@ class OpenAIChatClient:
         extra_headers: Mapping[str, str] | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
+        self._chat_url = _compose_chat_completions_url(base_url)
         self._api_key = api_key
         self._model = model
         self._timeout = request_timeout_s
@@ -110,7 +127,7 @@ class OpenAIChatClient:
         }
         headers.update(self._extra_headers)
         req = urllib.request.Request(
-            f"{self._base_url}/chat/completions",
+            self._chat_url,
             data=json.dumps(body).encode("utf-8"),
             headers=headers,
             method="POST",

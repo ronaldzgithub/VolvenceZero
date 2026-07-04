@@ -309,6 +309,7 @@ async def lifeform_complete(
     *,
     request: ChatCompletionRequest,
     manager: SessionManager,
+    drain_background: bool = False,
 ) -> LifeformCompletionResult:
     """Run an OpenAI chat completion through the lifeform pipeline.
 
@@ -389,6 +390,17 @@ async def lifeform_complete(
                 )
         else:
             result = await session.run_turn(user_input)
+
+    # Shared-runtime serialisation (hf-shared): the kernel fires the
+    # session-post slow loop as a background task; under one shared
+    # substrate runtime that task would touch the runtime concurrently
+    # with the next turn's foreground generate and corrupt its
+    # residual-capture state. Draining it here — inside the router's
+    # shared-runtime lock — settles the writeback before this turn
+    # returns, so no background work outlives the turn boundary. No-op
+    # for per-session runtimes (drain_background=False).
+    if drain_background:
+        await session.drain_session_post_slow_loop()
 
     response_text = result.response.text
     rationale_tags = tuple(getattr(result.response, "rationale_tags", ()))

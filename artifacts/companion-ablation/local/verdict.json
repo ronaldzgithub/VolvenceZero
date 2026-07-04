@@ -1,0 +1,68 @@
+{
+  "state": "kill-criteria-triggered",
+  "claims": [
+    {
+      "claim_id": "claim_pipeline_gt_raw",
+      "status": "fail",
+      "detail": "volvence-raw delta=-0.55, ci_low=-10.22",
+      "effects": [
+        {
+          "control": "raw",
+          "delta_mean": -0.5505,
+          "ci_low_nonoverlap": -10.2194,
+          "status": "fail"
+        }
+      ]
+    },
+    {
+      "claim_id": "claim_gt_standard_layers",
+      "status": "fail",
+      "detail": "ref-harness: delta=-0.37 ci_low=-9.69; camel: delta=-0.00 ci_low=-7.68",
+      "effects": [
+        {
+          "control": "ref-harness",
+          "delta_mean": -0.374,
+          "ci_low_nonoverlap": -9.6932,
+          "status": "fail"
+        },
+        {
+          "control": "camel",
+          "delta_mean": -0.0014,
+          "ci_low_nonoverlap": -7.6808,
+          "status": "fail"
+        }
+      ]
+    },
+    {
+      "claim_id": "claim_training_adds_value",
+      "status": "fail",
+      "detail": "volvence-cold delta=-3.60, ci_low=-11.02",
+      "effects": [
+        {
+          "control": "volvence-cold",
+          "delta_mean": -3.5981,
+          "ci_low_nonoverlap": -11.0245,
+          "status": "fail"
+        }
+      ]
+    },
+    {
+      "claim_id": "claim_heldout_cohort_stable",
+      "status": "insufficient_data",
+      "detail": "arc_count=5 < 120 (run held-out + multi-seed before claiming stability)",
+      "effects": []
+    }
+  ],
+  "tracks": {
+    "raw": 46.30848381720921,
+    "ref-harness": 46.13198228256748,
+    "camel": 45.75932990990039,
+    "volvence-cold": 49.356082933210374,
+    "volvence": 45.7579396687277
+  },
+  "recommendations": [
+    "KILL CRITERIA: volvence is not better than a control on claim_pipeline_gt_raw, claim_gt_standard_layers, claim_training_adds_value. Per debt #87, shrink the thesis to a product-memory / companion claim and downgrade human-world-model-thesis-2026-06.md; do NOT claim world-model enablement."
+  ],
+  "substrate_note": "NOT VERIFIED (no fingerprints supplied; rely on serve-time guard)",
+  "timestamp_iso": "2026-07-01T16:16:13.175995+00:00"
+}

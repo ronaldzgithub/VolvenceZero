@@ -159,14 +159,20 @@ class OpenWeightResidualRuntime(ABC):
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
         generation_constraints: "GenerationConstraints | None" = None,
+        capture_residuals: bool = True,
     ) -> GenerationResult:
         """Generate text using the underlying model.
 
         Subclasses that hold a real model override this to run
         autoregressive decoding.  The default implementation returns
         a placeholder so synthetic runtimes remain functional.
+
+        ``capture_residuals=False`` lets pass-through callers (the raw
+        ablation track) skip building the runtime residual capture; real
+        backends may honour it to avoid the expensive post-generate
+        re-forward. The default placeholder ignores it.
         """
-        del generation_constraints
+        del generation_constraints, capture_residuals
         return GenerationResult(
             text=f"[generation not supported by {self.model_id}]",
             token_count=0,

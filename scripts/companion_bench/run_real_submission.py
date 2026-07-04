@@ -82,7 +82,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--family",
         default=None,
-        help="Optional: restrict run to one family (F1..F6).",
+        help=(
+            "Optional: restrict run to one or more families (F1..F6). "
+            "Accepts a single family or a comma-separated list, e.g. "
+            "'F1' or 'F1,F2,F3'."
+        ),
     )
     p.add_argument("--verbose", "-v", action="store_true")
     return p
@@ -198,7 +202,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         specs.extend(held_out)
     if args.family:
-        specs = [s for s in specs if s.family.value == args.family]
+        wanted_families = {f.strip() for f in args.family.split(",") if f.strip()}
+        specs = [s for s in specs if s.family.value in wanted_families]
         if not specs:
             raise SystemExit(f"error: no scenarios for family {args.family!r}")
 
