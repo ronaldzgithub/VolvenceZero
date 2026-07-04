@@ -420,6 +420,12 @@ class OpenLoopSnapshot:
     stale_loop_count: int = 0
     confirmation_debt_count: int = 0
     closure_readiness: float = 0.0
+    # #90 active-learning actuator: verification requests surfaced from the
+    # apprenticeship_alignment owner's ``should_request_feedback`` signal.
+    # Each entry is a human-readable "verify this guidance" open loop. Empty
+    # on every non-apprentice turn (idle alignment => no request). Default
+    # empty keeps pre-#90 open-loop snapshots valid.
+    apprenticeship_verification_requests: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

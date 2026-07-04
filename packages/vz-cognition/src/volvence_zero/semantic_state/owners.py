@@ -420,6 +420,31 @@ class OpenLoopModule(SemanticOwnerModule):
     slot_name = "open_loop"
     owner = "OpenLoopModule"
     value_type = OpenLoopSnapshot
+    # #90 active-learning actuator: also depend on apprenticeship_alignment
+    # so a ``should_request_feedback`` signal surfaces as a verification
+    # open loop. substrate / memory are inherited from the base owner.
+    dependencies = ("substrate", "memory", "apprenticeship_alignment")
+
+    async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[SemanticSnapshotValue]:
+        # Stash a pending apprenticeship feedback request (if any) so
+        # ``_build_snapshot`` can surface it, then delegate to the base
+        # proposal-driven pipeline unchanged (no logic duplication). The
+        # lazy import breaks a module-load cycle (apprenticeship.core
+        # imports the semantic_state package).
+        from volvence_zero.apprenticeship.contracts import (
+            ApprenticeshipAlignmentSnapshot,
+        )
+
+        appr = upstream.get("apprenticeship_alignment")
+        appr_value = appr.value if appr is not None else None
+        if (
+            isinstance(appr_value, ApprenticeshipAlignmentSnapshot)
+            and appr_value.should_request_feedback
+        ):
+            self._apprenticeship_request = appr_value
+        else:
+            self._apprenticeship_request = None
+        return await super().process(upstream)
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> OpenLoopSnapshot:
         unresolved = _records_with_status(records, "active", "deferred")
@@ -435,22 +460,43 @@ class OpenLoopModule(SemanticOwnerModule):
         closure_readiness = _clamp(
             len(self._store.completed_refs_for(self.slot_name)) / max(len(records), 1)
         )
+        # #90: surface an apprenticeship feedback request as a verification
+        # open loop. Empty on non-apprentice turns (request is None). A
+        # pending request also raises closure_pressure / control_signal so
+        # downstream followup / response assembly treats "verify this
+        # guidance" as an unresolved thread to close.
+        request = getattr(self, "_apprenticeship_request", None)
+        verification_requests: tuple[str, ...] = ()
+        request_urgency = 0.0
+        if request is not None:
+            verification_requests = (
+                f"verify-guidance:{request.feedback_request_reason}",
+            )
+            request_urgency = _clamp(request.feedback_request_urgency)
+        closure_pressure = max(_clamp(len(unresolved) / 5.0), request_urgency)
+        control_signal = max(
+            self._batch_signal(batch),
+            _clamp(len(confirmations) / 5.0),
+            request_urgency,
+        )
         return OpenLoopSnapshot(
             unresolved_loops=unresolved,
             pending_confirmations=confirmations,
             closure_refs=self._store.completed_refs_for(self.slot_name),
             highest_priority_loop_id=highest,
-            closure_pressure=_clamp(len(unresolved) / 5.0),
-            control_signal=max(self._batch_signal(batch), _clamp(len(confirmations) / 5.0)),
+            closure_pressure=closure_pressure,
+            control_signal=control_signal,
             description=(
                 f"Open-loop owner published unresolved={len(unresolved)} confirmations={len(confirmations)} "
                 f"oldest_turn={oldest_open_turn if oldest_open_turn is not None else 'none'} "
-                f"stale={stale_loops} closure_readiness={closure_readiness:.2f}."
+                f"stale={stale_loops} closure_readiness={closure_readiness:.2f} "
+                f"verification_requests={len(verification_requests)}."
             ),
             oldest_open_turn=oldest_open_turn,
             stale_loop_count=stale_loops,
             confirmation_debt_count=confirmation_debt,
             closure_readiness=closure_readiness,
+            apprenticeship_verification_requests=verification_requests,
         )
 
 

@@ -1736,7 +1736,7 @@ reflection ──────────────→ proposals; runtime invo
 | `memory` | MemoryModule | MemorySnapshot | SHADOW | 每 turn ~ 每会话 | dual_track, regime, reflection, temporal_abstraction, evaluation |
 | `plan_intent` | PlanIntentModule | PlanIntentSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence |
 | `commitment` | CommitmentModule | CommitmentSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence |
-| `open_loop` | OpenLoopModule | OpenLoopSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence |
+| `open_loop` | OpenLoopModule | OpenLoopSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence；#90：额外依赖 `apprenticeship_alignment`（消费其 `should_request_feedback`），快照新增 `apprenticeship_verification_requests` |
 | `user_model` | UserModelModule | UserModelSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence |
 | `execution_result` | ExecutionResultModule | ExecutionResultSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, prediction-error evidence |
 | `belief_assumption` | BeliefAssumptionModule | BeliefAssumptionSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation |
@@ -1744,7 +1744,7 @@ reflection ──────────────→ proposals; runtime invo
 | `goal_value` | GoalValueModule | GoalValueSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation |
 | `boundary_consent` | BoundaryConsentModule | BoundaryConsentSnapshot | ACTIVE | 每 turn | temporal, boundary_policy, response_assembly, evaluation |
 | `dual_track` | DualTrackModule | DualTrackSnapshot | SHADOW | 每 turn | memory, evaluation, prediction_error, reflection, credit, regime |
-| `apprenticeship_alignment` | ApprenticeshipAlignmentModule | ApprenticeshipAlignmentSnapshot | SHADOW | 每 turn（学徒/ingestion） | prediction_error（离散事件 PE 源）；belief_assumption / goal_value（经 SemanticProposal 单写）；apprenticeship_protocol_alignment（消费 enriched `guidance_constraints`）；详见 [`docs/specs/apprenticeship-alignment.md`](./specs/apprenticeship-alignment.md) |
+| `apprenticeship_alignment` | ApprenticeshipAlignmentModule | ApprenticeshipAlignmentSnapshot | ACTIVE | 每 turn（学徒/ingestion） | prediction_error（离散事件 PE 源）；belief_assumption / goal_value（经 SemanticProposal 单写）；apprenticeship_protocol_alignment（消费 enriched `guidance_constraints`）；**open_loop（#90：消费 `should_request_feedback` 冒出 verification 开环 actuator）**；#90 起 ACTIVE，仅 apprentice/ingestion turn 生效（普通轮 idle → PE overlay + 请求均 no-op），快照新增 `should_request_feedback` / `feedback_request_reason` / `feedback_request_urgency`；详见 [`docs/specs/apprenticeship-alignment.md`](./specs/apprenticeship-alignment.md) |
 | `apprenticeship_protocol_alignment` | ApprenticeshipProtocolAlignmentModule (vz-application) | ApprenticeshipProtocolAlignmentSnapshot | SHADOW | 每 turn（学徒/ingestion） | 只读 readout（DRAFT Packet 1）；把 `apprenticeship_alignment.guidance_constraints` 与编译后 protocol 工件（strategy_playbook / domain_knowledge / boundary_policy）做有限选项集层比对；详见 [`docs/specs/apprenticeship-alignment-protocol-layer-draft.md`](./specs/apprenticeship-alignment-protocol-layer-draft.md) |
 | `evaluation` | EvaluationModule | EvaluationSnapshot | ACTIVE | 每 turn ~ 每会话 | regime, prediction_error, credit, reflection |
 | `regime` | RegimeModule | RegimeSnapshot | SHADOW | 每 turn | prediction_error, reflection, retrieval_policy |
