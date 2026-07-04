@@ -716,7 +716,7 @@ Packet 7.0 计划补 5 个：`USER_REPLY_LATENCY` / `USER_REPLY_LENGTH` / `USER_
 | Owner | 读什么 | 怎么用 |
 |---|---|---|
 | `boundary_policy` | `boundary_union` | 本帧执行哪些边界 |
-| `metacontroller` | `active_protocols[*].activation_weight + StrategyPrior.recommended_ordering` | z_t / β_t 选择的 prior |
+| `metacontroller` | `active_protocols[*].activation_weight` | β_t switch-pressure prior（**protocol-temporal-prior bridge，已接线**）：因 `active_mixture` 在 propagate DAG 处于 temporal 下游（经 `retrieval_policy`），采用 orchestrator-mediated 上一轮 carryover（`observe_active_mixture_carryover`），非同轮 dependency。三态 `FinalRolloutConfig.protocol_temporal_prior`（默认 DISABLED）。dominant 混合→continuation，ambiguous→switch。详见 §3 temporal-abstraction.md |
 | `vitals` | `active_protocols[*].current_phase_id` | 各 drive 的 expected_homeostatic_band 调整 |
 | `strategy_playbook` | `active_protocols` | 哪些 PlaybookRule 在本帧加权 |
 | `case_memory` | `active_protocols` | 哪些 case 在本帧检索时加权 |

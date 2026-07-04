@@ -11,8 +11,8 @@ from volvence_zero.memory import (
     serialize_checkpoint,
 )
 from volvence_zero.semantic_embedding import (
+    semantic_embedding as _semantic_embedding,
     stub_cosine_similarity as _cosine_similarity,
-    stub_semantic_embedding as _semantic_embedding,
 )
 
 

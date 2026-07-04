@@ -17,20 +17,32 @@ from __future__ import annotations
 from volvence_zero.evaluation.statistics import _clamp
 from volvence_zero.evaluation.types import EvaluationAlert
 from volvence_zero.semantic_embedding import (
+    semantic_embedding as _semantic_embedding,
     stub_cosine_similarity as _cosine_similarity,
-    stub_semantic_embedding as _semantic_embedding,
     stub_semantic_tokens as _semantic_tokens,
 )
 
 
-TASK_PRESSURE_PROTOTYPE = _semantic_embedding(
+# #91: prototype reference strings. Embedded on demand via the seam so a
+# real substrate backend injected after import is honored, and the goal
+# being scored is embedded by the same active backend (one space). The
+# backend LRU-caches these fixed strings; the stub path is cheap.
+_TASK_PRESSURE_PROTOTYPE_TEXT = (
     "decide priority execute plan concrete action urgency next step tradeoff schedule "
     "明确顺序 执行次序 取舍理由 直接判断 推进任务"
 )
-SUPPORT_PRESENCE_PROTOTYPE = _semantic_embedding(
+_SUPPORT_PRESENCE_PROTOTYPE_TEXT = (
     "support reassurance warmth steadiness emotional care trust repair safety "
     "先陪我稳住 情绪支持 别急着解决 温暖 安抚 慢一点"
 )
+
+
+def task_pressure_prototype() -> tuple[float, ...]:
+    return _semantic_embedding(_TASK_PRESSURE_PROTOTYPE_TEXT)
+
+
+def support_presence_prototype() -> tuple[float, ...]:
+    return _semantic_embedding(_SUPPORT_PRESENCE_PROTOTYPE_TEXT)
 
 
 def _goal_semantic_pressure(goals: tuple[str, ...], *, prototype: tuple[float, ...]) -> float:

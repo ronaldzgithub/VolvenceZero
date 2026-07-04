@@ -1,7 +1,10 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: **2026-06-28** (v2 — same-substrate Companion Bench ablation **工具链全套落地**：CAMEL agent-framework baseline wheel + ref-harness H-B/H-C + 5-track roster + serve 编排 + substrate-fingerprint 守门 + #87 four-claim verdict comparator + P0 wiring smoke 通过；推进 **#84**(几近关闭) / **#82**(reference SUT 真跑路径) / **#87**(从 design 进到 tooling-ready)。真跑 P1/P2 待 GPU+keys)
+> Last updated: **2026-07-04** (v3 — #91 修法 1 land（4 卡点 all_seq packet 1）：语义嵌入可注入 `SemanticEmbeddingBackend` 接缝（[`semantic_embedding.py`](../packages/vz-contracts/src/volvence_zero/semantic_embedding.py)，默认 fallback stub）+ 复用已加载 LM 的 [`SubstrateTextEncoderBackend`](../packages/vz-substrate/src/volvence_zero/substrate/text_encoder.py)，Brain 仅对真实 transformers runtime 注入（synthetic 不变、可回滚）；dual_track/evaluation/storage 迁到接缝；新 spec [`semantic-embedding-backend.md`](specs/semantic-embedding-backend.md)；回归全绿。残余（apprenticeship→#90 / scoring_helpers·runtime_helpers follow-up / 真 substrate 增益 evidence）见 #91)
+> Earlier: **2026-07-04** (v2 — #86 修法 1 land：新增 [`docs/specs/learned-vs-heuristic-coverage.md`](specs/learned-vs-heuristic-coverage.md) v0.1 内核 learned 占比覆盖图（逐 wheel/owner 四类标注 + file:line 证据 + 两 lens 占比 + should-be-learned→debt 映射），登记进 [`00_INDEX.md`](specs/00_INDEX.md) §22；#86 修法 1 完成、修法 2 capacity→gain 仍 gate on GPU)
+> Earlier: **2026-07-04** (v1 — 认知 AGI 差距评估四卡点入档 #88-#91 — 从「代码 vs thesis 愿景」评估导出「thesis 核心学习能力已实现但默认未 ACTIVE」的四条 wiring-flip / evidence 债：**#88** ETA torch 学习后端 SSL/runtime-forward/Internal-RL 默认 `DISABLED` / **#89** CMS torch band + Titans PE-gated 写入默认关闭（抗遗忘 evidence 缺位）/ **#90** 主动学习 `apprenticeship_alignment` 默认 `SHADOW`（稀疏反馈请求未成主链）/ **#91** 语义嵌入仍是确定性 stub。第 5 个卡点「Companion Bench 同基底 ablation 真跑」不重复造债，已由 #82 / #84 / #87 / #48 / #71 / #72 承接。四条均不阻塞运行，均为对外「认知是学出来的」叙事的证据前置)
+> Earlier: **2026-06-28** (v2 — same-substrate Companion Bench ablation **工具链全套落地**：CAMEL agent-framework baseline wheel + ref-harness H-B/H-C + 5-track roster + serve 编排 + substrate-fingerprint 守门 + #87 four-claim verdict comparator + P0 wiring smoke 通过；推进 **#84**(几近关闭) / **#82**(reference SUT 真跑路径) / **#87**(从 design 进到 tooling-ready)。真跑 P1/P2 待 GPU+keys)
 > Earlier: **2026-06-28** (v1 — 新增 **#87** — 人类世界模型 thesis ablation 的"流程可跑通"与"结果足以证明"混淆风险；交叉引用 #29 / #37 / #48 / #68 / #71 / #72 / #82 / #86，不重复造债)
 > Earlier: **2026-05-29** (DLaaS scale/isolation/rare-heavy packet — per-end-user identity safety, rare-heavy training executor, multi-process/multi-GPU pod routing; advances #17 / #46 / #69 / #76 + rare-heavy executor)
 
@@ -2376,7 +2379,7 @@ return (
 - **风险**：**中-高**（融资尽调 + 长期可演化性）。短期不阻塞运行；中期 DD 一问即露（"learned vs hand-crafted 占比 / scale 曲线"）；长期若 learned 部件始终停在 toy 规模，"经验可学习 / 可积累 / 可传承"的核心押注缺乏 scale evidence 支撑。
 - **触发条件**：(a) 任何对外主张"认知是学出来的、不是 prompt / 规则写出来的"之前；(b) GPU 预算到位、SYS-1（[#44](#44)）或 rare-heavy 真训练启动前需先有 baseline coverage map；(c) 融资 DD 询问 learned-vs-hand-crafted 占比。
 - **推荐修法**：
-  1. **coverage map（无 GPU，现在可做，零成本）**：出一份 `docs/specs/learned-vs-heuristic-coverage.md`，逐 owner（PE / credit / temporal / regime / dual_track / memory / social / semantic_state）标注每个决策点是 `hand-crafted` / `bounded-learned` / `frozen-substrate`，给出 learned 占比基线，并标注哪些是"应该 learned 但当前 hand-crafted"（汇总 [#79](#79) / [#80](#80) / [#81](#81) 的字符串硬编码债为子项）。
+  1. **coverage map（无 GPU，现在可做，零成本）**：出一份 `docs/specs/learned-vs-heuristic-coverage.md`，逐 owner（PE / credit / temporal / regime / dual_track / memory / social / semantic_state）标注每个决策点是 `hand-crafted` / `bounded-learned` / `frozen-substrate`，给出 learned 占比基线，并标注哪些是"应该 learned 但当前 hand-crafted"（汇总 [#79](#79) / [#80](#80) / [#81](#81) 的字符串硬编码债为子项）。**【2026-07-04 已 land】** [`docs/specs/learned-vs-heuristic-coverage.md`](specs/learned-vs-heuristic-coverage.md) v0.1 交付：逐 wheel（substrate / temporal / memory / cognition 9 owner）关键决策点四类标注 + `file:line` 证据 + 两 lens（by-count / by-influence）learned 占比基线 + should-be-learned→debt 映射（链到 [#88](#88)–[#91](#91) / [#79](#79)–[#81](#81)）+ 升级/回滚路线；登记进 [`00_INDEX.md`](specs/00_INDEX.md) §22。**headline 结论**：默认 wiring 下真正 learned 的只有 `_PELearnedCritic`（[#7](#7)）+ `_RewardingStateHead`（[#6](#6)）+ CMS `LearnedUpdateRule`（[#89](#89)）三处，其余多为 hand-crafted / frozen-substrate readout，ETA torch 后端默认 DISABLED。**修法 1 完成；修法 2（capacity→gain ablation）仍 gate on GPU。**
   2. **capacity → gain ablation（gate on GPU）**：对已有 learned head（PE critic [#7](#7) / COCOA rewarding-state head [#6](#6) / ndim metacontroller）做容量阶梯（如 `n_z ∈ {3,16,64,256}`）× ≥ 500 turn 真 trace 的增益曲线，证明"增益随容量单调上升且未饱和"；落 `artifacts/` evidence + verdict。与 [#44](#44) Stage C/D、[#43](#43) Arch Uplift Phase 2 合并 packet。
   3. **诚实声明**：在 [`archetecture.md`](../archetecture.md) / 对外技术文档显式写明"当前 learned 部件规模 + scale evidence 状态"，避免"原理免疫 vs 工程已实现"混淆（对齐 [`docs/moving forward/summary.md`](moving%20forward/summary.md) §2 既有警告）。
 - **优先级**：**中-高**（coverage map 可立即做且零成本；ablation 与 [#6](#6) / [#7](#7) / [#44](#44) 同 GPU 节奏）
@@ -2431,6 +2434,83 @@ return (
   - [#72](#72)：synthetic substrate smoke 不可外引为 architecture evidence
   - [#82](#82)：Companion Bench reference SUT 真跑缺位
   - [#86](#86)：learned-vs-heuristic 与 capacity→gain 未证；本债关注 thesis ablation 的 retain verdict，不重复记录 learned coverage
+
+---
+
+## 88. ETA 真学习后端在默认 wiring 硬 `DISABLED`（temporal SSL / runtime forward / Internal RL 未点亮）
+
+- **路径**：
+  - wiring：[`packages/vz-runtime/src/volvence_zero/integration/final_wiring.py:217-224`](../packages/vz-runtime/src/volvence_zero/integration/final_wiring.py) — `temporal_ssl_backend` / `temporal_runtime_backend` / `internal_rl_backend` 默认 `WiringLevel.DISABLED`（注释即写明各自对应 `MetacontrollerSSLTrainer` ndim autograd SSL / `FullLearnedTemporalPolicy` runtime forward / `CausalZPolicy` PPO over `ZTransition`）
+  - 实现在位但未接：[`packages/vz-temporal/src/volvence_zero/temporal/interface.py`](../packages/vz-temporal/src/volvence_zero/temporal/interface.py)（`FullLearnedTemporalPolicy`，`runtime_backend` 非 ACTIVE 时 `_resolve_backend_ndim_mc` 返回 `None` → 纯 Python 回退）+ `torch_metacontroller.py` + `internal_rl/torch_internal_rl.py`
+  - 设计源：[`docs/next_gen_emogpt.md`](next_gen_emogpt.md)（R3 时间抽象 / R4 latent 控制器 Internal RL / SSL→RL 两阶段）
+- **问题**：thesis 三条护城河之一「涌现时间抽象（`z_t` / `β_t`）」的 torch 学习后端（SSL 压缩 + latent 空间 Internal RL）代码已在位并有测试，但**默认 wiring 三个后端全 `DISABLED`**，运行时跑的是启发式 / 纯 Python 回退 metacontroller。即：`β_t` 切换单元与 `z_t` 控制器码目前**不是从数据中学出来的**，与「有意义的行为模式从数据涌现」的核心主张尚未在生产路径兑现。
+- **违反**：不违反 R 铁律（frozen substrate + bounded controller 层符合 R2；SHADOW/DISABLED 是 R15 合规迁移态）。属于「学习后端已实现但未 ACTIVE + strict-ETA evidence 未跑」的证据 + wiring-flip 债。
+- **风险**：**中-高**（融资尽调 + 核心叙事）。短期不阻塞运行（启发式路径可用）；中长期若不点亮，对外「时间抽象是学出来的」主张无生产证据，且 SSL→RL 交替（R13）从未在真链路上验证。
+- **触发条件**：(a) 任何对外主张「metacontroller / β_t 是 learned」之前；(b) GPU 预算到位；(c) [#86](#86) capacity→gain ablation 或 [#44](#44) SYS-1 启动前需先把 runtime forward 后端 flip。
+- **推荐修法**：
+  1. **Stage 0（无 GPU）**：deterministic 影子跑 `temporal_ssl_backend` / `temporal_runtime_backend` SHADOW，比对 learned vs 启发式 `β_t` / `z_t` 的 readout 一致性，落 `artifacts/` + strict-ETA 契约测试（`tests/test_strict_eta_evidence.py` 绿）。
+  2. **Stage 1（gate on GPU）**：`temporal_runtime_backend` → ACTIVE + `internal_rl_backend` SHADOW→ACTIVE，≥500 turn 真 trace 上验证 `validation_delta ≥ 0.02`（对齐 [#6](#6) / [#7](#7) 升级门槛）+ rollback drill。
+  3. **诚实声明**：ACTIVE 前对外只能说「learned 后端已实现、默认 DISABLED」。
+- **优先级**：**中-高**（Stage 0 可立即做；ACTIVE 与 [#6](#6) / [#7](#7) / [#44](#44) / [#86](#86) 同 GPU 节奏）
+- **关联**：[#6](#6) / [#7](#7)（已 ACTIVE 的小 learned head，是 flip 的先例）· [#43](#43)（Arch Uplift Phase 2）· [#44](#44)（SYS-1 CPD β_t）· [#86](#86)（learned coverage / capacity→gain，本债专记 wiring-flip + strict-ETA gate，不重复 coverage map）· [#89](#89)（CMS torch band 同属默认 DISABLED 的 torch 学习后端）
+
+---
+
+## 89. CMS torch band 后端 + Titans PE-gated 写入默认关闭（在线记忆抗遗忘 evidence 缺位）
+
+- **路径**：
+  - wiring：[`packages/vz-runtime/src/volvence_zero/integration/final_wiring.py:225`](../packages/vz-runtime/src/volvence_zero/integration/final_wiring.py) — `cms_torch_backend: WiringLevel = WiringLevel.DISABLED`；[`packages/vz-memory/src/volvence_zero/memory/store.py:76-114`](../packages/vz-memory/src/volvence_zero/memory/store.py) 透传 `cms_pe_features_enabled` / `cms_torch_backend`
+  - 实现：[`packages/vz-memory/src/volvence_zero/memory/cms.py:92-124`](../packages/vz-memory/src/volvence_zero/memory/cms.py) — `pe_features_enabled` 默认 `False`（保 pre-uplift 12-tuple 行为）；ATLAS replay window / Titans PE-gate 存在但 opt-in
+  - 设计源：[`docs/next_gen_emogpt.md`](next_gen_emogpt.md)（R1 多时间尺度 / R5·R6 记忆连续谱）
+- **问题**：online-fast band 的梯度式在线更新工程完整，但 **torch autograd band 后端默认 `DISABLED`、Titans PE-driven 写入门控默认 `False`、ATLAS replay 默认关**——即在线记忆当前跑的是 pre-uplift 启发式路径，NL 论文级的 PE-aware / torch band / replay 抗遗忘机制未在生产路径生效，也**没有一处 ≥N turn 真 trace 的 anti-forgetting 增益 evidence**。
+- **违反**：不违反 R 铁律（opt-in / 默认 byte-equivalent 是 R15 合规）。属于「uplift 组件已实现但未 ACTIVE + 抗遗忘 evidence 未跑」债。
+- **风险**：**中**。短期不阻塞（启发式记忆可用）；中长期「越用越懂、经验可积累」的产品主张缺 learned 记忆 + 抗遗忘 scale evidence。
+- **触发条件**：(a) 任何对外主张「在线记忆是 learned / 抗遗忘」之前；(b) GPU 预算到位；(c) 长会话（≥500 turn）longitudinal evidence run 启动时与 [#6](#6) / [#7](#7) 同 packet。
+- **推荐修法**：
+  1. **Stage 0（无 GPU）**：`cms_pe_features_enabled=True` SHADOW 比对 PE-gated vs legacy 写入的 readout，落 report-only metric + 契约测试（扩 `tests/test_cms_atlas_titans_uplift.py`）。
+  2. **Stage 1（gate on GPU）**：`cms_torch_backend` → SHADOW→ACTIVE + ATLAS replay 开，≥500 turn 真 trace 上给「旧知识保持率 / 新知识吸收率」双指标增益曲线 + rollback drill。
+- **优先级**：**中**（Stage 0 可立即做；ACTIVE 与 [#88](#88) / [#6](#6) / [#7](#7) 同 GPU 节奏）
+- **关联**：[#88](#88)（同属默认 DISABLED torch 学习后端）· [#6](#6) / [#7](#7)（SHADOW→ACTIVE ≥500 turn 门槛先例）· [#86](#86)（learned coverage 子项）· [#10C](#10)（跨 session 学习信号弱，共享记忆链路）
+
+---
+
+## 90. 主动学习（`apprenticeship_alignment`）默认 SHADOW：稀疏反馈请求未成主链行为
+
+- **路径**：
+  - owner：[`packages/vz-cognition/src/volvence_zero/apprenticeship/core.py:499-510`](../packages/vz-cognition/src/volvence_zero/apprenticeship/core.py)（`slot_name = "apprenticeship_alignment"`，version space / eluder-style surprise / contradiction）
+  - wiring：[`packages/vz-runtime/src/volvence_zero/integration/final_wiring.py:199-205`](../packages/vz-runtime/src/volvence_zero/integration/final_wiring.py) — `apprenticeship_alignment` / `apprenticeship_protocol_alignment` 默认 `WiringLevel.SHADOW`
+  - PE 消费：[`packages/vz-cognition/src/volvence_zero/prediction/error.py`](../packages/vz-cognition/src/volvence_zero/prediction/error.py)（PE 融合 `apprenticeship_alignment` snapshot 的 guidance_surprise）
+  - 设计源：[`docs/next_gen_emogpt.md`](next_gen_emogpt.md)（稀疏数据 → 主动学习）+ thesis 首席科学家能力线（Reliable Active Apprenticeship Learning / Active RLHF）
+- **问题**：thesis 头号护城河「稀疏反馈下的主动学习」的 owner 已有真实逻辑（version space + surprise + contradiction）且 PE 已能消费其 alignment，但**默认 wiring 是 `SHADOW`**——即「在高风险 / 高不确定状态前主动请求人类反馈、并最小化反馈次数」这一 thesis 核心行为**未进主链、不影响运行时决策**，且约束提取默认走 deterministic（生产路径需 LLM structured extractor）。
+- **违反**：不违反 R 铁律（SHADOW 合规）。属于「核心卖点 owner 已实现但未 ACTIVE + 稀疏反馈 E2E evidence 未跑」债。这是 5 个卡点里**与对外叙事最紧的一条**（主动学习是团队理论招牌）。
+- **风险**：**高**（融资尽调 / 品类叙事）。短期不阻塞运行；DD 一问「你们的主动学习在系统里真起作用吗」当前答案是「owner 在、默认 SHADOW、不驱动请求行为」。
+- **触发条件**：(a) 任何对外主张「系统会主动、稀疏地请求反馈并高效学习」之前；(b) LLM structured extractor 接入（默认无 LLM 时约束提取退化）；(c) 稀疏反馈 E2E 场景 evidence run 启动前。
+- **推荐修法**：
+  1. **Stage 0（无 GPU / 可 fake LLM）**：`apprenticeship_alignment` SHADOW 下用 fake-provider 跑 E2E，断言「高不确定 turn → 触发 feedback-request；反馈后 version space 收窄」，落契约测试 + report-only metric（feedback_request_rate / labels_saved）。
+  2. **Stage 1（gate on 真 LLM / GPU）**：flip 到 ACTIVE，真场景下验证「相较无主动学习 baseline，达到同等 alignment 所需人类反馈次数显著下降」（disagreement-coefficient 式指标）+ rollback drill；随后再考虑 `apprenticeship_protocol_alignment` ACTIVE。
+- **优先级**：**高**（Stage 0 用 fake-provider 可立即做；ACTIVE 与真 LLM/GPU evidence 同节奏）
+- **关联**：[#88](#88)（时间抽象 learned 后端）· [#86](#86)（learned coverage）· [#87](#87)（thesis ablation matched-control 必含 active-learning-off / random-sampling 臂）· [#10B](#10)（LLM runtime evidence run 前置，约束提取依赖真 LLM）
+
+---
+
+## 91. 语义嵌入仍是确定性 `stub`，未接真实 embedding head / substrate residual cosine
+
+> **2026-07-04 进展（修法 1 land，all_seq packet 1）**：可注入 `SemanticEmbeddingBackend` 接缝已落地于 [`semantic_embedding.py`](../packages/vz-contracts/src/volvence_zero/semantic_embedding.py)（`set/get/reset` + `semantic_embedding()` 路由，默认 fallback stub）；真实 backend [`SubstrateTextEncoderBackend`](../packages/vz-substrate/src/volvence_zero/substrate/text_encoder.py) 复用已加载 LM 的 `capture()` feature_surface（无新依赖/不下载模型，CPU 可跑）；[`brain.py`](../packages/vz-runtime/src/volvence_zero/brain.py) 仅对真实 `TransformersOpenWeightResidualRuntime` 注入（synthetic/None 保持 stub → 现有 synthetic-substrate 测试面字节不变），`VZ_SEMANTIC_EMBEDDING_BACKEND=stub` / `semantic_embedding_backend_wiring=DISABLED` 可回滚。消费者 `dual_track` / `evaluation`（+`backbone` 调用点）/ `application/storage` 已迁到接缝，prototype 改 lazy（同 backend 同空间）。测试：`test_semantic_embedding_ssot.py`（seam fallback/inject/reset/lazy-prototype）+ `test_substrate_text_encoder.py`（机制 + 真 runtime 分离度证据，HF importorskip）；import-boundary + dual_track/evaluation/storage/final-wiring 回归全绿。spec：[`docs/specs/semantic-embedding-backend.md`](specs/semantic-embedding-backend.md)。**债不关闭**：残余 (a) `apprenticeship` stub-token Jaccard（归 [#90](#90)）；(b) `application/scoring_helpers`+`runtime_helpers`（stub-空间字面量 prototype 需一并 lazy 化，否则跨空间 cosine 错误）；(c) DLaaS 多 substrate 进程共存下进程级全局 backend 保持 stub（避免串扰）；(d) 真实 substrate 上的 disambiguation 增益 evidence 仍待跑（HF/GPU）。
+
+- **路径**：
+  - SSOT：[`packages/vz-contracts/src/volvence_zero/semantic_embedding.py`](../packages/vz-contracts/src/volvence_zero/semantic_embedding.py)（`stub_semantic_embedding` / `stub_semantic_tokens` / `stub_cosine_similarity`，`CANONICAL_MODULUS = 65537`；明确标注 placeholder）
+  - 主要消费者：[`packages/vz-cognition/src/volvence_zero/dual_track/core.py`](../packages/vz-cognition/src/volvence_zero/dual_track/core.py)（track 语义分配 prototype embedding）+ memory retrieval facets 等
+  - 前史：[#3](#3) 已关闭——把四处 fork 统一为单一 SSOT（thin re-export + 契约测试守门），但 SSOT 本体**仍是 hash-based 确定性 stub，不是学习/语义嵌入**
+- **问题**：多处语义相似度驱动的决策（World/Self track 分配、retrieval 排序、语义 owner 比对）当前都建立在 hash-derived 确定性 stub 之上——它保证 determinism 与 SSOT 一致性，但**不携带真实语义**。这使「语义级方法而非关键词匹配」的规则在底层被一个非语义 proxy 支撑，且 dual_track 语义分配的质量受限于 stub。
+- **违反**：不违反 R 铁律 / no-keyword-matching 规则（stub 是 hash 不是关键词表，且 [#3](#3) 已收敛 SSOT）。属于「placeholder 未升级为真实 embedding」的能力深度债。
+- **风险**：**中**。短期不阻塞（determinism + 测试稳定）；中长期 track 分配 / retrieval / 语义比对的**上限**被 stub 卡住，且与「认知结构从经验习得」的理念在感知底层存在张力。
+- **触发条件**：(a) dual_track 语义分配 / retrieval 质量成为 evidence 瓶颈时；(b) [#88](#88) substrate runtime forward ACTIVE 后可复用 residual 表征时；(c) 任何对外主张「语义/关系判断是语义级而非表面」需底层背书时。
+- **推荐修法**：
+  1. **优先复用 substrate residual**：`stub_semantic_embedding` 升级为可注入 backend（`embedding_fn` 参数），生产路径接 `OpenWeightResidualRuntime` 的 residual cosine（避免额外模型），stub 保留为无 substrate 时的 fallback；SSOT 契约测试（`tests/contracts/test_semantic_embedding_ssot.py`）扩「注入 backend 时走真嵌入、缺省 fallback stub」两分支。
+  2. **evidence**：在 dual_track track 分配 / memprobe 上比对 stub vs residual-embedding 的 disambiguation 准确率，落 report-only。
+  3. 保持 R8：嵌入仍是 `vz-contracts` 单一 SSOT，消费者零改动。
+- **优先级**：**中**（可与 [#88](#88) substrate runtime forward ACTIVE 同 packet 复用 residual）
+- **关联**：[#3](#3)（SSOT 收敛前史，本债专记「stub→真实嵌入」不重复 SSOT 收敛）· [#88](#88)（substrate residual 复用来源）· [#10D](#10)（retrieval facet disambiguation 同域）· [#86](#86)（learned coverage 子项）
 
 ---
 

@@ -490,6 +490,14 @@ class MetacontrollerParameterStore:
         self.structure_frozen = True
         self.learning_phase = "runtime"
         self._action_family_version = 0
+        # protocol-temporal-prior bridge: the BehaviorProtocol active
+        # mixture (owned by vz-application, downstream of temporal in the
+        # propagate DAG) is fed back one turn later as a bounded switch-
+        # pressure prior. Kept as plain owner-side scalars (NOT part of
+        # the frozen ``LatestMetacontrollerTelemetry`` schema) so the
+        # bridge adds no snapshot-schema ripple and rolls back cleanly.
+        self._protocol_prior_switch_pressure_delta: float = 0.0
+        self._protocol_prior_strength: float = 0.0
 
     @property
     def n_z(self) -> int:
@@ -949,6 +957,29 @@ class MetacontrollerParameterStore:
 
     def fast_prior_switch_pressure_delta(self) -> float:
         return self.latest_fast_prior_switch_pressure_delta
+
+    def record_protocol_prior_signals(
+        self,
+        *,
+        strength: float,
+        switch_pressure_delta: float,
+    ) -> None:
+        """Record the BehaviorProtocol active-mixture switch-pressure prior.
+
+        Stored as owner-side scalars (not the frozen telemetry snapshot).
+        Consumed via :meth:`protocol_prior_switch_pressure_delta` and only
+        reaches ``beta_t`` when the policy has the bridge enabled (ACTIVE).
+        """
+        self._protocol_prior_strength = max(0.0, min(1.0, strength))
+        self._protocol_prior_switch_pressure_delta = max(
+            -0.25, min(0.25, switch_pressure_delta)
+        )
+
+    def protocol_prior_switch_pressure_delta(self) -> float:
+        return self._protocol_prior_switch_pressure_delta
+
+    def protocol_prior_strength(self) -> float:
+        return self._protocol_prior_strength
 
     def active_family_continuation_signals(
         self,
@@ -1660,6 +1691,36 @@ class TemporalPolicy(ABC):
         del previous_snapshot
         del track
 
+    def observe_active_mixture(
+        self,
+        *,
+        active_mixture_snapshot: object | None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
+        track: Track | None = None,
+    ) -> None:
+        """Observe the previous-turn BehaviorProtocol active mixture.
+
+        Default no-op. ``FullLearnedTemporalPolicy`` overrides this to
+        turn the active-mixture weight distribution into a bounded
+        switch-pressure prior on ``beta_t`` (protocol-temporal-prior
+        bridge). Fed out-of-band by the orchestrator as a one-turn
+        carryover because ``active_mixture`` is downstream of temporal in
+        the propagate DAG (declaring it as a same-turn dependency would
+        cycle via ``retrieval_policy``).
+        """
+        del active_mixture_snapshot
+        del previous_snapshot
+        del track
+
+    def set_protocol_prior_enabled(self, enabled: bool) -> None:
+        """Toggle whether the protocol active-mixture prior reaches beta_t.
+
+        Default no-op; ``FullLearnedTemporalPolicy`` implements it. Kept on
+        the base so orchestrators can call it on any policy without an
+        isinstance check.
+        """
+        del enabled
+
     def observe_family_outcome_feedback(
         self,
         *,
@@ -2005,6 +2066,11 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._previous_beta_binary = 0
         self._latest_encoder_output_for_cms: tuple[float, ...] | None = None
         self._cached_reflection_snapshot: ReflectionSnapshot | None = None
+        # protocol-temporal-prior bridge: default OFF (byte-equivalent
+        # baseline). SHADOW callers still record the prior into the
+        # parameter store for dual-run evidence; only ACTIVE lets it reach
+        # beta_t. Flip back to False = instant rollback.
+        self._protocol_prior_enabled = False
 
     @property
     def runtime_backend(self) -> WiringLevel:
@@ -2156,6 +2222,79 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             sequence_bias=sequence_bias * (1.0 + prior_strength * 0.12),
             switch_pressure_delta=switch_pressure_delta,
         )
+
+    def set_protocol_prior_enabled(self, enabled: bool) -> None:
+        self._protocol_prior_enabled = bool(enabled)
+
+    def observe_active_mixture(
+        self,
+        *,
+        active_mixture_snapshot: object | None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
+        track: Track | None = None,
+    ) -> None:
+        """Compress the BehaviorProtocol active mixture into a switch prior.
+
+        Design (R3/R4 aligned): the protocol layer is a *prior* on beta_t,
+        never a command. A confident, dominant mixture (one protocol near
+        weight 1.0) biases *continuation* (stay in the current controller);
+        an ambiguous mixture (several comparably-weighted protocols) biases
+        *switching* (the metacontroller should be freer to re-select z_t).
+        The signal is bounded and only reaches beta_t when the bridge is
+        ACTIVE (``_protocol_prior_enabled``); otherwise it is recorded for
+        SHADOW dual-run evidence only. A single-protocol mixture yields a
+        zero differential (keeps single-protocol fixtures byte-equivalent).
+        """
+        del previous_snapshot
+        from volvence_zero.behavior_protocol import ActiveMixtureSnapshot
+
+        if not isinstance(active_mixture_snapshot, ActiveMixtureSnapshot):
+            self._parameter_store.record_protocol_prior_signals(
+                strength=0.0, switch_pressure_delta=0.0
+            )
+            return
+        weights = tuple(
+            max(0.0, min(1.0, entry.activation_weight))
+            for entry in active_mixture_snapshot.active_protocols
+        )
+        if len(weights) < 2:
+            # Single (or empty) mixture: no differential prior.
+            self._parameter_store.record_protocol_prior_signals(
+                strength=0.0, switch_pressure_delta=0.0
+            )
+            return
+        total = sum(weights)
+        if total <= 0.0:
+            self._parameter_store.record_protocol_prior_signals(
+                strength=0.0, switch_pressure_delta=0.0
+            )
+            return
+        normalized = tuple(w / total for w in weights)
+        dominance = max(normalized)
+        # ambiguity in [0, 1]: 0 when one protocol fully dominates,
+        # approaching 1 as weight spreads evenly across the mixture.
+        n = len(normalized)
+        ambiguity = max(0.0, min(1.0, (1.0 - dominance) * n / (n - 1)))
+        # Continuation when dominant, switch when ambiguous. Centered so a
+        # perfectly even 2-way split (dominance=0.5, ambiguity=1) pushes
+        # toward switching and a near-1.0 dominant protocol pushes toward
+        # continuation.
+        track_scale = 0.85 if track is Track.SHARED else 1.0
+        strength = ambiguity
+        switch_pressure_delta = max(
+            -0.18,
+            min(0.18, (ambiguity - 0.5) * 0.24 * track_scale),
+        )
+        self._parameter_store.record_protocol_prior_signals(
+            strength=strength,
+            switch_pressure_delta=switch_pressure_delta,
+        )
+
+    def _protocol_prior_switch_delta(self) -> float:
+        """Owner-side protocol switch prior, gated by the ACTIVE flag."""
+        if not self._protocol_prior_enabled:
+            return 0.0
+        return self._parameter_store.protocol_prior_switch_pressure_delta()
 
     def observe_family_outcome_feedback(
         self,
@@ -2337,7 +2476,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         ) = self._parameter_store.active_family_continuation_signals(
             previous_steps_since_switch=previous_steps,
         )
-        fast_prior_switch_pressure_delta = self._parameter_store.fast_prior_switch_pressure_delta()
+        fast_prior_switch_pressure_delta = (
+            self._parameter_store.fast_prior_switch_pressure_delta()
+            + self._protocol_prior_switch_delta()
+        )
         beta_cont, beta_bin, scalar_beta = switch_obj.compute(
             z_tilde=encoded.z_tilde,
             previous_code=previous_code,
@@ -2472,7 +2614,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         ) = self._parameter_store.active_family_continuation_signals(
             previous_steps_since_switch=previous_steps,
         )
-        fast_prior_switch_pressure_delta = self._parameter_store.fast_prior_switch_pressure_delta()
+        fast_prior_switch_pressure_delta = (
+            self._parameter_store.fast_prior_switch_pressure_delta()
+            + self._protocol_prior_switch_delta()
+        )
         switch_decision = self._switch_unit.compute_decision(
             previous_code=previous_code,
             z_tilde=encoded.z_tilde,
@@ -2638,6 +2783,15 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         super().__init__(wiring_level=wiring_level)
         self._policy = policy or FullLearnedTemporalPolicy()
         self._previous_snapshot: TemporalAbstractionSnapshot | None = None
+        self._pending_active_mixture: object | None = None
+
+    def observe_active_mixture_carryover(self, active_mixture_value: object | None) -> None:
+        """Stash the previous-turn ``active_mixture`` for the next step.
+
+        Orchestrator-mediated carryover; see
+        :meth:`TrackTemporalModule.observe_active_mixture_carryover`.
+        """
+        self._pending_active_mixture = active_mixture_value
 
     @property
     def policy(self) -> TemporalPolicy:
@@ -2668,6 +2822,11 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         self._apply_prediction_error_signal(prediction_error_value)
         self._policy.observe_experience_fast_prior(
             experience_fast_prior_snapshot=experience_fast_prior_snapshot.value,
+            previous_snapshot=self._previous_snapshot,
+            track=Track.SHARED,
+        )
+        self._policy.observe_active_mixture(
+            active_mixture_snapshot=self._pending_active_mixture,
             previous_snapshot=self._previous_snapshot,
             track=Track.SHARED,
         )
@@ -3030,6 +3189,17 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         self.owner = f"{track.value.title()}TemporalModule"
         self._policy = policy or FullLearnedTemporalPolicy()
         self._previous_snapshot: TemporalAbstractionSnapshot | None = None
+        self._pending_active_mixture: object | None = None
+
+    def observe_active_mixture_carryover(self, active_mixture_value: object | None) -> None:
+        """Stash the previous-turn ``active_mixture`` for the next step.
+
+        Orchestrator-mediated carryover: ``active_mixture`` is downstream
+        of temporal in the propagate DAG, so the runtime feeds the prior
+        turn's value out-of-band here instead of via a same-turn snapshot
+        dependency (which would cycle through ``retrieval_policy``).
+        """
+        self._pending_active_mixture = active_mixture_value
 
     @property
     def track(self) -> Track:
@@ -3059,6 +3229,11 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         reflection_value = self._policy.cached_reflection_snapshot()
         self._policy.observe_experience_fast_prior(
             experience_fast_prior_snapshot=experience_fast_prior_snapshot.value,
+            previous_snapshot=self._previous_snapshot,
+            track=self._track,
+        )
+        self._policy.observe_active_mixture(
+            active_mixture_snapshot=self._pending_active_mixture,
             previous_snapshot=self._previous_snapshot,
             track=self._track,
         )

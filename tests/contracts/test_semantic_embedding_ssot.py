@@ -33,6 +33,20 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PACKAGES_ROOT = REPO_ROOT / "packages"
 
 
+@pytest.fixture(autouse=True)
+def _reset_semantic_embedding_backend():
+    """Keep the process-global embedding backend clean around each test.
+
+    #91 added an injectable backend seam. Tests that install a fake backend
+    must not leak it into other tests; default is the stub fallback.
+    """
+    from volvence_zero.semantic_embedding import reset_semantic_embedding_backend
+
+    reset_semantic_embedding_backend()
+    yield
+    reset_semantic_embedding_backend()
+
+
 # Files that own a *different* ``_semantic_embedding`` signature and
 # therefore are not part of known-debts #3. New entries here should be
 # rare and require a corresponding update to ``docs/known-debts.md``.
@@ -44,11 +58,23 @@ _ALLOWED_FORK_PATHS: frozenset[pathlib.Path] = frozenset(
 )
 
 
-def test_three_forks_share_canonical_implementation() -> None:
-    """Closing snapshot of known-debts #3: every previous fork is a thin
-    re-export of :func:`volvence_zero.semantic_embedding.stub_semantic_embedding`.
+def test_forks_share_canonical_entrypoints() -> None:
+    """SSOT snapshot (known-debts #3 + #91).
+
+    All embedding consumers bind to the canonical
+    :mod:`volvence_zero.semantic_embedding` module:
+
+    * ``tokens`` / ``cosine`` everywhere are the canonical stub helpers.
+    * ``application.scoring_helpers`` still binds embedding to the pure
+      ``stub_semantic_embedding`` (it is paired with stub-space literal
+      prototypes in ``runtime_helpers``; migrating it to the seam is a #91
+      follow-up that requires cleaning those literals together).
+    * ``dual_track`` / ``evaluation`` now route embedding through the #91
+      seam ``semantic_embedding`` (stub fallback when no backend is set),
+      so a real substrate backend is honored when injected.
     """
     from volvence_zero.semantic_embedding import (
+        semantic_embedding as seam_embedding,
         stub_cosine_similarity,
         stub_semantic_embedding,
         stub_semantic_tokens,
@@ -73,13 +99,71 @@ def test_three_forks_share_canonical_implementation() -> None:
     assert semantic_tokens is stub_semantic_tokens
     assert cosine_similarity is stub_cosine_similarity
 
-    assert dual_track_embedding is stub_semantic_embedding
+    assert dual_track_embedding is seam_embedding
     assert dual_track_tokens is stub_semantic_tokens
     assert dual_track_cosine is stub_cosine_similarity
 
-    assert evaluation_embedding is stub_semantic_embedding
+    assert evaluation_embedding is seam_embedding
     assert evaluation_tokens is stub_semantic_tokens
     assert evaluation_cosine is stub_cosine_similarity
+
+
+def test_seam_defaults_to_stub_when_no_backend() -> None:
+    """#91: with no backend installed, ``semantic_embedding`` == stub."""
+    from volvence_zero.semantic_embedding import (
+        semantic_embedding,
+        stub_semantic_embedding,
+    )
+
+    for text in ("hello world", "决定优先级", ""):
+        assert semantic_embedding(text, dim=8) == stub_semantic_embedding(text, dim=8)
+
+
+def test_injected_backend_routes_and_reset_restores_stub() -> None:
+    """#91: an installed backend is used; reset restores the stub fallback."""
+    from volvence_zero.semantic_embedding import (
+        reset_semantic_embedding_backend,
+        semantic_embedding,
+        set_semantic_embedding_backend,
+        stub_semantic_embedding,
+    )
+
+    sentinel = tuple(0.5 for _ in range(8))
+
+    class _FakeBackend:
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            return tuple(0.5 for _ in range(dim))
+
+    set_semantic_embedding_backend(_FakeBackend())
+    assert semantic_embedding("anything", dim=8) == sentinel
+    assert semantic_embedding("anything", dim=8) != stub_semantic_embedding(
+        "anything", dim=8
+    )
+
+    reset_semantic_embedding_backend()
+    assert semantic_embedding("anything", dim=8) == stub_semantic_embedding(
+        "anything", dim=8
+    )
+
+
+def test_prototypes_are_lazy_and_reflect_injected_backend() -> None:
+    """#91: prototype vectors must be embedded on demand (not frozen at
+    import), so a backend injected after import is honored.
+    """
+    from volvence_zero.evaluation.semantic_readouts import (
+        support_presence_prototype,
+        task_pressure_prototype,
+    )
+    from volvence_zero.semantic_embedding import set_semantic_embedding_backend
+
+    class _ConstBackend:
+        def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+            return tuple(1.0 if i == 0 else 0.0 for i in range(dim))
+
+    const = tuple(1.0 if i == 0 else 0.0 for i in range(8))
+    set_semantic_embedding_backend(_ConstBackend())
+    assert task_pressure_prototype() == const
+    assert support_presence_prototype() == const
 
 
 def test_canonical_modulus_is_coprime_with_common_dims() -> None:

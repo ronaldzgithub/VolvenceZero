@@ -7,8 +7,8 @@ from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
 from volvence_zero.semantic_embedding import (
+    semantic_embedding as _semantic_embedding,
     stub_cosine_similarity as _cosine_similarity,
-    stub_semantic_embedding as _semantic_embedding,
     stub_semantic_tokens as _semantic_tokens,
 )
 from volvence_zero.semantic_state import (
@@ -74,11 +74,16 @@ def _goal_from_entry(entry: MemoryEntry) -> str:
     return entry.content
 
 
-WORLD_TRACK_PROTOTYPE = _semantic_embedding(
+# #91: prototype reference strings. Embedded on demand via the seam
+# (``semantic_embedding``) rather than at import time, so a real substrate
+# backend injected after import is honored; the backend LRU-caches these
+# fixed strings, and the stub path is cheap. The prototype and the compared
+# content are always embedded by the same active backend (one space).
+_WORLD_TRACK_PROTOTYPE_TEXT = (
     "decide priority execute plan concrete action task urgency next step solve "
     "明确顺序 直接执行 判断取舍 推进任务 行动步骤"
 )
-SELF_TRACK_PROTOTYPE = _semantic_embedding(
+_SELF_TRACK_PROTOTYPE_TEXT = (
     "feel overwhelmed need support warmth steadiness reassurance emotional care trust repair "
     "先陪我稳住 情绪支持 别急着解决 温暖 安抚 信任 修复"
 )
@@ -88,8 +93,10 @@ SEMANTIC_OWNER_CONTEXT_WEIGHT = 0.35
 
 def _shared_track_affinity(entry: MemoryEntry, *, track: Track) -> float:
     embedding = _semantic_embedding(entry.content)
-    target = WORLD_TRACK_PROTOTYPE if track is Track.WORLD else SELF_TRACK_PROTOTYPE
-    other = SELF_TRACK_PROTOTYPE if track is Track.WORLD else WORLD_TRACK_PROTOTYPE
+    world = _semantic_embedding(_WORLD_TRACK_PROTOTYPE_TEXT)
+    self_proto = _semantic_embedding(_SELF_TRACK_PROTOTYPE_TEXT)
+    target = world if track is Track.WORLD else self_proto
+    other = self_proto if track is Track.WORLD else world
     target_score = (_cosine_similarity(embedding, target) + 1.0) / 2.0
     other_score = (_cosine_similarity(embedding, other) + 1.0) / 2.0
     return _clamp(target_score - other_score * 0.55)

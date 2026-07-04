@@ -36,6 +36,7 @@ modulus changes.
 from __future__ import annotations
 
 import math
+from typing import Protocol, runtime_checkable
 
 
 CANONICAL_MODULUS = 65537
@@ -88,8 +89,92 @@ def stub_cosine_similarity(
     )
 
 
+@runtime_checkable
+class SemanticEmbeddingBackend(Protocol):
+    """Injectable real text-embedding backend (closes ``known-debts.md`` #91).
+
+    The stub above is a deterministic character-hash placeholder. A real
+    backend (e.g. one that reuses the loaded substrate LM's hidden states,
+    see ``volvence_zero.substrate.SubstrateTextEncoderBackend``) can be
+    injected at initialization via :func:`set_semantic_embedding_backend`.
+
+    Consumers that want the real embedding when available call
+    :func:`semantic_embedding`, which routes to the active backend and
+    falls back to :func:`stub_semantic_embedding` when none is set.
+
+    Boundary note: this module lives in ``vz-contracts`` (the zero-upstream
+    foundation wheel), so it may not import ``substrate``. The backend is a
+    process-level seam supplied by a higher tier and injected at wiring
+    time. This keeps the SSOT (one embedding entry point) while letting the
+    real encoder live where the runtime does.
+    """
+
+    def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+        ...
+
+
+_ACTIVE_BACKEND: SemanticEmbeddingBackend | None = None
+
+
+def set_semantic_embedding_backend(backend: SemanticEmbeddingBackend | None) -> None:
+    """Install (or clear, with ``None``) the process-level embedding backend.
+
+    Wiring time only. Passing ``None`` restores the stub fallback. This is a
+    single global seam, appropriate for single-substrate processes; a
+    multi-substrate deployment (DLaaS multi-instance) should leave it unset
+    to avoid cross-substrate embedding leakage (tracked as #91 follow-up).
+    """
+
+    global _ACTIVE_BACKEND
+    _ACTIVE_BACKEND = backend
+
+
+def get_semantic_embedding_backend() -> SemanticEmbeddingBackend | None:
+    return _ACTIVE_BACKEND
+
+
+def reset_semantic_embedding_backend() -> None:
+    """Clear the active backend (restores stub fallback). Idempotent."""
+
+    global _ACTIVE_BACKEND
+    _ACTIVE_BACKEND = None
+
+
+def semantic_embedding(text: str, *, dim: int = 8) -> tuple[float, ...]:
+    """Route to the active real backend when set, else the stub fallback.
+
+    Errors from an installed backend are NOT swallowed (they surface as
+    real substrate failures, per ``no-swallow-errors``). A backend is
+    responsible for its own empty/short-text robustness (it may delegate to
+    :func:`stub_semantic_embedding` internally).
+    """
+
+    backend = _ACTIVE_BACKEND
+    if backend is None:
+        return stub_semantic_embedding(text, dim=dim)
+    return backend.embed(text, dim=dim)
+
+
+def semantic_cosine(
+    left: tuple[float, ...], right: tuple[float, ...]
+) -> float:
+    """Cosine similarity for embeddings from :func:`semantic_embedding`.
+
+    Backend-agnostic: both stub and real backends return L2-normalized
+    vectors, so this is the plain dot product (same as the stub helper).
+    """
+
+    return stub_cosine_similarity(left, right)
+
+
 __all__ = [
     "CANONICAL_MODULUS",
+    "SemanticEmbeddingBackend",
+    "get_semantic_embedding_backend",
+    "reset_semantic_embedding_backend",
+    "semantic_cosine",
+    "semantic_embedding",
+    "set_semantic_embedding_backend",
     "stub_cosine_similarity",
     "stub_semantic_embedding",
     "stub_semantic_tokens",

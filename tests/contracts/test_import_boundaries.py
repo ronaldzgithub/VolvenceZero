@@ -43,7 +43,16 @@ PACKAGES_ROOT = REPO_ROOT / "packages"
 
 ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-contracts": frozenset(),  # foundation: zero upstream
-    "vz-substrate": frozenset({"runtime", "learned_update"}),
+    "vz-substrate": frozenset(
+        {
+            "runtime", "learned_update",
+            # #91: SubstrateTextEncoderBackend implements the
+            # vz-contracts SemanticEmbeddingBackend seam (reuses the loaded
+            # LM as a real text encoder). The protocol + stub fallback live
+            # in vz-contracts.semantic_embedding.
+            "semantic_embedding",
+        }
+    ),
     "vz-memory": frozenset(
         {
             "runtime", "learned_update", "substrate", "social_cognition",
@@ -163,6 +172,11 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-runtime": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory", "dialogue_trace",
+            # #91: Brain wiring installs the SemanticEmbeddingBackend seam
+            # (set/reset) when a real transformers substrate runtime is
+            # present. The seam + stub fallback live in
+            # vz-contracts.semantic_embedding.
+            "semantic_embedding",
             # everything in vz-cognition:
             "audit", "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",

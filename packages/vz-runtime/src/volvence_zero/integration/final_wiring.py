@@ -193,10 +193,14 @@ class FinalRolloutConfig:
     response_assembly: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
     # Reliable-apprenticeship alignment owner
-    # (docs/specs/apprenticeship-alignment.md). SHADOW by default: the
-    # owner validates against PE / belief snapshots before promotion;
-    # PE consumes it but the overlay is a no-op while SHADOW (R15).
-    apprenticeship_alignment: WiringLevel = WiringLevel.SHADOW
+    # (docs/specs/apprenticeship-alignment.md). #90: ACTIVE by default so
+    # the PE overlay + feedback-request actuator are live. This only
+    # affects genuine apprentice/ingestion turns (apprenticeship_turn
+    # gate, default False): on normal turns the owner publishes an idle
+    # snapshot (surprise 0, no feedback request), so the overlay and the
+    # open_loop actuator stay no-ops. Rollback: set to SHADOW/DISABLED
+    # (PE overlay reverts to no-op, R15).
+    apprenticeship_alignment: WiringLevel = WiringLevel.ACTIVE
     # Protocol-layer apprenticeship alignment (vz-application; DRAFT
     # Packet 1). SHADOW: compares guidance constraints against compiled
     # protocol artifacts. Inert until apprenticeship_alignment is ACTIVE
@@ -330,6 +334,19 @@ class FinalRolloutConfig:
     protocol_revision_log: WiringLevel = WiringLevel.ACTIVE
     protocol_reflection: WiringLevel = WiringLevel.SHADOW
     protocol_revision_queue: WiringLevel = WiringLevel.SHADOW
+    # protocol-temporal-prior bridge: feeds the previous turn's
+    # ``ActiveMixtureSnapshot`` (protocol activation-weight distribution)
+    # into the metacontroller as a bounded beta_t switch-pressure prior.
+    # This is an orchestrator-mediated one-turn carryover (``active_mixture``
+    # is downstream of temporal in the propagate DAG, so a same-turn
+    # dependency would cycle via ``retrieval_policy``). Three-state:
+    #   - DISABLED (default): temporal never observes active_mixture →
+    #     byte-equivalent baseline; instant rollback.
+    #   - SHADOW: temporal records the prior for dual-run evidence but it
+    #     does NOT reach beta_t (policy enable flag stays off).
+    #   - ACTIVE: the prior biases beta_t (continuation when the mixture
+    #     is dominant, switch when it is ambiguous).
+    protocol_temporal_prior: WiringLevel = WiringLevel.DISABLED
     # Packet C (long-horizon-closure): AffordanceModule wiring level.
     # ACTIVE is the production-grade default. The kernel propagate
     # graph itself does not yet construct an AffordanceModule
@@ -1293,6 +1310,17 @@ def _prediction_action_context_from_upstream(
     )
 
 
+# Temporal owners that accept the protocol-temporal-prior carryover.
+# Both staged track owners (``world_temporal`` / ``self_temporal``) and the
+# legacy aggregate (``temporal_abstraction``) expose
+# ``observe_active_mixture_carryover``.
+_TEMPORAL_PRIOR_CARRYOVER_SLOTS = (
+    "world_temporal",
+    "self_temporal",
+    "temporal_abstraction",
+)
+
+
 def build_final_runtime_modules(
     *,
     config: FinalRolloutConfig,
@@ -1369,6 +1397,13 @@ def build_final_runtime_modules(
         resolved_world_temporal_policy.set_runtime_backend(_runtime_backend)
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
+    # protocol-temporal-prior bridge: only ACTIVE lets the recorded
+    # protocol switch-pressure prior reach beta_t. SHADOW records evidence
+    # only; DISABLED keeps the byte-equivalent baseline. Setting the flag
+    # here (mirrors set_runtime_backend) keeps direct callers honest.
+    _protocol_prior_active = config.protocol_temporal_prior is WiringLevel.ACTIVE
+    resolved_world_temporal_policy.set_protocol_prior_enabled(_protocol_prior_active)
+    resolved_self_temporal_policy.set_protocol_prior_enabled(_protocol_prior_active)
     semantic_store = semantic_state_store or SemanticStateStore()
     semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
     # Phase 1 W1.C of the EQ-owner uplift: when an explicit
@@ -1837,6 +1872,20 @@ async def run_final_wiring_turn(
             previous_snapshot = upstream_snapshots.get(module.slot_name)
             if previous_snapshot is not None:
                 module.seed_version(previous_snapshot.version)
+    # protocol-temporal-prior bridge (orchestrator-mediated carryover).
+    # When enabled (SHADOW/ACTIVE), feed the *previous* turn's
+    # ``active_mixture`` value into the temporal owner(s) out-of-band. This
+    # is the cycle-free equivalent of a same-turn dependency: temporal runs
+    # before ``active_mixture`` is produced this turn, and declaring the
+    # dependency would cycle via ``retrieval_policy → world_temporal``.
+    if config.protocol_temporal_prior is not WiringLevel.DISABLED and upstream_snapshots:
+        _prev_active_mixture = upstream_snapshots.get("active_mixture")
+        _prev_active_mixture_value = (
+            _prev_active_mixture.value if _prev_active_mixture is not None else None
+        )
+        for module in modules:
+            if module.slot_name in _TEMPORAL_PRIOR_CARRYOVER_SLOTS:
+                module.observe_active_mixture_carryover(_prev_active_mixture_value)
     recorder = EventRecorder()
     registry = SlotRegistry()
     if upstream_snapshots:

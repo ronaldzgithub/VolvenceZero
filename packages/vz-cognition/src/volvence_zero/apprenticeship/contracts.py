@@ -182,6 +182,18 @@ class ApprenticeshipAlignmentSnapshot:
     # Default empty preserves backwards compatibility for any snapshot
     # constructed before this field existed.
     guidance_constraints: tuple[IntentConstraint, ...] = field(default=())
+    # #90 active-learning feedback request. The reliable-apprenticeship
+    # guarantee is: act only when guaranteed-optimal, otherwise *actively
+    # seek guidance* (and minimize how often). These fields make that
+    # "request sparse feedback" behaviour an explicit, owner-owned signal
+    # instead of an implicit ``reliability=deferring`` state with no
+    # consumer. A downstream actuator (``open_loop`` owner) surfaces the
+    # request. Derived purely from this owner's own reconciliation state
+    # (reliability / guidance_surprise / version-space), so no consumer
+    # rebuilds it (R8). Defaults keep pre-#90 snapshots valid.
+    should_request_feedback: bool = False
+    feedback_request_reason: str = ""
+    feedback_request_urgency: float = 0.0
 
 
 def clamp_unit(value: float) -> float:

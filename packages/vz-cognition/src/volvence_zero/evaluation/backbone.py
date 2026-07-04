@@ -65,12 +65,12 @@ from volvence_zero.evaluation.statistics import (
     build_pairwise_metric_effect,
 )
 from volvence_zero.evaluation.semantic_readouts import (
-    SUPPORT_PRESENCE_PROTOTYPE,
-    TASK_PRESSURE_PROTOTYPE,
     _cosine_similarity,
     _goal_semantic_pressure,
     _semantic_embedding,
     _semantic_tokens,
+    support_presence_prototype,
+    task_pressure_prototype,
 )
 from volvence_zero.evaluation.replay_scenarios import (
     _default_evolution_benchmark_cases,
@@ -1423,11 +1423,11 @@ class EvaluationBackbone:
         self_goal_count = len(dual_track_snapshot.self_track.active_goals) if dual_track_snapshot else 0
         world_goal_semantics = _goal_semantic_pressure(
             dual_track_snapshot.world_track.active_goals if dual_track_snapshot else (),
-            prototype=TASK_PRESSURE_PROTOTYPE,
+            prototype=task_pressure_prototype(),
         )
         self_goal_semantics = _goal_semantic_pressure(
             dual_track_snapshot.self_track.active_goals if dual_track_snapshot else (),
-            prototype=SUPPORT_PRESENCE_PROTOTYPE,
+            prototype=support_presence_prototype(),
         )
         task_pressure = _clamp(
             semantic_task_pull * 0.34

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass, replace
 from collections.abc import Callable
 from typing import Any, Literal
@@ -48,10 +49,16 @@ from volvence_zero.semantic_state import (
     semantic_events_from_task_event,
     semantic_events_from_tool_result,
 )
+from volvence_zero.semantic_embedding import (
+    reset_semantic_embedding_backend,
+    set_semantic_embedding_backend,
+)
 from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
     SubstrateAdapter,
+    SubstrateTextEncoderBackend,
     SyntheticOpenWeightResidualRuntime,
+    TransformersOpenWeightResidualRuntime,
     build_transformers_runtime_with_fallback,
 )
 from volvence_zero.regime import RegimeBootstrap
@@ -124,6 +131,18 @@ class BrainConfig:
     # the hydration keys (``owner_hydration/<owner_name>``) do not
     # collide with the memory checkpoint key.
     owner_hydration_wiring: WiringLevel = WiringLevel.ACTIVE
+    # #91: real text-embedding backend. When ACTIVE (default) and a real
+    # transformers substrate runtime is present, semantic embedding
+    # (dual_track track assignment, evaluation prototypes, application
+    # scoring) is served by the loaded LM's feature surface via
+    # SubstrateTextEncoderBackend instead of the character-hash stub.
+    # Synthetic / injected-non-transformers runtimes always keep the stub,
+    # so the large synthetic-substrate test surface is byte-identical.
+    # DISABLED forces the stub even on a real runtime (rollback). The env
+    # var VZ_SEMANTIC_EMBEDDING_BACKEND=stub is an operator override with
+    # the same effect. Process-global seam: single-substrate only; a
+    # multi-substrate process should leave this DISABLED (#91 follow-up).
+    semantic_embedding_backend_wiring: WiringLevel = WiringLevel.ACTIVE
 
 
 class BrainSession:
@@ -566,6 +585,7 @@ class Brain:
         the current in-memory-only behavior.
         """
         runtime = self._resolve_substrate_runtime()
+        self._install_semantic_embedding_backend(runtime)
         synthesizer = response_synthesizer or self._response_synthesizer
         identity = self._identity_provider.resolve(session_id)
         user_scope = scope_key_for(identity)
@@ -631,6 +651,31 @@ class Brain:
             )
         runner = AgentSessionRunner(**runner_kwargs)
         return BrainSession(runner=runner)
+
+    def _install_semantic_embedding_backend(
+        self, runtime: OpenWeightResidualRuntime
+    ) -> None:
+        """Install the real embedding backend for real transformers runtimes.
+
+        #91: reuse the loaded LM as a text encoder behind the vz-contracts
+        seam. Only a real ``TransformersOpenWeightResidualRuntime`` (which
+        does true forward passes, including the builtin GPT-2 CPU fallback)
+        gets the backend; synthetic / other runtimes keep the deterministic
+        stub so existing synthetic-substrate behavior is unchanged. Disabled
+        via config wiring or ``VZ_SEMANTIC_EMBEDDING_BACKEND=stub``.
+        """
+
+        override = os.environ.get("VZ_SEMANTIC_EMBEDDING_BACKEND", "").strip().lower()
+        if override == "stub" or (
+            self._config.semantic_embedding_backend_wiring is WiringLevel.DISABLED
+            and override != "substrate"
+        ):
+            reset_semantic_embedding_backend()
+            return
+        if isinstance(runtime, TransformersOpenWeightResidualRuntime):
+            set_semantic_embedding_backend(SubstrateTextEncoderBackend(runtime))
+        else:
+            reset_semantic_embedding_backend()
 
     def _resolve_substrate_runtime(self) -> OpenWeightResidualRuntime:
         if self._config.substrate_mode == "injected":

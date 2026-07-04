@@ -91,6 +91,9 @@ from volvence_zero.substrate.self_mod import (
     SubstrateSelfModModule,
     SubstrateSelfModSnapshot,
 )
+from volvence_zero.substrate.text_encoder import (
+    SubstrateTextEncoderBackend,
+)
 from volvence_zero.substrate.text_generation import (
     HFTextGenerationProvider,
     TextGenerationProvider,
@@ -105,6 +108,7 @@ __all__ = [
     "GroundedDecodeHook",
     "GroundingVerdict",
     "HFTextGenerationProvider",
+    "SubstrateTextEncoderBackend",
     "HashingWhitespaceTokenizer",
     "HookLayerCalibrationCase",
     "HookLayerCalibrationReport",

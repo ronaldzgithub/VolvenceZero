@@ -314,6 +314,11 @@ class ApprenticeshipThresholds:
     recurrence_floor: int = 2
     # Bounded version-space window so the owner stays memory-bounded.
     max_constraints: int = 64
+    # #90: in the disagreement region, guidance this uncovered warrants
+    # actively requesting feedback rather than committing silently. Set
+    # to the mismatch floor so a request coincides with a surfaced
+    # mismatch (an INCONSISTENT version space always requests regardless).
+    feedback_request_surprise: float = 0.45
 
 
 def reconcile_guidance(
@@ -677,6 +682,36 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
             else ReliabilityState.DEFERRING.value
         )
 
+        # #90 active-learning feedback request: in the disagreement region
+        # with informative-enough guidance, or a self-contradictory version
+        # space, the owner should actively seek guidance rather than commit
+        # silently. Derived from this owner's own state (no keyword match).
+        is_inconsistent = status == VersionSpaceStatus.INCONSISTENT.value
+        should_request_feedback = is_inconsistent or (
+            reliability == ReliabilityState.DEFERRING.value
+            and guidance_surprise >= self._thresholds.feedback_request_surprise
+        )
+        max_contradiction_severity = max(
+            (finding.severity for finding in contradictions), default=0.0
+        )
+        feedback_request_urgency = (
+            clamp_unit(max(guidance_surprise, max_contradiction_severity))
+            if should_request_feedback
+            else 0.0
+        )
+        if not should_request_feedback:
+            feedback_request_reason = ""
+        elif is_inconsistent:
+            feedback_request_reason = (
+                "version_space_inconsistent: teaching contradicts itself; "
+                "seek disambiguating guidance"
+            )
+        else:
+            feedback_request_reason = (
+                "disagreement_region: guidance uncovered by current cognition "
+                f"(surprise={guidance_surprise:.2f}); confirm before committing"
+            )
+
         revision_refs: tuple[str, ...] = ()
         if self._revision_enabled:
             proposals = self._build_revision_proposals(
@@ -709,6 +744,9 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
             revision_proposal_refs=revision_refs,
             description=description,
             guidance_constraints=tuple(new_constraints),
+            should_request_feedback=should_request_feedback,
+            feedback_request_reason=feedback_request_reason,
+            feedback_request_urgency=feedback_request_urgency,
         )
 
     def _build_revision_proposals(

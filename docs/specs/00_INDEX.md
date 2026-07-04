@@ -71,12 +71,14 @@
 |------|------|
 | [continuum-memory.md](./continuum-memory.md) | 多层记忆设计（瞬态/情景/持久/派生）、更新频率、提升/衰减规则、异步慢反思路径 |
 | [cms-atlas-titans-uplift.md](./cms-atlas-titans-uplift.md) | Tier 2 改动：CMS 内部接入 ATLAS past-aware joint optimization 与 Titans PE-driven 写入门控；SHADOW/ACTIVE 协议、回滚契约、向后兼容法则 |
+| [semantic-embedding-backend.md](./semantic-embedding-backend.md) | 可注入 SemanticEmbeddingBackend 接缝（vz-contracts，默认 fallback stub）+ 复用已加载 LM 的真实文本编码 backend（vz-substrate）；dual_track/evaluation/storage 语义嵌入从 hash-stub 升级为有 substrate 时真实、无则 stub；known-debts #91 修法 1 |
 
 **核心不变量**：
 - 记忆是连续谱，不是二元短期/长期分割
 - 记忆写入通过正式 owner 和 API，不可绕过
 - 慢反思产出两类产物：记忆沉淀 + 策略沉淀
 - ATLAS / Titans uplift 不创造与 CMS 并列的第二个 memory owner；更新规则不被外置 LLM curator 替代
+- 语义嵌入单一 SSOT 入口（`semantic_embedding`），默认 fallback stub，真实 backend 仅注入真实 transformers runtime，prototype 与内容同 backend 同空间比较，可回滚
 
 ---
 
@@ -588,6 +590,23 @@
 - exam / audience / license 的 LLM judge 仅 readout，不反向写 reward / Face 梯度
 
 来源：`docs/api/DLAAS_README.md`（EmoGPT DLaaS 公共 API 形状）；落地路线见 `docs/moving forward/dlaas-platform-rollout.md`。
+
+---
+
+### 22. Learned vs Heuristic Coverage（内核 learned 占比盘点）
+
+**对应需求**：R2（稳定基底 + 自适应控制器）、R3/R4（时间抽象 + 内部控制）、R-PE、R8（快照 SSOT）、R9（层级信用）、R15（可回滚迁移）
+
+| Spec | 内容 |
+|------|------|
+| [learned-vs-heuristic-coverage.md](./learned-vs-heuristic-coverage.md) | 逐 wheel（substrate / temporal / memory / cognition 9 owner）关键决策点四类标注（hand-crafted / bounded-learned / frozen-substrate / should-be-learned-but-hand-crafted）+ `file:line` 证据 + 两 lens learned 占比基线 + should-be-learned→debt 映射（#88–#91 / #79–#81）+ 升级/回滚路线；known-debt #86 修法 1 落地产物 |
+
+**核心不变量**：
+- 分类证据以代码 `file:line` 为 SSOT；改代码先改证据行，文档过时以代码为准
+- `should-be-learned-but-hand-crafted` 项必须链到 known-debt 或升级 gate，禁止用 if/keyword 补丁默默替代应学习项
+- learned 占比必须同时给"按决策点计数"与"按运行时适应影响力"两个 lens；升级走 `WiringLevel` 三态（SHADOW→比对→ACTIVE，可回滚）
+
+来源：known-debt #86 修法 1；分类证据由逐文件核查得出（2026-07-04）。
 
 ---
 
