@@ -82,7 +82,7 @@
 | CMS 三 band 更新门控（write_gate / step_scale / momentum / slow_mix / reset_mix） | `bounded-learned` | `memory/cms.py:460-486`（`LearnedUpdateRule.decide` → `_decide_band_update`）· 规则体 `vz-contracts/learned_update.py:286-366` |
 | Band 基础超参（online_lr=0.65 / session_lr=0.3 / background_lr=0.1 / momentum=0.9 / cadence 2·4 / anti_forgetting=0.1） | `hand-crafted` | `memory/cms.py:82-88,111-115` |
 | 梯度式向量/MLP 更新公式（error→momentum→apply，`bias_delta*0.02`，手工 backprop） | `hand-crafted`（门控 learned，公式固定） | `memory/cms.py:1840-1859` · `cms_band_mlp.py:121-159` |
-| `pe_features_enabled`（Titans PE 4 维进 LearnedUpdateRule） | 构造默认 `False`= `hand-crafted`；开启后=`bounded-learned` | 构造默认 False：`memory/cms.py:92,116`；`build_default_memory_store` 传 True：`memory/store.py:76,112` |
+| `pe_features_enabled`（Titans PE 4 维进 LearnedUpdateRule） | **运行时 `bounded-learned`**（factory 默认 ON）；裸 `CMSMemoryCore` 构造默认 `False` | **运行时 `build_default_memory_store` 传 True**：`memory/store.py:76,112`；裸构造默认 False：`memory/cms.py:92,116` |
 | ATLAS replay（K/gamma 手工默认；replay buffer 加权 joint step） | `hand-crafted` 机制 + `bounded-learned` 门控 | `memory/cms.py:50-58,332-358` |
 | torch band backend（W1/W2 SGD） | `SHADOW/ACTIVE`=`bounded-learned`；默认 `DISABLED`=手工 MLP | `memory/cms.py:100-105,386-432` · `torch_cms_band.py:130-141` |
 | `_score_entry` 检索排序（lexical 3.0/2.0×0.8 + facet **+5** tie-breaker） | `hand-crafted` | `memory/store.py:867-908` |
@@ -91,7 +91,7 @@
 | `apply_prediction_error_signal`（magnitude≥0.15 写 episodic/durable；±0.15 调 promotion_threshold） | `should-be-learned-but-hand-crafted` | `memory/store.py:639-700` |
 | `_owner_signal` 嵌入（substrate feature_surface 55% + semantic hash） | `frozen-substrate` + `hand-crafted` 混合 | `memory/store.py:968-1020` |
 
-**卡点链接**：torch band + Titans PE-gate + ATLAS 默认关 → [#89](../known-debts.md)（CMS torch band + 抗遗忘 evidence 缺位）。
+**卡点链接**：**纠偏（2026-07-04）**——Titans PE-gate + ATLAS replay 经 `build_default_memory_store` **运行时已默认 CPU-ACTIVE**（非"默认关"；"默认关"只对裸 `CMSMemoryCore(...)` 构造成立）。真正默认关的仅 `cms_torch_backend`（GPU-gated）。[#89](../known-debts.md) 修法 **Stage 0 已 land**（2026-07-04）：report-only 抗遗忘双指标（`new_knowledge_absorption` / `old_knowledge_retention`，CMSState + lifecycle_metrics）+ A/B matched-control 证据（uplift 背景带漂移 ≤ rollback）+ rollback drill，见 [cms-atlas-titans-uplift.md](./cms-atlas-titans-uplift.md)。**残余（Stage 1，GPU）**：`cms_torch_backend` SHADOW→ACTIVE + ≥500 turn 真 trace 增益曲线。
 
 ### 5.4 `vz-cognition`（9 owner）
 
@@ -188,7 +188,7 @@ slots：`plan_intent` · `commitment` · `open_loop` · `user_model` · `executi
 | reconciler 阈值 SSOT（agreement=0.40 / mismatch=0.45 / contradiction_topic=0.60） | `hand-crafted` | `apprenticeship/core.py:298-316` |
 | PE overlay severity 合成（contradiction×0.8 + mismatch×0.2） | `hand-crafted` | `prediction/error.py:847-888` |
 
-**卡点链接**：owner 默认 `SHADOW`、约束提取默认 deterministic → [#90](../known-debts.md)（主动学习默认 SHADOW，稀疏反馈请求未成主链）。
+**卡点链接**：[#90](../known-debts.md) 修法 **部分 land**（2026-07-04）——owner 默认 flip 到 **ACTIVE**（仅 apprentice turn 生效），新增 owner 自持的 `should_request_feedback` 契约字段（由 reliability/surprise/version-space 派生）+ `open_loop` actuator（冒出 verification 开环），稀疏反馈请求现已成主链行为，见 [apprenticeship-alignment.md](./apprenticeship-alignment.md) §7.1。**残余（follow-up）**：约束提取 + 覆盖度仍是 deterministic holistic + `stub_semantic_tokens` Jaccard（应升级 LLM structured extractor + 真实 embedding）；`labels_saved` 随机采样对照基线（归 [#87](../known-debts.md) ablation）；`apprenticeship_protocol_alignment` 仍 SHADOW。
 
 #### EvaluationModule — `evaluation`
 
@@ -232,9 +232,9 @@ slots：`plan_intent` · `commitment` · `open_loop` · `user_model` · `executi
 |--------|------|-----------|--------------|
 | temporal torch 后端（SSL / runtime forward / Internal RL）默认 DISABLED | `final_wiring.py:222-224` | [#88](../known-debts.md) | 三后端 SHADOW→ACTIVE + strict-ETA evidence + ≥500 turn `validation_delta≥0.02` |
 | action family cosine 匹配 | `metacontroller_components.py:486-515` | [#88](../known-debts.md) / [#86](../known-debts.md) | 随 ndim/torch metacontroller ACTIVE 让位 learned family 发现 |
-| CMS torch band + Titans PE-gate + ATLAS 默认关 | `cms.py:92,100-105,332-358` | [#89](../known-debts.md) | `cms_torch_backend`/`pe_features_enabled` SHADOW→ACTIVE + 抗遗忘双指标增益 |
+| CMS 抗遗忘（PE-gate + ATLAS replay 运行时**已 CPU-ACTIVE**；torch band 默认 DISABLED） | `store.py:76-77,112-113`(factory) · `cms.py`(proxy) · `final_wiring.py:229`(torch DISABLED) | [#89](../known-debts.md) | ✅ Stage 0 land（report-only 抗遗忘双指标 + A/B 证据 + rollback drill）；残余 Stage 1：`cms_torch_backend` SHADOW→ACTIVE + ≥500 turn 真 trace 增益曲线（GPU） |
 | `apply_prediction_error_signal` 写入 magnitude≥0.15 阈值 | `store.py:639-700` | [#89](../known-debts.md) | learned 写入门控替换固定阈值 |
-| apprenticeship owner 默认 SHADOW + deterministic 约束提取 + stub-token Jaccard | `apprenticeship/core.py:262-275` · `final_wiring.py:199` | [#90](../known-debts.md) | owner ACTIVE + 稀疏反馈 E2E + LLM structured extractor |
+| apprenticeship owner + 稀疏反馈请求（#90 修法**部分 land**：owner ACTIVE + `should_request_feedback` 字段 + open_loop actuator） | `apprenticeship/core.py` · `semantic_state/owners.py`(OpenLoopModule) · `final_wiring.py`(ACTIVE + reposition) | [#90](../known-debts.md) | ✅ ACTIVE + feedback actuator land；残余 deterministic 约束提取/stub Jaccard → LLM extractor + labels_saved 对照基线（[#87](../known-debts.md)）+ protocol ACTIVE |
 | dual_track / evaluation / storage 的语义嵌入（#91 修法 1 **已 land**：走可注入 seam，有 substrate 时真实、无则 stub） | `dual_track/core.py` · `evaluation/semantic_readouts.py` · `application/storage.py` · seam `semantic_embedding.py` | [#91](../known-debts.md) | ✅ seam + substrate LM backend land；残余 apprenticeship（[#90](../known-debts.md)）+ scoring_helpers/runtime_helpers（follow-up） |
 | `score_regimes` 固定系数线性公式 | `regime/scoring.py:201-404` | [#80](../known-debts.md) / [#86](../known-debts.md) | learned regime scoring over traces（需 [#44](../known-debts.md) SYS-1） |
 | `apply_metacontroller_evidence` / `apply_policy_consolidation` 硬编码 regime_id | `regime/identity.py:808-893` | [#79](../known-debts.md) | learned bias-to-prior mapping（[#44](../known-debts.md) land 后让位） |
@@ -247,7 +247,7 @@ slots：`plan_intent` · `commitment` · `open_loop` · `user_model` · `executi
 
 **无 GPU 现在可推进**（把占比从 hand-crafted 移向可观测的 learned 对照）：
 - temporal `temporal_ssl_backend` / `temporal_runtime_backend` 跑 `SHADOW`，比对 learned vs 启发式 β_t/z_t readout（[#88](../known-debts.md) Stage 0）。
-- CMS `pe_features_enabled=True` 跑 `SHADOW`，比对 PE-gated vs legacy 写入（[#89](../known-debts.md) Stage 0）。
+- ~~CMS `pe_features_enabled=True` 跑 `SHADOW` 比对~~ **已 land（2026-07-04）**：PE-gate/replay 运行时本已 ACTIVE；本轮补 report-only 抗遗忘双指标 + A/B matched-control 证据 + rollback drill（[#89](../known-debts.md) Stage 0）。
 - apprenticeship 用 fake-provider 跑稀疏反馈 E2E（[#90](../known-debts.md) Stage 0）。
 - ~~`stub_semantic_embedding` 升级为可注入 backend，默认 fallback stub（[#91](../known-debts.md) 修法 1）~~ **已 land（2026-07-04）**：seam + substrate LM backend + Brain 注入，见 [semantic-embedding-backend.md](./semantic-embedding-backend.md)。
 
@@ -272,6 +272,8 @@ slots：`plan_intent` · `commitment` · `open_loop` · `user_model` · `executi
 
 ## 变更日志
 
+- 2026-07-04：[#89](../known-debts.md) 前提纠偏 + Stage 0 land（CMS 抗遗忘）。**纠正**：CMS 的 PE-gate + ATLAS replay 经 `build_default_memory_store` 运行时已默认 CPU-ACTIVE（bounded-learned），此前本 spec 记「默认关」不准（只对裸 `CMSMemoryCore(...)` 构造成立）；真正默认关的仅 `cms_torch_backend`（GPU-gated）。本轮 land：CMS owner report-only 抗遗忘双指标 `new_knowledge_absorption` / `old_knowledge_retention`（CMSState + lifecycle_metrics，由真实 per-band drift 派生，不改学习行为）+ A/B matched-control 证据（uplift 背景带漂移 ≤ rollback）+ rollback drill（`tests/test_cms_anti_forgetting_evidence.py`）。残余 Stage 1（torch band ACTIVE + ≥500 turn 真 trace）GPU follow-up。
+- 2026-07-04：[#90](../known-debts.md) 修法部分 land（主动学习）。`apprenticeship_alignment` 默认 flip 到 ACTIVE（仅 apprentice turn 生效，普通轮 idle → no-op），新增 owner 自持 `should_request_feedback` / `feedback_request_reason` / `feedback_request_urgency` 字段 + `open_loop` actuator（冒出 verification 开环，`build_final_runtime_modules` 重排保证 open_loop 在 apprenticeship 之后）。稀疏反馈请求成主链行为；残余（LLM extractor / labels_saved 对照基线 / protocol ACTIVE）。见 [apprenticeship-alignment.md](./apprenticeship-alignment.md) §7.1。
 - 2026-07-04：[#91](../known-debts.md) 修法 1 land。语义嵌入 stub 升级为可注入 `SemanticEmbeddingBackend` 接缝（vz-contracts，默认 fallback stub）+ 复用已加载 LM 的 `SubstrateTextEncoderBackend`（vz-substrate）+ Brain 仅对真实 transformers runtime 注入；`dual_track` / `evaluation` / `application/storage` 迁到接缝。默认 wiring 下无 substrate / synthetic 路径**占比不变**（仍 stub）；有真实 substrate 时上述 stub 决策点变为 substrate-grounded。残余（apprenticeship token 归 [#90](../known-debts.md)；scoring_helpers/runtime_helpers 字面量 prototype follow-up）。见 [semantic-embedding-backend.md](./semantic-embedding-backend.md)。
 - 2026-07-04：protocol-temporal-prior bridge 落地（见 `temporal-abstraction.md`）。此前本 spec 隐含的落差之一——BehaviorProtocol `active_mixture` 声明被 metacontroller 消费但 temporal 侧从未接线——已闭合：`active_mixture` 现经 orchestrator-mediated 上一轮 carryover 压缩成 `beta_t` switch-pressure prior。**默认 `FinalRolloutConfig.protocol_temporal_prior=DISABLED`**，故本 spec 的 by-count / by-influence learned 占比在默认 wiring 下**不变**；该 prior 仍是 hand-crafted 的 dominance/ambiguity→switch 映射（应随 ndim/torch metacontroller ACTIVE 让位学得的 family selection），归入 `should-be-learned-but-hand-crafted` 桶、挂钩 [#88](../known-debts.md)。升级路径：`protocol_temporal_prior` SHADOW→ACTIVE 需 dual-run 快照比对 + 回滚。
 - 2026-07-04：v0.1 初版。逐文件核查 `vz-substrate` / `vz-temporal` / `vz-memory` / `vz-cognition`（9 owner）关键决策点，四类标注 + `file:line` 证据 + 两 lens learned 占比基线 + should-be-learned→debt 映射。落地 [known-debts #86](../known-debts.md) 修法 1。

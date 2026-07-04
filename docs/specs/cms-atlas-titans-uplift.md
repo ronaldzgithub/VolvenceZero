@@ -169,6 +169,16 @@ The SHADOW evidence held across the local validation ladder documented in `cms-a
 
 Pass `cms_pe_features_enabled=False, cms_replay_window_size=None` to `build_default_memory_store(...)` or construct `CMSMemoryCore(...)` directly with the default off flags. CMS reverts to legacy behavior. Old/new checkpoints remain interoperable per Section 5.
 
+### 7.4 Anti-forgetting report-only readout + evidence (#89, 2026-07-04)
+
+The learned CMS path (PE-gate + ATLAS replay) is CPU-ACTIVE by default via the factory; what was missing was *evidence*. Added (report-only, no effect on learning, does not enter any acceptance gate):
+
+- **`CMSState.new_knowledge_absorption` / `old_knowledge_retention`** (both in `[0, 1]`): computed by `CMSMemoryCore` from the actual per-turn band drift — `new_knowledge_absorption` = normalized L2 movement of the online-fast band toward the new signal this turn; `old_knowledge_retention` = `1 - normalized drift of the background-slow band` (the slow substrate should barely move; ATLAS replay + anti-forgetting backflow preserve it).
+- Mirrored into `MemoryStore.snapshot().lifecycle_metrics` as `cms_old_knowledge_retention` / `cms_new_knowledge_absorption`, plus observability flags `cms_pe_gate_active` / `cms_atlas_replay_active`.
+- **A/B matched-control evidence** (`tests/test_cms_anti_forgetting_evidence.py`): the same interleaved trace (establish an old signal, then hammer a distinct new signal) through the uplift store vs an explicitly rolled-back store; the uplift path's background-slow drift is `<=` the legacy path's (deterministic, so a stable directional claim — uplift does not forget worse than legacy, and the two paths measurably differ). Report-only; this is unit-level evidence, NOT the >=500-turn scale evidence.
+
+**torch band ACTIVE promotion (Stage 1, follow-up):** flipping `cms_torch_backend` DISABLED→SHADOW→ACTIVE (autograd write-back into W1/W2) and the >=500-turn real-substrate anti-forgetting gain curves + torch rollback drill are GPU-gated and tracked as known-debt #89 Stage 1 (same cadence as #88 / #6 / #7).
+
 ## 8. Acceptance ladder (must pass in order)
 
 1. Unit: `test_cms_uplift_disabled_path_is_bit_equal_to_legacy` — disabled flags reproduce pre-uplift band MLP / decisions for a deterministic seed.

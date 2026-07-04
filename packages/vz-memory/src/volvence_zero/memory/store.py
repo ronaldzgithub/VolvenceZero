@@ -523,6 +523,23 @@ class MemoryStore:
                     hope_state.generated_reset_rate if hope_state is not None else 0.0,
                 ),
                 ("hope_self_mod_guarded", float(hope_state.guarded) if hope_state is not None else 0.0),
+                # #89 anti-forgetting proxies + uplift observability (report-only).
+                (
+                    "cms_old_knowledge_retention",
+                    cms_state.old_knowledge_retention if cms_state is not None else 1.0,
+                ),
+                (
+                    "cms_new_knowledge_absorption",
+                    cms_state.new_knowledge_absorption if cms_state is not None else 0.0,
+                ),
+                (
+                    "cms_pe_gate_active",
+                    float(cms_state.titans_pe_gate_active) if cms_state is not None else 0.0,
+                ),
+                (
+                    "cms_atlas_replay_active",
+                    float(cms_state.atlas_replay_active) if cms_state is not None else 0.0,
+                ),
             ),
             cms_band_vectors=(
                 (

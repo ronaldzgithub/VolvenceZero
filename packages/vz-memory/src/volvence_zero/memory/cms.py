@@ -169,6 +169,12 @@ class CMSMemoryCore:
         self._last_update_ms = 0
         self._session_observations_since_update = 0
         self._background_observations_since_update = 0
+        # #89 anti-forgetting proxies (report-only). Updated at the end of
+        # each substrate observation from the actual per-turn band drift.
+        # absorption = fast band moved toward the new signal; retention =
+        # 1 - slow band drift (the substrate should barely move).
+        self._last_new_knowledge_absorption = 0.0
+        self._last_old_knowledge_retention = 1.0
 
         if mode == "mlp":
             self._dim = d_in
@@ -546,6 +552,61 @@ class CMSMemoryCore:
         return self._latest_band_decisions.get(band_id)
 
     # ------------------------------------------------------------------
+    # #89 anti-forgetting proxies (report-only)
+    # ------------------------------------------------------------------
+
+    def _band_representation(self, band_id: str) -> tuple[float, ...]:
+        """Current representation vector for a band, mode-agnostic."""
+        if self._mode == "mlp":
+            mlp = {
+                "online-fast": self._online_mlp,
+                "session-medium": self._session_mlp,
+                "background-slow": self._background_mlp,
+            }[band_id]
+            return mlp.representation_vector()
+        return {
+            "online-fast": self._online_fast,
+            "session-medium": self._session_medium,
+            "background-slow": self._background_slow,
+        }[band_id]
+
+    @staticmethod
+    def _normalized_drift(
+        before: tuple[float, ...], after: tuple[float, ...]
+    ) -> float:
+        """L2 movement of a band this turn, normalized to [0, 1].
+
+        Normalized by the pre-update magnitude so the proxy is scale-free;
+        a band that barely moves reports ~0, one that fully rewrites reports
+        ~1. Pure readout — no effect on learning.
+        """
+        if not before or not after:
+            return 0.0
+        delta_sq = sum((a - b) * (a - b) for a, b in zip(after, before, strict=False))
+        base_sq = sum(b * b for b in before)
+        norm = math.sqrt(delta_sq)
+        base = math.sqrt(base_sq)
+        if base <= 1e-9:
+            # Cold start (zero substrate): any movement is "full" absorption.
+            return _clamp(norm)
+        return _clamp(norm / base)
+
+    def _update_anti_forgetting_proxies(
+        self,
+        *,
+        online_before: tuple[float, ...],
+        background_before: tuple[float, ...],
+    ) -> None:
+        online_drift = self._normalized_drift(
+            online_before, self._band_representation("online-fast")
+        )
+        background_drift = self._normalized_drift(
+            background_before, self._band_representation("background-slow")
+        )
+        self._last_new_knowledge_absorption = online_drift
+        self._last_old_knowledge_retention = _clamp(1.0 - background_drift)
+
+    # ------------------------------------------------------------------
     # observe_substrate
     # ------------------------------------------------------------------
 
@@ -559,6 +620,9 @@ class CMSMemoryCore:
         self._set_latest_pe_features(prediction_error)
         signal = self._signal_from_substrate(substrate_snapshot)
         self._total_observations += 1
+        # #89: capture pre-update band reps to measure this turn's drift.
+        _proxy_online_before = self._band_representation("online-fast")
+        _proxy_background_before = self._band_representation("background-slow")
 
         if self._mode == "mlp":
             online_before = self._online_mlp.representation_vector()
@@ -670,6 +734,10 @@ class CMSMemoryCore:
             if self._anti_forgetting > 0:
                 self._apply_anti_forgetting()
 
+        self._update_anti_forgetting_proxies(
+            online_before=_proxy_online_before,
+            background_before=_proxy_background_before,
+        )
         self._last_update_ms = timestamp_ms
 
     # ------------------------------------------------------------------
@@ -1081,6 +1149,9 @@ class CMSMemoryCore:
                 (band_id, int(self._replay_window_sizes.get(band_id, 1)))
                 for band_id in _REPLAY_DEFAULT_K
             ),
+            # #89 anti-forgetting proxies (report-only).
+            "new_knowledge_absorption": _clamp(self._last_new_knowledge_absorption),
+            "old_knowledge_retention": _clamp(self._last_old_knowledge_retention),
         }
 
     def _snapshot_band_extras(self, band_id: str) -> dict[str, object]:

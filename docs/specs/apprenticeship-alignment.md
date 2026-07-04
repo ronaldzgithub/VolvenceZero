@@ -79,19 +79,30 @@ PE 仍是唯一所有者；本 owner 不重建 PE 内部状态。
 2. 失配/惊奇经 PE owner 进主链；owner 不重建 PE 状态（R-PE）
 3. 信念修正只发 proposal，经单写者 store；不绕过 belief/goal owner
 4. 矛盾需 margin 或 recurrence 确认；单次低置信对立 = 噪声，不判矛盾
-5. 默认 SHADOW；PE overlay 在 SHADOW 为 no-op；可回滚（R15）
+5. 默认 ACTIVE（#90），仅 apprentice/ingestion turn 生效；普通轮 idle → PE overlay + 反馈请求均 no-op；可回滚（R15）
 6. 相似度/分级走语义/重叠度量，不用关键词→行为硬映射
+7. 反馈请求（`should_request_feedback`）由 owner 自身 reliability/surprise/version-space 派生（R8 owner 自持），下游 actuator 消费快照、不重建
+
+## 7.1 主动反馈请求（#90）
+
+reliable-active-apprenticeship 的保证是：只在保证最优时自行行动，否则**主动求证**（并尽量少问）。owner 把这一行为做成显式、owner 自持的信号：
+
+- 快照新增字段：`should_request_feedback: bool` / `feedback_request_reason: str` / `feedback_request_urgency: float`。
+- 触发（owner 内、非关键词）：`reliability == DEFERRING and guidance_surprise >= thresholds.feedback_request_surprise`（默认 = mismatch 0.45）**或** `version_space_status == INCONSISTENT`；`urgency = clamp(max(guidance_surprise, max contradiction severity))`；idle turn 恒不请求。
+- **actuator**：`open_loop` owner 依赖 `apprenticeship_alignment`，当 `should_request_feedback` 为真时冒出一条 verification 开环（`apprenticeship_verification_requests`）并抬高 `closure_pressure` / `control_signal`，让下游 followup / response assembly 把"求证这条 guidance"当未闭合线程处理。
+- 执行顺序：kernel 按列表序执行（拓扑排序在双向环下回退输入序），`build_final_runtime_modules` 通过 `_reposition_open_loop_after_apprenticeship` 确保 `open_loop` 在 `apprenticeship_alignment` 之后运行（`open_loop` 的硬消费者仅 `GroupModule`[SHADOW，已读 placeholder] 与 `response_assembly`[最后运行]，重排安全）。
+- **未做（follow-up）**：LLM structured constraint extractor（仍用 deterministic holistic）；`labels_saved` 随机采样对照基线（归 #87 ablation）；`apprenticeship_protocol_alignment` ACTIVE。
 
 ## 8. 迁移（WiringLevel 三态）
 
-- **SHADOW**（默认）：发布快照、与现有 PE/belief 并跑比对；不发 PE overlay（SHADOW 不进 active 链）、默认不开 revision
-- **ACTIVE**：PE 消费 overlay；可开 `revision_enabled` 让信念修正提案进 session-post writeback
+- **SHADOW**：发布快照、与现有 PE/belief 并跑比对；不发 PE overlay（SHADOW 不进 active 链）、无反馈请求 actuation
+- **ACTIVE**（默认，#90 起）：PE 消费 overlay；`should_request_feedback` 经 open_loop actuator 冒出；可开 `revision_enabled` 让信念修正提案进 session-post writeback
 - **DISABLED**：发布 placeholder
-- 回滚：`FinalRolloutConfig.apprenticeship_alignment` 改回 SHADOW/DISABLED
+- 回滚：`FinalRolloutConfig.apprenticeship_alignment` 改回 SHADOW/DISABLED（overlay + 请求恢复 no-op）
 
 ## 9. 测试
 
-`tests/test_apprenticeship_alignment.py`：confirming（agreement/consistent）、novel（deferring/shrinking/mismatch）、high-confidence 对立（版本空间塌空 + 定位互斥集）、低置信单次（噪声不判矛盾）、recurrence 确认（Massart）、AGM 最小改动提案 + 单写者落地、PE overlay no-op（absent/idle）与矛盾抬高 magnitude。
+`tests/test_apprenticeship_alignment.py`：confirming（agreement/consistent，不请求反馈）、novel（deferring/shrinking/mismatch，请求反馈）、high-confidence 对立（版本空间塌空 + 定位互斥集，请求反馈）、低置信单次（噪声不判矛盾）、recurrence 确认（Massart）、AGM 最小改动提案 + 单写者落地、PE overlay no-op（absent/idle）与矛盾抬高 magnitude。`tests/test_open_loop_apprenticeship_actuator.py`：open_loop 冒出/不冒出 verification 请求（request/idle/placeholder/standalone 四态）。`tests/test_apprenticeship_active_e2e.py`：默认 ACTIVE 下 apprentice turn 端到端（非 idle 快照 + should_request_feedback + open_loop verification request）与普通轮 no-op。
 
 ## 10. 参考
 

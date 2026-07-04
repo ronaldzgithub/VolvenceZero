@@ -1041,6 +1041,10 @@ class CMSState:
     atlas_replay_active: bool = False                   # True when ATLAS past-aware joint-optimization is on
     titans_pe_gate_active: bool = False                 # True when Titans PE-driven write gating is on
     replay_window_sizes: tuple[tuple[str, int], ...] = ()  # (band_id, configured K) pairs
+    # #89 anti-forgetting proxies (report-only; both in [0,1]; owner-derived
+    # from per-turn band drift; do NOT enter any acceptance gate).
+    new_knowledge_absorption: float = 0.0               # online-fast band movement toward the new signal this turn
+    old_knowledge_retention: float = 1.0                # 1 - background-slow band drift this turn
 
 @dataclass(frozen=True)
 class CMSCheckpointState:

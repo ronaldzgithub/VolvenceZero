@@ -1310,15 +1310,13 @@ def _prediction_action_context_from_upstream(
     )
 
 
-# Temporal owners that accept the protocol-temporal-prior carryover.
-# Both staged track owners (``world_temporal`` / ``self_temporal``) and the
-# legacy aggregate (``temporal_abstraction``) expose
-# ``observe_active_mixture_carryover``.
-_TEMPORAL_PRIOR_CARRYOVER_SLOTS = (
-    "world_temporal",
-    "self_temporal",
-    "temporal_abstraction",
-)
+# Temporal owners that accept the protocol-temporal-prior carryover: the
+# ones that actually run a metacontroller policy step and expose
+# ``observe_active_mixture_carryover``. Matched by TYPE, not slot_name —
+# ``TemporalAggregateModule`` also owns ``temporal_abstraction`` but only
+# aggregates ``world_temporal`` / ``self_temporal`` (no policy step, no
+# carryover hook), so a slot-name match would hit it and AttributeError.
+_TEMPORAL_PRIOR_CARRYOVER_TYPES = (TrackTemporalModule, TemporalModule)
 
 
 def build_final_runtime_modules(
@@ -1571,7 +1569,7 @@ def build_final_runtime_modules(
         ),
         registry_module=protocol_registry_owner,
     )
-    return [
+    _runtime_modules = [
         # dialogue_external_outcome must be published before PE and
         # regime (both depend on it). The PE<->regime cycle forces
         # topo_sort into input-order fallback, so module order matters.
@@ -1764,6 +1762,45 @@ def build_final_runtime_modules(
         protocol_revision_log_owner,
         protocol_revision_queue_owner,
     ]
+    return _reposition_open_loop_after_apprenticeship(_runtime_modules)
+
+
+def _reposition_open_loop_after_apprenticeship(modules: list) -> list:
+    """#90: ensure ``open_loop`` executes after ``apprenticeship_alignment``.
+
+    The kernel runs modules in list order (topo_sort falls back to input
+    order under this graph's bidirectional cycles). ``open_loop`` now
+    consumes ``apprenticeship_alignment.should_request_feedback`` to surface
+    a verification loop, so it must come after it. ``apprenticeship_alignment``
+    cannot move earlier (it depends on the other semantic owners), and
+    ``open_loop``'s only hard dependents are ``GroupModule`` (SHADOW, already
+    positioned before the semantic block so it already reads a placeholder)
+    and ``response_assembly`` (runs last) — so moving ``open_loop`` later is
+    safe. No-op when the graph is already ordered or either owner is absent.
+    """
+    open_loop_index = next(
+        (i for i, m in enumerate(modules) if m.slot_name == "open_loop"), None
+    )
+    appr_index = next(
+        (
+            i
+            for i, m in enumerate(modules)
+            if m.slot_name == "apprenticeship_alignment"
+        ),
+        None,
+    )
+    if (
+        open_loop_index is None
+        or appr_index is None
+        or open_loop_index > appr_index
+    ):
+        return modules
+    open_loop_module = modules.pop(open_loop_index)
+    # After popping the earlier open_loop, apprenticeship shifted left by
+    # one to (appr_index - 1); inserting at appr_index places open_loop
+    # immediately after it.
+    modules.insert(appr_index, open_loop_module)
+    return modules
 
 
 async def run_final_wiring_turn(
@@ -1884,7 +1921,7 @@ async def run_final_wiring_turn(
             _prev_active_mixture.value if _prev_active_mixture is not None else None
         )
         for module in modules:
-            if module.slot_name in _TEMPORAL_PRIOR_CARRYOVER_SLOTS:
+            if isinstance(module, _TEMPORAL_PRIOR_CARRYOVER_TYPES):
                 module.observe_active_mixture_carryover(_prev_active_mixture_value)
     recorder = EventRecorder()
     registry = SlotRegistry()

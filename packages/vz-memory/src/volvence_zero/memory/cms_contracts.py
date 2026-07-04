@@ -127,6 +127,17 @@ class CMSState:
     atlas_replay_active: bool = False
     titans_pe_gate_active: bool = False
     replay_window_sizes: tuple[tuple[str, int], ...] = ()
+    # #89 anti-forgetting proxies (report-only, additive, frozen). Both in
+    # [0, 1]. ``new_knowledge_absorption`` = how much the online-fast band
+    # moved toward the latest signal this turn (fast adaptation).
+    # ``old_knowledge_retention`` = 1 - normalized drift of the
+    # background-slow band this turn (the slow substrate should barely move;
+    # ATLAS replay + anti-forgetting backflow preserve it). These are pure
+    # readouts derived from the owner's own per-band update magnitudes; they
+    # do NOT enter any acceptance gate and do NOT change learning behaviour.
+    # See docs/specs/cms-atlas-titans-uplift.md.
+    new_knowledge_absorption: float = 0.0
+    old_knowledge_retention: float = 1.0
 
 
 @dataclass(frozen=True)

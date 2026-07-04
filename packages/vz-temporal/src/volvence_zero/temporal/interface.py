@@ -202,6 +202,14 @@ class MetacontrollerRuntimeState:
     fast_prior_family_bias: float = 0.0
     fast_prior_sequence_bias: float = 0.0
     fast_prior_switch_pressure_delta: float = 0.0
+    # protocol-temporal-prior bridge (observable SHADOW evidence). The prior
+    # is recorded every turn the bridge is not DISABLED; ``applied`` reflects
+    # whether it actually reached beta_t (ACTIVE) vs recorded-only (SHADOW).
+    # This lets a SHADOW run be compared against the ACTIVE / baseline
+    # trajectories through the normal runtime-state export channel.
+    protocol_prior_switch_pressure_delta: float = 0.0
+    protocol_prior_strength: float = 0.0
+    protocol_prior_applied: bool = False
     learned_update_rule_state: LearnedUpdateRuleState | None = None
     # Packet C (long-horizon-closure): optional affordance selection
     # published by the metacontroller. None when the metacontroller
@@ -498,6 +506,7 @@ class MetacontrollerParameterStore:
         # bridge adds no snapshot-schema ripple and rolls back cleanly.
         self._protocol_prior_switch_pressure_delta: float = 0.0
         self._protocol_prior_strength: float = 0.0
+        self._protocol_prior_applied: bool = False
 
     @property
     def n_z(self) -> int:
@@ -613,6 +622,9 @@ class MetacontrollerParameterStore:
             fast_prior_family_bias=self.latest_fast_prior_family_bias,
             fast_prior_sequence_bias=self.latest_fast_prior_sequence_bias,
             fast_prior_switch_pressure_delta=self.latest_fast_prior_switch_pressure_delta,
+            protocol_prior_switch_pressure_delta=self._protocol_prior_switch_pressure_delta,
+            protocol_prior_strength=self._protocol_prior_strength,
+            protocol_prior_applied=self._protocol_prior_applied,
             learned_update_rule_state=self.latest_learned_update_rule_state,
             structure_frozen=self.structure_frozen,
             learning_phase=self.learning_phase,
@@ -963,23 +975,31 @@ class MetacontrollerParameterStore:
         *,
         strength: float,
         switch_pressure_delta: float,
+        applied: bool = False,
     ) -> None:
         """Record the BehaviorProtocol active-mixture switch-pressure prior.
 
         Stored as owner-side scalars (not the frozen telemetry snapshot).
         Consumed via :meth:`protocol_prior_switch_pressure_delta` and only
         reaches ``beta_t`` when the policy has the bridge enabled (ACTIVE).
+        ``applied`` mirrors that enable state so a SHADOW (recorded-only)
+        run is observable via :meth:`export_runtime_state` and can be
+        compared against ACTIVE / baseline trajectories.
         """
         self._protocol_prior_strength = max(0.0, min(1.0, strength))
         self._protocol_prior_switch_pressure_delta = max(
             -0.25, min(0.25, switch_pressure_delta)
         )
+        self._protocol_prior_applied = bool(applied)
 
     def protocol_prior_switch_pressure_delta(self) -> float:
         return self._protocol_prior_switch_pressure_delta
 
     def protocol_prior_strength(self) -> float:
         return self._protocol_prior_strength
+
+    def protocol_prior_applied(self) -> bool:
+        return self._protocol_prior_applied
 
     def active_family_continuation_signals(
         self,
@@ -2250,7 +2270,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
 
         if not isinstance(active_mixture_snapshot, ActiveMixtureSnapshot):
             self._parameter_store.record_protocol_prior_signals(
-                strength=0.0, switch_pressure_delta=0.0
+                strength=0.0,
+                switch_pressure_delta=0.0,
+                applied=self._protocol_prior_enabled,
             )
             return
         weights = tuple(
@@ -2260,13 +2282,17 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         if len(weights) < 2:
             # Single (or empty) mixture: no differential prior.
             self._parameter_store.record_protocol_prior_signals(
-                strength=0.0, switch_pressure_delta=0.0
+                strength=0.0,
+                switch_pressure_delta=0.0,
+                applied=self._protocol_prior_enabled,
             )
             return
         total = sum(weights)
         if total <= 0.0:
             self._parameter_store.record_protocol_prior_signals(
-                strength=0.0, switch_pressure_delta=0.0
+                strength=0.0,
+                switch_pressure_delta=0.0,
+                applied=self._protocol_prior_enabled,
             )
             return
         normalized = tuple(w / total for w in weights)
@@ -2288,6 +2314,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._parameter_store.record_protocol_prior_signals(
             strength=strength,
             switch_pressure_delta=switch_pressure_delta,
+            applied=self._protocol_prior_enabled,
         )
 
     def _protocol_prior_switch_delta(self) -> float:
@@ -3131,6 +3158,18 @@ def build_temporal_runtime_state_aggregate(
             world_state.fast_prior_switch_pressure_delta + self_state.fast_prior_switch_pressure_delta
         )
         / 2.0,
+        protocol_prior_switch_pressure_delta=(
+            world_state.protocol_prior_switch_pressure_delta
+            + self_state.protocol_prior_switch_pressure_delta
+        )
+        / 2.0,
+        protocol_prior_strength=(
+            world_state.protocol_prior_strength + self_state.protocol_prior_strength
+        )
+        / 2.0,
+        protocol_prior_applied=(
+            world_state.protocol_prior_applied or self_state.protocol_prior_applied
+        ),
         learned_update_rule_state=(
             world_state.learned_update_rule_state or self_state.learned_update_rule_state
         ),

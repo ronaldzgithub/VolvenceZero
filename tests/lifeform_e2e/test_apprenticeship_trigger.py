@@ -153,6 +153,10 @@ def _build_probe_brain_session(vitals_module):
                 active_regime=None,
                 active_abstract_action=None,
                 active_snapshots={},
+                # LifeformSession.run_turn reads result.shadow_snapshots
+                # (latest_shadow_snapshots). The probe must expose it to
+                # match the AgentTurnResult contract.
+                shadow_snapshots={},
             )
 
         def reconcile_case_memory_provisional(
