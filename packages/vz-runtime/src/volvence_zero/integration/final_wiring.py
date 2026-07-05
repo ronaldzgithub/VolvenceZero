@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import warnings
 from dataclasses import dataclass, replace
 from types import MappingProxyType
@@ -442,6 +443,30 @@ class FinalRolloutConfig:
 
     def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
         return self.level_for(module_name, default) is WiringLevel.ACTIVE
+
+
+def resolve_final_rollout_config(
+    base: FinalRolloutConfig | None = None,
+) -> FinalRolloutConfig:
+    """Apply operator env overrides before constructing ``AgentSessionRunner``.
+
+    ``VZ_TORCH_BACKENDS=active`` flips the four GPU-gated autograd backends
+    (``temporal_ssl_backend``, ``temporal_runtime_backend``,
+    ``internal_rl_backend``, ``cms_torch_backend``) from DISABLED to ACTIVE
+    for evidence runs. Rollback: unset the env var.
+    """
+
+    config = base or FinalRolloutConfig()
+    flag = os.environ.get("VZ_TORCH_BACKENDS", "").strip().lower()
+    if flag not in ("1", "true", "active", "on", "yes"):
+        return config
+    return replace(
+        config,
+        temporal_ssl_backend=WiringLevel.ACTIVE,
+        temporal_runtime_backend=WiringLevel.ACTIVE,
+        internal_rl_backend=WiringLevel.ACTIVE,
+        cms_torch_backend=WiringLevel.ACTIVE,
+    )
 
 
 def reflection_promotion_eligible(

@@ -1,0 +1,3 @@
+2026-07-05 20:28:55,331 INFO lifeform-serve: substrate_mode=hf-shared; eagerly loading model_id=Qwen/Qwen2.5-1.5B-Instruct on device=cuda (local_files_only=False)
+2026-07-05 20:29:02,582 INFO lifeform-serve: shared substrate ready: model_id=Qwen/Qwen2.5-1.5B-Instruct runtime_origin=hf-pretrained
+2026-07-05 20:29:55,535 INFO aiohttp.access: 127.0.0.1 [05/Jul/2026:20:29:55 +0800] "GET /v1/health HTTP/1.1" 200 225 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; zh-CN) WindowsPowerShell/5.1.26100.8655"

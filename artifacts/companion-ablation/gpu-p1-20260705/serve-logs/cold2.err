@@ -1,0 +1,28 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\Scripts\lifeform-serve.exe\__main__.py", line 4, in <module>
+  File "E:\VolvenceDeploy\external\VolvenceZero\packages\lifeform-service\src\lifeform_service\__init__.py", line 30, in <module>
+    from lifeform_service.app import create_app
+  File "E:\VolvenceDeploy\external\VolvenceZero\packages\lifeform-service\src\lifeform_service\app.py", line 61, in <module>
+    from lifeform_core import LlmJsonClient
+  File "E:\VolvenceDeploy\external\VolvenceZero\packages\lifeform-core\src\lifeform_core\__init__.py", line 15, in <module>
+    from lifeform_core.lifeform import Lifeform, LifeformConfig, LifeformSession
+  File "E:\VolvenceDeploy\external\VolvenceZero\packages\lifeform-core\src\lifeform_core\lifeform.py", line 50, in <module>
+    from volvence_zero.agent.response import (
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\agent\__init__.py", line 1, in <module>
+    from volvence_zero.agent.cli import build_arg_parser, main, render_turn_result, run_repl
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\agent\cli.py", line 10, in <module>
+    from volvence_zero.agent.dialogue import (
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\agent\dialogue\__init__.py", line 29, in <module>
+    from volvence_zero.agent.dialogue._legacy import *  # noqa: F401,F403
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\agent\dialogue\_legacy.py", line 23, in <module>
+    from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\agent\session.py", line 102, in <module>
+    from volvence_zero.integration import (
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\integration\__init__.py", line 1, in <module>
+    from volvence_zero.integration.final_wiring import (
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\integration\final_wiring.py", line 10, in <module>
+    from volvence_zero.application.runtime import (
+ImportError: cannot import name 'ApprenticeshipProtocolAlignmentModule' from 'volvence_zero.application.runtime' (E:\VolvenceDeploy\external\VolvenceZero\packages\vz-application\src\volvence_zero\application\runtime.py)

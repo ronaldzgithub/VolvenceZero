@@ -1,0 +1,3 @@
+2026-07-05 20:30:39,304 INFO companion_ref_harness.cli: companion-ref-harness serving on http://127.0.0.1:8500 (components=embed,episodic,summary,user_model family=openai-compat model=lifeform-raw store=sqlite)
+2026-07-05 20:31:03,195 INFO aiohttp.access: 127.0.0.1 [05/Jul/2026:20:31:03 +0800] "GET /healthz HTTP/1.1" 200 293 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; zh-CN) WindowsPowerShell/5.1.26100.8655"
+2026-07-05 20:33:07,353 INFO aiohttp.access: 127.0.0.1 [05/Jul/2026:20:33:07 +0800] "GET /healthz HTTP/1.1" 200 293 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; zh-CN) WindowsPowerShell/5.1.26100.8655"

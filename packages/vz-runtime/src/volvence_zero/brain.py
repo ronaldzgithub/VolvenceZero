@@ -29,7 +29,7 @@ from volvence_zero.environment import (
     EnvironmentOutcome,
 )
 from volvence_zero.identity_seed import IdentitySeed
-from volvence_zero.integration import FinalRolloutConfig
+from volvence_zero.integration import FinalRolloutConfig, resolve_final_rollout_config
 from volvence_zero.memory import (
     AnonymousIdentityProvider,
     IdentityProvider,
@@ -641,7 +641,7 @@ class Brain:
                 )
         runner_kwargs: dict[str, object] = dict(
             session_id=session_id,
-            config=self._config.final_rollout_config or FinalRolloutConfig(),
+            config=resolve_final_rollout_config(self._config.final_rollout_config),
             application_persistence_dir=self._config.application_persistence_dir,
             domain_experience_packages=self._config.domain_experience_packages,
             default_residual_runtime=runtime,

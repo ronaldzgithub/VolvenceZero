@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\Scripts\companion-ref-harness.exe\__main__.py", line 7, in <module>
+  File "E:\VolvenceDeploy\external\VolvenceZero\packages\companion-ref-harness\src\companion_ref_harness\cli.py", line 57, in main
+    return _cmd_serve(args)
+           ^^^^^^^^^^^^^^^^
+  File "E:\VolvenceDeploy\external\VolvenceZero\packages\companion-ref-harness\src\companion_ref_harness\cli.py", line 237, in _cmd_serve
+    app = build_app(
+          ^^^^^^^^^^
+  File "E:\VolvenceDeploy\external\VolvenceZero\packages\companion-ref-harness\src\companion_ref_harness\server.py", line 352, in build_app
+    policy = HarnessPolicy(components)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\VolvenceDeploy\external\VolvenceZero\packages\companion-ref-harness\src\companion_ref_harness\policy.py", line 162, in __init__
+    raise NotImplementedError(
+NotImplementedError: component 'user_model' is reserved for H-B / H-C; H-A wires only 'summary'. Adjust --components or upgrade to the H-B/H-C wheel when available.
