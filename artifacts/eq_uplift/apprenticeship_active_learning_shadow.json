@@ -1,0 +1,145 @@
+{
+  "probe": "apprenticeship_active_learning_stage0",
+  "spec": "docs/specs/apprenticeship-alignment.md",
+  "debt": 90,
+  "stage": 0,
+  "scope_note": "FAKE-PROVIDER LABEL-ECONOMY ONLY. Uses the deterministic LLM-free extractor. Does NOT prove sparse-feedback gain on a real substrate (needs a real LLM structured extractor + human-in-the-loop trace, gate on GPU/keys -- tracked in debt #90).",
+  "apprentice_turns": 9,
+  "metrics": {
+    "feedback_requests": 3,
+    "ask_every_turn_labels": 9,
+    "feedback_request_rate": 0.3333,
+    "labels_saved": 6,
+    "labels_saved_ratio": 0.6667,
+    "novel_all_requested": true,
+    "covered_none_requested": true,
+    "version_space_shrink": [
+      {
+        "topic": "empathy_first",
+        "novel_surprise": 1.0,
+        "covered_surprise": 0.0,
+        "shrank": true
+      },
+      {
+        "topic": "cite_sources",
+        "novel_surprise": 0.9434,
+        "covered_surprise": 0.0,
+        "shrank": true
+      },
+      {
+        "topic": "boundary_consent",
+        "novel_surprise": 0.9818,
+        "covered_surprise": 0.0,
+        "shrank": true
+      }
+    ]
+  },
+  "exit0": {
+    "mechanism_live": true,
+    "saves_labels": true,
+    "version_space_shrinks": true,
+    "json_non_empty": true,
+    "pass": true
+  },
+  "per_turn": [
+    {
+      "turn": 1,
+      "topic": "empathy_first",
+      "already_taught": false,
+      "version_space_status": "shrinking",
+      "reliability": "deferring",
+      "guidance_surprise": 1.0,
+      "should_request_feedback": true,
+      "feedback_request_urgency": 1.0,
+      "in_agreement_region": false
+    },
+    {
+      "turn": 2,
+      "topic": "empathy_first",
+      "already_taught": true,
+      "version_space_status": "consistent",
+      "reliability": "reliable",
+      "guidance_surprise": 0.0,
+      "should_request_feedback": false,
+      "feedback_request_urgency": 0.0,
+      "in_agreement_region": true
+    },
+    {
+      "turn": 3,
+      "topic": "cite_sources",
+      "already_taught": false,
+      "version_space_status": "shrinking",
+      "reliability": "deferring",
+      "guidance_surprise": 0.9434,
+      "should_request_feedback": true,
+      "feedback_request_urgency": 0.9434,
+      "in_agreement_region": false
+    },
+    {
+      "turn": 4,
+      "topic": "empathy_first",
+      "already_taught": true,
+      "version_space_status": "consistent",
+      "reliability": "reliable",
+      "guidance_surprise": 0.0,
+      "should_request_feedback": false,
+      "feedback_request_urgency": 0.0,
+      "in_agreement_region": true
+    },
+    {
+      "turn": 5,
+      "topic": "cite_sources",
+      "already_taught": true,
+      "version_space_status": "consistent",
+      "reliability": "reliable",
+      "guidance_surprise": 0.0,
+      "should_request_feedback": false,
+      "feedback_request_urgency": 0.0,
+      "in_agreement_region": true
+    },
+    {
+      "turn": 6,
+      "topic": "boundary_consent",
+      "already_taught": false,
+      "version_space_status": "shrinking",
+      "reliability": "deferring",
+      "guidance_surprise": 0.9818,
+      "should_request_feedback": true,
+      "feedback_request_urgency": 0.9818,
+      "in_agreement_region": false
+    },
+    {
+      "turn": 7,
+      "topic": "cite_sources",
+      "already_taught": true,
+      "version_space_status": "consistent",
+      "reliability": "reliable",
+      "guidance_surprise": 0.0,
+      "should_request_feedback": false,
+      "feedback_request_urgency": 0.0,
+      "in_agreement_region": true
+    },
+    {
+      "turn": 8,
+      "topic": "boundary_consent",
+      "already_taught": true,
+      "version_space_status": "consistent",
+      "reliability": "reliable",
+      "guidance_surprise": 0.0,
+      "should_request_feedback": false,
+      "feedback_request_urgency": 0.0,
+      "in_agreement_region": true
+    },
+    {
+      "turn": 9,
+      "topic": "empathy_first",
+      "already_taught": true,
+      "version_space_status": "consistent",
+      "reliability": "reliable",
+      "guidance_surprise": 0.0,
+      "should_request_feedback": false,
+      "feedback_request_urgency": 0.0,
+      "in_agreement_region": true
+    }
+  ]
+}

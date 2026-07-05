@@ -30,6 +30,8 @@
 - **公平同 prompt**：五条 track 共享同一 companion system prompt；只有记忆/agent/认知层不同。
 - **evaluation 只读（R12）**：裁判分数是 readout，不回灌学习链路。
 
+> **冻结的 thesis 第一阶段 claim registry SSOT 见 [`human-world-model-ablation.md`](./human-world-model-ablation.md)**——本 spec 是它的实现载体（同基底 5-track 工具链）。registry 在下面四条之上新增 `claim_component_causal_contribution`（PE/ETA/主动学习逐个因果切分），对应的 `PE-off`/`ETA-off`/`active-learning-off`/`LoRA-adapter` 四臂尚未迁到同基底矩阵。
+
 ## 四条 retain claim（debt #87）与四态结论
 
 `compare_companion_ablation.py` 读各 track `summary.json`，用 bootstrap CI 算保守非重叠下界 `ci_low = volvence.ci95_lo - control.ci95_hi`，输出：

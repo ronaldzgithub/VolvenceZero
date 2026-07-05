@@ -104,6 +104,8 @@
 
 ### Same-substrate Companion Bench ablation claims（debt #87；详见 [`companion-ablation.md`](./companion-ablation.md)）
 
+> **冻结的 thesis 第一阶段 claim registry SSOT 见 [`human-world-model-ablation.md`](./human-world-model-ablation.md)**（5 条 retain claim + 8 臂 matched-control matrix + 证据门槛 + 4 态分级 + kill 条件）。下面是同基底工具链已实现的 4 条；registry 相对本节新增 `claim_component_causal_contribution`（PE/ETA/主动学习逐个因果切分，四臂待迁同基底）。
+
 这组 claim 把"人类世界模型 thesis 第一阶段"压成可证伪、同基底的 matched-control。所有 track 跑同一份冻结 Qwen，由 `compare_companion_ablation.py` 产出 verdict（retain 需 delta>0 且 bootstrap CI 非重叠下界 ci_low>0）。
 
 - `claim_pipeline_gt_raw`

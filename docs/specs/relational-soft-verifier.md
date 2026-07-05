@@ -104,6 +104,8 @@ deterministic 脚本化关系轨迹（stable 8 turn → rupture 3 turn → repai
 
 **Stage 0 结论**：机制管路通、epistemic 分离不塌缩、逐源面可用、$\rho_{\text{self}}$ 可计算且不自循环。**注意**：这只验证机器,**没有也不能**验证自我确认问题($\rho_{\text{ext}}$)——那需要外部人审锚（债 #51）+ LLM runtime（债 #10B）。
 
+**回归护栏（2026-07-05 固化）**：`tests/test_relational_soft_verifier_stage0.py` 锁住 Stage 0 EXIT(0) + report-only metric（`rsv_epistemic_ratio > 0`、`rsv_rho_self` 可计算且 `< 0.9` 非自回声、逐源 epistemic 覆盖 4 轴、rupture 相 `r_soft` 高于 stable/repair）。report-only，不改任何 owner / 学习行为。
+
 ## 风险地图 / 会证伪整条路径的条件
 
 | 风险 | 表现 | 检测 | 处置 |
@@ -136,5 +138,6 @@ deterministic 脚本化关系轨迹（stable 8 turn → rupture 3 turn → repai
 
 ## 变更日志
 
+- 2026-07-05: 固化 Stage 0 为回归护栏——新增 `tests/test_relational_soft_verifier_stage0.py`，锁 EXIT(0) + report-only metric shape（含 rupture>stable/repair 的 epistemic 形状、`rho_self < 0.9` 非自回声）。仍 design / SHADOW-only：未改任何 owner，Stage 1（$\rho_{\text{ext}}$）仍 blocked on #51 + #10B。
 - 2026-06-20: Stage 0 探针落地并首跑通过（EXIT(0) PASS）。`scripts/probe_relational_soft_verifier.py` 驱动真实 `_PECriticHead`，产出 `artifacts/eq_uplift/relational_soft_verifier_shadow.json`；结果见"Stage 0 证据"段。仍 design / SHADOW-only：未改动任何 owner，未进入任何 acceptance gate。债务追踪见 `known-debts.md` #85。
 - 2026-06-20: 初始版本。基于 research `czi-virtual-cell/analysis.md` 的 rBio soft-verifier-RL，建立关系域落差分析 + SHADOW 验证设计；中心实验为"自我确认证伪"（$\rho_{\text{ext}}$ vs $\rho_{\text{self}}$）；定义 `VZ_RELATIONAL_SOFT_VERIFIER` 三阶升级协议。本 spec 为 design-only，未改动任何 owner 或运行时行为。
