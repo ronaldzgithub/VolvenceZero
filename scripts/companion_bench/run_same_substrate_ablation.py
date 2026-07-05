@@ -227,6 +227,10 @@ def phase_real(*, args: argparse.Namespace, tier: str) -> int:
         score_cmd += ["--include-heldout", "--require-heldout"]
     if args.parallel_sut > 1:
         score_cmd += ["--parallel-sut", str(args.parallel_sut)]
+    if args.per_system_timeout_min is not None:
+        score_cmd += ["--per-system-timeout-min", str(args.per_system_timeout_min)]
+    if args.per_system_retries > 0:
+        score_cmd += ["--per-system-retries", str(args.per_system_retries)]
 
     _assert_non_qwen_judges(args)
 
@@ -301,6 +305,21 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true", help="print commands without executing (p1/p2).")
     p.add_argument("--execute", action="store_true", help="actually run sweeps in judge-evidence.")
     p.add_argument("--parallel-sut", type=int, default=1)
+    p.add_argument(
+        "--per-system-timeout-min",
+        type=int,
+        default=None,
+        help=(
+            "Per-track subprocess wallclock timeout passed to score_reference_systems "
+            "(default: 240 for p1, 480 for p2 when omitted)."
+        ),
+    )
+    p.add_argument(
+        "--per-system-retries",
+        type=int,
+        default=0,
+        help="Automatic retries per track on non-zero exit (not on timeout).",
+    )
     # Cross-family judge config (defaults are non-Qwen).
     p.add_argument("--user-sim-model", default=DEFAULT_USER_SIM_MODEL)
     p.add_argument("--user-sim-base-url", default=DEFAULT_USER_SIM_BASE_URL)
@@ -321,6 +340,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.phase == "judge-evidence":
         return phase_judge_evidence(output_dir=args.output_dir, execute=args.execute)
     if args.phase in ("p1", "p2"):
+        if args.per_system_timeout_min is None:
+            args.per_system_timeout_min = 240 if args.phase == "p1" else 480
         return phase_real(args=args, tier=args.phase)
     raise SystemExit(f"unhandled phase {args.phase!r}")  # pragma: no cover
 
