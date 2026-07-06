@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
@@ -13,6 +15,12 @@ from uuid import uuid4
 
 ValueT = TypeVar("ValueT")
 UpstreamDict = dict[str, "Snapshot[Any]"]
+
+
+def _propagate_trace(message: str) -> None:
+    if os.environ.get("VZ_PROPAGATE_TRACE", "").strip() not in {"1", "true", "True"}:
+        return
+    print(f"[propagate] {message}", file=sys.stderr, flush=True)
 
 
 def utc_now_ms() -> int:
@@ -696,6 +704,9 @@ async def propagate(
 
     for module in modules:
         registration = ownership_guard.register(module)
+        _propagate_trace(
+            f"start owner={module.owner} slot={module.slot_name} level={module.wiring_level.value}"
+        )
         if module.wiring_level is WiringLevel.DISABLED:
             placeholder = make_placeholder_snapshot(
                 slot_name=module.slot_name,
@@ -720,6 +731,9 @@ async def propagate(
                 },
             )
             active_snapshots[placeholder.slot_name] = placeholder
+            _propagate_trace(
+                f"done owner={module.owner} slot={placeholder.slot_name} version={placeholder.version}"
+            )
             continue
 
         upstream_view = UpstreamView(
@@ -753,6 +767,9 @@ async def propagate(
             raise
 
         immutability_guard.remember(snapshot)
+        _propagate_trace(
+            f"done owner={module.owner} slot={snapshot.slot_name} version={snapshot.version}"
+        )
         recorder.emit(
             event_type="snapshot.published",
             module_owner=module.owner,
