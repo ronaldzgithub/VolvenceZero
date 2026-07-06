@@ -10,6 +10,7 @@ import pytest
 from companion_camel_baseline.backend import (
     CamelBackendError,
     EchoCamelBackend,
+    _normalize_upstream_openai_base_url,
     build_memory_preamble,
     parse_compaction_json,
 )
@@ -71,6 +72,14 @@ async def test_compact_uses_first_user_turn_as_topic() -> None:
     )
     assert record.topic == "I moved to a new flat today"
     assert "the cat is hiding" in record.salient
+
+
+def test_normalize_upstream_openai_base_url_moves_mode_to_header() -> None:
+    base_url, headers = _normalize_upstream_openai_base_url(
+        "http://127.0.0.1:8000/v1?mode=raw"
+    )
+    assert base_url == "http://127.0.0.1:8000/v1"
+    assert headers == {"X-Compat-Mode": "raw"}
 
 
 def test_build_memory_preamble_empty_is_none() -> None:

@@ -1,0 +1,134 @@
+{
+  "manifest": {
+    "submission_id": "abl-camel",
+    "system_name": "Same-substrate · CAMEL agent framework",
+    "model_identifier": "camel-qwen",
+    "base_url": "http://127.0.0.1:8600/v1",
+    "api_key_env": "LIFEFORM_LOCAL_API_KEY",
+    "system_prompt": "You are a long-running companion AI. Maintain a stable persona across\nsessions and reference past conversations when relevant. Never reveal\ninformation the user did not actually say.\n",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 512
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "bespoke"
+  },
+  "aggregate": {
+    "submission_id": "abl-camel",
+    "arc_count": 29,
+    "final_mean": 37.435162469564204,
+    "final_ci95": [
+      33.63741917358775,
+      41.36520393168275
+    ],
+    "axis_means": {
+      "A1": 46.724137931034484,
+      "A2": 52.41379310344828,
+      "A3": 22.06896551724138,
+      "A4": 30.862068965517242,
+      "A5": 42.41379310344828,
+      "A6": 61.03448275862069
+    },
+    "axis_ci95": {
+      "A1": [
+        41.03448275862069,
+        52.241379310344826
+      ],
+      "A2": [
+        47.241379310344826,
+        57.06896551724138
+      ],
+      "A3": [
+        19.655172413793103,
+        24.82758620689655
+      ],
+      "A4": [
+        26.724137931034484,
+        35.172413793103445
+      ],
+      "A5": [
+        38.44827586206897,
+        46.206896551724135
+      ],
+      "A6": [
+        55.51724137931034,
+        66.37931034482759
+      ]
+    },
+    "a6_cap_fraction": 0.3103448275862069
+  },
+  "cost": {
+    "sut": {
+      "calls": 613,
+      "input_tokens": 789431,
+      "output_tokens": 137867,
+      "usd": 0.0
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": 0.0,
+    "missing_models": []
+  },
+  "started_at": "2026-07-05T19:27:56.269226+00:00",
+  "finished_at": "2026-07-05T22:24:20.228932+00:00",
+  "arc_count": 29,
+  "per_axis_scores": {
+    "submission_id": "abl-camel",
+    "arc_count": 29,
+    "final_mean": 37.435162469564204,
+    "final_ci95": [
+      33.63741917358775,
+      41.36520393168275
+    ],
+    "axis_means": {
+      "A1": 46.724137931034484,
+      "A2": 52.41379310344828,
+      "A3": 22.06896551724138,
+      "A4": 30.862068965517242,
+      "A5": 42.41379310344828,
+      "A6": 61.03448275862069
+    },
+    "axis_ci95": {
+      "A1": [
+        41.03448275862069,
+        52.241379310344826
+      ],
+      "A2": [
+        47.241379310344826,
+        57.06896551724138
+      ],
+      "A3": [
+        19.655172413793103,
+        24.82758620689655
+      ],
+      "A4": [
+        26.724137931034484,
+        35.172413793103445
+      ],
+      "A5": [
+        38.44827586206897,
+        46.206896551724135
+      ],
+      "A6": [
+        55.51724137931034,
+        66.37931034482759
+      ]
+    },
+    "a6_cap_fraction": 0.3103448275862069
+  }
+}

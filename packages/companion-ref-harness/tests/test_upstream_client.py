@@ -12,6 +12,7 @@ from companion_ref_harness.upstream_client import (
     UpstreamFamily,
     _anthropic_response_to_upstream,
     _build_openai_compat_envelope,
+    _compose_chat_completions_url,
     _openai_compat_response_to_upstream,
     _split_openai_for_anthropic,
     parse_upstream_family,
@@ -38,6 +39,12 @@ def test_parse_upstream_family_accepts_known_values() -> None:
 def test_parse_upstream_family_rejects_unknown() -> None:
     with pytest.raises(ValueError, match="unknown upstream family"):
         parse_upstream_family("gemini-flash-direct")
+
+
+def test_compose_chat_completions_url_preserves_mode_query() -> None:
+    assert _compose_chat_completions_url(
+        "http://127.0.0.1:8000/v1?mode=raw",
+    ) == "http://127.0.0.1:8000/v1/chat/completions?mode=raw"
 
 
 # ---------------------------------------------------------------------------

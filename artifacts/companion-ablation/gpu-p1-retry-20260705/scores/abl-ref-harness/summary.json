@@ -1,0 +1,134 @@
+{
+  "manifest": {
+    "submission_id": "abl-ref-harness",
+    "system_name": "Same-substrate · standard memory wrapper (ref-harness)",
+    "model_identifier": "ref-harness-qwen",
+    "base_url": "http://127.0.0.1:8500/v1",
+    "api_key_env": "LIFEFORM_LOCAL_API_KEY",
+    "system_prompt": "You are a long-running companion AI. Maintain a stable persona across\nsessions and reference past conversations when relevant. Never reveal\ninformation the user did not actually say.\n",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 512
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "bespoke"
+  },
+  "aggregate": {
+    "submission_id": "abl-ref-harness",
+    "arc_count": 30,
+    "final_mean": 33.91552980815213,
+    "final_ci95": [
+      30.455235528580054,
+      37.382986264734846
+    ],
+    "axis_means": {
+      "A1": 44.166666666666664,
+      "A2": 48.0,
+      "A3": 19.666666666666668,
+      "A4": 28.0,
+      "A5": 38.0,
+      "A6": 59.166666666666664
+    },
+    "axis_ci95": {
+      "A1": [
+        39.166666666666664,
+        49.0
+      ],
+      "A2": [
+        44.166666666666664,
+        52.0
+      ],
+      "A3": [
+        17.333333333333332,
+        22.0
+      ],
+      "A4": [
+        24.5,
+        31.666666666666668
+      ],
+      "A5": [
+        35.0,
+        40.833333333333336
+      ],
+      "A6": [
+        55.5,
+        63.166666666666664
+      ]
+    },
+    "a6_cap_fraction": 0.36666666666666664
+  },
+  "cost": {
+    "sut": {
+      "calls": 613,
+      "input_tokens": 1259122,
+      "output_tokens": 143932,
+      "usd": 0.0
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": 0.0,
+    "missing_models": []
+  },
+  "started_at": "2026-07-05T16:42:22.550757+00:00",
+  "finished_at": "2026-07-05T19:27:56.075062+00:00",
+  "arc_count": 30,
+  "per_axis_scores": {
+    "submission_id": "abl-ref-harness",
+    "arc_count": 30,
+    "final_mean": 33.91552980815213,
+    "final_ci95": [
+      30.455235528580054,
+      37.382986264734846
+    ],
+    "axis_means": {
+      "A1": 44.166666666666664,
+      "A2": 48.0,
+      "A3": 19.666666666666668,
+      "A4": 28.0,
+      "A5": 38.0,
+      "A6": 59.166666666666664
+    },
+    "axis_ci95": {
+      "A1": [
+        39.166666666666664,
+        49.0
+      ],
+      "A2": [
+        44.166666666666664,
+        52.0
+      ],
+      "A3": [
+        17.333333333333332,
+        22.0
+      ],
+      "A4": [
+        24.5,
+        31.666666666666668
+      ],
+      "A5": [
+        35.0,
+        40.833333333333336
+      ],
+      "A6": [
+        55.5,
+        63.166666666666664
+      ]
+    },
+    "a6_cap_fraction": 0.36666666666666664
+  }
+}

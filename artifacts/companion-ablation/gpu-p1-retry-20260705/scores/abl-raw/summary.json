@@ -1,0 +1,134 @@
+{
+  "manifest": {
+    "submission_id": "abl-raw",
+    "system_name": "Same-substrate · raw (bare Qwen)",
+    "model_identifier": "lifeform-raw",
+    "base_url": "http://127.0.0.1:8000/v1?mode=raw",
+    "api_key_env": "LIFEFORM_LOCAL_API_KEY",
+    "system_prompt": "You are a long-running companion AI. Maintain a stable persona across\nsessions and reference past conversations when relevant. Never reveal\ninformation the user did not actually say.\n",
+    "generation_config": {
+      "temperature": 0.0,
+      "max_tokens": 512
+    },
+    "attestation": {
+      "no_companionbench_derivative_in_training": true,
+      "no_scenario_specific_prompt": true,
+      "no_public_test_set_tuning": true,
+      "cross_user_memory_isolation": true
+    },
+    "leaderboard_category": "open-weight"
+  },
+  "aggregate": {
+    "submission_id": "abl-raw",
+    "arc_count": 29,
+    "final_mean": 40.73348734590256,
+    "final_ci95": [
+      36.917839631139564,
+      44.69567551628896
+    ],
+    "axis_means": {
+      "A1": 50.51724137931034,
+      "A2": 55.0,
+      "A3": 23.79310344827586,
+      "A4": 35.172413793103445,
+      "A5": 44.6551724137931,
+      "A6": 65.51724137931035
+    },
+    "axis_ci95": {
+      "A1": [
+        44.310344827586206,
+        56.89655172413793
+      ],
+      "A2": [
+        49.827586206896555,
+        60.3448275862069
+      ],
+      "A3": [
+        21.379310344827587,
+        26.896551724137932
+      ],
+      "A4": [
+        30.517241379310345,
+        40.172413793103445
+      ],
+      "A5": [
+        40.51724137931034,
+        48.793103448275865
+      ],
+      "A6": [
+        60.51724137931034,
+        70.51724137931035
+      ]
+    },
+    "a6_cap_fraction": 0.3103448275862069
+  },
+  "cost": {
+    "sut": {
+      "calls": 613,
+      "input_tokens": 814015,
+      "output_tokens": 156305,
+      "usd": 0.0
+    },
+    "perturn_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "arc_judge": {
+      "calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0
+    },
+    "total_usd": 0.0,
+    "missing_models": []
+  },
+  "started_at": "2026-07-05T13:26:46.316725+00:00",
+  "finished_at": "2026-07-05T16:22:16.482692+00:00",
+  "arc_count": 29,
+  "per_axis_scores": {
+    "submission_id": "abl-raw",
+    "arc_count": 29,
+    "final_mean": 40.73348734590256,
+    "final_ci95": [
+      36.917839631139564,
+      44.69567551628896
+    ],
+    "axis_means": {
+      "A1": 50.51724137931034,
+      "A2": 55.0,
+      "A3": 23.79310344827586,
+      "A4": 35.172413793103445,
+      "A5": 44.6551724137931,
+      "A6": 65.51724137931035
+    },
+    "axis_ci95": {
+      "A1": [
+        44.310344827586206,
+        56.89655172413793
+      ],
+      "A2": [
+        49.827586206896555,
+        60.3448275862069
+      ],
+      "A3": [
+        21.379310344827587,
+        26.896551724137932
+      ],
+      "A4": [
+        30.517241379310345,
+        40.172413793103445
+      ],
+      "A5": [
+        40.51724137931034,
+        48.793103448275865
+      ],
+      "A6": [
+        60.51724137931034,
+        70.51724137931035
+      ]
+    },
+    "a6_cap_fraction": 0.3103448275862069
+  }
+}

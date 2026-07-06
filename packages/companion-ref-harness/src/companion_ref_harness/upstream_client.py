@@ -36,8 +36,23 @@ import dataclasses
 import enum
 import json
 from typing import Any, Mapping, Protocol, runtime_checkable
+from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
+
+
+def _compose_chat_completions_url(base_url: str) -> str:
+    """Append ``/chat/completions`` to ``base_url`` preserving any query string.
+
+    A naive ``base_url + "/chat/completions"`` breaks when ``base_url`` carries
+    a query (e.g. the same-substrate ablation raw track uses
+    ``http://127.0.0.1:8000/v1?mode=raw`` to select the OpenAI-compat router's
+    raw dispatch): the query would swallow the appended path.
+    """
+
+    parts = urlsplit(base_url)
+    path = parts.path.rstrip("/") + "/chat/completions"
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +195,7 @@ class OpenAICompatUpstreamClient:
         headers.update(self._extra_headers)
         session = await self._ensure_session()
         async with session.post(
-            f"{self._base_url}/chat/completions",
+            _compose_chat_completions_url(self._base_url),
             data=json.dumps(body).encode("utf-8"),
             headers=headers,
         ) as resp:

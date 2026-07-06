@@ -38,6 +38,7 @@ import datetime as _dt
 import json
 import re
 from typing import Any, Awaitable, Protocol, runtime_checkable
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from companion_camel_baseline.memory_store import SessionMemoryRecord
 
@@ -45,6 +46,28 @@ from companion_camel_baseline.memory_store import SessionMemoryRecord
 # ---------------------------------------------------------------------------
 # Prompt (inlined per reproducibility contract)
 # ---------------------------------------------------------------------------
+
+
+def _normalize_upstream_openai_base_url(base_url: str) -> tuple[str, dict[str, str]]:
+    """Strip ``mode`` query params into ``X-Compat-Mode`` for OpenAI SDK clients.
+
+    The OpenAI Python SDK appends ``/chat/completions`` to ``base_url`` with a
+    naive join that breaks when ``base_url`` carries a query string (e.g.
+    ``http://127.0.0.1:8000/v1?mode=raw`` becomes
+    ``.../v1?mode=raw/chat/completions``).
+    """
+
+    parts = urlsplit(base_url)
+    query = parse_qs(parts.query, keep_blank_values=True)
+    extra_headers: dict[str, str] = {}
+    mode_values = query.pop("mode", None)
+    if mode_values:
+        extra_headers["X-Compat-Mode"] = mode_values[0]
+    new_query = urlencode(query, doseq=True)
+    normalized = urlunsplit(
+        (parts.scheme, parts.netloc, parts.path.rstrip("/"), new_query, parts.fragment)
+    )
+    return normalized, extra_headers
 
 
 COMPACTION_PROMPT_TEMPLATE: str = """You are the memory module of a long-running companion agent.
@@ -370,7 +393,9 @@ class CamelChatAgentBackend:
         timeout_s: float = 120.0,
     ) -> None:
         self._model_type = model_type
-        self._base_url = upstream_base_url
+        self._base_url, self._compat_headers = _normalize_upstream_openai_base_url(
+            upstream_base_url
+        )
         self._api_key = upstream_api_key
         self._timeout_s = timeout_s
         self._camel = _import_camel()
@@ -386,12 +411,16 @@ class CamelChatAgentBackend:
             config["temperature"] = temperature
         if max_tokens is not None:
             config["max_tokens"] = max_tokens
+        factory_kwargs: dict[str, Any] = {}
+        if self._compat_headers:
+            factory_kwargs["default_headers"] = self._compat_headers
         return camel.ModelFactory.create(
             model_platform=camel.ModelPlatformType.OPENAI_COMPATIBLE_MODEL,
             model_type=self._model_type,
             url=self._base_url,
             api_key=self._api_key,
             model_config_dict=config or None,
+            **factory_kwargs,
         )
 
     async def respond(
