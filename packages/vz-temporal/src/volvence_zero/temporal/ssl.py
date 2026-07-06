@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
 
 from volvence_zero.runtime import WiringLevel
@@ -151,6 +152,20 @@ class MetacontrollerSSLTrainer:
                 posterior_drift=0.0,
                 trained_steps=0,
                 description="SSL trainer skipped because the trace is shorter than 2 steps.",
+            )
+        if os.name == "nt" and os.environ.get("VZ_SUBSTRATE_DEVICE", "").startswith("cuda"):
+            policy.parameter_store.record_ssl_metrics(total_loss=0.0, kl_loss=0.0)
+            return SSLTrainingReport(
+                trace_id=trace.trace_id,
+                prediction_loss=0.0,
+                kl_loss=0.0,
+                total_loss=0.0,
+                posterior_drift=0.0,
+                trained_steps=0,
+                description=(
+                    "SSL trainer skipped on Windows CUDA to avoid native "
+                    "0xC0000005 failures; substrate inference remains on GPU."
+                ),
             )
 
         prediction_total = 0.0

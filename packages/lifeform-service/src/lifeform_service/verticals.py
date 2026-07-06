@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import os
 from typing import TYPE_CHECKING
 
 from lifeform_core import Lifeform
@@ -89,8 +90,21 @@ def _expression_synthesizer_for_runtime(
         )
     from lifeform_expression import LifeformLLMResponseSynthesizer, PromptPlanner
 
+    max_new_tokens_raw = os.environ.get("VZ_LIFEFORM_MAX_NEW_TOKENS", "").strip()
+    if max_new_tokens_raw:
+        max_new_tokens = max(16, int(max_new_tokens_raw))
+    elif os.name == "nt" and str(getattr(runtime, "_device", "")).startswith("cuda"):
+        # The OpenAI-compatible benchmark sends many long-turn requests through
+        # one Windows CUDA process. Keeping expression generations bounded
+        # avoids native torch/CUDA access violations while preserving the same
+        # frozen substrate and full lifeform pipeline.
+        max_new_tokens = 128
+    else:
+        max_new_tokens = 512
+
     return LifeformLLMResponseSynthesizer(
         runtime=runtime,
+        max_new_tokens=max_new_tokens,
         planner=PromptPlanner(repair_alpha_enabled=repair_alpha_enabled),
     )
 

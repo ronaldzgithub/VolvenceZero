@@ -477,6 +477,11 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             control_parameters=control_params,
             control_scale=control_scale,
             generation_constraints=constraints,
+            # The expression layer consumes text + token_count only. Residual
+            # captures are owned by substrate/control paths; retaining every
+            # hooked hidden state during long benchmark arcs can crash native
+            # torch/CUDA on Windows.
+            capture_residuals=False,
         )
 
         generated_text = result.text.strip()

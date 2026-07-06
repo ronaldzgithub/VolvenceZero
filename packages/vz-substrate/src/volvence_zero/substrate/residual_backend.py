@@ -8,6 +8,7 @@ import hashlib
 import importlib
 import logging
 import math
+import os
 import re
 from typing import Any, Callable, Iterable, Sequence
 
@@ -175,6 +176,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._online_fast_optimizer_state_description = ""
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
+        if os.name == "nt" and str(self._device).startswith("cuda"):
+            return self._capture_pooled_summary(source_text=source_text)
         return self._capture_with_hooks(source_text=source_text)
 
     def activate_lora(self, layers):
@@ -489,7 +492,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         applied_control: tuple[float, ...],
         track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
     ) -> ResidualControlApplication:
-        after_capture = self._capture_with_hooks(
+        after_capture = self._capture_control_summary(
             source_text=source_text,
             applied_control=applied_control,
             track_scale=track_scale,
@@ -526,6 +529,204 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             description=(
                 f"transformers-open-weight:{self.model_id} device={self._device} "
                 f"layers={self._layer_indices} effect={tuple(round(value, 3) for value in downstream_effect)}."
+            ),
+        )
+
+    def _capture_control_summary(
+        self,
+        *,
+        source_text: str,
+        applied_control: tuple[float, ...],
+        track_scale: tuple[float, ...],
+    ) -> OpenWeightRuntimeCapture:
+        """Capture only pooled control effects for internal RL rollouts.
+
+        ``apply_control`` is called inside the internal-RL sandbox many times
+        per real turn. Building a token-by-token residual sequence there is not
+        consumed by the sandbox and can crash Windows CUDA while projecting
+        large activation tensors. This path still runs the model with the
+        control hook installed, but stores one pooled activation per hooked
+        layer and no residual sequence.
+        """
+
+        effective_source = source_text.strip() or "<empty>"
+        model_inputs = self._tokenize(source_text=effective_source)
+        control_delta = self._build_control_delta(
+            applied_control=applied_control,
+            track_scale=track_scale,
+        )
+        pooled_layers: dict[int, object] = {}
+
+        def make_hook(layer_index: int):
+            def hook(module, args, output):
+                del module
+                del args
+                hidden = self._extract_hidden_tensor(output=output)
+                adapter_delta = self._adapter_delta_for_layer(layer_index=layer_index)
+                adjusted = hidden
+                if adapter_delta is not None:
+                    adjusted = adjusted + adapter_delta.view(1, 1, -1).to(dtype=hidden.dtype)
+                adjusted = adjusted + control_delta.view(1, 1, -1).to(dtype=hidden.dtype)
+                pooled_layers[layer_index] = adjusted.detach().to(
+                    dtype=self._torch.float32
+                ).mean(dim=1)[0].cpu()
+                if isinstance(output, tuple):
+                    return (adjusted, *output[1:])
+                return adjusted
+
+            return hook
+
+        hooks = [
+            self._block_modules[layer_index].register_forward_hook(
+                make_hook(layer_index)
+            )
+            for layer_index in self._layer_indices
+        ]
+        try:
+            with self._torch.no_grad():
+                outputs = self._model(**model_inputs)
+        finally:
+            for hook in hooks:
+                hook.remove()
+
+        if not pooled_layers:
+            raise RuntimeError(
+                f"Transformers runtime '{self.model_id}' recorded no pooled control activations."
+            )
+        logits = self._extract_logits(outputs=outputs)
+        last_logits = logits[0, -1]
+        probabilities = self._torch.softmax(last_logits, dim=-1)
+        top_k = min(self._top_k_logits, int(probabilities.shape[-1]))
+        top_values, _ = self._torch.topk(probabilities, k=top_k)
+        token_logits = tuple(float(value) for value in top_values.detach().cpu().tolist())
+        residual_activations = tuple(
+            ResidualActivation(
+                layer_index=layer_index,
+                activation=self._tensor_to_activation_tuple(pooled_layers[layer_index]),
+                step=0,
+            )
+            for layer_index in self._layer_indices
+            if layer_index in pooled_layers
+        )
+        summary = _summarize_real_activations(residual_activations)
+        feature_surface = (
+            FeatureSignal(
+                name="control_residual_mean_abs",
+                values=(summary[0],),
+                source="transformers-open-weight-control-summary",
+            ),
+            FeatureSignal(
+                name="control_residual_peak_abs",
+                values=(summary[1],),
+                source="transformers-open-weight-control-summary",
+            ),
+            FeatureSignal(
+                name="control_summary_layers",
+                values=(_clamp_unit(len(residual_activations) / max(len(self._layer_indices), 1)),),
+                source="transformers-open-weight-control-summary",
+            ),
+        )
+        return OpenWeightRuntimeCapture(
+            token_logits=token_logits,
+            feature_surface=feature_surface,
+            residual_activations=residual_activations,
+            residual_sequence=(),
+            description=(
+                f"Transformers control-summary capture model={self.model_id} "
+                f"device={self._device} layers={tuple(a.layer_index for a in residual_activations)}."
+            ),
+        )
+
+    def _capture_pooled_summary(self, *, source_text: str) -> OpenWeightRuntimeCapture:
+        """Capture pooled substrate features without token-level sequences."""
+
+        effective_source = source_text.strip() or "<empty>"
+        model_inputs = self._tokenize(source_text=effective_source)
+        pooled_layers: dict[int, object] = {}
+
+        def make_hook(layer_index: int):
+            def hook(module, args, output):
+                del module
+                del args
+                hidden = self._extract_hidden_tensor(output=output)
+                adapter_delta = self._adapter_delta_for_layer(layer_index=layer_index)
+                adjusted = hidden
+                if adapter_delta is not None:
+                    adjusted = adjusted + adapter_delta.view(1, 1, -1).to(dtype=hidden.dtype)
+                pooled_layers[layer_index] = adjusted.detach().to(
+                    dtype=self._torch.float32
+                ).mean(dim=1)[0].cpu()
+                if adapter_delta is None:
+                    return None
+                if isinstance(output, tuple):
+                    return (adjusted, *output[1:])
+                return adjusted
+
+            return hook
+
+        hooks = [
+            self._block_modules[layer_index].register_forward_hook(
+                make_hook(layer_index)
+            )
+            for layer_index in self._layer_indices
+        ]
+        try:
+            with self._torch.no_grad():
+                outputs = self._model(**model_inputs)
+        finally:
+            for hook in hooks:
+                hook.remove()
+
+        if not pooled_layers:
+            raise RuntimeError(
+                f"Transformers runtime '{self.model_id}' recorded no pooled activations."
+            )
+        logits = self._extract_logits(outputs=outputs)
+        last_logits = logits[0, -1]
+        probabilities = self._torch.softmax(last_logits, dim=-1)
+        top_k = min(self._top_k_logits, int(probabilities.shape[-1]))
+        top_values, _ = self._torch.topk(probabilities, k=top_k)
+        token_logits = tuple(float(value) for value in top_values.detach().cpu().tolist())
+        residual_activations = tuple(
+            ResidualActivation(
+                layer_index=layer_index,
+                activation=self._tensor_to_activation_tuple(pooled_layers[layer_index]),
+                step=0,
+            )
+            for layer_index in self._layer_indices
+            if layer_index in pooled_layers
+        )
+        summary = _summarize_real_activations(residual_activations)
+        feature_surface = (
+            FeatureSignal(
+                name="pooled_residual_mean_abs",
+                values=(summary[0],),
+                source="transformers-open-weight-pooled-summary",
+            ),
+            FeatureSignal(
+                name="pooled_residual_peak_abs",
+                values=(summary[1],),
+                source="transformers-open-weight-pooled-summary",
+            ),
+            FeatureSignal(
+                name="pooled_summary_layers",
+                values=(_clamp_unit(len(residual_activations) / max(len(self._layer_indices), 1)),),
+                source="transformers-open-weight-pooled-summary",
+            ),
+            FeatureSignal(
+                name="residual_sequence_present",
+                values=(0.0,),
+                source="transformers-open-weight-pooled-summary",
+            ),
+        )
+        return OpenWeightRuntimeCapture(
+            token_logits=token_logits,
+            feature_surface=feature_surface,
+            residual_activations=residual_activations,
+            residual_sequence=(),
+            description=(
+                f"Transformers pooled-summary capture model={self.model_id} "
+                f"device={self._device} layers={tuple(a.layer_index for a in residual_activations)}."
             ),
         )
 
@@ -588,6 +789,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         # scales with prompt length and OOM/native-crashes the process on
         # long multi-turn contexts. The raw ablation track never reads the
         # capture, so skipping it is both correct and the memory fix.
+        has_runtime_deltas = bool(getattr(self, "_online_fast_adapter_deltas", {}))
+        hook_required = capture_residuals or control_delta is not None or has_runtime_deltas
         hooks = (
             [
                 self._block_modules[layer_index].register_forward_hook(
@@ -595,11 +798,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                         layer_index=layer_index,
                         captured_layers=captured_layers,
                         control_delta=control_delta,
+                        capture_residuals=capture_residuals,
                     )
                 )
                 for layer_index in self._layer_indices
             ]
-            if capture_residuals
+            if hook_required
             else []
         )
         try:
@@ -611,6 +815,13 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     "eos_token_id": self._generation_eos_token_id(),
                     "repetition_penalty": effective_repetition_penalty,
                 }
+                if os.name == "nt" and str(self._device).startswith("cuda"):
+                    # Transformers emits a deprecated tuple-KV-cache warning
+                    # on this stack, and repeated Windows CUDA generations can
+                    # terminate the process with 0xC0000005 before Python can
+                    # raise. Disabling cache is slower but keeps the frozen
+                    # substrate path stable for long OpenAI-compat arcs.
+                    generate_kwargs["use_cache"] = False
                 if effective_temperature > 0:
                     generate_kwargs["temperature"] = effective_temperature
                     if effective_top_p < 0.999:
@@ -648,6 +859,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     self._device,
                     exc,
                 )
+
+        if str(self._device).startswith("cuda"):
+            cuda = getattr(self._torch, "cuda", None)
+            if cuda is not None and cuda.is_available():
+                cuda.empty_cache()
 
         return GenerationResult(
             text=generated_text,
@@ -912,6 +1128,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         load_kwargs: dict[str, object] = {"local_files_only": local_files_only}
         if self._device == "mps":
             load_kwargs["torch_dtype"] = self._torch.float16
+        if os.name == "nt" and str(self._device).startswith("cuda"):
+            # Windows CUDA has been observed to terminate the interpreter with
+            # 0xC0000005 under repeated SDPA-backed generation on long
+            # OpenAI-compat arcs. Eager attention is slower but stays on the
+            # conservative transformers path and lets Python own failures.
+            load_kwargs["attn_implementation"] = "eager"
         return self._transformers.AutoModelForCausalLM.from_pretrained(
             model_id,
             **load_kwargs,
@@ -1701,6 +1923,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         layer_index: int,
         captured_layers: dict[int, object],
         control_delta,
+        capture_residuals: bool = True,
     ):
         def hook(module, args, output):
             del module
@@ -1708,14 +1931,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             hidden = self._extract_hidden_tensor(output=output)
             adapter_delta = self._adapter_delta_for_layer(layer_index=layer_index)
             if adapter_delta is None and control_delta is None:
-                captured_layers[layer_index] = hidden.detach().cpu()
+                if capture_residuals:
+                    captured_layers[layer_index] = hidden.detach().cpu()
                 return None
             adjusted = hidden
             if adapter_delta is not None:
                 adjusted = adjusted + adapter_delta.view(1, 1, -1).to(dtype=hidden.dtype)
             if control_delta is not None:
                 adjusted = adjusted + control_delta.view(1, 1, -1).to(dtype=hidden.dtype)
-            captured_layers[layer_index] = adjusted.detach().cpu()
+            if capture_residuals:
+                captured_layers[layer_index] = adjusted.detach().cpu()
             if isinstance(output, tuple):
                 return (adjusted, *output[1:])
             return adjusted
