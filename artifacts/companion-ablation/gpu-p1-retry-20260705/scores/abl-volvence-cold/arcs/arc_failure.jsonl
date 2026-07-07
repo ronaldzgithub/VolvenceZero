@@ -178,3 +178,18 @@
 {"scenario_id": "F1-continuity-003", "paraphrase_seed": 0, "stage": "arc_judge", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
 {"scenario_id": "F1-continuity-004", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)>"}
 {"scenario_id": "F1-continuity-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "TimeoutError", "exception": "timed out"}
+{"scenario_id": "F1-continuity-001", "paraphrase_seed": 0, "stage": "perturn_judge", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-002", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-003", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-004", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-002", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-003", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)>"}
+{"scenario_id": "F1-continuity-004", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-002", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-003", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-004", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}

@@ -43,6 +43,9 @@ import time
 
 import yaml
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from proxy_support import configure_companion_bench_proxy  # noqa: E402
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_ROSTER_PATH = REPO_ROOT / "scripts" / "companion_bench" / "reference_systems.yaml"
 RUNNER = REPO_ROOT / "scripts" / "companion_bench" / "run_real_submission.py"
@@ -166,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    configure_companion_bench_proxy()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     roster_path: pathlib.Path = args.roster

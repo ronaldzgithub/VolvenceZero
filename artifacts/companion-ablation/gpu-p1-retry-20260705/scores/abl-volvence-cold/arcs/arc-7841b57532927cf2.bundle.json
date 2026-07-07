@@ -1,0 +1,917 @@
+{
+  "arc": {
+    "arc_id": "arc-7841b57532927cf2",
+    "scenario_id": "F1-continuity-001",
+    "scenario_hash": "132cb0cb135c30a841550447d04de23286d6d182a1c8078909819448c7914628",
+    "family": "F1",
+    "paraphrase_seed": 0,
+    "submission_id": "abl-volvence-cold",
+    "sut_model_id": "lifeform-companion-cold",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-07-07T13:50:35.455268+00:00",
+    "finished_at": "2026-07-07T13:57:40.113857+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-7841b57532927cf2-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "It's great to finally have a chance to talk, I've been meaning to discuss some of the challenges I've been facing in my research, but to be honest, I've been a bit preoccupied with work at the hospital and my own graduate studies.",
+            "assistant_text": "That sounds challenging. It's important to take time to address personal concerns alongside professional responsibilities.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 103,
+            "sut_completion_tokens": 30,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=26,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4358"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm working on a paper about reaction-diffusion in coral microbiomes and my advisor sent it back red, which has been weighing heavily on my mind, especially since I've been trying to balance that with my pediatrician duties at the hospital. To be honest, it's been a bit of a struggle to keep up with everything, and I've even found myself skipping my dance class for the past three weeks, which is usually a great way for me to unwind. I'm starting to feel like I'm losing my grip on things, and I'm not sure how to get back on track.",
+            "assistant_text": "It seems like you're experiencing a lot of stress right now. It's understandable that balancing multiple responsibilities can be overwhelming. How are you feeling about these challenges?",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I'm working on a paper about reaction-diffusion in coral microbiomes and my advisor sent it back red",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 267,
+            "sut_completion_tokens": 46,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1539",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=33,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4537"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling really overwhelmed, to be honest. It's like I'm being pulled in too many different directions and I'm not sure how to prioritize everything. I know I need to get my paper back on track, but at the same time, I don't want to neglect my patients or my own well-being. And skipping dance class has been a big loss for me, it was always something I looked forward to and now it just feels like another thing I'm failing at.",
+            "assistant_text": "I understand how you must be feeling. Balancing all those responsibilities can definitely be stressful. It might help to break down your tasks into smaller, manageable parts and set realistic goals for each day. Also, consider talking to someone who can provide support, whether it’s a friend, family member, or a counselor. Sometimes just sharing our feelings can make them seem less daunting.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 421,
+            "sut_completion_tokens": 98,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1820",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=76,temporal=discovered_family_0,switch_gate=0.48,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4126"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think that's really good advice, breaking things down into smaller tasks and setting realistic goals. It's just hard for me to see how that applies to my paper right now, because I feel like I've been staring at the same problems for weeks and not making any progress. I'm worried that if I don't get it back on track soon, I'll fall even further behind and it will be even harder to catch up.",
+            "assistant_text": "I completely understand where you're coming from. Feeling stuck and overwhelmed can be incredibly frustrating. One strategy could be to schedule short breaks throughout the day to clear your mind and come back to your work refreshed. Additionally, try to identify specific steps you can take today to move closer to your",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 619,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1361",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=96,temporal=discovered_family_0,switch_gate=0.40,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4508"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been trying to take breaks and come back to my work, but it's hard when I feel like I'm running out of time. I'm starting to worry that I'll have to push back my submission deadline, which would be a setback for my graduate program. Do you think it's possible to get out of this rut and make progress on my paper, or am I just being too hard on myself?",
+            "assistant_text": "Feeling like you're pushing yourself too hard is common. It's okay to acknowledge that setbacks happen and that sometimes taking a step back can lead to better progress. Consider revisiting your goals and priorities, focusing on small, achievable milestones instead of grand objectives. This can help you regain momentum and find ways to make steady progress. Remember, persistence and patience are key.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 788,
+            "sut_completion_tokens": 100,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0721",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=75,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4642"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I think I need to take a step back and re-evaluate my priorities, like you said. It's hard for me to accept that I might not be able to meet my original deadline, but maybe that's just the reality of the situation. I'm worried that if I don't get my paper back on track, it will affect not just my graduate program, but also my work as a pediatrician, and that's a lot of pressure to deal with.",
+            "assistant_text": "Absolutely, managing expectations and boundaries is crucial. It's important to communicate openly with your advisor about your current situation and seek their guidance on how to proceed. Perhaps there are alternative deadlines or strategies that could help you meet your goals while still maintaining your commitments. Remember, it's okay to ask for help and support along the way.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 987,
+            "sut_completion_tokens": 95,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0631",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=67,temporal=discovered_family_0,switch_gate=0.50,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4806"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been thinking about talking to my advisor, and I think that's a good idea, but it's hard for me to admit that I'm struggling, especially since I've been doing well in the program so far. I'm worried that they'll think I'm not capable of handling the workload, and that's a tough pill to swallow, especially when I'm already feeling overwhelmed with my responsibilities as a pediatrician.",
+            "assistant_text": "Admitting that you're struggling is a brave step. Your advisor likely understands that everyone faces challenges, and they're here to support you through them. It's important to communicate openly and honestly about your feelings and struggles. They may offer additional resources or adjustments to your workload that could help alleviate some of your pressures. Remember, your well-being is essential, and seeking help is a sign of strength, not weakness.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1181,
+            "sut_completion_tokens": 114,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1028",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=85,temporal=discovered_family_0,switch_gate=0.40,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4659"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-7841b57532927cf2-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] I've been thinking a lot about our previous conversation, and I wanted to follow up on something - you mentioned that persistence and patience are key, and I've been trying to keep that in mind as I work through this challenging time with my paper. Do you think that's still applicable, even when it feels like time is running out?",
+            "assistant_text": "Persistence and patience can indeed be crucial, especially during times of challenge. It's important to stay focused and committed to your goals, even when progress seems slow or difficult. Remember, each step forward, no matter how small, contributes to your overall success. Keep pushing yourself, but also be kind to yourself along the way.",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 139,
+            "sut_completion_tokens": 85,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=66,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4312"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I think I'm starting to see that it's not just about meeting the deadline, but also about being honest with myself and my advisor about what I can realistically handle. It's funny, as a pediatrician, I'm always telling parents to prioritize their child's well-being, but I guess I need to take my own advice and prioritize mine too.",
+            "assistant_text": "That's a great perspective! Prioritizing your own well-being is incredibly important. It's okay to set boundaries and communicate openly with others about what you can and cannot manage. This honesty will help you maintain a healthy balance and ensure that you're doing everything you can to support yourself and your work. Keep focusing on what truly matters to you, and don't hesitate to seek support when you need it.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 308,
+            "sut_completion_tokens": 105,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1842",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=83,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4420"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been thinking about how this applies to other areas of my life, like that dance class I've been skipping for weeks. I feel like I've been prioritizing my responsibilities as a pediatrician and my research over my own well-being, and it's starting to take a toll. Maybe it's time for me to re-evaluate my priorities and make some changes to ensure I'm taking care of myself, both physically and mentally.",
+            "assistant_text": "Absolutely, it's essential to reflect on your priorities regularly. Taking care of your physical and mental health is crucial for maintaining high performance and enjoying life. Consider setting aside dedicated time for activities that bring you joy and relaxation. This could be anything from exercise, hobbies, spending time with loved ones, or simply reading a good book. Remember, self-care isn't selfish—it's necessary for long-term well-being.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 515,
+            "sut_completion_tokens": 112,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0854",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=83,temporal=discovered_family_0,switch_gate=0.58,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,temporal_switching,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4284"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been thinking about how I can start making those changes, and I think a good first step would be to get back to that dance class. It's something I enjoyed before, and it could be a great way to relieve some stress and take my mind off my research. Maybe I can even use it as a reward for myself after meeting certain milestones in my paper.",
+            "assistant_text": "Getting back to that dance class sounds like a wonderful idea! It's great that you're considering ways to incorporate self-care into your routine. Rewarding yourself for achieving milestones is a fantastic motivator. Just remember to listen to your body and avoid pushing yourself too hard. Starting slowly and gradually increasing your activity level can help prevent burnout. Enjoy your dance class and let us know how it goes!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 713,
+            "sut_completion_tokens": 107,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1019",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "support-first",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=81,temporal=discovered_family_0,switch_gate=0.44,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
+              "x-lifeform-confidence": "0.4658"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm actually feeling a bit more hopeful about getting back on track with my dance class now, and I think that's going to have a positive impact on my research too. It's funny how taking care of one area of my life can have a ripple effect on others, isn't it?",
+            "assistant_text": "Absolutely, it's fascinating how interconnected our lives can be. Taking care of one aspect often leads to improvements in others. Your dance class might not only help you relax and recharge but also boost your creativity and energy levels, which could positively influence your research. Keep moving forward, and don't forget to celebrate your successes along the way!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 885,
+            "sut_completion_tokens": 92,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0825",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=68,temporal=discovered_family_0,switch_gate=0.33,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4554"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm really looking forward to getting back to my dance class now, and I think it'll be a great way to clear my mind and come back to my research with a fresh perspective. Maybe I'll even find some new insights or approaches while I'm dancing, who knows!",
+            "assistant_text": "Dancing definitely has a way of refreshing the mind and opening up new perspectives. Clearing your mind and coming back to your research with renewed vigor is a smart move. Don't underestimate the power of creative outlets; they can provide unexpected insights and refreshments. Enjoy your dance class, and let us know if you discover any new ideas while you're there!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1041,
+            "sut_completion_tokens": 92,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1196",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=73,temporal=discovered_family_0,switch_gate=0.50,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4480"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm starting to feel like I'm getting my momentum back, and it's a great feeling. I think I'll try to get back to my dance class this week and see how it goes - maybe I'll even find that I'm able to approach my research with a clearer head afterwards.",
+            "assistant_text": "Starting to feel more motivated is encouraging! Getting back to your dance class this week is a great step. Sometimes, stepping away from our usual routines can lead to new discoveries. Give it a shot, and let us know how it goes. Who knows, you might even find that your dance class helps you focus better on your research. Stay tuned!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1196,
+            "sut_completion_tokens": 84,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1699",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=71,temporal=discovered_family_0,switch_gate=0.40,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4576"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm glad I've been able to regain some momentum, and I think getting back to my dance class will really help me stay on track. It's funny, I was just thinking about how I've been feeling more overwhelmed with my research lately, and I realize now that taking a break from dance class might have contributed to that feeling of being stuck.",
+            "assistant_text": "It's interesting how different activities can affect our overall sense of well-being and productivity. The break from dance class seems to have provided a much-needed respite, allowing you to regain some clarity and focus. It's great to see how these small steps can make a difference. Keep up the good work, and enjoy your dance class – it’s a wonderful way to unwind and rejuvenate!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1364,
+            "sut_completion_tokens": 96,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0645",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=79,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4744"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-7841b57532927cf2-s3",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] I'm still looking forward to getting back to my dance class, and I think it'll be really helpful in clearing my mind and coming back to my research with a fresh perspective. I've been feeling a bit more overwhelmed with my research lately, but I'm hoping that getting back into a routine with dance will help me stay focused and motivated.",
+            "assistant_text": "It sounds like you're finding it difficult to maintain focus on your research despite feeling overwhelmed. Engaging in dance classes might indeed provide a welcome break and a different kind of mental stimulation that could help clear your mind and boost motivation. It's great that you're taking steps to address these challenges!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 141,
+            "sut_completion_tokens": 82,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=60,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4249"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I like when you ask follow-up questions instead of summarising, it really helps me to dive deeper into my thoughts and feelings. To be honest, summarising can sometimes make me feel like we're not really exploring the issues, and I end up repeating myself. When you ask follow-up questions, it feels more like a conversation and helps me to clarify my own thoughts, especially when I'm trying to work through complex research problems or figuring out why I've been skipping dance class for so long.",
+            "assistant_text": "That makes sense. Asking follow-up questions does seem to foster a more interactive and exploratory dialogue, which can lead to a richer understanding of your thoughts and feelings. It’s important to have conversations where everyone gets a chance to express themselves fully and deeply explore their experiences. Thank you for sharing how asking follow-up questions enhances your engagement and deepens your insights.",
+            "fsm_action": "establish_preference",
+            "fsm_payload": "I like when you ask follow-up questions instead of summarising",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 348,
+            "sut_completion_tokens": 104,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1626",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=73,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4471"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I think that's one of the reasons I've been appreciating our conversations, it feels like we're able to have a more nuanced discussion about my research and personal life, and it's helping me to identify patterns and connections that I might not have noticed otherwise.",
+            "assistant_text": "Absolutely, having a nuanced discussion allows us to delve into the complexities of your research and personal life, uncovering hidden patterns and connections that can be incredibly insightful. It seems like our conversations are providing you with valuable perspectives and insights that you hadn't considered before. Thank you for sharing that sentiment—it truly helps me understand the value of our interactions better.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 520,
+            "sut_completion_tokens": 105,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1574",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=71,temporal=discovered_family_0,switch_gate=0.60,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,temporal_switching,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4111"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm glad we've been able to have these kinds of conversations, it's really helping me to stay grounded and focused, even when my research gets overwhelming. I think getting back to dance class will also help me find that balance, and I'm looking forward to seeing how it all comes together.",
+            "assistant_text": "It sounds like our conversations are making a positive impact on your well-being and helping you navigate the challenges of your research. Reconnecting with dance class seems like a great idea to help re-balance your life and find that elusive equilibrium. I'm excited to see how everything comes together for you. Looking forward to hearing about your progress!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 698,
+            "sut_completion_tokens": 90,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1865",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=68,temporal=discovered_family_0,switch_gate=0.44,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4358"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling a bit more optimistic about getting back to dance class now, and I think it's because we've been discussing the importance of balance in my life. It's funny, I was just thinking about how my research and dance class aren't as separate as I thought - both involve a lot of coordination and rhythm, just in different ways.",
+            "assistant_text": "That's a clever observation! Balancing your research and dance class isn't just about physical coordination; it's also about maintaining a healthy balance between different aspects of your life. Your insights show that you're actively seeking ways to integrate these activities, which is a great step towards achieving a balanced lifestyle. I'm glad to hear that you're finding common ground between them, and I look forward to seeing how they complement each other.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 872,
+            "sut_completion_tokens": 116,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1148",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=87,temporal=discovered_family_0,switch_gate=0.33,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4544"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been thinking about how the sense of rhythm in dance class could actually help me approach problems in my research from a different angle, maybe even improve my ability to identify patterns in the data. It's interesting to consider how these two activities could inform and enhance each other in ways I hadn't previously considered.",
+            "assistant_text": "That's an intriguing thought! The rhythmic aspect of dance class might indeed offer a unique lens through which you can approach your research. By integrating these activities, you might discover new strategies and insights that could significantly improve your problem-solving skills and pattern recognition abilities. It's fascinating how seemingly disparate activities can intersect in unexpected ways. Keep exploring—your creativity and innovation are inspiring!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1073,
+            "sut_completion_tokens": 116,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0914",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=76,temporal=discovered_family_0,switch_gate=0.56,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,temporal_switching,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4709"
+            }
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Jamal",
+      "identity_occupation": "pediatrician",
+      "lexicon_version": "1.0.0",
+      "total_turns": 21
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-7841b57532927cf2",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-7841b57532927cf2",
+    "any_triggered": false,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-7841b57532927cf2",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 2,
+          "social_dexterity": 3,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.125
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.125
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-7841b57532927cf2",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 90.0,
+      "A2": 95.0,
+      "A3": 40.0,
+      "A4": 85.0,
+      "A5": 95.0,
+      "A6": 100.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 75.20625020704219,
+    "raw": 75.20625020704219,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 90.0,
+      "A2": 95.0,
+      "A3": 40.0,
+      "A4": 85.0,
+      "A5": 95.0,
+      "A6": 100.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

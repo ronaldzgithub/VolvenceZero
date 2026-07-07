@@ -45,6 +45,9 @@ import pathlib
 import sys
 from typing import Iterable
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from proxy_support import configure_companion_bench_proxy  # noqa: E402
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_HELDOUT_DIR = REPO_ROOT / "external" / "companionbench-heldout" / "scenarios"
 
@@ -130,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    configure_companion_bench_proxy()
 
     from companion_bench.heldout_loader import load_heldout_scenarios
     from companion_bench.judge_arc import LLMArcJudge

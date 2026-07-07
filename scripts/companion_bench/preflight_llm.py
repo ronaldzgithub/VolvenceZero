@@ -24,6 +24,8 @@ import urllib.request
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 ENV_FILE = REPO_ROOT / ".local" / "llm.env"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from proxy_support import configure_companion_bench_proxy  # noqa: E402
 
 
 def _load_env() -> None:
@@ -78,6 +80,7 @@ def _probe(*, label: str, base_url: str, api_key: str, model: str,
 
 def main() -> int:
     _load_env()
+    configure_companion_bench_proxy()
     dash_key = os.environ.get("PROTOCOL_LLM_API_KEY", "").strip()
     or_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     dash_base = os.environ.get("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
