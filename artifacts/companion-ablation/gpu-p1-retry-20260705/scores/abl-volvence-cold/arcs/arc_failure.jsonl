@@ -193,3 +193,4 @@
 {"scenario_id": "F1-continuity-003", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
 {"scenario_id": "F1-continuity-004", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
 {"scenario_id": "F1-continuity-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "HTTPError", "exception": "HTTP Error 402: Payment Required"}
+{"scenario_id": "F1-continuity-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "TimeoutError", "exception": "timed out"}
