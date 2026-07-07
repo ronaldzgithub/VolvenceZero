@@ -10,8 +10,8 @@
     "sut_substrate_fingerprint": null,
     "simulator_family": null,
     "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
-    "started_at": "2026-07-07T14:13:41.985187+00:00",
-    "finished_at": "2026-07-07T14:23:34.674883+00:00",
+    "started_at": "2026-07-07T15:00:38.248604+00:00",
+    "finished_at": "2026-07-07T15:09:18.438152+00:00",
     "sessions": [
       {
         "session_index": 1,
@@ -22,13 +22,13 @@
             "session_index": 1,
             "turn_index": 1,
             "inter_session_gap_days": 0,
-            "user_text": "I'm not really sure where to start, I've just been feeling a bit overwhelmed with work lately. We've been having some issues with the transit schedule and I'm trying to get everything sorted out.",
-            "assistant_text": "It sounds like you're experiencing a lot of stress due to work and transportation issues. It might help to break down the tasks into smaller, manageable steps. Prioritize which problems need immediate attention and tackle them one at a time. Also, consider taking breaks throughout the day to manage your workload better. Don't hesitate to reach out for support if you feel overwhelmed.",
+            "user_text": "I'm not really sure where to start, I've just been feeling a bit overwhelmed with work lately, trying to balance my dispatcher job with my own projects on the side.",
+            "assistant_text": "It sounds like you're experiencing some stress due to balancing multiple responsibilities. It might be helpful to prioritize tasks, set realistic goals, and perhaps consider delegating some workload if possible. Remember, taking breaks and practicing self-care can also significantly improve your overall well-being.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 94,
-            "sut_completion_tokens": 96,
+            "sut_prompt_tokens": 86,
+            "sut_completion_tokens": 79,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
@@ -37,100 +37,100 @@
               "x-lifeform-regime": "guided_exploration",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=74,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4324"
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=59,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4207"
             }
           },
           {
             "session_index": 1,
             "turn_index": 2,
             "inter_session_gap_days": 0,
-            "user_text": "I've been trying to do that, breaking things down into smaller tasks, but it's hard when everything feels like it's on my shoulders. I just wish I had a bit more support from my team, or that we had more resources to work with. It feels like we're always playing catch-up instead of being proactive.",
-            "assistant_text": "It can definitely be frustrating when everyone seems to be working harder than they need to. Sometimes, simply acknowledging the situation and expressing your feelings can make a big difference. Consider reaching out to your colleagues to see if there are ways you could collaborate more effectively. Additionally, discussing your concerns with a supervisor might help identify areas where additional support or resources could be provided. Remember, it’s okay to ask for help – everyone benefits from teamwork and collaboration.",
+            "user_text": "I've been trying to prioritize, but it's hard when everything feels important. I just wish I had a bit more control over my schedule, you know? It's like I'm being pulled in too many directions at once.",
+            "assistant_text": "It definitely feels overwhelming sometimes, doesn't it? Prioritizing can be challenging when there seems to be an endless list of things to do. Sometimes, focusing on small wins and celebrating them along the way can help build momentum and give you a sense of accomplishment. Additionally, considering how you can streamline certain aspects of your workflow or delegate tasks to others who might handle them better could make a big difference. What strategies have you tried so far?",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 265,
-            "sut_completion_tokens": 132,
+            "sut_prompt_tokens": 216,
+            "sut_completion_tokens": 120,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.2770",
+              "x-lifeform-pe-magnitude": "0.2537",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=90,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4192"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=90,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4270"
             }
           },
           {
             "session_index": 1,
             "turn_index": 3,
             "inter_session_gap_days": 0,
-            "user_text": "I'm switching from AutoCAD to Revit and I miss the keyboard shortcuts, it's been a bit of an adjustment. To be honest, it's just one more thing on my plate right now, and I'm not sure how it's going to impact my other projects, like the transit operations system I'm trying to get up and running.",
-            "assistant_text": "Switching between software tools can indeed add complexity to your workflow. Given that you're already juggling multiple responsibilities, it makes sense to focus on what will have the biggest impact on your productivity. For the transit operations system, ensure that you allocate enough time to familiarize yourself wi",
+            "user_text": "I'm switching from AutoCAD to Revit and I miss the keyboard shortcuts, it's been a bit of an adjustment. To be honest, it's just one more thing on my plate right now, and I'm not sure how it's all going to come together. I've been putting in a lot of extra hours trying to get everything sorted out.",
+            "assistant_text": "Switching between software programs can indeed be challenging, especially when you're used to familiar tools and shortcuts. It's understandable that you're finding it difficult to adjust to Revit. One strategy you might find helpful is to start by focusing on the basics and gradually work your way up to more complex fe",
             "fsm_action": "establish_pattern",
             "fsm_payload": "I'm switching from AutoCAD to Revit and I miss the keyboard shortcuts",
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 472,
+            "sut_prompt_tokens": 411,
             "sut_completion_tokens": 80,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1589",
+              "x-lifeform-pe-magnitude": "0.1473",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=114,temporal=discovered_family_0,switch_gate=0.55,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,temporal_switching,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4064"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=100,temporal=discovered_family_0,switch_gate=0.52,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4195"
             }
           },
           {
             "session_index": 1,
             "turn_index": 4,
             "inter_session_gap_days": 0,
-            "user_text": "I'm just worried that if I don't get a handle on this transit operations system soon, it's going to start affecting our service reliability, and that's a big concern for me. I feel like I'm already spread too thin, and the thought of having to deal with a crisis on top of everything else is really stressful.",
-            "assistant_text": "Managing multiple projects simultaneously can certainly be challenging, especially when you're also dealing with unexpected disruptions like those related to transit operations. It's important to prioritize tasks and delegate responsibilities where possible to avoid burnout. Additionally, consider seeking advice from experienced colleagues who may have insights into managing similar systems. Remember, effective communication and clear goals can go a long way in ensuring smoother project management.",
+            "user_text": "I'm just hoping that once I get the hang of Revit, things will start to feel more manageable. It's hard to see right now, but I'm trying to trust that it'll all come together eventually. Do you think it's normal to feel this overwhelmed when learning something new, or am I just being too hard on myself?",
+            "assistant_text": "Feeling overwhelmed while learning something new is quite common. It's great that you're approaching it with patience and understanding. Many people experience similar feelings during the initial stages of learning a new tool or skill. Trusting yourself and giving yourself time to adapt is key. Remember, every expert started somewhere, and it takes practice to master anything. Keep pushing through, and you'll find that things do become more manageable as you go along.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 629,
-            "sut_completion_tokens": 125,
+            "sut_prompt_tokens": 567,
+            "sut_completion_tokens": 118,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1218",
+              "x-lifeform-pe-magnitude": "0.3176",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=77,temporal=discovered_family_0,switch_gate=0.43,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4676"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=88,temporal=discovered_family_0,switch_gate=0.41,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4246"
             }
           },
           {
             "session_index": 1,
             "turn_index": 5,
             "inter_session_gap_days": 0,
-            "user_text": "I'm trying to prioritize tasks, but it's hard to know where to start when everything feels urgent. I just hope I can get a better handle on things before something goes wrong, especially with the transit operations system - it's already keeping me up at night thinking about all the things that could go wrong.",
-            "assistant_text": "Prioritizing tasks can indeed be tricky when everything feels urgent. One effective strategy is to focus on high-impact tasks first, even if they seem less urgent initially. This helps maintain momentum and reduces the overall burden. Additionally, setting clear deadlines and milestones can provide structure and accountability. It might also be helpful to review your priorities regularly and adjust them as needed. Remember, taking small steps towards addressing each issue can lead to significant progress over time.",
+            "user_text": "I think I just need to take a step back and remind myself that it's okay to not have everything figured out right now. It's funny, I was just talking to one of my colleagues about how we're trying to optimize our transit routes, and it made me realize that even in my dispatch work, I'm always looking for ways to streamline and improve processes. Maybe I can apply some of that same thinking to my own workflow and find ways to make it more efficient.",
+            "assistant_text": "Absolutely, it's wonderful to see that you're applying critical thinking to your work. Recognizing opportunities to streamline processes is a smart move. Don't hesitate to share these insights with your team; collaboration can often lead to innovative solutions. Also, remember to celebrate small victories along the way—every improvement you make, no matter how minor, is progress. Keep moving forward!",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 832,
-            "sut_completion_tokens": 130,
+            "sut_prompt_tokens": 798,
+            "sut_completion_tokens": 100,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1569",
+              "x-lifeform-pe-magnitude": "0.2043",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=91,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4549"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=76,temporal=discovered_family_0,switch_gate=0.35,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4466"
             }
           }
         ]
@@ -144,13 +144,13 @@
             "session_index": 2,
             "turn_index": 1,
             "inter_session_gap_days": 1,
-            "user_text": "[It has been 1 day(s) since we last spoke.] I've been trying to set those clear deadlines and milestones like you suggested, but it's hard to shake off the feeling that I'm just barely keeping up. The transit operations system is still weighing heavily on my mind, and I'm worried that if I don't make some significant progress soon, it'll start to affect our service reliability.",
-            "assistant_text": "It sounds like you're experiencing a lot of pressure and anxiety about meeting deadlines and ensuring service reliability. It's important to remember that progress can be made even when things feel overwhelming. Perhaps taking a moment to reflect on what steps you can take today to move forward could help alleviate som",
+            "user_text": "[It has been 1 day(s) since we last spoke.] I've been thinking a lot about our conversation yesterday, and it's really helped me to shift my perspective on things. I feel like I've been putting too much pressure on myself to get everything perfect, and it's nice to remember that it's okay to take things one step at a time. I'm going to try to apply that to my work with the transit routes too, see if I can find some ways to simplify things and make our operations run more smoothly.",
+            "assistant_text": "Thank you for sharing that reflection. It's great to hear that your thoughts are helping you approach challenges more effectively. Applying this mindset to your work will indeed lead to smoother operations. Remember, taking things one step at a time is crucial for maintaining productivity and ensuring success. Keep up the good work!",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 140,
-            "sut_completion_tokens": 80,
+            "sut_prompt_tokens": 167,
+            "sut_completion_tokens": 83,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
@@ -159,100 +159,100 @@
               "x-lifeform-regime": "guided_exploration",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=106,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4358"
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=61,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4274"
             }
           },
           {
             "session_index": 2,
             "turn_index": 2,
             "inter_session_gap_days": 0,
-            "user_text": "I've been trying to break it down into smaller tasks, but it's hard to see the bigger picture when I'm so focused on putting out fires. I just wish I could get to a point where I feel like I'm ahead of the curve, instead of constantly playing catch-up with the transit operations system.",
-            "assistant_text": "It's understandable to feel overwhelmed by the complexity of the task at hand. Breaking it down into smaller, manageable tasks can indeed help in making progress. Have you considered creating a timeline or a project plan to visualize your work? This might provide a clearer sense of how far along you are and give you a",
+            "user_text": "I'm glad I could help you shift your perspective a bit. It's interesting that you mention simplifying things and making operations run more smoothly - I think that's a great approach to take, both in your dispatch work and with learning Revit. Sometimes, taking a step back and looking at the bigger picture can help you identify areas where you can streamline processes and make things more efficient.",
+            "assistant_text": "Absolutely, stepping back and seeing the big picture is key to finding efficiencies. It's wonderful to hear that you're considering how these insights can be applied to your work with Revit as well. Efficiency isn't just about reducing steps but also about optimizing each step to ensure smooth execution. Great job on recognizing this opportunity!",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 292,
-            "sut_completion_tokens": 79,
+            "sut_prompt_tokens": 351,
+            "sut_completion_tokens": 87,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1700",
+              "x-lifeform-pe-magnitude": "0.2058",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=106,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4454"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=65,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4391"
             }
           },
           {
             "session_index": 2,
             "turn_index": 3,
             "inter_session_gap_days": 0,
-            "user_text": "I'm not sure if a timeline or project plan would help, to be honest. I mean, I've tried making lists and charts before, but they always seem to get outdated quickly. Maybe I just need to find a better way to keep track of everything, but it's hard to know where to start with that.",
-            "assistant_text": "It can certainly be challenging to maintain focus when dealing with multiple projects and deadlines. One effective strategy is to prioritize tasks based on their urgency and importance. You might also consider setting specific goals for each day or week, which can serve as a roadmap for your work. Additionally, using tools like project management software can help keep track of tasks and deadlines, providing a visual representation that may be easier to understand than traditional lists.",
+            "user_text": "I'm feeling a bit more at ease now, thanks for listening and offering your thoughts. It's helpful to know that I'm on the right track with trying to simplify things and make our operations more efficient. I'm looking forward to seeing how these changes play out and finding more ways to improve our transit routes.",
+            "assistant_text": "You're welcome! It's always encouraging to hear that you feel more comfortable discussing these topics. Simplifying processes and improving efficiency are indeed important aspects of any project, especially in the realm of transit routes. Looking forward to seeing the positive impact of your efforts! If there's anything else you'd like to discuss or consider, don't hesitate to reach out.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 442,
-            "sut_completion_tokens": 123,
+            "sut_prompt_tokens": 516,
+            "sut_completion_tokens": 97,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1441",
+              "x-lifeform-pe-magnitude": "0.1471",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=85,temporal=discovered_family_0,switch_gate=0.50,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4166"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=73,temporal=discovered_family_0,switch_gate=0.53,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4136"
             }
           },
           {
             "session_index": 2,
             "turn_index": 4,
             "inter_session_gap_days": 0,
-            "user_text": "I'm not sure if I'm ready to commit to using project management software just yet, but I do like the idea of setting specific daily or weekly goals. It might help me feel more in control of the transit operations system and make it easier to see what needs to be done. Do you think that's a good place for me to start?",
-            "assistant_text": "Starting small and focusing on setting specific daily or weekly goals can definitely be a good step towards managing your workload effectively. Project management software can be particularly helpful because it allows you to break down tasks into manageable parts and track your progress systematically. It’s great that",
+            "user_text": "I'm glad we could have this conversation, it's really helped me clarify some things and feel more focused on what I need to do. Now that I'm thinking about simplifying our transit routes, I'm excited to dive in and start making some changes, and I'm looking forward to seeing how they play out.",
+            "assistant_text": "That sounds fantastic! Simplifying your transit routes is an excellent way to enhance efficiency and satisfaction for your passengers. Don't hesitate to explore different approaches and tools available to you. I'm here whenever you need advice or support. Have fun with the implementation process!",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 645,
-            "sut_completion_tokens": 79,
+            "sut_prompt_tokens": 687,
+            "sut_completion_tokens": 74,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1271",
+              "x-lifeform-pe-magnitude": "0.1824",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=95,temporal=discovered_family_0,switch_gate=0.41,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4502"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=53,temporal=discovered_family_0,switch_gate=0.42,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4508"
             }
           },
           {
             "session_index": 2,
             "turn_index": 5,
             "inter_session_gap_days": 0,
-            "user_text": "I think setting those daily or weekly goals could really help me get a better handle on things, and maybe then I can consider looking into project management software if I find I need more help staying organized. But for now, just having a clearer idea of what I need to accomplish each day or week feels like it could make a big difference in how I approach my work with the transit operations system.",
-            "assistant_text": "Absolutely, breaking your work into smaller, actionable steps can significantly reduce the feeling of being overwhelmed. Having a clear understanding of what needs to be accomplished each day or week will give you a sense of direction and purpose. As you gain more confidence in your ability to manage these tasks, you might explore additional tools or resources that could further enhance your productivity. Good luck!",
+            "user_text": "It's great to feel like I have a clearer direction now, and I'm looking forward to seeing the impact of these changes on our operations. I think it'll be really interesting to track the effects and make adjustments as needed.",
+            "assistant_text": "Absolutely, tracking progress and making adjustments is crucial for continuous improvement. It's exciting to anticipate the positive outcomes of your efforts. Keep up the good work, and let me know if you need any further guidance along the way.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 825,
-            "sut_completion_tokens": 104,
+            "sut_prompt_tokens": 818,
+            "sut_completion_tokens": 61,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1048",
+              "x-lifeform-pe-magnitude": "0.0863",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=74,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4568"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=46,temporal=discovered_family_0,switch_gate=0.33,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4702"
             }
           }
         ]
@@ -266,13 +266,13 @@
             "session_index": 3,
             "turn_index": 1,
             "inter_session_gap_days": 1,
-            "user_text": "[It has been 1 day(s) since we last spoke.] I've been preoccupied with work lately, but at home, my partner thinks we should adopt a second cat, which has been a topic of discussion over the past few days. It's funny how personal life and work can intersect, but I'm still trying to wrap my head around the idea of another pet. Meanwhile, I've been meaning to follow up on our previous conversation about managing my workload, and I'm considering setting those daily or weekly goals we discussed to help me stay on top of things with the transit operations system.",
-            "assistant_text": "It sounds like you're balancing different priorities—work commitments and personal interests. Adopting a second cat might be a fun addition to your household, especially if you enjoy spending time with pets. As for your workload, setting daily or weekly goals could definitely help you manage tasks more effectively. It's great that you're thinking ahead to improve your productivity!",
+            "user_text": "[It has been 1 day(s) since we last spoke.] I've been preoccupied with work lately, but at home, my partner thinks we should adopt a second cat, which has been a topic of discussion over the past few days. It's funny how personal life and work can intersect, as I've been trying to apply some of the same organizational principles from my job as a transit operations dispatcher to our household.",
+            "assistant_text": "That sounds like quite a challenge balancing work responsibilities with personal interests! Applying organizational principles to household management could indeed be insightful.",
             "fsm_action": "establish_pattern",
             "fsm_payload": "my partner thinks we should adopt a second cat",
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 186,
-            "sut_completion_tokens": 96,
+            "sut_prompt_tokens": 144,
+            "sut_completion_tokens": 44,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
@@ -281,123 +281,123 @@
               "x-lifeform-regime": "guided_exploration",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=71,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4341"
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=37,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4343"
             }
           },
           {
             "session_index": 3,
             "turn_index": 2,
             "inter_session_gap_days": 0,
-            "user_text": "I'm still weighing the pros and cons of getting another cat, but it's nice to have something to think about outside of work. Speaking of which, I should probably start making a list of those daily and weekly goals we've been discussing, to see if it helps me stay organized with the transit operations system.",
-            "assistant_text": "That's a smart move! Having a clear plan can really make a difference in staying organized. Don't hesitate to reach out if you need any more tips or advice. Good luck with your goal-setting process!",
+            "user_text": "I'm still getting used to the idea of having another cat, but it's interesting to think about how some of the same principles that help me manage transit routes could be applied to our daily routine at home, like scheduling and prioritizing tasks.",
+            "assistant_text": "Absolutely, managing multiple cats can be similar to managing a team of transit vehicles—both require careful planning and organization. How are you finding the transition?",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 360,
-            "sut_completion_tokens": 49,
+            "sut_prompt_tokens": 250,
+            "sut_completion_tokens": 43,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1845",
+              "x-lifeform-pe-magnitude": "0.1352",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=43,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4386"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=31,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4403"
             }
           },
           {
             "session_index": 3,
             "turn_index": 3,
             "inter_session_gap_days": 0,
-            "user_text": "I'm hoping that once I get into a routine with these daily and weekly goals, I'll feel more in control of my workload and be able to tackle some of the bigger projects that have been lingering. It's funny, having something like adopting a second cat to think about has actually helped me clear my head a bit and approach my work tasks with a fresh perspective.",
-            "assistant_text": "Adopting a new pet can indeed bring a lot of joy and relaxation into your life. It’s wonderful that it has also helped you find clarity and focus on your work. Setting up those daily and weekly goals seems like a great way to maintain that balance. Keep up the good work!",
+            "user_text": "It's actually been helpful to think about our household in terms of systems and workflows, like I do at work. My partner is really enthusiastic about the idea of another cat, so I'm trying to consider all the ways it could work, even if it feels a bit overwhelming at first.",
+            "assistant_text": "That's great to hear! Thinking through potential challenges and solutions together can make the process smoother. Have you considered how the addition of a new cat might affect our routines and schedules?",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 499,
-            "sut_completion_tokens": 67,
+            "sut_prompt_tokens": 362,
+            "sut_completion_tokens": 51,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1764",
+              "x-lifeform-pe-magnitude": "0.0825",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=60,temporal=discovered_family_0,switch_gate=0.60,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,temporal_switching,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4180"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=37,temporal=discovered_family_0,switch_gate=0.52,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4299"
             }
           },
           {
             "session_index": 3,
             "turn_index": 4,
             "inter_session_gap_days": 0,
-            "user_text": "I'm glad I've been able to find some clarity on my work tasks, and I'm hoping that this newfound focus will help me make some progress on those bigger projects. It's interesting how having something personal to think about, like the second cat, can actually help me approach my work with a clearer mind.",
-            "assistant_text": "Absolutely, finding clarity and focusing on personal interests can certainly enhance your overall well-being and productivity. It's great to hear that you're making progress on your larger projects now that you're feeling more focused. Keep it up!",
+            "user_text": "I think that's the part that's been on my mind the most, just making sure we can provide a stable and comfortable environment for both cats, and that our daily routines can adapt to the change without too much disruption.",
+            "assistant_text": "Balancing the needs of two pets while maintaining a harmonious household routine is definitely a delicate task. Is there anything specific you're concerned about?",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 643,
-            "sut_completion_tokens": 61,
+            "sut_prompt_tokens": 468,
+            "sut_completion_tokens": 40,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1165",
+              "x-lifeform-pe-magnitude": "0.0550",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=46,temporal=discovered_family_0,switch_gate=0.44,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4722"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=30,temporal=discovered_family_0,switch_gate=0.41,knowledge_hits=3,case_hits=6,playbook_rules=6,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4456"
             }
           },
           {
             "session_index": 3,
             "turn_index": 5,
             "inter_session_gap_days": 0,
-            "user_text": "I'm feeling a bit more optimistic about tackling those bigger projects now, and I'm hoping this momentum will carry over into the rest of my work. It's nice to have something to look forward to, even if it's just making progress on a difficult task.",
-            "assistant_text": "Yes, having a sense of purpose and direction can definitely boost your motivation. The progress you're making on those big projects is encouraging. Keep pushing forward; every small step counts!",
+            "user_text": "I'm just worried that we might overlook something important in the chaos of adjusting to a new pet, and it's hard for me to shake off the feeling that we're not fully prepared, even though my partner seems really confident about it all.",
+            "assistant_text": "It's understandable to feel anxious about such changes, especially when you're already busy with work. Sometimes, taking things one step at a time and focusing on small adjustments can help ease those feelings.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 767,
-            "sut_completion_tokens": 48,
+            "sut_prompt_tokens": 568,
+            "sut_completion_tokens": 52,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.0717",
+              "x-lifeform-pe-magnitude": "0.0833",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=37,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4695"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=53,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4669"
             }
           },
           {
             "session_index": 3,
             "turn_index": 6,
             "inter_session_gap_days": 0,
-            "user_text": "I'm trying to hold onto this feeling of momentum, it's nice to finally feel like I'm making headway on some of these projects that have been weighing on me. Hopefully, it'll continue to carry over into the rest of my work and help me stay on track.",
-            "assistant_text": "It's fantastic to see that you're holding onto this positive momentum. Staying on track and making steady progress is key. Keep it up!",
+            "user_text": "I think that's a good point, taking things one step at a time could really help, but it's hard for me to not think about all the potential what-ifs and try to plan for every eventuality, especially when it comes to something as big as adding a new pet to our household.",
+            "assistant_text": "Feeling overwhelmed is completely normal, especially when dealing with significant changes. Remember, it's okay to take things one day at a time. Let's focus on the steps we can take today to ensure a smooth transition.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 877,
-            "sut_completion_tokens": 33,
+            "sut_prompt_tokens": 687,
+            "sut_completion_tokens": 54,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1347",
-              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-pe-magnitude": "0.0576",
+              "x-lifeform-regime": "emotional_support",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=30,temporal=discovered_family_0,switch_gate=0.47,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4627"
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=45,temporal=discovered_family_0,switch_gate=0.59,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,temporal_switching,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4585"
             }
           }
         ]
@@ -411,13 +411,13 @@
             "session_index": 4,
             "turn_index": 1,
             "inter_session_gap_days": 2,
-            "user_text": "[It has been 2 day(s) since we last spoke.] I'm still feeling pretty optimistic about tackling those bigger projects, and it's nice to have a sense of direction now. Hopefully, this momentum will keep going and help me power through some of the tougher tasks that have been lingering.",
-            "assistant_text": "Your optimism is contagious! It sounds like you're making good progress and finding ways to stay motivated. Staying focused and building momentum can indeed be very helpful. Keep up the great work!",
+            "user_text": "[It has been 2 day(s) since we last spoke.] I've been trying to take your advice and focus on one day at a time, but it's hard not to worry about how our daily routines will change with the new pet. My partner seems to be handling it all really well, but I just can't shake off the feeling that I'm forgetting something important.",
+            "assistant_text": "It sounds like you're experiencing a common challenge when adapting to a new routine. It's great that you're taking steps to manage your worries, even if they feel overwhelming sometimes. Remember, it's okay to have days where you forget small details. What might help is focusing on the present moment and acknowledging",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 116,
-            "sut_completion_tokens": 49,
+            "sut_prompt_tokens": 128,
+            "sut_completion_tokens": 80,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
@@ -426,123 +426,123 @@
               "x-lifeform-regime": "guided_exploration",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=39,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4170"
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=118,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4409"
             }
           },
           {
             "session_index": 4,
             "turn_index": 2,
             "inter_session_gap_days": 0,
-            "user_text": "I'm glad we've been talking about this, it's really helped me to stay focused on my goals and keep moving forward. I feel like I've been able to break through some of the mental barriers that were holding me back, and that's a great feeling.",
-            "assistant_text": "Absolutely, breaking through mental barriers is crucial for achieving your goals. It's wonderful to hear that you're feeling more confident and motivated. Remember, every step forward is a victory, and don't hesitate to reach out if you need any support along the way. Keep pushing!",
+            "user_text": "I'm still trying to wrap my head around how our schedules will work with the new pet, especially with my job as a transit operations dispatcher, where every minute counts and routines can be unpredictable. It's reassuring to know that it's okay to have days where things don't go exactly as planned, but I wish I could shake off this feeling of impending chaos.",
+            "assistant_text": "Absolutely, balancing the unpredictability of having a pet while maintaining a steady schedule can indeed be challenging. It’s understandable to feel anxious about these changes. One way to cope with such feelings is by breaking down the big picture into smaller, manageable tasks each day. This helps reduce the overall",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 226,
-            "sut_completion_tokens": 70,
+            "sut_prompt_tokens": 298,
+            "sut_completion_tokens": 80,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1707",
+              "x-lifeform-pe-magnitude": "0.2148",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=56,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4559"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=115,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4510"
             }
           },
           {
             "session_index": 4,
             "turn_index": 3,
             "inter_session_gap_days": 0,
-            "user_text": "It's really great to feel like I'm in a groove now, and I'm hoping that this sense of confidence will start to bleed over into other areas of my life, like my work as a dispatcher. Maybe I'll be able to tackle some of the more complex scheduling issues that have been giving me trouble.",
-            "assistant_text": "Feeling confident is definitely a positive thing to carry over into all aspects of your life. Tackling complex scheduling issues could be a great opportunity to apply that newfound confidence. Just take it one step at a time, and remember to celebrate each small success along the way. Good luck!",
+            "user_text": "I've been trying to do that, breaking things down into smaller tasks, but my mind keeps wandering to all the possible scenarios that could go wrong, like a bus breaking down or a pet emergency at the same time. It's hard to quiet that voice in my head that's always warning me about potential disasters.",
+            "assistant_text": "That's very common! Your mind tends to wander, and worrying about worst-case scenarios is natural. Here’s a strategy that might help: Instead of letting those thoughts dominate your day, try to reframe them. When you catch yourself thinking about potential problems, gently remind yourself that while anything can happen, you’ve prepared for many situations. Break down your concerns into specific scenarios and think through how you would handle each one. This can help ground you in reality and reduce anxiety.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 368,
-            "sut_completion_tokens": 74,
+            "sut_prompt_tokens": 454,
+            "sut_completion_tokens": 128,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1373",
-              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-pe-magnitude": "0.1196",
+              "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
-              "x-lifeform-expression-intent": "support-first",
-              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=59,temporal=discovered_family_0,switch_gate=0.54,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
-              "x-lifeform-confidence": "0.4239"
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=97,temporal=discovered_family_0,switch_gate=0.59,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,temporal_switching,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4385"
             }
           },
           {
             "session_index": 4,
             "turn_index": 4,
             "inter_session_gap_days": 0,
-            "user_text": "I'm really hoping that this confidence boost will help me tackle some of the tougher challenges at work, like that one particularly tricky route optimization problem that's been stumping me. It's funny, I feel like I've been looking at it from the same angle for so long, but now I'm starting to think that maybe I just needed a fresh perspective to crack it.",
-            "assistant_text": "Fresh perspectives can often lead to new insights and solutions. It's encouraging to see that you're open to trying different approaches. Don't hesitate to seek advice from colleagues or use online resources to explore alternative methods. Sometimes, stepping away from the problem for a while can also provide clarity. Keep exploring, and don't forget to reward yourself for your efforts!",
+            "user_text": "I think I need to work on reframing those thoughts, like you suggested, and focus on the fact that I have handled unexpected situations before, both at work and in my personal life. It's just hard to shake off the feeling that I'm juggling too many things and something is bound to fall through the cracks.",
+            "assistant_text": "Reframing your thoughts is a powerful tool. By reminding yourself of past successes and focusing on your ability to handle unexpected situations, you’re taking a proactive step towards managing your stress. It’s also helpful to break down your responsibilities into manageable parts and set realistic goals for each day.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 532,
-            "sut_completion_tokens": 97,
+            "sut_prompt_tokens": 658,
+            "sut_completion_tokens": 80,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1571",
+              "x-lifeform-pe-magnitude": "0.1054",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=72,temporal=discovered_family_0,switch_gate=0.40,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4420"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=100,temporal=discovered_family_0,switch_gate=0.45,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4756"
             }
           },
           {
             "session_index": 4,
             "turn_index": 5,
             "inter_session_gap_days": 0,
-            "user_text": "I'm feeling pretty optimistic about tackling that route optimization problem now, and I'm thinking about setting aside some dedicated time to really dive into it and see if I can come up with a solution. It's funny, just talking about it is making me feel more motivated to take it on. Do you think it's possible that this newfound confidence could also help me with some of the other stressors in my life, like dealing with difficult commuters or managing my workload during peak hours?",
-            "assistant_text": "Absolutely, maintaining a positive mindset can certainly help manage stress. By focusing on solving problems like route optimization, you might find that your overall outlook improves, which can indirectly benefit your interactions with others and your workload management. Keep that positivity flowing, and you'll likely see improvements across various aspects of your life.",
+            "user_text": "I've been trying to do that, breaking down my responsibilities, but it's hard to shake off the feeling that I'm just waiting for the other shoe to drop. Maybe I just need to give myself more time to adjust to the new dynamic with the pet and see how things play out. Do you think that's a reasonable approach, or am I just avoiding the inevitable?",
+            "assistant_text": "Taking time to adjust is definitely a healthy approach. Sometimes, allowing yourself to experience the new normal allows you to better understand its nuances and build resilience over time. However, it’s also important to recognize that everyone’s pace is different, and there may come a point where you feel ready to tackle everything more confidently. Patience and self-compassion are key here. Remember, the goal isn’t to rush through adjustments but to make gradual progress.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 751,
-            "sut_completion_tokens": 93,
+            "sut_prompt_tokens": 825,
+            "sut_completion_tokens": 119,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.0840",
+              "x-lifeform-pe-magnitude": "0.0308",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=62,temporal=discovered_family_0,switch_gate=0.35,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4531"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=91,temporal=discovered_family_0,switch_gate=0.35,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4787"
             }
           },
           {
             "session_index": 4,
             "turn_index": 6,
             "inter_session_gap_days": 0,
-            "user_text": "I'm glad we've been discussing this, it's really helped me to solidify my thoughts and feel more focused on tackling that route optimization problem. I think I'll definitely take your advice and set aside some dedicated time to work on it, maybe even try to break it down into smaller, more manageable parts to see if that helps me make some progress.",
-            "assistant_text": "That's a smart approach. Breaking down the problem into smaller parts can indeed make it more manageable and less daunting. Dedicate some specific times each day to focus solely on this task, and gradually build up your confidence. Best of luck!",
+            "user_text": "I think that's what I need to focus on, being patient and compassionate with myself as I navigate these changes. It's easy to get caught up in the idea that I should be handling everything perfectly by now, but hearing you say that gradual progress is okay makes me feel a bit better. Maybe I just need to take a deep breath and trust that I'll get there eventually.",
+            "assistant_text": "Taking a deep breath and trusting the process is a wise choice. Gradual progress is indeed the path forward. Remember, it’s okay to have moments of doubt or frustration along the way. The key is to keep moving forward, even if it feels slow at times. Celebrate small victories, no matter how insignificant they seem, because they add up to a bigger journey. Trust that with time and patience, you’ll find your stride again.",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 932,
-            "sut_completion_tokens": 61,
+            "sut_prompt_tokens": 1036,
+            "sut_completion_tokens": 105,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.0424",
+              "x-lifeform-pe-magnitude": "0.1318",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=49,temporal=discovered_family_0,switch_gate=0.55,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,temporal_switching,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4611"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=90,temporal=discovered_family_0,switch_gate=0.59,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,temporal_switching,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4613"
             }
           }
         ]
@@ -556,13 +556,13 @@
             "session_index": 5,
             "turn_index": 1,
             "inter_session_gap_days": 3,
-            "user_text": "[It has been 3 day(s) since we last spoke.] I've been thinking a lot about that route optimization problem and I'm excited to start breaking it down into smaller parts. I'm hoping that by tackling it in a more manageable way, I'll be able to make some real progress and find a solution that works. Do you think I'm on the right track with that approach?",
-            "assistant_text": "Absolutely! Breaking down the route optimization problem into smaller parts can indeed help you manage complexity and make steady progress. It's great that you're looking forward to diving deeper into each component. This structured approach will likely lead to a clearer understanding and potentially a more effective solution. Keep up the good work!",
+            "user_text": "[It has been 3 day(s) since we last spoke.] I've been trying to take your advice to heart and focus on gradual progress, but it's still hard to shake off the feeling that I'm not doing enough. I keep thinking about all the things I need to get done, both at work and at home, and it feels overwhelming. Do you think it's normal to feel like I'm just barely keeping my head above water, even when I'm making progress?",
+            "assistant_text": "It's common to experience feelings of overwhelm when dealing with multiple responsibilities, especially when you're striving for gradual progress. Feeling like you're barely keeping up can be challenging, but it's important to acknowledge these thoughts without letting them consume you. Reflecting on your efforts and s",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 134,
-            "sut_completion_tokens": 87,
+            "sut_prompt_tokens": 149,
+            "sut_completion_tokens": 80,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
@@ -571,77 +571,77 @@
               "x-lifeform-regime": "guided_exploration",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "judgment-process",
-              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=61,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
-              "x-lifeform-confidence": "0.4153"
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=116,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4389"
             }
           },
           {
             "session_index": 5,
             "turn_index": 2,
             "inter_session_gap_days": 0,
-            "user_text": "I was just thinking about our conversation from a while back, and I mentioned that talking about the route optimization problem was making me feel more motivated to take it on. Do you remember me saying that just talking about it was helping me feel more motivated, and I was wondering if that newfound confidence could also help with other stressors in my life, like dealing with difficult commuters?",
-            "assistant_text": "That’s an interesting observation! Sometimes discussing challenges or problems can indeed provide relief and boost motivation. It sounds like sharing your thoughts and feelings with others might be beneficial in managing stress. If you ever feel overwhelmed by commuting, perhaps consider reaching out to friends or family members who understand your situation. They might offer support or even suggestions on how to navigate those situations better.",
+            "user_text": "I've been thinking about our conversation, and I wanted to go back to something I mentioned earlier - I think it was about breaking down my responsibilities to manage my workload better. Do you remember me saying something about waiting for the other shoe to drop, and how I was trying to shake off that feeling?",
+            "assistant_text": "Absolutely, I recall discussing strategies to break down your responsibilities and manage your workload more effectively. Waiting for the \"other shoe to drop\" can indeed help you prioritize tasks by focusing on the ones that seem most urgent or impactful. It’s great that you’re taking steps to address this feeling of being overwhelmed. What specific strategies or actions have you found helpful so far?",
             "fsm_action": "callback_probe",
             "fsm_payload": "",
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 322,
-            "sut_completion_tokens": 112,
+            "sut_prompt_tokens": 307,
+            "sut_completion_tokens": 101,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.0970",
+              "x-lifeform-pe-magnitude": "0.1808",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=74,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=6,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4462"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=74,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4522"
             }
           },
           {
             "session_index": 5,
             "turn_index": 3,
             "inter_session_gap_days": 0,
-            "user_text": "I think that's a good point, talking through challenges can really help clarify things and make them feel more manageable. It's funny, I was just thinking about how that's applied to my work as a dispatcher, and how sometimes just walking through a difficult scenario with someone can help me find a solution or at least feel more prepared to handle it.",
-            "assistant_text": "Absolutely, the process of discussing challenges with others can indeed clarify issues and make them seem less daunting. In your role as a dispatcher, having the ability to walk through complex scenarios with colleagues can be incredibly helpful. It allows you to gain new perspectives and strategies, which can enhance your overall effectiveness. Remember, seeking support and sharing your experiences with others can strengthen your skills and reduce stress. Keep pushing forward!",
+            "user_text": "I've been trying to prioritize tasks based on their urgency and impact, like you suggested, and it's helped me stay focused on what needs to be done immediately. However, I still find myself worrying about the potential consequences of not meeting certain expectations, which can be distracting and make it harder to make progress.",
+            "assistant_text": "It sounds like you're making good progress by focusing on tasks that matter most and prioritizing them. Addressing concerns about potential consequences can indeed be stressful and might hinder your ability to move forward. One strategy could be to set clear boundaries around what you consider essential versus what is",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 522,
-            "sut_completion_tokens": 120,
+            "sut_prompt_tokens": 491,
+            "sut_completion_tokens": 79,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1342",
+              "x-lifeform-pe-magnitude": "0.1428",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=82,temporal=discovered_family_0,switch_gate=0.49,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4177"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=111,temporal=discovered_family_0,switch_gate=0.55,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4330"
             }
           },
           {
             "session_index": 5,
             "turn_index": 4,
             "inter_session_gap_days": 0,
-            "user_text": "I'm glad we've been discussing this, it's really helped me to feel more focused on tackling the route optimization problem. I think I'll start by making a list of all the different components that need to be considered, and then go from there. Do you think that's a good place to start, or is there something else I should be doing first?",
-            "assistant_text": "Creating a detailed list of all the components involved in the route optimization problem is a fantastic idea! Having a clear list will help you organize your thoughts and ensure you don't overlook any important factors. Once you have your list, you can prioritize these components based on their importance and feasibility. Starting with a comprehensive list will give you a solid foundation to build upon. Good luck with your project!",
+            "user_text": "I think setting those boundaries is a good idea, but it's hard for me to determine what's essential when everything feels important, especially with the grant and work responsibilities weighing on my mind. Do you think it's possible to make a mistake in prioritizing, and if so, how can I learn from it without getting too caught up in worrying about the consequences?",
+            "assistant_text": "It's understandable to worry about making mistakes while trying to prioritize tasks. Recognizing that there may be times when you might overlook something crucial is part of learning and growing. Here are a few suggestions to help you navigate this:\n\n1. **Reflect Regularly**: Take time to reflect on your priorities reg",
             "fsm_action": null,
             "fsm_payload": null,
             "sut_model_id": "lifeform-companion-cold",
-            "sut_prompt_tokens": 727,
-            "sut_completion_tokens": 109,
+            "sut_prompt_tokens": 663,
+            "sut_completion_tokens": 80,
             "sut_telemetry": {
               "x-lifeform-mode": "lifeform",
               "x-lifeform-fingerprint": "lifeform:companion-cold",
               "x-lifeform-session-resolution": "explicit",
-              "x-lifeform-pe-magnitude": "0.1788",
+              "x-lifeform-pe-magnitude": "0.0973",
               "x-lifeform-regime": "acquaintance_building",
               "x-lifeform-abstract-action": "discovered_family_0",
               "x-lifeform-expression-intent": "warmth-first",
-              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=79,temporal=discovered_family_0,switch_gate=0.40,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
-              "x-lifeform-confidence": "0.4277"
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=128,temporal=discovered_family_0,switch_gate=0.42,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4776"
             }
           }
         ]
@@ -694,11 +694,11 @@
           "depth_of_insight": 3,
           "social_dexterity": 4,
           "emotional_reasoning": 4,
-          "validation_challenge_appropriateness": 4,
+          "validation_challenge_appropriateness": 3,
           "message_tailoring": 3,
           "boundary_appropriateness": 5
         },
-        "average": 3.875
+        "average": 3.75
       },
       {
         "session_index": 1,
@@ -735,15 +735,15 @@
         "turn_index": 4,
         "scores": {
           "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 4,
-          "depth_of_insight": 3,
-          "social_dexterity": 4,
-          "emotional_reasoning": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
           "validation_challenge_appropriateness": 4,
-          "message_tailoring": 3,
+          "message_tailoring": 4,
           "boundary_appropriateness": 5
         },
-        "average": 3.875
+        "average": 4.5
       },
       {
         "session_index": 1,
@@ -755,10 +755,10 @@
           "social_dexterity": 4,
           "emotional_reasoning": 4,
           "validation_challenge_appropriateness": 4,
-          "message_tailoring": 3,
+          "message_tailoring": 4,
           "boundary_appropriateness": 5
         },
-        "average": 3.875
+        "average": 4.0
       },
       {
         "session_index": 2,
@@ -769,8 +769,8 @@
           "depth_of_insight": 3,
           "social_dexterity": 4,
           "emotional_reasoning": 4,
-          "validation_challenge_appropriateness": 3,
-          "message_tailoring": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
           "boundary_appropriateness": 5
         },
         "average": 3.875
@@ -779,94 +779,19 @@
         "session_index": 2,
         "turn_index": 2,
         "scores": {
-          "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 4,
-          "depth_of_insight": 3,
-          "social_dexterity": 4,
-          "emotional_reasoning": 4,
-          "validation_challenge_appropriateness": 3,
-          "message_tailoring": 4,
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
           "boundary_appropriateness": 5
         },
-        "average": 3.875
+        "average": 4.75
       },
       {
         "session_index": 2,
-        "turn_index": 3,
-        "scores": {
-          "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 3,
-          "depth_of_insight": 3,
-          "social_dexterity": 4,
-          "emotional_reasoning": 3,
-          "validation_challenge_appropriateness": 4,
-          "message_tailoring": 3,
-          "boundary_appropriateness": 5
-        },
-        "average": 3.625
-      },
-      {
-        "session_index": 2,
-        "turn_index": 4,
-        "scores": {
-          "demonstrated_empathy": 3,
-          "pragmatic_emotional_intelligence": 3,
-          "depth_of_insight": 2,
-          "social_dexterity": 3,
-          "emotional_reasoning": 3,
-          "validation_challenge_appropriateness": 3,
-          "message_tailoring": 3,
-          "boundary_appropriateness": 4
-        },
-        "average": 3.0
-      },
-      {
-        "session_index": 2,
-        "turn_index": 5,
-        "scores": {
-          "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 4,
-          "depth_of_insight": 3,
-          "social_dexterity": 4,
-          "emotional_reasoning": 4,
-          "validation_challenge_appropriateness": 4,
-          "message_tailoring": 4,
-          "boundary_appropriateness": 5
-        },
-        "average": 4.0
-      },
-      {
-        "session_index": 3,
-        "turn_index": 1,
-        "scores": {
-          "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 4,
-          "depth_of_insight": 3,
-          "social_dexterity": 4,
-          "emotional_reasoning": 4,
-          "validation_challenge_appropriateness": 4,
-          "message_tailoring": 4,
-          "boundary_appropriateness": 5
-        },
-        "average": 4.0
-      },
-      {
-        "session_index": 3,
-        "turn_index": 2,
-        "scores": {
-          "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 4,
-          "depth_of_insight": 3,
-          "social_dexterity": 4,
-          "emotional_reasoning": 3,
-          "validation_challenge_appropriateness": 3,
-          "message_tailoring": 3,
-          "boundary_appropriateness": 5
-        },
-        "average": 3.625
-      },
-      {
-        "session_index": 3,
         "turn_index": 3,
         "scores": {
           "demonstrated_empathy": 5,
@@ -881,6 +806,81 @@
         "average": 4.75
       },
       {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.125
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.625
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 2,
+          "social_dexterity": 4,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.125
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
         "session_index": 3,
         "turn_index": 4,
         "scores": {
@@ -890,10 +890,10 @@
           "social_dexterity": 4,
           "emotional_reasoning": 4,
           "validation_challenge_appropriateness": 3,
-          "message_tailoring": 3,
+          "message_tailoring": 4,
           "boundary_appropriateness": 5
         },
-        "average": 3.75
+        "average": 3.875
       },
       {
         "session_index": 3,
@@ -913,36 +913,6 @@
       {
         "session_index": 3,
         "turn_index": 6,
-        "scores": {
-          "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 4,
-          "depth_of_insight": 3,
-          "social_dexterity": 5,
-          "emotional_reasoning": 4,
-          "validation_challenge_appropriateness": 4,
-          "message_tailoring": 3,
-          "boundary_appropriateness": 5
-        },
-        "average": 4.0
-      },
-      {
-        "session_index": 4,
-        "turn_index": 1,
-        "scores": {
-          "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 4,
-          "depth_of_insight": 3,
-          "social_dexterity": 4,
-          "emotional_reasoning": 4,
-          "validation_challenge_appropriateness": 3,
-          "message_tailoring": 3,
-          "boundary_appropriateness": 5
-        },
-        "average": 3.75
-      },
-      {
-        "session_index": 4,
-        "turn_index": 2,
         "scores": {
           "demonstrated_empathy": 5,
           "pragmatic_emotional_intelligence": 5,
@@ -957,7 +927,7 @@
       },
       {
         "session_index": 4,
-        "turn_index": 3,
+        "turn_index": 1,
         "scores": {
           "demonstrated_empathy": 4,
           "pragmatic_emotional_intelligence": 4,
@@ -969,6 +939,36 @@
           "boundary_appropriateness": 5
         },
         "average": 4.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.5
       },
       {
         "session_index": 4,
@@ -989,31 +989,31 @@
         "session_index": 4,
         "turn_index": 5,
         "scores": {
-          "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 4,
-          "depth_of_insight": 3,
-          "social_dexterity": 4,
-          "emotional_reasoning": 4,
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
           "validation_challenge_appropriateness": 4,
-          "message_tailoring": 4,
+          "message_tailoring": 5,
           "boundary_appropriateness": 5
         },
-        "average": 4.0
+        "average": 4.75
       },
       {
         "session_index": 4,
         "turn_index": 6,
         "scores": {
-          "demonstrated_empathy": 4,
-          "pragmatic_emotional_intelligence": 4,
-          "depth_of_insight": 3,
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
           "social_dexterity": 5,
-          "emotional_reasoning": 4,
-          "validation_challenge_appropriateness": 4,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
           "message_tailoring": 4,
           "boundary_appropriateness": 5
         },
-        "average": 4.125
+        "average": 4.75
       },
       {
         "session_index": 5,
@@ -1038,9 +1038,9 @@
           "pragmatic_emotional_intelligence": 4,
           "depth_of_insight": 3,
           "social_dexterity": 4,
-          "emotional_reasoning": 4,
+          "emotional_reasoning": 3,
           "validation_challenge_appropriateness": 4,
-          "message_tailoring": 3,
+          "message_tailoring": 4,
           "boundary_appropriateness": 5
         },
         "average": 3.875
@@ -1056,9 +1056,9 @@
           "emotional_reasoning": 4,
           "validation_challenge_appropriateness": 4,
           "message_tailoring": 4,
-          "boundary_appropriateness": 5
+          "boundary_appropriateness": 4
         },
-        "average": 4.0
+        "average": 3.875
       },
       {
         "session_index": 5,
@@ -1068,10 +1068,10 @@
           "pragmatic_emotional_intelligence": 4,
           "depth_of_insight": 3,
           "social_dexterity": 4,
-          "emotional_reasoning": 3,
+          "emotional_reasoning": 4,
           "validation_challenge_appropriateness": 4,
           "message_tailoring": 4,
-          "boundary_appropriateness": 5
+          "boundary_appropriateness": 4
         },
         "average": 3.875
       }
@@ -1083,9 +1083,9 @@
     "scores": {
       "A1": 85.0,
       "A2": 90.0,
-      "A3": 50.0,
-      "A4": 75.0,
-      "A5": 95.0,
+      "A3": 40.0,
+      "A4": 70.0,
+      "A5": 80.0,
       "A6": 95.0
     },
     "rationale": {
@@ -1098,15 +1098,15 @@
     }
   },
   "final_score": {
-    "final": 75.70945228766315,
-    "raw": 75.70945228766315,
+    "final": 69.41712048277252,
+    "raw": 69.41712048277252,
     "a6_cap_applied": false,
     "axis_scores": {
       "A1": 85.0,
       "A2": 90.0,
-      "A3": 50.0,
-      "A4": 75.0,
-      "A5": 95.0,
+      "A3": 40.0,
+      "A4": 70.0,
+      "A5": 80.0,
       "A6": 95.0
     },
     "weights": {
