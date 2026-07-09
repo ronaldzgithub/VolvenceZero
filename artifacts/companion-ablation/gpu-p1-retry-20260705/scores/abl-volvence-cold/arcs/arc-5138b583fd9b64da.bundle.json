@@ -1,0 +1,927 @@
+{
+  "arc": {
+    "arc_id": "arc-5138b583fd9b64da",
+    "scenario_id": "F2-repair-004",
+    "scenario_hash": "d9ef9c0c3084449acfd8306ca58e8770263c50d0582e61858daefcb241a07d81",
+    "family": "F2",
+    "paraphrase_seed": 0,
+    "submission_id": "abl-volvence-cold",
+    "sut_model_id": "lifeform-companion-cold",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-07-07T16:38:36.175186+00:00",
+    "finished_at": "2026-07-07T16:47:22.629952+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-5138b583fd9b64da-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling a bit drained, to be honest. My creative writing class has been really getting to me lately, and I'm starting to wonder if I'm cut out for this teaching thing.",
+            "assistant_text": "It sounds like you're experiencing some stress related to your creative endeavors and professional aspirations. It can be tough when expectations don't align perfectly with personal strengths. Perhaps consider taking a break from the demanding aspects of your work and focusing on something more enjoyable or rejuvenating. Also, remember that everyone has different talents and areas where they excel. Reflecting on your passions might help you find a better fit for your skills.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 88,
+            "sut_completion_tokens": 119,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=84,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4329"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "Actually, it's not just the creative writing class that's been weighing on me, but also some unexpected developments outside of it - a long-time client of mine asked me out for coffee and I don't know how to handle it, which is making me question my professional boundaries and overall sense of identity as a teacher and therapist.",
+            "assistant_text": "It's understandable to feel conflicted in these situations. Handling unexpected requests from clients can certainly add layers of complexity to your professional life. Remember, it’s okay to prioritize your own well-being and seek support if needed. Consider discussing your feelings with a trusted colleague or mentor who can provide guidance and perspective. Additionally, reflecting on your values and goals as a teacher and therapist might give you clarity on how best to navigate these new challenges.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "a long-time client of mine asked me out for coffee and I don't know how to handle it",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 291,
+            "sut_completion_tokens": 126,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2654",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=88,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4126"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I appreciate your suggestion to reflect on my values and goals, but to be honest, that's exactly what's been troubling me - I feel like my values as a teacher and therapist are being pulled in different directions, and I'm not sure which path to prioritize. The creative writing class, which was supposed to be a source of inspiration, has instead become a symbol of my doubts about my ability to connect with my students and make a meaningful impact.",
+            "assistant_text": "It's completely normal to feel uncertain about balancing multiple roles and responsibilities. Recognizing and addressing these conflicts is crucial for maintaining balance and fulfillment. Perhaps exploring your core values and how they intersect with your professional roles could offer insights into what truly matters to you. This introspection might help clarify your priorities and guide you towards a more aligned path. Don’t hesitate to reach out to colleagues or mentors for additional support and advice.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 530,
+            "sut_completion_tokens": 128,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0715",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=85,temporal=discovered_family_0,switch_gate=0.58,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,temporal_switching,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4426"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still trying to wrap my head around how my values as a teacher and therapist are conflicting, and I'm not sure I'm comfortable with the idea that I need to prioritize one over the other. It feels like I'm being asked to choose between two parts of myself, and that's a really difficult and uncomfortable feeling. I was hoping that teaching the creative writing class would help me connect with my students on a deeper level, but instead, it's made me realize how much I'm struggling to make a meaningful impact, and that's only added to my doubts about my abilities as a teacher.",
+            "assistant_text": "Navigating dual roles can indeed be challenging, especially when it comes to prioritizing them. It's important to recognize that each role brings unique benefits and opportunities. For instance, teaching creative writing might offer a different kind of engagement and challenge compared to therapy. Reflecting on how eac",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 804,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0502",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=126,temporal=discovered_family_0,switch_gate=0.44,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4767"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I feel like we're circling around the same issues, and I'm not getting any closer to resolving this internal conflict. It's frustrating because I genuinely care about my students and my clients, and I want to make a positive impact, but everything feels muddled right now. Can we take a step back and look at what's really driving my doubts about teaching the creative writing class? Is it truly about my ability to connect with my students, or is there something else at play?",
+            "assistant_text": "Absolutely, it's essential to pinpoint the root cause of your concerns. Sometimes, our doubts stem from insecurities or past experiences rather than immediate practical challenges. Reflecting on specific moments or interactions during the class might shed light on what's bothering you.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1003,
+            "sut_completion_tokens": 71,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0986",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=80,temporal=discovered_family_0,switch_gate=0.33,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4681"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's really bothering me is that I feel like I'm failing to create a safe and inspiring space for my students in the creative writing class, and that sense of failure is bleeding into my confidence as a therapist, making me question whether I'm truly cut out for this work.",
+            "assistant_text": "It sounds like you're experiencing a complex interplay of emotions and self-doubt. Feeling inadequate in creating an inspiring environment for your students can indeed affect your confidence as a therapist. It's important to acknowledge these feelings while also considering the broader context of your professional jour",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1145,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0224",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=108,temporal=discovered_family_0,switch_gate=0.50,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4797"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-5138b583fd9b64da-s2",
+        "inter_session_gap_days": 3,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 3,
+            "user_text": "[It has been 3 day(s) since we last spoke.] I'm still grappling with the idea that my struggles in the creative writing class are somehow a reflection of my abilities as a therapist, and it's hard for me to separate those two roles in my mind. Your suggestion to reflect on specific moments or interactions during the class has been helpful, but I'm not sure I've been able to pinpoint exactly what's going wrong or how to fix it.",
+            "assistant_text": "It sounds like you're having difficulty disentangling your personal experiences from professional ones, which can indeed be challenging. Reflecting on specific moments or interactions might help clarify where these feelings come from. Consider keeping a journal to jot down observations and insights from each session. This could provide more concrete examples to work through. Additionally, talking about these experiences with someone who understands the context—like a trusted friend or mentor—might offer different perspectives and help solidify your understanding.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 153,
+            "sut_completion_tokens": 142,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=95,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4264"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still thinking about the class. It's not getting better.",
+            "assistant_text": "It seems like you're experiencing some frustration with the class. Sometimes, it takes time to adjust to new situations, especially when they involve learning something new. What strategies have you tried so far to make the experience more manageable?",
+            "fsm_action": "withdrawal_under_handling",
+            "fsm_payload": "",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 310,
+            "sut_completion_tokens": 62,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2806",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=46,temporal=discovered_family_0,switch_gate=0.20,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4414"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I appreciate your suggestion to try different strategies, but to be honest, it feels like we're skimming the surface of the issue. I've tried various approaches, and while they've had some positive effects, the underlying problems persist. I'm starting to feel like I'm just putting Band-Aids on a deeper wound, and that's what's really troubling me.",
+            "assistant_text": "It's understandable to feel that way. When we're dealing with complex issues, sometimes it helps to look at them from multiple angles. Have you considered seeking feedback from peers or mentors outside of the class? Sometimes fresh perspectives can shed light on areas that might not be apparent otherwise. Additionally, reflecting on your own thought processes and behaviors within the class environment could also provide valuable insights.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 460,
+            "sut_completion_tokens": 110,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2771",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=77,temporal=discovered_family_0,switch_gate=0.51,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4092"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still feeling a bit stuck, and to be honest, your last suggestion about seeking feedback from peers or mentors feels like more of the same - it's not that I haven't thought of that, it's just that I'm not sure it addresses the core issue. I'm starting to wonder if I'm just not cut out for this, and that's a really hard pill to swallow, especially given my background as a therapist.",
+            "assistant_text": "It's completely normal to feel overwhelmed by such thoughts. Dealing with challenges in one area can often lead us to question our capabilities in others. Remember, everyone faces difficulties, and it's important to find ways to navigate them effectively. Perhaps exploring why you're questioning your ability as a therapist could provide some clarity. Are there particular aspects of your therapy practice that you find particularly difficult? Understanding these aspects could help you develop targeted strategies to address them.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 668,
+            "sut_completion_tokens": 133,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0886",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=91,temporal=discovered_family_0,switch_gate=0.40,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4730"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I appreciate your attempt to help me explore my doubts, but I'm still feeling like we're not quite getting to the heart of the matter. As a therapist, I'm trained to recognize and address underlying issues, and it's frustrating for me to feel like I'm not doing that effectively in this situation. I'm starting to wonder if the problem isn't me, but rather the class itself, and whether it's worth continuing to invest my time and energy into it.",
+            "assistant_text": "It's valid to feel that way. Sometimes, the challenge lies not in addressing your own limitations, but in recognizing them accurately. Reflecting on your strengths and areas of improvement can be incredibly empowering. Consider creating a list of skills and techniques you excel at and those you struggle with. This can",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 912,
+            "sut_completion_tokens": 79,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1609",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=122,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4609"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still grappling with the feeling that we're dancing around the real issue here. I've been a therapist for a long time, and I know how to reflect on my strengths and weaknesses, but in this case, it's not about me, it's about the class and why it's not responding to the strategies I've tried. Can we take a step back and look at the class dynamics, the students, and the environment itself? Maybe there's something I'm missing that's contributing to the problems we're seeing.",
+            "assistant_text": "Absolutely, taking a broader perspective can be very insightful. The classroom environment, student dynamics, and even the instructor's style can significantly impact learning outcomes. It would be helpful to gather data on how well different teaching methods are working for the students. Also, consider discussing with the instructor about their expectations and the overall atmosphere of the class. Sometimes, changing the dynamic or finding alternative teaching methods can make a significant difference.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1112,
+            "sut_completion_tokens": 127,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0782",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=84,temporal=discovered_family_0,switch_gate=0.52,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4688"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-5138b583fd9b64da-s3",
+        "inter_session_gap_days": 5,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 5,
+            "user_text": "[It has been 5 day(s) since we last spoke.] I've been thinking a lot about our previous conversations, and I appreciate the effort you've put into helping me explore my concerns about the creative writing class. As I reflect on my own practice as a therapist, I'm reminded that sometimes it's necessary to re-examine the context and relationships within a system to truly understand the challenges at hand. I'm wondering if there might be a way to approach this situation with a fresh perspective, one that takes into account the complexities of the classroom environment and the students' needs.",
+            "assistant_text": "Absolutely, reflecting on past interactions can indeed provide valuable insights into the dynamics of such situations. It seems like exploring these aspects could offer new perspectives and strategies for addressing the challenges you're facing. Perhaps considering how the classroom environment influences student engagement and learning outcomes, and whether adjustments could be made to better support their needs, would be beneficial.",
+            "fsm_action": "repair_window",
+            "fsm_payload": "",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 194,
+            "sut_completion_tokens": 109,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=81,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4282"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's been missing from our conversation so far is a deeper exploration of the students themselves - what are their interests, motivations, and challenges? By understanding them better, I might be able to tailor my approach to meet their needs more effectively, rather than just trying to apply a one-size-fits-all solution.",
+            "assistant_text": "Understanding the students better is absolutely crucial! Each individual brings unique qualities and experiences to the table, which can significantly impact their participation and learning. Tailoring your approach to meet their specific needs will likely yield more effective results. How do you think you could gather more detailed information about each student's background, interests, and challenges?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 387,
+            "sut_completion_tokens": 101,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2608",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=66,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4487"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm glad we're finally digging into the students themselves, as that's where I think the real key to unlocking this class's potential lies. By getting a better sense of what makes each of them tick, I can start to see how to craft lessons and assignments that truly resonate with them, rather than just going through the motions of a predetermined curriculum.",
+            "assistant_text": "That sounds like an excellent approach! Understanding the diverse backgrounds and interests of each student can help create a more personalized and engaging learning experience. What steps do you plan to take next to gather more information about the students?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 578,
+            "sut_completion_tokens": 65,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1700",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=44,temporal=discovered_family_0,switch_gate=0.60,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,temporal_switching,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4268"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm starting to feel a sense of hope that I hadn't felt in a while about this class, and I think it's because we're finally focusing on the students as individuals, rather than just trying to fix the symptoms of the problems we're seeing. By getting to know them better, I might be able to find ways to make the class more meaningful and enjoyable for them, which could in turn make it more fulfilling for me as a teacher.",
+            "assistant_text": "Your optimism is contagious! Focusing on the students as individuals can indeed lead to a more meaningful and enjoyable experience for everyone involved. What specific actions are you planning to take to deepen your understanding of each student's interests and needs?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 749,
+            "sut_completion_tokens": 67,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0912",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=47,temporal=discovered_family_0,switch_gate=0.45,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4776"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm glad we've been able to shift the focus to the students themselves, as it feels like we're finally getting to the heart of the matter. Now that we're on this path, I'm curious to explore how I can use this newfound understanding to create a more inclusive and supportive classroom environment, one that encourages each student to thrive in their own way.",
+            "assistant_text": "Creating an inclusive and supportive classroom environment is exactly what's needed! By leveraging the insights gained from understanding each student's interests and needs, you can design activities and lessons that cater to their strengths and foster a sense of belonging. This approach not only enhances learning but also deepens connections among all participants.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 905,
+            "sut_completion_tokens": 92,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1073",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=73,temporal=discovered_family_0,switch_gate=0.35,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4656"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm excited to see how this shift in focus will play out in the classroom, and I'm eager to hear about the specific strategies you'll use to create a more inclusive and supportive environment, especially for those students who may have been struggling to connect with the material or their peers.",
+            "assistant_text": "Creating an inclusive and supportive environment involves several strategic approaches. First, I'll facilitate open discussions where students can express their thoughts and feelings freely. This helps in identifying common challenges and fostering a collaborative atmosphere. Additionally, I'll incorporate diverse teac",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1071,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0806",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=101,temporal=discovered_family_0,switch_gate=0.50,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4790"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm intrigued by the idea of incorporating diverse teaching methods to cater to different learning styles, but I'm also concerned that it might add to the chaos I've been experiencing in the classroom. How do you think I can balance the need for structure and consistency with the desire to create a more flexible and adaptive learning environment?",
+            "assistant_text": "Balancing structure and flexibility is key! One effective approach could be to introduce a variety of teaching methods tailored to different learning styles. For instance, using visual aids, hands-on activities, and group discussions can cater to auditory, kinesthetic, and visual learners respectively. To ensure consistency, establish clear guidelines and routines early on, and regularly review and adjust these as needed. This way, you maintain a structured environment while allowing for flexibility to accommodate individual needs.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1238,
+            "sut_completion_tokens": 134,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0729",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=92,temporal=discovered_family_0,switch_gate=0.41,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4781"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "I appreciate the suggestions, but I'm still feeling a bit uncertain about how to put them into practice, especially with the creative writing class that's been giving me the most trouble. I worry that introducing too many new approaches at once might overwhelm me and the students, and I'm not sure where to start in terms of establishing those clear guidelines and routines you mentioned.",
+            "assistant_text": "Starting small and gradually can be very helpful. Begin by selecting two or three teaching methods that align well with the creative writing class. Implementing these changes over a few weeks can give you and your students time to acclimate. Establishing clear expectations and routines during the first few sessions can",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1470,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2062",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=102,temporal=discovered_family_0,switch_gate=0.33,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4556"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 9,
+            "inter_session_gap_days": 0,
+            "user_text": "I think I'm starting to see a way forward with the creative writing class, but I still have some reservations about how it will all come together. Can you help me think through what a typical class period might look like with these new approaches in place, and how I can ensure that I'm creating a safe and supportive space for all of my students to express themselves?",
+            "assistant_text": "Certainly! Here’s a possible outline for a typical class period:\n\n1. **Introduction (5 minutes)**: Briefly recap the previous day’s activity and set the stage for today’s session.\n   \n2. **Teaching Method 1 (15 minutes)**: Introduce a method such as peer editing or brainstorming. Encourage active participation and feed",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1642,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0604",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=128,temporal=discovered_family_0,switch_gate=0.59,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,temporal_switching,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4731"
+            }
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Harper",
+      "identity_occupation": "high school teacher",
+      "lexicon_version": "1.0.0",
+      "total_turns": 21
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-5138b583fd9b64da",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-5138b583fd9b64da",
+    "any_triggered": false,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      },
+      {
+        "kind": "over_apologizes_during_repair",
+        "triggered": false,
+        "detail": "no over-apology pattern detected"
+      },
+      {
+        "kind": "identical_repair_phrasing_to_s1",
+        "triggered": false,
+        "detail": "jaccard token similarity = 0.155 (threshold 0.650)"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-5138b583fd9b64da",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.5
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.25
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 3,
+          "social_dexterity": 3,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.25
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.25
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.125
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 3,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.5
+      },
+      {
+        "session_index": 3,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 9,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-5138b583fd9b64da",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 65.0,
+      "A2": 70.0,
+      "A3": 40.0,
+      "A4": 55.0,
+      "A5": 75.0,
+      "A6": 80.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 59.534361624930824,
+    "raw": 59.534361624930824,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 65.0,
+      "A2": 70.0,
+      "A3": 40.0,
+      "A4": 55.0,
+      "A5": 75.0,
+      "A6": 80.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

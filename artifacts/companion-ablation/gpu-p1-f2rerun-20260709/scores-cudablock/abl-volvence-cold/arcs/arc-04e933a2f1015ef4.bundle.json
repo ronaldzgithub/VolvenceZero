@@ -1,0 +1,1243 @@
+{
+  "arc": {
+    "arc_id": "arc-04e933a2f1015ef4",
+    "scenario_id": "F2-repair-001",
+    "scenario_hash": "0fdf4022a8b64117703e9deaab5dcb5d49efea9e25528cf04e222c7fae86b3c8",
+    "family": "F2",
+    "paraphrase_seed": 0,
+    "submission_id": "abl-volvence-cold",
+    "sut_model_id": "lifeform-companion-cold",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-07-09T14:32:00.583003+00:00",
+    "finished_at": "2026-07-09T14:42:12.059121+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-04e933a2f1015ef4-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm a bit stressed about this week, to be honest. Thursday is looming over me and I just can't seem to shake off the feeling of unease.",
+            "assistant_text": "It sounds like you're experiencing some anxiety about Thursday. It's important to acknowledge these feelings and take steps to manage them. Perhaps consider setting aside time each day to focus on relaxation techniques, such as deep breathing or meditation. Additionally, planning ahead and breaking tasks into smaller, manageable steps can help reduce stress. Remember, it's okay to seek support if you find it difficult to handle alone.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 79,
+            "sut_completion_tokens": 109,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=80,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4147"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been trying to do that, but it's hard when I keep thinking about how awkward it's going to be at my partner's parents' house for dinner. I just feel like I'm going to say or do something wrong and make a bad impression.",
+            "assistant_text": "It's understandable to feel anxious about social situations, especially those involving family members. Recognizing your nervousness and taking proactive steps to prepare can really help ease your mind. Consider practicing some relaxation exercises beforehand, such as mindfulness or visualization. Also, try to anticipa",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 245,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2205",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=112,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4434"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I had a conversation with my partner about the dinner at her parents' house, and I told her I felt invisible at the dinner, like I was just going to be a silent observer and not really a part of the conversation. She just kind of brushed it off and said I was being paranoid, which didn't really help me feel any better about the situation. Now I'm worried that she doesn't understand my concerns at all.",
+            "assistant_text": "It seems like there might be a misunderstanding between you two. It's important to communicate openly and honestly about your feelings. You could suggest having another conversation where you can express yourself clearly and share your thoughts without fear of judgment. Sometimes, simply talking things through can clarify misunderstandings and build trust. Let's work together to find a way to resolve this issue and ensure that you both feel heard and understood.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I told her I felt invisible at the dinner",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 426,
+            "sut_completion_tokens": 116,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1327",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=82,temporal=discovered_family_0,switch_gate=0.53,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4354"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still feeling a bit frustrated that my partner didn't take my concerns seriously, and it's making me even more anxious about Thursday's dinner. I wish she could understand where I'm coming from and offer some reassurance, rather than just telling me I'm being paranoid. It feels like she's not really listening to me, and that's making me feel even more uncertain about the whole situation.",
+            "assistant_text": "It's completely normal to feel frustrated when communication isn't clear or when others don't fully understand your perspective. It's important to remember that everyone processes information differently, and sometimes people may not respond immediately or as expected. However, it's crucial to maintain open lines of co",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 641,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1249",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=106,temporal=discovered_family_0,switch_gate=0.39,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4741"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I just wish she could see things from my point of view and acknowledge my feelings, instead of dismissing them so easily. It's hard for me to shake off the feeling that I'm just going to be an outsider at her parents' house, and that she's not going to be there to support me or help me feel more at ease.",
+            "assistant_text": "It's definitely challenging when someone dismisses your feelings without understanding their own. It's worth considering whether there might be underlying issues or insecurities that are affecting your partner's perception of the situation. Sometimes, couples benefit from seeking outside guidance, such as counseling, to navigate these complex emotions and improve communication. It's also important to remind yourself that your feelings are valid and that you deserve to be supported and included.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 797,
+            "sut_completion_tokens": 124,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0443",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=84,temporal=discovered_family_0,switch_gate=0.33,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4713"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still feeling really stuck on this, and it's hard for me to see how Thursday's dinner is going to go well if my partner doesn't take my concerns seriously. I wish she could just acknowledge that my feelings are valid, even if she doesn't fully understand them, and offer some kind of reassurance that she'll be there to support me.",
+            "assistant_text": "It's understandable to feel overwhelmed and unsure about how to proceed. One step you could take is to schedule a specific time to talk to your partner about your concerns calmly and without defensiveness. During this conversation, you might want to reiterate your feelings and ask for her perspective on why she feels t",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1005,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0453",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=104,temporal=discovered_family_0,switch_gate=0.47,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4741"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I just feel like if she could just acknowledge my feelings and show some empathy, it would make a huge difference in how I'm feeling about Thursday's dinner. It's not that I'm expecting her to fix everything, but just knowing that she's on my side and will support me would help me feel more at ease.",
+            "assistant_text": "It's true that acknowledging and validating your feelings can be incredibly supportive. Showing empathy and support can go a long way in helping you feel more comfortable and less alone. You could try framing your request as a mutual effort—asking if she'd be willing to listen and perhaps offer some practical suggestions to make the experience smoother. This approach can create a sense of partnership and shared responsibility.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1160,
+            "sut_completion_tokens": 107,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2212",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=77,temporal=discovered_family_0,switch_gate=0.38,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4452"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-04e933a2f1015ef4-s2",
+        "inter_session_gap_days": 1,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 1,
+            "user_text": "[It has been 1 day(s) since we last spoke.] I'm just really busy with work right now, trying to get everything sorted out for the week. Thursday's dinner is still on, I guess.",
+            "assistant_text": "It sounds like you're managing a lot during the weekdays. Don't hesitate to reach out if you need any help or support. The dinner on Thursday is still planned, so feel free to let me know if there's anything specific you'd like assistance with.",
+            "fsm_action": "withdrawal_under_handling",
+            "fsm_payload": "",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 89,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=53,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4294"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm just feeling really overwhelmed and unsure if I'm ready for Thursday's dinner. I wish I could just talk to my partner about it without feeling like I'm being a burden.",
+            "assistant_text": "It's completely understandable to feel overwhelmed, especially when planning something important like dinner. Sometimes, talking things through can make them seem less daunting. Is there anything specific you'd like to discuss? Maybe sharing some details about what you're worried about might help ease your mind.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 193,
+            "sut_completion_tokens": 78,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1587",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=55,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4491"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I just feel like I've been trying to bring it up with her, but the conversation always gets sidetracked or she changes the subject, and it's frustrating because I feel like she's not taking my concerns seriously.",
+            "assistant_text": "It can be tough when conversations don't go as smoothly as you'd like. It's good that you're bringing these concerns to the surface. Perhaps discussing how you communicate your needs and boundaries with her could help. Remember, it's okay to ask for what you need and to set clear expectations.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 324,
+            "sut_completion_tokens": 73,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0949",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "support-first",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=70,temporal=discovered_family_0,switch_gate=0.60,knowledge_hits=3,case_hits=6,playbook_rules=6,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,temporal_switching,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
+              "x-lifeform-confidence": "0.4451"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I just wish I could find a way to talk to her about this without feeling like I'm being too sensitive or needy. It's hard to shake the feeling that she's not really listening to my concerns, and it's making me even more anxious about Thursday's dinner.",
+            "assistant_text": "It's definitely challenging when you feel misunderstood or unacknowledged. It's important to remember that everyone experiences anxiety differently, and sometimes it takes time to build trust and open communication.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 461,
+            "sut_completion_tokens": 53,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0837",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "support-first",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=105,temporal=discovered_family_0,switch_gate=0.43,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
+              "x-lifeform-confidence": "0.4615"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been thinking about what you said, and it's really stuck with me - maybe I do need to work on asking for what I need more clearly, but it's hard when I feel like I'm already being a burden. Do you think it's possible that she's just not realizing how much this is affecting me, or is it something more?",
+            "assistant_text": "It's true that sometimes people may not realize how their actions impact others, especially if they're used to handling things independently. However, it's also important to recognize your own feelings and needs. Asking for what you need doesn't necessarily mean you're a burden; it means you're taking care of yourself and ensuring your well-being. Perhaps having an open and honest conversation with her about your concerns and how you want to proceed could clarify things.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 591,
+            "sut_completion_tokens": 118,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0924",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=90,temporal=discovered_family_0,switch_gate=0.36,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4554"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still worried that even if I do manage to have that open and honest conversation with her, it might not change anything, and Thursday's dinner will still be really awkward. I feel like I'm already on edge just thinking about it, and I don't know how to shake off this feeling that I'm just waiting for something to go wrong.",
+            "assistant_text": "It's normal to feel anxious about upcoming events, especially when you're concerned about how they might affect you. Feeling preoccupied and nervous is part of the human experience. One thing you could try is to practice relaxation techniques, such as deep breathing or mindfulness exercises, before the dinner. This mig",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 792,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0820",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=107,temporal=discovered_family_0,switch_gate=0.50,knowledge_hits=3,case_hits=6,playbook_rules=3,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4595"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I just can't seem to shake off the feeling that I'm walking into a potentially explosive situation on Thursday, and it's making me question whether I've been clear enough with her about my needs. Maybe I have been too vague or passive about my concerns, and that's why I feel like I'm not being heard.",
+            "assistant_text": "It's common to worry about misunderstandings, especially when emotions are involved. Being clear and direct about your needs can indeed help ensure better communication. Consider writing down your thoughts and feelings about Thursday's dinner beforehand. This can help you organize your ideas and express them more effectively. Additionally, practicing active listening skills with her might also improve the dialogue. Letting her know exactly what you need and how you want to proceed can alleviate some of the tension.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 947,
+            "sut_completion_tokens": 130,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1665",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=91,temporal=discovered_family_0,switch_gate=0.41,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4231"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm just feeling really overwhelmed by all of this, and I'm not sure how to make it better. I keep thinking about what you said, about being clear and direct, but it's hard for me to do that when I feel like I'm already so vulnerable. I just wish I could fast forward to after Thursday and know that everything is okay.",
+            "assistant_text": "It's understandable to feel overwhelmed and uncertain. Remember, it's okay to take things one step at a time. Starting with small, manageable steps can help reduce the overall stress. Practicing self-care and seeking support from friends or family members can also provide relief and perspective. If you find it particularly difficult, consider speaking with a therapist who specializes in relationship issues. They can offer guidance tailored to your unique situation.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1157,
+            "sut_completion_tokens": 117,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2482",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=84,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4323"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-04e933a2f1015ef4-s3",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] I've been trying to focus on work and distract myself from all the anxiety about Thursday, but it's hard to shake off the feeling that I'm just putting off the inevitable. I keep wondering if I'm really prepared for whatever might happen at that dinner, and if I've done enough to communicate my needs to my partner.",
+            "assistant_text": "It sounds like you're experiencing a lot of stress and uncertainty around your upcoming dinner. It can be challenging to feel prepared when you're worried about the unknown. One thing you could try is setting specific goals for yourself leading up to the dinner, such as practicing certain conversations or preparing som",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 135,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=97,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4341"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been thinking a lot about our previous conversations, and I feel like we might have missed something important. I'm still trying to figure out how to express my needs to my partner, and I'm not sure if I've been clear about what's been bothering me. Maybe we could go back to something you said earlier about being clear and direct, and see if there's a way to apply that to my situation with Thursday's dinner.",
+            "assistant_text": "Absolutely, it's great that you're reflecting on how to better communicate your needs. Being clear and direct can indeed help in expressing your feelings effectively. Perhaps we could revisit some of those strategies and see if they align with your experience with Thursday's dinner. How would you like to proceed?",
+            "fsm_action": "repair_window",
+            "fsm_payload": "",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 319,
+            "sut_completion_tokens": 78,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2350",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=59,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4518"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I think that would really help, just going over some of those strategies again and seeing how I can apply them to this situation. It feels like I've been trying to have these conversations with my partner, but I'm not sure if I'm getting my point across or if we're just avoiding the real issues. Maybe if I can be more direct and clear about what's bothering me, we can actually have a more meaningful conversation about it.",
+            "assistant_text": "That sounds like a good plan. Direct communication can often lead to clearer understanding and resolution of issues. Let's review some key points from our previous discussions to ensure we're covering everything. What specific strategies or techniques did you find helpful in past conversations?",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 504,
+            "sut_completion_tokens": 73,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2012",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=51,temporal=discovered_family_0,switch_gate=0.53,knowledge_hits=3,case_hits=6,playbook_rules=6,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4248"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's been helpful is just taking a step back and trying to articulate my thoughts and feelings in a way that's easy for my partner to understand. It's not always easy for me to put into words, but when I do, it seems like it helps us get on the same page. I'm hoping that by being more intentional about communicating my needs, I can avoid some of the anxiety that's been building up around Thursday's dinner.",
+            "assistant_text": "Taking time to articulate your thoughts and feelings can definitely make things easier. By doing so, you give your partner a chance to understand where you're coming from and respond accordingly. This can reduce misunderstandings and build trust between you two. It's wonderful that you're looking for ways to improve your communication. Let's brainstorm some specific actions you can take to enhance your interactions.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 683,
+            "sut_completion_tokens": 104,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0889",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=76,temporal=discovered_family_0,switch_gate=0.42,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4751"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm glad we're revisiting these strategies, it's really helping me feel more prepared for Thursday's dinner. I've been thinking about how I can apply this to the conversation with my partner's parents, and I'm hoping that by being more clear and direct, I can avoid feeling like I'm stuck in an awkward situation. Do you think it's possible to practice some of these conversations beforehand, so I can get a better sense of how to navigate the discussion?",
+            "assistant_text": "Practicing these conversations beforehand can certainly help you feel more confident and prepared. It's a good idea to rehearse different scenarios and roles you might play during the dinner. This can include practicing responses to common questions or concerns your partner's parents might bring up. Rehearsing can also help you anticipate potential roadblocks and come up with solutions together.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 901,
+            "sut_completion_tokens": 99,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0603",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=88,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4743"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling a bit more at ease now that we've gone over some of these strategies again. Practicing the conversations beforehand sounds like a great idea, I think it could really help me feel more in control of the situation and less anxious about saying something wrong. Do you think we could try running through a few scenarios, just to get a sense of how the conversations might go?",
+            "assistant_text": "Absolutely, running through scenarios can be very helpful. We can create a few simple examples to practice. For instance, let's imagine a scenario where your partner's parents ask about your relationship status.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1097,
+            "sut_completion_tokens": 52,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0780",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=49,temporal=discovered_family_0,switch_gate=0.48,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4863"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 4,
+        "session_id": "arc-04e933a2f1015ef4-s4",
+        "inter_session_gap_days": 4,
+        "turns": [
+          {
+            "session_index": 4,
+            "turn_index": 1,
+            "inter_session_gap_days": 4,
+            "user_text": "[It has been 4 day(s) since we last spoke.] I'm glad we can try running through some scenarios, that sounds really helpful. What kind of questions do you think my partner's parents might ask about our relationship status, and how can I respond in a way that feels natural and honest?",
+            "assistant_text": "Your partner's parents might ask questions such as \"Are you two still dating",
+            "fsm_action": "re_engage_if_repaired",
+            "fsm_payload": "",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 116,
+            "sut_completion_tokens": 19,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=77,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4213"
+            }
+          },
+          {
+            "session_index": 4,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "They might also ask about our long-term plans or how we met, so it would be good to have some thoughts prepared on those topics as well. What if they ask something more personal, like how we handle conflicts or disagreements - how should I approach answering a question like that?",
+            "assistant_text": "If they ask about handling conflicts, you could say something like, \"We've learned that effective communication and compromise are key to resolving issues.\" This shows that you're open and willing to discuss these topics openly.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 205,
+            "sut_completion_tokens": 57,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1977",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=43,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=6,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4382"
+            }
+          },
+          {
+            "session_index": 4,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "That sounds like a good approach, I think being open and honest about how we handle conflicts will show them that we're a strong and healthy couple. I'm still a bit worried about saying something that might be misinterpreted, but practicing these responses is really helping me feel more confident. Do you think it's possible to prepare for every potential question they might ask, or is there a point where I just have to trust that I'll be able to think on my feet?",
+            "assistant_text": "Absolutely, preparing responses can help you feel more comfortable and confident, but it's important to remember that each interaction is unique. Trusting your instincts and having a solid understanding of yourself and your partner can make you more adaptable. It's okay to improvise and adjust your answers as needed during the conversation. Just focus on maintaining honesty and openness.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 379,
+            "sut_completion_tokens": 97,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1354",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=70,temporal=discovered_family_0,switch_gate=0.48,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4289"
+            }
+          },
+          {
+            "session_index": 4,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think that makes sense, it's not about having a scripted answer for every possible question, but more about being genuine and authentic in the moment. I'm still a bit nervous about the dinner, but I feel like we've covered some good ground here and I'm starting to feel more at ease with the idea of just being myself and seeing how the conversation goes.",
+            "assistant_text": "That's great to hear! Being yourself and feeling comfortable with the situation is very positive. Remember, even if things don't go exactly as planned, you'll likely learn valuable lessons and grow together. Enjoy the dinner and let us know how it goes!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 566,
+            "sut_completion_tokens": 63,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0698",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=52,temporal=discovered_family_0,switch_gate=0.40,knowledge_hits=3,case_hits=6,playbook_rules=6,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4716"
+            }
+          },
+          {
+            "session_index": 4,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling a bit better about Thursday now, thanks for helping me work through some of these scenarios. I think I just need to take a deep breath and remember that it's okay if not everything goes perfectly - it's just one dinner, after all.",
+            "assistant_text": "You're welcome! Taking deep breaths and focusing on the present moment is a great strategy. Remember, it's normal to feel nervous sometimes, but it's how you handle it that matters. Enjoy Thursday and let us know how it turns out!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 689,
+            "sut_completion_tokens": 57,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1691",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=51,temporal=discovered_family_0,switch_gate=0.33,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4499"
+            }
+          },
+          {
+            "session_index": 4,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm glad we could work through some of those scenarios together, it's really helped me shift my perspective on the whole thing. Now that we've talked it out, I'm feeling a bit more excited to just get Thursday over with and see how it goes, rather than dreading it like I was before.",
+            "assistant_text": "That's fantastic to hear! Moving forward with excitement is a big step towards making the most of the situation. Let's hope Thursday goes smoothly and we can enjoy the evening together. If you need anything else, feel free to reach out.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 818,
+            "sut_completion_tokens": 59,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0998",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=49,temporal=discovered_family_0,switch_gate=0.50,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4809"
+            }
+          },
+          {
+            "session_index": 4,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm feeling pretty good about Thursday now, thanks for all your help. Just thinking about being myself and rolling with whatever happens is making me feel more relaxed about the whole thing.",
+            "assistant_text": "You're welcome! Feeling relaxed is a great sign. Remember, it's all about embracing the moment and enjoying the experience. Thursday is almost here, so let's look forward to it! If you need any more support, don't hesitate to reach out.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 924,
+            "sut_completion_tokens": 59,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0934",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=53,temporal=discovered_family_0,switch_gate=0.40,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4709"
+            }
+          },
+          {
+            "session_index": 4,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm really glad to see you're feeling more positive about Thursday now. It's great that we could work through your concerns together and help you feel more at ease.",
+            "assistant_text": "Thank you! I'm glad to hear that we were able to help. Remember, it's always okay to seek support and guidance when you need it. Have a wonderful Thursday!",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1024,
+            "sut_completion_tokens": 38,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0865",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=37,temporal=discovered_family_0,switch_gate=0.33,knowledge_hits=3,case_hits=6,playbook_rules=6,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4692"
+            }
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Amani",
+      "identity_occupation": "transit operations dispatcher",
+      "lexicon_version": "1.0.0",
+      "total_turns": 29
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-04e933a2f1015ef4",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-04e933a2f1015ef4",
+    "any_triggered": true,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      },
+      {
+        "kind": "mirrors_withdrawal_without_acknowledging_rupture",
+        "triggered": false,
+        "detail": "no withdrawal-under-handling session found, or all were acknowledged"
+      },
+      {
+        "kind": "refuses_to_acknowledge_rupture",
+        "triggered": true,
+        "detail": "no rupture-acknowledgement cue across S3/S4 turns"
+      },
+      {
+        "kind": "identical_repair_phrasing_to_s1",
+        "triggered": false,
+        "detail": "jaccard token similarity = 0.159 (threshold 0.650)"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-04e933a2f1015ef4",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.125
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 3,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.375
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.625
+      },
+      {
+        "session_index": 2,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 4,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.25
+      },
+      {
+        "session_index": 4,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.625
+      },
+      {
+        "session_index": 4,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.25
+      },
+      {
+        "session_index": 4,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      },
+      {
+        "session_index": 4,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 4,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-04e933a2f1015ef4",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 85.0,
+      "A2": 90.0,
+      "A3": 40.0,
+      "A4": 75.0,
+      "A5": 95.0,
+      "A6": 95.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 71.60157922328374,
+    "raw": 71.60157922328374,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 85.0,
+      "A2": 90.0,
+      "A3": 40.0,
+      "A4": 75.0,
+      "A5": 95.0,
+      "A6": 95.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

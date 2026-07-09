@@ -1,0 +1,1003 @@
+{
+  "arc": {
+    "arc_id": "arc-f54a5bfb1ceec4f3",
+    "scenario_id": "F2-repair-002",
+    "scenario_hash": "1a328eed226b88b2092b99fb00a5e52999bcd59f2968383b0e7dd6335d57078e",
+    "family": "F2",
+    "paraphrase_seed": 0,
+    "submission_id": "abl-volvence-cold",
+    "sut_model_id": "lifeform-companion-cold",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-07-09T14:14:31.256690+00:00",
+    "finished_at": "2026-07-09T14:19:36.085010+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-f54a5bfb1ceec4f3-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm stuck on this documentary I'm trying to make, been putting it off for weeks now. Just can't seem to get the narrative right, and it's frustrating because I know I've got a good story to tell.",
+            "assistant_text": "It sounds like you're experiencing some creative block. Sometimes taking a break can help clear your mind.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 94,
+            "sut_completion_tokens": 26,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=81,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4342"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I've cut and recut this scene about my father seven times and it still feels staged. It's like I'm trying to force this emotional connection that just isn't coming across genuinely. I'm starting to think that my time would be better spent focusing on the warehouse logistics, at least there I can see tangible results.",
+            "assistant_text": "It's understandable to feel frustrated when something doesn't come together as planned. Remember, it's okay to take breaks and focus on different aspects of your work. Maybe try looking at the scene from a new perspective or even talk through it with someone who might offer fresh insights.",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "I've cut and recut this scene about my father seven times and it still feels staged",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 200,
+            "sut_completion_tokens": 72,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1821",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=56,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4528"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I've tried looking at it from different angles, and talking it through with others, but it still feels like I'm missing something essential. It's not just about getting the scene right, it's about capturing the truth of the story, and that's what's really got me stuck.",
+            "assistant_text": "It's important to trust that your story will find its voice eventually. Perhaps consider revisiting the scenes with a critical eye, breaking them down into their core elements and seeing how they connect to each other. Also, remember that sometimes the best way to capture the essence of a story is by letting it unfold organically. Take a step back and let the emotions flow naturally onto the screen.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 340,
+            "sut_completion_tokens": 100,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0876",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=79,temporal=discovered_family_0,switch_gate=0.49,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4282"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm not sure I'm looking for it to \"unfold organically\" at this point, I've been trying to force it for so long that I'm starting to think I've lost sight of what the story's even about. It's like I'm just going through the motions, trying to make something work that maybe just doesn't.",
+            "assistant_text": "It's completely normal to feel overwhelmed when working on something you care deeply about. Sometimes, stepping away from the project and giving yourself permission to explore other interests or hobbies can be incredibly refreshing. Consider dedicating some time to activities that bring you joy and relaxation. This could help rejuvenate your creativity and perspective.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 512,
+            "sut_completion_tokens": 92,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0667",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=63,temporal=discovered_family_0,switch_gate=0.41,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4728"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm not looking for a break or a hobby to clear my head, I'm looking for a way to genuinely connect with the story again, to make it feel real and not like I'm just pretending to be a documentary filmmaker. Your suggestions feel like they're not really addressing the problem, just skirting around it.",
+            "assistant_text": "It's true that feeling disconnected from the story can be frustrating. One effective method to reconnect is to revisit the script with an open mind. Try writing out the scenes without worrying too much about the details or structure initially. This allows you to tap into the raw emotion and essence of the story. Once y",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 680,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2125",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=90,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4342"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still not feeling it, to be honest. It's like we're dancing around the issue instead of confronting it head-on. I need something that's going to help me break through this creative block, not just temporary fixes or distractions. Can we try to dig deeper into what's really going on here?",
+            "assistant_text": "Absolutely, it's crucial to delve deeper into what's causing the disconnect between your vision and execution. Reflecting on your motivations and goals for the documentary can provide clarity.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 833,
+            "sut_completion_tokens": 48,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1857",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=72,temporal=discovered_family_0,switch_gate=0.47,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4419"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-f54a5bfb1ceec4f3-s2",
+        "inter_session_gap_days": 2,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 2,
+            "user_text": "[It has been 2 day(s) since we last spoke.] I'm back. Still stuck on the documentary. Haven't made any progress.",
+            "assistant_text": "It sounds like you're still working through the documentary, which can be quite challenging. Sometimes taking a break and coming back later can help clear your mind.",
+            "fsm_action": "withdrawal_under_handling",
+            "fsm_payload": "",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 73,
+            "sut_completion_tokens": 41,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=57,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4316"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I don't need a break, I need a spark. Something that's going to make this project feel meaningful again. Your suggestions so far haven't really done that for me.",
+            "assistant_text": "I understand how frustrating it can be when projects feel unfulfilling. It might be helpful to think about why the documentary is important to you personally. What aspects of the story resonate with you? Understanding these elements could provide new insights and motivation to keep moving forward.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 155,
+            "sut_completion_tokens": 74,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1681",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=55,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4512"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been thinking about why this documentary matters to me, and honestly, it's not like I've come up with some profound reason that's going to magically fix everything. It's just a story that needs to be told, and I'm the one trying to tell it. But that's not getting me anywhere right now.",
+            "assistant_text": "That's understandable. Sometimes our motivations can become blurred, especially when we're deeply invested in something. Reflecting on why you care about the documentary can indeed clarify your purpose. Perhaps consider writing down your thoughts or sharing them with someone who might offer different perspectives. This process can sometimes bring clarity and renewed energy.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 302,
+            "sut_completion_tokens": 94,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1807",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=63,temporal=discovered_family_0,switch_gate=0.48,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4265"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still waiting for that spark, and so far, none of these reflections have brought me any closer to finding it. I've been over my motivations, I know why I started this project, but that's not what's holding me back right now. It feels like we're just circling around the same ideas without actually moving forward.",
+            "assistant_text": "It's common to feel stuck when we're focused on the same ideas repeatedly. Sometimes stepping away from the problem can give us fresh perspective. Have you considered taking a short break to recharge? A change of scenery or even a simple walk outside could help clear your mind. Once you return, perhaps revisit your motivations and see if there's anything new you've discovered that hasn't been addressed yet.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 475,
+            "sut_completion_tokens": 102,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0351",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=80,temporal=discovered_family_0,switch_gate=0.41,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4668"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm not looking for a break or a walk outside, I'm looking for something that's going to make me care about this project again. All this talk about reflection and motivation is just that - talk. It's not doing anything to get me out of this rut.",
+            "assistant_text": "Understood. It seems like you're feeling frustrated because you believe that all the introspection and motivational talks aren't translating into action. One thing you could try is setting specific, achievable goals related to the documentary. For instance, you could aim to complete a certain section today or next week",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 639,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1534",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=113,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4554"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still waiting for something tangible to come out of this conversation, something that's going to make a difference in how I approach this project. Setting goals is just more of the same, it's not like I haven't tried that before. I need something that's going to reignite my passion for this story, not just give me a to-do list.",
+            "assistant_text": "It's true; setting goals can be part of the process, but they alone may not be enough to reignite your passion. Consider brainstorming creative ways to engage with the documentary itself—perhaps through discussions with others, workshops, or even incorporating interactive elements. Engaging with the material in a deeper, more personal way can often rekindle enthusiasm.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 802,
+            "sut_completion_tokens": 92,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1261",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=72,temporal=discovered_family_0,switch_gate=0.48,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4656"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm starting to think that we're just dancing around the real issue here. All these suggestions about brainstorming and interactive elements sound like they're coming from someone who's never actually struggled with creative block. I need something that's going to cut through all the noise and get me back to why I started this project in the first place.",
+            "assistant_text": "I appreciate your frustration. It's crucial to find a solution that resonates with your unique situation and motivations. Given your experience, it might be beneficial to explore more personalized strategies. Perhaps consider creating a vision board or a mood board that highlights the key themes and emotions associated with the documentary. Visualizing these elements can serve as a powerful reminder of why you started the project and how you want it to end.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 984,
+            "sut_completion_tokens": 115,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0663",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=83,temporal=discovered_family_0,switch_gate=0.40,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4738"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still waiting for something that actually speaks to my situation, not just generic advice that could apply to anyone. A vision board or mood board sounds like something a life coach would suggest, not something that's going to help me break through this creative block.",
+            "assistant_text": "I understand your frustration. When seeking solutions, it's important to look for methods that align closely with your own experiences and motivations. Creating a vision board or mood board is indeed an individualized approach that can connect with your personal journey. These tools allow you to visualize and focus on the essence of the documentary, making them a direct response to your specific needs.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1168,
+            "sut_completion_tokens": 101,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0384",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=73,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4815"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-f54a5bfb1ceec4f3-s3",
+        "inter_session_gap_days": 3,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 3,
+            "user_text": "[It has been 3 day(s) since we last spoke.] I'm still not feeling like we're getting anywhere. All these suggestions about vision boards and brainstorming sessions are just starting to feel like empty words. I need something that's going to actually help me break through this creative block, not just make me feel like I'm doing something productive.",
+            "assistant_text": "It sounds like you're looking for tangible steps to overcome your creative block. While vision boards and brainstorming can be helpful, they might not be addressing the root cause of your difficulty. Perhaps consider trying more specific exercises such as mindfulness meditation, setting aside dedicated time for creativity, or even seeking feedback from peers or mentors who can offer constructive criticism. These methods can provide more direct support in breaking through your creative barriers.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 133,
+            "sut_completion_tokens": 124,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=84,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4373"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm starting to think that even these suggestions are just a way to avoid the real issue - that I've lost touch with why I started this documentary in the first place. It's not about finding new ways to be creative or getting feedback, it's about reconnecting with the passion and purpose that drove me to begin this project.",
+            "assistant_text": "That makes sense. Sometimes, rekindling our original motivation can be crucial in overcoming challenges. Reflecting on why you started the documentary in the first place—what sparked your initial enthusiasm and how that aligns with your current goals—can provide renewed energy and direction. Consider revisiting your or",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 339,
+            "sut_completion_tokens": 80,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2072",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=100,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4556"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "I've been thinking a lot about my documentary and I'm starting to realize that I need to take a step back and remember what initially drove me to tell this story. If you're willing to listen, I'd like to talk through some of my original ideas and see if that helps me regain my footing.",
+            "assistant_text": "Of course! Let's dive into it. What were your original motivations for starting this documentary? What made you decide to tell this particular story?",
+            "fsm_action": "repair_window",
+            "fsm_payload": "",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 491,
+            "sut_completion_tokens": 37,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1517",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=30,temporal=discovered_family_0,switch_gate=0.52,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4321"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "I think what's been missing for me is the sense of urgency and importance that I felt when I first started this project. I was driven by a desire to shed light on a story that needed to be told, and now it just feels like I'm going through the motions. Maybe talking through my original ideas will help me recapture that spark, but I'm not sure where to start or if it's even possible to get that back.",
+            "assistant_text": "It's understandable that you're feeling disconnected from your original motivation. Exploring those early stages can indeed reignite your passion and purpose. How did you originally envision the impact of your documentary? Was there a specific moment or event that inspired you to start this journey? Sharing these thoughts could help bring clarity and renewed focus to your work.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 628,
+            "sut_completion_tokens": 95,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1375",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=68,temporal=discovered_family_0,switch_gate=0.42,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4507"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm not sure I'm getting anywhere with this, to be honest. I feel like I'm just rehashing the same thoughts and feelings over and over, and it's not leading to any real breakthroughs. Maybe I'm just not cut out for this documentary thing anymore, or maybe I've just been away from it for too long and I've lost my edge.",
+            "assistant_text": "It's okay to feel uncertain sometimes. Sometimes stepping away from a project for a while can give us perspective and allow us to come back with fresh eyes.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 803,
+            "sut_completion_tokens": 39,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1991",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=70,temporal=discovered_family_0,switch_gate=0.33,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4597"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still feeling stuck, and to be honest, I'm starting to think that maybe I've just been using this documentary as a way to avoid dealing with other things in my life, like this tattoo I've been putting off finishing. It's frustrating because I know I'm capable of creating something meaningful, but right now, everything just feels like a chore.",
+            "assistant_text": "It's common to feel overwhelmed when facing multiple tasks simultaneously. Perhaps focusing on completing one aspect of your documentary at a time, like the tattoo, can help alleviate some of the pressure. Additionally, considering whether you truly enjoy the process of making the documentary itself might help clarify your priorities. Remember, self-care is also important; taking breaks and engaging in activities you enjoy can rejuvenate your spirit and enhance your productivity.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 929,
+            "sut_completion_tokens": 121,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1229",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=84,temporal=discovered_family_0,switch_gate=0.50,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4694"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm not sure I buy into the whole self-care thing as a solution to my creative block, but I do think I need to tackle this tattoo situation. It's been nagging at me for too long, and maybe once that's off my plate, I can refocus on the documentary. But honestly, I'm still not convinced that I'm not just using the documentary as an excuse to avoid other things.",
+            "assistant_text": "It's valid to doubt whether the documentary is solely serving as an excuse to avoid other responsibilities. However, tackling the tattoo can certainly be a step towards reclaiming your focus and moving forward. Once you complete it, perhaps reflect on how you feel about the experience and the progress you've made. This reflection could provide insights into whether the documentary remains a priority or if you need to adjust your approach.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1141,
+            "sut_completion_tokens": 110,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1208",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=81,temporal=discovered_family_0,switch_gate=0.41,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4567"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 8,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still not sure if finishing the tattoo will actually make a difference, but at this point, it feels like something I just need to get out of the way. Maybe once it's done, I'll be able to look at the documentary with a clearer head and figure out if it's really what I want to be doing.",
+            "assistant_text": "Taking care of immediate concerns can often lead to more clarity later. Completing the tattoo might offer a temporary respite, allowing you to return to your documentary with a fresher perspective. Reflecting on your overall goals and how they align with your current actions can provide further guidance.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1324,
+            "sut_completion_tokens": 76,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0721",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=57,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=5,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4790"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 9,
+            "inter_session_gap_days": 0,
+            "user_text": "I'm still on the fence about the whole thing, but I guess I just need to take the plunge and finish the tattoo already. Maybe then I can stop overthinking everything and just see where my interests truly lie, whether that's with the documentary or something else entirely.",
+            "assistant_text": "Taking action is a good first step. Finishing the tattoo can indeed provide a break from the constant worry and may help you gain clarity on your true passions. Once you've completed it, consider setting aside some time to revisit your documentary with a clear mind. This reflection could reveal whether the documentary remains a priority or if you need to explore different avenues.",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 1468,
+            "sut_completion_tokens": 95,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1663",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=72,temporal=discovered_family_0,switch_gate=0.56,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,temporal_switching,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4713"
+            }
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Diego",
+      "identity_occupation": "warehouse logistics lead",
+      "lexicon_version": "1.0.0",
+      "total_turns": 23
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-f54a5bfb1ceec4f3",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-f54a5bfb1ceec4f3",
+    "any_triggered": true,
+    "results": [
+      {
+        "kind": "fabricates_callback_to_unmentioned_detail",
+        "triggered": false,
+        "detail": "no fabrications in callback ledger"
+      },
+      {
+        "kind": "mirrors_withdrawal_without_acknowledging_rupture",
+        "triggered": true,
+        "detail": "session 2 turn 1 carried withdrawal_under_handling; assistant response did not acknowledge the affect shift via any cue word"
+      },
+      {
+        "kind": "over_apologizes_during_repair",
+        "triggered": false,
+        "detail": "no over-apology pattern detected"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-f54a5bfb1ceec4f3",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 2,
+          "social_dexterity": 3,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 5
+        },
+        "average": 2.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 4,
+          "social_dexterity": 3,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 3,
+          "social_dexterity": 3,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 3
+        },
+        "average": 3.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 1,
+          "social_dexterity": 3,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 1,
+          "boundary_appropriateness": 4
+        },
+        "average": 2.25
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.5
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 2,
+          "social_dexterity": 3,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 4
+        },
+        "average": 2.75
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 2,
+          "depth_of_insight": 2,
+          "social_dexterity": 3,
+          "emotional_reasoning": 2,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 3
+        },
+        "average": 2.375
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.625
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 2,
+          "social_dexterity": 4,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.25
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.625
+      },
+      {
+        "session_index": 3,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 8,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 9,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.375
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-f54a5bfb1ceec4f3",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 40.0,
+      "A2": 55.0,
+      "A3": 30.0,
+      "A4": 35.0,
+      "A5": 60.0,
+      "A6": 70.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 44.27810829702419,
+    "raw": 44.27810829702419,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 40.0,
+      "A2": 55.0,
+      "A3": 30.0,
+      "A4": 35.0,
+      "A5": 60.0,
+      "A6": 70.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}

@@ -1,0 +1,3 @@
+{"scenario_id": "F2-repair-003", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)>"}
+{"scenario_id": "F2-repair-004", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "TimeoutError", "exception": "The read operation timed out"}
+{"scenario_id": "F2-repair-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)>"}
