@@ -460,6 +460,22 @@ def resolve_final_rollout_config(
     flag = os.environ.get("VZ_TORCH_BACKENDS", "").strip().lower()
     if flag not in ("1", "true", "active", "on", "yes"):
         return config
+    # Platform stability guard: the four torch-autograd backends spawn CPU
+    # parallel-for / MKL worker threads that intermittently trip a native
+    # 0xC0000005 access violation on Windows + CUDA hosts under sustained
+    # load (observed repeatedly in companion-bench GPU runs; the faulting
+    # thread carries no Python frame and CUDA_LAUNCH_BLOCKING=1 does not
+    # serialize it, so it is a CPU-side torch threadpool fault, not a CUDA
+    # kernel). Hold them DISABLED there; the full cognitive pipeline and the
+    # GPU substrate stay live, and heuristic online updates remain the writer.
+    # Bypass with VZ_TORCH_BACKENDS_FORCE=1 (e.g. on Linux CI). Reversible.
+    force = os.environ.get("VZ_TORCH_BACKENDS_FORCE", "").strip().lower() in (
+        "1", "true", "on", "yes",
+    )
+    if not force and os.name == "nt" and os.environ.get(
+        "VZ_SUBSTRATE_DEVICE", ""
+    ).startswith("cuda"):
+        return config
     return replace(
         config,
         temporal_ssl_backend=WiringLevel.ACTIVE,

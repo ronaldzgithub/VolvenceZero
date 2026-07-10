@@ -66,3 +66,83 @@ We detected that you are passing `past_key_values` as a tuple and this is deprec
 2026-07-09 22:58:32,404 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:22:58:24 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1912 "-" "Python-urllib/3.12"
 2026-07-09 22:58:52,001 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:22:58:40 +0800] "POST /v1/chat/completions HTTP/1.1" 200 2203 "-" "Python-urllib/3.12"
 2026-07-09 23:00:35,521 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:00:35 +0800] "GET /v1/health HTTP/1.1" 200 226 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; zh-CN) WindowsPowerShell/5.1.26100.8655"
+2026-07-09 23:01:38,440 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:01:36 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1250 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; zh-CN) WindowsPowerShell/5.1.26100.8655"
+2026-07-09 23:02:52,401 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:02:33 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1740 "-" "Python-urllib/3.12"
+2026-07-09 23:03:15,853 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:02:54 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1770 "-" "Python-urllib/3.12"
+2026-07-09 23:03:56,293 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:03:20 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1509 "-" "Python-urllib/3.12"
+2026-07-09 23:04:15,158 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:03:59 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1628 "-" "Python-urllib/3.12"
+2026-07-09 23:04:40,514 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:04:19 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1762 "-" "Python-urllib/3.12"
+2026-07-09 23:05:15,371 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:04:50 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1683 "-" "Python-urllib/3.12"
+2026-07-09 23:05:48,748 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:05:19 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1729 "-" "Python-urllib/3.12"
+2026-07-09 23:06:20,982 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:05:51 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1582 "-" "Python-urllib/3.12"
+2026-07-09 23:06:39,321 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:06:22 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1659 "-" "Python-urllib/3.12"
+2026-07-09 23:07:02,816 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:06:41 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1649 "-" "Python-urllib/3.12"
+2026-07-09 23:09:26,404 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:07:05 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1757 "-" "Python-urllib/3.12"
+2026-07-09 23:09:58,843 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:09:26 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1591 "-" "Python-urllib/3.12"
+2026-07-09 23:10:35,342 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:10:01 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1591 "-" "Python-urllib/3.12"
+2026-07-09 23:11:15,238 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:10:42 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1592 "-" "Python-urllib/3.12"
+2026-07-09 23:17:39,478 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:11:23 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1610 "-" "Python-urllib/3.12"
+2026-07-09 23:17:45,896 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:17:39 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1518 "-" "Python-urllib/3.12"
+2026-07-09 23:17:55,699 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:17:45 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1878 "-" "Python-urllib/3.12"
+2026-07-09 23:18:01,869 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:17:55 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1533 "-" "Python-urllib/3.12"
+2026-07-09 23:18:20,075 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:18:05 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1588 "-" "Python-urllib/3.12"
+2026-07-09 23:18:48,070 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:18:25 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1607 "-" "Python-urllib/3.12"
+2026-07-09 23:18:59,618 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:18:49 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1641 "-" "Python-urllib/3.12"
+2026-07-09 23:19:17,152 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:19:01 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1762 "-" "Python-urllib/3.12"
+2026-07-09 23:20:36,574 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:19:18 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1589 "-" "Python-urllib/3.12"
+2026-07-09 23:20:59,607 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:20:40 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1741 "-" "Python-urllib/3.12"
+2026-07-09 23:21:04,729 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:21:00 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1344 "-" "Python-urllib/3.12"
+2026-07-09 23:21:11,342 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:21:06 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1473 "-" "Python-urllib/3.12"
+2026-07-09 23:21:26,868 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:21:13 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1487 "-" "Python-urllib/3.12"
+2026-07-09 23:21:43,270 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:21:36 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1508 "-" "Python-urllib/3.12"
+2026-07-09 23:21:52,774 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:21:46 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1387 "-" "Python-urllib/3.12"
+2026-07-09 23:22:07,752 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:21:54 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1510 "-" "Python-urllib/3.12"
+2026-07-09 23:22:18,835 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:22:10 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1402 "-" "Python-urllib/3.12"
+2026-07-09 23:22:29,128 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:22:21 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1491 "-" "Python-urllib/3.12"
+2026-07-09 23:22:43,794 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:22:35 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1691 "-" "Python-urllib/3.12"
+2026-07-09 23:22:56,221 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:22:46 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1695 "-" "Python-urllib/3.12"
+2026-07-09 23:23:23,010 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:22:57 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1593 "-" "Python-urllib/3.12"
+2026-07-09 23:23:44,809 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:23:25 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1593 "-" "Python-urllib/3.12"
+2026-07-09 23:24:03,834 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:23:50 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1671 "-" "Python-urllib/3.12"
+2026-07-09 23:24:33,818 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:24:08 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1707 "-" "Python-urllib/3.12"
+2026-07-09 23:24:46,086 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:24:37 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1663 "-" "Python-urllib/3.12"
+2026-07-09 23:24:59,855 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:24:49 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1664 "-" "Python-urllib/3.12"
+2026-07-09 23:26:37,935 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:25:02 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1607 "-" "Python-urllib/3.12"
+2026-07-09 23:26:52,450 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:26:41 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1618 "-" "Python-urllib/3.12"
+2026-07-09 23:27:08,833 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:26:56 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1588 "-" "Python-urllib/3.12"
+2026-07-09 23:27:27,555 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:27:11 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1488 "-" "Python-urllib/3.12"
+2026-07-09 23:27:50,549 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:27:31 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1623 "-" "Python-urllib/3.12"
+2026-07-09 23:28:04,364 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:27:51 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1547 "-" "Python-urllib/3.12"
+2026-07-09 23:30:40,991 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:30:14 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1590 "-" "Python-urllib/3.12"
+2026-07-09 23:31:16,129 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:30:42 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1590 "-" "Python-urllib/3.12"
+2026-07-09 23:31:47,780 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:31:22 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1706 "-" "Python-urllib/3.12"
+2026-07-09 23:32:24,070 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:31:56 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1590 "-" "Python-urllib/3.12"
+2026-07-09 23:33:23,282 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:32:25 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1687 "-" "Python-urllib/3.12"
+Windows fatal exception: access violation
+
+Thread 0x00005e84 (most recent call first):
+  <no Python frame>
+
+Current thread 0x000005e4 (most recent call first):
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\integration\final_wiring.py", line 2095 in run_final_wiring_turn
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\agent\session.py", line 983 in run_turn
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\brain.py", line 309 in run_turn_async
+  File "E:\VolvenceZero\packages\lifeform-core\src\lifeform_core\lifeform.py", line 1757 in run_turn
+  File "E:\VolvenceZero\packages\lifeform-openai-compat\src\lifeform_openai_compat\session_bridge.py", line 392 in lifeform_complete
+  File "E:\VolvenceZero\packages\lifeform-openai-compat\src\lifeform_openai_compat\router.py", line 289 in _dispatch_lifeform
+  File "E:\VolvenceZero\packages\lifeform-openai-compat\src\lifeform_openai_compat\router.py", line 224 in _handle_chat_completions
+  File "E:\VolvenceZero\packages\lifeform-service\src\lifeform_service\app.py", line 383 in _error_middleware
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web_middlewares.py", line 117 in impl
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web_app.py", line 559 in _handle
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web_protocol.py", line 575 in _handle_request
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web_protocol.py", line 675 in start
+  File "C:\ProgramData\miniconda3\Lib\asyncio\events.py", line 88 in _run
+  File "C:\ProgramData\miniconda3\Lib\asyncio\base_events.py", line 1987 in _run_once
+  File "C:\ProgramData\miniconda3\Lib\asyncio\base_events.py", line 641 in run_forever
+  File "C:\ProgramData\miniconda3\Lib\asyncio\windows_events.py", line 322 in run_forever
+  File "C:\ProgramData\miniconda3\Lib\asyncio\base_events.py", line 674 in run_until_complete
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web.py", line 502 in run_app
+  File "E:\VolvenceZero\packages\lifeform-service\src\lifeform_service\cli.py", line 426 in main
+  File "E:\VolvenceZero\packages\lifeform-service\src\lifeform_service\cli.py", line 431 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main

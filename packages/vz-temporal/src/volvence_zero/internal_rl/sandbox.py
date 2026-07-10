@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 import math
+import os
 
 from volvence_zero.credit.gate import CreditRecord, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.internal_rl.environment import (
@@ -995,6 +996,14 @@ class CausalZPolicy:
             return {**disabled, "backend": "skipped-no-transitions"}
         if not is_torch_available():
             return {**disabled, "backend": "skipped-no-torch"}
+        if os.name == "nt" and os.environ.get("VZ_SUBSTRATE_DEVICE", "").startswith("cuda"):
+            # Mirror the SSL trainer guard (temporal/ssl.py): the float64 CPU
+            # torch autograd path spawns background parallel-for worker threads
+            # that intermittently trip a native 0xC0000005 on Windows CUDA
+            # hosts after sustained load. Skip the torch refinement here; the
+            # heuristic pure-policy update remains the live writer and substrate
+            # inference stays on GPU.
+            return {**disabled, "backend": "skipped-windows-cuda"}
 
         from volvence_zero.internal_rl.torch_causal_ppo import torch_causal_ppo_update
 

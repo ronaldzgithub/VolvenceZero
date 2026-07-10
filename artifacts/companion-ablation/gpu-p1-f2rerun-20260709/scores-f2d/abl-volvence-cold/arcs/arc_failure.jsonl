@@ -1,0 +1,15 @@
+{"scenario_id": "F2-repair-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "ConnectionResetError", "exception": "[WinError 10054] 远程主机强迫关闭了一个现有的连接。"}
+{"scenario_id": "F2-repair-002", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-003", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-004", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-002", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-003", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-004", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-002", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-003", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-004", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}
+{"scenario_id": "F2-repair-zh-001", "paraphrase_seed": 0, "stage": "run_arc", "exception_type": "URLError", "exception": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"}

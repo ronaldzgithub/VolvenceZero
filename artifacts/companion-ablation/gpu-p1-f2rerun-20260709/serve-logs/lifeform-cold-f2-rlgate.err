@@ -1,0 +1,69 @@
+<frozen runpy>:128: RuntimeWarning: 'lifeform_service.cli' found in sys.modules after import of package 'lifeform_service', but prior to execution of 'lifeform_service.cli'; this may result in unpredictable behaviour
+[verticals] digital-employee.org.v0 resolution=dedicated reason=wheel_installed
+[verticals] digital-employee.twin.v0 resolution=dedicated reason=wheel_installed
+2026-07-09 23:37:10,979 INFO lifeform-serve: substrate_mode=hf-shared; eagerly loading model_id=Qwen/Qwen2.5-1.5B-Instruct on device=cuda (local_files_only=False)
+2026-07-09 23:37:15,545 INFO lifeform-serve: shared substrate ready: model_id=Qwen/Qwen2.5-1.5B-Instruct runtime_origin=hf-pretrained
+We detected that you are passing `past_key_values` as a tuple and this is deprecated and will be removed in v4.43. Please use an appropriate `Cache` class (https://huggingface.co/docs/transformers/v4.41.3/en/internal/generation_utils#transformers.Cache)
+2026-07-09 23:37:30,946 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:37:28 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1250 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; zh-CN) WindowsPowerShell/5.1.26100.8655"
+2026-07-09 23:37:54,493 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:37:46 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1568 "-" "Python-urllib/3.12"
+2026-07-09 23:38:10,460 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:38:01 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1588 "-" "Python-urllib/3.12"
+2026-07-09 23:38:35,631 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:38:12 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1607 "-" "Python-urllib/3.12"
+2026-07-09 23:38:54,027 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:38:43 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1720 "-" "Python-urllib/3.12"
+2026-07-09 23:39:25,531 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:39:10 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1590 "-" "Python-urllib/3.12"
+2026-07-09 23:39:51,234 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:39:35 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1702 "-" "Python-urllib/3.12"
+2026-07-09 23:40:19,072 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:39:55 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1592 "-" "Python-urllib/3.12"
+2026-07-09 23:40:25,012 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:40:21 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1386 "-" "Python-urllib/3.12"
+2026-07-09 23:40:31,795 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:40:26 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1578 "-" "Python-urllib/3.12"
+2026-07-09 23:40:43,948 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:40:34 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1700 "-" "Python-urllib/3.12"
+2026-07-09 23:40:55,908 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:40:46 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1712 "-" "Python-urllib/3.12"
+2026-07-09 23:41:07,324 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:40:57 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1737 "-" "Python-urllib/3.12"
+2026-07-09 23:41:27,045 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:41:10 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1803 "-" "Python-urllib/3.12"
+2026-07-09 23:41:44,323 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:41:29 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1749 "-" "Python-urllib/3.12"
+2026-07-09 23:42:03,536 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:41:46 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1779 "-" "Python-urllib/3.12"
+2026-07-09 23:42:15,266 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:42:07 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1622 "-" "Python-urllib/3.12"
+2026-07-09 23:42:29,993 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:42:25 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1485 "-" "Python-urllib/3.12"
+2026-07-09 23:42:43,330 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:42:32 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1696 "-" "Python-urllib/3.12"
+2026-07-09 23:42:54,994 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:42:45 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1682 "-" "Python-urllib/3.12"
+2026-07-09 23:43:13,814 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:42:56 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1589 "-" "Python-urllib/3.12"
+2026-07-09 23:43:43,638 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:43:16 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1722 "-" "Python-urllib/3.12"
+2026-07-09 23:43:49,784 INFO aiohttp.access: 127.0.0.1 [09/Jul/2026:23:43:45 +0800] "POST /v1/chat/completions HTTP/1.1" 200 1531 "-" "Python-urllib/3.12"
+Windows fatal exception: access violation
+
+Thread 0x000021e4 (most recent call first):
+  <no Python frame>
+
+Current thread 0x0000649c (most recent call first):
+  File "C:\ProgramData\miniconda3\Lib\dataclasses.py", line 1331 in _asdict_inner
+  File "C:\ProgramData\miniconda3\Lib\dataclasses.py", line 1366 in <genexpr>
+  File "C:\ProgramData\miniconda3\Lib\dataclasses.py", line 1366 in _asdict_inner
+  File "C:\ProgramData\miniconda3\Lib\dataclasses.py", line 1332 in _asdict_inner
+  File "C:\ProgramData\miniconda3\Lib\dataclasses.py", line 1332 in _asdict_inner
+  File "C:\ProgramData\miniconda3\Lib\dataclasses.py", line 1332 in _asdict_inner
+  File "C:\ProgramData\miniconda3\Lib\dataclasses.py", line 1322 in asdict
+  File "E:\VolvenceZero\packages\vz-contracts\src\volvence_zero\runtime\kernel.py", line 130 in _normalize
+  File "E:\VolvenceZero\packages\vz-contracts\src\volvence_zero\runtime\kernel.py", line 141 in stable_value_hash
+  File "E:\VolvenceZero\packages\vz-contracts\src\volvence_zero\runtime\kernel.py", line 288 in verify
+  File "E:\VolvenceZero\packages\vz-contracts\src\volvence_zero\runtime\kernel.py", line 818 in _post_propagation_guard_closure
+  File "E:\VolvenceZero\packages\vz-contracts\src\volvence_zero\runtime\kernel.py", line 794 in propagate
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\integration\final_wiring.py", line 1956 in run_final_wiring_turn
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\agent\session.py", line 983 in run_turn
+  File "E:\VolvenceZero\packages\vz-runtime\src\volvence_zero\brain.py", line 309 in run_turn_async
+  File "E:\VolvenceZero\packages\lifeform-core\src\lifeform_core\lifeform.py", line 1757 in run_turn
+  File "E:\VolvenceZero\packages\lifeform-openai-compat\src\lifeform_openai_compat\session_bridge.py", line 392 in lifeform_complete
+  File "E:\VolvenceZero\packages\lifeform-openai-compat\src\lifeform_openai_compat\router.py", line 289 in _dispatch_lifeform
+  File "E:\VolvenceZero\packages\lifeform-openai-compat\src\lifeform_openai_compat\router.py", line 224 in _handle_chat_completions
+  File "E:\VolvenceZero\packages\lifeform-service\src\lifeform_service\app.py", line 383 in _error_middleware
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web_middlewares.py", line 117 in impl
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web_app.py", line 559 in _handle
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web_protocol.py", line 575 in _handle_request
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web_protocol.py", line 675 in start
+  File "C:\ProgramData\miniconda3\Lib\asyncio\events.py", line 88 in _run
+  File "C:\ProgramData\miniconda3\Lib\asyncio\base_events.py", line 1987 in _run_once
+  File "C:\ProgramData\miniconda3\Lib\asyncio\base_events.py", line 641 in run_forever
+  File "C:\ProgramData\miniconda3\Lib\asyncio\windows_events.py", line 322 in run_forever
+  File "C:\ProgramData\miniconda3\Lib\asyncio\base_events.py", line 674 in run_until_complete
+  File "C:\Users\Administrator\AppData\Roaming\Python\Python312\site-packages\aiohttp\web.py", line 502 in run_app
+  File "E:\VolvenceZero\packages\lifeform-service\src\lifeform_service\cli.py", line 426 in main
+  File "E:\VolvenceZero\packages\lifeform-service\src\lifeform_service\cli.py", line 431 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
