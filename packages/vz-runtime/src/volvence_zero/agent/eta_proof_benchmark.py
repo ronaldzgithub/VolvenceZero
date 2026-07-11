@@ -12,8 +12,10 @@ from volvence_zero.agent.paper_suite import (
     PaperProfileSpec,
     PaperSuiteManifest,
     PaperSuiteProvenance,
+    RetainProvenanceRequirements,
     collect_paper_suite_provenance,
     export_json_artifact,
+    validate_evidence_bundle_for_external_use,
 )
 from volvence_zero.evaluation import (
     MetricIntervalSummary,
@@ -3284,9 +3286,21 @@ def export_eta_internal_rl_paper_suite_artifact_bundle(
     aggregate_report: ETAProofPaperSuiteAggregateReport,
     *,
     output_dir: str | Path,
+    require_retain_provenance: bool = False,
+    substrate_fingerprint_verified: bool | None = None,
 ) -> tuple[Path, ...]:
     target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
+    evidence_bundle = build_eta_paper_suite_evidence_bundle(aggregate_report)
+    if require_retain_provenance:
+        validate_evidence_bundle_for_external_use(
+            bundle=evidence_bundle,
+            requirements=RetainProvenanceRequirements(
+                min_seed_count=3,
+                require_substrate_fingerprint=True,
+            ),
+            substrate_fingerprint_verified=substrate_fingerprint_verified,
+        )
     written_paths = [
         export_json_artifact(
             payload=aggregate_report.manifest,

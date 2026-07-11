@@ -17,8 +17,10 @@ from volvence_zero.agent.paper_suite import (
     PaperProfileSpec,
     PaperSuiteManifest,
     PaperSuiteProvenance,
+    RetainProvenanceRequirements,
     collect_paper_suite_provenance,
     export_json_artifact,
+    validate_evidence_bundle_for_external_use,
 )
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
@@ -6488,6 +6490,8 @@ def export_dialogue_paper_suite_artifact_bundle(
     include_phase_a_trajectory_reports: bool = False,
     include_phase_b_longitudinal_report: bool = False,
     include_phase_c_reports: bool = False,
+    require_retain_provenance: bool = False,
+    substrate_fingerprint_verified: bool | None = None,
 ) -> tuple[Path, ...]:
     target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -6499,6 +6503,21 @@ def export_dialogue_paper_suite_artifact_bundle(
             companion_structural_gates=companion_structural_gates,
         )
     )
+    evidence_bundle = build_dialogue_paper_suite_evidence_bundle(
+        aggregate_report=exported_report,
+        human_ratings_aggregate=human_ratings_aggregate,
+        proposal_quality_shadow_reports=proposal_quality_shadow_reports,
+        extra_reference_artifacts=extra_reference_artifacts,
+    )
+    if require_retain_provenance:
+        validate_evidence_bundle_for_external_use(
+            bundle=evidence_bundle,
+            requirements=RetainProvenanceRequirements(
+                min_seed_count=3,
+                require_substrate_fingerprint=True,
+            ),
+            substrate_fingerprint_verified=substrate_fingerprint_verified,
+        )
     written_paths = [
         export_json_artifact(
             payload=exported_report.manifest,

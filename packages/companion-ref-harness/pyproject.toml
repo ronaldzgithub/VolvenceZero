@@ -30,6 +30,9 @@ test = [
     "pytest-asyncio>=0.23",
     "pytest-aiohttp>=1.0",
 ]
+embed = [
+    "sentence-transformers>=2.7",
+]
 
 [project.scripts]
 companion-ref-harness = "companion_ref_harness.cli:main"

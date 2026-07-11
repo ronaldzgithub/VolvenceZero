@@ -58,6 +58,28 @@ class PaperSuiteProvenance:
 
 
 @dataclass(frozen=True)
+class RetainProvenanceRequirements:
+    require_clean_tree: bool = True
+    require_git_identity: bool = True
+    require_dependencies: bool = True
+    require_manifest_match: bool = True
+    min_seed_count: int = 1
+    require_substrate_fingerprint: bool = False
+    require_artifact_digests: bool = False
+
+
+@dataclass(frozen=True)
+class ArtifactDigest:
+    artifact_path: str
+    sha256: str
+    size_bytes: int
+
+
+class RetainProvenanceError(ValueError):
+    """Raised when an evidence bundle cannot support a retain-level claim."""
+
+
+@dataclass(frozen=True)
 class ClaimVerdict:
     claim_id: str
     status: str
@@ -99,6 +121,102 @@ def _json_normalize(value: Any) -> Any:
 def manifest_hash(manifest: PaperSuiteManifest) -> str:
     payload = json.dumps(_json_normalize(manifest), sort_keys=True, indent=2)
     return sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _is_sha256(value: str) -> bool:
+    if len(value) != 64:
+        return False
+    try:
+        int(value, 16)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_git_sha(value: str) -> bool:
+    if len(value) not in (40, 64):
+        return False
+    try:
+        int(value, 16)
+    except ValueError:
+        return False
+    return True
+
+
+def validate_retain_provenance(
+    *,
+    provenance: PaperSuiteProvenance,
+    manifest: PaperSuiteManifest,
+    requirements: RetainProvenanceRequirements = RetainProvenanceRequirements(),
+    substrate_fingerprint_verified: bool | None = None,
+    artifact_digests: tuple[ArtifactDigest, ...] = (),
+) -> None:
+    """Fail loudly when provenance is too weak for a retain-level claim.
+
+    Wiring and SHADOW artifacts may still be exported without calling this
+    validator. Any caller that labels evidence as externally retainable must
+    call it before emitting the verdict or bundle.
+    """
+
+    violations: list[str] = []
+    if requirements.require_clean_tree and provenance.working_tree_dirty:
+        violations.append("working tree is dirty")
+    if requirements.require_git_identity:
+        if not _is_git_sha(provenance.git_sha):
+            violations.append("git_sha is missing or invalid")
+        if not provenance.git_branch or provenance.git_branch == "unavailable":
+            violations.append("git_branch is missing")
+    if requirements.require_dependencies:
+        if not provenance.dependency_versions:
+            violations.append("dependency_versions is empty")
+        if not _is_sha256(provenance.dependency_digest):
+            violations.append("dependency_digest is missing or invalid")
+    if requirements.require_manifest_match:
+        expected_manifest_hash = manifest_hash(manifest)
+        if provenance.manifest_hash != expected_manifest_hash:
+            violations.append("manifest_hash does not match the supplied manifest")
+    if len(manifest.seed_schedule) < requirements.min_seed_count:
+        violations.append(
+            f"seed_schedule has {len(manifest.seed_schedule)} seeds; "
+            f"requires at least {requirements.min_seed_count}"
+        )
+    if requirements.require_substrate_fingerprint and substrate_fingerprint_verified is not True:
+        violations.append("substrate fingerprint is not verified")
+    if requirements.require_artifact_digests:
+        if not artifact_digests:
+            violations.append("artifact digests are missing")
+        for artifact in artifact_digests:
+            if not artifact.artifact_path:
+                violations.append("artifact path is empty")
+            if not _is_sha256(artifact.sha256):
+                violations.append(f"artifact sha256 is invalid: {artifact.artifact_path}")
+            if artifact.size_bytes <= 0:
+                violations.append(f"artifact size is not positive: {artifact.artifact_path}")
+    if violations:
+        raise RetainProvenanceError(
+            "Evidence cannot support a retain-level claim: " + "; ".join(violations)
+        )
+
+
+def validate_evidence_bundle_for_external_use(
+    *,
+    bundle: EvidenceBundle,
+    requirements: RetainProvenanceRequirements = RetainProvenanceRequirements(),
+    substrate_fingerprint_verified: bool | None = None,
+    artifact_digests: tuple[ArtifactDigest, ...] = (),
+) -> None:
+    retain_claims = tuple(
+        verdict.claim_id for verdict in bundle.claim_verdicts if verdict.status == "retain"
+    )
+    if not retain_claims:
+        return
+    validate_retain_provenance(
+        provenance=bundle.provenance,
+        manifest=bundle.manifest,
+        requirements=requirements,
+        substrate_fingerprint_verified=substrate_fingerprint_verified,
+        artifact_digests=artifact_digests,
+    )
 
 
 def _run_git_command(repo_root: Path, *args: str) -> str:

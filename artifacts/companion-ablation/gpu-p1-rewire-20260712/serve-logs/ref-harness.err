@@ -1,0 +1,4 @@
+2026-07-12 02:53:09,180 INFO companion_ref_harness.cli: companion-ref-harness serving on http://127.0.0.1:8500 (components=embed,episodic,summary,user_model family=openai-compat model=lifeform-raw store=sqlite)
+2026-07-12 02:54:01,847 INFO sentence_transformers.base.model: No device provided, using cuda:0
+2026-07-12 02:54:03,886 INFO sentence_transformers.base.model: Loading SentenceTransformer model from BAAI/bge-m3.
+2026-07-12 02:54:15,727 INFO aiohttp.access: 127.0.0.1 [12/Jul/2026:02:53:58 +0800] "POST /v1/chat/completions HTTP/1.1" 200 850 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; zh-CN) WindowsPowerShell/5.1.26100.8655"

@@ -25,7 +25,11 @@ import pathlib
 import sys
 
 from companion_ref_harness import __version__
-from companion_ref_harness.embed import Embedder, HashingEmbedder
+from companion_ref_harness.embed import (
+    Embedder,
+    HashingEmbedder,
+    SentenceTransformerEmbedder,
+)
 from companion_ref_harness.episodic import (
     EpisodicExtractor,
     LLMEpisodicExtractor,
@@ -193,6 +197,25 @@ def _build_parser() -> argparse.ArgumentParser:
             "API keys."
         ),
     )
+    # --- embed retrieval ---
+    serve.add_argument(
+        "--embedder",
+        default="bge-m3",
+        choices=["bge-m3", "hashing"],
+        help=(
+            "embedder for the H-B retrieval component. 'bge-m3' uses the "
+            "BAAI/bge-m3 multilingual sentence-transformer (semantic "
+            "retrieval; requires the [embed] extra + first-run download). "
+            "'hashing' is the dependency-free bag-of-tokens fallback for "
+            "offline / smoke runs. (default: bge-m3)"
+        ),
+    )
+    serve.add_argument(
+        "--embedder-device",
+        default=None,
+        help="device for the sentence-transformer embedder (e.g. cuda, cpu). "
+        "Default lets sentence-transformers pick.",
+    )
     # --- store ---
     serve.add_argument(
         "--store-mode",
@@ -237,10 +260,11 @@ def _cmd_serve(args: argparse.Namespace) -> int:
 
     components = parse_component_set(args.components)
     family = parse_upstream_family(args.upstream_family)
+    _require_cross_family_extractor(args=args, components=components)
     upstream = _build_upstream_client(args=args, family=family)
     extractor_call = _build_extractor_call(args=args, family=family)
     summary_extractor = _build_summary_extractor(extractor_call)
-    embedder = _build_embedder(components)
+    embedder = _build_embedder(components, args=args)
     user_fact_extractor = _build_user_fact_extractor(components, extractor_call)
     episodic_extractor = _build_episodic_extractor(components, extractor_call)
     store_mode = StoreMode(args.store_mode)
@@ -273,6 +297,46 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:  # pragma: no cover - manual interrupt
         _LOG.info("interrupted; shutting down")
     return 0
+
+
+_LLM_EXTRACTOR_COMPONENTS = (
+    HarnessComponent.SUMMARY,
+    HarnessComponent.USER_MODEL,
+    HarnessComponent.EPISODIC,
+)
+
+
+def _require_cross_family_extractor(
+    *, args: argparse.Namespace, components: ComponentSet,
+) -> None:
+    """Fail loudly if LLM memory components run without a cross-family extractor.
+
+    The summary / user_model / episodic components extract memory with an
+    LLM. If left to fall back to the substrate upstream (same Qwen family),
+    the harness effectively gets same-family "crib notes", which biases the
+    same-substrate ablation. Require an explicit ``--summary-extractor-model``
+    + ``--summary-extractor-base-url`` (a different family from the substrate)
+    whenever these components are active. Stub mode is exempt (no LLM at all),
+    and ``REFH_ALLOW_SAME_FAMILY_EXTRACTOR=1`` is a documented escape hatch.
+    """
+    if args.use_stub_summary_extractor:
+        return
+    needs_extractor = any(components.has(c) for c in _LLM_EXTRACTOR_COMPONENTS)
+    if not needs_extractor:
+        return
+    if os.environ.get("REFH_ALLOW_SAME_FAMILY_EXTRACTOR", "").strip() in {
+        "1", "true", "True", "yes",
+    }:
+        return
+    if not args.summary_extractor_model or not args.summary_extractor_base_url:
+        raise SystemExit(
+            "ref-harness memory components (summary/user_model/episodic) require a "
+            "cross-family extractor: set --summary-extractor-model and "
+            "--summary-extractor-base-url to a NON-substrate model family. "
+            "Falling back to the substrate upstream is a same-family 'crib-notes' "
+            "bias. Use --use-stub-summary-extractor for offline tests, or set "
+            "REFH_ALLOW_SAME_FAMILY_EXTRACTOR=1 to intentionally override."
+        )
 
 
 def _build_upstream_client(
@@ -368,10 +432,20 @@ def _build_summary_extractor(resolved: _ExtractorCall) -> SummaryExtractor:
     return LLMSummaryExtractor(model=resolved.model, upstream_call=resolved.call)
 
 
-def _build_embedder(components: ComponentSet) -> Embedder | None:
+def _build_embedder(
+    components: ComponentSet, *, args: argparse.Namespace,
+) -> Embedder | None:
     if not components.has(HarnessComponent.EMBED):
         return None
-    return HashingEmbedder()
+    choice = getattr(args, "embedder", "bge-m3")
+    if choice == "hashing":
+        return HashingEmbedder()
+    if choice == "bge-m3":
+        return SentenceTransformerEmbedder(
+            model_id="BAAI/bge-m3",
+            device=getattr(args, "embedder_device", None),
+        )
+    raise ValueError(f"unknown --embedder {choice!r}")
 
 
 def _build_user_fact_extractor(

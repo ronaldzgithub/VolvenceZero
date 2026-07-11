@@ -1,0 +1,5 @@
+<frozen runpy>:128: RuntimeWarning: 'lifeform_service.cli' found in sys.modules after import of package 'lifeform_service', but prior to execution of 'lifeform_service.cli'; this may result in unpredictable behaviour
+[verticals] digital-employee.org.v0 resolution=dedicated reason=wheel_installed
+[verticals] digital-employee.twin.v0 resolution=dedicated reason=wheel_installed
+2026-07-12 02:52:29,302 INFO lifeform-serve: substrate_mode=hf-shared; eagerly loading model_id=Qwen/Qwen2.5-1.5B-Instruct on device=cuda (local_files_only=False)
+2026-07-12 02:52:35,906 INFO lifeform-serve: shared substrate ready: model_id=Qwen/Qwen2.5-1.5B-Instruct runtime_origin=hf-pretrained

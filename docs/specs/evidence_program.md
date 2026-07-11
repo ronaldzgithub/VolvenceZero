@@ -53,6 +53,13 @@
 当前实现口径：
 
 - `volvence_zero.agent.paper_suite` 提供共享 `ClaimVerdict` 与 `EvidenceBundle`
+- retain-level 外发必须先调用
+  `validate_evidence_bundle_for_external_use(...)`。该 gate 只阻断至少包含一个
+  `status="retain"` claim 的 bundle；`weak` / `fail` / SHADOW artifact 仍可导出供审阅。
+  默认校验 clean working tree、有效 git identity、非空依赖清单与 digest、
+  manifest hash 一致和 seed schedule；同基底或正式外发路径必须额外要求
+  verified substrate fingerprint 与每个原始 artifact 的 sha256/size。
+  缺失时抛 `RetainProvenanceError`，禁止静默降级为可外引 retain。
 - dialogue / ETA paper-suite aggregate 会额外发布 pairwise effects 与 claim verdicts
 - dialogue paper-suite export 会同时导出 blinded packet、internal key、rating template、rating aggregate 与 unified evidence bundle
 - dialogue emergence dashboard / paper-suite metric values 发布 `canonical_mean_semantic_spine_coverage`、`canonical_mean_cognitive_loop_readiness` 以及 open-environment 对应读数；这些是 semantic owner 快照的证据读数，不作为学习源头

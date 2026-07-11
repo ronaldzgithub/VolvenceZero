@@ -64,6 +64,10 @@ Start-AblationService "lifeform-companion-cold" @(
     "--enable-openai-compat"
 )
 
+# ref-harness embed component now uses a real semantic embedder (bge-m3) by
+# default. The model loads from the HF cache; if it needs downloading, the
+# serve process honours HF_ENDPOINT + *_PROXY from the environment.
+$RefhEmbedder = if ($env:REFH_EMBEDDER) { $env:REFH_EMBEDDER } else { "bge-m3" }
 $RefhArgs = @(
     "companion-ref-harness", "serve",
     "--port", "8500",
@@ -71,6 +75,7 @@ $RefhArgs = @(
     "--upstream-model", "lifeform-raw",
     "--upstream-key-env", "LIFEFORM_LOCAL_API_KEY",
     "--components", "summary,embed,user_model,episodic",
+    "--embedder", $RefhEmbedder,
     "--store-mode", "sqlite",
     "--store-path", (Join-Path $ArtifactDir "ref-harness.sqlite3")
 )
@@ -82,11 +87,12 @@ if ($env:REFH_EXTRACTOR_MODEL) {
         "--summary-extractor-family", $(if ($env:REFH_EXTRACTOR_FAMILY) { $env:REFH_EXTRACTOR_FAMILY } else { "openai-compat" })
     )
 } else {
-    Write-Warning "[serve] no REFH_EXTRACTOR_MODEL -> ref-harness may use same-family upstream"
+    throw "[serve] ref-harness memory components require a cross-family extractor: set REFH_EXTRACTOR_MODEL / REFH_EXTRACTOR_BASE_URL / REFH_EXTRACTOR_KEY_ENV (a NON-Qwen family)."
 }
 Start-AblationService "ref-harness" $RefhArgs
 
-Start-AblationService "camel-baseline" @(
+# camel memory compaction now requires a cross-family extractor (fail-loud).
+$CamelArgs = @(
     "companion-camel-baseline", "serve",
     "--port", "8600",
     "--backend", $CamelBackend,
@@ -96,6 +102,17 @@ Start-AblationService "camel-baseline" @(
     "--store-mode", "sqlite",
     "--store-path", (Join-Path $ArtifactDir "camel-baseline.sqlite3")
 )
+if ($CamelBackend -eq "camel") {
+    if (-not $env:CAMEL_COMPACTION_MODEL) {
+        throw "[serve] camel backend memory compaction requires a cross-family extractor: set CAMEL_COMPACTION_MODEL / CAMEL_COMPACTION_BASE_URL / CAMEL_COMPACTION_KEY_ENV (a NON-Qwen family)."
+    }
+    $CamelArgs += @(
+        "--compaction-base-url", $env:CAMEL_COMPACTION_BASE_URL,
+        "--compaction-model", $env:CAMEL_COMPACTION_MODEL,
+        "--compaction-key-env", $env:CAMEL_COMPACTION_KEY_ENV
+    )
+}
+Start-AblationService "camel-baseline" $CamelArgs
 
 foreach ($track in @("raw", "ref-harness", "camel", "volvence-cold", "volvence")) {
     $dir = Join-Path $ArtifactDir $track

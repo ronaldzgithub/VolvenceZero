@@ -84,6 +84,72 @@ class HashingEmbedder:
         return tuple(v / norm for v in vec)
 
 
+class SentenceTransformerEmbedder:
+    """Real semantic embedder backed by ``sentence-transformers``.
+
+    Defaults to ``BAAI/bge-m3`` (multilingual, 1024-dim) so retrieval works
+    on both the English and Chinese public scenarios. The model is loaded
+    lazily on first :meth:`embed` so importing this module stays cheap and
+    offline-safe; the heavy dependency + weight download only happens when
+    the embedder is actually selected (``--embedder bge-m3``).
+
+    Embeddings are L2-normalised (``normalize_embeddings=True``) so
+    :func:`cosine` reduces to a dot product, matching HashingEmbedder.
+    """
+
+    def __init__(
+        self,
+        *,
+        model_id: str = "BAAI/bge-m3",
+        device: str | None = None,
+    ) -> None:
+        self._model_id = model_id
+        self._device = device
+        self._model = None  # lazy
+        self._dim: int | None = None
+
+    def _ensure_model(self) -> None:
+        if self._model is not None:
+            return
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:  # pragma: no cover - guarded at call site
+            raise ImportError(
+                "SentenceTransformerEmbedder requires the 'embed' extra: "
+                "pip install 'companion-ref-harness[embed]' (sentence-transformers)."
+            ) from exc
+        self._model = SentenceTransformer(self._model_id, device=self._device)
+        # sentence-transformers renamed get_sentence_embedding_dimension ->
+        # get_embedding_dimension; support both.
+        get_dim = getattr(
+            self._model,
+            "get_embedding_dimension",
+            None,
+        ) or self._model.get_sentence_embedding_dimension
+        self._dim = int(get_dim())
+
+    @property
+    def dim(self) -> int:
+        self._ensure_model()
+        assert self._dim is not None
+        return self._dim
+
+    @property
+    def name(self) -> str:
+        return f"ref-harness/sentence-transformer:{self._model_id}"
+
+    def embed(self, text: str) -> tuple[float, ...]:
+        self._ensure_model()
+        assert self._model is not None
+        vec = self._model.encode(
+            text or "",
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+        return tuple(float(x) for x in vec.tolist())
+
+
 @dataclasses.dataclass(frozen=True)
 class EmbedEntry:
     """One indexed turn in the embed retrieval store."""

@@ -101,6 +101,26 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="env var holding the upstream API key (camel backend).",
     )
+    # --- compaction extractor (cross-family memory summariser) ---
+    serve.add_argument(
+        "--compaction-base-url",
+        default=None,
+        help=(
+            "OpenAI-compatible root URL for the memory compaction model "
+            "(camel backend). MUST be a different family from the substrate "
+            "to avoid same-family crib-notes bias."
+        ),
+    )
+    serve.add_argument(
+        "--compaction-model",
+        default=None,
+        help="model identifier for the cross-family compaction extractor.",
+    )
+    serve.add_argument(
+        "--compaction-key-env",
+        default=None,
+        help="env var holding the compaction extractor API key.",
+    )
     # --- store ---
     serve.add_argument(
         "--store-mode",
@@ -164,12 +184,40 @@ def _build_backend(args: argparse.Namespace) -> CamelBackend:
                 "required for --backend camel (no implicit model fallback)."
             )
         api_key = _required_env(args.upstream_key_env)
+        comp_base, comp_model, comp_key_env = _resolve_compaction_config(args)
+        comp_api_key = _required_env(comp_key_env)
         return CamelChatAgentBackend(
             model_type=args.upstream_model,
             upstream_base_url=args.upstream_base_url,
             upstream_api_key=api_key,
+            compaction_model_type=comp_model,
+            compaction_base_url=comp_base,
+            compaction_api_key=comp_api_key,
         )
     raise SystemExit(f"unhandled backend: {args.backend}")  # pragma: no cover
+
+
+def _resolve_compaction_config(args: argparse.Namespace) -> tuple[str, str, str]:
+    """Require a cross-family compaction extractor for the camel backend.
+
+    The compaction model summarises the agent's own transcripts into
+    cross-session memory. Using the substrate family here is a same-family
+    crib-notes bias, so require an explicit cross-family model. Bypass with
+    ``CAMEL_ALLOW_SAME_FAMILY_EXTRACTOR=1`` (falls back to the substrate).
+    """
+    if args.compaction_base_url and args.compaction_model and args.compaction_key_env:
+        return (args.compaction_base_url, args.compaction_model, args.compaction_key_env)
+    if os.environ.get("CAMEL_ALLOW_SAME_FAMILY_EXTRACTOR", "").strip() in {
+        "1", "true", "True", "yes",
+    }:
+        return (args.upstream_base_url, args.upstream_model, args.upstream_key_env)
+    raise SystemExit(
+        "camel backend memory compaction requires a cross-family extractor: set "
+        "--compaction-base-url, --compaction-model, and --compaction-key-env to a "
+        "NON-substrate model family. Summarising with the substrate family is a "
+        "same-family crib-notes bias. Set CAMEL_ALLOW_SAME_FAMILY_EXTRACTOR=1 to "
+        "intentionally override (falls back to the substrate)."
+    )
 
 
 def _required_env(name: str) -> str:

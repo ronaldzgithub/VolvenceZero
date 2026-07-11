@@ -34,6 +34,8 @@ def _ns(**overrides) -> argparse.Namespace:
         summary_extractor_key_env=None,
         summary_extractor_family=None,
         use_stub_summary_extractor=True,
+        embedder="hashing",
+        embedder_device=None,
         store_mode="memory",
         store_path="./companion-ref-harness.sqlite3",
     )
@@ -165,11 +167,11 @@ def test_build_components_for_full_stack() -> None:
         args=_ns(use_stub_summary_extractor=True),
         family=cli.UpstreamFamily.PASSTHROUGH,
     )
-    assert cli._build_embedder(components) is not None
+    assert cli._build_embedder(components, args=_ns()) is not None
     assert cli._build_user_fact_extractor(components, resolved) is not None
     assert cli._build_episodic_extractor(components, resolved) is not None
     # Disabled components return None.
     summary_only = parse_component_set("summary")
-    assert cli._build_embedder(summary_only) is None
+    assert cli._build_embedder(summary_only, args=_ns()) is None
     assert cli._build_user_fact_extractor(summary_only, resolved) is None
     assert cli._build_episodic_extractor(summary_only, resolved) is None

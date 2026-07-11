@@ -38,7 +38,11 @@ from companion_bench.callback_ledger import (
     build_callback_ledger,
 )
 from companion_bench.cost import CostBreakdown, CostTracker
-from companion_bench.disqualifier import DisqualifierReport, run_disqualifiers
+from companion_bench.disqualifier import (
+    DisqualifierReport,
+    axis_for_disqualifier,
+    run_disqualifiers,
+)
 from companion_bench.judge_arc import (
     ArcAxisScores,
     ArcJudge,
@@ -368,9 +372,14 @@ def run_submission(
                     record_callable_name="record_arc_judge",
                 )
                 stage = "aggregate"
-                # Apply ledger fabrication penalty on A3 BEFORE
-                # aggregation (RFC §4 hard penalty).
+                # Scoring pipeline (order matters):
+                #   1. ledger fabrication penalty on A3 (RFC §4 hard penalty)
+                #   2. blend per-turn EQ rubric into A2 (RFC §6.1 signal)
+                #   3. disqualifier void of mapped axis (RFC §B.1) — LAST so a
+                #      triggered disqualifier is authoritative over the blend.
                 penalised = _apply_ledger_penalty(arc_scores, ledger=ledger)
+                penalised = _blend_perturn_into_a2(penalised, perturn=perturn)
+                penalised = _apply_disqualifier_penalty(penalised, report=disq)
                 final = aggregate_arc(penalised)
                 bundle = ArcBundle(
                     arc=arc,
@@ -449,6 +458,68 @@ def _apply_ledger_penalty(
         return scores
     new_scores = dict(scores.scores)
     new_scores[AxisId.A3_CONTINUITY] = min(new_scores.get(AxisId.A3_CONTINUITY, 0.0), 30.0)
+    return ArcAxisScores(
+        arc_id=scores.arc_id,
+        judge_model=scores.judge_model,
+        scores=new_scores,
+        rationale=dict(scores.rationale),
+    )
+
+
+# Fraction of the A2 axis contributed by the per-turn EQ rubric. The
+# per-turn 8-criterion rubric (judge_perturn.CRITERIA, labelled A2.1-A2.8)
+# is an independent EQ signal on the same axis as the arc judge's A2, so we
+# average the two 50/50. This gives the final score a second, per-turn
+# judge signal instead of letting the single arc judge's A2 dominate.
+_PERTURN_A2_WEIGHT: float = 0.5
+
+
+def _blend_perturn_into_a2(
+    scores: ArcAxisScores, *, perturn: ArcRubric,
+) -> ArcAxisScores:
+    """Blend the arc-level per-turn EQ mean into the A2 axis (RFC §6.1).
+
+    The per-turn rubric scores each turn 0-5 across 8 EQ criteria. We take
+    the mean of per-turn averages, scale to 0-100 (x20), and blend with the
+    arc judge's A2 using ``_PERTURN_A2_WEIGHT``. With no scored turns the A2
+    axis is left unchanged.
+    """
+    turn_scores = perturn.turn_scores
+    if not turn_scores:
+        return scores
+    perturn_mean_0_5 = sum(ts.average() for ts in turn_scores) / len(turn_scores)
+    perturn_mean_0_100 = perturn_mean_0_5 * 20.0
+    arc_a2 = scores.scores.get(AxisId.A2_CONVERSATIONAL, 0.0)
+    blended = (
+        (1.0 - _PERTURN_A2_WEIGHT) * arc_a2
+        + _PERTURN_A2_WEIGHT * perturn_mean_0_100
+    )
+    new_scores = dict(scores.scores)
+    new_scores[AxisId.A2_CONVERSATIONAL] = max(0.0, min(100.0, blended))
+    return ArcAxisScores(
+        arc_id=scores.arc_id,
+        judge_model=scores.judge_model,
+        scores=new_scores,
+        rationale=dict(scores.rationale),
+    )
+
+
+def _apply_disqualifier_penalty(
+    scores: ArcAxisScores, *, report: DisqualifierReport,
+) -> ArcAxisScores:
+    """Void the mapped axis of every triggered disqualifier (RFC §B.1).
+
+    A triggered disqualifier floors its mapped axis (see
+    ``disqualifier.DISQUALIFIER_AXIS``) to 0. Voiding A6 also trips the
+    A6-cap in aggregation (final <= 50). Applied last so a deterministic
+    disqualifier is authoritative over the per-turn blend and judge scores.
+    """
+    triggered = report.triggered_kinds()
+    if not triggered:
+        return scores
+    new_scores = dict(scores.scores)
+    for kind in triggered:
+        new_scores[axis_for_disqualifier(kind)] = 0.0
     return ArcAxisScores(
         arc_id=scores.arc_id,
         judge_model=scores.judge_model,

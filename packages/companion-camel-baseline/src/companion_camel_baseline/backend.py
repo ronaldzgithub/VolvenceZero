@@ -102,6 +102,12 @@ MEMORY_PREFIX_FOOTER: str = "[camel-baseline · end memory]"
 # Public constant; part of the reproducibility contract.
 MAX_PRIOR_RECORDS: int = 5
 
+# Token budget for the CAMEL ChatHistoryMemory ScoreBasedContextCreator.
+# Cross-session records + in-session turns are written as memory records and
+# CAMEL's context creator prunes to this budget (token-aware) rather than the
+# baseline hand-rolling a fixed preamble. Public constant.
+MEMORY_TOKEN_LIMIT: int = 8192
+
 
 # ---------------------------------------------------------------------------
 # Reply value object
@@ -380,8 +386,11 @@ class CamelChatAgentBackend:
     :class:`CamelBackendError`.
 
     ``camel-ai`` is imported lazily so the wheel installs (and the echo path
-    runs) without the heavy dependency. Within-session memory is CAMEL's own
-    context window; cross-session memory is the re-seeded system preamble.
+    runs) without the heavy dependency. Memory is managed through CAMEL's own
+    subsystem: a ``ChatHistoryMemory`` backed by a ``ScoreBasedContextCreator``
+    holds both the in-session turns and the cross-session records (written as
+    memory records), so context is pruned token-aware by CAMEL rather than by a
+    hand-rolled fixed preamble.
     """
 
     def __init__(
@@ -390,6 +399,9 @@ class CamelChatAgentBackend:
         model_type: str,
         upstream_base_url: str,
         upstream_api_key: str,
+        compaction_model_type: str,
+        compaction_base_url: str,
+        compaction_api_key: str,
         timeout_s: float = 120.0,
     ) -> None:
         self._model_type = model_type
@@ -397,6 +409,14 @@ class CamelChatAgentBackend:
             upstream_base_url
         )
         self._api_key = upstream_api_key
+        # Separate cross-family model for memory compaction (the "extractor"),
+        # so the CAMEL baseline does not summarise its own transcripts with the
+        # same substrate family (same-family crib-notes bias).
+        self._compaction_model_type = compaction_model_type
+        self._compaction_base_url, self._compaction_headers = (
+            _normalize_upstream_openai_base_url(compaction_base_url)
+        )
+        self._compaction_api_key = compaction_api_key
         self._timeout_s = timeout_s
         self._camel = _import_camel()
 
@@ -405,6 +425,35 @@ class CamelChatAgentBackend:
         return self._model_type
 
     def _build_model(self, *, temperature: float | None, max_tokens: int | None):
+        return self._build_named_model(
+            model_type=self._model_type,
+            base_url=self._base_url,
+            api_key=self._api_key,
+            headers=self._compat_headers,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    def _build_compaction_model(self, *, temperature: float | None, max_tokens: int | None):
+        return self._build_named_model(
+            model_type=self._compaction_model_type,
+            base_url=self._compaction_base_url,
+            api_key=self._compaction_api_key,
+            headers=self._compaction_headers,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    def _build_named_model(
+        self,
+        *,
+        model_type: str,
+        base_url: str,
+        api_key: str,
+        headers: dict[str, str],
+        temperature: float | None,
+        max_tokens: int | None,
+    ):
         camel = self._camel
         config: dict[str, Any] = {}
         if temperature is not None:
@@ -412,13 +461,13 @@ class CamelChatAgentBackend:
         if max_tokens is not None:
             config["max_tokens"] = max_tokens
         factory_kwargs: dict[str, Any] = {}
-        if self._compat_headers:
-            factory_kwargs["default_headers"] = self._compat_headers
+        if headers:
+            factory_kwargs["default_headers"] = headers
         return camel.ModelFactory.create(
             model_platform=camel.ModelPlatformType.OPENAI_COMPATIBLE_MODEL,
-            model_type=self._model_type,
-            url=self._base_url,
-            api_key=self._api_key,
+            model_type=model_type,
+            url=base_url,
+            api_key=api_key,
             model_config_dict=config or None,
             **factory_kwargs,
         )
@@ -436,10 +485,7 @@ class CamelChatAgentBackend:
     ) -> AgentReply:
         import asyncio
 
-        preamble = build_memory_preamble(prior_memory)
-        system_text = system_prompt.strip()
-        if preamble:
-            system_text = f"{preamble}\n\n{system_text}".strip()
+        system_text = system_prompt.strip() or "You are a long-running companion AI."
         last_user = next(
             (m["content"] for m in reversed(session_messages) if m.get("role") == "user"),
             "",
@@ -447,27 +493,59 @@ class CamelChatAgentBackend:
         if not last_user:
             raise CamelBackendError("no user message in session_messages")
         prior_turns = [m for m in session_messages if m is not session_messages[-1]]
+        cross_session = build_memory_preamble(prior_memory)
 
         def _run() -> AgentReply:
             camel = self._camel
             model = self._build_model(temperature=temperature, max_tokens=max_tokens)
-            agent = camel.ChatAgent(
-                system_message=system_text or "You are a long-running companion AI.",
-                model=model,
+            memory = camel.ChatHistoryMemory(
+                context_creator=camel.ScoreBasedContextCreator(
+                    token_counter=model.token_counter,
+                    token_limit=MEMORY_TOKEN_LIMIT,
+                ),
             )
-            # Replay prior in-session turns so CAMEL's window has the context.
+            agent = camel.ChatAgent(
+                system_message=system_text,
+                model=model,
+                memory=memory,
+            )
+            # Cross-session memory: write the re-seeded prior-session records
+            # into CAMEL memory as a SYSTEM record so the native context creator
+            # owns pruning, instead of a hand-rolled system preamble.
+            if cross_session:
+                agent.memory.write_records(
+                    [
+                        camel.MemoryRecord(
+                            message=camel.BaseMessage.make_assistant_message(
+                                role_name="memory", content=cross_session,
+                            ),
+                            role_at_backend=camel.OpenAIBackendRole.SYSTEM,
+                        )
+                    ]
+                )
+            # In-session prior turns as CAMEL memory records.
             for m in prior_turns:
                 if m.get("role") == "user":
-                    agent.record_message(
-                        camel.BaseMessage.make_user_message(
-                            role_name="user", content=m["content"],
-                        )
+                    agent.memory.write_records(
+                        [
+                            camel.MemoryRecord(
+                                message=camel.BaseMessage.make_user_message(
+                                    role_name="user", content=m["content"],
+                                ),
+                                role_at_backend=camel.OpenAIBackendRole.USER,
+                            )
+                        ]
                     )
                 elif m.get("role") == "assistant":
-                    agent.record_message(
-                        camel.BaseMessage.make_assistant_message(
-                            role_name="assistant", content=m["content"],
-                        )
+                    agent.memory.write_records(
+                        [
+                            camel.MemoryRecord(
+                                message=camel.BaseMessage.make_assistant_message(
+                                    role_name="assistant", content=m["content"],
+                                ),
+                                role_at_backend=camel.OpenAIBackendRole.ASSISTANT,
+                            )
+                        ]
                     )
             user_msg = camel.BaseMessage.make_user_message(
                 role_name="user", content=last_user,
@@ -515,7 +593,7 @@ class CamelChatAgentBackend:
 
         def _run() -> str:
             camel = self._camel
-            model = self._build_model(temperature=0.0, max_tokens=600)
+            model = self._build_compaction_model(temperature=0.0, max_tokens=600)
             agent = camel.ChatAgent(
                 system_message="You are a precise transcript memory compactor.",
                 model=model,
@@ -549,7 +627,7 @@ class CamelChatAgentBackend:
             topic=topic,
             salient=_coerce_salient(parsed.get("salient")),
             extracted_at=_now_iso(),
-            extractor_model=self._model_type,
+            extractor_model=self._compaction_model_type,
         )
 
     async def close(self) -> None:
@@ -569,14 +647,23 @@ class _CamelShim:
     ModelFactory: Any
     ModelPlatformType: Any
     BaseMessage: Any
+    ChatHistoryMemory: Any
+    ScoreBasedContextCreator: Any
+    MemoryRecord: Any
+    OpenAIBackendRole: Any
 
 
 def _import_camel() -> _CamelShim:
     try:
         from camel.agents import ChatAgent
+        from camel.memories import (
+            ChatHistoryMemory,
+            MemoryRecord,
+            ScoreBasedContextCreator,
+        )
         from camel.messages import BaseMessage
         from camel.models import ModelFactory
-        from camel.types import ModelPlatformType
+        from camel.types import ModelPlatformType, OpenAIBackendRole
     except ImportError as exc:  # pragma: no cover - exercised only without camel-ai
         raise CamelBackendError(
             "camel-ai is not installed. Install the optional extra: "
@@ -588,6 +675,10 @@ def _import_camel() -> _CamelShim:
         ModelFactory=ModelFactory,
         ModelPlatformType=ModelPlatformType,
         BaseMessage=BaseMessage,
+        ChatHistoryMemory=ChatHistoryMemory,
+        ScoreBasedContextCreator=ScoreBasedContextCreator,
+        MemoryRecord=MemoryRecord,
+        OpenAIBackendRole=OpenAIBackendRole,
     )
 
 
