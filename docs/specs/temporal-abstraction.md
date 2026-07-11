@@ -173,6 +173,12 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-12: `BrainConfig.temporal_latent_dim` /
+  `AgentSessionRunner(temporal_latent_dim=...)` 成为 controller capacity 的
+  显式入口。默认 3 保留 legacy rollback；evidence profile 可使用
+  16/64/256 解锁 ndim controller，而不修改生产默认或公共快照 shape。
+  小于 3 的配置 fail loudly；bootstrap snapshot 仍由 temporal owner 自身
+  决定维度。
 - 2026-07-12: autograd operator wiring 拆成 owner-local 三态环境变量：
   `VZ_TEMPORAL_SSL_BACKEND` / `VZ_TEMPORAL_RUNTIME_BACKEND` /
   `VZ_INTERNAL_RL_BACKEND` / `VZ_CMS_TORCH_BACKEND`，每项只接受

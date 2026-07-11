@@ -86,6 +86,11 @@ class BrainConfig:
     substrate_device: str = "auto"
     substrate_local_files_only: bool = True
     substrate_fallback_mode: str | None = "deny"
+    # Controller capacity is explicit so evidence runs can exercise the ndim
+    # metacontroller without changing code defaults. Three preserves the
+    # legacy pure-Python rollback baseline; learned-backend promotion profiles
+    # use 16/64/256 behind owner-local WiringLevel gates.
+    temporal_latent_dim: int = 3
     application_persistence_dir: str | None = None
     domain_experience_packages: tuple[DomainExperiencePackage, ...] = ()
     final_rollout_config: FinalRolloutConfig | None = None
@@ -648,6 +653,7 @@ class Brain:
             substrate_adapter_factory=self._substrate_adapter_factory,
             response_synthesizer=synthesizer,
             semantic_proposal_runtime=self._semantic_proposal_runtime,
+            temporal_latent_dim=self._config.temporal_latent_dim,
             rare_heavy_enabled=self._config.rare_heavy_enabled,
             regime_bootstrap=self._regime_bootstrap,
             identity_seed=self._identity_seed,

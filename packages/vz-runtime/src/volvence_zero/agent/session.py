@@ -447,6 +447,7 @@ class AgentSessionRunner(
         temporal_policy: TemporalPolicy | None = None,
         world_temporal_policy: FullLearnedTemporalPolicy | None = None,
         self_temporal_policy: FullLearnedTemporalPolicy | None = None,
+        temporal_latent_dim: int = 3,
         domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
         case_memory_store: ApplicationCaseMemoryStore | None = None,
         domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
@@ -484,6 +485,10 @@ class AgentSessionRunner(
         owner_hydration_store: Any = None,
         seed_protocols: tuple[Any, ...] = (),
     ) -> None:
+        if temporal_latent_dim < 3:
+            raise ValueError(
+                f"temporal_latent_dim must be >= 3, got {temporal_latent_dim!r}"
+            )
         self._session_id = session_id
         self._dialogue_pe_continued_evidence_enabled = dialogue_pe_continued_evidence_enabled
         self._dialogue_commitment_outcome_evidence_enabled = dialogue_commitment_outcome_evidence_enabled
@@ -517,7 +522,11 @@ class AgentSessionRunner(
                 world_bootstrap_snapshot
             )
         else:
-            self._world_temporal_policy = FullLearnedTemporalPolicy()
+            self._world_temporal_policy = FullLearnedTemporalPolicy(
+                parameter_store=MetacontrollerParameterStore(
+                    n_z=temporal_latent_dim
+                )
+            )
         if self_temporal_policy is not None:
             self._self_temporal_policy = self_temporal_policy
         elif self_bootstrap_snapshot is not None:

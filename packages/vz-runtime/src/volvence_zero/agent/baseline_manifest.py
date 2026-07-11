@@ -77,6 +77,7 @@ def build_default_behavior_baseline_manifest() -> DefaultBehaviorBaselineManifes
         ("substrate_model_id", brain.substrate_model_id),
         ("substrate_local_files_only", _stringify(brain.substrate_local_files_only)),
         ("substrate_fallback_mode", _stringify(brain.substrate_fallback_mode)),
+        ("temporal_latent_dim", str(brain.temporal_latent_dim)),
         ("memory_scope_root_dir", _stringify(brain.memory_scope_root_dir)),
         ("application_persistence_dir", _stringify(brain.application_persistence_dir)),
         ("owner_hydration_wiring", brain.owner_hydration_wiring.value),

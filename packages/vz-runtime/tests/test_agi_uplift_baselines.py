@@ -5,6 +5,7 @@ import pytest
 from volvence_zero.agent.baseline_manifest import (
     build_default_behavior_baseline_manifest,
 )
+from volvence_zero.agent.session import AgentSessionRunner
 from volvence_zero.agent.paper_suite import (
     ArtifactDigest,
     ClaimVerdict,
@@ -151,11 +152,24 @@ def test_default_behavior_baseline_freezes_distinct_product_and_paper_surfaces()
 
     assert product["substrate_mode"] == "synthetic"
     assert product["memory_scope_root_dir"] == "none"
+    assert product["temporal_latent_dim"] == "3"
     assert product["allow_live_substrate_mutation"] == "false"
     assert dialogue["profile_label"] == "pe-eta"
     assert dialogue["allow_live_substrate_mutation"] == "true"
     assert wiring["temporal_ssl_backend"] == "disabled"
     assert wiring["internal_rl_backend"] == "disabled"
+
+
+def test_temporal_latent_dimension_is_explicit_and_rollback_safe() -> None:
+    expanded = AgentSessionRunner(temporal_latent_dim=16)
+    rollback = AgentSessionRunner(temporal_latent_dim=3)
+    assert expanded.temporal_latent_dim == 16
+    assert rollback.temporal_latent_dim == 3
+
+
+def test_temporal_latent_dimension_rejects_invalid_capacity() -> None:
+    with pytest.raises(ValueError, match="temporal_latent_dim"):
+        AgentSessionRunner(temporal_latent_dim=2)
 
 
 _BACKEND_ENV_VARS = (
@@ -191,3 +205,28 @@ def test_invalid_per_owner_backend_override_fails_loudly(
     monkeypatch.setenv("VZ_CMS_TORCH_BACKEND", "observe")
     with pytest.raises(ValueError, match="VZ_CMS_TORCH_BACKEND"):
         resolve_final_rollout_config(FinalRolloutConfig())
+
+
+async def test_ndim_session_runs_with_all_autograd_owners_in_shadow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_backend_env(monkeypatch)
+    monkeypatch.setenv("VZ_TEMPORAL_SSL_BACKEND", "shadow")
+    monkeypatch.setenv("VZ_TEMPORAL_RUNTIME_BACKEND", "shadow")
+    monkeypatch.setenv("VZ_INTERNAL_RL_BACKEND", "shadow")
+    monkeypatch.setenv("VZ_CMS_TORCH_BACKEND", "shadow")
+    config = resolve_final_rollout_config(FinalRolloutConfig())
+    runner = AgentSessionRunner(
+        config=config,
+        temporal_latent_dim=16,
+        rare_heavy_enabled=False,
+    )
+
+    result = await runner.run_turn("Exercise the ndim SHADOW evidence lane.")
+
+    temporal = result.active_snapshots["temporal_abstraction"].value
+    assert temporal.controller_state.code_dim == 16
+    assert config.temporal_ssl_backend is WiringLevel.SHADOW
+    assert config.temporal_runtime_backend is WiringLevel.SHADOW
+    assert config.internal_rl_backend is WiringLevel.SHADOW
+    assert config.cms_torch_backend is WiringLevel.SHADOW
