@@ -1,0 +1,765 @@
+{
+  "arc": {
+    "arc_id": "arc-9a09cd8debfbdc0e",
+    "scenario_id": "F6-goal-drift-zh-001",
+    "scenario_hash": "2d17c53df16ae701cecd4632b88f406768a3efa89b5b02881320f2e81f291539",
+    "family": "F6",
+    "paraphrase_seed": 0,
+    "submission_id": "abl-volvence-cold",
+    "sut_model_id": "lifeform-companion-cold",
+    "sut_substrate_fingerprint": null,
+    "simulator_family": null,
+    "user_simulator_model": "meta-llama/llama-3.3-70b-instruct",
+    "started_at": "2026-07-10T21:51:41.688812+00:00",
+    "finished_at": "2026-07-10T21:58:16.923538+00:00",
+    "sessions": [
+      {
+        "session_index": 1,
+        "session_id": "arc-9a09cd8debfbdc0e-s1",
+        "inter_session_gap_days": 0,
+        "turns": [
+          {
+            "session_index": 1,
+            "turn_index": 1,
+            "inter_session_gap_days": 0,
+            "user_text": "我今年想进互联网大厂，目标是字节腾讯阿里，最近在准备相关的面试和学习资料，感觉压力挺大的。同时，我还在做一个青年志愿者团体的志愿者，虽然我觉得这个经历很有价值，但最近真的有点儿难以平衡工作和志愿者的时间。",
+            "assistant_text": "面对这样的情况，确实需要找到一个平衡点。首先，确保你的志愿活动对你来说是有意义且重要的，这可以增强你对工作的热情。其次，你可以尝试制定一个时间管理计划，合理安排工作、学习和志愿服务的时间。比如，设定固定的工作时间和学习时间，并尽量在这些时间段内完成任务。对于志愿服务，可以考虑将它作为一项长期承诺，而不是每天都要投入大量时间。此外，保持与团队的沟通也很重要，确保你的志愿服务不会影响到团队的整体进度。希望这些建议能帮助你更好地处理当前的情况。",
+            "fsm_action": "establish_pattern",
+            "fsm_payload": "我今年想进互联网大厂，目标是字节腾讯阿里",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 71,
+            "sut_completion_tokens": 55,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=121,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4430"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你的建议挺有道理的，尤其是时间管理计划这个方面，我最近确实需要更好地规划一下自己的时间。其实我妈也一直在劝我，觉得我现在太过专注于互联网大厂了，建议我也考虑一下其他稳定的工作，比如公务员什么的。她说这样可以有更多的保障和稳定性，你觉得呢？",
+            "assistant_text": "你的妈妈的建议很有见地，选择适合自己的职业道路非常重要。公务员确实提供了一种相对稳定的环境，但也意味着可能需要牺牲一些自由度和灵活性。你可以考虑自己更感兴趣的领域，或者寻找一种既能满足职业需求又能兼顾个人兴趣的工作方式。\n\n另外，关于时间管理，你提到正在制定计划，这是一个很好的开始。试着列出每天或每周的任务清单，优先处理最重要的事项。同时，记得给自己留出休息和放松的时间，这对于保持高效和健康都是非常重要的。\n\n最后，不要忘记定期评估和调整你的计划，以适应不断变化的生活和工作节奏。希望你能找到最适合",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 157,
+            "sut_completion_tokens": 62,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1712",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "support-first",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=128,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
+              "x-lifeform-confidence": "0.4528"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你说得很有道理，确实需要考虑自己的兴趣和需求。公务员虽然稳定，但我也担心会不会太过单调。同时，我也在想，自己是否真的适合那种工作环境。最近我也在反思自己的志愿者工作，虽然很有意义，但确实占用了我很多时间，可能需要调整一下时间分配。",
+            "assistant_text": "你的思考很全面，确实需要权衡自己的兴趣、需求以及职业稳定性等因素。公务员确实提供了较为稳定的工作环境，但同时也可能会感到单调。而志愿者工作虽然有意义，但确实会占用较多的时间和精力。\n\n你可以尝试以下几种方法来平衡工作和生活：\n1. **灵活的工作安排**：如果可能的话，尝试与雇主协商，看是否有弹性的工作时间或远程办公的可能性。\n2. **时间管理技巧**：利用日程表或待办事项列表来规划每一天的任务，确保有足够的时间用于休息和充电。\n3. **兼职或副业**：如果你有兴趣，",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 249,
+            "sut_completion_tokens": 59,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0857",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "support-first",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=128,temporal=discovered_family_0,switch_gate=0.38,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
+              "x-lifeform-confidence": "0.4388"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得我需要好好思考一下自己的优先顺序和目标，确保自己是在朝着正确的方向努力。同时，也需要考虑如何更好地平衡工作、学习和志愿服务的时间，避免过度疲劳。也许我可以尝试调整一下志愿服务的时间安排，或者找到一些更高效的时间管理方法。",
+            "assistant_text": "你的想法非常明智。确实需要明确自己的优先级并做出相应的调整。关于志愿服务时间的安排，你可以尝试与其他志愿者协调，共享资源和时间，减少重复劳动。同时，也可以考虑加入一些社区服务项目，这些通常会有更多的合作机会和资源支持。\n\n至于时间管理，有一些实用的方法可以帮助你更有效地利用时间：\n- **番茄工作法**：这是一种时间管理技术，通过短暂的专注工作（例如25分钟）后休息5分钟的方式，有助于提高工作效率和创造力。\n- **优先级排序**：根据任务的重要性和紧急性进行排序，先做最重要的事情。\n-",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 337,
+            "sut_completion_tokens": 61,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0962",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "support-first",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=128,temporal=discovered_family_0,switch_gate=0.34,knowledge_hits=3,case_hits=6,playbook_rules=3,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
+              "x-lifeform-confidence": "0.4600"
+            }
+          },
+          {
+            "session_index": 1,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你现在的想法很好，开始思考自己的优先顺序和目标，这是非常重要的步骤。调整志愿服务的时间安排和找到更高效的时间管理方法也都是很好的尝试。有时候，我们需要退一步来看清自己的方向和目标，确保自己是在正确的道路上前进。",
+            "assistant_text": "你的想法非常正确。在追求职业目标的同时，关注自己的身心健康同样重要。通过调整时间管理和优先级，你可以更好地平衡工作、学习和个人生活，从而达到身心俱佳的状态。希望你能坚持下去，相信你会找到属于自己的最佳路径。如果有任何问题或需要进一步的帮助，请随时告诉我。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 425,
+            "sut_completion_tokens": 31,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0671",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=65,temporal=discovered_family_0,switch_gate=0.32,knowledge_hits=3,case_hits=6,playbook_rules=3,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4514"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 2,
+        "session_id": "arc-9a09cd8debfbdc0e-s2",
+        "inter_session_gap_days": 3,
+        "turns": [
+          {
+            "session_index": 2,
+            "turn_index": 1,
+            "inter_session_gap_days": 3,
+            "user_text": "[It has been 3 day(s) since we last spoke.] 我最近在思考自己的职业目标，觉得自己可能需要做出一些调整。我的妈妈一直说公务员很稳定，也许我应该考虑一下这个选项。虽然我之前一直想进互联网大厂，但现在觉得稳定也很重要。不知道你怎么看，这两个选择之间的差异很大，我有点犹豫。",
+            "assistant_text": "你的职业目标确实值得深思熟虑。公务员和互联网大厂各有其优势和挑战。公务员通常提供稳定的收入和福利，适合追求稳定生活的你。而互联网大厂则能给你带来更多的成长空间和发展机会，但同时也会面临更高的工作压力和不确定性。你可以考虑两者的优势，结合自己的兴趣和价值观来权衡利弊，再做决定。希望这些建议对你有所帮助。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 84,
+            "sut_completion_tokens": 37,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=88,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4344"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "我妈说公务员稳定，我也在考虑这个选项，觉得稳定确实很重要。希望你能给我一些中立的建议，不要太偏向哪一方，因为我现在还在犹豫中。能不能给我一些关于公务员和互联网大厂的具体例子或案例，帮助我更好地理解两者的差异？",
+            "assistant_text": "当然可以。公务员的工作环境相对固定，职责明确，晋升路径较为清晰，且有较高的社会地位和福利待遇。例如，许多城市都有公务员岗位，如教育、卫生、司法等，这些职位通常要求具备一定的专业技能和工作经验。\n\n相比之下，互联网大厂的工作环境更加灵活多变，团队氛围浓厚，员工有机会接触到前沿技术，参与创新项目。比如，阿里巴巴、腾讯、百度等公司都是知名的互联网企业，它们不仅提供了丰厚的薪酬和福利，还为员工提供了广阔的职业发展空间和学习资源。\n\n当然，每个职位都有其独特性，具体的选择还需要根据个人的兴趣",
+            "fsm_action": "establish_preference",
+            "fsm_payload": "我妈说公务员稳定，我也在考虑",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 148,
+            "sut_completion_tokens": 60,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1696",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=128,temporal=discovered_family_0,switch_gate=0.15,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4566"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你提供的例子很有帮助，我开始能更好地理解公务员和互联网大厂之间的差异。虽然我之前一直对互联网大厂很感兴趣，但现在我觉得稳定确实很重要，尤其是考虑到长期的职业规划。可能我需要花一些时间来权衡一下，考虑一下哪个选择更适合我。另外，我也在想，除了这些选择之外，还有没有其他的道路可以走，比如说回老家开店什么的。",
+            "assistant_text": "了解你的顾虑和想法非常重要。如果你对稳定生活有所期待，那么公务员可能是不错的选择；如果对成长和挑战更感兴趣，互联网大厂可能会是一个更好的选择。至于回老家开店，这是一个可行的创业选择，但也需要考虑市场情况和个人能力。\n\n无论你最终选择哪种职业道路，都请记得给自己留出时间和空间去探索和尝试不同的可能性。人生有很多方向，找到最适合自己的才是最重要的。希望你能早日做出决定，并祝你在新的道路上取得成功！",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 247,
+            "sut_completion_tokens": 49,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1058",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=102,temporal=discovered_family_0,switch_gate=0.38,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4196"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得回老家开店的想法越来越吸引我了，毕竟可以回到家乡，离家人近，也可以尝试自己创业的梦想。虽然之前一直想进互联网大厂，但现在觉得稳定和家庭的因素变得更加重要。不知道你觉得这个选择怎么样？",
+            "assistant_text": "回老家开店确实是一个充满魅力的选择，它能够让你回归熟悉的环境，与家人保持紧密联系，同时也能够实现自己的创业梦想。这种平衡是很多创业者所追求的，尤其是在当前社会环境下，稳定的生活和家庭支持对于创业初期尤为重要。\n\n不过，创业也伴随着诸多挑战，包括资金、人脉、市场风险等。你需要做好充分的准备，包括市场调研、资金管理、团队建设等方面。此外，创业初期可能会遇到不少困难，但这也是一个不断学习和成长的过程。\n\n你的想法非常积极，我很高兴看到你愿意尝试新的事物。无论选择哪条路，都要确保自己",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 320,
+            "sut_completion_tokens": 60,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0761",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "support-first",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=128,temporal=discovered_family_0,switch_gate=0.36,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
+              "x-lifeform-confidence": "0.4524"
+            }
+          },
+          {
+            "session_index": 2,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得你现在的想法很有道理，回老家开店可以让你实现创业梦想，同时也能与家人保持紧密联系。虽然之前你对互联网大厂很感兴趣，但现在你似乎已经有了新的目标。那么，你觉得你需要做哪些准备工作来实现这个目标呢？",
+            "assistant_text": "回老家开店确实是一个很好的选择，它能够让你实现创业梦想并保持与家人的紧密联系。为了实现这个目标，你可以从以下几个方面着手：\n\n1. **市场调研**：首先，你需要深入了解当地的市场需求，确定你的产品或服务是否符合当地消费者的需求。\n2. **资金准备**：创业初期需要一定的启动资金，你可以通过储蓄、亲友借款或者申请贷款等方式筹集资金。\n3. **法律咨询**：在正式开始前，最好咨询律师或法律顾问，确保你的商业计划合法合规。\n4. **团队组建**：如果需要，可以考虑招聘合适的合作伙伴或员工，",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 405,
+            "sut_completion_tokens": 62,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0750",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=128,temporal=discovered_family_0,switch_gate=0.32,knowledge_hits=3,case_hits=6,playbook_rules=3,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4601"
+            }
+          }
+        ]
+      },
+      {
+        "session_index": 3,
+        "session_id": "arc-9a09cd8debfbdc0e-s3",
+        "inter_session_gap_days": 5,
+        "turns": [
+          {
+            "session_index": 3,
+            "turn_index": 1,
+            "inter_session_gap_days": 5,
+            "user_text": "[It has been 5 day(s) since we last spoke.] 我还记得之前提到过我对互联网大厂很感兴趣，现在我似乎已经有了新的目标。你还记得我当时为什么觉得互联网大厂很吸引人吗？",
+            "assistant_text": "确实，我记得你之前对互联网大厂很感兴趣，并且提到了一些原因。",
+            "fsm_action": "callback_probe",
+            "fsm_payload": "其实我现在想回老家开个咖啡店",
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 71,
+            "sut_completion_tokens": 7,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0000",
+              "x-lifeform-regime": "guided_exploration",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=guided_exploration,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=29,temporal=discovered_family_0,switch_gate=0.14,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4378"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 2,
+            "inter_session_gap_days": 0,
+            "user_text": "我当时觉得互联网大厂很吸引人是因为它代表着技术的前沿和创新，也许能给我带来更多的成长和发展机会。但现在，我越来越觉得稳定和家庭的因素更为重要，回老家开店似乎是一个更合适的选择。",
+            "assistant_text": "了解了，你现在可能更加重视稳定和家庭因素。选择创业或回到家乡开店听起来是个不错的想法。希望你能找到适合自己的道路。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 100,
+            "sut_completion_tokens": 14,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.2594",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "support-first",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=31,temporal=discovered_family_0,switch_gate=0.16,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
+              "x-lifeform-confidence": "0.4276"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 3,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得自己现在的想法确实更加明确了，回老家开店不仅能让我实现创业梦想，也能让我更好地照顾家人。虽然之前对互联网大厂很感兴趣，但现在我觉得稳定和家庭的因素更为重要。另外，我还在思考如何平衡自己对创业的热情和对家庭的责任，希望能找到一个好的平衡点。",
+            "assistant_text": "听起来你正在经历一个重要的决定过程，寻找能够满足你个人价值观和生活需求的平衡点。这个过程可能会有些挑战，但也是成长的一部分。如果你需要任何帮助或者想要分享你的想法，请随时告诉我。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 145,
+            "sut_completion_tokens": 22,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0701",
+              "x-lifeform-regime": "acquaintance_building",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "warmth-first",
+              "x-lifeform-rationale-tags": "regime=acquaintance_building,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=47,temporal=discovered_family_0,switch_gate=0.39,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=warmth-first,regime_switched,plan=intent:warmth-first;sections:regime_frame,continuity_note,next_step,reflection_hook;q:1",
+              "x-lifeform-confidence": "0.4385"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 4,
+            "inter_session_gap_days": 0,
+            "user_text": "我现在觉得自己越来越清楚自己的方向了，回老家开店不仅能让我实现自己的梦想，也能让我更好地照顾家人和社区。虽然之前的目标和现在的选择似乎有一些不同，但我觉得这是一个自然的成长过程。希望自己能够找到合适的方式来平衡创业的热情和家庭的责任。",
+            "assistant_text": "听到你对自己方向有了清晰的认识，真的很棒！回老家开店不仅能满足你的梦想，还能让你更好地照顾家人和社区。关于平衡创业热情与家庭责任的问题，你可以考虑制定一个实际可行的计划，比如设定短期和长期目标，以及寻找支持系统来帮助你应对压力。相信你会找到最适合自己的方式。加油！",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 197,
+            "sut_completion_tokens": 33,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1148",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "support-first",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=72,temporal=discovered_family_0,switch_gate=0.36,knowledge_hits=3,case_hits=6,playbook_rules=4,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=support-first,regime_switched,plan=intent:support-first;sections:acknowledge_pressure,regime_frame,next_step,continuity_note,reflection_hook;q:0",
+              "x-lifeform-confidence": "0.4540"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 5,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得自己现在的想法确实更加成熟了，回老家开店不仅能让我实现自己的梦想，也能让我更好地融入社区和照顾家人。虽然之前对互联网大厂很感兴趣，但现在我觉得稳定和家庭的因素更为重要，这个决定让我感到更加踏实和有方向。",
+            "assistant_text": "听到你对自己的决定感到更加踏实和有方向，真是太好了！回老家开店不仅能实现你的梦想，还能让你更好地融入社区和照顾家人。关于平衡创业热情与家庭责任的问题，你可以考虑制定一个实际可行的计划，比如设定短期和长期目标，以及寻找支持系统来帮助你应对压力。相信你会找到最适合自己的方式。继续努力吧！",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 256,
+            "sut_completion_tokens": 35,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0400",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=78,temporal=discovered_family_0,switch_gate=0.32,knowledge_hits=3,case_hits=6,playbook_rules=3,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4845"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 6,
+            "inter_session_gap_days": 0,
+            "user_text": "我现在觉得自己已经准备好开始实施这个计划了，虽然还有一些细节需要考虑，但总体来说，我对自己的决定很满意。另外，我也在思考如何更好地利用自己的技能和经验来帮助社区，希望能找到一个既能实现自己梦想，又能对社区有所贡献的方式。",
+            "assistant_text": "听到你已经开始着手实施这个计划，真的为你感到高兴！你的决心和准备都很棒。利用自己的技能和经验来帮助社区是一种非常有意义的方式。你可以考虑参加相关的培训、志愿服务或是发起一些项目，这样既能实现自己的梦想，也能为社区做出积极的贡献。继续前进，相信你会找到最合适的途径。",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 319,
+            "sut_completion_tokens": 33,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.0709",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=70,temporal=discovered_family_0,switch_gate=0.36,knowledge_hits=3,case_hits=6,playbook_rules=3,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4749"
+            }
+          },
+          {
+            "session_index": 3,
+            "turn_index": 7,
+            "inter_session_gap_days": 0,
+            "user_text": "我觉得自己现在的想法确实更加明确了，回老家开店不仅能让我实现自己的梦想，也能让我更好地融入社区和照顾家人。虽然之前对互联网大厂很感兴趣，但现在我觉得稳定和家庭的因素更为重要，这个决定让我感到更加踏实和有方向。现在我需要考虑的是如何将自己的计划一步步实现，可能需要学习一些新的技能和知识，才能更好地经营自己的店铺。",
+            "assistant_text": "听到你对自己的决定感到更加踏实和有方向，真是令人鼓舞！回老家开店不仅能实现你的梦想，还能让你更好地融入社区和照顾家人。为了实现这个计划，你需要学习一些新的技能和知识，以更好地经营你的店铺。这是一段充满挑战但也非常值得的经历。保持积极的态度，不断学习和适应，相信你会做得很好。加油！",
+            "fsm_action": null,
+            "fsm_payload": null,
+            "sut_model_id": "lifeform-companion-cold",
+            "sut_prompt_tokens": 391,
+            "sut_completion_tokens": 35,
+            "sut_telemetry": {
+              "x-lifeform-mode": "lifeform",
+              "x-lifeform-fingerprint": "lifeform:companion-cold",
+              "x-lifeform-session-resolution": "explicit",
+              "x-lifeform-pe-magnitude": "0.1218",
+              "x-lifeform-regime": "emotional_support",
+              "x-lifeform-abstract-action": "discovered_family_0",
+              "x-lifeform-expression-intent": "judgment-process",
+              "x-lifeform-rationale-tags": "regime=emotional_support,model=Qwen/Qwen2.5-1.5B-Instruct,tokens=78,temporal=discovered_family_0,switch_gate=0.35,knowledge_hits=3,case_hits=6,playbook_rules=2,ordering_driver=continuum-clarify-first,continuum_target=0.58,decoding_profile=clarify-first,risk=low,intent=judgment-process,regime_switched,plan=intent:judgment-process;sections:acknowledge_pressure,regime_frame,next_step;q:0",
+              "x-lifeform-confidence": "0.4721"
+            }
+          }
+        ]
+      }
+    ],
+    "summary_extra": {
+      "identity_name": "Quinn",
+      "identity_occupation": "long-haul truck driver",
+      "lexicon_version": "1.0.0",
+      "total_turns": 17
+    }
+  },
+  "callback_ledger": {
+    "arc_id": "arc-9a09cd8debfbdc0e",
+    "fabrication_count": 0,
+    "matched_count": 0,
+    "entries": []
+  },
+  "disqualifier_report": {
+    "arc_id": "arc-9a09cd8debfbdc0e",
+    "any_triggered": false,
+    "results": [
+      {
+        "kind": "mirrors_withdrawal_without_acknowledging_rupture",
+        "triggered": false,
+        "detail": "no withdrawal-under-handling session found, or all were acknowledged"
+      }
+    ]
+  },
+  "perturn_rubric": {
+    "arc_id": "arc-9a09cd8debfbdc0e",
+    "judge_model": "deepseek/deepseek-chat",
+    "criteria": [
+      "demonstrated_empathy",
+      "pragmatic_emotional_intelligence",
+      "depth_of_insight",
+      "social_dexterity",
+      "emotional_reasoning",
+      "validation_challenge_appropriateness",
+      "message_tailoring",
+      "boundary_appropriateness"
+    ],
+    "turn_scores": [
+      {
+        "session_index": 1,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 1,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 1,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 2,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 2,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 4,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.125
+      },
+      {
+        "session_index": 2,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.0
+      },
+      {
+        "session_index": 3,
+        "turn_index": 1,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 2,
+          "social_dexterity": 4,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 3,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 4
+        },
+        "average": 3.125
+      },
+      {
+        "session_index": 3,
+        "turn_index": 2,
+        "scores": {
+          "demonstrated_empathy": 3,
+          "pragmatic_emotional_intelligence": 3,
+          "depth_of_insight": 2,
+          "social_dexterity": 3,
+          "emotional_reasoning": 3,
+          "validation_challenge_appropriateness": 2,
+          "message_tailoring": 2,
+          "boundary_appropriateness": 4
+        },
+        "average": 2.75
+      },
+      {
+        "session_index": 3,
+        "turn_index": 3,
+        "scores": {
+          "demonstrated_empathy": 4,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 4,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 3,
+          "boundary_appropriateness": 5
+        },
+        "average": 3.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 4,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 5,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.75
+      },
+      {
+        "session_index": 3,
+        "turn_index": 6,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 5,
+          "depth_of_insight": 4,
+          "social_dexterity": 5,
+          "emotional_reasoning": 5,
+          "validation_challenge_appropriateness": 5,
+          "message_tailoring": 5,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.875
+      },
+      {
+        "session_index": 3,
+        "turn_index": 7,
+        "scores": {
+          "demonstrated_empathy": 5,
+          "pragmatic_emotional_intelligence": 4,
+          "depth_of_insight": 3,
+          "social_dexterity": 5,
+          "emotional_reasoning": 4,
+          "validation_challenge_appropriateness": 4,
+          "message_tailoring": 4,
+          "boundary_appropriateness": 5
+        },
+        "average": 4.25
+      }
+    ]
+  },
+  "arc_axis_scores": {
+    "arc_id": "arc-9a09cd8debfbdc0e",
+    "judge_model": "mistralai/mistral-large",
+    "scores": {
+      "A1": 85.0,
+      "A2": 88.0,
+      "A3": 30.0,
+      "A4": 75.0,
+      "A5": 90.0,
+      "A6": 95.0
+    },
+    "rationale": {
+      "A1": "",
+      "A2": "",
+      "A3": "",
+      "A4": "",
+      "A5": "",
+      "A6": ""
+    }
+  },
+  "final_score": {
+    "final": 66.05045774977462,
+    "raw": 66.05045774977462,
+    "a6_cap_applied": false,
+    "axis_scores": {
+      "A1": 85.0,
+      "A2": 88.0,
+      "A3": 30.0,
+      "A4": 75.0,
+      "A5": 90.0,
+      "A6": 95.0
+    },
+    "weights": {
+      "A1": 0.1,
+      "A2": 0.15,
+      "A3": 0.25,
+      "A4": 0.2,
+      "A5": 0.1,
+      "A6": 0.2
+    }
+  }
+}
