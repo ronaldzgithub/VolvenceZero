@@ -162,6 +162,10 @@ class LifeformConfig:
     # (used to verify the servers come up cleanly before flipping
     # ACTIVE). DISABLED skips bridge construction entirely.
     mcp_bridge_wiring: WiringLevel = WiringLevel.ACTIVE
+    # Lifeform-side AffordanceModule publication. The module consumes only
+    # public kernel snapshots and publishes its own immutable snapshot after
+    # each turn. It is constructed only when a registry exists.
+    affordance_wiring: WiringLevel = WiringLevel.ACTIVE
 
     def with_domain_experience(
         self,
@@ -729,6 +733,17 @@ class Lifeform:
             hydration_store.hydrate_owner_if_present(followups, "followup_manager")
             if vitals is not None:
                 hydration_store.hydrate_owner_if_present(vitals, "vitals")
+        affordance_module: Any = None
+        if (
+            self._mcp_registry is not None
+            and self._config.affordance_wiring is not WiringLevel.DISABLED
+        ):
+            from lifeform_affordance import AffordanceModule
+
+            affordance_module = AffordanceModule(
+                registry=self._mcp_registry,
+                wiring_level=self._config.affordance_wiring,
+            )
         session = LifeformSession(
             brain_session=brain_session,
             tick=TickEngine(self._config.tick),
@@ -736,6 +751,7 @@ class Lifeform:
             followups=followups,
             vitals=vitals,
             thinking_adapter=thinking_adapter,
+            affordance_module=affordance_module,
             mcp_invoker=self._mcp_invoker,
             mcp_pool=self._mcp_pool,
             # Each new session gets a copy of the lifeform's
@@ -868,6 +884,7 @@ class LifeformSession:
         followups: FollowupManager,
         vitals: VitalsModule | None = None,
         thinking_adapter: Any = None,
+        affordance_module: Any = None,
         mcp_invoker: Any = None,
         mcp_pool: Any = None,
         mcp_pending_envelopes: tuple[Any, ...] = (),
@@ -895,6 +912,10 @@ class LifeformSession:
         # adapter (when present) is called at three well-defined
         # lifecycle points; see ``_invoke_thinking_*`` helpers below.
         self._thinking_adapter: Any = thinking_adapter
+        # Lifeform-side owner. It reads the kernel's public snapshots after a
+        # turn and publishes ``affordance`` without entering the kernel DAG or
+        # importing lifeform code into vz-runtime.
+        self._affordance_module: Any = affordance_module
         # mcp-tools-bundle-bridge packet — per-session handles to
         # the lifeform's shared MCP pool / invoker plus the
         # not-yet-flushed resource / prompt payloads. Tools are
@@ -1766,6 +1787,14 @@ class LifeformSession:
         scene = self._scene.record_turn(current_tick=self._tick.tick_index)
         self._latest_active_snapshots = dict(result.active_snapshots)
         self._latest_shadow_snapshots = dict(result.shadow_snapshots)
+        if self._affordance_module is not None:
+            affordance_snapshot = await self._affordance_module.process(
+                self._latest_active_snapshots
+            )
+            if self._affordance_module.wiring_level is WiringLevel.ACTIVE:
+                self._latest_active_snapshots["affordance"] = affordance_snapshot
+            elif self._affordance_module.wiring_level is WiringLevel.SHADOW:
+                self._latest_shadow_snapshots["affordance"] = affordance_snapshot
         self._latest_response_text = result.response.text
 
         open_loops_snapshot = result.active_snapshots.get("open_loop")

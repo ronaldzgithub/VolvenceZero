@@ -53,6 +53,14 @@
 当前实现口径：
 
 - `volvence_zero.agent.paper_suite` 提供共享 `ClaimVerdict` 与 `EvidenceBundle`
+- `volvence_zero.agent.baseline_manifest` 发布
+  `DefaultBehaviorBaselineManifest`，分别冻结 package-facing `BrainConfig`
+  默认面与 dialogue `pe-eta` paper baseline。两者不得被描述成同一运行时：
+  当前产品默认是 synthetic substrate、无 persistence root、禁止 live substrate
+  mutation；paper baseline 使用独立 benchmark schedule、builtin-only runtime，
+  且允许实验性 live substrate mutation。manifest 同时冻结
+  `FinalRolloutConfig` 的所有 `WiringLevel`、capability wiring digest 与
+  `learned-vs-heuristic-coverage.md` 版本，行为面变化会改变 manifest digest。
 - retain-level 外发必须先调用
   `validate_evidence_bundle_for_external_use(...)`。该 gate 只阻断至少包含一个
   `status="retain"` claim 的 bundle；`weak` / `fail` / SHADOW artifact 仍可导出供审阅。

@@ -450,15 +450,48 @@ def resolve_final_rollout_config(
 ) -> FinalRolloutConfig:
     """Apply operator env overrides before constructing ``AgentSessionRunner``.
 
-    ``VZ_TORCH_BACKENDS=active`` flips the four GPU-gated autograd backends
-    (``temporal_ssl_backend``, ``temporal_runtime_backend``,
-    ``internal_rl_backend``, ``cms_torch_backend``) from DISABLED to ACTIVE
-    for evidence runs. Rollback: unset the env var.
+    Per-owner overrides accept the exact protocol values
+    ``disabled`` / ``shadow`` / ``active``:
+
+    - ``VZ_TEMPORAL_SSL_BACKEND``
+    - ``VZ_TEMPORAL_RUNTIME_BACKEND``
+    - ``VZ_INTERNAL_RL_BACKEND``
+    - ``VZ_CMS_TORCH_BACKEND``
+
+    The legacy ``VZ_TORCH_BACKENDS=active`` remains a compatibility shortcut
+    that requests ACTIVE for all four owners. A per-owner value takes
+    precedence, enabling the required DISABLED -> SHADOW -> ACTIVE sequence.
+    Rollback is owner-local: set that owner to ``disabled`` or unset all
+    overrides.
     """
 
     config = base or FinalRolloutConfig()
-    flag = os.environ.get("VZ_TORCH_BACKENDS", "").strip().lower()
-    if flag not in ("1", "true", "active", "on", "yes"):
+    level_by_protocol_value = {
+        "disabled": WiringLevel.DISABLED,
+        "shadow": WiringLevel.SHADOW,
+        "active": WiringLevel.ACTIVE,
+    }
+    owner_env_vars = (
+        ("temporal_ssl_backend", "VZ_TEMPORAL_SSL_BACKEND"),
+        ("temporal_runtime_backend", "VZ_TEMPORAL_RUNTIME_BACKEND"),
+        ("internal_rl_backend", "VZ_INTERNAL_RL_BACKEND"),
+        ("cms_torch_backend", "VZ_CMS_TORCH_BACKEND"),
+    )
+    legacy_flag = os.environ.get("VZ_TORCH_BACKENDS", "").strip().lower()
+    legacy_active = legacy_flag in ("1", "true", "active", "on", "yes")
+    overrides: dict[str, WiringLevel] = {}
+    for field_name, env_name in owner_env_vars:
+        raw_value = os.environ.get(env_name, "").strip().lower()
+        if raw_value:
+            if raw_value not in level_by_protocol_value:
+                raise ValueError(
+                    f"{env_name} must be one of disabled, shadow, active; "
+                    f"received {raw_value!r}."
+                )
+            overrides[field_name] = level_by_protocol_value[raw_value]
+        elif legacy_active:
+            overrides[field_name] = WiringLevel.ACTIVE
+    if not overrides:
         return config
     # Platform stability guard: the four torch-autograd backends spawn CPU
     # parallel-for / MKL worker threads that intermittently trip a native
@@ -476,13 +509,7 @@ def resolve_final_rollout_config(
         "VZ_SUBSTRATE_DEVICE", ""
     ).startswith("cuda"):
         return config
-    return replace(
-        config,
-        temporal_ssl_backend=WiringLevel.ACTIVE,
-        temporal_runtime_backend=WiringLevel.ACTIVE,
-        internal_rl_backend=WiringLevel.ACTIVE,
-        cms_torch_backend=WiringLevel.ACTIVE,
-    )
+    return replace(config, **overrides)
 
 
 def reflection_promotion_eligible(

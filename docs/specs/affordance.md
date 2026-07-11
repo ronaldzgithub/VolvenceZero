@@ -292,7 +292,7 @@ Metacontroller 学习路径（与 regime selection_weights 同路径）：
    - This is the lineage that lets long-horizon credit attribute outcomes to specific prior predictions, instead of leaving every invoker call with `prediction_id=None`.
    - acceptance: `tests/lifeform_e2e/test_affordance_pe_lineage.py`
 10. `affordance-scoring-from-metacontroller` (Packet C — long-horizon-closure)
-    - `AffordanceModule` exists, satisfies `RuntimeModule[AffordanceSnapshot]`, default wiring SHADOW; `AffordanceSelectionState` dataclass exists in `vz-temporal`; `MetacontrollerRuntimeState.affordance_selection: AffordanceSelectionState | None = None` field exists (None by default).
+    - `AffordanceModule` exists, satisfies `RuntimeModule[AffordanceSnapshot]`, default wiring ACTIVE; `AffordanceSelectionState` dataclass exists in `vz-temporal`; `MetacontrollerRuntimeState.affordance_selection: AffordanceSelectionState | None = None` field exists (None by default).
     - `score_affordance_candidates` is the pure-function projection from `z_t` to per-descriptor scores via deterministic SHA-256 hashing. No branch on descriptor name strings.
     - Different `z_t` produces different selection (otherwise the projection isn't z_t-driven). Same `z_t` produces deterministic identical scores.
     - acceptance: `tests/contracts/test_no_keyword_routing.py` + `tests/contracts/test_affordance_module_contract.py` + `tests/lifeform_e2e/test_affordance_metacontroller_scoring.py`
@@ -445,6 +445,14 @@ kernel outcome.
 
 ## 变更日志
 
+- 2026-07-12: per-turn publisher closure — `LifeformConfig.affordance_wiring`
+  controls a lifeform-side `AffordanceModule`. When an affordance registry
+  exists, `Lifeform.create_session()` constructs the module and
+  `LifeformSession.run_turn()` publishes its immutable snapshot from the
+  completed kernel turn's public snapshots. ACTIVE enters
+  `latest_active_snapshots`, SHADOW enters observability-only shadow snapshots,
+  DISABLED skips construction. The kernel DAG remains unchanged and does not
+  import `lifeform-affordance`.
 - 2026-05-22: Production automatic tool loop contract — added lifeform-side
   `ToolLoopOrchestrator`, bounded execution policy, OpenAI/DLaaS bridge
   expectations, invoker idempotency/timeout/session-budget/confirmation status,
