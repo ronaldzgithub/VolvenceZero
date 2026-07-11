@@ -87,3 +87,4 @@ We detected that you are passing `past_key_values` as a tuple and this is deprec
 2026-07-11 05:57:33,818 INFO aiohttp.access: 127.0.0.1 [11/Jul/2026:05:57:24 +0800] "POST /v1/chat/completions HTTP/1.1" 200 2114 "-" "Python-urllib/3.12"
 2026-07-11 05:57:51,117 INFO aiohttp.access: 127.0.0.1 [11/Jul/2026:05:57:41 +0800] "POST /v1/chat/completions HTTP/1.1" 200 2054 "-" "Python-urllib/3.12"
 2026-07-11 05:58:16,922 INFO aiohttp.access: 127.0.0.1 [11/Jul/2026:05:57:56 +0800] "POST /v1/chat/completions HTTP/1.1" 200 2102 "-" "Python-urllib/3.12"
+2026-07-12 02:14:30,237 INFO aiohttp.access: 127.0.0.1 [12/Jul/2026:02:14:30 +0800] "GET /v1/health HTTP/1.1" 200 226 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; zh-CN) WindowsPowerShell/5.1.26100.8655"
