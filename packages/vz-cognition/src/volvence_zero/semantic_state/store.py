@@ -83,6 +83,32 @@ class SemanticStateStore:
         self._record_outcome: dict[str, dict[str, Any]] = {
             slot: {} for slot in SEMANTIC_OWNER_SLOTS
         }
+        # CP-12 owner prediction signal contract: the single outstanding
+        # (not-yet-settled) prediction per slot. Owner modules are rebuilt
+        # per turn, so the durable store keeps the pending prediction the
+        # owner will settle on its next snapshot build. Value type is
+        # ``volvence_zero.owner_prediction.OwnerPredictionSignal``.
+        self._pending_owner_prediction: dict[str, Any] = {}
+        self._owner_prediction_sequence: dict[str, int] = {}
+
+    def pending_owner_prediction(self, slot: str) -> Any:
+        """Return the outstanding (unsettled) prediction for ``slot`` or None."""
+
+        return self._pending_owner_prediction.get(slot)
+
+    def record_owner_prediction(self, slot: str, signal: Any) -> None:
+        """Replace the outstanding prediction for ``slot`` (owner-only path)."""
+
+        if slot not in SEMANTIC_OWNER_SLOTS:
+            raise ValueError(f"unknown semantic owner slot {slot!r}")
+        self._pending_owner_prediction[slot] = signal
+
+    def next_owner_prediction_sequence(self, slot: str) -> int:
+        """Monotonic per-slot sequence for unique prediction ids."""
+
+        value = self._owner_prediction_sequence.get(slot, 0) + 1
+        self._owner_prediction_sequence[slot] = value
+        return value
 
     def apply(self, *, slot: str, proposals: tuple[SemanticProposal, ...], turn_index: int) -> tuple[SemanticRecord, ...]:
         existing = list(self._records[slot])

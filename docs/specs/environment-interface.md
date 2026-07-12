@@ -28,6 +28,9 @@ Environment Interface 不是新的内核 owner，也不是新的 runtime slot。
   - `EnvironmentOutcome`
 - 已落地枚举：`EnvironmentEventKind`
 - 已落地 compatibility builder：`build_user_input_environment_event(...)`
+- 已落地 source-neutral builder：`build_environment_event(...)`；`run_turn`
+  的 user / ingestion / apprentice / tool / internal-drive / followup 入口统一
+  使用该 builder，event kind 与 trigger kind 由 typed trigger 映射提供
 - 已有合同测试：`tests/contracts/test_environment_contracts.py`
 
 已验证的 routing / lineage：
@@ -220,7 +223,11 @@ The single-user compatibility path is `build_user_input_environment_event(...)`,
 1. `canonical-event-routing`
    - All user / ingestion / tool-result / tick / scene entrypoints can be traced to a canonical event or documented compatibility adapter.
    - No new environment entrypoint writes directly to memory, regime, temporal, social cognition, or application owner stores.
-   - Status: **partial**. `user_input`, `ingestion`, and `tool_result` are covered; tick / scene / followup still need per-source integration evidence.
+   - Status: **satisfied**（2026-07-12）。逐入口证据：
+     - `user_input` / `ingestion` / `apprentice` / `internal_drive` / `followup_due`：`tests/lifeform_e2e/test_canonical_environment_routing.py` 逐 trigger 断言 kernel result 的 `environment_event_kind` / `environment_trigger_kind` / 单方兼容 frame；`followup_due` 的 documented host path 为 `due_followups()` → 产品层 `run_turn(trigger_kind=FOLLOWUP_DUE)` → `acknowledge_followup(...)`。
+     - `tool_result`：既有 `BrainSession.submit_tool_result(...)` 路径（见 gate 3）。
+     - `system_tick`：**documented compatibility adapter** —— tick 不作为 kernel turn 进入认知；其效果只能间接到达（vitals decay → proactive followup → 后续 `FOLLOWUP_DUE` turn；idle → `end_scene`）。
+     - `scene_event`：**documented compatibility adapter** —— scene close 以 typed `scene_closed_evidence` 进入 dialogue trace（结构化，不是 turn event）。
 2. `social-frame-source-of-truth`
    - Social cognition owners consume speaker / audience / subject scope from Environment Event or role snapshot.
    - Renderer / prompt planner does not infer social frame from raw text.
@@ -247,6 +254,19 @@ Environment Interface Phase 0 has no runtime wiring level because it is design-o
 
 ## 变更日志
 
+- 2026-07-12 (2): `canonical-event-routing` gate 升为 **satisfied**。新增
+  `tests/lifeform_e2e/test_canonical_environment_routing.py`（五个 trigger 的
+  canonical event kind 逐一 e2e + `FOLLOWUP_DUE` documented host path）；
+  `LifeformSession.acknowledge_followup(...)` 补齐产品层 followup 生命周期
+  （due → 决定 re-engage → acknowledge）。`system_tick` / `scene_event` 按
+  gate 原文以 documented compatibility adapter 口径关闭（tick 不作为 kernel
+  turn；scene close 走 typed `scene_closed_evidence`）。
+- 2026-07-12: 新增 source-neutral `build_environment_event(...)`，避免
+  internal-drive / followup 等入口借用名为 user-input 的 builder。现有
+  `build_user_input_environment_event(...)` 保持兼容并委托给 canonical
+  builder；`LifeformSession.run_turn` 已切换到 canonical builder。system
+  tick / scene lifecycle 尚未进入 kernel turn，因此整体
+  `canonical-event-routing` gate 仍为 partial。
 - 2026-05-12: Packet A (long-horizon-closure) — `tool_result` 的 outcome→prediction lineage 完成端到端：`PredictionActionContext.prediction_id` 字段新增；`AffordanceInvoker.invoke(plan_ref=...)` -> `EnvironmentOutcome.prediction_id` -> next-turn `PredictionActionContext.prediction_id` 全链路接通；测试见 `tests/lifeform_e2e/test_affordance_pe_lineage.py`。`outcome-links-to-prediction` 的 tool_result 子项可视为 satisfied，整体 gate 仍 partial（待 expression / scene / ingestion）。
 - 2026-05-04: 更新实现状态：`volvence_zero.environment` 的 Phase 1 frozen contract surface 已落地，`user_input` / `ingestion` / `tool_result` 环境路由已有测试覆盖，social frame source-of-truth 已通过 Phase 1 social identity scope 测试；tick / scene / followup 与部分 outcome lineage 仍待逐入口验收。
 - 2026-05-04: 验收 `ingestion` canonical event kind route：`lifeform-ingestion` envelope / pipeline 测试覆盖 immutable envelope、partial failure 显式化、`trigger_kind=INGESTION` turn routing、`EnvironmentEventKind.INGESTION` 到达 kernel result、scene close、per-chunk exception isolation，以及禁止 import owner store / runtime internals；envelope provenance -> PE lineage 仍待端到端证据。

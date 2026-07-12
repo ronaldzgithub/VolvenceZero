@@ -5,14 +5,18 @@
 """Same-substrate Companion Bench ablation -> thesis retain verdict.
 
 Reads the per-track ``summary.json`` files emitted by ``run_real_submission.py``
-(via ``score_reference_systems.py``) for the five tracks of the same-substrate
-ablation and produces the four retain verdicts that debt #87 requires before
-the human-world-model thesis first stage can be called "closed":
+(via ``score_reference_systems.py``) for the tracks of the same-substrate
+ablation and produces the retain verdicts that debt #87 / the frozen claim
+registry (docs/specs/human-world-model-ablation.md) require before the
+human-world-model thesis first stage can be called "closed":
 
-  1. claim_pipeline_gt_raw         volvence  > raw substrate
-  2. claim_gt_standard_layers      volvence  > ref-harness AND > camel
-  3. claim_training_adds_value     volvence  > volvence-cold
-  4. claim_heldout_cohort_stable   volvence's score is tight + on enough arcs
+  1. claim_pipeline_gt_raw                  volvence > raw substrate
+  2. claim_gt_standard_layers               volvence > ref-harness AND > camel
+  3. claim_training_adds_value              volvence > volvence-cold
+  4. claim_heldout_cohort_stable            volvence's score is tight + on enough arcs
+  5. claim_component_causal_contribution    volvence > each component-off arm
+                                            (pe-off / eta-off /
+                                            active-learning-off / lora-adapter)
 
 Each claim resolves to ``retain`` / ``weak`` / ``fail`` / ``insufficient_data``
 and the whole run rolls up to one of the four #87 states:
@@ -56,8 +60,25 @@ TRACK_CAMEL = "camel"
 TRACK_VOLVENCE_COLD = "volvence-cold"
 TRACK_VOLVENCE = "volvence"
 
+# Component-causal arms (frozen claim registry, human-world-model-ablation.md
+# claim 3 / verdict claim_component_causal_contribution): the full pipeline
+# with exactly one component disabled, plus the "finetune-without-controller"
+# LoRA control. Each must be same-substrate like every other track.
+TRACK_PE_OFF = "pe-off"
+TRACK_ETA_OFF = "eta-off"
+TRACK_ACTIVE_LEARNING_OFF = "active-learning-off"
+TRACK_LORA_ADAPTER = "lora-adapter"
+
+COMPONENT_TRACKS: tuple[str, ...] = (
+    TRACK_PE_OFF,
+    TRACK_ETA_OFF,
+    TRACK_ACTIVE_LEARNING_OFF,
+    TRACK_LORA_ADAPTER,
+)
+
 _VALID_TRACKS: frozenset[str] = frozenset(
     {TRACK_RAW, TRACK_REF_HARNESS, TRACK_CAMEL, TRACK_VOLVENCE_COLD, TRACK_VOLVENCE}
+    | set(COMPONENT_TRACKS)
 )
 
 _RED_LINE_KEYS: tuple[str, ...] = (
@@ -315,6 +336,33 @@ def build_verdict(
             (eff,),
         ))
 
+    # Claim 5 (registry claim 3): component causal contribution. Each supplied
+    # component-off arm must be significantly WORSE than the full pipeline
+    # (pairwise volvence > arm retains). No arms supplied -> insufficient_data
+    # (the registered gap in human-world-model-ablation.md); a partial arm set
+    # caps at 'weak' like claim 2 so a missing arm can never inflate the claim.
+    component_results = {name: tracks.get(name) for name in COMPONENT_TRACKS}
+    supplied = {name: t for name, t in component_results.items() if t is not None}
+    if volvence is None or not supplied:
+        claims.append(Claim(
+            "claim_component_causal_contribution", INSUFFICIENT,
+            "need 'volvence' and at least one component arm "
+            f"({', '.join(COMPONENT_TRACKS)}); none supplied",
+        ))
+    else:
+        effs = tuple(pairwise(volvence, t) for t in supplied.values())
+        status = _combine_required([e.status for e in effs])
+        missing = [name for name, t in component_results.items() if t is None]
+        detail = "; ".join(
+            f"{e.control}: delta={e.delta_mean:+.2f} ci_low={e.ci_low_nonoverlap:+.2f}"
+            for e in effs
+        )
+        if missing:
+            detail += f" (missing arms: {', '.join(missing)} -> at most 'weak')"
+            if status == RETAIN:
+                status = WEAK
+        claims.append(Claim("claim_component_causal_contribution", status, detail, effs))
+
     # Claim 4: held-out / cohort stability proxy.
     if volvence is None:
         claims.append(Claim(
@@ -358,11 +406,15 @@ def _roll_up(claims: list[Claim]) -> tuple[str, list[str]]:
     core = [by_id[i] for i in core_ids if i in by_id]
     core_status = [c.status for c in core]
     stability = by_id.get("claim_heldout_cohort_stable")
+    component = by_id.get("claim_component_causal_contribution")
 
     recs: list[str] = []
 
-    if any(s == FAIL for s in core_status):
+    component_fail = component is not None and component.status == FAIL
+    if any(s == FAIL for s in core_status) or component_fail:
         failed = [c.claim_id for c in core if c.status == FAIL]
+        if component_fail:
+            failed.append("claim_component_causal_contribution")
         recs.append(
             "KILL CRITERIA: volvence is not better than a control on "
             f"{', '.join(failed)}. Per debt #87, shrink the thesis to a "
@@ -381,16 +433,31 @@ def _roll_up(claims: list[Claim]) -> tuple[str, list[str]]:
 
     all_core_retain = all(s == RETAIN for s in core_status)
     stability_retain = stability is not None and stability.status == RETAIN
+    component_retain = component is not None and component.status == RETAIN
 
-    if all_core_retain and stability_retain:
+    if all_core_retain and stability_retain and component_retain:
         recs.append(
             "first-stage-retained: volvence beats raw, the standard memory "
-            "wrapper, the CAMEL agent baseline, and the no-bootstrap cold "
-            "pipeline, with a tight held-out/multi-seed interval. The human "
+            "wrapper, the CAMEL agent baseline, the no-bootstrap cold "
+            "pipeline, and every component-off arm (PE / ETA / active-learning "
+            "/ LoRA-only), with a tight held-out/multi-seed interval. The human "
             "world-model thesis FIRST STAGE may be called retained. World-model "
             "enablement still requires an independent physical-side benchmark."
         )
         return STATE_FIRST_STAGE, recs
+
+    if all_core_retain and not component_retain:
+        component_status = component.status if component is not None else INSUFFICIENT
+        component_detail = component.detail if component is not None else "claim missing"
+        recs.append(
+            "core claims retained but claim_component_causal_contribution is "
+            f"'{component_status}' ({component_detail}). Per the frozen claim "
+            "registry (human-world-model-ablation.md), first-stage-retained "
+            "requires all four component arms (pe-off / eta-off / "
+            "active-learning-off / lora-adapter) to retain. Run the component "
+            "arms on the same substrate to upgrade."
+        )
+        return STATE_WEAK, recs
 
     if all_core_retain and stability is not None and stability.status in (WEAK, INSUFFICIENT):
         recs.append(
@@ -468,7 +535,8 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="NAME=SUMMARY_JSON",
         help=(
             "per-track summary.json. NAME in {raw, ref-harness, camel, "
-            "volvence-cold, volvence}. Repeatable; supply as many as available."
+            "volvence-cold, volvence, pe-off, eta-off, active-learning-off, "
+            "lora-adapter}. Repeatable; supply as many as available."
         ),
     )
     p.add_argument(

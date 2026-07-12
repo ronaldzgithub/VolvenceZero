@@ -7,13 +7,13 @@ todos:
     status: completed
   - id: learned-shadow
     content: 解锁 ndim controller，并将 temporal SSL/runtime/Internal RL/CMS torch 逐个推进到 SHADOW
-    status: in_progress
+    status: completed
   - id: action-loop
     content: 闭合 canonical environment、affordance publisher、pre-action prediction 与 outcome lineage
-    status: pending
+    status: in_progress
   - id: predictive-pe
     content: 在唯一 PE owner 内建立 world/self learned heads 与 owner prediction signal 契约
-    status: pending
+    status: in_progress
   - id: learned-active
     content: 按 runtime→SSL→Internal RL→CMS 顺序逐个通过证据门并晋升 ACTIVE candidate
     status: pending

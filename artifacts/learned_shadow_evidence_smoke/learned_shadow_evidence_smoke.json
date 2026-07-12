@@ -1,0 +1,85 @@
+{
+  "schema_version": "learned-shadow-evidence-smoke.v1",
+  "artifact_kind": "learned_shadow_evidence_smoke",
+  "evidence_tier": "p0-wiring-synthetic",
+  "temporal_latent_dim": 16,
+  "backend_wiring": {
+    "temporal_ssl_backend": "shadow",
+    "temporal_runtime_backend": "shadow",
+    "internal_rl_backend": "shadow",
+    "cms_torch_backend": "shadow"
+  },
+  "temporal_runtime": {
+    "world": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 2.7755575615628914e-17,
+      "max_abs_diff_z_tilde": 2.7755575615628914e-17,
+      "max_abs_diff_beta": 0.0,
+      "max_abs_diff_applied": 5.551115123125783e-17,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 2.6676999405026436,
+      "torch_latency_ms": 2.548099961131811,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "description": "runtime ndim SHADOW parity: mean=2.78e-17 z=2.78e-17 beta=0.00e+00 applied=5.55e-17 within=True latency_ok=True"
+    },
+    "self": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 2.7755575615628914e-17,
+      "max_abs_diff_z_tilde": 2.7755575615628914e-17,
+      "max_abs_diff_beta": 1.1102230246251565e-16,
+      "max_abs_diff_applied": 1.1102230246251565e-16,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 2.584500005468726,
+      "torch_latency_ms": 2.2022000048309565,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "description": "runtime ndim SHADOW parity: mean=2.78e-17 z=2.78e-17 beta=1.11e-16 applied=1.11e-16 within=True latency_ok=True"
+    }
+  },
+  "temporal_ssl": {
+    "torch_backend": "shadow",
+    "torch_prediction_loss": 0.05053913989676462,
+    "torch_kl_loss": 38.334916924253875,
+    "torch_switch_sparsity": 0.4307927749886814,
+    "torch_parameters_changed": 3231,
+    "torch_grad_norm": 2.925169918185974,
+    "torch_wrote_back": false,
+    "pure_prediction_loss": 0.17109572693266528,
+    "pure_kl_loss": 2.227932935348658,
+    "trained_steps": 6
+  },
+  "internal_rl": {
+    "kind": "single-track",
+    "task": {
+      "torch_backend": "shadow",
+      "torch_parameters_changed": 49,
+      "torch_policy_loss": 0.3362736173503548,
+      "torch_value_loss": 0.0038177596130946783,
+      "torch_approx_kl": 16.24514045285111,
+      "torch_wrote_back": false,
+      "transition_count": 9,
+      "track": "world"
+    }
+  },
+  "cms": {
+    "backend": "shadow",
+    "parameters_changed": 1024,
+    "parameter_change_rate": 1.0,
+    "grad_norm": 0.0005508889448109142,
+    "loss": 0.001609960875098536,
+    "wrote_back": false
+  },
+  "turn_count": 4,
+  "provenance": {
+    "git_sha": "bef08ad5d256f15c8da8ea996b5bc1144d3a9c8c",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.11.9",
+    "platform": "Windows-10-10.0.20348-SP0"
+  }
+}

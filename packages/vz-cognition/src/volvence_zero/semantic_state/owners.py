@@ -17,6 +17,11 @@ from __future__ import annotations
 from typing import Any, ClassVar, Mapping
 
 from volvence_zero.memory import MemorySnapshot
+from volvence_zero.owner_prediction import (
+    OwnerPredictionKind,
+    OwnerPredictionSignal,
+    settle_owner_prediction,
+)
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.substrate import SubstrateSnapshot
 
@@ -56,6 +61,7 @@ from volvence_zero.semantic_state.contracts import (
     semantic_snapshot_description,
 )
 from volvence_zero.semantic_state.proposal_runtime import (
+    NoOpSemanticProposalRuntime,
     SemanticProposalRuntime,
 )
 from volvence_zero.semantic_state.store import SemanticStateStore
@@ -226,6 +232,65 @@ class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> SemanticSnapshotValue:
         raise NotImplementedError
 
+    # ------------------------------------------------------------------
+    # CP-12 owner prediction signal contract
+    # ------------------------------------------------------------------
+    #
+    # Owners that publish typed pre-action predictions about their own
+    # compact readout set these two class attributes and call
+    # ``_owner_prediction_signals(...)`` from ``_build_snapshot``. The
+    # v1 forecast rule is an explicit persistence prior (predict the
+    # current readout persists into the next turn); the settled vector
+    # is the actually observed next-turn readout, so the PE owner's
+    # mismatch measures real state drift. Owners that do not publish
+    # keep ``owner_prediction_kind = None``.
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = None
+    owner_prediction_track: ClassVar[str] = "self"
+
+    def _owner_prediction_signals(
+        self,
+        *,
+        observed_vector: tuple[float, ...],
+        confidence: float,
+        evidence_summary: str,
+    ) -> tuple[OwnerPredictionSignal, ...]:
+        kind = self.owner_prediction_kind
+        if kind is None:
+            return ()
+        signals: list[OwnerPredictionSignal] = []
+        pending = self._store.pending_owner_prediction(self.slot_name)
+        if pending is not None and not pending.settled:
+            signals.append(
+                settle_owner_prediction(
+                    pending,
+                    settled_vector=observed_vector,
+                    outcome_evidence=(
+                        f"{self.slot_name} observed readout at turn {self._turn_index}: "
+                        f"{evidence_summary}",
+                    ),
+                )
+            )
+        sequence = self._store.next_owner_prediction_sequence(self.slot_name)
+        new_signal = OwnerPredictionSignal(
+            signal_id=f"{self.slot_name}:opsig-{sequence}",
+            prediction_id=f"{self.slot_name}:oppred-{sequence}",
+            source_owner=self.owner,
+            source_slot=self.slot_name,
+            track=self.owner_prediction_track,
+            kind=kind,
+            predicted_vector=observed_vector,
+            confidence=_clamp(confidence),
+            description=(
+                f"{self.slot_name} persistence-prior v1 forecast of next-turn "
+                f"readout: {evidence_summary}"
+            ),
+            source_turn_index=max(0, self._turn_index),
+            evidence=(evidence_summary,),
+        )
+        self._store.record_owner_prediction(self.slot_name, new_signal)
+        signals.append(new_signal)
+        return tuple(signals)
+
 
 class PlanIntentModule(SemanticOwnerModule):
     slot_name = "plan_intent"
@@ -308,6 +373,10 @@ class CommitmentModule(SemanticOwnerModule):
     # runtimes. Result: AAC counters now reflect classified events,
     # not every turn the kernel observed.
     min_proposal_confidence: ClassVar[float] = 0.40
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = (
+        OwnerPredictionKind.COMMITMENT_FOLLOW_THROUGH
+    )
+    owner_prediction_track: ClassVar[str] = "self"
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> CommitmentSnapshot:
         active = _records_with_status(records, "active")
@@ -378,12 +447,33 @@ class CommitmentModule(SemanticOwnerModule):
         )
         stalled_commitments = len(at_risk) + outcome_stalled + outcome_followup_none
         recent_completions = outcome_completed
+        continuity_score = self._mean_confidence(active)
+        follow_through_rate = _clamp(
+            (outcome_progressed + outcome_completed)
+            / max(
+                outcome_progressed
+                + outcome_completed
+                + outcome_stalled
+                + outcome_rejected
+                + outcome_followup_none,
+                1,
+            )
+        )
+        prediction_signals = self._owner_prediction_signals(
+            observed_vector=(continuity_score, follow_through_rate),
+            confidence=continuity_score,
+            evidence_summary=(
+                f"continuity_score={continuity_score:.2f} "
+                f"follow_through_rate={follow_through_rate:.2f} "
+                f"active={len(active)} at_risk={len(at_risk)}"
+            ),
+        )
         return CommitmentSnapshot(
             active_commitments=active,
             honored_commitment_refs=self._store.completed_refs_for(self.slot_name),
             at_risk_commitments=at_risk,
             trust_obligation_count=len(active),
-            continuity_score=self._mean_confidence(active),
+            continuity_score=continuity_score,
             control_signal=self._batch_signal(batch),
             description=(
                 f"Commitment owner published active={len(active)} "
@@ -413,6 +503,7 @@ class CommitmentModule(SemanticOwnerModule):
             due_followup_count=due_followup,
             stalled_commitment_count=stalled_commitments,
             recent_completion_count=recent_completions,
+            owner_prediction_signals=prediction_signals,
         )
 
 
@@ -547,6 +638,10 @@ class ExecutionResultModule(SemanticOwnerModule):
     slot_name = "execution_result"
     owner = "ExecutionResultModule"
     value_type = ExecutionResultSnapshot
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = (
+        OwnerPredictionKind.EXECUTION_RESULT_SUCCESS
+    )
+    owner_prediction_track: ClassVar[str] = "world"
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> ExecutionResultSnapshot:
         completed = _records_with_status(records, "completed")
@@ -586,12 +681,22 @@ class ExecutionResultModule(SemanticOwnerModule):
                 package_pub += 1
             elif last_outcome is ExecutionResultOutcome.BOOTSTRAP_CONSUMPTION:
                 bootstrap_cons += 1
+        execution_grounding_score = self._mean_confidence(completed or records)
+        success_rate = _clamp(len(completed) / max(len(completed) + len(failed), 1))
+        prediction_signals = self._owner_prediction_signals(
+            observed_vector=(execution_grounding_score, success_rate),
+            confidence=execution_grounding_score,
+            evidence_summary=(
+                f"grounding={execution_grounding_score:.2f} success_rate={success_rate:.2f} "
+                f"attempted={len(records)} completed={len(completed)} failed={len(failed)}"
+            ),
+        )
         return ExecutionResultSnapshot(
             attempted_actions=records,
             completed_actions=completed,
             failed_actions=failed,
             artifact_refs=tuple(record.record_id for record in completed),
-            execution_grounding_score=self._mean_confidence(completed or records),
+            execution_grounding_score=execution_grounding_score,
             control_signal=self._batch_signal(batch),
             description=(
                 f"Execution-result owner published attempted={len(records)} "
@@ -608,6 +713,7 @@ class ExecutionResultModule(SemanticOwnerModule):
             outcome_crystal_suppression_count=crystal_suppress,
             outcome_package_publication_count=package_pub,
             outcome_bootstrap_consumption_count=bootstrap_cons,
+            owner_prediction_signals=prediction_signals,
         )
 
 
@@ -633,6 +739,10 @@ class RelationshipStateModule(SemanticOwnerModule):
     slot_name = "relationship_state"
     owner = "RelationshipStateModule"
     value_type = RelationshipStateSnapshot
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = (
+        OwnerPredictionKind.RELATIONSHIP_TRUST_TRAJECTORY
+    )
+    owner_prediction_track: ClassVar[str] = "self"
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> RelationshipStateSnapshot:
         tensions = _records_with_status(records, "blocked")
@@ -682,10 +792,19 @@ class RelationshipStateModule(SemanticOwnerModule):
             relationship_age_turns=relationship_age_turns,
             has_records=bool(records),
         )
+        repair_pressure = _clamp(len(tensions) / 4.0)
+        prediction_signals = self._owner_prediction_signals(
+            observed_vector=(trust_level, repair_pressure),
+            confidence=confidence,
+            evidence_summary=(
+                f"trust_level={trust_level:.2f} repair_pressure={repair_pressure:.2f} "
+                f"tensions={len(tensions)} repairs={recent_repair_count}"
+            ),
+        )
         return RelationshipStateSnapshot(
             trust_level=trust_level,
             continuity_level=continuity_level,
-            repair_pressure=_clamp(len(tensions) / 4.0),
+            repair_pressure=repair_pressure,
             rapport_signals=records[-4:],
             relational_tensions=tensions,
             control_signal=self._batch_signal(batch),
@@ -710,6 +829,7 @@ class RelationshipStateModule(SemanticOwnerModule):
             cumulative_trust_level=cumulative_trust_level,
             relationship_age_turns=relationship_age_turns,
             funnel_stage=funnel_stage,
+            owner_prediction_signals=prediction_signals,
         )
 
     def _compute_relationship_age_turns(
@@ -769,6 +889,10 @@ class GoalValueModule(SemanticOwnerModule):
     slot_name = "goal_value"
     owner = "GoalValueModule"
     value_type = GoalValueSnapshot
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = (
+        OwnerPredictionKind.GOAL_VALUE_ALIGNMENT
+    )
+    owner_prediction_track: ClassVar[str] = "world"
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> GoalValueSnapshot:
         latest = self._latest_active(records)
@@ -794,6 +918,14 @@ class GoalValueModule(SemanticOwnerModule):
             + min(len(resolved_goal_refs) / 3.0, 1.0) * 0.15
             - min(len(conflicted_goals) / 3.0, 1.0) * 0.10
         )
+        prediction_signals = self._owner_prediction_signals(
+            observed_vector=(alignment_score, value_conflict),
+            confidence=alignment_score,
+            evidence_summary=(
+                f"alignment_score={alignment_score:.2f} value_conflict={value_conflict:.2f} "
+                f"active_goals={len(active_goals)} conflicted={len(conflicted_goals)}"
+            ),
+        )
         return GoalValueSnapshot(
             explicit_goals=records,
             value_priorities=records[-4:],
@@ -818,6 +950,7 @@ class GoalValueModule(SemanticOwnerModule):
             conflicted_goal_count=len(conflicted_goals),
             resolved_goal_refs=resolved_goal_refs,
             goal_continuity_score=goal_continuity_score,
+            owner_prediction_signals=prediction_signals,
         )
 
 
@@ -825,6 +958,10 @@ class BoundaryConsentModule(SemanticOwnerModule):
     slot_name = "boundary_consent"
     owner = "BoundaryConsentModule"
     value_type = BoundaryConsentSnapshot
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = (
+        OwnerPredictionKind.BOUNDARY_CONSENT_STABILITY
+    )
+    owner_prediction_track: ClassVar[str] = "self"
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> BoundaryConsentSnapshot:
         granted = _records_with_status(records, "active", "completed")
@@ -855,6 +992,14 @@ class BoundaryConsentModule(SemanticOwnerModule):
             if denial_count > 0
             else "granted" if active_scope_count > 0 else "unknown"
         )
+        prediction_signals = self._owner_prediction_signals(
+            observed_vector=(compliance, consent_clarity),
+            confidence=consent_clarity,
+            evidence_summary=(
+                f"compliance={compliance:.2f} consent_clarity={consent_clarity:.2f} "
+                f"granted={len(granted)} missing={len(missing)} denied={len(denied)}"
+            ),
+        )
         return BoundaryConsentSnapshot(
             granted_consents=granted,
             missing_consents=missing,
@@ -878,6 +1023,7 @@ class BoundaryConsentModule(SemanticOwnerModule):
             revocation_count=revocation_count,
             external_action_blocked=external_action_blocked,
             memory_scope_status=memory_scope_status,
+            owner_prediction_signals=prediction_signals,
         )
 
 

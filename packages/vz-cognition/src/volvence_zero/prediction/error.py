@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import math
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Mapping
 
 from volvence_zero.apprenticeship import ApprenticeshipAlignmentSnapshot
+from volvence_zero.owner_prediction import (
+    OwnerPredictionSettlement,
+    OwnerPredictionSignal,
+)
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidence,
     DialogueExternalOutcomeKind,
@@ -15,7 +19,13 @@ from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.prediction.distribution import DistributionSummary
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
-from volvence_zero.semantic_state import CommitmentSnapshot
+from volvence_zero.semantic_state import (
+    BoundaryConsentSnapshot,
+    CommitmentSnapshot,
+    ExecutionResultSnapshot,
+    GoalValueSnapshot,
+    RelationshipStateSnapshot,
+)
 from volvence_zero.substrate import SubstrateSnapshot, feature_signal_value
 
 if TYPE_CHECKING:
@@ -171,6 +181,11 @@ class PredictionErrorSnapshot:
     bootstrap: bool
     description: str
     action_context: PredictionActionContext = field(default_factory=PredictionActionContext)
+    # CP-12 owner prediction signal contract: per-signal mismatch records
+    # for owner-published predictions settled this turn. Report-only in v1
+    # (they do not enter the magnitude formula); only this owner constructs
+    # OwnerPredictionSettlement values.
+    owner_prediction_settlements: tuple[OwnerPredictionSettlement, ...] = ()
     memory_retrieval_facets: tuple[str, ...] = ()
     pe_decomposition: PEDecomposition | None = None
 
@@ -527,6 +542,11 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
     # analogous to the AAC alignment overlay. It is SHADOW by default, so PE
     # receives a placeholder and the overlay is a no-op until the owner is
     # promoted to ACTIVE (R15 reversibility).
+    # CP-12: the four additional semantic owners publish typed
+    # owner-prediction signals; PE (the single mismatch computer) consumes
+    # their settled signals in-process, exactly like the commitment overlay
+    # precedent. Their snapshots are read via ``upstream.get`` so disabled
+    # owners degrade to "no settlements" rather than failing the DAG.
     dependencies = (
         "substrate",
         "evaluation",
@@ -535,6 +555,10 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         "commitment",
         "dialogue_external_outcome",
         "apprenticeship_alignment",
+        "relationship_state",
+        "goal_value",
+        "boundary_consent",
+        "execution_result",
     )
     default_wiring_level = WiringLevel.ACTIVE
 
@@ -718,9 +742,86 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             external_outcome_snapshot=external_outcome_value,
             apprenticeship_snapshot=apprenticeship_value,
         )
+        settlements = self._settle_owner_predictions(
+            upstream=upstream,
+            settled_turn_index=self._turn_index,
+        )
+        if settlements:
+            snapshot = replace(snapshot, owner_prediction_settlements=settlements)
         self._previous_prediction = snapshot.next_prediction
         self._previous_substrate_snapshot = substrate_value
         return self.publish(snapshot)
+
+    _OWNER_PREDICTION_SLOTS = (
+        "commitment",
+        "relationship_state",
+        "goal_value",
+        "boundary_consent",
+        "execution_result",
+    )
+
+    def _settle_owner_predictions(
+        self,
+        *,
+        upstream: Mapping[str, Snapshot[Any]],
+        settled_turn_index: int,
+    ) -> tuple[OwnerPredictionSettlement, ...]:
+        """Compute mismatch for owner-published settled prediction signals.
+
+        Only this owner computes mismatch (CP-12). Source owners publish
+        ``owner_prediction_signals`` on their own snapshots; a signal with a
+        ``settled_vector`` is scored here as the mean absolute component
+        difference. Unsettled signals are ignored (they settle on a later
+        turn). Slots without the field fail loudly — schema drift must not
+        be papered over.
+        """
+
+        publisher_types = (
+            CommitmentSnapshot,
+            RelationshipStateSnapshot,
+            GoalValueSnapshot,
+            BoundaryConsentSnapshot,
+            ExecutionResultSnapshot,
+        )
+        settlements: list[OwnerPredictionSettlement] = []
+        for slot in self._OWNER_PREDICTION_SLOTS:
+            upstream_snapshot = upstream.get(slot)
+            if upstream_snapshot is None:
+                continue
+            value = upstream_snapshot.value
+            if not isinstance(value, publisher_types):
+                # Disabled / bootstrap slots can publish placeholder values;
+                # a publisher-typed snapshot ALWAYS carries the field.
+                continue
+            signals: tuple[OwnerPredictionSignal, ...] = value.owner_prediction_signals
+            for signal in signals:
+                if not signal.settled:
+                    continue
+                assert signal.settled_vector is not None
+                mismatch = sum(
+                    abs(predicted - settled)
+                    for predicted, settled in zip(
+                        signal.predicted_vector, signal.settled_vector, strict=True
+                    )
+                ) / len(signal.predicted_vector)
+                settlements.append(
+                    OwnerPredictionSettlement(
+                        prediction_id=signal.prediction_id,
+                        source_owner=signal.source_owner,
+                        source_slot=signal.source_slot,
+                        track=signal.track,
+                        kind=signal.kind,
+                        mismatch_magnitude=max(0.0, min(1.0, mismatch)),
+                        confidence=signal.confidence,
+                        settled_turn_index=settled_turn_index,
+                        description=(
+                            f"{signal.source_slot} {signal.kind.value} settlement: "
+                            f"mismatch={mismatch:.3f} over "
+                            f"{len(signal.predicted_vector)} components."
+                        ),
+                    )
+                )
+        return tuple(settlements)
 
     async def process_standalone(self, **kwargs: Any) -> Snapshot[PredictionErrorSnapshot]:
         from volvence_zero.regime import RegimeSnapshot

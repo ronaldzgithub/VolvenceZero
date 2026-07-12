@@ -830,6 +830,24 @@ class AgentSessionRunner(
         return self._joint_loop.temporal_policy.parameter_store.n_z
 
     @property
+    def joint_loop(self) -> ETANLJointLoop:
+        """Read-only handle for evidence exporters (do not drive turns via this)."""
+
+        return self._joint_loop
+
+    @property
+    def rollout_config(self) -> FinalRolloutConfig:
+        return self._config
+
+    @property
+    def world_temporal_policy(self) -> TemporalPolicy:
+        return self._world_temporal_policy
+
+    @property
+    def self_temporal_policy(self) -> TemporalPolicy:
+        return self._self_temporal_policy
+
+    @property
     def residual_runtime(self) -> OpenWeightResidualRuntime:
         return self._joint_loop.residual_runtime or self._default_residual_runtime
 

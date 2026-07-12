@@ -135,8 +135,29 @@ class MetacontrollerSSLTrainer:
         self._m3_encoder = M3Optimizer(num_groups=n_z, group_dim=n_z, slow_interval=3)
         self._m3_decoder = M3Optimizer(num_groups=n_z, group_dim=n_z, slow_interval=3)
         self._noncausal_embedder = NonCausalSequenceEmbedder(n_z=n_z)
+        # Owner-local evidence retention (same pattern as CMS
+        # ``latest_cms_backend_evidence``): the most recent SSLTrainingReport,
+        # including the torch_* SHADOW/ACTIVE backend fields, stays readable
+        # after optimize() so evidence exporters do not re-run training.
+        self._latest_report: SSLTrainingReport | None = None
+
+    @property
+    def latest_report(self) -> SSLTrainingReport | None:
+        """Return the most recent SSL training report (evidence readout only)."""
+
+        return self._latest_report
 
     def optimize(
+        self,
+        *,
+        policy: FullLearnedTemporalPolicy,
+        trace: TrainingTrace,
+    ) -> SSLTrainingReport:
+        report = self._optimize_impl(policy=policy, trace=trace)
+        self._latest_report = report
+        return report
+
+    def _optimize_impl(
         self,
         *,
         policy: FullLearnedTemporalPolicy,

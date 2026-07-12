@@ -169,6 +169,33 @@ def build_primary_environment_frame(
     )
 
 
+def build_environment_event(
+    *,
+    event_id: str,
+    event_kind: EnvironmentEventKind,
+    trigger_kind: str,
+    payload_summary: str,
+    scene_id: str,
+    timestamp_ms: int,
+    frame: EnvironmentFrame | None = None,
+    provenance: str,
+    consent_context: tuple[str, ...] = (),
+) -> EnvironmentEvent:
+    """Build one canonical event without inferring source semantics downstream."""
+
+    return EnvironmentEvent(
+        event_id=event_id,
+        event_kind=event_kind,
+        trigger_kind=trigger_kind,
+        frame=frame or build_primary_environment_frame(),
+        scene_id=scene_id,
+        timestamp_ms=timestamp_ms,
+        provenance=provenance,
+        consent_context=consent_context,
+        payload_summary=payload_summary,
+    )
+
+
 def build_user_input_environment_event(
     *,
     event_id: str,
@@ -183,16 +210,16 @@ def build_user_input_environment_event(
 ) -> EnvironmentEvent:
     """Build a compatibility EnvironmentEvent for the existing run_turn API."""
 
-    return EnvironmentEvent(
+    return build_environment_event(
         event_id=event_id,
         event_kind=event_kind,
         trigger_kind=trigger_kind,
-        frame=frame or build_primary_environment_frame(),
+        payload_summary=user_input,
         scene_id=scene_id,
         timestamp_ms=timestamp_ms,
+        frame=frame,
         provenance=provenance,
         consent_context=consent_context,
-        payload_summary=user_input,
     )
 
 
@@ -249,6 +276,7 @@ __all__ = [
     "EnvironmentEventKind",
     "EnvironmentFrame",
     "EnvironmentOutcome",
+    "build_environment_event",
     "build_primary_environment_frame",
     "build_user_input_environment_event",
 ]

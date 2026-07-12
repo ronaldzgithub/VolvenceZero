@@ -225,8 +225,14 @@ async def test_ndim_session_runs_with_all_autograd_owners_in_shadow(
     result = await runner.run_turn("Exercise the ndim SHADOW evidence lane.")
 
     temporal = result.active_snapshots["temporal_abstraction"].value
+    world_shadow_report = runner._world_temporal_policy.latest_runtime_shadow_report
+    self_shadow_report = runner._self_temporal_policy.latest_runtime_shadow_report
     assert temporal.controller_state.code_dim == 16
     assert config.temporal_ssl_backend is WiringLevel.SHADOW
     assert config.temporal_runtime_backend is WiringLevel.SHADOW
     assert config.internal_rl_backend is WiringLevel.SHADOW
     assert config.cms_torch_backend is WiringLevel.SHADOW
+    assert world_shadow_report is not None
+    assert self_shadow_report is not None
+    assert world_shadow_report.steps_compared == 1
+    assert self_shadow_report.steps_compared == 1

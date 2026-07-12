@@ -173,6 +173,13 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-12: ndim runtime forward 的 `SHADOW` 语义补齐为真实 per-step
+  pure/torch 双跑。`FullLearnedTemporalPolicy` 保持 pure path 为唯一 live
+  writer，并发布 owner-local `latest_runtime_shadow_report`，比较同一轮的
+  previous hidden/code、CMS context、memory/reflection、family continuation
+  与 external switch pressure；报告只用于 parity/latency evidence，不进入
+  `temporal_abstraction` 快照，也不改变 action-family 状态。回滚到
+  `DISABLED` 会清空报告并停止双跑。
 - 2026-07-12: `BrainConfig.temporal_latent_dim` /
   `AgentSessionRunner(temporal_latent_dim=...)` 成为 controller capacity 的
   显式入口。默认 3 保留 legacy rollback；evidence profile 可使用

@@ -241,6 +241,14 @@ def runtime_ndim_shadow_compare(
     store: Any,
     substrate_snapshot: Any,
     previous_code: tuple[float, ...] | None = None,
+    previous_hidden_state: tuple[float, ...] | None = None,
+    cms_context: tuple[float, ...] | None = None,
+    memory_signal: float = 0.0,
+    reflection_signal: float = 0.0,
+    active_family_outcome: float = 0.0,
+    active_family_reuse: float = 0.0,
+    active_family_persistence: float = 0.0,
+    external_switch_pressure_delta: float = 0.0,
     tolerance: float = 1e-7,
     latency_budget_ms: float = 50.0,
 ) -> RuntimeNdimShadowReport:
@@ -263,14 +271,21 @@ def runtime_ndim_shadow_compare(
         mc = BackendNdimMetacontroller(backend, n_z=n_z)
         t0 = time.perf_counter()
         enc = mc.encode(
-            substrate_snapshot=substrate_snapshot, previous_hidden_state=None,
-            cms_context=None, params=enc_p,
+            substrate_snapshot=substrate_snapshot,
+            previous_hidden_state=previous_hidden_state,
+            cms_context=cms_context,
+            params=enc_p,
         )
         beta_cont, _, scalar = mc.compute(
-            z_tilde=enc.posterior.z_tilde, previous_code=prev,
-            memory_signal=0.0, reflection_signal=0.0, active_family_outcome=0.0,
-            active_family_reuse=0.0, active_family_persistence=0.0,
-            external_switch_pressure_delta=0.0, params=sw_p,
+            z_tilde=enc.posterior.z_tilde,
+            previous_code=prev,
+            memory_signal=memory_signal,
+            reflection_signal=reflection_signal,
+            active_family_outcome=active_family_outcome,
+            active_family_reuse=active_family_reuse,
+            active_family_persistence=active_family_persistence,
+            external_switch_pressure_delta=external_switch_pressure_delta,
+            params=sw_p,
         )
         latent = tuple(
             max(0.0, min(1.0, beta_cont[i] * enc.posterior.z_tilde[i] + (1.0 - beta_cont[i]) * prev[i]))

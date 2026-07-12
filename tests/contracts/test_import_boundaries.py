@@ -108,6 +108,11 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # NL/ETA full-autograd migration (Phase 5): offline LSS export can
             # use the shared tensor backend to compute real gradient surprise.
             "tensor_backend", "tensor_backend_parity",
+            # CP-12 owner prediction signal contract: semantic owners publish
+            # OwnerPredictionSignal; PredictionErrorModule (single mismatch
+            # computer) constructs OwnerPredictionSettlement. Both types live
+            # in vz-contracts.owner_prediction.
+            "owner_prediction",
         }
     ),
     "vz-application": frozenset(

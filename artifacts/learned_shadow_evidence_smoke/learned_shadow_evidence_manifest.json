@@ -1,0 +1,19 @@
+{
+  "schema_version": "learned-shadow-evidence-manifest.v1",
+  "artifact_kind": "learned_shadow_evidence_manifest",
+  "source_schema_version": "learned-shadow-evidence-smoke.v1",
+  "artifacts": [
+    {
+      "path": "artifacts\\learned_shadow_evidence_smoke\\learned_shadow_evidence_smoke.json",
+      "sha256": "89e060c99889e037fe5010ac3e0f8aec2612ce9c9697d7196ac24aab17a6f2c7",
+      "size_bytes": 2946
+    }
+  ],
+  "provenance": {
+    "git_sha": "bef08ad5d256f15c8da8ea996b5bc1144d3a9c8c",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.11.9",
+    "platform": "Windows-10-10.0.20348-SP0"
+  }
+}

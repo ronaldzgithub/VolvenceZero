@@ -521,6 +521,20 @@ bundle dir 中必须有：
 
 ## 变更日志
 
+- 2026-07-12: CP-LSS-01（learned-shadow closure packet）落地统一 learned-shadow 证据面：
+  冻结 operator profile `build_learned_shadow_rollout_config()`（n_z=16 + 四个 torch
+  autograd backend 全 SHADOW，生产默认仍全 DISABLED）；单命令
+  `python scripts/run_learned_shadow_evidence_smoke.py` 产出
+  `learned-shadow-evidence-smoke.v1` artifact + sha256 manifest。artifact 由
+  `volvence_zero.agent.learned_shadow_evidence.collect_learned_shadow_evidence()`
+  只读装配四个 owner 的本地证据面（temporal runtime `latest_runtime_shadow_report`
+  / SSL `latest_report` torch\_\* / internal RL `latest_optimization_report` torch\_\*
+  / CMS `latest_cms_backend_evidence`），任一 owner 缺证据或在 SHADOW 下写回即
+  `LearnedShadowEvidenceError` fail loudly。**定级为 P0 wiring / synthetic-CPU
+  tier**：只证明接线与 SHADOW 无副作用语义，不构成 ACTIVE 晋升证据（后者仍
+  gate on Linux CUDA 真 trace lane，见 #88/#89）。验收测试
+  `packages/vz-runtime/tests/test_learned_shadow_evidence.py`（含 CP-02 n_z=16
+  全 DISABLED 纯路径稳定性门）。
 - 2026-05-09: Wave E5 (Evidence-Chain Closure milestone) 落地 EQ Evidence-Chain Closure Bundle 段：单命令入口 `scripts/run_eq_evidence_bundle.sh`、装配器 `python -m lifeform_evolution.evidence_bundle assemble`、6 条 typed gate verdict、artifact provenance（sha256 + size）。E1-E4 落地的所有 owner / family / longitudinal 字段已通过 bundle 暴露，外部 cite 可通过单一 `evidence_bundle.json` 路径读取所有 verdict。
 - 2026-05-02: Social Cognition evidence report 增加 R16A active identity memory scope gate，覆盖 EnvironmentEvent frame → ACTIVE multi_party_identity → memory subject/audience scope 链路
 - 2026-05-02: Social Cognition evidence report 增加 R16B active social PE memory visibility gate，覆盖 ACTIVE social_prediction/social_prediction_error → memory visibility PE → negative credit 链路

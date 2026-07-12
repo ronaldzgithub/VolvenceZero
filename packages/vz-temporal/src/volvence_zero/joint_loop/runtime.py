@@ -296,6 +296,26 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     def residual_runtime(self) -> OpenWeightResidualRuntime | None:
         return self._residual_runtime
 
+    @property
+    def latest_ssl_report(self):
+        """Most recent SSLTrainingReport from the shared trainer (evidence readout).
+
+        Carries the ``torch_*`` backend fields for the learned-shadow evidence
+        artifact. ``None`` until the schedule has run SSL at least once.
+        """
+
+        return self._ssl_trainer.latest_report
+
+    @property
+    def latest_internal_rl_report(self):
+        """Most recent world-sandbox optimization report (evidence readout).
+
+        Carries the ``torch_*`` PPO backend fields for the learned-shadow
+        evidence artifact. ``None`` until a full cycle has optimized once.
+        """
+
+        return self._world_sandbox.latest_optimization_report
+
     def _aggregate_metacontroller_state(self) -> MetacontrollerRuntimeState:
         return build_temporal_runtime_state_aggregate(
             world_state=self._world_policy.export_runtime_state(),

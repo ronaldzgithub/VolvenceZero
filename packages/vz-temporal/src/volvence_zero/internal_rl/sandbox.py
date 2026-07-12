@@ -1046,6 +1046,21 @@ class InternalRLSandbox:
         )
         self._env = env or InternalRLEnvironment()
         self._residual_runtime = residual_runtime
+        # Owner-local evidence retention (same pattern as CMS
+        # ``latest_cms_backend_evidence``): the most recent optimization
+        # report, including torch_* PPO backend fields, stays readable so
+        # evidence exporters do not re-run optimization.
+        self._latest_optimization_report: (
+            DualTrackOptimizationReport | OptimizationReport | None
+        ) = None
+
+    @property
+    def latest_optimization_report(
+        self,
+    ) -> DualTrackOptimizationReport | OptimizationReport | None:
+        """Return the most recent optimization report (evidence readout only)."""
+
+        return self._latest_optimization_report
 
     def set_rl_backend(self, wiring_level: WiringLevel) -> None:
         """Switch the causal-policy PPO backend (reversible to DISABLED)."""
@@ -1542,10 +1557,14 @@ class InternalRLSandbox:
                 )
             if isinstance(rollout[0], DualTrackRollout):
                 return self._optimize_dual_track(rollout).optimization_report
-            return self._optimize_single(rollout)
+            single_report = self._optimize_single(rollout)
+            self._latest_optimization_report = single_report
+            return single_report
         if isinstance(rollout, DualTrackRollout):
             return self._optimize_dual_track(rollout).optimization_report
-        return self._optimize_single(rollout)
+        single_report = self._optimize_single(rollout)
+        self._latest_optimization_report = single_report
+        return single_report
 
     def optimize_with_audit(
         self,
@@ -1581,6 +1600,7 @@ class InternalRLSandbox:
                 f"task_rollouts={task_report.rollout_count}, rel_rollouts={relationship_report.rollout_count}"
             ),
         )
+        self._latest_optimization_report = dual_report
         total_kl = task_report.kl_penalty + relationship_report.kl_penalty
         total_epochs = task_report.epochs_executed + relationship_report.epochs_executed
         records: list[SelfModificationRecord] = []

@@ -12,6 +12,7 @@ from volvence_zero.environment import (
     EnvironmentEventKind,
     EnvironmentFrame,
     EnvironmentOutcome,
+    build_environment_event,
     build_primary_environment_frame,
     build_user_input_environment_event,
 )
@@ -86,6 +87,35 @@ def test_user_input_environment_event_exposes_frame_fields() -> None:
     assert event.actor_id == PRIMARY_INTERLOCUTOR_ID
     assert event.subject_ids == (PRIMARY_INTERLOCUTOR_ID,)
     assert event.payload_summary == "hello"
+
+
+@pytest.mark.parametrize(
+    "event_kind",
+    (
+        EnvironmentEventKind.SYSTEM_TICK,
+        EnvironmentEventKind.SCENE_EVENT,
+        EnvironmentEventKind.INTERNAL_DRIVE,
+        EnvironmentEventKind.FOLLOWUP_DUE,
+    ),
+)
+def test_generic_builder_preserves_canonical_lifecycle_event_kind(
+    event_kind: EnvironmentEventKind,
+) -> None:
+    event = build_environment_event(
+        event_id=f"evt-{event_kind.value}",
+        event_kind=event_kind,
+        trigger_kind=event_kind.value,
+        payload_summary="typed lifecycle payload",
+        scene_id="scene-1",
+        timestamp_ms=12,
+        provenance=f"test:{event_kind.value}",
+        consent_context=("proactive-contact-allowed",),
+    )
+
+    assert event.event_kind is event_kind
+    assert event.trigger_kind == event_kind.value
+    assert event.provenance == f"test:{event_kind.value}"
+    assert event.consent_context == ("proactive-contact-allowed",)
 
 
 def test_environment_event_rejects_invalid_metadata() -> None:

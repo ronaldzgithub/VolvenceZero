@@ -2030,7 +2030,7 @@ return (
 - **风险**：**中-高**（融资尽调 + 核心叙事）。短期不阻塞运行（启发式路径可用）；中长期若不点亮，对外「时间抽象是学出来的」主张无生产证据，且 SSL→RL 交替（R13）从未在真链路上验证。
 - **触发条件**：(a) 任何对外主张「metacontroller / β_t 是 learned」之前；(b) GPU 预算到位；(c) [#86](#86) capacity→gain ablation 或 [#44](#44) SYS-1 启动前需先把 runtime forward 后端 flip。
 - **推荐修法**：
-  1. **Stage 0（无 GPU）**：deterministic 影子跑 `temporal_ssl_backend` / `temporal_runtime_backend` SHADOW，比对 learned vs 启发式 `β_t` / `z_t` 的 readout 一致性，落 `artifacts/` + strict-ETA 契约测试（`tests/test_strict_eta_evidence.py` 绿）。
+  1. ~~**Stage 0（无 GPU）**：deterministic 影子跑 `temporal_ssl_backend` / `temporal_runtime_backend` SHADOW，比对 learned vs 启发式 `β_t` / `z_t` 的 readout 一致性，落 `artifacts/` + strict-ETA 契约测试（`tests/test_strict_eta_evidence.py` 绿）。~~ **【2026-07-12 已 land（CP-LSS-01）】** (a) `FullLearnedTemporalPolicy` 的 SHADOW 语义补齐为**每轮**真 pure/torch 双跑（同 hidden/code/CMS context/owner signals），owner-local `latest_runtime_shadow_report` 发布 parity + latency 证据（`temporal/interface.py` + `backend_ndim_runtime.py`）；(b) 冻结 learned-shadow operator profile（`build_learned_shadow_rollout_config()`：n_z=16 + SSL/runtime/Internal-RL/CMS 四后端全 SHADOW）；(c) 单命令 `scripts/run_learned_shadow_evidence_smoke.py` 产出 `learned-shadow-evidence-smoke.v1` 统一 artifact + sha256 manifest，四 owner 任一缺证据或 SHADOW 写回即 fail loudly；验收 `packages/vz-runtime/tests/test_learned_shadow_evidence.py`。定级 P0 wiring / synthetic-CPU tier，不构成 ACTIVE 晋升证据。
   2. **Stage 1（gate on GPU）**：`temporal_runtime_backend` → ACTIVE + `internal_rl_backend` SHADOW→ACTIVE，≥500 turn 真 trace 上验证 `validation_delta ≥ 0.02`（对齐 [#6](#6) / [#7](#7) 升级门槛）+ rollback drill。
   3. **诚实声明**：ACTIVE 前对外只能说「learned 后端已实现、默认 DISABLED」。
 - **优先级**：**中-高**（Stage 0 可立即做；ACTIVE 与 [#6](#6) / [#7](#7) / [#44](#44) / [#86](#86) 同 GPU 节奏）

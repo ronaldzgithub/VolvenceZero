@@ -59,7 +59,7 @@ from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeKind,
 )
-from volvence_zero.environment import build_user_input_environment_event
+from volvence_zero.environment import build_environment_event
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import MemoryStore
 from volvence_zero.semantic_state import (
@@ -1646,6 +1646,17 @@ class LifeformSession:
     def due_followups(self) -> tuple[FollowupItem, ...]:
         return self._followups.due_now(current_tick=self._tick.tick_index)
 
+    def acknowledge_followup(self, followup_id: str) -> bool:
+        """Retire a followup after the product layer acted on it.
+
+        The lifeform never auto-executes followups; the host reads
+        ``due_followups()``, decides whether to re-engage (typically via
+        ``run_turn(..., trigger_kind=TurnTriggerKind.FOLLOWUP_DUE)``), and
+        then acknowledges here. Returns False for an unknown id.
+        """
+
+        return self._followups.acknowledge(followup_id)
+
     def all_pending_followups(self) -> tuple[FollowupItem, ...]:
         return self._followups.pending
 
@@ -1750,17 +1761,17 @@ class LifeformSession:
             self._vitals.set_apprentice_override(True)
         try:
             event_kind = environment_event_kind_for_trigger(trigger_kind)
-            environment_event = build_user_input_environment_event(
+            environment_event = build_environment_event(
                 event_id=(
                     f"{self.session_id}:"
                     f"{open_scene.scene_id}:"
                     f"turn-{len(self._turn_summaries) + 1}:environment"
                 ),
-                user_input=user_input,
-                scene_id=open_scene.scene_id,
-                timestamp_ms=self._tick.tick_index,
                 event_kind=event_kind,
                 trigger_kind=trigger_kind.value,
+                payload_summary=user_input,
+                scene_id=open_scene.scene_id,
+                timestamp_ms=self._tick.tick_index,
                 provenance=f"LifeformSession.run_turn:{event_kind.value}",
             )
             run_turn_async = self._brain_session.run_turn_async

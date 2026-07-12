@@ -18,6 +18,8 @@ from enum import Enum
 from importlib.resources import files
 from typing import Any
 
+from volvence_zero.owner_prediction import OwnerPredictionSignal
+
 
 SEMANTIC_OWNER_SLOTS: tuple[str, ...] = (
     "plan_intent",
@@ -398,6 +400,9 @@ class CommitmentSnapshot:
     due_followup_count: int = 0
     stalled_commitment_count: int = 0
     recent_completion_count: int = 0
+    # CP-12 owner prediction signal contract: the owner's own typed
+    # pre-action prediction (+ the settled previous one, if any).
+    owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
 
     def lifecycle_for(self, record_id: str) -> CommitmentLifecycleEntry | None:
         """Look up a single record's lifecycle, or ``None`` if absent."""
@@ -488,6 +493,8 @@ class ExecutionResultSnapshot:
     outcome_crystal_suppression_count: int = 0
     outcome_package_publication_count: int = 0
     outcome_bootstrap_consumption_count: int = 0
+    # CP-12 owner prediction signal contract.
+    owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
 
     def lifecycle_for(self, record_id: str) -> ExecutionResultLifecycleEntry | None:
         for entry in self.lifecycle_entries:
@@ -590,6 +597,8 @@ class RelationshipStateSnapshot:
     cumulative_trust_level: float = 0.0
     relationship_age_turns: int = 0
     funnel_stage: str = "unknown"
+    # CP-12 owner prediction signal contract.
+    owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -611,6 +620,8 @@ class GoalValueSnapshot:
     conflicted_goal_count: int = 0
     resolved_goal_refs: tuple[str, ...] = ()
     goal_continuity_score: float = 0.0
+    # CP-12 owner prediction signal contract.
+    owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -632,6 +643,8 @@ class BoundaryConsentSnapshot:
     revocation_count: int = 0
     external_action_blocked: bool = False
     memory_scope_status: str = "unknown"
+    # CP-12 owner prediction signal contract.
+    owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
 
 
 SemanticSnapshotValue = (

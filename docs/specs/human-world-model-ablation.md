@@ -43,7 +43,7 @@
 | `volvence-cold` | 完整 pipeline，无训练 bootstrap | 控制器结构本身 | ✅ `volvence-cold` track |
 | `volvence` | 完整 pipeline + 训练 bootstrap | **被验证系统** | ✅ `volvence` track |
 
-**实现说明**：同基底 5-track 工具链（`raw / ref-harness / camel / volvence-cold / volvence`）已 land 并通过 P0 wiring smoke（`claim_pipeline_gt_raw` / `claim_gt_standard_layers` / `claim_training_adds_value` / `claim_heldout_cohort_stable` 就位）。`claim_component_causal_contribution` 所需的 `PE-off` / `ETA-off` / `active-learning-off` / `LoRA-adapter` 四臂**尚未迁到同基底矩阵**（dialogue paper-suite 已有 `pe-drive-off` / `eta-off` profile，但那不是同基底 companion-bench 跑），是本 registry 相对当前工具链的**已登记缺口**。
+**实现说明**：同基底 5-track 工具链（`raw / ref-harness / camel / volvence-cold / volvence`）已 land 并通过 P0 wiring smoke（`claim_pipeline_gt_raw` / `claim_gt_standard_layers` / `claim_training_adds_value` / `claim_heldout_cohort_stable` 就位）。**2026-07-12 起，`claim_component_causal_contribution` 的四臂已完成 P0 wiring**：`compare_companion_ablation.py` 支持 `pe-off` / `eta-off` / `active-learning-off` / `lora-adapter` 四个 component track 并输出第 5 条 claim verdict（任一臂 fail → kill；缺臂 → 最多 weak，且 `first-stage-retained` 必须四臂全 retain）；`run_same_substrate_ablation.py --phase p0-smoke` 以 9 track 全矩阵跑 wiring smoke，P1/P2 在 roster 声明对应 `abl-*` submission id 后自动纳入。**仍缺**：四臂的真实 serving profile（`pe-drive-off` / `eta-off` dialogue profile 迁到同基底 serving、active-learning-off #90 Stage 1、LoRA bake #41，均 gate on GPU），故 claim 3 的真跑 verdict 依旧 pending。
 
 ## 3. 证据门槛（每条 claim verdict 必备）
 
@@ -86,12 +86,13 @@
 | 只读锚 | `claim_external_human_legibility`（#51 external anchor） | human review 只作对照真值，不回灌学习链路（R12） |
 | 明确排除 | 物理 / 具身世界模型 | `world-model-extension-ready` 需独立 benchmark，不在本链 |
 
-## 当前状态（2026-07-05）
+## 当前状态（2026-07-12）
 
-- **命中态**：`wiring-ready`。claim 1/2/4/5 工具链 land + P0 wiring smoke 通过；claim 3（component-causal）四臂未迁同基底。
-- **未跑**：全部真跑 verdict（P1/P2）gate on GPU + 跨家族裁判 keys（预算批准，运维步骤）。
+- **命中态**：`wiring-ready`。claim 1–5 工具链全部 land + 9-track P0 wiring smoke 通过（含 component 四臂 + 第 5 条 claim verdict）。
+- **未跑**：全部真跑 verdict（P1/P2）gate on GPU + 跨家族裁判 keys（预算批准，运维步骤）；component 四臂的真实 serving profile 未落地（#88 / #90 / #41）。
 - **可外引结论**：**无**。在 `first-stage-retained` 之前只能说"设计与 ablation 框架已就位"。
 
 ## 变更日志
 
+- 2026-07-12: component 四臂 P0 wiring 落地。`compare_companion_ablation.py` 新增 `pe-off` / `eta-off` / `active-learning-off` / `lora-adapter` track 与 `claim_component_causal_contribution` verdict（fail → kill；缺臂 cap 至 weak；`first-stage-retained` 现要求 5 claim 全 retain——之前 4-claim 即可 first-stage 的口径是对冻结 registry 的实现落差，已修正）；`run_same_substrate_ablation.py` p0-smoke 扩到 9 track，P1/P2 依 roster submission id 自动纳入 component 臂。测试：`tests/companion_ablation/`（component retain / kill / 缺臂 cap / 9-track smoke）。
 - 2026-07-05: 初始冻结版。把 debt #87 推荐的 5 条 retain claim（新增 `claim_component_causal_contribution`）、8 臂 matched-control matrix、6 项证据门槛、4 态结果分级、4 条 kill 条件一次性冻结为 thesis 第一阶段 claim registry SSOT；登记进 [`00_INDEX.md`](./00_INDEX.md)。文档级交付（零 GPU），真跑 verdict 仍 gate on GPU/keys。

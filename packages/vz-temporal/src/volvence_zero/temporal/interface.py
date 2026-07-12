@@ -2081,6 +2081,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         # backend module when n_z == 3 or the feature is unused.
         self._runtime_backend = runtime_backend
         self._backend_ndim_mc: Any = None
+        self._latest_runtime_shadow_report: Any = None
         self._previous_code = _nz_zeros(n_z)
         self._previous_hidden_state = _nz_zeros(n_z)
         self._previous_beta_binary = 0
@@ -2105,6 +2106,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
 
         self._runtime_backend = wiring_level
         self._backend_ndim_mc = None
+        self._latest_runtime_shadow_report = None
 
     def _resolve_backend_ndim_mc(self):
         """Return the ACTIVE torch ndim metacontroller, or None for pure path."""
@@ -2136,6 +2138,12 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     @property
     def latest_encoder_output_for_cms(self) -> tuple[float, ...] | None:
         return self._latest_encoder_output_for_cms
+
+    @property
+    def latest_runtime_shadow_report(self) -> Any:
+        """Return owner-local pure/torch parity evidence from the latest SHADOW step."""
+
+        return self._latest_runtime_shadow_report
 
     def export_runtime_state(self) -> MetacontrollerRuntimeState:
         return self._parameter_store.export_runtime_state(mode=self.mode.value)
@@ -2507,6 +2515,24 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             self._parameter_store.fast_prior_switch_pressure_delta()
             + self._protocol_prior_switch_delta()
         )
+        if self._runtime_backend is WiringLevel.SHADOW:
+            from volvence_zero.temporal.backend_ndim_runtime import (
+                runtime_ndim_shadow_compare,
+            )
+
+            self._latest_runtime_shadow_report = runtime_ndim_shadow_compare(
+                store=self._parameter_store,
+                substrate_snapshot=substrate_snapshot,
+                previous_code=previous_code,
+                previous_hidden_state=self._previous_hidden_state,
+                cms_context=cms_ctx,
+                memory_signal=memory_signal,
+                reflection_signal=reflection_signal,
+                active_family_outcome=active_family_outcome,
+                active_family_reuse=active_family_reuse,
+                active_family_persistence=active_family_persistence,
+                external_switch_pressure_delta=fast_prior_switch_pressure_delta,
+            )
         beta_cont, beta_bin, scalar_beta = switch_obj.compute(
             z_tilde=encoded.z_tilde,
             previous_code=previous_code,

@@ -57,6 +57,29 @@ TRACK_TO_SUBMISSION: dict[str, str] = {
     "volvence": "abl-volvence",
 }
 
+# Component-causal arms (claim_component_causal_contribution; frozen registry
+# in docs/specs/human-world-model-ablation.md). P0 smoke always exercises them
+# so the full matrix wiring + verdict schema is proven end-to-end; P1/P2 only
+# include an arm when the roster actually declares its submission_id (served
+# endpoints for these arms are still pending: eta-off/pe-off profile serving,
+# active-learning-off #90, LoRA bake #41).
+COMPONENT_TRACK_TO_SUBMISSION: dict[str, str] = {
+    "pe-off": "abl-pe-off",
+    "eta-off": "abl-eta-off",
+    "active-learning-off": "abl-active-learning-off",
+    "lora-adapter": "abl-lora-adapter",
+}
+
+
+def _roster_submission_ids(roster_path: pathlib.Path) -> frozenset[str]:
+    """Read the submission ids declared in the roster YAML (fail loud)."""
+
+    import yaml
+
+    payload = yaml.safe_load(roster_path.read_text(encoding="utf-8"))
+    systems = payload["systems"]
+    return frozenset(str(entry["submission_id"]) for entry in systems)
+
 
 # ---------------------------------------------------------------------------
 # Cross-family judge defaults (#71 / #72 — NONE are Qwen)
@@ -118,7 +141,8 @@ def phase_p0_smoke(*, output_dir: pathlib.Path, family: str | None) -> int:
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_paths: dict[str, pathlib.Path] = {}
-    for track, submission_id in TRACK_TO_SUBMISSION.items():
+    smoke_tracks = {**TRACK_TO_SUBMISSION, **COMPONENT_TRACK_TO_SUBMISSION}
+    for track, submission_id in smoke_tracks.items():
         manifest = SubmissionManifest(
             submission_id=submission_id,
             system_name=f"smoke-{track}",
@@ -164,8 +188,9 @@ def phase_p0_smoke(*, output_dir: pathlib.Path, family: str | None) -> int:
         print(f"error: unexpected verdict state {verdict['state']!r}", file=sys.stderr)
         return 1
     print(
-        f"\n  [p0] WIRING OK. 5 tracks scored, verdict emitted (state={verdict['state']}). "
-        "Real signal comes from p1/p2 on a real substrate."
+        f"\n  [p0] WIRING OK. {len(smoke_tracks)} tracks scored (5 base + "
+        f"{len(COMPONENT_TRACK_TO_SUBMISSION)} component arms), verdict emitted "
+        f"(state={verdict['state']}). Real signal comes from p1/p2 on a real substrate."
     )
     return 0
 
@@ -242,11 +267,20 @@ def phase_real(*, args: argparse.Namespace, tier: str) -> int:
             return rc
 
     # Build the comparator command from the produced per-system summaries.
+    # Component arms join automatically once their submission ids appear in
+    # the roster (until then they stay out and the verdict reports the
+    # component claim as insufficient_data instead of crashing on a missing
+    # summary path).
+    roster_ids = _roster_submission_ids(ABLATION_ROSTER)
+    real_tracks = dict(TRACK_TO_SUBMISSION)
+    for track, submission_id in COMPONENT_TRACK_TO_SUBMISSION.items():
+        if submission_id in roster_ids:
+            real_tracks[track] = submission_id
     comp_cmd = [sys.executable, str(COMPARATOR)]
-    for track, submission_id in TRACK_TO_SUBMISSION.items():
+    for track, submission_id in real_tracks.items():
         summary = scores_dir / submission_id / "summary.json"
         comp_cmd += ["--track", f"{track}={summary}"]
-    for track in TRACK_TO_SUBMISSION:
+    for track in real_tracks:
         fp = args.output_dir / track / "substrate_fingerprint.json"
         comp_cmd += ["--fingerprint-file", f"{track}={fp}"]
     verdict_path = args.output_dir / f"verdict_{tier}.json"
