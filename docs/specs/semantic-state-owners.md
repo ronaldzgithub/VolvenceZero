@@ -87,6 +87,18 @@ Adapters are structured-field mappers. They may map `status`, `consent_grants`, 
 
 ## 变更日志
 
+- 2026-07-12: CP-12 owner prediction signal contract。`SemanticOwnerModule` 新增
+  `owner_prediction_kind` / `owner_prediction_track` 类属性与
+  `_owner_prediction_signals(...)` 助手；五个 first-wave owner（commitment /
+  relationship_state / goal_value / boundary_consent / execution_result）在快照
+  发布 `owner_prediction_signals`：每轮签发一条对自身 compact readout 的
+  persistence-prior v1 预测，并对上一轮 pending 预测由 owner 自己 settle
+  （observed readout + outcome evidence）。pending 预测与 id 序列由
+  `SemanticStateStore` 持有（owner 模块每轮重建，store 是 durable 组件）。
+  mismatch 只由 PE owner 计算（见 `prediction-error-loop.md` 同日条目）；
+  消费者无需读取 owner 内部字段即可完成 settlement 消费。第二波
+  （plan_intent / open_loop / belief_assumption / user_model）kind 已在闭集
+  enum 预留，publisher 未接。
 - 2026-05-03: 新增 `semantic_state.quality` proposal quality harness，首批覆盖 `boundary_consent` / `goal_value` scripted LLM cases，用于在 owner 合并前评估 typed proposal 输入质量；shadow gate 只报告 would-block，不阻断 runtime。
 - 2026-05-03: dialogue paper-suite export 新增 non-gating `semantic_proposal_quality_shadow.json` sidecar，并把同一 payload 挂入 evidence bundle reference artifacts。
 - 2026-05-03: Commitment / OpenLoop / BoundaryConsent / GoalValue / RelationshipState 增加 owner-side lifecycle / continuity readouts；`LLMSemanticProposalRuntime` 最小扩展到 `boundary_consent`、`goal_value` 的 schema-bound typed proposal 路径，非目标 slot 继续 delegate。

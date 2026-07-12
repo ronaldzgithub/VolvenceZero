@@ -86,6 +86,13 @@ class PredictedOutcome:
     confidence: float
     description: str
     action_context: PredictionActionContext = field(default_factory=PredictionActionContext)
+    # CP-10: owner-issued pre-action prediction id. Stamped by
+    # ``PredictionErrorModule`` when it PUBLISHES ``next_prediction``; callers
+    # (affordance tool loop, renderers) forward this reference as ``plan_ref``
+    # instead of fabricating their own. Empty string = the prediction was
+    # built outside the owner's publish path (bootstrap / standalone helpers)
+    # and downstream lineage must treat the action as explicitly unknown.
+    prediction_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -172,6 +179,29 @@ class PECriticHeadState:
 
 
 @dataclass(frozen=True)
+class PredictiveHeadReadout:
+    """CP-11 SHADOW readout: learned world/self heads vs the hand-crafted head.
+
+    Report-only. The live prediction chain still comes from
+    ``_PredictionErrorHead``; the learned heads dual-run inside the PE owner
+    and this readout carries their running mean-absolute-error next to the
+    baseline's, so the ACTIVE gate (>= 0.02 improvement over >= 200 turns,
+    plan CP-11) can be evaluated from artifacts without flipping anything.
+    ``improvement`` is ``baseline_mae - learned_mae`` (positive = learned
+    heads are better).
+    """
+
+    world_learned_mae: float
+    world_baseline_mae: float
+    self_learned_mae: float
+    self_baseline_mae: float
+    sample_count: int
+    world_improvement: float
+    self_improvement: float
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class PredictionErrorSnapshot:
     evaluated_prediction: PredictedOutcome | None
     actual_outcome: ActualOutcome
@@ -186,6 +216,9 @@ class PredictionErrorSnapshot:
     # (they do not enter the magnitude formula); only this owner constructs
     # OwnerPredictionSettlement values.
     owner_prediction_settlements: tuple[OwnerPredictionSettlement, ...] = ()
+    # CP-11 world/self predictive heads SHADOW readout (report-only; None
+    # until both heads have at least one scored sample).
+    predictive_head_readout: PredictiveHeadReadout | None = None
     memory_retrieval_facets: tuple[str, ...] = ()
     pe_decomposition: PEDecomposition | None = None
 
@@ -233,6 +266,92 @@ class _OutcomeAxisCalibration:
     stability_weight: float = 0.0
     tension_weight: float = 0.0
     novelty_weight: float = 0.0
+
+
+def _featurize_outcome_evidence(evidence: "_OutcomeEvidence") -> tuple[float, ...]:
+    """Fixed-order compact feature vector shared by the CP-11 learned heads.
+
+    Uses stable aggregates rather than raw dict keys so the feature
+    dimensionality never drifts with upstream signal vocabularies.
+    """
+
+    def _mean(values: dict[str, float], default: float = 0.5) -> float:
+        if not values:
+            return default
+        return sum(values.values()) / len(values)
+
+    return (
+        _clamp_unit(_mean(evidence.family_signals)),
+        _clamp_unit(_mean(evidence.substrate_signals)),
+        _clamp_unit(_mean(evidence.previous_substrate_signals)),
+        _clamp_unit(
+            sum(abs(v) for v in evidence.substrate_delta.values())
+            / max(len(evidence.substrate_delta), 1)
+        ),
+        _clamp_unit(evidence.cross_track_tension),
+        _clamp_unit(evidence.regime_stability),
+        1.0,  # bias
+    )
+
+
+class _LinearAxisHead:
+    """Bounded online-SGD linear predictor for one outcome axis (CP-11).
+
+    Owner-internal learned component: weights stay clamped, updates are
+    single-step SGD on the realized outcome, and nothing here reaches the
+    live prediction chain — the readout is SHADOW evidence only.
+    """
+
+    def __init__(self, *, feature_dim: int, learning_rate: float = 0.05) -> None:
+        self._weights = [0.0] * feature_dim
+        # Start from the neutral 0.5 prior via the bias term so the head's
+        # cold-start behavior matches the bootstrap placeholder axes.
+        self._weights[-1] = 0.5
+        self._learning_rate = learning_rate
+
+    def predict(self, features: tuple[float, ...]) -> float:
+        raw = sum(w * f for w, f in zip(self._weights, features, strict=True))
+        return _clamp_unit(raw)
+
+    def update(self, *, features: tuple[float, ...], target: float) -> None:
+        prediction = self.predict(features)
+        gradient_scale = self._learning_rate * (target - prediction)
+        self._weights = [
+            max(-2.0, min(2.0, w + gradient_scale * f))
+            for w, f in zip(self._weights, features, strict=True)
+        ]
+
+
+class _WorldPredictiveHead:
+    """CP-11 learned world head: task / regime / action outcome axes."""
+
+    axes = ("task_progress", "regime_stability", "action_payoff")
+
+    def __init__(self, *, feature_dim: int) -> None:
+        self._heads = {axis: _LinearAxisHead(feature_dim=feature_dim) for axis in self.axes}
+
+    def predict(self, features: tuple[float, ...]) -> dict[str, float]:
+        return {axis: head.predict(features) for axis, head in self._heads.items()}
+
+    def update(self, *, features: tuple[float, ...], targets: dict[str, float]) -> None:
+        for axis, head in self._heads.items():
+            head.update(features=features, target=targets[axis])
+
+
+class _SelfPredictiveHead:
+    """CP-11 learned self head: relationship outcome axis."""
+
+    axes = ("relationship_delta",)
+
+    def __init__(self, *, feature_dim: int) -> None:
+        self._heads = {axis: _LinearAxisHead(feature_dim=feature_dim) for axis in self.axes}
+
+    def predict(self, features: tuple[float, ...]) -> dict[str, float]:
+        return {axis: head.predict(features) for axis, head in self._heads.items()}
+
+    def update(self, *, features: tuple[float, ...], targets: dict[str, float]) -> None:
+        for axis, head in self._heads.items():
+            head.update(features=features, target=targets[axis])
 
 
 class _PredictionErrorHead:
@@ -602,6 +721,23 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         # never enters the published PredictionErrorSnapshot (schema unchanged).
         self._offline_lss_magnitude_ema = 0.0
         self._offline_lss_update_count = 0
+        # CP-11 world/self predictive heads (SHADOW dual-run inside the single
+        # PE owner; no new slot). The learned heads predict next-turn outcome
+        # axes from the same compact evidence features; on the following turn
+        # they are scored against the realized ActualOutcome next to the
+        # hand-crafted head, and updated with bounded online SGD. Their
+        # readout is report-only until the plan CP-11 gate is met.
+        feature_dim = 7
+        self._world_head = _WorldPredictiveHead(feature_dim=feature_dim)
+        self._self_head = _SelfPredictiveHead(feature_dim=feature_dim)
+        self._pending_head_forecast: dict[str, Any] | None = None
+        self._head_sample_count = 0
+        self._head_abs_error_sums = {
+            "world_learned": 0.0,
+            "world_baseline": 0.0,
+            "self_learned": 0.0,
+            "self_baseline": 0.0,
+        }
 
     # ------------------------------------------------------------------
     # Offline gradient-LSS rare-heavy surface (Phase F). Runtime PE is
@@ -1011,6 +1147,14 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             regime_snapshot=regime_snapshot,
             action_context=self._action_context,
         )
+        # CP-10: the PE owner (and only the PE owner) issues the pre-action
+        # prediction id on the prediction it publishes. Downstream actors
+        # (affordance tool loop, expression) forward this id as lineage; they
+        # must not fabricate their own.
+        next_prediction = replace(
+            next_prediction,
+            prediction_id=f"pe:{self.slot_name}:turn-{turn_index}:next",
+        )
         actual_outcome = derive_actual_outcome(
             observed_turn_index=turn_index,
             substrate_snapshot=substrate_snapshot,
@@ -1125,6 +1269,18 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         # window holds at least ``min_window`` samples (cold-start
         # safety). Bootstrap turns SKIP the update so the very first
         # turn's all-zero error does not pollute the window.
+        # CP-11 SHADOW dual-run: score last turn's learned/baseline forecasts
+        # against this turn's realized outcome, update the learned heads, and
+        # queue this turn's forecast for the next turn.
+        predictive_head_readout = self._advance_predictive_heads(
+            evaluated_prediction=evaluated_prediction,
+            actual_outcome=actual_outcome,
+            substrate_snapshot=substrate_snapshot,
+            previous_substrate_snapshot=previous_substrate_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            dual_track_snapshot=dual_track_snapshot,
+            regime_snapshot=regime_snapshot,
+        )
         if not bootstrap:
             self._distribution_window.update(error)
         distribution_summary = self._distribution_window.summarise()
@@ -1151,7 +1307,96 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 f"{error.description} Next prediction targets turn {next_prediction.target_turn_index}."
             ),
             action_context=self._action_context,
+            predictive_head_readout=predictive_head_readout,
             pe_decomposition=decomposition,
+        )
+
+    def _advance_predictive_heads(
+        self,
+        *,
+        evaluated_prediction: PredictedOutcome | None,
+        actual_outcome: ActualOutcome,
+        substrate_snapshot: SubstrateSnapshot | None,
+        previous_substrate_snapshot: SubstrateSnapshot | None,
+        evaluation_snapshot: EvaluationSnapshot,
+        dual_track_snapshot: DualTrackSnapshot,
+        regime_snapshot: "RegimeSnapshot | None",
+    ) -> PredictiveHeadReadout | None:
+        """CP-11 SHADOW step. Report-only: never touches the live chain."""
+
+        pending = self._pending_head_forecast
+        if pending is not None and evaluated_prediction is not None:
+            world_targets = {
+                "task_progress": _clamp_unit(actual_outcome.task_progress),
+                "regime_stability": _clamp_unit(actual_outcome.regime_stability),
+                "action_payoff": _clamp_unit(actual_outcome.action_payoff),
+            }
+            self_targets = {
+                "relationship_delta": _clamp_unit(actual_outcome.relationship_delta),
+            }
+            world_learned: dict[str, float] = pending["world"]
+            self_learned: dict[str, float] = pending["self"]
+            self._head_abs_error_sums["world_learned"] += sum(
+                abs(world_learned[axis] - world_targets[axis]) for axis in world_targets
+            ) / len(world_targets)
+            self._head_abs_error_sums["world_baseline"] += (
+                abs(evaluated_prediction.predicted_task_progress - world_targets["task_progress"])
+                + abs(
+                    evaluated_prediction.predicted_regime_stability
+                    - world_targets["regime_stability"]
+                )
+                + abs(
+                    evaluated_prediction.predicted_action_payoff
+                    - world_targets["action_payoff"]
+                )
+            ) / len(world_targets)
+            self._head_abs_error_sums["self_learned"] += abs(
+                self_learned["relationship_delta"] - self_targets["relationship_delta"]
+            )
+            self._head_abs_error_sums["self_baseline"] += abs(
+                _clamp_unit(evaluated_prediction.predicted_relationship_delta)
+                - self_targets["relationship_delta"]
+            )
+            self._head_sample_count += 1
+            features: tuple[float, ...] = pending["features"]
+            self._world_head.update(features=features, targets=world_targets)
+            self._self_head.update(features=features, targets=self_targets)
+
+        next_features = _featurize_outcome_evidence(
+            _build_outcome_evidence(
+                substrate_snapshot=substrate_snapshot,
+                previous_substrate_snapshot=previous_substrate_snapshot,
+                evaluation_snapshot=evaluation_snapshot,
+                dual_track_snapshot=dual_track_snapshot,
+                regime_snapshot=regime_snapshot,
+            )
+        )
+        self._pending_head_forecast = {
+            "features": next_features,
+            "world": self._world_head.predict(next_features),
+            "self": self._self_head.predict(next_features),
+        }
+
+        if self._head_sample_count == 0:
+            return None
+        count = self._head_sample_count
+        world_learned_mae = self._head_abs_error_sums["world_learned"] / count
+        world_baseline_mae = self._head_abs_error_sums["world_baseline"] / count
+        self_learned_mae = self._head_abs_error_sums["self_learned"] / count
+        self_baseline_mae = self._head_abs_error_sums["self_baseline"] / count
+        return PredictiveHeadReadout(
+            world_learned_mae=round(world_learned_mae, 4),
+            world_baseline_mae=round(world_baseline_mae, 4),
+            self_learned_mae=round(self_learned_mae, 4),
+            self_baseline_mae=round(self_baseline_mae, 4),
+            sample_count=count,
+            world_improvement=round(world_baseline_mae - world_learned_mae, 4),
+            self_improvement=round(self_baseline_mae - self_learned_mae, 4),
+            description=(
+                f"CP-11 SHADOW heads over {count} samples: world learned/baseline "
+                f"MAE {world_learned_mae:.3f}/{world_baseline_mae:.3f}, self "
+                f"{self_learned_mae:.3f}/{self_baseline_mae:.3f}. Report-only."
+            ),
         )
 
 

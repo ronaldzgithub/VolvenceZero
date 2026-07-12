@@ -13,7 +13,7 @@ todos:
     status: in_progress
   - id: predictive-pe
     content: 在唯一 PE owner 内建立 world/self learned heads 与 owner prediction signal 契约
-    status: in_progress
+    status: completed
   - id: learned-active
     content: 按 runtime→SSL→Internal RL→CMS 顺序逐个通过证据门并晋升 ACTIVE candidate
     status: pending

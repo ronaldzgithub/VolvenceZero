@@ -403,7 +403,22 @@ class ToolLoopOrchestrator:
 
     @staticmethod
     def _plan_ref_from_snapshots(*, session: Any) -> str | None:
+        """Forward the PE-owner-issued pre-action prediction id (CP-10).
+
+        The single ``prediction_error`` owner stamps ``prediction_id`` on the
+        ``next_prediction`` it publishes; the tool loop only forwards that
+        reference. When the PE snapshot is absent or carries no owner-issued
+        id (bootstrap), we fall back to the latest closed temporal segment id
+        so delayed segment credit still has an anchor, and finally to ``None``
+        (= explicitly unknown lineage, never a fabricated id).
+        """
+
         snapshots = session.latest_active_snapshots
+        pe_snapshot = snapshots.get("prediction_error")
+        if pe_snapshot is not None:
+            prediction_id = pe_snapshot.value.next_prediction.prediction_id
+            if prediction_id:
+                return prediction_id
         temporal = snapshots.get("temporal_abstraction")
         if temporal is None:
             return None

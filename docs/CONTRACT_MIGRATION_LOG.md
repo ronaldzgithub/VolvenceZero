@@ -1,7 +1,34 @@
 # Contract Migration Log
 
 > Status: migration / implementation log
-> Last updated: 2026-06-29
+> Last updated: 2026-07-12
+
+## CP-12 / CP-11 (2026-07-12): owner prediction signals + PE shadow heads
+
+Shared contract slice (new vz-contracts module `volvence_zero.owner_prediction`):
+`OwnerPredictionKind` (closed enum, 9 kinds; 5 first-wave wired) /
+`OwnerPredictionSignal` / `OwnerPredictionSettlement` / `settle_owner_prediction`.
+Append-only snapshot fields, all defaulted (byte-compatible for existing
+constructors):
+
+- `CommitmentSnapshot` / `RelationshipStateSnapshot` / `GoalValueSnapshot` /
+  `BoundaryConsentSnapshot` / `ExecutionResultSnapshot` +=
+  `owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()`.
+- `PredictionErrorSnapshot` += `owner_prediction_settlements` (only the PE
+  owner constructs settlements) and `predictive_head_readout`
+  (`PredictiveHeadReadout`, CP-11 SHADOW dual-run MAE vs baseline,
+  report-only).
+- `PredictionErrorModule.dependencies` += `relationship_state`, `goal_value`,
+  `boundary_consent`, `execution_result` (read via `upstream.get`, commitment
+  overlay precedent; no cycle — semantic owners depend only on
+  substrate/memory).
+- `SemanticStateStore` gained owner-local `pending_owner_prediction` /
+  `record_owner_prediction` / `next_owner_prediction_sequence` (not part of
+  hydration payload v1; predictions settle next in-session turn).
+
+Verified by `tests/contracts/test_owner_prediction_signal.py` and
+`tests/contracts/test_predictive_heads_shadow.py`; import boundary table
+gained `owner_prediction` for vz-cognition.
 
 ## autograd-owner-integration deploy form (2026-06-29): runtime-configurable
 

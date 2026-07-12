@@ -254,6 +254,14 @@ Environment Interface Phase 0 has no runtime wiring level because it is design-o
 
 ## 变更日志
 
+- 2026-07-12 (3): CP-10 首切片（tool 臂 owner-issued prediction）。
+  `PredictedOutcome` 新增 `prediction_id`，由 `PredictionErrorModule` 在发布
+  `next_prediction` 时唯一签发（`pe:prediction_error:turn-N:next`）；
+  affordance tool loop 的 `_plan_ref_from_snapshots` 改为**转发** PE owner 签发
+  的 id（bootstrap 空 id 回退 temporal segment anchor，再无则显式 `None` =
+  unknown lineage，禁止编造 id）。expression / scene-close / ingestion 的
+  pre-action issuance 与 settlement 仍 pending（CP-10 后续切片）。测试：
+  `tests/contracts/test_pe_issued_plan_ref.py`。
 - 2026-07-12 (2): `canonical-event-routing` gate 升为 **satisfied**。新增
   `tests/lifeform_e2e/test_canonical_environment_routing.py`（五个 trigger 的
   canonical event kind 逐一 e2e + `FOLLOWUP_DUE` documented host path）；

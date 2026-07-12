@@ -193,6 +193,28 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 
 ## 变更日志
 
+- 2026-07-12: CP-12 owner prediction signal contract 落地。新增 vz-contracts
+  `volvence_zero.owner_prediction`（`OwnerPredictionKind` 闭集 enum /
+  `OwnerPredictionSignal` / `OwnerPredictionSettlement` /
+  `settle_owner_prediction`）。五个 first-wave 语义 owner（commitment /
+  relationship_state / goal_value / boundary_consent / execution_result）在自身
+  快照发布 `owner_prediction_signals`（v1 = persistence-prior 预测自身 compact
+  readout，下一轮由 owner 自己 settle）；`PredictionErrorModule` 作为唯一
+  mismatch 计算者消费 settled 信号并发布
+  `PredictionErrorSnapshot.owner_prediction_settlements`（v1 report-only，不进
+  magnitude 公式）。PE dependencies 追加 relationship_state / goal_value /
+  boundary_consent / execution_result（对齐 commitment overlay 先例，upstream.get
+  容忍禁用 owner）。测试：`tests/contracts/test_owner_prediction_signal.py`。
+- 2026-07-12: CP-11 world/self predictive heads SHADOW 落地。PE owner 内部新增
+  `_WorldPredictiveHead`（task/regime/action 轴）与 `_SelfPredictiveHead`
+  （relationship 轴）：共享 compact evidence 特征（`_featurize_outcome_evidence`
+  固定 7 维聚合，不随上游词表漂移），bounded online-SGD 线性头，与手工
+  `_PredictionErrorHead` 同轮双跑并按下一轮 realized outcome 计分。
+  `PredictionErrorSnapshot.predictive_head_readout`（`PredictiveHeadReadout`）
+  发布 learned/baseline 双 MAE 与 improvement，**report-only**：live prediction
+  chain 仍由手工 head 产出。ACTIVE 晋升 gate 依计划 CP-11（≥200 turn SHADOW 上
+  RMSE/校准改善 ≥0.02，且 kill 条件适用），本轮不改变默认行为。测试：
+  `tests/contracts/test_predictive_heads_shadow.py`。
 - 2026-06-29: autograd-owner-integration（LSS rare-heavy 接入）。新增 torch-free `prediction/lss_rare_heavy.py`（`LSSRareHeavyCheckpoint` + `build_lss_rare_heavy_checkpoint`，float-only，grounding gate 强制 runtime PE == −真 LSS，fail-closed）。`PredictionErrorModule` 新增 offline surface：`export_rare_heavy_lss` / `import_rare_heavy_lss` / `rare_heavy_lss_calibration` / `export|restore_rare_heavy_lss_state`，import 只改 owner-internal LSS 校准（EMA），**不**触碰 `PredictionErrorSnapshot`（schema 不变）。`RareHeavyArtifact` 追加 optional `lss_checkpoint` 字段并随 `export_rare_heavy_artifact(lss_checkpoint=...)` 携带。
 - 2026-06-29: NL/ETA full-autograd 迁移 Phase 5。新增 `prediction/torch_lss`：真梯度 LSS（`∂L/∂output`）作为 offline 可审计 artifact，并证明 runtime 语义 PE == −真 LSS（符号正确、幅度相等）。runtime PE 主链与 schema 不变；真 LSS 经 rare-heavy 桥接，不进公共 snapshot。
 - 2026-06-20: 登记关联设计 spec [`relational-soft-verifier.md`](./relational-soft-verifier.md)（design / SHADOW-only）：拟把 `relationship_error` 轴的 epistemic 部分（复用 `PEDecomposition.improvement_magnitude`）作为关系域软验证器奖励来源；未改动本 owner，待 SHADOW 自我确认证伪实验通过后再新增 §"关系域软验证器奖励来源"。

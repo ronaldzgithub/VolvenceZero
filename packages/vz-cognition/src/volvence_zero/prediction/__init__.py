@@ -8,6 +8,7 @@ from volvence_zero.prediction.error import (
     PredictionError,
     PredictionErrorModule,
     PredictionErrorSnapshot,
+    PredictiveHeadReadout,
     derive_actual_outcome,
     derive_actual_outcome_from_substrate,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "PredictionError",
     "PredictionErrorModule",
     "PredictionErrorSnapshot",
+    "PredictiveHeadReadout",
     "derive_actual_outcome",
     "derive_actual_outcome_from_substrate",
     "LSSEntry",
