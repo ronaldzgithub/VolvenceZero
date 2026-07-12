@@ -40,6 +40,7 @@ from volvence_zero.semantic_state.contracts import (
     ExternalSemanticEvent,
     ExternalSemanticEventBatch,
     FollowupPolicy,
+    GenericSemanticEvent,
     GoalValueSnapshot,
     OpenLoopSnapshot,
     PlanIntentLifecycleEntry,
@@ -70,6 +71,7 @@ from volvence_zero.semantic_state.lifecycle import (
 )
 from volvence_zero.semantic_state.proposal_runtime import (
     AdapterSemanticProposalRuntime,
+    GenericSemanticAdapter,
     NoOpSemanticProposalRuntime,
     ProfileSemanticAdapter,
     ReviewedKnowledgeSemanticAdapter,
@@ -130,6 +132,8 @@ __all__ = [
     "ExternalSemanticEvent",
     "ExternalSemanticEventBatch",
     "FollowupPolicy",
+    "GenericSemanticAdapter",
+    "GenericSemanticEvent",
     "GoalValueModule",
     "GoalValueSnapshot",
     "NoOpSemanticProposalRuntime",

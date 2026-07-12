@@ -73,6 +73,12 @@
 - 默认 final wiring 下，dual-track 现优先消费 same-wave 的 `world_temporal` / `self_temporal` owner 快照，再保留 `temporal_abstraction` 作为 aggregate bridge，避免让 consumer 侧重建 track-specific controller state
 - `credit` / `evaluation` 当前是 dual-track 的下游消费者，而不是 direct module dependencies；dual-track owner 先发布稳定 track state，再由下游按需聚合
 - 当前 `DualTrackModule.default_wiring_level = SHADOW`；默认类级接线只提供校验与 evidence surface，final wiring / session runner 可按 rollout 需要显式提升
+- 2026-07-13 social-learning slice 4: `DualTrackSnapshot` 追加
+  `learned_gate_shadow: DualTrackLearnedGateShadow | None`。该 readout 是
+  bounded learned-gate candidate（world/self weights sum to 1），只读 typed
+  track tensions / controller evidence / goals，不读 raw text；report-only，
+  不改变 live world/self track state，也不进入 RL reward。CP-19 ACTIVE 仍需
+  external-anchor retain evidence，避免 self-confirmation。
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.4 节
 
@@ -89,6 +95,9 @@
 
 ## 变更日志
 
+- 2026-07-13: CP-19 SHADOW readout。新增 `DualTrackLearnedGateShadow` 与
+  `derive_learned_gate_shadow(...)`，`DualTrackModule` / standalone path 均发布
+  report-only learned-gate candidate；测试 `tests/test_dual_track_core.py`。
 - 2026-04-25: 补充 `DualTrackModule` 类级默认 `SHADOW` 接线，区分模块 contract 默认值与 final wiring 的显式激活
 - 2026-04-20: 接口契约按当前代码收敛为直接消费 `memory + temporal_abstraction + substrate`；`credit` / `evaluation` 明确为 dual-track 的下游消费者而非 direct dependencies
 - 2026-04-06: P11 dual-track z-space separation: ControllerState.track_codes carries per-track projected latent codes; DualTrackModule now reads track-specific z_task/z_rel via temporal-track-projected path; CausalZPolicy uses amplified track projection

@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from collections.abc import Mapping
 from typing import Any
 
@@ -52,8 +53,78 @@ _LOG = logging.getLogger("volvence_zero.owner_hydration_store")
 _KEY_PREFIX = "owner_hydration/"
 
 
+@dataclass(frozen=True)
+class OwnerHydrationMatrixEntry:
+    owner_name: str
+    decision: str
+    storage_key: str
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not self.owner_name.strip():
+            raise ValueError("owner_name must be non-empty")
+        if self.decision not in {"hydrate", "external-owner", "explicit-no-hydrate"}:
+            raise ValueError(f"unknown hydration decision {self.decision!r}")
+        if not self.storage_key.strip():
+            raise ValueError("storage_key must be non-empty")
+        if not self.reason.strip():
+            raise ValueError("reason must be non-empty")
+
+
 def _key_for(owner_name: str) -> str:
     return f"{_KEY_PREFIX}{owner_name}"
+
+
+OWNER_HYDRATION_MATRIX: tuple[OwnerHydrationMatrixEntry, ...] = (
+    OwnerHydrationMatrixEntry(
+        owner_name="semantic_state",
+        decision="hydrate",
+        storage_key=_key_for("semantic_state"),
+        reason="Nine semantic owner slots are single-writer state and export via SemanticStateStore.",
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="followup_manager",
+        decision="hydrate",
+        storage_key=_key_for("followup_manager"),
+        reason="Pending followups are lifeform-side owner state and must survive session boundaries.",
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="vitals",
+        decision="hydrate",
+        storage_key=_key_for("vitals"),
+        reason="Drive levels and proactive cooldown are lifeform-side owner state.",
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="protocol_registry",
+        decision="hydrate",
+        storage_key=_key_for("protocol_registry"),
+        reason="Protocol registry is hydratable when the application owner exposes the protocol.",
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="memory",
+        decision="external-owner",
+        storage_key="memory/store",
+        reason="MemoryStore already owns save_to_backend/load_from_backend and is not duplicated here.",
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="regime",
+        decision="explicit-no-hydrate",
+        storage_key="none",
+        reason="Regime persists through its owner/readouts; no hydratable protocol is implemented yet.",
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="world_temporal",
+        decision="explicit-no-hydrate",
+        storage_key="none",
+        reason="Temporal continuity is checkpoint/rare-heavy owned; live owner hydration would duplicate controller ownership.",
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="self_temporal",
+        decision="explicit-no-hydrate",
+        storage_key="none",
+        reason="Temporal continuity is checkpoint/rare-heavy owned; live owner hydration would duplicate controller ownership.",
+    ),
+)
 
 
 class OwnerHydrationStore:
@@ -195,5 +266,7 @@ class OwnerHydrationStore:
 
 
 __all__ = [
+    "OWNER_HYDRATION_MATRIX",
+    "OwnerHydrationMatrixEntry",
     "OwnerHydrationStore",
 ]

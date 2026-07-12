@@ -1665,13 +1665,6 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("memory", WiringLevel.SHADOW),
             user_text=user_input,
         ),
-        SocialPredictionAggregateModule(
-            wiring_level=config.level_for("social_prediction", WiringLevel.SHADOW),
-        ),
-        SocialPredictionErrorModule(
-            wiring_level=config.level_for("social_prediction_error", WiringLevel.SHADOW),
-            pending_errors=social_prediction_errors,
-        ),
         ConversationalRoleModule(
             wiring_level=config.level_for("conversational_role", WiringLevel.SHADOW),
             environment_event=environment_event,
@@ -1715,6 +1708,13 @@ def build_final_runtime_modules(
             joint_attention=group_joint_attention,
             joint_commitments=group_joint_commitments,
             group_regime_id=group_regime_id,
+        ),
+        SocialPredictionAggregateModule(
+            wiring_level=config.level_for("social_prediction", WiringLevel.SHADOW),
+        ),
+        SocialPredictionErrorModule(
+            wiring_level=config.level_for("social_prediction_error", WiringLevel.SHADOW),
+            pending_errors=social_prediction_errors,
         ),
         *build_semantic_modules(
             store=semantic_store,

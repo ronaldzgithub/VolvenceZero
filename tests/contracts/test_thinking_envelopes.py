@@ -32,6 +32,7 @@ import pytest
 
 from volvence_zero.thinking import (
     APPLIABLE_THINKING_TASK_STATUSES,
+    ControllerPressureAdvisory,
     TERMINAL_THINKING_TASK_STATUSES,
     ThinkingArtifact,
     ThinkingDepth,
@@ -250,6 +251,38 @@ def test_artifact_completed_is_appliable() -> None:
         consumer_owner="world_temporal",
     )
     assert artifact.is_appliable()
+
+
+def test_controller_pressure_advisory_validates_bounds_and_evidence() -> None:
+    advisory = ControllerPressureAdvisory(
+        track="world",
+        pressure_delta=0.4,
+        confidence=0.8,
+        evidence=("pe-history-compressed",),
+        description="bounded pressure",
+    )
+    assert advisory.track == "world"
+    with pytest.raises(ValueError, match="track"):
+        ControllerPressureAdvisory(
+            track="shared",
+            pressure_delta=0.0,
+            confidence=0.5,
+            evidence=("x",),
+        )
+    with pytest.raises(ValueError, match="pressure_delta"):
+        ControllerPressureAdvisory(
+            track="world",
+            pressure_delta=1.4,
+            confidence=0.5,
+            evidence=("x",),
+        )
+    with pytest.raises(ValueError, match="evidence"):
+        ControllerPressureAdvisory(
+            track="self",
+            pressure_delta=0.2,
+            confidence=0.5,
+            evidence=(),
+        )
 
 
 def test_artifact_rejects_negative_produced_at_turn_index() -> None:

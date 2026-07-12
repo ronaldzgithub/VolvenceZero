@@ -39,6 +39,10 @@ async def test_plain_text_envelope_produces_ingestion_turns() -> None:
     assert report.total_chunks == 3
     assert report.processed_chunks == 3
     assert report.skipped_chunks == 0
+    for record in report.turns:
+        assert record.environment_event_id
+        assert record.pe_action_context_environment_event_id == record.environment_event_id
+        assert record.prediction_id.startswith("pe:prediction_error:turn-")
     # Every recorded turn carries the INGESTION trigger_kind.
     summaries = session.turn_summaries
     assert len(summaries) == 3
@@ -47,6 +51,9 @@ async def test_plain_text_envelope_produces_ingestion_turns() -> None:
     # Scene was closed by the pipeline so the R6 slow loop fired.
     assert report.ended_scene is True
     assert session.open_scene is None
+    latest_trace = session.brain_session.runner.dialogue_trace_snapshot.traces[-1]
+    scene_evidence = latest_trace.outcome.structured_evidence[-1]
+    assert any(ref.startswith("scene_prediction:pe:prediction_error:") for ref in scene_evidence.evidence_refs)
 
 
 async def test_consultative_profile_produces_user_input_turns() -> None:
@@ -66,6 +73,8 @@ async def test_consultative_profile_produces_user_input_turns() -> None:
     assert report.processed_chunks == 1
     assert session.turn_summaries[-1].trigger_kind is TurnTriggerKind.USER_INPUT
     assert report.turns[0].environment_event_kind == EnvironmentEventKind.USER_INPUT.value
+    assert report.turns[0].environment_event_id
+    assert report.turns[0].pe_action_context_environment_event_id == report.turns[0].environment_event_id
 
 
 async def test_forced_ingestion_turns_publish_ingestion_environment_event_kind() -> None:
@@ -83,6 +92,8 @@ async def test_forced_ingestion_turns_publish_ingestion_environment_event_kind()
     assert report.processed_chunks == 1
     assert session.turn_summaries[-1].trigger_kind is TurnTriggerKind.INGESTION
     assert report.turns[0].environment_event_kind == EnvironmentEventKind.INGESTION.value
+    assert report.turns[0].environment_event_id
+    assert report.turns[0].prediction_id.startswith("pe:prediction_error:turn-")
 
 
 async def test_task_result_envelope_flows_through_ingestion() -> None:

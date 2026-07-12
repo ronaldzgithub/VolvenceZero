@@ -111,6 +111,12 @@ Implemented Phase 2 scaffold:
 - Owner hardening: ToM owners drop proposals below the owner confidence floor and ignore wrong-target proposals, preserving SHADOW safety and avoiding broad classifier leakage.
 - Evidence gates T4/T5: social cognition evidence now covers structured ToM runtime path and affect/preference separation through `lifeform_evolution.run_social_cognition_evidence()`.
 - COG-2 最小收敛切片新增 `ToMInterlocutorRecordCount` 与 `tom_record_counts_by_interlocutor(...)`，从四个 ToM owner 的 public snapshots 聚合 per-interlocutor 记录计数。benchmark / family report 应消费该 typed readout，不得遍历 owner 私有状态或从 raw text 重建"谁有多少 ToM 记录"。
+- 2026-07-13 social-learning slice 1: 四个 ToM owner 不再发布空
+  `active_predictions`。每个 accepted `OtherMindRecord` 生成 owner-authored
+  `SocialPrediction`（`BELIEF_ABOUT_OTHER` / `INTENT_ABOUT_OTHER` /
+  `FEELING_ABOUT_OTHER` / `PREFERENCE_ABOUT_OTHER`），`SocialPredictionAggregateModule`
+  在 ToM owners 之后运行并只转发这些 typed predictions（不读 records 重建）。
+  v1 prediction-only：PE-weighted promote/retire 与 settled ToM PE 是后续切片。
 
 ## 与其他能力域的关系
 
@@ -123,6 +129,13 @@ Implemented Phase 2 scaffold:
 
 ## 变更日志
 
+- 2026-07-13: social-learning slice 1。`SocialPredictionKind` 新增四个 ToM
+  prediction kind；`Belief/Intent/Feeling/PreferenceAboutOtherModule` 从
+  accepted `OtherMindRecord` 发布 `active_predictions`；final wiring 将
+  `SocialPredictionAggregateModule` / `SocialPredictionErrorModule` 移到 ToM
+  owners 之后，aggregate 只转发 owner-authored ToM predictions 与 memory
+  signals。测试：`tests/test_social_tom.py`（owner prediction + aggregate
+  forwarding）与 `tests/test_final_wiring.py`。
 - 2026-05-22: COG-2 最小切片。新增 per-interlocutor ToM record count helper，作为 wrong-person / witness / private-leakage 场景的稳定 evidence surface；不新增 owner，不改变四个 ToM snapshot shape。
 - 2026-05-02: R17 Phase 2 slice 8 landed: `LLMToMProposalRuntime` structured JSON proposal path with low-confidence filtering, owner hardening, final-wiring diagnostics, and T4/T5 evidence gates.
 - 2026-05-02: R17 Phase 2 slice 5 landed: ToM owner record counts surface in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.

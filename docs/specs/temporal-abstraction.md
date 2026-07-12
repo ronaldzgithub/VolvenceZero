@@ -215,3 +215,14 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 2026-04-06: 补充 Gaussian-like prior/posterior、closed-form KL 与 residual-control application helper 的当前实现口径
 - 2026-04-06: 补充 residual intervention backend 契约与 causal-binary rollout path 的当前实现口径
 - 2026-03-25: 初始版本，从 SYSTEM_DESIGN.md 和 next_gen_emogpt.md 提取
+
+## 变更日志补充
+
+- 2026-07-13: CP-15 / CP-23 ACTIVE candidate gate evaluator. 新增
+  `volvence_zero.agent.learned_active_gate`：`LearnedActiveEvidence` /
+  `LearnedActiveGateVerdict` / `evaluate_learned_active_candidate(...)`，将
+  runtime→SSL→Internal-RL→CMS 的逐字段晋升顺序、500 turn 真 trace、validation
+  delta >= 0.02、PE-off / ETA-off 对照方向、rollback drill、latency/safety、
+  Internal-RL reward leakage、CMS retention/absorption gate 固化为 typed 判定。
+  该 evaluator 不翻默认 wiring；缺证据时返回 blocked。测试：
+  `packages/vz-runtime/tests/test_learned_active_gate.py`。

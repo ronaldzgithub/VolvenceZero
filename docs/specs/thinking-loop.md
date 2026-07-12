@@ -325,3 +325,14 @@ ThinkingAdapter(
 
 - 2026-04-29：初始版本，对应 `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 4 设计冻结。
 - 2026-04-29：slice 2c 产生 wiring —— 新增 `ThinkingAdapter` + `LifeformSession` hook pattern + `Lifeform.with_thinking_adapter_factory` 便捷方法；默认 SHADOW 可观察、DISABLED 可秒切；duck-typed `ThinkingAdapterProtocol` 保证 `lifeform-core` 不反向依赖 `lifeform-thinking`。
+
+## 变更日志补充
+
+- 2026-07-13: CP-21 temporal consumer slice. `vz-contracts.thinking` 新增
+  `ControllerPressureAdvisory(track, pressure_delta, confidence, evidence)`，作为
+  mid-reflection worker 给 temporal owner 的 compact payload。`FullLearnedTemporalPolicy.observe_thinking_artifact(...)`
+  现在执行 owner / status / track / fingerprint gate：SHADOW (`apply_enabled=False`)
+  只记录 evidence，不影响 `beta_t`；ACTIVE (`apply_enabled=True`) 才把 bounded
+  pressure delta 纳入 switch pressure。该入口只消费不可变 `ThinkingArtifact`，
+  不让 thinking worker 持有 temporal store。测试：
+  `tests/contracts/test_thinking_envelopes.py`、`tests/test_temporal_interface.py`。

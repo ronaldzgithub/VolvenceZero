@@ -96,6 +96,13 @@ Implemented Phase 4 scaffold:
 - Structured proposal path: `LLMCommonGroundProposalRuntime` consumes bounded JSON output and emits validated dyad/group common-ground proposals; low-confidence / malformed output publishes no atoms.
 - Owner consumption path: `CommonGroundModule` can consume structured common-ground proposals while preserving explicit atom injection and default empty SHADOW behavior.
 - Evidence gates G2/G3: social cognition evidence now covers structured common-ground runtime and reference/repair common-ground probes.
+- 2026-07-13 social-learning slice 2: `CommonGroundModule` now publishes
+  owner-authored `active_predictions` for each dyad/group atom using
+  `SocialPredictionKind.COMMON_GROUND_RESOLUTION`; `SocialPredictionAggregateModule`
+  runs after `common_ground` in final wiring and forwards those typed
+  predictions without reading atoms to reconstruct state. v1 is
+  prediction-only; reference-resolution outcome settlement / PE-weighted
+  promote-retire remains a follow-up slice.
 
 ## 与其他能力域的关系
 
@@ -108,6 +115,11 @@ Implemented Phase 4 scaffold:
 
 ## 变更日志
 
+- 2026-07-13: social-learning slice 2. Common-ground atoms now emit typed
+  `COMMON_GROUND_RESOLUTION` predictions and the social prediction aggregate
+  forwards them from the public `CommonGroundSnapshot.active_predictions`
+  surface. Tests: `tests/test_social_common_ground.py` +
+  `tests/test_social_common_ground_runtime.py` + `tests/test_final_wiring.py`.
 - 2026-05-02: R19 Phase 4 slice 6 landed: structured common-ground proposal runtime + owner consumption + final-wiring diagnostics + G2/G3 evidence gates.
 - 2026-05-02: R19 Phase 4 slice 4 landed: common-ground atom count surfaces in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
 - 2026-05-02: R19 Phase 4 slice 5 landed: Social Cognition evidence report G1 gate covers common-ground diagnostic visibility.

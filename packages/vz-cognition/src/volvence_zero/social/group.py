@@ -10,7 +10,13 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
-from volvence_zero.social_cognition import GroupIdentity, GroupSnapshot
+from volvence_zero.social_cognition import (
+    GroupIdentity,
+    GroupSnapshot,
+    SocialPrediction,
+    SocialPredictionKind,
+    SocialScopeKind,
+)
 
 
 class GroupModule(RuntimeModule[GroupSnapshot]):
@@ -52,7 +58,7 @@ class GroupModule(RuntimeModule[GroupSnapshot]):
                 joint_attention=self._joint_attention,
                 joint_commitments=self._joint_commitments,
                 group_regime_id=self._group_regime_id,
-                active_predictions=(),
+                active_predictions=self._active_predictions(),
                 description=(
                     "R20 SHADOW scaffold: "
                     f"groups={len(self._groups)} "
@@ -60,6 +66,41 @@ class GroupModule(RuntimeModule[GroupSnapshot]):
                     f"joint_commitments={len(self._joint_commitments)}."
                 ),
             )
+        )
+
+    def _active_predictions(self) -> tuple[SocialPrediction, ...]:
+        if self._active_group_id is None:
+            return ()
+        group = next(
+            (item for item in self._groups if item.group_id == self._active_group_id),
+            None,
+        )
+        if group is None:
+            return ()
+        if not self._joint_commitments and not self._joint_attention:
+            return ()
+        predicted = (
+            f"joint_commitments={len(self._joint_commitments)} "
+            f"joint_attention={len(self._joint_attention)} "
+            f"group_regime={self._group_regime_id or 'none'}"
+        )
+        evidence = (
+            *(f"group_evidence:{item}" for item in group.evidence),
+            *(f"joint_commitment:{item}" for item in self._joint_commitments),
+            *(f"joint_attention:{item}" for item in self._joint_attention),
+        )
+        return (
+            SocialPrediction(
+                prediction_id=f"groups:{group.group_id}:durability:prediction",
+                kind=SocialPredictionKind.GROUP_COMMITMENT_DURABILITY,
+                scope_kind=SocialScopeKind.GROUP,
+                scope_id=group.group_id,
+                subject_ids=group.member_ids,
+                audience_ids=group.member_ids,
+                predicted_outcome=predicted,
+                confidence=group.confidence,
+                evidence=evidence or (f"group:{group.group_id}",),
+            ),
         )
 
 

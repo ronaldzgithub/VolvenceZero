@@ -234,7 +234,11 @@ The single-user compatibility path is `build_user_input_environment_event(...)`,
    - Status: **satisfied for Phase 1 social identity scope**. `multi_party_identity`, memory subject/audience scope, social prediction, and social PE tests pass.
 3. `outcome-links-to-prediction`
    - Tool result, expression result, scene outcome, and ingestion report evidence can link to a prior prediction id or documented prediction context.
-   - Status: **partial**. `tool_result` carries `EnvironmentOutcome` and next-turn `environment_outcome_id` AND (Packet A — long-horizon-closure) `prediction_id` lineage end-to-end through `AffordanceInvoker.invoke(plan_ref=...)` covered by `tests/lifeform_e2e/test_affordance_pe_lineage.py`; ingestion emits `EnvironmentEventKind.INGESTION` but envelope provenance -> PE lineage remains pending; expression / scene outcomes still need tests.
+   - Status: **satisfied**（2026-07-13）。逐入口证据：
+     - `tool_result` carries `EnvironmentOutcome` and next-turn `environment_outcome_id` AND (Packet A — long-horizon-closure) `prediction_id` lineage end-to-end through `AffordanceInvoker.invoke(plan_ref=...)` covered by `tests/lifeform_e2e/test_affordance_pe_lineage.py`。
+     - `expression`：owner-issued `next_prediction.prediction_id`（CP-10）→ typed `submit_dialogue_outcome` external evidence → 下一轮 `evaluated_prediction.prediction_id` 精确匹配 + `actual_outcome.external_outcome_refs` 携带 evidence id（`tests/contracts/test_expression_outcome_settlement.py`）。
+     - `scene`：`LifeformSession.end_scene` 读取上一轮 PE owner 签发的 `next_prediction.prediction_id` 并写入 typed `scene_closed_evidence.evidence_refs`（`scene_prediction:<id>`），trace replay 可从 scene outcome 追溯 prior prediction（`tests/lifeform_e2e/test_ingestion_pipeline_e2e.py` + `tests/test_dialogue_outcome_producers.py`）。
+     - `ingestion`：`IngestionPipeline` 将 envelope/chunk provenance 作为 canonical `EnvironmentEvent.provenance` 传入 `run_turn`，`IngestionTurnRecord` 记录 `environment_event_id`、PE action context 中的 `environment_event_id` 和 owner-issued `prediction_id`，证明 envelope chunk → canonical event → PE lineage（`tests/lifeform_e2e/test_ingestion_pipeline_e2e.py`）。
 4. `owner-boundary-preserved`
    - `vz-*` wheels do not import `lifeform-*`.
    - Environment adapters do not become second owners for memory, temporal, social cognition, or application state.
@@ -254,6 +258,22 @@ Environment Interface Phase 0 has no runtime wiring level because it is design-o
 
 ## 变更日志
 
+- 2026-07-13 (2): CP-13 scene + ingestion lineage 闭合。`scene_closed_evidence`
+  新增可选 `prediction_id` 并由 `LifeformSession.end_scene` 写入
+  `scene_prediction:<id>` evidence ref；`IngestionPipeline` 将
+  `IngestionPipeline:<envelope_id>:<chunk_id>:<locator>` 作为 canonical event
+  provenance 传入 `run_turn`，并在 `IngestionTurnRecord` 记录
+  `environment_event_id` / PE action context event id / owner-issued
+  `prediction_id`。`outcome-links-to-prediction` gate 升为 **satisfied**。
+  测试：`tests/test_dialogue_outcome_producers.py` +
+  `tests/lifeform_e2e/test_ingestion_pipeline_e2e.py`。
+- 2026-07-13: CP-13 expression settlement 切片。证明 typed 外部反馈通道
+  （`submit_dialogue_outcome`，Rupture-and-Repair M2 单一合法入口）结算的正是
+  PE owner 上一轮签发的 prediction：`evaluated_prediction.prediction_id` 与
+  turn-N 签发 id 精确匹配，`actual_outcome.external_outcome_refs` 携带 evidence
+  id。`outcome-links-to-prediction` 的 expression 子项升为 satisfied；scene
+  prediction link 与 ingestion provenance 仍 pending。测试：
+  `tests/contracts/test_expression_outcome_settlement.py`。
 - 2026-07-12 (3): CP-10 首切片（tool 臂 owner-issued prediction）。
   `PredictedOutcome` 新增 `prediction_id`，由 `PredictionErrorModule` 在发布
   `next_prediction` 时唯一签发（`pe:prediction_error:turn-N:next`）；

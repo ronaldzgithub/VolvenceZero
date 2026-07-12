@@ -558,3 +558,38 @@ bundle dir 中必须有：
 - 2026-04-25: 补充 ETA open-weight residual-control 与 NL slow-loop-support claim 的 evidence 边界，明确 synthetic / trace backend 不能单独支撑真实 residual-control claim
 - 2026-04-26: 细化 real open-weight gate：把 planned layer fraction 与 actual hook fire rate 分离，新增 prefix-aligned intervention 与 smoke/full evidence tier 边界
 - 2026-04-25: 初始版本，建立 claim-to-evidence / blind-review / pairwise-effect / evidence-bundle 的统一口径
+
+## 变更日志补充
+
+- 2026-07-13: CP-24 capacity→gain ladder manifest. 新增
+  `volvence_zero.agent.capacity_ladder`：`CapacityLadderArm` /
+  `CapacityLadderManifest` / `build_capacity_ladder_manifest(...)`，冻结计划轴
+  `n_z ∈ {3,16,64,256}`、PE critic capacity `{1,2,4}`、COCOA hidden
+  `{8,32,128}`、backend combo、500/1000 turns、0.5B/1.5B/7B substrate 与
+  3 seed，默认生成 864 arms。该 manifest 只定义 evidence lane 任务，不产生
+  retain claim；实际跑分仍 gate on Linux CUDA / judge budget / artifact provenance。
+  测试：`packages/vz-runtime/tests/test_capacity_ladder_manifest.py`。
+
+## 变更日志补充（production verdict）
+
+- 2026-07-13: production verdict typed evaluator. 新增
+  `volvence_zero.agent.production_verdict`：`ProductionEvidenceSummary` /
+  `ComponentGateEvidence` / `evaluate_production_verdict(...)`，将计划的四个
+  最终口径（`first-stage-retained` / `product-companion-retained` /
+  `architecture-platform-only` / `inconclusive`）和逐组件 ACTIVE / SHADOW /
+  DISABLED 决策固化为 read-only typed 判定。缺 human anchor / longitudinal / P2
+  claim 时返回 `inconclusive`；安全或 rollback gate 失败的组件为 DISABLED；
+  证据不足但安全可回滚的组件为 SHADOW。测试：
+  `packages/vz-runtime/tests/test_production_verdict.py`。
+
+## 变更日志补充（longitudinal + human anchor）
+
+- 2026-07-13: longitudinal + human-anchor study manifest. 新增
+  `volvence_zero.agent.longitudinal_human_anchor`：`LongitudinalPersonaPlan` /
+  `HumanAnchorProtocol` / `build_longitudinal_human_anchor_manifest()`，冻结计划
+  §14 的 5 persona × 20 sessions、每 session 8–15 turns、shared-memory hydration
+  vs default isolation comparison、核心 continuity/repair/contamination/followup
+  metrics，以及 3 blinded raters + inter-rater agreement >= 0.6 的 human anchor
+  protocol。该 manifest 只定义研究形状，不产生 claim；真实 transcript、rating
+  CSV 与 aggregate artifacts 仍需外部 run。测试：
+  `packages/vz-runtime/tests/test_longitudinal_human_anchor_manifest.py`。

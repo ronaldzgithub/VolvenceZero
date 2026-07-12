@@ -1,0 +1,25 @@
+{
+  "chapters": [
+    {
+      "chapter_id": "ch-0",
+      "chapter_index": 0,
+      "chapter_title": "Document",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-0",
+      "evidence_locator": "ch-0 sha256:f1578618574a7a0ad6d125735da8d95eb6e792c3323472a70c733edd137e4164",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 994101 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    }
+  ],
+  "character_id": "zhang-wuji",
+  "reviewed_by": "operator-review-required",
+  "source_sha256": "ae1b51097b5941f5fe3b64b468f96d3adc0293f00321107b5a0247df7062d23e",
+  "source_title": "倚天屠龙记 (Jin Yong)"
+}

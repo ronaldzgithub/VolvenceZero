@@ -42,6 +42,10 @@ class SocialPredictionKind(str, Enum):
     ROLE_ASSIGNMENT = "role_assignment"
     COMMON_GROUND_RESOLUTION = "common_ground_resolution"
     GROUP_COMMITMENT_DURABILITY = "group_commitment_durability"
+    BELIEF_ABOUT_OTHER = "belief_about_other"
+    INTENT_ABOUT_OTHER = "intent_about_other"
+    FEELING_ABOUT_OTHER = "feeling_about_other"
+    PREFERENCE_ABOUT_OTHER = "preference_about_other"
 
 
 class SocialPredictionOutcome(str, Enum):

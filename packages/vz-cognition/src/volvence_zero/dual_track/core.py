@@ -45,12 +45,30 @@ class TrackState:
 
 
 @dataclass(frozen=True)
+class DualTrackLearnedGateShadow:
+    """CP-19 SHADOW readout for a bounded learned world/self fusion gate.
+
+    Report-only: the live `world_track` / `self_track` state is unchanged.
+    `world_weight + self_weight == 1` and each field is clamped to [0, 1].
+    A later ACTIVE packet can replace the fixed downstream fusion weights
+    only after external-anchor evidence validates this readout.
+    """
+
+    world_weight: float
+    self_weight: float
+    cross_track_pressure: float
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
 class DualTrackSnapshot:
     world_track: TrackState
     self_track: TrackState
     cross_track_tension: float
     description: str
     memory_retrieval_facets: tuple[str, ...] = ()
+    learned_gate_shadow: DualTrackLearnedGateShadow | None = None
 
     def __post_init__(self) -> None:
         if self.memory_retrieval_facets:
@@ -64,6 +82,10 @@ class DualTrackSnapshot:
                 f"cross-track:{self.cross_track_tension:.2f}",
             ),
         )
+        if self.learned_gate_shadow is not None:
+            total = self.learned_gate_shadow.world_weight + self.learned_gate_shadow.self_weight
+            if abs(total - 1.0) > 1e-6:
+                raise ValueError("learned_gate_shadow weights must sum to 1.0")
 
 
 def _clamp(value: float) -> float:
@@ -355,6 +377,50 @@ def derive_cross_track_tension(
     )
 
 
+def derive_learned_gate_shadow(
+    *,
+    world_track: TrackState,
+    self_track: TrackState,
+    cross_track_tension: float,
+) -> DualTrackLearnedGateShadow:
+    """Bounded SHADOW candidate for a learned dual-track fusion gate.
+
+    It uses only typed owner readouts (track tensions/controller evidence),
+    never raw text. The gate favors the track with higher current pressure
+    but caps movement around a neutral 0.5/0.5 prior so it cannot silently
+    become policy while SHADOW.
+    """
+
+    world_pressure = _clamp(
+        world_track.tension_level * 0.45
+        + world_track.controller_code[0] * 0.25
+        + world_track.controller_code[2] * 0.15
+        + min(len(world_track.active_goals) / 3.0, 1.0) * 0.15
+    )
+    self_pressure = _clamp(
+        self_track.tension_level * 0.45
+        + self_track.controller_code[0] * 0.25
+        + self_track.controller_code[2] * 0.15
+        + min(len(self_track.active_goals) / 3.0, 1.0) * 0.15
+    )
+    differential = max(-0.35, min(0.35, (world_pressure - self_pressure) * 0.5))
+    world_weight = _clamp(0.5 + differential)
+    self_weight = _clamp(1.0 - world_weight)
+    confidence = _clamp(
+        abs(world_pressure - self_pressure) * 0.55 + cross_track_tension * 0.45
+    )
+    return DualTrackLearnedGateShadow(
+        world_weight=round(world_weight, 4),
+        self_weight=round(self_weight, 4),
+        cross_track_pressure=round(_clamp(cross_track_tension), 4),
+        confidence=round(confidence, 4),
+        description=(
+            "CP-19 SHADOW dual-track learned-gate candidate; report-only, "
+            f"world_pressure={world_pressure:.3f} self_pressure={self_pressure:.3f}."
+        ),
+    )
+
+
 class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
     slot_name = "dual_track"
     owner = "DualTrackModule"
@@ -465,6 +531,11 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             self_track,
             substrate_snapshot=substrate_value,
         )
+        learned_gate_shadow = derive_learned_gate_shadow(
+            world_track=world_track,
+            self_track=self_track,
+            cross_track_tension=cross_track_tension,
+        )
         description = (
             f"Dual-track state with world_tension={world_track.tension_level:.2f}, "
             f"self_tension={self_track.tension_level:.2f}, "
@@ -478,6 +549,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
                 self_track=self_track,
                 cross_track_tension=cross_track_tension,
                 description=description,
+                learned_gate_shadow=learned_gate_shadow,
             )
         )
 
@@ -542,12 +614,18 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             self_track,
             substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
         )
+        learned_gate_shadow = derive_learned_gate_shadow(
+            world_track=world_track,
+            self_track=self_track,
+            cross_track_tension=cross_track_tension,
+        )
         return self.publish(
             DualTrackSnapshot(
                 world_track=world_track,
                 self_track=self_track,
                 cross_track_tension=cross_track_tension,
                 description="Standalone dual-track snapshot.",
+                learned_gate_shadow=learned_gate_shadow,
             )
         )
 

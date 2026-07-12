@@ -28,9 +28,16 @@ from volvence_zero.environment import EnvironmentEvent
 from volvence_zero.memory import MemorySnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
+    BeliefAboutOtherSnapshot,
+    CommonGroundSnapshot,
+    FeelingAboutOtherSnapshot,
+    GroupSnapshot,
+    IntentAboutOtherSnapshot,
     InterlocutorIdentity,
     MemorySocialPESignal,
     MultiPartyIdentitySnapshot,
+    PreferenceAboutOtherSnapshot,
+    SocialPrediction,
     SocialPredictionError,
     SocialPredictionErrorSnapshot,
     SocialPredictionSnapshot,
@@ -120,6 +127,52 @@ def _memory_social_pe_signals(
     return memory.social_pe_signals
 
 
+def _tom_predictions(
+    upstream: Mapping[str, Snapshot[Any]]
+) -> tuple[SocialPrediction, ...]:
+    """Forward ToM owner-authored predictions without reconstructing records."""
+
+    publisher_types = (
+        BeliefAboutOtherSnapshot,
+        IntentAboutOtherSnapshot,
+        FeelingAboutOtherSnapshot,
+        PreferenceAboutOtherSnapshot,
+    )
+    predictions: list[SocialPrediction] = []
+    for slot in (
+        "belief_about_other",
+        "intent_about_other",
+        "feeling_about_other",
+        "preference_about_other",
+    ):
+        snapshot = upstream.get(slot)
+        if snapshot is None:
+            continue
+        value = snapshot.value
+        if not isinstance(value, publisher_types):
+            continue
+        predictions.extend(value.active_predictions)
+    return tuple(predictions)
+
+
+def _common_ground_predictions(
+    upstream: Mapping[str, Snapshot[Any]]
+) -> tuple[SocialPrediction, ...]:
+    snapshot = upstream.get("common_ground")
+    if snapshot is None or not isinstance(snapshot.value, CommonGroundSnapshot):
+        return ()
+    return snapshot.value.active_predictions
+
+
+def _group_predictions(
+    upstream: Mapping[str, Snapshot[Any]]
+) -> tuple[SocialPrediction, ...]:
+    snapshot = upstream.get("groups")
+    if snapshot is None or not isinstance(snapshot.value, GroupSnapshot):
+        return ()
+    return snapshot.value.active_predictions
+
+
 def _describe_scope_state(memory: MemorySnapshot | None) -> str:
     """Derive a short scope-state hint for empty-signal descriptions."""
 
@@ -146,7 +199,16 @@ class SocialPredictionAggregateModule(RuntimeModule[SocialPredictionSnapshot]):
     slot_name = "social_prediction"
     owner = "SocialPredictionAggregateModule"
     value_type = SocialPredictionSnapshot
-    dependencies = ("multi_party_identity", "memory")
+    dependencies = (
+        "multi_party_identity",
+        "memory",
+        "belief_about_other",
+        "intent_about_other",
+        "feeling_about_other",
+        "preference_about_other",
+        "common_ground",
+        "groups",
+    )
     default_wiring_level = WiringLevel.SHADOW
 
     async def process(
@@ -155,8 +217,11 @@ class SocialPredictionAggregateModule(RuntimeModule[SocialPredictionSnapshot]):
         memory_snapshot = upstream.get("memory")
         memory_value = _memory_snapshot(memory_snapshot)
         signals = _memory_social_pe_signals(memory_snapshot)
+        tom_predictions = _tom_predictions(upstream)
+        common_ground_predictions = _common_ground_predictions(upstream)
+        group_predictions = _group_predictions(upstream)
 
-        if not signals:
+        if not signals and not tom_predictions and not common_ground_predictions and not group_predictions:
             memory_state = (
                 "available" if memory_value is not None else "unavailable"
             )
@@ -179,7 +244,7 @@ class SocialPredictionAggregateModule(RuntimeModule[SocialPredictionSnapshot]):
             if memory_value is not None
             else 0
         )
-        predictions = tuple(
+        memory_predictions = tuple(
             social_prediction_from_memory_signal(
                 signal,
                 extra_evidence=(
@@ -189,7 +254,21 @@ class SocialPredictionAggregateModule(RuntimeModule[SocialPredictionSnapshot]):
             )
             for signal in signals
         )
+        predictions = (
+            memory_predictions
+            + tom_predictions
+            + common_ground_predictions
+            + group_predictions
+        )
         source_owners = sorted({signal.source_owner for signal in signals})
+        if tom_predictions:
+            source_owners.extend(
+                sorted({prediction.kind.value for prediction in tom_predictions})
+            )
+        if common_ground_predictions:
+            source_owners.append("common_ground")
+        if group_predictions:
+            source_owners.append("groups")
         return self.publish(
             SocialPredictionSnapshot(
                 predictions=predictions,

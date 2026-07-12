@@ -27,7 +27,9 @@ from volvence_zero.memory import MemorySnapshot
 from volvence_zero.substrate import SubstrateSnapshot
 
 from volvence_zero.semantic_state.contracts import (
+    ExternalSemanticEvent,
     ExternalSemanticEventBatch,
+    GenericSemanticEvent,
     ProfileSemanticEvent,
     ReviewedKnowledgeSemanticEvent,
     SemanticProposal,
@@ -448,11 +450,40 @@ class ReviewedKnowledgeSemanticAdapter(SemanticEventAdapter):
         return ()
 
 
+class GenericSemanticAdapter(SemanticEventAdapter):
+    def adapt(
+        self,
+        *,
+        event: ExternalSemanticEvent,
+        target_slot: str,
+        turn_index: int,
+    ) -> tuple[SemanticProposal, ...]:
+        if not isinstance(event, GenericSemanticEvent):
+            return ()
+        if event.target_slot != target_slot:
+            return ()
+        return (
+            _proposal(
+                event_id=event.event_id,
+                target_slot=event.target_slot,
+                operation=event.operation,
+                summary=event.summary,
+                detail=event.detail,
+                confidence=event.confidence,
+                evidence=event.evidence,
+                turn_index=turn_index,
+                control_signal=event.control_signal,
+                requires_confirmation=event.requires_confirmation,
+            ),
+        )
+
+
 DEFAULT_SEMANTIC_EVENT_ADAPTERS: tuple[SemanticEventAdapter, ...] = (
     ToolResultSemanticAdapter(),
     ProfileSemanticAdapter(),
     TaskEventSemanticAdapter(),
     ReviewedKnowledgeSemanticAdapter(),
+    GenericSemanticAdapter(),
 )
 
 

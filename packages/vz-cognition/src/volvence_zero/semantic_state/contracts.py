@@ -231,11 +231,33 @@ class ReviewedKnowledgeSemanticEvent:
     needs_followup: bool = False
 
 
+@dataclass(frozen=True)
+class GenericSemanticEvent:
+    """Pre-formed typed semantic event from a reviewed external adapter.
+
+    This is for sources that already know the target owner slot and
+    operation (for example a human-reviewed character chapter ledger).
+    It is still only a proposal source; ``SemanticStateStore`` remains
+    the single writer.
+    """
+
+    event_id: str
+    target_slot: str
+    operation: SemanticProposalOperation
+    summary: str
+    detail: str
+    confidence: float
+    evidence: str
+    control_signal: float = 0.0
+    requires_confirmation: bool = False
+
+
 ExternalSemanticEvent = (
     ToolResultSemanticEvent
     | ProfileSemanticEvent
     | TaskSemanticEvent
     | ReviewedKnowledgeSemanticEvent
+    | GenericSemanticEvent
 )
 
 

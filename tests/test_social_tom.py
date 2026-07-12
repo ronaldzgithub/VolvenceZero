@@ -16,8 +16,9 @@ from volvence_zero.social_cognition import (
     FeelingAboutOtherSnapshot,
     OtherMindRecordKind,
     PreferenceAboutOtherSnapshot,
+    SocialPredictionKind,
 )
-from volvence_zero.social import MultiPartyIdentityModule
+from volvence_zero.social import MultiPartyIdentityModule, SocialPredictionAggregateModule
 from volvence_zero.social import BeliefAboutOtherModule, PreferenceAboutOtherModule
 from volvence_zero.social import LLMToMProposalRuntime
 from volvence_zero.substrate import FeatureSignal, FeatureSurfaceSubstrateAdapter, SubstrateModule
@@ -181,7 +182,48 @@ def test_explicit_tom_proposal_populates_belief_owner_only() -> None:
     assert belief_snapshot.records[0].kind is OtherMindRecordKind.BELIEF
     assert belief_snapshot.records[0].interlocutor_id == "primary"
     assert belief_snapshot.control_signal == 0.37
+    assert len(belief_snapshot.active_predictions) == 1
+    prediction = belief_snapshot.active_predictions[0]
+    assert prediction.kind is SocialPredictionKind.BELIEF_ABOUT_OTHER
+    assert prediction.scope_id == "primary"
+    assert prediction.predicted_outcome == "belief_about_other:explicit-record"
     assert preference_snapshot.records == ()
+    assert preference_snapshot.active_predictions == ()
+
+
+def test_social_prediction_aggregate_forwards_tom_owner_predictions() -> None:
+    runtime = ExplicitToMRuntime()
+    belief = BeliefAboutOtherModule(
+        proposal_runtime=runtime,
+        user_input="Alice believes the meeting is tomorrow.",
+        turn_index=4,
+        wiring_level=WiringLevel.ACTIVE,
+    )
+
+    result = asyncio.run(
+        propagate(
+            [
+                _substrate(),
+                MultiPartyIdentityModule(wiring_level=WiringLevel.ACTIVE),
+                MemoryModule(store=MemoryStore(), wiring_level=WiringLevel.ACTIVE),
+                belief,
+                PreferenceAboutOtherModule(wiring_level=WiringLevel.ACTIVE),
+                SocialPredictionAggregateModule(wiring_level=WiringLevel.ACTIVE),
+            ],
+            session_id="tom-aggregate-session",
+            wave_id="tom-aggregate-wave",
+        )
+    )
+
+    aggregate = result["social_prediction"].value
+    predictions = tuple(
+        prediction
+        for prediction in aggregate.predictions
+        if prediction.kind is SocialPredictionKind.BELIEF_ABOUT_OTHER
+    )
+    assert len(predictions) == 1
+    assert predictions[0].prediction_id.startswith("belief_about_other:")
+    assert "tom_record:" in predictions[0].evidence[0]
 
 
 def test_tom_owner_drops_low_confidence_proposal() -> None:
@@ -208,6 +250,7 @@ def test_tom_owner_drops_low_confidence_proposal() -> None:
     belief_snapshot = result["belief_about_other"].value
     assert isinstance(belief_snapshot, BeliefAboutOtherSnapshot)
     assert belief_snapshot.records == ()
+    assert belief_snapshot.active_predictions == ()
 
 
 def test_tom_owner_drops_wrong_target_proposal() -> None:

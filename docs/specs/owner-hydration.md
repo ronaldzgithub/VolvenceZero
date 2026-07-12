@@ -82,11 +82,18 @@ class HydrationOwnerMismatchError(HydrationError):
 
 ### 三个首批支持的 Owner
 
-| Owner | Wheel | What gets persisted |
-|---|---|---|
-| `SemanticStateStore` | `vz-cognition` | 9 个 slot 的 records / completed_refs / revision_counts / record_lifecycle / record_followup_policy / record_outcome |
-| `FollowupManager` | `lifeform-core` | `_pending` queue / `_seen_keys` / `_counter` |
-| `VitalsModule` | `lifeform-core` | `_levels`（per-drive 当前 level）/ `_last_proactive_at_tick` / `_iqr_baseline` / `_iqr_baseline_accum` / `_baseline_observation_count` / `_last_distribution_summary` |
+`OwnerHydrationStore.OWNER_HYDRATION_MATRIX` 是 owner-by-owner 决策的机器 SSOT：
+
+| Owner | Decision | Storage key | Notes |
+|---|---|---|---|
+| `semantic_state` | `hydrate` | `owner_hydration/semantic_state` | 9 个 slot 的 records / completed_refs / revision_counts / record_lifecycle / record_followup_policy / record_outcome |
+| `followup_manager` | `hydrate` | `owner_hydration/followup_manager` | `_pending` queue / `_seen_keys` / `_counter` |
+| `vitals` | `hydrate` | `owner_hydration/vitals` | `_levels` / proactive cooldown / IQR baseline state |
+| `protocol_registry` | `hydrate` | `owner_hydration/protocol_registry` | 当 application owner 暴露 `HydratableOwnerProtocol` 时持久化 protocol registry |
+| `memory` | `external-owner` | `memory/store` | `MemoryStore` 已有 `save_to_backend` / `load_from_backend`，不复制到 owner hydration |
+| `regime` | `explicit-no-hydrate` | `none` | 暂无 hydratable protocol；避免外部 store 成为第二 regime owner |
+| `world_temporal` | `explicit-no-hydrate` | `none` | controller continuity 由 checkpoint / rare-heavy snapshot owner 负责 |
+| `self_temporal` | `explicit-no-hydrate` | `none` | controller continuity 由 checkpoint / rare-heavy snapshot owner 负责 |
 
 每个 owner 的 `schema_version` 从 `1` 起，owner-internal。
 
@@ -101,6 +108,28 @@ owner_hydration/vitals
 ```
 
 Key 前缀使其在 listing 时可被识别为 hydration 类型（与 `memory/store` 区分）。
+
+### LifeformTemplate v2 bridge（character live-through）
+
+`lifeform-domain-character` 的 `LifeformTemplate` schema v2 可以携带
+`owner_hydration_snapshots: tuple[OwnerPersistenceSnapshot, ...]`。这是模板
+artifact 对 owner-published snapshot 的搬运，不是第二 owner：
+
+- save path 只能接收 owner 自己 `export_persistence_snapshot()` 产出的
+  `OwnerPersistenceSnapshot`，或 caller 已持有的同类型 snapshot。
+- load path 不直写 `SemanticStateStore` 私有字段；在 full restore 路径，
+  它把 snapshot 写入与 `MemoryStore.persistence_backend` 相同语义的
+  backend，再由现有 `OwnerHydrationStore.hydrate_owner_if_present(...)`
+  恢复 owner。
+- alpha / per-user scoped path 使用 `BrainConfig.owner_hydration_seed_snapshots`
+  seed-once：只有 `owner_hydration/<owner_name>` 不存在时才写入模板 seed；
+  已经存在的 per-user owner 状态永远优先，避免模板覆盖用户关系演化。
+- v1 模板无该字段时保持旧行为；v2 payload 版本不匹配仍由各 owner
+  `hydrate_from_persistence` fail loudly。
+
+这条桥主要用于逐章主观烘焙：character vertical 可以保存
+`semantic_state` 的 9 owner spine，让 `give_birth` 后的 browser chat 不退回
+只有 profile / memory 的浅层状态。
 
 ### Brain / Session 集成
 
@@ -184,5 +213,13 @@ def create_session(self, *, session_id, ...):
 
 ## 变更日志
 
+- 2026-07-13: long-horizon closure matrix。`OwnerHydrationStore` 新增
+  `OwnerHydrationMatrixEntry` / `OWNER_HYDRATION_MATRIX`，把 semantic_state /
+  followup_manager / vitals / protocol_registry 的 hydrate 决策、memory 的
+  external-owner 决策，以及 regime / world_temporal / self_temporal 的
+  explicit-no-hydrate 决策固化为可测试 readout。测试：
+  `tests/contracts/test_owner_hydration_protocol.py`。
 - 2026-05-12: 初稿 (Packet D — long-horizon-closure)，定义 `HydratableOwnerProtocol`、3 个首批 owner、`BrainConfig.owner_hydration_wiring`、SHADOW/ACTIVE/DISABLED 三态、复用 `MemoryStore.persistence_backend`。
 - 2026-05-12: long-horizon-closure follow-up：默认 wiring 从 DISABLED 翻 ACTIVE；`LifeformSession.end_scene` 自动 `persist_owners()`，让 ACTIVE 默认对外有现实意义。Anonymous / 无 backend 的 session 仍是 no-op。
+- 2026-07-13: 登记 `LifeformTemplate` v2 bridge。模板可搬运 owner 自己发布的 `OwnerPersistenceSnapshot`，加载时仍经 `OwnerHydrationStore` 恢复，不新增第二 owner。
+- 2026-07-13: v2 bridge alpha path 补充 seed-once 语义：`owner_hydration_seed_snapshots` 只在 scoped backend 缺 key 时写入，既有 per-user owner state 优先。

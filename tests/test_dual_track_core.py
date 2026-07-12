@@ -3,7 +3,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from volvence_zero.dual_track import DualTrackModule, derive_cross_track_tension
+from volvence_zero.dual_track import (
+    DualTrackLearnedGateShadow,
+    DualTrackModule,
+    derive_cross_track_tension,
+    derive_learned_gate_shadow,
+)
 from volvence_zero.memory import MemoryModule, MemoryStore, MemoryStratum, MemoryWriteRequest, Track
 from volvence_zero.runtime import Snapshot, WiringLevel, propagate
 from volvence_zero.substrate import (
@@ -57,6 +62,9 @@ def test_dual_track_standalone_builds_separated_track_states():
     assert "finish the planning task" in snapshot.value.world_track.active_goals
     assert "maintain a calm supportive tone" in snapshot.value.self_track.active_goals
     assert snapshot.value.cross_track_tension >= 0.0
+    assert isinstance(snapshot.value.learned_gate_shadow, DualTrackLearnedGateShadow)
+    gate = snapshot.value.learned_gate_shadow
+    assert abs(gate.world_weight + gate.self_weight - 1.0) <= 1e-6
 
 
 def test_cross_track_tension_increases_when_tracks_diverge():
@@ -96,6 +104,48 @@ def test_cross_track_tension_increases_when_tracks_diverge():
         asyncio.run(module.process_standalone(world_entries=(world_entry,), self_entries=())).value.world_track,
         asyncio.run(module.process_standalone(world_entries=(), self_entries=(self_entry,))).value.self_track,
     ) >= 0.0
+
+
+def test_dual_track_learned_gate_shadow_stays_report_only_and_bounded():
+    module = DualTrackModule(wiring_level=WiringLevel.ACTIVE)
+    memory = MemoryStore()
+    world_entry = memory.write(
+        MemoryWriteRequest(
+            content="urgent deadline planning",
+            track=Track.WORLD,
+            stratum=MemoryStratum.TRANSIENT,
+            strength=0.95,
+        ),
+        timestamp_ms=20,
+    )
+    self_entry = memory.write(
+        MemoryWriteRequest(
+            content="slow down and repair trust",
+            track=Track.SELF,
+            stratum=MemoryStratum.TRANSIENT,
+            strength=0.2,
+        ),
+        timestamp_ms=21,
+    )
+    snapshot = asyncio.run(
+        module.process_standalone(
+            world_entries=(world_entry,),
+            self_entries=(self_entry,),
+        )
+    ).value
+
+    gate = snapshot.learned_gate_shadow
+    assert isinstance(gate, DualTrackLearnedGateShadow)
+    assert 0.0 <= gate.world_weight <= 1.0
+    assert 0.0 <= gate.self_weight <= 1.0
+    assert abs(gate.world_weight + gate.self_weight - 1.0) <= 1e-6
+    assert "report-only" in gate.description
+    manual = derive_learned_gate_shadow(
+        world_track=snapshot.world_track,
+        self_track=snapshot.self_track,
+        cross_track_tension=snapshot.cross_track_tension,
+    )
+    assert manual == gate
 
 
 def test_dual_track_module_consumes_memory_snapshot_in_shadow_mode():

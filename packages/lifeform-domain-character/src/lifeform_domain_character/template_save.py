@@ -47,6 +47,7 @@ from volvence_zero.application.storage import (
     DomainKnowledgeCheckpoint,
 )
 from volvence_zero.memory import MemoryStore, MemoryStoreCheckpoint
+from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 
 from lifeform_domain_character.profile import CharacterSoulProfile
 from lifeform_domain_character.replay import ReplayReport
@@ -87,6 +88,8 @@ def save_lifeform_template(
     replay_provenance: str = "",
     overwrite_existing: bool = False,
     preserve_memory: bool = False,
+    owner_hydration_snapshots: tuple[OwnerPersistenceSnapshot, ...] = (),
+    hydratable_owners: tuple[tuple[str, Any], ...] = (),
 ) -> SaveLifeformTemplateResult:
     """Extract lived character lifeform state into a saveable template.
 
@@ -136,6 +139,13 @@ def save_lifeform_template(
             ``novel-worlds-character``). Defaults to ``False`` so
             existing personal-companion templates retain their fresh
             per-user scope behaviour.
+        owner_hydration_snapshots: Optional owner-published snapshots
+            captured by the caller. In the subjective character bake
+            path this carries ``semantic_state`` so the nine semantic
+            owners survive ``give_birth``.
+        hydratable_owners: Optional ``(owner_name, owner)`` pairs.
+            Each owner must implement ``export_persistence_snapshot``;
+            failures are intentionally loud.
 
     Returns:
         A :class:`SaveLifeformTemplateResult` carrying the typed
@@ -160,6 +170,9 @@ def save_lifeform_template(
         case_memory_store=case_memory_store,
         template_id=template_id,
     )
+    hydration_snapshots = owner_hydration_snapshots + _capture_hydratable_owners(
+        hydratable_owners
+    )
     created_at = utc_iso_now()
     integrity = compute_template_integrity_hash(
         profile=profile,
@@ -175,6 +188,8 @@ def save_lifeform_template(
         created_at_utc=created_at,
         source_arc_id=source_arc_id,
         replay_provenance=replay_provenance or "(unspecified)",
+        preserve_memory=preserve_memory,
+        owner_hydration_snapshots=hydration_snapshots,
     )
     manifest = LifeformTemplateManifest(
         template_id=template_id,
@@ -195,6 +210,7 @@ def save_lifeform_template(
         vitals_drive_levels=vitals_drive_levels,
         application_state=application_state,
         replay_report=replay_report,
+        owner_hydration_snapshots=hydration_snapshots,
     )
     template_path.write_bytes(template.to_json_bytes())
     return SaveLifeformTemplateResult(template=template, template_path=template_path)
@@ -243,6 +259,29 @@ def _capture_application_owner_state(
         strategy_playbook_rules=(),
         boundary_policy_hints=(),
     )
+
+
+def _capture_hydratable_owners(
+    owners: tuple[tuple[str, Any], ...],
+) -> tuple[OwnerPersistenceSnapshot, ...]:
+    snapshots: list[OwnerPersistenceSnapshot] = []
+    for owner_name, owner in owners:
+        if not owner_name.strip():
+            raise ValueError("hydratable owner_name must be non-empty")
+        snapshot = owner.export_persistence_snapshot()
+        if snapshot.owner_name != owner_name:
+            raise ValueError(
+                "save_lifeform_template: hydratable owner published "
+                f"owner_name={snapshot.owner_name!r}, expected {owner_name!r}"
+            )
+        snapshots.append(snapshot)
+    owner_names = tuple(snapshot.owner_name for snapshot in snapshots)
+    if len(set(owner_names)) != len(owner_names):
+        raise ValueError(
+            "save_lifeform_template: duplicate owner_hydration snapshot "
+            f"owner names {owner_names!r}"
+        )
+    return tuple(snapshots)
 
 
 def vitals_drive_levels_from_session(session: Any) -> tuple[tuple[str, float], ...]:

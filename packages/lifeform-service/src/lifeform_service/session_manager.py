@@ -137,6 +137,23 @@ class TimeNodeSnapshot:
         }
 
 
+@dataclass(frozen=True)
+class AutonomousTickReport:
+    """One service-orchestrated autonomous tick advancement result.
+
+    The service advances the lifeform clock and surfaces due followups, but it
+    does not auto-send messages. Product policy must decide whether to call
+    ``run_turn(..., trigger_kind=FOLLOWUP_DUE)``.
+    """
+
+    session_id: str
+    ticks_requested: int
+    ticks_advanced: int
+    due_followup_count: int
+    paused: bool
+    reason: str
+
+
 @dataclass
 class _SessionEntry:
     session: LifeformSession
@@ -473,6 +490,71 @@ class SessionManager:
             )
         await self._shutdown_entries(evicted)
         return summaries
+
+    async def advance_autonomous_ticks(
+        self,
+        *,
+        system_ticks: int = 1,
+        max_sessions: int | None = None,
+        reason: str = "service-autonomous-tick",
+    ) -> tuple[AutonomousTickReport, ...]:
+        """Advance live sessions' lifeform clocks under a bounded budget.
+
+        This is the CP-20 service-level loop slice: it moves time forward,
+        lets vitals/followup owners publish due followups, and reports the
+        count. It deliberately does NOT call ``run_turn`` or contact users;
+        consent / cooldown / tenant policy stays with the product layer.
+        """
+
+        if system_ticks <= 0:
+            raise ValueError("system_ticks must be > 0")
+        if max_sessions is not None and max_sessions <= 0:
+            raise ValueError("max_sessions must be > 0 when provided")
+        async with self._lock:
+            evicted = self._evict_idle_locked()
+            entries = tuple(self._sessions.items())
+            budget = len(entries) if max_sessions is None else min(max_sessions, len(entries))
+            selected = entries[:budget]
+            skipped = entries[budget:]
+        await self._shutdown_entries(evicted)
+
+        reports: list[AutonomousTickReport] = []
+        for session_id, entry in selected:
+            if entry.historical_readonly:
+                reports.append(
+                    AutonomousTickReport(
+                        session_id=session_id,
+                        ticks_requested=system_ticks,
+                        ticks_advanced=0,
+                        due_followup_count=len(entry.session.due_followups()),
+                        paused=True,
+                        reason="historical-readonly",
+                    )
+                )
+                continue
+            events = await entry.session.advance_tick(system_ticks, reason=reason)
+            reports.append(
+                AutonomousTickReport(
+                    session_id=session_id,
+                    ticks_requested=system_ticks,
+                    ticks_advanced=len(events),
+                    due_followup_count=len(entry.session.due_followups()),
+                    paused=False,
+                    reason=reason,
+                )
+            )
+        for session_id, entry in skipped:
+            reports.append(
+                AutonomousTickReport(
+                    session_id=session_id,
+                    ticks_requested=system_ticks,
+                    ticks_advanced=0,
+                    due_followup_count=len(entry.session.due_followups()),
+                    paused=True,
+                    reason="budget-exhausted",
+                )
+            )
+        return tuple(reports)
 
     # ------------------------------------------------------------------
     # Lifecycle

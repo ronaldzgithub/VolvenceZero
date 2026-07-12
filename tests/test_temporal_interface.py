@@ -42,6 +42,11 @@ from volvence_zero.temporal.metacontroller_components import (
     DiscoveredActionFamily,
     discover_latent_action_family,
 )
+from volvence_zero.thinking import (
+    ControllerPressureAdvisory,
+    ThinkingArtifact,
+    ThinkingTaskStatus,
+)
 
 
 def _set_ssl_phase(policy: FullLearnedTemporalPolicy) -> None:
@@ -94,6 +99,51 @@ def test_temporal_module_builds_placeholder_snapshot():
     assert snapshot.value.controller_state.code_dim == 3
     assert snapshot.value.controller_state.switch_gate == 0.0
     assert snapshot.value.active_abstract_action == "placeholder-controller"
+
+
+def test_temporal_owner_consumes_thinking_advisory_with_fingerprint_gate() -> None:
+    policy = FullLearnedTemporalPolicy()
+    advisory = ControllerPressureAdvisory(
+        track="world",
+        pressure_delta=0.8,
+        confidence=0.5,
+        evidence=("mid-reflection:pe-history",),
+    )
+    artifact = ThinkingArtifact(
+        task_id="fp-1",
+        status=ThinkingTaskStatus.COMPLETED,
+        payload=advisory,
+        produced_at_turn_index=2,
+        consumer_owner="world_temporal",
+    )
+
+    assert (
+        policy.observe_thinking_artifact(
+            artifact=artifact,
+            expected_snapshot_fingerprint="fp-1",
+            apply_enabled=False,
+        )
+        == "thinking-advisory:shadow-recorded"
+    )
+    assert policy._thinking_advisory_switch_delta() == 0.0
+    assert (
+        policy.observe_thinking_artifact(
+            artifact=artifact,
+            expected_snapshot_fingerprint="fp-1",
+            apply_enabled=True,
+        )
+        == "thinking-advisory:applied"
+    )
+    assert policy._thinking_advisory_switch_delta() > 0.0
+    assert (
+        policy.observe_thinking_artifact(
+            artifact=artifact,
+            expected_snapshot_fingerprint="other-fingerprint",
+            apply_enabled=True,
+        )
+        == "thinking-advisory:stale-fingerprint"
+    )
+    assert policy._thinking_advisory_switch_delta() == 0.0
 
 
 def test_temporal_module_heuristic_switches_on_feature_signature_change():

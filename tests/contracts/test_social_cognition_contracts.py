@@ -47,6 +47,10 @@ def test_social_prediction_kind_values_are_exhaustive() -> None:
         SocialPredictionKind.ROLE_ASSIGNMENT,
         SocialPredictionKind.COMMON_GROUND_RESOLUTION,
         SocialPredictionKind.GROUP_COMMITMENT_DURABILITY,
+        SocialPredictionKind.BELIEF_ABOUT_OTHER,
+        SocialPredictionKind.INTENT_ABOUT_OTHER,
+        SocialPredictionKind.FEELING_ABOUT_OTHER,
+        SocialPredictionKind.PREFERENCE_ABOUT_OTHER,
     }
 
 

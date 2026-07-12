@@ -95,6 +95,12 @@ Implemented Phase 5 scaffold:
 - Explicit group state path: `GroupModule` can publish explicitly injected group identities, active group id, joint attention, joint commitments, and group regime id for tests/evidence. Default runtime remains empty and does not infer groups from text.
 - Diagnostic downstream visibility: when `groups` is explicitly ACTIVE, `response_assembly.semantic_record_counts` includes `groups` and `group_joint_commitments` counts. Planner and renderer still do not consume group snapshots.
 - Evidence report artifact: Social Cognition evidence report includes GROUP1, proving explicit group identity / joint commitment state is visible in response assembly diagnostics without renderer consumption.
+- 2026-07-13 social-learning slice 3: `GroupModule` publishes typed
+  `GROUP_COMMITMENT_DURABILITY` `active_predictions` for explicit active
+  group state with joint attention / joint commitments; `SocialPredictionAggregateModule`
+  forwards these predictions from public `GroupSnapshot.active_predictions`
+  without reconstructing group state. v1 is prediction-only; incremental
+  group-level PE retain evidence remains SHADOW / future work.
 
 ## 与其他能力域的关系
 
@@ -107,6 +113,9 @@ Implemented Phase 5 scaffold:
 
 ## 变更日志
 
+- 2026-07-13: social-learning slice 3. Group snapshots now emit typed group
+  durability predictions and the social prediction aggregate forwards them.
+  Tests: `tests/test_social_group.py` + `tests/test_final_wiring.py`.
 - 2026-05-02: R20 Phase 5 slice 5 landed: Social Cognition evidence report GROUP1 gate covers group diagnostic visibility.
 - 2026-05-02: R20 Phase 5 slice 4 landed: group identity count and group joint commitment count surface in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
 - 2026-05-02: R20 Phase 5 slice 3 landed: `GroupModule` supports explicit group state injection while default runtime remains empty.

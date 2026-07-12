@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from dataclasses import dataclass, replace
 from collections.abc import Callable
@@ -40,6 +41,7 @@ from volvence_zero.memory import (
     scope_key_for,
 )
 from volvence_zero.owner_hydration_store import OwnerHydrationStore
+from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
@@ -136,6 +138,11 @@ class BrainConfig:
     # the hydration keys (``owner_hydration/<owner_name>``) do not
     # collide with the memory checkpoint key.
     owner_hydration_wiring: WiringLevel = WiringLevel.ACTIVE
+    # Template / bootstrap seed for owner hydration. This is a seed-once
+    # path: Brain.create_session writes each snapshot only if the scoped
+    # backend has no ``owner_hydration/<owner_name>`` key yet. Existing
+    # per-user owner state always wins.
+    owner_hydration_seed_snapshots: tuple[OwnerPersistenceSnapshot, ...] = ()
     # #91: real text-embedding backend. When ACTIVE (default) and a real
     # transformers substrate runtime is present, semantic embedding
     # (dual_track track assignment, evaluation prototypes, application
@@ -148,6 +155,28 @@ class BrainConfig:
     # the same effect. Process-global seam: single-substrate only; a
     # multi-substrate process should leave this DISABLED (#91 follow-up).
     semantic_embedding_backend_wiring: WiringLevel = WiringLevel.ACTIVE
+
+
+def _seed_owner_hydration_snapshots_once(
+    *,
+    backend: Any,
+    snapshots: tuple[OwnerPersistenceSnapshot, ...],
+) -> None:
+    for snapshot in snapshots:
+        key = f"owner_hydration/{snapshot.owner_name}"
+        if backend.load_checkpoint(key=key) is not None:
+            continue
+        payload = {
+            "owner_name": snapshot.owner_name,
+            "schema_version": snapshot.schema_version,
+            "payload": dict(snapshot.payload),
+            "description": snapshot.description,
+        }
+        backend.save_checkpoint(
+            key=key,
+            data=json.dumps(payload, sort_keys=True).encode("utf-8"),
+            version=1,
+        )
 
 
 class BrainSession:
@@ -643,6 +672,10 @@ class Brain:
                 owner_hydration_store = OwnerHydrationStore(
                     backend=backend,
                     wiring_level=self._config.owner_hydration_wiring,
+                )
+                _seed_owner_hydration_snapshots_once(
+                    backend=backend,
+                    snapshots=self._config.owner_hydration_seed_snapshots,
                 )
         runner_kwargs: dict[str, object] = dict(
             session_id=session_id,

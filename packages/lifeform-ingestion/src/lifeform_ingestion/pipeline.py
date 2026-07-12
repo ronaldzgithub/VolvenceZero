@@ -53,6 +53,8 @@ class _SessionLike(Protocol):
         user_input: str,
         *,
         trigger_kind: TurnTriggerKind = TurnTriggerKind.USER_INPUT,
+        environment_provenance: str | None = None,
+        environment_consent_context: tuple[str, ...] = (),
     ) -> Any: ...
 
     async def end_scene(
@@ -80,6 +82,9 @@ class IngestionTurnRecord:
     response_text_snippet: str = ""
     skipped_reason: str = ""
     environment_event_kind: str = ""
+    environment_event_id: str = ""
+    pe_action_context_environment_event_id: str = ""
+    prediction_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -164,8 +169,14 @@ class IngestionPipeline:
                 )
                 continue
             try:
+                provenance = (
+                    f"IngestionPipeline:{env.envelope_id}:"
+                    f"{chunk.chunk_id}:{chunk.locator}"
+                )
                 result = await session.run_turn(
-                    chunk.text, trigger_kind=trigger_kind
+                    chunk.text,
+                    trigger_kind=trigger_kind,
+                    environment_provenance=provenance,
                 )
             except Exception as exc:  # noqa: BLE001 \u2014 ingestion isolation boundary
                 _LOG.exception(
@@ -192,6 +203,11 @@ class IngestionPipeline:
                     turn_succeeded=True,
                     response_text_snippet=response_text,
                     environment_event_kind=_extract_environment_event_kind(result),
+                    environment_event_id=_extract_environment_event_id(result),
+                    pe_action_context_environment_event_id=(
+                        _extract_pe_action_context_environment_event_id(result)
+                    ),
+                    prediction_id=_extract_prediction_id(result),
                 )
             )
 
@@ -233,6 +249,34 @@ def _extract_response_snippet(run_turn_result: Any, *, max_chars: int = 160) -> 
 def _extract_environment_event_kind(run_turn_result: Any) -> str:
     event_kind = getattr(run_turn_result, "environment_event_kind", "")
     return event_kind if isinstance(event_kind, str) else ""
+
+
+def _extract_environment_event_id(run_turn_result: Any) -> str:
+    event_id = getattr(run_turn_result, "environment_event_id", "")
+    return event_id if isinstance(event_id, str) else ""
+
+
+def _extract_pe_action_context_environment_event_id(run_turn_result: Any) -> str:
+    snapshots = getattr(run_turn_result, "active_snapshots", {})
+    if not isinstance(snapshots, dict):
+        return ""
+    pe_snapshot = snapshots.get("prediction_error")
+    if pe_snapshot is None:
+        return ""
+    action_context = pe_snapshot.value.action_context
+    event_id = action_context.environment_event_id
+    return event_id if isinstance(event_id, str) else ""
+
+
+def _extract_prediction_id(run_turn_result: Any) -> str:
+    snapshots = getattr(run_turn_result, "active_snapshots", {})
+    if not isinstance(snapshots, dict):
+        return ""
+    pe_snapshot = snapshots.get("prediction_error")
+    if pe_snapshot is None:
+        return ""
+    prediction_id = pe_snapshot.value.next_prediction.prediction_id
+    return prediction_id if isinstance(prediction_id, str) else ""
 
 
 __all__ = [

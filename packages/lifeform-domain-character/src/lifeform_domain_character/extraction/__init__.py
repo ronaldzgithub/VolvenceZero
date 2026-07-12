@@ -39,13 +39,25 @@ from lifeform_domain_character.extraction.scene_llm import (
     extract_arc_candidate,
     review_arc_candidate,
 )
+from lifeform_domain_character.extraction.chapter_llm import (
+    ChapterLedgerCandidate,
+    extract_chapter_ledger_candidate,
+    load_chapter_live_through_prompt,
+    load_chapter_live_through_schema,
+    review_chapter_ledger,
+)
 
 
 __all__ = [
     "NarrativeArcCandidate",
+    "ChapterLedgerCandidate",
     "ReviewedProfileCandidate",
     "extract_arc_candidate",
+    "extract_chapter_ledger_candidate",
     "extract_profile_candidate",
+    "load_chapter_live_through_prompt",
+    "load_chapter_live_through_schema",
     "review_arc_candidate",
+    "review_chapter_ledger",
     "review_profile_candidate",
 ]

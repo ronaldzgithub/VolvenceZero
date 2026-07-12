@@ -130,3 +130,15 @@ Why drift, not raw IQR: the absolute IQR depends on PE owner's window size and t
 * **Vitals-aware regime calibration.** `lifeform-evolution.regime_calibrator` could learn `recharge_per_regime` weights from traces. Today they are hand-tuned configuration.
 * **Reflection consumes vitals deviation history.** R6 says reflection should consolidate PE into policy. The slow-loop owner could read accumulated vitals PE and shape long-horizon strategy.
 * **Distributional drift entering regime calibration / reflection.** Currently W1.3 publishes drift as readout only. Future waves can let `regime_calibrator` use sustained negative `task` drift as evidence to lower `task_focus`-bonus regimes' weights, and `ReflectionEngine` can flag scenarios where multiple axes show synchronised collapse as candidate "rupture precursors". Both consumers must remain post-W1 and require their own evidence gates.
+
+## 变更日志
+
+- 2026-07-13: CP-20 service autonomous loop slice. `lifeform-service`
+  `SessionManager.advance_autonomous_ticks(...)` advances live
+  `LifeformSession.advance_tick(...)` under a bounded per-call session budget
+  and returns `AutonomousTickReport` (ticks advanced + due followup count +
+  paused reason). It **does not** auto-send a followup turn or contact a user;
+  product/tenant policy must read `due_followups()` and explicitly call
+  `run_turn(..., trigger_kind=FOLLOWUP_DUE)` when consent/cooldown/cost gates
+  allow. Historical read-only sessions are paused. Test:
+  `packages/lifeform-service/tests/test_autonomous_tick_loop.py`.

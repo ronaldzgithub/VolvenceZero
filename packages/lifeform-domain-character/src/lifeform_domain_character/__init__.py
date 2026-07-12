@@ -31,6 +31,27 @@ from lifeform_domain_character.lifeform_builder import (
     build_zhang_wuji_lifeform,
 )
 from lifeform_domain_character.narrative import NarrativeArc, NarrativeScene
+from lifeform_domain_character.chapter_experience import (
+    ChapterCoverageKind,
+    ChapterLiveThroughLedger,
+    CharacterChapterSemanticAdapter,
+    CharacterSemanticEvent,
+    CharacterSemanticEventBundle,
+    ReviewedChapterExperience,
+)
+from lifeform_domain_character.chapter_replay import (
+    ChapterLiveThroughDriver,
+    ChapterLiveThroughReport,
+    ChapterReplayRecord,
+)
+from lifeform_domain_character.chapter_artifacts import (
+    SourceChapter,
+    build_review_scaffold,
+    read_ledger_json,
+    read_text_with_detected_encoding,
+    split_source_chapters,
+    write_ledger_json,
+)
 from lifeform_domain_character.replay import (
     ExperientialReplayDriver,
     ReplayReport,
@@ -57,11 +78,16 @@ from lifeform_domain_character.rare_heavy_apply import (
     invert_delta,
 )
 from lifeform_domain_character.extraction import (
+    ChapterLedgerCandidate,
     NarrativeArcCandidate,
     ReviewedProfileCandidate,
     extract_arc_candidate,
+    extract_chapter_ledger_candidate,
     extract_profile_candidate,
+    load_chapter_live_through_prompt,
+    load_chapter_live_through_schema,
     review_arc_candidate,
+    review_chapter_ledger,
     review_profile_candidate,
 )
 from lifeform_domain_character.template_load import (
@@ -90,8 +116,18 @@ from lifeform_domain_character.sample_excerpts import zhang_wuji_long_arc_excerp
 
 __all__ = [
     "CharacterBoundaryPrior",
+    "ChapterCoverageKind",
+    "ChapterLiveThroughDriver",
+    "ChapterLiveThroughLedger",
+    "ChapterLiveThroughReport",
+    "ChapterReplayRecord",
+    "ChapterLedgerCandidate",
+    "SourceChapter",
     "CharacterDrivePrior",
+    "CharacterChapterSemanticAdapter",
     "CharacterKnowledgeSeed",
+    "CharacterSemanticEvent",
+    "CharacterSemanticEventBundle",
     "CharacterLifeformBundle",
     "CharacterSignatureCase",
     "CharacterSoulProfile",
@@ -100,6 +136,8 @@ __all__ = [
     "FirstPersonRewriteResult",
     "NarrativeArc",
     "NarrativeScene",
+    "ReviewedChapterExperience",
+    "build_review_scaffold",
     "ReplayReport",
     "SceneReplayRecord",
     "to_first_person",
@@ -110,6 +148,10 @@ __all__ = [
     "build_zhang_wuji_demo_arc",
     "build_zhang_wuji_lifeform",
     "build_zhang_wuji_profile",
+    "read_ledger_json",
+    "read_text_with_detected_encoding",
+    "split_source_chapters",
+    "write_ledger_json",
     "zhang_wuji_long_arc_excerpt",
     # Template (Wave T4)
     "ApplicationOwnerState",
@@ -133,8 +175,12 @@ __all__ = [
     "NarrativeArcCandidate",
     "ReviewedProfileCandidate",
     "extract_arc_candidate",
+    "extract_chapter_ledger_candidate",
     "extract_profile_candidate",
+    "load_chapter_live_through_prompt",
+    "load_chapter_live_through_schema",
     "review_arc_candidate",
+    "review_chapter_ledger",
     "review_profile_candidate",
     # Drive evolution (Wave T9)
     "DriveShapeEvolution",

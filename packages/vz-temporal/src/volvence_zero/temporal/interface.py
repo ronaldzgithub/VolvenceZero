@@ -2092,6 +2092,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         # parameter store for dual-run evidence; only ACTIVE lets it reach
         # beta_t. Flip back to False = instant rollback.
         self._protocol_prior_enabled = False
+        self._thinking_advisory_switch_pressure_delta = 0.0
+        self._thinking_advisory_applied = False
+        self._thinking_advisory_evidence: tuple[str, ...] = ()
 
     @property
     def runtime_backend(self) -> WiringLevel:
@@ -2254,6 +2257,60 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     def set_protocol_prior_enabled(self, enabled: bool) -> None:
         self._protocol_prior_enabled = bool(enabled)
 
+    def observe_thinking_artifact(
+        self,
+        *,
+        artifact: object,
+        expected_snapshot_fingerprint: str,
+        consumer_owner: str = "world_temporal",
+        apply_enabled: bool = False,
+    ) -> str:
+        """Consume a read-only thinking artifact as bounded controller pressure.
+
+        CP-21 owner-side guard: only COMPLETED artifacts for this temporal
+        owner, carrying a ``ControllerPressureAdvisory`` payload and matching
+        the caller-supplied fingerprint, are accepted. SHADOW callers pass
+        ``apply_enabled=False`` so the advisory is recorded for evidence but
+        does not reach beta_t; ACTIVE callers may pass True after evidence gate.
+        """
+
+        from volvence_zero.thinking import (
+            ControllerPressureAdvisory,
+            ThinkingArtifact,
+            ThinkingTaskStatus,
+        )
+
+        if not isinstance(artifact, ThinkingArtifact):
+            raise TypeError("observe_thinking_artifact requires ThinkingArtifact.")
+        if artifact.consumer_owner != consumer_owner:
+            return f"thinking-advisory:ignored-owner:{artifact.consumer_owner}"
+        if artifact.status is not ThinkingTaskStatus.COMPLETED:
+            self._thinking_advisory_switch_pressure_delta = 0.0
+            self._thinking_advisory_applied = False
+            self._thinking_advisory_evidence = (f"status:{artifact.status.value}",)
+            return f"thinking-advisory:ignored-status:{artifact.status.value}"
+        payload = artifact.payload
+        if not isinstance(payload, ControllerPressureAdvisory):
+            raise TypeError(
+                "COMPLETED thinking artifact for temporal owner must carry "
+                "ControllerPressureAdvisory payload."
+            )
+        expected_track = "self" if consumer_owner == "self_temporal" else "world"
+        if payload.track != expected_track:
+            return f"thinking-advisory:ignored-track:{payload.track}"
+        if not expected_snapshot_fingerprint.strip():
+            raise ValueError("expected_snapshot_fingerprint must be non-empty")
+        if artifact.task_id != expected_snapshot_fingerprint:
+            self._thinking_advisory_switch_pressure_delta = 0.0
+            self._thinking_advisory_applied = False
+            self._thinking_advisory_evidence = ("fingerprint-mismatch",)
+            return "thinking-advisory:stale-fingerprint"
+        delta = max(-0.20, min(0.20, payload.pressure_delta * payload.confidence * 0.20))
+        self._thinking_advisory_switch_pressure_delta = delta
+        self._thinking_advisory_applied = bool(apply_enabled)
+        self._thinking_advisory_evidence = payload.evidence
+        return "thinking-advisory:applied" if apply_enabled else "thinking-advisory:shadow-recorded"
+
     def observe_active_mixture(
         self,
         *,
@@ -2330,6 +2387,11 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         if not self._protocol_prior_enabled:
             return 0.0
         return self._parameter_store.protocol_prior_switch_pressure_delta()
+
+    def _thinking_advisory_switch_delta(self) -> float:
+        if not self._thinking_advisory_applied:
+            return 0.0
+        return self._thinking_advisory_switch_pressure_delta
 
     def observe_family_outcome_feedback(
         self,
@@ -2514,6 +2576,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         fast_prior_switch_pressure_delta = (
             self._parameter_store.fast_prior_switch_pressure_delta()
             + self._protocol_prior_switch_delta()
+            + self._thinking_advisory_switch_delta()
         )
         if self._runtime_backend is WiringLevel.SHADOW:
             from volvence_zero.temporal.backend_ndim_runtime import (
@@ -2670,6 +2733,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         fast_prior_switch_pressure_delta = (
             self._parameter_store.fast_prior_switch_pressure_delta()
             + self._protocol_prior_switch_delta()
+            + self._thinking_advisory_switch_delta()
         )
         switch_decision = self._switch_unit.compute_decision(
             previous_code=previous_code,

@@ -5,12 +5,18 @@ import asyncio
 from volvence_zero.memory import MemoryModule, MemoryStore
 from volvence_zero.integration import FinalRolloutConfig, run_final_wiring_turn
 from volvence_zero.runtime import WiringLevel, propagate
-from volvence_zero.social_cognition import CommonGroundAtom, CommonGroundSnapshot, SocialScopeKind
+from volvence_zero.social_cognition import (
+    CommonGroundAtom,
+    CommonGroundSnapshot,
+    SocialPredictionKind,
+    SocialScopeKind,
+)
 from volvence_zero.social import CommonGroundModule
 from volvence_zero.social import LLMCommonGroundProposalRuntime
 from volvence_zero.social import MultiPartyIdentityModule
 from volvence_zero.social import ConversationalRoleModule
 from volvence_zero.social import BeliefAboutOtherModule
+from volvence_zero.social import SocialPredictionAggregateModule
 from volvence_zero.substrate import FeatureSignal, FeatureSurfaceSubstrateAdapter, SubstrateModule
 
 
@@ -108,7 +114,49 @@ def test_common_ground_module_publishes_explicit_dyad_and_group_atoms() -> None:
     assert isinstance(snapshot, CommonGroundSnapshot)
     assert snapshot.dyad_atoms == (dyad,)
     assert snapshot.group_atoms == (group,)
+    assert len(snapshot.active_predictions) == 2
+    assert {
+        prediction.kind for prediction in snapshot.active_predictions
+    } == {SocialPredictionKind.COMMON_GROUND_RESOLUTION}
     assert "dyad_atoms=1 group_atoms=1" in snapshot.description
+
+
+def test_social_prediction_aggregate_forwards_common_ground_predictions() -> None:
+    dyad = CommonGroundAtom(
+        atom_id="cg:dyad:alice-bob:plan",
+        scope_id="alice:bob",
+        scope_kind=SocialScopeKind.DYAD,
+        summary="Alice and Bob both know the plan changed.",
+        recursion_depth=2,
+        confidence=0.74,
+        accepted_by_ids=("alice", "bob"),
+        evidence=("both confirmed the change",),
+    )
+
+    result = asyncio.run(
+        propagate(
+            [
+                _substrate(),
+                MultiPartyIdentityModule(wiring_level=WiringLevel.ACTIVE),
+                MemoryModule(store=MemoryStore(), wiring_level=WiringLevel.ACTIVE),
+                ConversationalRoleModule(wiring_level=WiringLevel.ACTIVE),
+                BeliefAboutOtherModule(wiring_level=WiringLevel.ACTIVE),
+                CommonGroundModule(dyad_atoms=(dyad,), wiring_level=WiringLevel.ACTIVE),
+                SocialPredictionAggregateModule(wiring_level=WiringLevel.ACTIVE),
+            ],
+            session_id="common-ground-aggregate-session",
+            wave_id="common-ground-aggregate-wave",
+        )
+    )
+
+    aggregate = result["social_prediction"].value
+    predictions = tuple(
+        prediction
+        for prediction in aggregate.predictions
+        if prediction.kind is SocialPredictionKind.COMMON_GROUND_RESOLUTION
+    )
+    assert len(predictions) == 1
+    assert predictions[0].prediction_id.startswith("common_ground:")
 
 
 def test_common_ground_module_consumes_structured_runtime_atoms() -> None:
@@ -165,6 +213,7 @@ def test_common_ground_module_consumes_structured_runtime_atoms() -> None:
     assert isinstance(snapshot, CommonGroundSnapshot)
     assert len(snapshot.dyad_atoms) == 1
     assert len(snapshot.group_atoms) == 1
+    assert len(snapshot.active_predictions) == 2
     assert snapshot.dyad_atoms[0].scope_id == "self:alice"
     assert snapshot.group_atoms[0].scope_id == "team:launch"
     assert snapshot.control_signal == 0.8

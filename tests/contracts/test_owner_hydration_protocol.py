@@ -20,6 +20,27 @@ from __future__ import annotations
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 
 
+def test_owner_hydration_matrix_freezes_owner_by_owner_decisions() -> None:
+    from volvence_zero.owner_hydration_store import OWNER_HYDRATION_MATRIX
+
+    matrix = {entry.owner_name: entry for entry in OWNER_HYDRATION_MATRIX}
+
+    assert matrix["semantic_state"].decision == "hydrate"
+    assert matrix["followup_manager"].decision == "hydrate"
+    assert matrix["vitals"].decision == "hydrate"
+    assert matrix["protocol_registry"].decision == "hydrate"
+    assert matrix["memory"].decision == "external-owner"
+    assert matrix["regime"].decision == "explicit-no-hydrate"
+    assert matrix["world_temporal"].decision == "explicit-no-hydrate"
+    assert matrix["self_temporal"].decision == "explicit-no-hydrate"
+    assert len(matrix) == len(OWNER_HYDRATION_MATRIX)
+    for entry in OWNER_HYDRATION_MATRIX:
+        if entry.decision == "hydrate":
+            assert entry.storage_key == f"owner_hydration/{entry.owner_name}"
+        else:
+            assert entry.reason
+
+
 def test_semantic_state_store_round_trip() -> None:
     """SemanticStateStore: 9 slots, lifecycle / followup / outcome maps,
     after applying a meaningful set of proposals across multiple slots.
@@ -91,6 +112,39 @@ def test_semantic_state_store_round_trip() -> None:
     assert target.records_for("commitment") == source.records_for("commitment")
     assert target.lifecycle_for("commitment") == source.lifecycle_for("commitment")
     assert target.records_for("open_loop") == source.records_for("open_loop")
+
+
+def test_owner_hydration_seed_once_does_not_overwrite_existing_payload() -> None:
+    from volvence_zero.brain import _seed_owner_hydration_snapshots_once
+    from volvence_zero.memory import InMemoryPersistenceBackend
+
+    backend = InMemoryPersistenceBackend()
+    existing = OwnerPersistenceSnapshot(
+        owner_name="semantic_state",
+        schema_version=1,
+        payload={"records": {"relationship_state": [{"summary": "existing"}]}},
+        description="existing",
+    )
+    seed = OwnerPersistenceSnapshot(
+        owner_name="semantic_state",
+        schema_version=1,
+        payload={"records": {"relationship_state": [{"summary": "template"}]}},
+        description="template",
+    )
+
+    _seed_owner_hydration_snapshots_once(
+        backend=backend,
+        snapshots=(existing,),
+    )
+    _seed_owner_hydration_snapshots_once(
+        backend=backend,
+        snapshots=(seed,),
+    )
+
+    loaded = backend.load_checkpoint(key="owner_hydration/semantic_state")
+    assert loaded is not None
+    assert b"existing" in loaded[0]
+    assert b"template" not in loaded[0]
 
 
 def test_followup_manager_round_trip() -> None:

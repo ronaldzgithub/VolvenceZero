@@ -55,6 +55,18 @@ tool/profile/task/reviewed-knowledge event
 
 Adapters are structured-field mappers. They may map `status`, `consent_grants`, `consent_denials`, task state, or reviewed evidence fields to typed operations, but they must not inspect arbitrary text with keyword rules to decide behavior.
 
+Character chapter adapter flow（2026-07-13）:
+
+```text
+ReviewedChapterExperience / CharacterSemanticEventBundle
+→ CharacterChapterSemanticAdapter
+→ AdapterSemanticProposalRuntime
+→ SemanticProposalBatch
+→ SemanticStateStore single-writer merge
+```
+
+`CharacterSemanticEvent` 是 reviewed chapter artifact 的 typed proposal source，不是新的 semantic owner。它必须携带 `target_slot`（9 slots 闭集）、`operation`、`summary`、`detail`、`confidence`、`evidence_locator`。adapter 只做结构字段映射，不能读取原文小说、不能用关键词决定 slot 或 operation。角色 vertical 可生成这些 events，但最终状态仍由 `SemanticStateStore` 持有并发布快照。
+
 ## ETA / NL 集成
 
 - `TrackTemporalModule` 直接消费九个 semantic slots，并把它们压成 `semantic_pressure`，作为 control advisory 写入 public temporal description / feedback signal。
@@ -99,6 +111,10 @@ Adapters are structured-field mappers. They may map `status`, `consent_grants`, 
   消费者无需读取 owner 内部字段即可完成 settlement 消费。第二波
   （plan_intent / open_loop / belief_assumption / user_model）kind 已在闭集
   enum 预留，publisher 未接。
+- 2026-07-13: 登记 character chapter adapter flow。逐章主观烘焙的
+  `CharacterSemanticEventBundle` 只能作为 typed proposal source，仍由
+  `SemanticStateStore` 单写者合并；禁止用原文关键词或角色 vertical 直写 9 个
+  semantic owners。
 - 2026-05-03: 新增 `semantic_state.quality` proposal quality harness，首批覆盖 `boundary_consent` / `goal_value` scripted LLM cases，用于在 owner 合并前评估 typed proposal 输入质量；shadow gate 只报告 would-block，不阻断 runtime。
 - 2026-05-03: dialogue paper-suite export 新增 non-gating `semantic_proposal_quality_shadow.json` sidecar，并把同一 payload 挂入 evidence bundle reference artifacts。
 - 2026-05-03: Commitment / OpenLoop / BoundaryConsent / GoalValue / RelationshipState 增加 owner-side lifecycle / continuity readouts；`LLMSemanticProposalRuntime` 最小扩展到 `boundary_consent`、`goal_value` 的 schema-bound typed proposal 路径，非目标 slot 继续 delegate。

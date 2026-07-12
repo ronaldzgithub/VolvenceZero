@@ -30,6 +30,7 @@ It only calls existing typed factories / constructors:
 from __future__ import annotations
 
 import pathlib
+import json
 from dataclasses import dataclass, replace as _replace
 from typing import Any
 
@@ -40,7 +41,11 @@ from volvence_zero.application.storage import (
     build_default_case_memory_store,
     build_default_domain_knowledge_store,
 )
-from volvence_zero.memory import MemoryStore, build_default_memory_store
+from volvence_zero.memory import (
+    InMemoryPersistenceBackend,
+    MemoryStore,
+    build_default_memory_store,
+)
 
 from lifeform_domain_character.compiler import (
     build_character_package,
@@ -51,6 +56,7 @@ from lifeform_domain_character.template import (
     IncompatibleTemplateVersion,
     LifeformTemplate,
     SCHEMA_VERSION,
+    SUPPORTED_SCHEMA_VERSIONS,
     compute_template_integrity_hash,
 )
 
@@ -106,11 +112,11 @@ def give_birth(
             is True.
     """
     inflated = _resolve_template(template)
-    if inflated.manifest.schema_version != SCHEMA_VERSION:
+    if inflated.manifest.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         raise IncompatibleTemplateVersion(
             f"give_birth: template schema_version="
-            f"{inflated.manifest.schema_version} != code "
-            f"SCHEMA_VERSION={SCHEMA_VERSION}"
+            f"{inflated.manifest.schema_version} not supported by code "
+            f"(current={SCHEMA_VERSION}, supported={SUPPORTED_SCHEMA_VERSIONS!r})"
         )
     if verify_integrity:
         recomputed = compute_template_integrity_hash(
@@ -127,6 +133,8 @@ def give_birth(
             created_at_utc=inflated.manifest.created_at_utc,
             source_arc_id=inflated.manifest.source_arc_id,
             replay_provenance=inflated.manifest.replay_provenance,
+            preserve_memory=inflated.manifest.preserve_memory,
+            owner_hydration_snapshots=inflated.owner_hydration_snapshots,
         )
         if recomputed != inflated.manifest.integrity_hash:
             raise ValueError(
@@ -208,13 +216,18 @@ def give_birth(
         from volvence_zero.memory import MemoryStoreCheckpoint
 
         seed = inflated.memory_checkpoint
+        brain_config_overrides: dict[str, Any] = {}
         if isinstance(seed, MemoryStoreCheckpoint):
+            brain_config_overrides["memory_seed_checkpoint"] = seed
+        if inflated.owner_hydration_snapshots:
+            brain_config_overrides["owner_hydration_seed_snapshots"] = (
+                inflated.owner_hydration_snapshots
+            )
+        if brain_config_overrides:
             active_memory_store = None
             base_config = _replace(
                 base_config,
-                brain_config=_replace(
-                    base_config.brain_config, memory_seed_checkpoint=seed
-                ),
+                brain_config=_replace(base_config.brain_config, **brain_config_overrides),
             )
         else:
             # Untyped / opaque checkpoint carrier: fall back to the
@@ -314,7 +327,15 @@ def _clip_unit(value: float) -> float:
 
 def _restore_memory_store(template: LifeformTemplate) -> MemoryStore:
     """Build a MemoryStore from the saved checkpoint or default."""
-    store = build_default_memory_store()
+    if template.owner_hydration_snapshots:
+        backend = InMemoryPersistenceBackend()
+        _seed_owner_hydration_backend(
+            backend=backend,
+            snapshots=template.owner_hydration_snapshots,
+        )
+        store = build_default_memory_store(persistence_backend=backend)
+    else:
+        store = build_default_memory_store()
     checkpoint = template.memory_checkpoint
     if checkpoint is None:
         return store
@@ -337,6 +358,25 @@ def _restore_memory_store(template: LifeformTemplate) -> MemoryStore:
         # surface state through snapshots).
         return store
     return store
+
+
+def _seed_owner_hydration_backend(
+    *,
+    backend: InMemoryPersistenceBackend,
+    snapshots: tuple[Any, ...],
+) -> None:
+    for snapshot in snapshots:
+        payload = {
+            "owner_name": snapshot.owner_name,
+            "schema_version": snapshot.schema_version,
+            "payload": dict(snapshot.payload),
+            "description": snapshot.description,
+        }
+        backend.save_checkpoint(
+            key=f"owner_hydration/{snapshot.owner_name}",
+            data=json.dumps(payload, sort_keys=True).encode("utf-8"),
+            version=1,
+        )
 
 
 __all__ = [

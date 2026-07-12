@@ -37,6 +37,10 @@ from volvence_zero.social_cognition import (
     OtherMindRecordKind,
     OtherMindRecordStatus,
     PreferenceAboutOtherSnapshot,
+    SELF_INTERLOCUTOR_ID,
+    SocialPrediction,
+    SocialPredictionKind,
+    SocialScopeKind,
 )
 from volvence_zero.substrate import SubstrateSnapshot
 
@@ -55,6 +59,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
     dependencies = ("substrate", "memory", "multi_party_identity")
     default_wiring_level = WiringLevel.SHADOW
     min_proposal_confidence = 0.50
+    prediction_kind: SocialPredictionKind
 
     def __init__(
         self,
@@ -147,7 +152,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
     ) -> Any:
         return self.snapshot_type(
             records=records,
-            active_predictions=(),
+            active_predictions=self._active_predictions(records),
             control_signal=control_signal,
             description=(
                 self.empty_description
@@ -157,12 +162,42 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
             proposal_diagnostics=proposal_diagnostics,
         )
 
+    def _active_predictions(
+        self, records: tuple[OtherMindRecord, ...]
+    ) -> tuple[SocialPrediction, ...]:
+        """Publish owner-authored ToM predictions from typed records.
+
+        These are prediction-only in the first slice: the ToM owner owns the
+        semantic readout and the aggregate owner forwards it. PE-weighted
+        promote/retire is a later slice that will attach settled outcomes.
+        """
+
+        return tuple(
+            SocialPrediction(
+                prediction_id=f"{self.slot_name}:{record.record_id}:prediction",
+                kind=self.prediction_kind,
+                scope_kind=SocialScopeKind.INTERLOCUTOR,
+                scope_id=record.interlocutor_id,
+                subject_ids=(record.interlocutor_id,),
+                audience_ids=(SELF_INTERLOCUTOR_ID,),
+                predicted_outcome=record.summary,
+                confidence=record.confidence,
+                evidence=(
+                    f"tom_record:{record.record_id}",
+                    f"tom_kind:{record.kind.value}",
+                    record.evidence,
+                ),
+            )
+            for record in records
+        )
+
 
 class BeliefAboutOtherModule(_OtherMindOwnerModule):
     slot_name = "belief_about_other"
     owner = "BeliefAboutOtherModule"
     value_type = BeliefAboutOtherSnapshot
     record_kind = OtherMindRecordKind.BELIEF
+    prediction_kind = SocialPredictionKind.BELIEF_ABOUT_OTHER
     snapshot_type = BeliefAboutOtherSnapshot
     empty_description = "R17 SHADOW scaffold: no belief-about-other records yet."
 
@@ -172,6 +207,7 @@ class IntentAboutOtherModule(_OtherMindOwnerModule):
     owner = "IntentAboutOtherModule"
     value_type = IntentAboutOtherSnapshot
     record_kind = OtherMindRecordKind.INTENT
+    prediction_kind = SocialPredictionKind.INTENT_ABOUT_OTHER
     snapshot_type = IntentAboutOtherSnapshot
     empty_description = "R17 SHADOW scaffold: no intent-about-other records yet."
 
@@ -181,6 +217,7 @@ class FeelingAboutOtherModule(_OtherMindOwnerModule):
     owner = "FeelingAboutOtherModule"
     value_type = FeelingAboutOtherSnapshot
     record_kind = OtherMindRecordKind.FEELING
+    prediction_kind = SocialPredictionKind.FEELING_ABOUT_OTHER
     snapshot_type = FeelingAboutOtherSnapshot
     empty_description = "R17 SHADOW scaffold: no feeling-about-other records yet."
 
@@ -190,6 +227,7 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
     owner = "PreferenceAboutOtherModule"
     value_type = PreferenceAboutOtherSnapshot
     record_kind = OtherMindRecordKind.PREFERENCE
+    prediction_kind = SocialPredictionKind.PREFERENCE_ABOUT_OTHER
     snapshot_type = PreferenceAboutOtherSnapshot
     empty_description = "R17 SHADOW scaffold: no preference-about-other records yet."
 

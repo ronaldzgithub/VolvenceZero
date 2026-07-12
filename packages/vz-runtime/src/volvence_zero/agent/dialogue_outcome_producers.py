@@ -134,16 +134,20 @@ def scene_closed_evidence(
     *,
     scene_id: str,
     reason: str,
+    prediction_id: str | None = None,
 ) -> DialogueOutcomeEvidence:
     """Build typed evidence for a scene boundary close."""
 
+    evidence_refs = [f"scene:{scene_id}", f"reason:{reason}"]
+    if prediction_id:
+        evidence_refs.append(f"scene_prediction:{prediction_id}")
     return DialogueOutcomeEvidence(
         evidence_id=f"scene_closed:{scene_id}:{reason}",
         source=DialogueOutcomeEvidenceSource.SCENE_EVENT,
         source_owner="SceneManager",
         outcome_kind=DialogueOutcomeKind.SCENE_CLOSED,
         confidence=SCENE_CLOSED_CONFIDENCE,
-        evidence_refs=(f"scene:{scene_id}", f"reason:{reason}"),
+        evidence_refs=tuple(evidence_refs),
         description="Scene boundary closed; outcome is structural, not inferred.",
     )
 

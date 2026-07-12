@@ -215,9 +215,41 @@ class ThinkingArtifact:
         return self.status in APPLIABLE_THINKING_TASK_STATUSES
 
 
+@dataclass(frozen=True)
+class ControllerPressureAdvisory:
+    """Compact controller-pressure payload for temporal owners (CP-21).
+
+    Produced by read-only thinking workers, consumed only by the intended
+    temporal owner after fingerprint validation. ``pressure_delta`` is
+    bounded to [-1, 1]; the temporal owner decides whether to apply it.
+    """
+
+    track: str
+    pressure_delta: float
+    confidence: float
+    evidence: tuple[str, ...]
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if self.track not in {"world", "self"}:
+            raise ValueError(f"track must be 'world' or 'self', got {self.track!r}")
+        if self.pressure_delta < -1.0 or self.pressure_delta > 1.0:
+            raise ValueError("pressure_delta must be in [-1, 1]")
+        if self.confidence < 0.0 or self.confidence > 1.0:
+            raise ValueError("confidence must be in [0, 1]")
+        if not self.evidence:
+            raise ValueError("evidence must be non-empty")
+        for item in self.evidence:
+            if not item.strip():
+                raise ValueError("evidence entries must be non-empty")
+        if self.description is not None and not isinstance(self.description, str):
+            raise TypeError("description must be a string")
+
+
 __all__ = [
     "APPLIABLE_THINKING_TASK_STATUSES",
     "TERMINAL_THINKING_TASK_STATUSES",
+    "ControllerPressureAdvisory",
     "ThinkingArtifact",
     "ThinkingDepth",
     "ThinkingPurpose",

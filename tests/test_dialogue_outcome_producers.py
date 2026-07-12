@@ -130,10 +130,15 @@ def test_commitment_evidence_silent_when_no_lifecycle_or_snapshot() -> None:
 
 
 def test_scene_closed_evidence_is_high_confidence_structural() -> None:
-    evidence = scene_closed_evidence(scene_id="scene-1", reason="scene-end")
+    evidence = scene_closed_evidence(
+        scene_id="scene-1",
+        reason="scene-end",
+        prediction_id="pe:prediction_error:turn-1:next",
+    )
 
     assert evidence.outcome_kind is DialogueOutcomeKind.SCENE_CLOSED
     assert evidence.source is DialogueOutcomeEvidenceSource.SCENE_EVENT
     assert evidence.source_owner == "SceneManager"
     assert "scene:scene-1" in evidence.evidence_refs
     assert "reason:scene-end" in evidence.evidence_refs
+    assert "scene_prediction:pe:prediction_error:turn-1:next" in evidence.evidence_refs

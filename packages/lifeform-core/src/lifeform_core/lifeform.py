@@ -1715,6 +1715,8 @@ class LifeformSession:
         user_input: str,
         *,
         trigger_kind: TurnTriggerKind = TurnTriggerKind.USER_INPUT,
+        environment_provenance: str | None = None,
+        environment_consent_context: tuple[str, ...] = (),
     ) -> Any:
         """Run one turn through the kernel.
 
@@ -1772,7 +1774,12 @@ class LifeformSession:
                 payload_summary=user_input,
                 scene_id=open_scene.scene_id,
                 timestamp_ms=self._tick.tick_index,
-                provenance=f"LifeformSession.run_turn:{event_kind.value}",
+                provenance=(
+                    environment_provenance
+                    if environment_provenance is not None
+                    else f"LifeformSession.run_turn:{event_kind.value}"
+                ),
+                consent_context=environment_consent_context,
             )
             run_turn_async = self._brain_session.run_turn_async
             signature = inspect.signature(run_turn_async)
@@ -1946,8 +1953,15 @@ class LifeformSession:
         # Attach a typed SCENE_CLOSED evidence to the last dialogue trace
         # before we cross the kernel boundary so resolved outcome shows
         # up in the same trace artifact. This is structural, not inferred.
+        prediction_id = self._latest_prediction_id()
         self._brain_session.submit_dialogue_outcome_evidence(
-            (scene_closed_evidence(scene_id=scene.scene_id, reason=reason),)
+            (
+                scene_closed_evidence(
+                    scene_id=scene.scene_id,
+                    reason=reason,
+                    prediction_id=prediction_id,
+                ),
+            )
         )
 
         # Hit the kernel boundary so session-post slow loop is enqueued.
@@ -2042,6 +2056,13 @@ class LifeformSession:
         if snap is None:
             return ()
         return tuple(entry.record_id for entry in snap.value.active_commitments)
+
+    def _latest_prediction_id(self) -> str | None:
+        snap = self._latest_active_snapshots.get("prediction_error")
+        if snap is None:
+            return None
+        prediction_id = snap.value.next_prediction.prediction_id
+        return prediction_id or None
 
     # ------------------------------------------------------------------
     # Gap 4 slice 2c: thinking-loop invocation helpers

@@ -40,6 +40,7 @@ EmoGPT v4 PRD §10 给出 5 种 ContentSource（novel / materials / persona_rese
 - web ingestion 第一阶段**禁止** Playwright / 浏览器自动安装，只用 `requests` + `readability-lxml`
 - ingestion session 与用户 session 隔离：`session_id` 命名前缀 `ingestion-` 强制，host 不可在 ingestion session 与用户 session 之间共享 transcript
 - ingestion 产生的 evidence 必须能回溯到 Environment Event / envelope provenance；durable 化仍只能通过标准 PE + session-post slow loop。
+- fictional character 的“主观 live-through”不得以 raw `BOOK` ingestion 作为 ACTIVE 主路径。BOOK ingestion 表示“读到一份材料”；角色亲历必须先产出 reviewed chapter artifact（主观 setting / decision / outcome / semantic events），再通过 character replay driver 进入 canonical turn path。
 
 ## 工程挑战
 
@@ -315,6 +316,18 @@ async def handle_teaching_case_submit(req: web.Request) -> web.Response:
 - apprenticeship override 出问题：`VitalsModule.allow_apprentice_override = False`（配置项，默认 True），所有 ingestion 退化成普通 turn（vitals 正常消耗）
 - ingestion 内容污染了 memory：reflection writeback 的 `evidence_lineage` 字段可定位到 `envelope_id`，运维侧可在 R6 slow loop 调 `retire_case_by_lineage(envelope_id)` 清理
 
+## Character Live-Through 边界（2026-07-13）
+
+`lifeform-domain-character` 的逐章烘焙可以使用小说原文作为离线抽取输入，但 runtime 只消费 reviewed `ReviewedChapterExperience`。这不是 ingestion 的替代实现，而是不同语义：
+
+| 路径 | 语义 | 允许内容 |
+|---|---|---|
+| `IngestionEnvelope(source_kind=BOOK)` | lifeform 读一份外部材料 | 原文 / 解析文本，按 provenance 可追溯 |
+| `ReviewedChapterExperience` → replay | fictional protagonist 亲历或当时得知 | 人工审核转述、主观可知事实、typed outcome / semantic proposal |
+
+因此全书第三人称原文不得直接写入 fictional protagonist 的 canonical first-half-of-life memory checkpoint。若保留 legacy raw ingestion，必须显式标为 rollback / SHADOW，并在模板 provenance 中暴露。
+
 ## 变更日志
 
+- 2026-07-13：明确 fictional character 主观 live-through 与 raw BOOK ingestion 的边界；BOOK ingestion 不能代表主角亲历，逐章烘焙必须先经过 reviewed chapter artifact。
 - 2026-04-29：初始版本，对应 `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 2 + Gap 3 设计冻结。

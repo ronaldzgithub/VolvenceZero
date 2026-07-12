@@ -28,6 +28,8 @@ from volvence_zero.social_cognition import (
     CommonGroundAtom,
     CommonGroundSnapshot,
     ConversationalRoleSnapshot,
+    SocialPrediction,
+    SocialPredictionKind,
     SocialScopeKind,
 )
 
@@ -165,7 +167,7 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
             CommonGroundSnapshot(
                 dyad_atoms=dyad_atoms,
                 group_atoms=group_atoms,
-                active_predictions=(),
+                active_predictions=self._active_predictions(dyad_atoms + group_atoms),
                 control_signal=control_signal,
                 description=(
                     "R19 SHADOW scaffold: "
@@ -173,6 +175,27 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
                 ),
                 proposal_diagnostics=proposal_diagnostics,
             )
+        )
+
+    def _active_predictions(
+        self, atoms: tuple[CommonGroundAtom, ...]
+    ) -> tuple[SocialPrediction, ...]:
+        return tuple(
+            SocialPrediction(
+                prediction_id=f"common_ground:{atom.atom_id}:prediction",
+                kind=SocialPredictionKind.COMMON_GROUND_RESOLUTION,
+                scope_kind=atom.scope_kind,
+                scope_id=atom.scope_id,
+                subject_ids=_unique_ids(atom.accepted_by_ids),
+                audience_ids=_unique_ids(atom.accepted_by_ids),
+                predicted_outcome=atom.summary,
+                confidence=atom.confidence,
+                evidence=(
+                    f"common_ground_atom:{atom.atom_id}",
+                    *atom.evidence,
+                ),
+            )
+            for atom in atoms
         )
 
     def _extract_proposal_diagnostics(self) -> LLMProposalAttemptCounters | None:
@@ -284,6 +307,10 @@ def _mean_confidence(atoms: tuple[CommonGroundAtom, ...]) -> float:
     if not atoms:
         return 0.0
     return sum(atom.confidence for atom in atoms) / len(atoms)
+
+
+def _unique_ids(values: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(values))
 
 
 # ---------------------------------------------------------------------------

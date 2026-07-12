@@ -55,12 +55,14 @@ from volvence_zero.application.storage import (
     DomainKnowledgeCheckpoint,
 )
 from volvence_zero.memory import MemoryStoreCheckpoint
+from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 
 from lifeform_domain_character.profile import CharacterSoulProfile
 from lifeform_domain_character.replay import ReplayReport
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+SUPPORTED_SCHEMA_VERSIONS = (1, 2)
 
 
 @dataclass(frozen=True)
@@ -156,6 +158,7 @@ class LifeformTemplate:
     vitals_drive_levels: tuple[tuple[str, float], ...]
     application_state: ApplicationOwnerState
     replay_report: ReplayReport | None
+    owner_hydration_snapshots: tuple[OwnerPersistenceSnapshot, ...] = ()
 
     def __post_init__(self) -> None:
         if self.manifest.character_id != self.profile.profile_id:
@@ -182,6 +185,12 @@ class LifeformTemplate:
                     f"vitals_drive_levels[{name!r}] value must be a number, "
                     f"got {type(value).__name__}"
                 )
+        owner_names = tuple(snapshot.owner_name for snapshot in self.owner_hydration_snapshots)
+        if len(set(owner_names)) != len(owner_names):
+            raise ValueError(
+                "LifeformTemplate.owner_hydration_snapshots owner_name values "
+                f"must be unique, got {owner_names!r}"
+            )
 
     def to_json_bytes(self) -> bytes:
         """Serialize to canonical UTF-8 JSON bytes.
@@ -209,10 +218,11 @@ class LifeformTemplate:
                 "LifeformTemplate.from_json_bytes: missing 'manifest' object"
             )
         stored_version = manifest_raw.get("schema_version")
-        if stored_version != SCHEMA_VERSION:
+        if stored_version not in SUPPORTED_SCHEMA_VERSIONS:
             raise IncompatibleTemplateVersion(
                 f"Template schema_version={stored_version} is not "
-                f"compatible with this code (expected {SCHEMA_VERSION}). "
+                "compatible with this code "
+                f"(supported {SUPPORTED_SCHEMA_VERSIONS!r}). "
                 "Either upgrade the template via a migration tool or "
                 "load with a matching version of lifeform-domain-character."
             )
@@ -241,6 +251,8 @@ def compute_template_integrity_hash(
     created_at_utc: str,
     source_arc_id: str | None,
     replay_provenance: str,
+    preserve_memory: bool = False,
+    owner_hydration_snapshots: tuple[OwnerPersistenceSnapshot, ...] = (),
 ) -> str:
     """Return the SHA-256 hex digest used as ``integrity_hash``.
 
@@ -269,7 +281,7 @@ def compute_template_integrity_hash(
     revisions can fold them in if a stable canonicalization is
     introduced.
     """
-    del memory_checkpoint, replay_report  # not in the v1 hash, see docstring
+    del memory_checkpoint, replay_report  # dynamic state, see docstring
     placeholder_manifest = {
         "template_id": template_id,
         "schema_version": schema_version,
@@ -279,6 +291,8 @@ def compute_template_integrity_hash(
         "replay_provenance": replay_provenance,
         "integrity_hash": "",
     }
+    if schema_version >= 2:
+        placeholder_manifest["preserve_memory"] = preserve_memory
     payload = {
         "manifest": placeholder_manifest,
         "profile": _to_serializable(profile),
@@ -287,6 +301,10 @@ def compute_template_integrity_hash(
         "vitals_drive_levels": _to_serializable(vitals_drive_levels),
         "application_state": _to_serializable(application_state),
     }
+    if schema_version >= 2:
+        payload["owner_hydration_snapshots"] = _to_serializable(
+            owner_hydration_snapshots
+        )
     canonical = json.dumps(
         payload, ensure_ascii=False, indent=None, sort_keys=True
     ).encode("utf-8")
@@ -374,6 +392,10 @@ def _build_template_from_dict(payload: dict[str, Any]) -> LifeformTemplate:
     replay_report: ReplayReport | None = None
     if replay_report_raw is not None:
         replay_report = _build_replay_report(replay_report_raw)
+    owner_hydration_snapshots = tuple(
+        _build_owner_persistence_snapshot(item)
+        for item in payload.get("owner_hydration_snapshots", ())
+    )
     return LifeformTemplate(
         manifest=manifest,
         profile=profile,
@@ -383,6 +405,7 @@ def _build_template_from_dict(payload: dict[str, Any]) -> LifeformTemplate:
         vitals_drive_levels=drive_levels,
         application_state=application_state,
         replay_report=replay_report,
+        owner_hydration_snapshots=owner_hydration_snapshots,
     )
 
 
@@ -690,12 +713,32 @@ def _build_replay_report(raw: dict[str, Any]) -> ReplayReport:
     )
 
 
+def _build_owner_persistence_snapshot(raw: Any) -> OwnerPersistenceSnapshot:
+    if not isinstance(raw, dict):
+        raise ValueError(
+            "LifeformTemplate.owner_hydration_snapshots items must be dicts, "
+            f"got {type(raw).__name__}"
+        )
+    payload = raw.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError(
+            "OwnerPersistenceSnapshot payload must be a dict in template JSON"
+        )
+    return OwnerPersistenceSnapshot(
+        owner_name=str(raw["owner_name"]),
+        schema_version=int(raw["schema_version"]),
+        payload=payload,
+        description=str(raw.get("description", "")),
+    )
+
+
 __all__ = [
     "ApplicationOwnerState",
     "IncompatibleTemplateVersion",
     "LifeformTemplate",
     "LifeformTemplateManifest",
     "SCHEMA_VERSION",
+    "SUPPORTED_SCHEMA_VERSIONS",
     "compute_template_integrity_hash",
     "utc_iso_now",
 ]
