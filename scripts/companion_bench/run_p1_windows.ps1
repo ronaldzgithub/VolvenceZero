@@ -23,8 +23,49 @@ if (Test-Path $EnvFile) {
     }
 }
 
+function Set-P1CrossFamilyExtractorEnv {
+    $openRouterBase = if ($env:OPENROUTER_BASE_URL) {
+        $env:OPENROUTER_BASE_URL
+    } else {
+        "https://openrouter.ai/api/v1"
+    }
+    if (-not $env:REFH_EXTRACTOR_MODEL) {
+        $refhModel = if ($env:ABLATION_REFH_EXTRACTOR_MODEL) {
+            $env:ABLATION_REFH_EXTRACTOR_MODEL
+        } elseif ($env:ABLATION_PERTURN_MODEL) {
+            $env:ABLATION_PERTURN_MODEL
+        } else {
+            $null
+        }
+        if ($refhModel) {
+            $env:REFH_EXTRACTOR_MODEL = $refhModel
+            $env:REFH_EXTRACTOR_BASE_URL = $openRouterBase
+            $env:REFH_EXTRACTOR_KEY_ENV = "OPENROUTER_API_KEY"
+        }
+    }
+    if (-not $env:CAMEL_COMPACTION_MODEL) {
+        $camelModel = if ($env:ABLATION_CAMEL_COMPACTION_MODEL) {
+            $env:ABLATION_CAMEL_COMPACTION_MODEL
+        } elseif ($env:ABLATION_REFH_EXTRACTOR_MODEL) {
+            $env:ABLATION_REFH_EXTRACTOR_MODEL
+        } elseif ($env:ABLATION_PERTURN_MODEL) {
+            $env:ABLATION_PERTURN_MODEL
+        } else {
+            $null
+        }
+        if ($camelModel) {
+            $env:CAMEL_COMPACTION_MODEL = $camelModel
+            $env:CAMEL_COMPACTION_BASE_URL = $openRouterBase
+            $env:CAMEL_COMPACTION_KEY_ENV = "OPENROUTER_API_KEY"
+        }
+    }
+}
+
+Set-P1CrossFamilyExtractorEnv
+
 if (-not $env:VZ_SUBSTRATE_MODEL_ID) {
-    throw "set VZ_SUBSTRATE_MODEL_ID to the cached Qwen model id"
+    $env:VZ_SUBSTRATE_MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
+    Write-Host "[p1] VZ_SUBSTRATE_MODEL_ID not set; defaulting to $($env:VZ_SUBSTRATE_MODEL_ID)"
 }
 if (-not $ArtifactDir) {
     $dateTag = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
