@@ -164,6 +164,41 @@ def _common_ground_predictions(
     return snapshot.value.active_predictions
 
 
+def _owner_settled_errors(
+    upstream: Mapping[str, Snapshot[Any]]
+) -> tuple[SocialPredictionError, ...]:
+    """Forward owner-settled errors (W1.C) without reconstruction.
+
+    The ToM owners and the common-ground owner settle their own prior
+    predictions and publish typed ``settled_errors``; this lifter only
+    concatenates them (owner field already stamped by the producer).
+    """
+
+    publisher_types = (
+        BeliefAboutOtherSnapshot,
+        IntentAboutOtherSnapshot,
+        FeelingAboutOtherSnapshot,
+        PreferenceAboutOtherSnapshot,
+        CommonGroundSnapshot,
+    )
+    errors: list[SocialPredictionError] = []
+    for slot in (
+        "belief_about_other",
+        "intent_about_other",
+        "feeling_about_other",
+        "preference_about_other",
+        "common_ground",
+    ):
+        snapshot = upstream.get(slot)
+        if snapshot is None:
+            continue
+        value = snapshot.value
+        if not isinstance(value, publisher_types):
+            continue
+        errors.extend(value.settled_errors)
+    return tuple(errors)
+
+
 def _group_predictions(
     upstream: Mapping[str, Snapshot[Any]]
 ) -> tuple[SocialPrediction, ...]:
@@ -296,7 +331,16 @@ class SocialPredictionErrorModule(RuntimeModule[SocialPredictionErrorSnapshot]):
     slot_name = "social_prediction_error"
     owner = "SocialPredictionErrorModule"
     value_type = SocialPredictionErrorSnapshot
-    dependencies = ("social_prediction", "multi_party_identity", "memory")
+    dependencies = (
+        "social_prediction",
+        "multi_party_identity",
+        "memory",
+        "belief_about_other",
+        "intent_about_other",
+        "feeling_about_other",
+        "preference_about_other",
+        "common_ground",
+    )
     default_wiring_level = WiringLevel.SHADOW
 
     def __init__(
@@ -325,12 +369,16 @@ class SocialPredictionErrorModule(RuntimeModule[SocialPredictionErrorSnapshot]):
             if error is not None:
                 derived_errors.append(error)
         derived_errors_tuple = tuple(derived_errors)
-        all_errors = self._pending_errors + derived_errors_tuple
+        owner_settled = _owner_settled_errors(upstream)
+        all_errors = self._pending_errors + derived_errors_tuple + owner_settled
 
         prediction_state = (
             "available" if prediction_available else "compatibility-fallback"
         )
-        derivation_summary = f"memory_visibility_pe={len(derived_errors_tuple)}"
+        derivation_summary = (
+            f"memory_visibility_pe={len(derived_errors_tuple)} "
+            f"owner_settled={len(owner_settled)}"
+        )
         return self.publish(
             SocialPredictionErrorSnapshot(
                 errors=all_errors,

@@ -26,6 +26,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Optional
 
+from lifeform_affordance.snapshot import AffordanceSnapshot
 from lifeform_core import VitalsSnapshot
 from volvence_zero.agent.response import (
     AgentResponse,
@@ -61,6 +62,7 @@ CommonGroundSnapshotProvider = Callable[[], CommonGroundSnapshot | None]
 BeliefAboutOtherProvider = Callable[[], BeliefAboutOtherSnapshot | None]
 IntentAboutOtherProvider = Callable[[], IntentAboutOtherSnapshot | None]
 PreferenceAboutOtherProvider = Callable[[], PreferenceAboutOtherSnapshot | None]
+AffordanceSnapshotProvider = Callable[[], AffordanceSnapshot | None]
 
 
 class GroundedResponseSynthesizer(ResponseSynthesizer):
@@ -87,6 +89,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         belief_about_other_provider: BeliefAboutOtherProvider | None = None,
         intent_about_other_provider: IntentAboutOtherProvider | None = None,
         preference_about_other_provider: PreferenceAboutOtherProvider | None = None,
+        affordance_snapshot_provider: AffordanceSnapshotProvider | None = None,
         figure_bundle: object | None = None,
     ) -> None:
         self._planner = planner or PromptPlanner()
@@ -97,6 +100,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         self._belief_about_other_provider = belief_about_other_provider
         self._intent_about_other_provider = intent_about_other_provider
         self._preference_about_other_provider = preference_about_other_provider
+        self._affordance_snapshot_provider = affordance_snapshot_provider
         self._figure_bundle = figure_bundle
 
     @property
@@ -132,6 +136,10 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         return self._preference_about_other_provider
 
     @property
+    def affordance_snapshot_provider(self) -> AffordanceSnapshotProvider | None:
+        return self._affordance_snapshot_provider
+
+    @property
     def figure_bundle(self) -> object | None:
         """The optional :class:`FigureArtifactBundle` attached to this synthesizer.
 
@@ -163,6 +171,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         belief: BeliefAboutOtherProvider | None = None,
         intent: IntentAboutOtherProvider | None = None,
         preference: PreferenceAboutOtherProvider | None = None,
+        affordance: AffordanceSnapshotProvider | None = None,
         replace_vitals: bool = False,
         replace_interlocutor: bool = False,
         replace_feeling: bool = False,
@@ -170,6 +179,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         replace_belief: bool = False,
         replace_intent: bool = False,
         replace_preference: bool = False,
+        replace_affordance: bool = False,
     ) -> "GroundedResponseSynthesizer":
         """Internal helper that constructs a new synthesizer preserving
         all existing providers except the ones explicitly replaced.
@@ -204,6 +214,11 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 preference
                 if replace_preference
                 else self._preference_about_other_provider
+            ),
+            affordance_snapshot_provider=(
+                affordance
+                if replace_affordance
+                else self._affordance_snapshot_provider
             ),
             figure_bundle=self._figure_bundle,
         )
@@ -293,6 +308,20 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         """
         return self._clone(preference=provider, replace_preference=True)
 
+    def with_affordance_provider(
+        self, provider: AffordanceSnapshotProvider | None
+    ) -> "GroundedResponseSynthesizer":
+        """CP-04 (intent-alignment W2.E): bind a typed ``affordance`` provider.
+
+        The lifeform layer wires a per-session closure to
+        ``LifeformSession.affordance_snapshot`` so the planner can add an
+        owner-approved ``AFFORDANCE_OFFER`` section when the
+        AffordanceModule published a non-None ``selected`` candidate.
+        The snapshot is one turn stale by construction (the module runs
+        after the kernel turn); ``None`` collapses to a no-op.
+        """
+        return self._clone(affordance=provider, replace_affordance=True)
+
     # Intents we delegate to the base kernel renderer. Judgment-process is
     # rendered locally now: the base template was too repetitive for
     # companion widening transcripts, while the grounded section renderer can
@@ -315,6 +344,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         belief_snapshot = self._read_belief_about_other()
         intent_snapshot = self._read_intent_about_other()
         preference_snapshot = self._read_preference_about_other()
+        affordance_snapshot = self._read_affordance_snapshot()
         plan = self._planner.plan(
             context=context,
             assembly=assembly,
@@ -325,6 +355,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             belief_snapshot=belief_snapshot,
             intent_snapshot=intent_snapshot,
             preference_snapshot=preference_snapshot,
+            affordance_snapshot=affordance_snapshot,
         )
 
         if plan.intent in self._DELEGATE_TO_BASE or assembly is None:
@@ -339,6 +370,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             vitals=vitals,
             interlocutor_state=interlocutor_state,
             section_tags=section_tags,
+            affordance_snapshot=affordance_snapshot,
         )
         if not text.strip():
             base = super().synthesize(context=context, assembly=assembly)
@@ -430,6 +462,18 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             return None
         return self._preference_about_other_provider()
 
+    def _read_affordance_snapshot(self) -> AffordanceSnapshot | None:
+        """Pull the latest published affordance snapshot (None when unbound).
+
+        CP-04: the lifeform-side provider returns the AffordanceModule's
+        previous-turn snapshot (the module runs after the kernel turn, so
+        planning consumes a one-turn-stale advisory). ``None`` covers
+        DISABLED wiring / no MCP registry / the first turn.
+        """
+        if self._affordance_snapshot_provider is None:
+            return None
+        return self._affordance_snapshot_provider()
+
     # ------------------------------------------------------------------
     # Rendering hooks — subclass to swap in an LLM
     # ------------------------------------------------------------------
@@ -443,6 +487,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         vitals: VitalsSnapshot | None = None,
         interlocutor_state: InterlocutorState | None = None,
         section_tags: list[str] | None = None,
+        affordance_snapshot: AffordanceSnapshot | None = None,
     ) -> str:
         sentences: list[str] = []
         for section in plan.sections:
@@ -454,6 +499,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 vitals=vitals,
                 interlocutor_state=interlocutor_state,
                 section_tags=section_tags,
+                affordance_snapshot=affordance_snapshot,
             )
             if rendered:
                 sentences.append(rendered)
@@ -469,6 +515,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         vitals: VitalsSnapshot | None = None,
         interlocutor_state: InterlocutorState | None = None,
         section_tags: list[str] | None = None,
+        affordance_snapshot: AffordanceSnapshot | None = None,
     ) -> str:
         repair_alpha_active = _plan_uses_repair_alpha(plan)
         if section is SectionId.ACKNOWLEDGE_PRESSURE:
@@ -520,6 +567,19 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             return self._render_continuity(
                 context=context, assembly=assembly, vitals=vitals
             )
+        if section is SectionId.AFFORDANCE_OFFER:
+            text = self._render_affordance_offer(
+                affordance_snapshot=affordance_snapshot
+            )
+            if section_tags is not None and text:
+                # ``selected`` is guaranteed non-None when text is non-empty.
+                assert affordance_snapshot is not None
+                assert affordance_snapshot.selected is not None
+                section_tags.append(
+                    "affordance_offer_section="
+                    f"{affordance_snapshot.selected.descriptor_name}"
+                )
+            return text
         return ""
 
     # ------------------------------------------------------------------
@@ -739,6 +799,31 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         if assembly.prompt_residue_summary:
             return "I am also carrying continuity from our recent thread."
         return "I am keeping continuity in view across our turns."
+
+    @staticmethod
+    def _render_affordance_offer(
+        *,
+        affordance_snapshot: AffordanceSnapshot | None,
+    ) -> str:
+        """CP-04: render the owner-approved affordance offer section.
+
+        Deterministic and offer-only: the candidate has already cleared the
+        AffordanceModule owner's score / margin / regime / consent gates, so
+        this section proposes (never auto-invokes) the capability using the
+        descriptor's human-facing display name.
+        """
+        if affordance_snapshot is None or affordance_snapshot.selected is None:
+            return ""
+        selected = affordance_snapshot.selected
+        display_by_name = {
+            descriptor.name: descriptor.display_name
+            for descriptor in affordance_snapshot.available
+        }
+        display = display_by_name[selected.descriptor_name]
+        return (
+            f"If it would help, I can use {display} for this - "
+            "say the word and I will."
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -687,6 +687,10 @@ class Lifeform:
             sess = session_holder.session
             return sess.preference_about_other if sess is not None else None
 
+        def _affordance_provider() -> Any:
+            sess = session_holder.session
+            return sess.affordance_snapshot if sess is not None else None
+
         # Per-session synthesizer when vitals are wired AND/OR the
         # brain-level synthesizer can be cloned with a vitals
         # / interlocutor / feeling / common-ground / 3 ToM-about-other
@@ -705,6 +709,7 @@ class Lifeform:
             belief_about_other_provider=_belief_about_other_provider,
             intent_about_other_provider=_intent_about_other_provider,
             preference_about_other_provider=_preference_about_other_provider,
+            affordance_provider=_affordance_provider,
         )
         brain_session = self._brain.create_session(
             session_id=session_id,
@@ -777,6 +782,7 @@ class Lifeform:
         belief_about_other_provider: Callable[[], Any] | None = None,
         intent_about_other_provider: Callable[[], Any] | None = None,
         preference_about_other_provider: Callable[[], Any] | None = None,
+        affordance_provider: Callable[[], Any] | None = None,
     ) -> ResponseSynthesizer | None:
         """Return a per-session synthesizer clone bound to this session's state.
 
@@ -866,6 +872,8 @@ class Lifeform:
             cloned = cloned.with_preference_about_other_provider(
                 preference_about_other_provider
             )
+        if affordance_provider is not None:
+            cloned = cloned.with_affordance_provider(affordance_provider)
         return cloned
 
 
@@ -1538,6 +1546,28 @@ class LifeformSession:
         if published is None:
             return None
         if isinstance(published.value, CommonGroundSnapshot):
+            return published.value
+        return None
+
+    @property
+    def affordance_snapshot(self) -> Any:
+        """CP-04 (intent-alignment W2.E): read the typed ``affordance`` snapshot.
+
+        Returns the latest ``AffordanceSnapshot`` published by the
+        session's ``AffordanceModule`` (ACTIVE slot preferred, SHADOW
+        accepted). Returns ``None`` when the module is not wired (no MCP
+        registry / DISABLED) or before the first turn. Because the module
+        runs after each kernel turn, consumers (prompt planner provider)
+        see the previous turn's advisory - a documented one-turn lag.
+        """
+        from lifeform_affordance.snapshot import AffordanceSnapshot
+
+        active = self._latest_active_snapshots
+        shadow = self._latest_shadow_snapshots
+        published = active.get("affordance") or shadow.get("affordance")
+        if published is None:
+            return None
+        if isinstance(published.value, AffordanceSnapshot):
             return published.value
         return None
 

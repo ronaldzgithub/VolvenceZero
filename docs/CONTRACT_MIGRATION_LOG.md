@@ -1,7 +1,81 @@
 # Contract Migration Log
 
 > Status: migration / implementation log
-> Last updated: 2026-07-12
+> Last updated: 2026-07-13
+
+## W2 intent-alignment remediation (2026-07-13): CP-04 consent gate + CP-14 delayed attribution e2e
+
+Action-loop residuals; all changes append-only / default-compatible:
+
+- CP-04: `AffordanceModule.dependencies` += `boundary_consent`. When
+  `BoundaryConsentSnapshot.external_action_blocked` is True, TOOL / SHELL
+  candidates get typed `blocked_reason="boundary_consent:external_action_blocked"`
+  and cannot be selected; snapshot description carries
+  `consent_external_blocked`. Missing consent snapshot = no-op (no silent
+  degradation).
+- CP-04: `PromptPlanner.plan` gained optional `affordance_snapshot`; a selected
+  affordance adds the new `SectionId.AFFORDANCE_OFFER` section (owner-approved
+  offer, never auto-invokes) plus typed tags
+  `affordance=selected:<name>;score:<float>` and `affordance_blocked=<n>`.
+  `GroundedResponseSynthesizer` gained optional `affordance_snapshot_provider`
+  (+ `with_affordance_provider`); `LifeformSession` exposes
+  `affordance_snapshot` and `Lifeform.create_session` wires the provider.
+  `lifeform-expression` now depends on `lifeform-affordance`.
+- CP-14: `volvence_zero.credit` re-exports `derive_segment_closure_credit_records`
+  (was gate.py-only). No behavior change; import-surface fix found by the new
+  e2e.
+
+Verified by `packages/lifeform-core/tests/test_affordance_consent_gate.py`,
+`packages/lifeform-expression/tests/test_prompt_planner_affordance.py`,
+`tests/lifeform_e2e/test_delayed_attribution_e2e.py` (multi-turn delayed
+attribution + segment-closure match/mismatch table).
+
+## W1 intent-alignment remediation (2026-07-13): learned gates + social settlement
+
+Learning-authenticity uplift; all changes append-only / default-compatible:
+
+- `DualTrackModule.__init__` += optional `gate_learner`
+  (`volvence_zero.dual_track.gate_learner.DualTrackGateLearner`, session-held
+  bounded online-SGD). When wired, `DualTrackSnapshot.learned_gate_shadow`
+  comes from the learner (scored next turn against the PE owner's realized
+  task/relationship outcome); when None, the fixed-prior
+  `derive_learned_gate_shadow` formula remains as fallback. Report-only.
+- Semantic owner prediction v2: `SemanticStateStore` gained per-slot
+  `_OwnerForecastLearner` (`forecast_owner_vector` / `settle_owner_forecast`
+  / `owner_forecast_stats`; not part of hydration payload v1).
+  `OwnerPredictionSignal.predicted_vector` for the five first-wave owners is
+  now the learned forecast (cold-start byte-identical to the v1 persistence
+  prior); descriptions read "v2-learned". PE settlement surface unchanged.
+- W1.C (CP-16/17 core): new session-held
+  `volvence_zero.social.record_store.SocialRecordStore` (ToM record windows,
+  common-ground atom windows, pending predictions). `settle_pending_predictions`
+  + `apply_outcome_to_record` implement embedding-similarity settlement and the
+  ACTIVE -> CONTESTED -> RETIRED promote/retire table. Append-only snapshot
+  field `settled_errors: tuple[SocialPredictionError, ...] = ()` on the four
+  ToM snapshots and `CommonGroundSnapshot`; `SocialPredictionErrorModule`
+  forwards owner-settled errors (dependencies += the four ToM slots +
+  `common_ground`). ToM/common-ground modules gained optional `record_store`.
+- `AgentSessionRunner` holds `DualTrackGateLearner` + `SocialRecordStore`;
+  `build_final_runtime_modules` / `run_final_wiring_turn` gained
+  `dual_track_gate_learner` / `social_record_store` (default None = prior
+  behavior).
+- W1.D (CP-11 gate completeness): `PredictionErrorModule` gained
+  `export_predictive_head_checkpoint` / `restore_predictive_head_checkpoint`
+  (typed `PredictiveHeadCheckpoint`, schema `predictive-head-checkpoint.v1`,
+  session-medium; restore fails loudly via `PredictiveHeadCheckpointError`)
+  and `predictive_head_kill_criteria` (typed `PredictiveHeadKillCriteria`,
+  self-reward autocorrelation check over a 64-sample window; report-only).
+  `AgentSessionRunner` exposes `prediction_module` / `semantic_state_store`
+  readonly properties; `volvence_zero.social` re-exports `TOM_SLOTS`. New
+  `scripts/run_learned_shadow_soak.py` (default 500 synthetic turns)
+  accumulates all learned-owner readouts + honest `learned_active_gate`
+  verdicts into one artifact (`learned-shadow-soak.v1`).
+
+Verified by `tests/test_dual_track_gate_learner.py`,
+`packages/vz-runtime/tests/test_dual_track_gate_learner_session.py`,
+`tests/contracts/test_owner_prediction_signal.py` (v2 forecaster tests),
+`tests/test_social_tom_settlement.py`,
+`tests/contracts/test_predictive_heads_shadow.py` (checkpoint + kill-criteria).
 
 ## CP-12 / CP-11 (2026-07-12): owner prediction signals + PE shadow heads
 

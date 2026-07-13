@@ -36,6 +36,14 @@ from volvence_zero.social.identity import (
     SocialPredictionAggregateModule,
     SocialPredictionErrorModule,
 )
+from volvence_zero.social.record_store import (
+    TOM_SLOTS,
+    PendingSocialPrediction,
+    SocialRecordStore,
+    apply_outcome_to_record,
+    default_summary_similarity,
+    settle_pending_predictions,
+)
 from volvence_zero.social.role import ConversationalRoleModule
 from volvence_zero.social.tom import (
     BeliefAboutOtherModule,
@@ -46,6 +54,7 @@ from volvence_zero.social.tom import (
 )
 
 __all__ = [
+    "TOM_SLOTS",
     "BeliefAboutOtherModule",
     "CommonGroundModule",
     "CommonGroundProposal",
@@ -57,7 +66,12 @@ __all__ = [
     "LLMCommonGroundProposalRuntime",
     "LLMToMProposalRuntime",
     "MultiPartyIdentityModule",
+    "PendingSocialPrediction",
     "PreferenceAboutOtherModule",
     "SocialPredictionAggregateModule",
     "SocialPredictionErrorModule",
+    "SocialRecordStore",
+    "apply_outcome_to_record",
+    "default_summary_similarity",
+    "settle_pending_predictions",
 ]

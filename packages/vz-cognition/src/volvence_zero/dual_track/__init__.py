@@ -8,9 +8,15 @@ from volvence_zero.dual_track.core import (
     derive_track_state,
     entries_by_track,
 )
+from volvence_zero.dual_track.gate_learner import (
+    DualTrackGateLearner,
+    DualTrackGateLearnerReadout,
+)
 
 __all__ = [
     "DualTrackModule",
+    "DualTrackGateLearner",
+    "DualTrackGateLearnerReadout",
     "DualTrackLearnedGateShadow",
     "DualTrackSnapshot",
     "TrackState",

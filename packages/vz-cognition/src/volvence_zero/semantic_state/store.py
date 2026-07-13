@@ -56,6 +56,98 @@ _SEMANTIC_STATE_OWNER_NAME = "semantic_state"
 _SEMANTIC_STATE_SCHEMA_VERSION = 1
 
 
+class OwnerForecastDimensionMismatchError(ValueError):
+    """A slot's observed vector changed dimensionality mid-session."""
+
+
+class _OwnerForecastLearner:
+    """W1.B per-slot learned forecaster for owner prediction signals.
+
+    Bounded online-SGD, one linear head per readout dimension with
+    features ``(current_value, trend, bias)``. Weights initialize to the
+    exact persistence prior (``w = [1, 0, 0]``), so cold-start behavior
+    is byte-identical to the v1 persistence-prior forecast; settlement
+    mismatch then trains the head to anticipate drift. Lives inside the
+    session-held ``SemanticStateStore`` so learning survives the
+    per-turn owner-module rebuild.
+    """
+
+    def __init__(self, *, learning_rate: float = 0.1) -> None:
+        self._learning_rate = learning_rate
+        self._weights_by_dim: list[list[float]] = []
+        self._previous_observed: tuple[float, ...] | None = None
+        # Features captured when the current pending forecast was issued;
+        # consumed exactly once at settlement.
+        self._pending_features: tuple[tuple[float, ...], ...] | None = None
+        self._update_count = 0
+        self._abs_error_sum = 0.0
+
+    def _ensure_dims(self, observed: tuple[float, ...]) -> None:
+        if not self._weights_by_dim:
+            self._weights_by_dim = [[1.0, 0.0, 0.0] for _ in observed]
+            return
+        if len(self._weights_by_dim) != len(observed):
+            raise OwnerForecastDimensionMismatchError(
+                f"owner forecast learner saw dim={len(observed)} but was "
+                f"initialized with dim={len(self._weights_by_dim)}"
+            )
+
+    def _featurize(self, observed: tuple[float, ...]) -> tuple[tuple[float, ...], ...]:
+        previous = self._previous_observed or observed
+        return tuple(
+            (value, value - prev_value, 1.0)
+            for value, prev_value in zip(observed, previous, strict=True)
+        )
+
+    def forecast(self, observed: tuple[float, ...]) -> tuple[float, ...]:
+        """Predict the next-turn readout and remember the features used."""
+
+        self._ensure_dims(observed)
+        features = self._featurize(observed)
+        self._pending_features = features
+        self._previous_observed = observed
+        return tuple(
+            _clamp(sum(w * f for w, f in zip(weights, dim_features, strict=True)))
+            for weights, dim_features in zip(
+                self._weights_by_dim, features, strict=True
+            )
+        )
+
+    def settle(self, observed: tuple[float, ...]) -> bool:
+        """Train on the realized readout for the outstanding forecast."""
+
+        features = self._pending_features
+        self._pending_features = None
+        if features is None:
+            return False
+        self._ensure_dims(observed)
+        for weights, dim_features, target in zip(
+            self._weights_by_dim, features, observed, strict=True
+        ):
+            prediction = _clamp(
+                sum(w * f for w, f in zip(weights, dim_features, strict=True))
+            )
+            gradient_scale = self._learning_rate * (target - prediction)
+            for index, feature in enumerate(dim_features):
+                weights[index] = max(
+                    -2.0, min(2.0, weights[index] + gradient_scale * feature)
+                )
+            self._abs_error_sum += abs(target - prediction)
+        self._update_count += 1
+        return True
+
+    @property
+    def update_count(self) -> int:
+        return self._update_count
+
+    @property
+    def running_abs_error(self) -> float:
+        if self._update_count == 0:
+            return 0.0
+        dims = max(len(self._weights_by_dim), 1)
+        return self._abs_error_sum / (self._update_count * dims)
+
+
 class SemanticStateStore:
     def __init__(self) -> None:
         self._records: dict[str, tuple[SemanticRecord, ...]] = {slot: () for slot in SEMANTIC_OWNER_SLOTS}
@@ -90,6 +182,9 @@ class SemanticStateStore:
         # ``volvence_zero.owner_prediction.OwnerPredictionSignal``.
         self._pending_owner_prediction: dict[str, Any] = {}
         self._owner_prediction_sequence: dict[str, int] = {}
+        # W1.B: per-slot learned forecasters (session-medium learning
+        # state; not part of the cross-session persistence schema).
+        self._owner_forecast_learners: dict[str, _OwnerForecastLearner] = {}
 
     def pending_owner_prediction(self, slot: str) -> Any:
         """Return the outstanding (unsettled) prediction for ``slot`` or None."""
@@ -109,6 +204,45 @@ class SemanticStateStore:
         value = self._owner_prediction_sequence.get(slot, 0) + 1
         self._owner_prediction_sequence[slot] = value
         return value
+
+    # -----------------------------------------------------------------
+    # W1.B owner forecast learners (learned upgrade of the v1
+    # persistence prior). Owned by the store so learning state survives
+    # the per-turn owner-module rebuild; owners are the only callers.
+    # -----------------------------------------------------------------
+
+    def _forecast_learner(self, slot: str) -> _OwnerForecastLearner:
+        if slot not in SEMANTIC_OWNER_SLOTS:
+            raise ValueError(f"unknown semantic owner slot {slot!r}")
+        learner = self._owner_forecast_learners.get(slot)
+        if learner is None:
+            learner = _OwnerForecastLearner()
+            self._owner_forecast_learners[slot] = learner
+        return learner
+
+    def forecast_owner_vector(
+        self, slot: str, *, observed_vector: tuple[float, ...]
+    ) -> tuple[float, ...]:
+        """Learned next-turn forecast for ``slot``'s compact readout.
+
+        Cold start reproduces the persistence prior exactly; settlement
+        updates (``settle_owner_forecast``) then adapt the weights.
+        """
+
+        return self._forecast_learner(slot).forecast(observed_vector)
+
+    def settle_owner_forecast(
+        self, slot: str, *, observed_vector: tuple[float, ...]
+    ) -> bool:
+        """Train ``slot``'s forecaster on the realized readout."""
+
+        return self._forecast_learner(slot).settle(observed_vector)
+
+    def owner_forecast_stats(self, slot: str) -> tuple[int, float]:
+        """(update_count, running mean-abs-error) readout for evidence."""
+
+        learner = self._forecast_learner(slot)
+        return (learner.update_count, learner.running_abs_error)
 
     def apply(self, *, slot: str, proposals: tuple[SemanticProposal, ...], turn_index: int) -> tuple[SemanticRecord, ...]:
         existing = list(self._records[slot])

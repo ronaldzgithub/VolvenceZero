@@ -239,11 +239,14 @@ class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
     # Owners that publish typed pre-action predictions about their own
     # compact readout set these two class attributes and call
     # ``_owner_prediction_signals(...)`` from ``_build_snapshot``. The
-    # v1 forecast rule is an explicit persistence prior (predict the
-    # current readout persists into the next turn); the settled vector
-    # is the actually observed next-turn readout, so the PE owner's
-    # mismatch measures real state drift. Owners that do not publish
-    # keep ``owner_prediction_kind = None``.
+    # v2 forecast (W1.B) comes from the store-held per-slot learned
+    # forecaster: it initializes at the v1 persistence prior (predict
+    # the current readout persists) and is trained at settlement on the
+    # realized readout, so forecasts adapt to observed drift. The
+    # settled vector is the actually observed next-turn readout, so the
+    # PE owner's mismatch measures real state drift; the PE settlement
+    # surface is unchanged. Owners that do not publish keep
+    # ``owner_prediction_kind = None``.
     owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = None
     owner_prediction_track: ClassVar[str] = "self"
 
@@ -270,6 +273,17 @@ class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
                     ),
                 )
             )
+            # W1.B: train the store-held forecaster on the realized
+            # readout for the forecast it issued last turn.
+            self._store.settle_owner_forecast(
+                self.slot_name, observed_vector=observed_vector
+            )
+        forecast_vector = self._store.forecast_owner_vector(
+            self.slot_name, observed_vector=observed_vector
+        )
+        forecast_updates, forecast_mae = self._store.owner_forecast_stats(
+            self.slot_name
+        )
         sequence = self._store.next_owner_prediction_sequence(self.slot_name)
         new_signal = OwnerPredictionSignal(
             signal_id=f"{self.slot_name}:opsig-{sequence}",
@@ -278,11 +292,12 @@ class SemanticOwnerModule(RuntimeModule[SemanticSnapshotValue]):
             source_slot=self.slot_name,
             track=self.owner_prediction_track,
             kind=kind,
-            predicted_vector=observed_vector,
+            predicted_vector=forecast_vector,
             confidence=_clamp(confidence),
             description=(
-                f"{self.slot_name} persistence-prior v1 forecast of next-turn "
-                f"readout: {evidence_summary}"
+                f"{self.slot_name} v2-learned forecast of next-turn readout "
+                f"(store-held online-SGD, updates={forecast_updates} "
+                f"running_mae={forecast_mae:.3f}): {evidence_summary}"
             ),
             source_turn_index=max(0, self._turn_index),
             evidence=(evidence_summary,),

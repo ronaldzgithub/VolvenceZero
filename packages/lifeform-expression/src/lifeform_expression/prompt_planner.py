@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import ClassVar
 
+from lifeform_affordance.snapshot import AffordanceSnapshot
 from lifeform_core import VitalsSnapshot
 from volvence_zero.agent.response import ResponseContext
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
@@ -54,6 +55,10 @@ class SectionId(str, Enum):
     BOUNDARY_DISCLAIMER = "boundary_disclaimer"
     REFLECTION_HOOK = "reflection_hook"
     CONTINUITY_NOTE = "continuity_note"
+    # CP-04 (intent-alignment W2.E): owner-approved affordance offer. Only
+    # added when the AffordanceModule owner published a non-None ``selected``
+    # candidate (already past its score / margin / consent / regime gates).
+    AFFORDANCE_OFFER = "affordance_offer"
 
 
 class TurnIntent(str, Enum):
@@ -172,6 +177,7 @@ class PromptPlanner:
         belief_snapshot: BeliefAboutOtherSnapshot | None = None,
         intent_snapshot: IntentAboutOtherSnapshot | None = None,
         preference_snapshot: PreferenceAboutOtherSnapshot | None = None,
+        affordance_snapshot: AffordanceSnapshot | None = None,
     ) -> PromptPlan:
         """Build a frozen ``PromptPlan``.
 
@@ -218,6 +224,9 @@ class PromptPlanner:
         sections, common_ground_rationale = self._apply_common_ground_snapshot(
             sections=sections, common_ground_snapshot=common_ground_snapshot
         )
+        sections, affordance_rationale = self._apply_affordance_snapshot(
+            sections=sections, affordance_snapshot=affordance_snapshot
+        )
         tom_rationale = self._tom_rationale_tags(
             belief_snapshot=belief_snapshot,
             intent_snapshot=intent_snapshot,
@@ -244,6 +253,7 @@ class PromptPlanner:
             feeling_rationale=feeling_rationale,
             common_ground_rationale=common_ground_rationale,
             tom_rationale=tom_rationale,
+            affordance_rationale=affordance_rationale,
         )
         return PromptPlan(
             intent=intent,
@@ -668,6 +678,57 @@ class PromptPlanner:
         return new_sections, tuple(rationale)
 
     # ------------------------------------------------------------------
+    # CP-04 (intent-alignment W2.E): owner-approved affordance offer.
+    # Reads the typed AffordanceSnapshot published by the AffordanceModule
+    # owner; the planner NEVER re-scores or re-gates candidates — the
+    # owner's ``selected`` (already past score / margin / regime / consent
+    # gates) is consumed as-is (single owner principle).
+    # ------------------------------------------------------------------
+
+    def _apply_affordance_snapshot(
+        self,
+        *,
+        sections: list[SectionId],
+        affordance_snapshot: AffordanceSnapshot | None,
+    ) -> tuple[list[SectionId], tuple[str, ...]]:
+        """Add ``AFFORDANCE_OFFER`` when the owner approved a candidate.
+
+        Returns ``(possibly_modified_sections, rationale_tags)``:
+
+        * ``None`` snapshot (module DISABLED / no MCP registry / cold
+          start) is a no-op.
+        * ``selected is None`` adds no section; when candidates were
+          typed-blocked (consent / regime) an ``affordance_blocked=N``
+          audit tag still surfaces so operators can see the denial.
+        * ``selected`` non-None appends ``AFFORDANCE_OFFER`` and emits an
+          ``affordance=selected(...)`` tag with the owner's score.
+        """
+        if affordance_snapshot is None:
+            return sections, ()
+        blocked_count = sum(
+            1
+            for candidate in affordance_snapshot.candidates_for_turn
+            if candidate.is_blocked
+        )
+        rationale: list[str] = []
+        if blocked_count:
+            rationale.append(f"affordance_blocked={blocked_count}")
+        selected = affordance_snapshot.selected
+        if selected is None:
+            return sections, tuple(rationale)
+        rationale.append(
+            f"affordance=selected(name={selected.descriptor_name},"
+            f"score={selected.score:.2f})"
+        )
+        new_sections = list(sections)
+        if SectionId.AFFORDANCE_OFFER not in new_sections:
+            new_sections.append(SectionId.AFFORDANCE_OFFER)
+            rationale.append(
+                f"affordance_add=affordance_offer({selected.descriptor_name})"
+            )
+        return new_sections, tuple(rationale)
+
+    # ------------------------------------------------------------------
     # Phase 2 W2.A EQ-owner uplift: typed Theory-of-Mind rationale tags
     # for BELIEF / INTENT / PREFERENCE about-other owners. These three
     # snapshots influence FRAMING / EXPECTATION / STYLE downstream
@@ -799,6 +860,7 @@ class PromptPlanner:
         feeling_rationale: tuple[str, ...] = (),
         common_ground_rationale: tuple[str, ...] = (),
         tom_rationale: tuple[str, ...] = (),
+        affordance_rationale: tuple[str, ...] = (),
     ) -> tuple[str, ...]:
         tags: list[str] = [f"intent={intent.value}"]
         regime_id = (
@@ -873,6 +935,11 @@ class PromptPlanner:
         # sections (FEELING + InterlocutorState remain the dominant
         # section gates).
         for rationale in tom_rationale:
+            tags.append(rationale)
+        # CP-04 (intent-alignment W2.E): owner-approved affordance offer
+        # tags emitted by ``_apply_affordance_snapshot``. Typed snapshot
+        # fields only; no user text is read.
+        for rationale in affordance_rationale:
             tags.append(rationale)
         return tuple(tags)
 

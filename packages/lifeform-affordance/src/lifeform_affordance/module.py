@@ -65,8 +65,9 @@ import math
 from collections.abc import Mapping
 from typing import Any
 
-from volvence_zero.affordance import AffordanceDescriptor
+from volvence_zero.affordance import AffordanceDescriptor, AffordanceKind
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.semantic_state import BoundaryConsentSnapshot
 from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
 from lifeform_affordance.registry import AffordanceRegistry
@@ -208,6 +209,42 @@ def _pick_selected(
     return top
 
 
+# CP-04 (intent-alignment W2.E): kinds that act OUTSIDE the kernel. TOOL
+# invokes external functions/APIs and SHELL drives deployment-side
+# capabilities; ACTION / ORGAN stay inside the kernel and are never
+# consent-gated at this layer. This is a protocol-level classification on
+# the closed AffordanceKind enum, not keyword routing over names.
+_EXTERNAL_ACTION_KINDS: frozenset[AffordanceKind] = frozenset(
+    {AffordanceKind.TOOL, AffordanceKind.SHELL}
+)
+
+
+def _consent_blocked_reason(
+    descriptor: AffordanceDescriptor,
+    *,
+    boundary_consent: BoundaryConsentSnapshot | None,
+) -> str:
+    """CP-04: typed consent gate over the published boundary_consent snapshot.
+
+    When the boundary_consent owner has decided external actions are blocked
+    (``external_action_blocked=True``), every external-kind candidate is
+    published as typed-blocked instead of being silently dropped, so the
+    denial is auditable downstream. The owner's decision is consumed as-is
+    (single owner principle); this module never re-derives consent from
+    records.
+    """
+    if boundary_consent is None:
+        return ""
+    if not boundary_consent.external_action_blocked:
+        return ""
+    if descriptor.kind not in _EXTERNAL_ACTION_KINDS:
+        return ""
+    return (
+        f"consent_blocked:external_action:kind={descriptor.kind.value}:"
+        f"consent={boundary_consent.external_action_consent}"
+    )
+
+
 def _regime_blocked_reason(
     descriptor: AffordanceDescriptor,
     *,
@@ -252,7 +289,7 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
     slot_name = "affordance"
     owner = "AffordanceModule"
     value_type = AffordanceSnapshot
-    dependencies = ("temporal_abstraction",)
+    dependencies = ("temporal_abstraction", "boundary_consent")
     default_wiring_level = WiringLevel.ACTIVE
 
     def __init__(
@@ -273,6 +310,13 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
     ) -> Snapshot[AffordanceSnapshot]:
         temporal_snap = upstream.get("temporal_abstraction")
         regime_snap = upstream.get("regime")
+        consent_snap = upstream.get("boundary_consent")
+
+        boundary_consent: BoundaryConsentSnapshot | None = None
+        if consent_snap is not None and isinstance(
+            consent_snap.value, BoundaryConsentSnapshot
+        ):
+            boundary_consent = consent_snap.value
 
         z_t: tuple[float, ...] = ()
         if temporal_snap is not None and isinstance(
@@ -323,6 +367,10 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
             blocked_reason = _regime_blocked_reason(
                 descriptor, active_regime_id=active_regime_id
             )
+            if not blocked_reason:
+                blocked_reason = _consent_blocked_reason(
+                    descriptor, boundary_consent=boundary_consent
+                )
             score = scores.get(descriptor.name, _NEUTRAL_SCORE)
             if blocked_reason:
                 # Blocked candidates are kept in the snapshot for audit
@@ -367,7 +415,9 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
                 f"{len(unblocked_score_tuple)} unblocked / "
                 f"selected={selected.descriptor_name if selected else None!r} / "
                 f"src={scoring_source} / entropy={entropy:.3f} / "
-                f"regime={active_regime_id!r}"
+                f"regime={active_regime_id!r} / "
+                f"consent_external_blocked="
+                f"{boundary_consent.external_action_blocked if boundary_consent is not None else None}"
             ),
         )
         return self.publish(snapshot)

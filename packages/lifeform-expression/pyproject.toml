@@ -12,6 +12,9 @@ license = { text = "Proprietary" }
 dependencies = [
     "vz-runtime==0.1.*",
     "lifeform-core==0.1.*",
+    # CP-04: the prompt planner consumes the typed AffordanceSnapshot to
+    # render the owner-approved affordance-offer section.
+    "lifeform-affordance==0.1.*",
 ]
 
 [tool.setuptools.packages.find]

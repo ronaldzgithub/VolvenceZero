@@ -1,5 +1,6 @@
 from volvence_zero.prediction.distribution import DistributionSummary
 from volvence_zero.prediction.error import (
+    PREDICTIVE_HEAD_CHECKPOINT_SCHEMA_VERSION,
     ActualOutcome,
     PEDecomposition,
     PECriticHeadState,
@@ -8,6 +9,9 @@ from volvence_zero.prediction.error import (
     PredictionError,
     PredictionErrorModule,
     PredictionErrorSnapshot,
+    PredictiveHeadCheckpoint,
+    PredictiveHeadCheckpointError,
+    PredictiveHeadKillCriteria,
     PredictiveHeadReadout,
     derive_actual_outcome,
     derive_actual_outcome_from_substrate,
@@ -21,6 +25,7 @@ from volvence_zero.prediction.lss_rare_heavy import (
 )
 
 __all__ = [
+    "PREDICTIVE_HEAD_CHECKPOINT_SCHEMA_VERSION",
     "ActualOutcome",
     "DistributionSummary",
     "PEDecomposition",
@@ -30,6 +35,9 @@ __all__ = [
     "PredictionError",
     "PredictionErrorModule",
     "PredictionErrorSnapshot",
+    "PredictiveHeadCheckpoint",
+    "PredictiveHeadCheckpointError",
+    "PredictiveHeadKillCriteria",
     "PredictiveHeadReadout",
     "derive_actual_outcome",
     "derive_actual_outcome_from_substrate",

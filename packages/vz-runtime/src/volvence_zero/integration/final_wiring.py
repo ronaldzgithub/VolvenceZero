@@ -58,7 +58,11 @@ from volvence_zero.credit.gate import (
     has_blocking_writeback,
     record_nstep_outcomes_from_segment_closure,
 )
-from volvence_zero.dual_track import DualTrackModule, DualTrackSnapshot
+from volvence_zero.dual_track import (
+    DualTrackGateLearner,
+    DualTrackModule,
+    DualTrackSnapshot,
+)
 from volvence_zero.evaluation import (
     CrossSessionBenchmarkSuite,
     EvaluationBackbone,
@@ -154,6 +158,7 @@ from volvence_zero.social import (
     PreferenceAboutOtherModule,
     SocialPredictionAggregateModule,
     SocialPredictionErrorModule,
+    SocialRecordStore,
 )
 from volvence_zero.substrate import (
     SubstrateAdapter,
@@ -1437,6 +1442,8 @@ def build_final_runtime_modules(
     rupture_state_module: RuptureStateModule | None = None,
     protocol_registry_module: ProtocolRegistryModule | None = None,
     identity_seed: IdentitySeed | None = None,
+    dual_track_gate_learner: DualTrackGateLearner | None = None,
+    social_record_store: SocialRecordStore | None = None,
 ) -> list[Any]:
     if domain_experience_packages:
         application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
@@ -1674,24 +1681,28 @@ def build_final_runtime_modules(
             proposal_runtime=tom_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
+            record_store=social_record_store,
         ),
         IntentAboutOtherModule(
             wiring_level=config.level_for("intent_about_other", WiringLevel.ACTIVE),
             proposal_runtime=tom_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
+            record_store=social_record_store,
         ),
         FeelingAboutOtherModule(
             wiring_level=config.level_for("feeling_about_other", WiringLevel.ACTIVE),
             proposal_runtime=tom_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
+            record_store=social_record_store,
         ),
         PreferenceAboutOtherModule(
             wiring_level=config.level_for("preference_about_other", WiringLevel.ACTIVE),
             proposal_runtime=tom_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
+            record_store=social_record_store,
         ),
         CommonGroundModule(
             wiring_level=config.level_for("common_ground", WiringLevel.ACTIVE),
@@ -1700,6 +1711,7 @@ def build_final_runtime_modules(
             proposal_runtime=common_ground_proposal_runtime,
             user_input=user_input,
             turn_index=turn_index,
+            record_store=social_record_store,
         ),
         GroupModule(
             wiring_level=config.level_for("groups", WiringLevel.SHADOW),
@@ -1739,6 +1751,7 @@ def build_final_runtime_modules(
         DualTrackModule(
             wiring_level=config.level_for("dual_track", WiringLevel.SHADOW),
             identity_seed=identity_seed,
+            gate_learner=dual_track_gate_learner,
         ),
         ApprenticeshipAlignmentModule(
             wiring_level=config.level_for(
@@ -1900,6 +1913,8 @@ async def run_final_wiring_turn(
     rupture_state_module: RuptureStateModule | None = None,
     protocol_registry_module: ProtocolRegistryModule | None = None,
     identity_seed: IdentitySeed | None = None,
+    dual_track_gate_learner: DualTrackGateLearner | None = None,
+    social_record_store: SocialRecordStore | None = None,
     user_scope: str = "anonymous",
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
@@ -1971,6 +1986,8 @@ async def run_final_wiring_turn(
         rupture_state_module=rupture_state_module,
         protocol_registry_module=protocol_registry_module,
         identity_seed=identity_seed,
+        dual_track_gate_learner=dual_track_gate_learner,
+        social_record_store=social_record_store,
     )
     if upstream_snapshots:
         for module in modules:

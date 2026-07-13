@@ -29,8 +29,15 @@ from volvence_zero.social_cognition import (
     CommonGroundSnapshot,
     ConversationalRoleSnapshot,
     SocialPrediction,
+    SocialPredictionError,
     SocialPredictionKind,
     SocialScopeKind,
+)
+
+from .record_store import (
+    PendingSocialPrediction,
+    SocialRecordStore,
+    settle_pending_predictions,
 )
 
 from volvence_zero.semantic_state._llm_proposal_counters import (
@@ -130,13 +137,17 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
         user_input: str | None = None,
         turn_index: int = 0,
         wiring_level: WiringLevel | None = None,
+        record_store: SocialRecordStore | None = None,
     ) -> None:
+        # W1.C (CP-17): the optional session-held ``record_store`` gives
+        # this owner cross-turn atoms + pending-prediction settlement.
         super().__init__(wiring_level=wiring_level)
         self._dyad_atoms = dyad_atoms
         self._group_atoms = group_atoms
         self._proposal_runtime = proposal_runtime
         self._user_input = user_input
         self._turn_index = turn_index
+        self._record_store = record_store
 
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
@@ -152,14 +163,18 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
             belief_snapshot=belief_snapshot,
         )
         runtime_atoms = self._runtime_atoms()
-        dyad_atoms = (
+        new_dyad_atoms = (
             *self._dyad_atoms,
             *upstream_atoms,
             *(atom for atom in runtime_atoms if atom.scope_kind.value == "dyad"),
         )
-        group_atoms = (
+        new_group_atoms = (
             *self._group_atoms,
             *(atom for atom in runtime_atoms if atom.scope_kind.value == "group"),
+        )
+        dyad_atoms, group_atoms, settled_errors = self._settle_and_merge(
+            new_dyad_atoms=new_dyad_atoms,
+            new_group_atoms=new_group_atoms,
         )
         control_signal = _mean_confidence(upstream_atoms + runtime_atoms)
         proposal_diagnostics = self._extract_proposal_diagnostics()
@@ -171,11 +186,79 @@ class CommonGroundModule(RuntimeModule[CommonGroundSnapshot]):
                 control_signal=control_signal,
                 description=(
                     "R19 SHADOW scaffold: "
-                    f"dyad_atoms={len(dyad_atoms)} group_atoms={len(group_atoms)}."
+                    f"dyad_atoms={len(dyad_atoms)} group_atoms={len(group_atoms)} "
+                    f"settled={len(settled_errors)}."
                 ),
                 proposal_diagnostics=proposal_diagnostics,
+                settled_errors=settled_errors,
             )
         )
+
+    def _settle_and_merge(
+        self,
+        *,
+        new_dyad_atoms: tuple[CommonGroundAtom, ...],
+        new_group_atoms: tuple[CommonGroundAtom, ...],
+    ) -> tuple[
+        tuple[CommonGroundAtom, ...],
+        tuple[CommonGroundAtom, ...],
+        tuple[SocialPredictionError, ...],
+    ]:
+        """W1.C (CP-17): cross-turn atoms + pending-prediction settlement.
+
+        Prior-turn predictions settle against THIS turn's newly derived
+        atoms for the same scope (repair / clarification evidence shows
+        up as a new atom whose summary contradicts the prediction).
+        Without a store the owner stays stateless (original behavior).
+        """
+
+        store = self._record_store
+        if store is None:
+            return (new_dyad_atoms, new_group_atoms, ())
+        new_atoms = new_dyad_atoms + new_group_atoms
+        evidence_by_scope: dict[str, tuple[tuple[str, str], ...]] = {}
+        for atom in new_atoms:
+            evidence_by_scope[atom.scope_id] = (
+                *evidence_by_scope.get(atom.scope_id, ()),
+                (atom.atom_id, atom.summary),
+            )
+        result = settle_pending_predictions(
+            pending=store.pending_common_ground_predictions,
+            new_evidence_by_scope=evidence_by_scope,
+            turn_index=self._turn_index,
+            owner=self.owner,
+            similarity=store.similarity,
+        )
+        merged_dyad: dict[str, CommonGroundAtom] = {}
+        for atom in (*store.common_ground_dyad_atoms, *new_dyad_atoms):
+            merged_dyad[atom.atom_id] = atom
+        merged_group: dict[str, CommonGroundAtom] = {}
+        for atom in (*store.common_ground_group_atoms, *new_group_atoms):
+            merged_group[atom.atom_id] = atom
+        dyad_atoms = tuple(merged_dyad.values())
+        group_atoms = tuple(merged_group.values())
+        store.set_common_ground_atoms(
+            dyad_atoms=dyad_atoms, group_atoms=group_atoms
+        )
+        dyad_atoms = store.common_ground_dyad_atoms
+        group_atoms = store.common_ground_group_atoms
+        pending_by_atom = {
+            entry.source_record_id: entry for entry in result.still_pending
+        }
+        for prediction in self._active_predictions(dyad_atoms + group_atoms):
+            atom_id = prediction.prediction_id.removeprefix(
+                "common_ground:"
+            ).removesuffix(":prediction")
+            if atom_id not in pending_by_atom:
+                pending_by_atom[atom_id] = PendingSocialPrediction(
+                    prediction=prediction,
+                    source_record_id=atom_id,
+                    issued_turn=self._turn_index,
+                )
+        store.set_pending_common_ground_predictions(
+            tuple(pending_by_atom.values())
+        )
+        return (dyad_atoms, group_atoms, result.settled_errors)
 
     def _active_predictions(
         self, atoms: tuple[CommonGroundAtom, ...]

@@ -358,6 +358,10 @@ class BeliefAboutOtherSnapshot:
     control_signal: float
     description: str
     proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
+    # W1.C (CP-16): owner-settled outcomes for predictions this owner
+    # issued on a PRIOR turn. Only the owning module constructs these;
+    # SocialPredictionErrorModule forwards them without reconstruction.
+    settled_errors: tuple[SocialPredictionError, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -367,6 +371,7 @@ class BeliefAboutOtherSnapshot:
             active_predictions=self.active_predictions,
             control_signal=self.control_signal,
             description=self.description,
+            settled_errors=self.settled_errors,
         )
 
 
@@ -377,6 +382,7 @@ class IntentAboutOtherSnapshot:
     control_signal: float
     description: str
     proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
+    settled_errors: tuple[SocialPredictionError, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -386,6 +392,7 @@ class IntentAboutOtherSnapshot:
             active_predictions=self.active_predictions,
             control_signal=self.control_signal,
             description=self.description,
+            settled_errors=self.settled_errors,
         )
 
 
@@ -396,6 +403,7 @@ class FeelingAboutOtherSnapshot:
     control_signal: float
     description: str
     proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
+    settled_errors: tuple[SocialPredictionError, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -405,6 +413,7 @@ class FeelingAboutOtherSnapshot:
             active_predictions=self.active_predictions,
             control_signal=self.control_signal,
             description=self.description,
+            settled_errors=self.settled_errors,
         )
 
 
@@ -415,6 +424,7 @@ class PreferenceAboutOtherSnapshot:
     control_signal: float
     description: str
     proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
+    settled_errors: tuple[SocialPredictionError, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -424,6 +434,7 @@ class PreferenceAboutOtherSnapshot:
             active_predictions=self.active_predictions,
             control_signal=self.control_signal,
             description=self.description,
+            settled_errors=self.settled_errors,
         )
 
 
@@ -583,6 +594,9 @@ class CommonGroundSnapshot:
     control_signal: float
     description: str
     proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
+    # W1.C (CP-17): owner-settled outcomes for common-ground predictions
+    # issued on a prior turn (confirm / disconfirm from this turn's atoms).
+    settled_errors: tuple[SocialPredictionError, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_common_ground_atoms("dyad_atoms", self.dyad_atoms, SocialScopeKind.DYAD)
@@ -591,6 +605,8 @@ class CommonGroundSnapshot:
             prediction.prediction_id for prediction in self.active_predictions
         )
         _require_unique_non_empty("active_predictions.prediction_id", prediction_ids)
+        settled_ids = tuple(error.error_id for error in self.settled_errors)
+        _require_unique_non_empty("settled_errors.error_id", settled_ids)
         _require_unit_interval("control_signal", self.control_signal)
         _require_non_empty("description", self.description)
 
@@ -753,6 +769,7 @@ def _validate_other_mind_snapshot(
     active_predictions: tuple[SocialPrediction, ...],
     control_signal: float,
     description: str,
+    settled_errors: tuple[SocialPredictionError, ...] = (),
 ) -> None:
     record_ids = tuple(record.record_id for record in records)
     _require_unique_non_empty(f"{snapshot_name}.records.record_id", record_ids)
@@ -768,6 +785,8 @@ def _validate_other_mind_snapshot(
     _require_unique_non_empty(
         f"{snapshot_name}.active_predictions.prediction_id", prediction_ids
     )
+    settled_ids = tuple(error.error_id for error in settled_errors)
+    _require_unique_non_empty(f"{snapshot_name}.settled_errors.error_id", settled_ids)
     _require_unit_interval("control_signal", control_signal)
     _require_non_empty("description", description)
 

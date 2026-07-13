@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
+
+if TYPE_CHECKING:
+    from volvence_zero.dual_track.gate_learner import DualTrackGateLearner
 
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
@@ -383,12 +386,18 @@ def derive_learned_gate_shadow(
     self_track: TrackState,
     cross_track_tension: float,
 ) -> DualTrackLearnedGateShadow:
-    """Bounded SHADOW candidate for a learned dual-track fusion gate.
+    """Fixed-prior SHADOW candidate for the dual-track fusion gate.
 
     It uses only typed owner readouts (track tensions/controller evidence),
     never raw text. The gate favors the track with higher current pressure
     but caps movement around a neutral 0.5/0.5 prior so it cannot silently
     become policy while SHADOW.
+
+    W1.A note: this is the **fallback prior** used only when no
+    session-held ``DualTrackGateLearner`` is injected. The learned path
+    (``volvence_zero.dual_track.gate_learner``) replaces this formula with
+    a bounded online-SGD predictor scored against the PE owner's realized
+    task/relationship outcome.
     """
 
     world_pressure = _clamp(
@@ -440,6 +449,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
         *,
         wiring_level: WiringLevel | None = None,
         identity_seed: IdentitySeed | None = None,
+        gate_learner: "DualTrackGateLearner | None" = None,
     ) -> None:
         # Packet 1.3'' populator: optional ``identity_seed`` flows
         # the lifeform's identity traits into the SELF track.
@@ -447,12 +457,41 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
         # no seed is wired, ``TrackState.traits`` stays empty and
         # the protocol identity gate falls back to
         # ``self_traits_populator_pending`` SHADOW-permissive.
+        #
+        # W1.A: optional session-held ``gate_learner`` upgrades the
+        # ``learned_gate_shadow`` readout from the fixed-prior formula to
+        # a bounded online-SGD learner whose weights survive the per-turn
+        # module rebuild. When None, the fixed prior stays in place.
         super().__init__(wiring_level=wiring_level)
         self._identity_seed = identity_seed
+        self._gate_learner = gate_learner
 
     @property
     def identity_seed(self) -> IdentitySeed | None:
         return self._identity_seed
+
+    @property
+    def gate_learner(self) -> "DualTrackGateLearner | None":
+        return self._gate_learner
+
+    def _derive_gate_shadow(
+        self,
+        *,
+        world_track: TrackState,
+        self_track: TrackState,
+        cross_track_tension: float,
+    ) -> DualTrackLearnedGateShadow:
+        if self._gate_learner is not None:
+            return self._gate_learner.derive_shadow(
+                world_track=world_track,
+                self_track=self_track,
+                cross_track_tension=cross_track_tension,
+            )
+        return derive_learned_gate_shadow(
+            world_track=world_track,
+            self_track=self_track,
+            cross_track_tension=cross_track_tension,
+        )
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[DualTrackSnapshot]:
         memory_snapshot = upstream["memory"]
@@ -531,7 +570,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             self_track,
             substrate_snapshot=substrate_value,
         )
-        learned_gate_shadow = derive_learned_gate_shadow(
+        learned_gate_shadow = self._derive_gate_shadow(
             world_track=world_track,
             self_track=self_track,
             cross_track_tension=cross_track_tension,
@@ -614,7 +653,7 @@ class DualTrackModule(RuntimeModule[DualTrackSnapshot]):
             self_track,
             substrate_snapshot=substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None,
         )
-        learned_gate_shadow = derive_learned_gate_shadow(
+        learned_gate_shadow = self._derive_gate_shadow(
             world_track=world_track,
             self_track=self_track,
             cross_track_tension=cross_track_tension,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import os
+from collections import deque
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Mapping
 
@@ -201,6 +202,92 @@ class PredictiveHeadReadout:
     description: str = ""
 
 
+PREDICTIVE_HEAD_CHECKPOINT_SCHEMA_VERSION = "predictive-head-checkpoint.v1"
+
+# Rolling window used by the CP-11 self-reward autocorrelation kill check.
+# 64 samples matches the PE distribution window's max size so both owner
+# readouts describe the same recent horizon.
+_HEAD_KILL_WINDOW = 64
+
+
+class PredictiveHeadCheckpointError(ValueError):
+    """Raised when a CP-11 head checkpoint cannot be restored (schema or
+    dimension mismatch). Fail-loudly per the contract-first rule; callers must
+    not silently continue with cold-start heads."""
+
+
+@dataclass(frozen=True)
+class PredictiveHeadCheckpoint:
+    """CP-11 session-medium checkpoint for the SHADOW world/self heads.
+
+    Float-only, immutable, owner-exported. Lets the learned heads survive a
+    session restart (session-medium timescale) without touching the live
+    prediction chain: restoring only reloads SHADOW weights and readout
+    counters. Weight payloads are ``(axis, weights)`` tuples so the artifact
+    is JSON-serialisable without dict ordering ambiguity.
+    """
+
+    checkpoint_id: str
+    feature_dim: int
+    world_weights: tuple[tuple[str, tuple[float, ...]], ...]
+    self_weights: tuple[tuple[str, tuple[float, ...]], ...]
+    sample_count: int
+    abs_error_sums: tuple[tuple[str, float], ...]
+    schema_version: str = PREDICTIVE_HEAD_CHECKPOINT_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if not self.checkpoint_id:
+            raise ValueError("checkpoint_id must be non-empty")
+        if self.sample_count < 0:
+            raise ValueError("sample_count must be non-negative")
+
+
+@dataclass(frozen=True)
+class PredictiveHeadKillCriteria:
+    """CP-11 kill-criteria readout: self-reward autocorrelation check.
+
+    A learned head that stops tracking realized outcomes and instead echoes
+    its own previous predictions is in a self-reward loop and must be killed
+    before any ACTIVE consideration. ``kill_triggered`` is True when the
+    window is full, the prediction series is highly self-correlated
+    (lag-1 autocorrelation >= 0.98, with a degenerate constant series
+    counted as perfectly self-correlated) AND essentially uncorrelated with
+    the realized targets (<= 0.05). Report-only: the PE owner never acts on
+    this automatically; operators / gate evaluators consume it.
+    """
+
+    window_size: int
+    samples_in_window: int
+    window_filled: bool
+    prediction_self_autocorrelation: float
+    prediction_target_correlation: float
+    kill_triggered: bool
+    description: str
+
+
+def _series_correlation(
+    a: list[float], b: list[float], *, degenerate: float
+) -> float:
+    """Pearson correlation of two equal-length series.
+
+    ``degenerate`` is returned when either series has ~zero variance, so the
+    caller chooses the conservative interpretation (a frozen prediction
+    series counts as self-correlated 1.0 but target-correlated 0.0).
+    """
+
+    n = len(a)
+    if n < 2:
+        return degenerate
+    mean_a = sum(a) / n
+    mean_b = sum(b) / n
+    var_a = sum((x - mean_a) ** 2 for x in a)
+    var_b = sum((x - mean_b) ** 2 for x in b)
+    if var_a < 1e-12 or var_b < 1e-12:
+        return degenerate
+    cov = sum((x - mean_a) * (y - mean_b) for x, y in zip(a, b, strict=True))
+    return max(-1.0, min(1.0, cov / math.sqrt(var_a * var_b)))
+
+
 @dataclass(frozen=True)
 class PredictionErrorSnapshot:
     evaluated_prediction: PredictedOutcome | None
@@ -321,37 +408,57 @@ class _LinearAxisHead:
             for w, f in zip(self._weights, features, strict=True)
         ]
 
+    def export_weights(self) -> tuple[float, ...]:
+        return tuple(self._weights)
 
-class _WorldPredictiveHead:
+    def restore_weights(self, weights: tuple[float, ...]) -> None:
+        if len(weights) != len(self._weights):
+            raise PredictiveHeadCheckpointError(
+                f"axis head expects {len(self._weights)} weights, got {len(weights)}"
+            )
+        self._weights = [max(-2.0, min(2.0, w)) for w in weights]
+
+
+class _AxisBankPredictiveHead:
+    """Shared base for the CP-11 axis-bank heads (world / self)."""
+
+    axes: tuple[str, ...] = ()
+
+    def __init__(self, *, feature_dim: int) -> None:
+        self._heads = {axis: _LinearAxisHead(feature_dim=feature_dim) for axis in self.axes}
+
+    def predict(self, features: tuple[float, ...]) -> dict[str, float]:
+        return {axis: head.predict(features) for axis, head in self._heads.items()}
+
+    def update(self, *, features: tuple[float, ...], targets: dict[str, float]) -> None:
+        for axis, head in self._heads.items():
+            head.update(features=features, target=targets[axis])
+
+    def export_weights(self) -> tuple[tuple[str, tuple[float, ...]], ...]:
+        return tuple((axis, self._heads[axis].export_weights()) for axis in self.axes)
+
+    def restore_weights(
+        self, weights: tuple[tuple[str, tuple[float, ...]], ...]
+    ) -> None:
+        payload = dict(weights)
+        if set(payload) != set(self.axes):
+            raise PredictiveHeadCheckpointError(
+                f"axis set mismatch: expected {sorted(self.axes)}, got {sorted(payload)}"
+            )
+        for axis in self.axes:
+            self._heads[axis].restore_weights(payload[axis])
+
+
+class _WorldPredictiveHead(_AxisBankPredictiveHead):
     """CP-11 learned world head: task / regime / action outcome axes."""
 
     axes = ("task_progress", "regime_stability", "action_payoff")
 
-    def __init__(self, *, feature_dim: int) -> None:
-        self._heads = {axis: _LinearAxisHead(feature_dim=feature_dim) for axis in self.axes}
 
-    def predict(self, features: tuple[float, ...]) -> dict[str, float]:
-        return {axis: head.predict(features) for axis, head in self._heads.items()}
-
-    def update(self, *, features: tuple[float, ...], targets: dict[str, float]) -> None:
-        for axis, head in self._heads.items():
-            head.update(features=features, target=targets[axis])
-
-
-class _SelfPredictiveHead:
+class _SelfPredictiveHead(_AxisBankPredictiveHead):
     """CP-11 learned self head: relationship outcome axis."""
 
     axes = ("relationship_delta",)
-
-    def __init__(self, *, feature_dim: int) -> None:
-        self._heads = {axis: _LinearAxisHead(feature_dim=feature_dim) for axis in self.axes}
-
-    def predict(self, features: tuple[float, ...]) -> dict[str, float]:
-        return {axis: head.predict(features) for axis, head in self._heads.items()}
-
-    def update(self, *, features: tuple[float, ...], targets: dict[str, float]) -> None:
-        for axis, head in self._heads.items():
-            head.update(features=features, target=targets[axis])
 
 
 class _PredictionErrorHead:
@@ -728,6 +835,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         # hand-crafted head, and updated with bounded online SGD. Their
         # readout is report-only until the plan CP-11 gate is met.
         feature_dim = 7
+        self._head_feature_dim = feature_dim
         self._world_head = _WorldPredictiveHead(feature_dim=feature_dim)
         self._self_head = _SelfPredictiveHead(feature_dim=feature_dim)
         self._pending_head_forecast: dict[str, Any] | None = None
@@ -738,6 +846,11 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             "self_learned": 0.0,
             "self_baseline": 0.0,
         }
+        # CP-11 kill-criteria window: (mean learned prediction, mean realized
+        # target) per scored sample, bounded to the recent horizon.
+        self._head_recent_pairs: deque[tuple[float, float]] = deque(
+            maxlen=_HEAD_KILL_WINDOW
+        )
 
     # ------------------------------------------------------------------
     # Offline gradient-LSS rare-heavy surface (Phase F). Runtime PE is
@@ -1358,6 +1471,16 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 - self_targets["relationship_delta"]
             )
             self._head_sample_count += 1
+            # Kill-criteria evidence: mean learned prediction vs mean realized
+            # target across all four axes for the self-reward autocorr check.
+            learned_mean = (
+                sum(world_learned[axis] for axis in world_targets)
+                + self_learned["relationship_delta"]
+            ) / 4.0
+            target_mean = (
+                sum(world_targets.values()) + self_targets["relationship_delta"]
+            ) / 4.0
+            self._head_recent_pairs.append((learned_mean, target_mean))
             features: tuple[float, ...] = pending["features"]
             self._world_head.update(features=features, targets=world_targets)
             self._self_head.update(features=features, targets=self_targets)
@@ -1396,6 +1519,94 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 f"CP-11 SHADOW heads over {count} samples: world learned/baseline "
                 f"MAE {world_learned_mae:.3f}/{world_baseline_mae:.3f}, self "
                 f"{self_learned_mae:.3f}/{self_baseline_mae:.3f}. Report-only."
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # CP-11 gate completeness surface (W1.D): session-medium checkpoint
+    # export/restore for the SHADOW heads plus the self-reward
+    # autocorrelation kill-criteria readout. All report-only; nothing here
+    # touches the live prediction chain.
+    # ------------------------------------------------------------------
+
+    def export_predictive_head_checkpoint(
+        self, *, checkpoint_id: str
+    ) -> PredictiveHeadCheckpoint:
+        """Export the SHADOW heads' weights + readout counters (float-only)."""
+
+        return PredictiveHeadCheckpoint(
+            checkpoint_id=checkpoint_id,
+            feature_dim=self._head_feature_dim,
+            world_weights=self._world_head.export_weights(),
+            self_weights=self._self_head.export_weights(),
+            sample_count=self._head_sample_count,
+            abs_error_sums=tuple(sorted(self._head_abs_error_sums.items())),
+        )
+
+    def restore_predictive_head_checkpoint(
+        self, checkpoint: PredictiveHeadCheckpoint
+    ) -> None:
+        """Restore SHADOW head weights + readout counters from a checkpoint.
+
+        Fails loudly (PredictiveHeadCheckpointError) on schema / feature-dim /
+        axis-set mismatch. The kill-criteria window intentionally restarts
+        empty: its evidence must come from the live session, not history.
+        """
+
+        if checkpoint.schema_version != PREDICTIVE_HEAD_CHECKPOINT_SCHEMA_VERSION:
+            raise PredictiveHeadCheckpointError(
+                f"schema_version mismatch: expected "
+                f"{PREDICTIVE_HEAD_CHECKPOINT_SCHEMA_VERSION!r}, got "
+                f"{checkpoint.schema_version!r}"
+            )
+        if checkpoint.feature_dim != self._head_feature_dim:
+            raise PredictiveHeadCheckpointError(
+                f"feature_dim mismatch: expected {self._head_feature_dim}, "
+                f"got {checkpoint.feature_dim}"
+            )
+        restored_sums = dict(checkpoint.abs_error_sums)
+        if set(restored_sums) != set(self._head_abs_error_sums):
+            raise PredictiveHeadCheckpointError(
+                f"abs_error_sums key mismatch: expected "
+                f"{sorted(self._head_abs_error_sums)}, got {sorted(restored_sums)}"
+            )
+        self._world_head.restore_weights(checkpoint.world_weights)
+        self._self_head.restore_weights(checkpoint.self_weights)
+        self._head_sample_count = checkpoint.sample_count
+        self._head_abs_error_sums = restored_sums
+        self._head_recent_pairs.clear()
+        self._pending_head_forecast = None
+
+    def predictive_head_kill_criteria(self) -> PredictiveHeadKillCriteria:
+        """Self-reward autocorrelation check over the recent scored window."""
+
+        pairs = list(self._head_recent_pairs)
+        predictions = [p for p, _ in pairs]
+        targets = [t for _, t in pairs]
+        window_filled = len(pairs) >= _HEAD_KILL_WINDOW
+        if len(pairs) >= 3:
+            # A frozen (constant) prediction series counts as perfectly
+            # self-correlated and target-uncorrelated: that IS the failure
+            # mode this check exists to catch.
+            self_autocorr = _series_correlation(
+                predictions[1:], predictions[:-1], degenerate=1.0
+            )
+            target_corr = _series_correlation(predictions, targets, degenerate=0.0)
+        else:
+            self_autocorr = 0.0
+            target_corr = 0.0
+        kill = window_filled and self_autocorr >= 0.98 and target_corr <= 0.05
+        return PredictiveHeadKillCriteria(
+            window_size=_HEAD_KILL_WINDOW,
+            samples_in_window=len(pairs),
+            window_filled=window_filled,
+            prediction_self_autocorrelation=round(self_autocorr, 4),
+            prediction_target_correlation=round(target_corr, 4),
+            kill_triggered=kill,
+            description=(
+                f"CP-11 kill check over {len(pairs)}/{_HEAD_KILL_WINDOW} samples: "
+                f"self-autocorr={self_autocorr:.3f}, target-corr={target_corr:.3f}, "
+                f"kill_triggered={kill}. Report-only."
             ),
         )
 

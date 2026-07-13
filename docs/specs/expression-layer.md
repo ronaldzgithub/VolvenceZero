@@ -67,6 +67,7 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 | `vitals` (lifeform) | `VitalsSnapshot` | `vitals_pressure=<drives>`, `vitals_total_pe=<float>` |
 | `interlocutor` | `InterlocutorState` | `interlocutor_conf=<float>`, `il_*` |
 | `reflection` | `ReflectionSnapshot` | `primary_lesson=<id>`, `primary_tension=<id>`, `reflection_writeback=applied` |
+| `affordance` (lifeform) | `AffordanceSnapshot` | `affordance=selected:<name>;score:<float>`, `affordance_blocked=<n>` |
 
 ### Outputs
 
@@ -88,6 +89,7 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 | REGIME_FRAME | `regime_frame_section=<variant>` | `repair_alpha`, `emotional_support`, `guided_exploration_*`, `problem_solving`, ... |
 | OPEN_LOOP_HANDOFF | `open_loop_section=<variant>` | `repair_alpha`, `case_or_playbook`, `default` |
 | NEXT_STEP | `next_step_section=<variant>` | `repair_alpha`, `support_or_repair`, `problem_solving`, `guided_exploration_*` |
+| AFFORDANCE_OFFER | `affordance=selected:<name>;score:<float>` | owner-approved offer；只提出可用能力，**不自动调用**；planner 由 `AffordanceSnapshot.selected` 触发，缺 snapshot 时 no-op |
 
 ## 与其他能力域的关系
 

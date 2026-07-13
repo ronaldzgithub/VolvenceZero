@@ -39,10 +39,18 @@ from volvence_zero.social_cognition import (
     PreferenceAboutOtherSnapshot,
     SELF_INTERLOCUTOR_ID,
     SocialPrediction,
+    SocialPredictionError,
     SocialPredictionKind,
     SocialScopeKind,
 )
 from volvence_zero.substrate import SubstrateSnapshot
+
+from .record_store import (
+    PendingSocialPrediction,
+    SocialRecordStore,
+    apply_outcome_to_record,
+    settle_pending_predictions,
+)
 
 from volvence_zero.semantic_state._llm_proposal_counters import (
     LLMProposalAttemptAccumulator,
@@ -68,16 +76,22 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
         user_input: str | None = None,
         turn_index: int = 0,
         wiring_level: WiringLevel | None = None,
+        record_store: SocialRecordStore | None = None,
     ) -> None:
+        # W1.C (CP-16): the optional session-held ``record_store`` gives
+        # this owner cross-turn records + pending-prediction settlement.
+        # When None (unit tests / standalone probes) the owner keeps its
+        # original per-turn stateless behavior.
         super().__init__(wiring_level=wiring_level)
         self._proposal_runtime = proposal_runtime
         self._user_input = user_input
         self._turn_index = turn_index
+        self._record_store = record_store
 
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> Snapshot[Any]:
-        records: tuple[OtherMindRecord, ...] = ()
+        new_records: tuple[OtherMindRecord, ...] = ()
         control_signal = 0.0
         if self._proposal_runtime is not None:
             substrate_snapshot = upstream.get("substrate")
@@ -106,7 +120,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
                 if proposal.target_slot == self.slot_name
                 and proposal.confidence >= self.min_proposal_confidence
             )
-            records = tuple(
+            new_records = tuple(
                 _record_from_proposal(
                     proposal=proposal,
                     kind=self.record_kind,
@@ -115,14 +129,84 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
                 for proposal in proposals
             )
             control_signal = _mean_control_signal(proposals)
+        records, settled_errors = self._settle_and_merge(new_records)
         proposal_diagnostics = self._extract_proposal_diagnostics()
         return self.publish(
             self._snapshot(
                 records=records,
                 control_signal=control_signal,
                 proposal_diagnostics=proposal_diagnostics,
+                settled_errors=settled_errors,
             )
         )
+
+    def _settle_and_merge(
+        self, new_records: tuple[OtherMindRecord, ...]
+    ) -> tuple[tuple[OtherMindRecord, ...], tuple[SocialPredictionError, ...]]:
+        """Cross-turn settlement + promote/retire (W1.C, CP-16 core).
+
+        Without a store the owner stays stateless: this turn's records
+        pass through unchanged and nothing settles.
+        """
+
+        store = self._record_store
+        if store is None:
+            return (new_records, ())
+        prior_records = store.tom_records(self.slot_name)
+        pending = store.pending_tom_predictions(self.slot_name)
+        evidence_by_scope: dict[str, tuple[tuple[str, str], ...]] = {}
+        for record in new_records:
+            evidence_by_scope[record.interlocutor_id] = (
+                *evidence_by_scope.get(record.interlocutor_id, ()),
+                (record.record_id, record.summary),
+            )
+        result = settle_pending_predictions(
+            pending=pending,
+            new_evidence_by_scope=evidence_by_scope,
+            turn_index=self._turn_index,
+            owner=self.owner,
+            similarity=store.similarity,
+        )
+        outcome_by_record = {
+            record_id: (outcome, error_id)
+            for record_id, outcome, error_id in result.outcomes_by_record
+        }
+        updated_prior = tuple(
+            apply_outcome_to_record(
+                record,
+                outcome_by_record[record.record_id][0],
+                error_id=outcome_by_record[record.record_id][1],
+            )
+            if record.record_id in outcome_by_record
+            else record
+            for record in prior_records
+        )
+        merged_by_id: dict[str, OtherMindRecord] = {}
+        for record in (*updated_prior, *new_records):
+            merged_by_id[record.record_id] = record
+        merged = tuple(merged_by_id.values())
+        store.set_tom_records(self.slot_name, merged)
+        # Rebuild the pending window: still-ambiguous entries keep their
+        # original issue turn; every ACTIVE / CONTESTED record without a
+        # pending entry issues a fresh prediction (CONTESTED must remain
+        # settleable so a second disconfirmation can retire it).
+        pending_by_record = {
+            entry.source_record_id: entry for entry in result.still_pending
+        }
+        for record in store.tom_records(self.slot_name):
+            if record.status is OtherMindRecordStatus.RETIRED:
+                continue
+            if record.record_id in pending_by_record:
+                continue
+            pending_by_record[record.record_id] = PendingSocialPrediction(
+                prediction=self._prediction_for_record(record),
+                source_record_id=record.record_id,
+                issued_turn=self._turn_index,
+            )
+        store.set_pending_tom_predictions(
+            self.slot_name, tuple(pending_by_record.values())
+        )
+        return (store.tom_records(self.slot_name), result.settled_errors)
 
     def _extract_proposal_diagnostics(self) -> LLMProposalAttemptCounters | None:
         """Return the runtime's typed counters when available.
@@ -149,6 +233,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
         records: tuple[OtherMindRecord, ...],
         control_signal: float,
         proposal_diagnostics: LLMProposalAttemptCounters | None,
+        settled_errors: tuple[SocialPredictionError, ...] = (),
     ) -> Any:
         return self.snapshot_type(
             records=records,
@@ -157,9 +242,30 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
             description=(
                 self.empty_description
                 if not records
-                else f"{self.owner} published explicit records={len(records)}."
+                else (
+                    f"{self.owner} published explicit records={len(records)} "
+                    f"settled={len(settled_errors)}."
+                )
             ),
             proposal_diagnostics=proposal_diagnostics,
+            settled_errors=settled_errors,
+        )
+
+    def _prediction_for_record(self, record: OtherMindRecord) -> SocialPrediction:
+        return SocialPrediction(
+            prediction_id=f"{self.slot_name}:{record.record_id}:prediction",
+            kind=self.prediction_kind,
+            scope_kind=SocialScopeKind.INTERLOCUTOR,
+            scope_id=record.interlocutor_id,
+            subject_ids=(record.interlocutor_id,),
+            audience_ids=(SELF_INTERLOCUTOR_ID,),
+            predicted_outcome=record.summary,
+            confidence=record.confidence,
+            evidence=(
+                f"tom_record:{record.record_id}",
+                f"tom_kind:{record.kind.value}",
+                record.evidence,
+            ),
         )
 
     def _active_predictions(
@@ -167,28 +273,16 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
     ) -> tuple[SocialPrediction, ...]:
         """Publish owner-authored ToM predictions from typed records.
 
-        These are prediction-only in the first slice: the ToM owner owns the
-        semantic readout and the aggregate owner forwards it. PE-weighted
-        promote/retire is a later slice that will attach settled outcomes.
+        W1.C: only ACTIVE records predict publicly. CONTESTED records
+        stay settleable in the pending store (so a second
+        disconfirmation retires them) but do not assert predictions;
+        RETIRED records neither predict nor pend.
         """
 
         return tuple(
-            SocialPrediction(
-                prediction_id=f"{self.slot_name}:{record.record_id}:prediction",
-                kind=self.prediction_kind,
-                scope_kind=SocialScopeKind.INTERLOCUTOR,
-                scope_id=record.interlocutor_id,
-                subject_ids=(record.interlocutor_id,),
-                audience_ids=(SELF_INTERLOCUTOR_ID,),
-                predicted_outcome=record.summary,
-                confidence=record.confidence,
-                evidence=(
-                    f"tom_record:{record.record_id}",
-                    f"tom_kind:{record.kind.value}",
-                    record.evidence,
-                ),
-            )
+            self._prediction_for_record(record)
             for record in records
+            if record.status is OtherMindRecordStatus.ACTIVE
         )
 
 

@@ -20,6 +20,7 @@ import pathlib
 import re
 import shutil
 import sys
+from typing import Any
 
 from lifeform_domain_character import (
     ChapterCoverageKind,
@@ -44,6 +45,10 @@ from volvence_zero.memory import (
     build_default_memory_store,
 )
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
+from lifeform_service.openai_compat_client import (
+    build_client_from_env,
+    describe_active_provider,
+)
 
 _PLACEHOLDER_REVIEWER = "operator-review-required"
 
@@ -65,6 +70,28 @@ class _FixtureChapterRuntime:
             raise ValueError("fixture runtime could not find Chapter id in prompt")
         path = self._response_dir / f"{match.group(1)}.json"
         return path.read_text(encoding="utf-8")
+
+
+class _ExternalJsonRuntimeAdapter:
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def generate(
+        self,
+        *,
+        prompt: str,
+        max_new_tokens: int = 4096,
+        temperature: float = 0.0,
+    ) -> str:
+        del max_new_tokens, temperature
+        payload = self._client.complete_json(
+            system_prompt=(
+                "You are an extraction worker. Return only one JSON object "
+                "that conforms to the schema embedded in the user prompt."
+            ),
+            user_prompt=prompt,
+        )
+        return json.dumps(payload, ensure_ascii=False)
 
 
 def _load_owner_snapshot(
@@ -110,6 +137,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Directory containing per-chapter LLM JSON responses named ch-<n>.json.",
     )
     parser.add_argument(
+        "--external-llm",
+        choices=("auto", "required", "off"),
+        default="auto",
+        help=(
+            "Use PROTOCOL_LLM_* OpenAI-compatible external LLM for extraction "
+            "when no --candidate-response-dir is supplied. 'required' fails "
+            "loudly if the client is not configured."
+        ),
+    )
+    parser.add_argument(
         "--candidate-output",
         type=pathlib.Path,
         default=pathlib.Path("artifacts/character-live-through/zhang_wuji.candidate_ledger.json"),
@@ -146,13 +183,36 @@ def _stage_extract(args: argparse.Namespace) -> int:
     )
     write_ledger_json(scaffold, args.scaffold_output)
     print(f"[scaffold] wrote {args.scaffold_output}")
-    if args.candidate_response_dir is None:
-        print("[extract] no --candidate-response-dir; scaffold only")
+    if args.candidate_response_dir is not None:
+        llm_runtime = _FixtureChapterRuntime(args.candidate_response_dir)
+        print(f"[extract] using fixture responses from {args.candidate_response_dir}")
+    elif args.external_llm == "off":
+        print("[extract] external LLM disabled; scaffold only")
         return 0
+    else:
+        active_provider = describe_active_provider()
+        client = build_client_from_env()
+        if client is None:
+            message = (
+                "[extract] no PROTOCOL_LLM_API_KEY; scaffold only "
+                f"(provider={active_provider['provider']} "
+                f"model={active_provider['model'] or '<unset>'})"
+            )
+            if args.external_llm == "required":
+                raise ValueError(message)
+            print(message)
+            return 0
+        llm_runtime = _ExternalJsonRuntimeAdapter(client)
+        print(
+            "[extract] using external LLM "
+            f"provider={active_provider['provider']} "
+            f"model={active_provider['model']} "
+            f"base_url={active_provider['base_url']}"
+        )
     chapters = _source_chapters(args.novel)
     candidate = extract_chapter_ledger_candidate(
         chapters=chapters,
-        llm_runtime=_FixtureChapterRuntime(args.candidate_response_dir),
+        llm_runtime=llm_runtime,
         character_id=profile.profile_id,
         character_name=profile.character_name,
         source_title=profile.source_title,

@@ -239,7 +239,8 @@ class AffordanceSelectionState:
 
 `lifeform-affordance/module.py:AffordanceModule` 实现：
 
-- `slot_name = "affordance"`，`dependencies = ("temporal_abstraction",)`，**默认 `WiringLevel.ACTIVE`**（long-horizon-closure follow-up）
+- `slot_name = "affordance"`，`dependencies = ("temporal_abstraction", "boundary_consent")`，**默认 `WiringLevel.ACTIVE`**（long-horizon-closure follow-up）
+- `boundary_consent` 上游：当 `BoundaryConsentSnapshot.external_action_blocked` 为 True 时，TOOL / SHELL 两类外部行动候选被 typed blocked（`blocked_reason="boundary_consent:external_action_blocked"`），selected 不落在被 block 的候选上；snapshot description 标注 `consent_external_blocked` 状态。缺失 consent snapshot 时不做任何 block（no-op），不静默降级。
 - `process()` 的优先级：
   1. 若 metacontroller 已发布 `affordance_selection`，直接采用（future path）
   2. 否则用 `score_affordance_candidates(z_t=temporal_snapshot.controller_state.code, descriptor_names=...)` 在本地做投影

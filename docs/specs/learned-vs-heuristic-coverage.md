@@ -140,6 +140,7 @@
 | cross-track tension（goal overlap penalty 0.15 + divergence 系数） | `hand-crafted` | `dual_track/core.py:303-314` |
 | abstract action hint / substrate goal 注入 | `frozen-substrate` | `dual_track/core.py:235-247` |
 | SELF track traits / identity gate（traits populator deferred，直接透传） | `hand-crafted` | `dual_track/core.py:32-43,282-283` |
+| `learned_gate_shadow`（world/self gate；session 注入 `DualTrackGateLearner` 时为 bounded online-SGD，按 PE realized outcome 打分；未注入时回退固定公式） | `bounded-learned`（`AgentSessionRunner` 默认注入；report-only shadow 字段） | `dual_track/gate_learner.py` · `dual_track/core.py`（`_derive_gate_shadow`）· `agent/session.py`（session-held + settlement） |
 
 **卡点链接**：[#91](../known-debts.md) 修法 1 **已 land**（2026-07-04）——`dual_track` track 分配、`evaluation` prototype 打分、`application/storage` 检索已迁到可注入 `semantic_embedding` 接缝（有真实 transformers substrate 时用 LM 编码，无则 stub fallback），见 [semantic-embedding-backend.md](./semantic-embedding-backend.md)。**残余**：`apprenticeship` 的 stub-token Jaccard（归 [#90](../known-debts.md)）+ `application/scoring_helpers`/`runtime_helpers`（stub-空间字面量 prototype 需一并 lazy 化，#91 follow-up）。
 
@@ -155,6 +156,7 @@ slots：`plan_intent` · `commitment` · `open_loop` · `user_model` · `executi
 | lifecycle 状态转移（rule-based AAC） | `hand-crafted` | `semantic_state/lifecycle.py` |
 | relationship funnel stage 阶梯（固定 trust/turn 阈值 0.85/25 …） | `hand-crafted` | `semantic_state/owners.py:107-118` |
 | event adapter → proposal 映射（status→operation 字典 + 固定 control_signal） | `hand-crafted` | `semantic_state/proposal_runtime.py:137-391` |
+| owner prediction v2（五个 first-wave owner 的 `predicted_vector`：store 内 per-slot `_OwnerForecastLearner`，settlement 时按 observed 更新；cold-start 与 persistence prior 一致） | `bounded-learned` | `semantic_state/store.py`（`forecast_owner_vector` / `settle_owner_forecast`）· `semantic_state/owners.py`（`_owner_prediction_signals`） |
 
 #### ReflectionEngine / ReflectionModule — `reflection`
 
@@ -172,7 +174,8 @@ slots：`plan_intent` · `commitment` · `open_loop` · `user_model` · `executi
 | owner / slot | 决策点 | 分类 | 证据 |
 |--------------|--------|------|------|
 | `belief/intent/feeling/preference_about_other` | proposal + confidence 过滤 | LLM wired 时 `frozen-substrate` / NoOp 时 `hand-crafted`（fail-closed） | `social/tom.py:57,77-103,279+` |
-| `common_ground` | atom 合并（R19 SHADOW scaffold） | `hand-crafted` scaffold | `social/common_ground.py:110-176` |
+| `belief/intent/feeling/preference_about_other` | 跨轮 record store + prediction settlement + PE-weighted promote/retire（ACTIVE→CONTESTED→RETIRED；settlement 走 semantic embedding cosine，非关键词） | `bounded-learned`（settlement 驱动置信度/状态更新；`AgentSessionRunner` 默认注入 store） | `social/record_store.py`（`settle_pending_predictions` / `apply_outcome_to_record`）· `social/tom.py`（`_settle_and_merge`） |
+| `common_ground` | atom 合并 + 同一 settlement 路径（repair/clarification evidence settle 引用预测） | `hand-crafted` scaffold + `bounded-learned` settlement | `social/common_ground.py:110-176`（合并）· `social/common_ground.py`（`_settle_and_merge`） |
 | `groups` | 全逻辑（透传，无 learning） | `hand-crafted` scaffold | `social/group.py:1-6,46-63` |
 | `social_prediction` / `social_prediction_error` | 信号 lift（SSOT 转发，不重建） | `hand-crafted` | `social/identity.py:136-201,205+` |
 | `interlocutor_state` | readout 聚合 | `hand-crafted` | `interlocutor/owner.py:36-39` |
@@ -215,10 +218,15 @@ slots：`plan_intent` · `commitment` · `open_loop` · `user_model` · `executi
 
 ### 内核级 headline（诚实结论）
 
-**在默认 wiring 下，内核里真正"学出来"的东西只有三处**：
+**在默认 wiring 下，内核里真正"学出来"的东西**（2026-07-13 更新，从三处扩到六处）：
 1. `_PELearnedCritic`（PE epistemic，18-dim 线性回归）—— [#7](../known-debts.md)
 2. `_RewardingStateHead`（COCOA credit baseline，15-dim 线性 head）—— [#6](../known-debts.md)
 3. CMS `LearnedUpdateRule` band 更新门控（+ 可选 Titans PE-gate）—— [#89](../known-debts.md)
+4. `DualTrackGateLearner`（world/self gate shadow，session-held online-SGD，PE realized outcome 打分；report-only）—— W1.A
+5. 语义 owner forecast v2（五 slot per-维 learned forecast，settlement 时更新）—— W1.B
+6. ToM / common-ground prediction settlement + PE-weighted promote/retire（跨轮 record store）—— W1.C（CP-16/17 核）
+
+其中 4–6 为 2026-07-13 intent-alignment remediation 落地；4 仍是 report-only shadow 字段（不进 RL reward），5/6 直接驱动签发预测与 record 生命周期。
 
 **其余绝大多数决策是 hand-crafted 规则或 frozen-substrate readout**；ETA 论文级的 torch metacontroller / Internal RL / ndim GRU 已实现但**默认 DISABLED 或因 `n_z=3` 未实例化**。同时存在一个**显著的 `should-be-learned-but-hand-crafted` 桶**（尤以 `vz-cognition` regime/dual_track/apprenticeship 与 `vz-substrate`/`vz-temporal` 的 stub·静态映射为最），它是 [#88](../known-debts.md)–[#91](../known-debts.md) / [#79](../known-debts.md)–[#81](../known-debts.md) 的直接来源。
 
@@ -272,6 +280,7 @@ slots：`plan_intent` · `commitment` · `open_loop` · `user_model` · `executi
 
 ## 变更日志
 
+- 2026-07-13：W1 intent-alignment remediation land。三处 should-be-learned 移入 bounded-learned：(A) dual-track `learned_gate_shadow` 从固定公式换成 session-held `DualTrackGateLearner`（bounded online-SGD，PE realized outcome 打分，report-only）；(B) 五个 first-wave 语义 owner 的 `predicted_vector` 从 persistence-prior 升级为 store 内 per-slot learned forecast（settlement 更新，cold-start 与 prior 一致）；(C) ToM/common-ground 获得跨轮 `SocialRecordStore` + prediction settlement（semantic embedding cosine）+ PE-weighted promote/retire（CP-16/17 核）。同批 CP-11 heads 补 checkpoint export/restore + self-reward kill-criteria。synthetic soak 工具就绪：`scripts/run_learned_shadow_soak.py` + GPU-server launcher `scripts/run_learned_shadow_soak.sh`（artifact schema `learned-shadow-soak.v1`，内嵌 `learned_active_gate` 诚实 verdicts——synthetic lane `real_trace_turns=0`，预期 BLOCKED on real-trace gates）。10-turn sanity 已在本机验证通过（checkpoint round-trip + kill-criteria + gate verdicts 全链）；**500-turn 全量 run 待在 GPU 服务器执行**（本机 Windows CPU 实测吞吐不足，run 已中止不留半成品 artifact）。
 - 2026-07-04：[#89](../known-debts.md) 前提纠偏 + Stage 0 land（CMS 抗遗忘）。**纠正**：CMS 的 PE-gate + ATLAS replay 经 `build_default_memory_store` 运行时已默认 CPU-ACTIVE（bounded-learned），此前本 spec 记「默认关」不准（只对裸 `CMSMemoryCore(...)` 构造成立）；真正默认关的仅 `cms_torch_backend`（GPU-gated）。本轮 land：CMS owner report-only 抗遗忘双指标 `new_knowledge_absorption` / `old_knowledge_retention`（CMSState + lifecycle_metrics，由真实 per-band drift 派生，不改学习行为）+ A/B matched-control 证据（uplift 背景带漂移 ≤ rollback）+ rollback drill（`tests/test_cms_anti_forgetting_evidence.py`）。残余 Stage 1（torch band ACTIVE + ≥500 turn 真 trace）GPU follow-up。
 - 2026-07-04：[#90](../known-debts.md) 修法部分 land（主动学习）。`apprenticeship_alignment` 默认 flip 到 ACTIVE（仅 apprentice turn 生效，普通轮 idle → no-op），新增 owner 自持 `should_request_feedback` / `feedback_request_reason` / `feedback_request_urgency` 字段 + `open_loop` actuator（冒出 verification 开环，`build_final_runtime_modules` 重排保证 open_loop 在 apprenticeship 之后）。稀疏反馈请求成主链行为；残余（LLM extractor / labels_saved 对照基线 / protocol ACTIVE）。见 [apprenticeship-alignment.md](./apprenticeship-alignment.md) §7.1。
 - 2026-07-04：[#91](../known-debts.md) 修法 1 land。语义嵌入 stub 升级为可注入 `SemanticEmbeddingBackend` 接缝（vz-contracts，默认 fallback stub）+ 复用已加载 LM 的 `SubstrateTextEncoderBackend`（vz-substrate）+ Brain 仅对真实 transformers runtime 注入；`dual_track` / `evaluation` / `application/storage` 迁到接缝。默认 wiring 下无 substrate / synthetic 路径**占比不变**（仍 stub）；有真实 substrate 时上述 stub 决策点变为 substrate-grounded。残余（apprenticeship token 归 [#90](../known-debts.md)；scoring_helpers/runtime_helpers 字面量 prototype follow-up）。见 [semantic-embedding-backend.md](./semantic-embedding-backend.md)。

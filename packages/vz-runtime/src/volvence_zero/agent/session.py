@@ -167,6 +167,8 @@ from volvence_zero.substrate import (
     TraceStep,
     build_training_trace,
 )
+from volvence_zero.dual_track import DualTrackGateLearner
+from volvence_zero.social import SocialRecordStore
 from volvence_zero.temporal import (
     DualTrackRareHeavySnapshot,
     FullLearnedTemporalPolicy,
@@ -700,6 +702,17 @@ class AgentSessionRunner(
         # ``DualTrackSnapshot.self_track.traits`` for the protocol
         # identity gate.
         self._identity_seed = identity_seed
+        # W1.A (intent-alignment remediation): session-held gate learner so
+        # the dual-track learned-gate SHADOW readout is a genuine bounded
+        # online-SGD learner whose weights survive the per-turn
+        # ``DualTrackModule`` rebuild (same lifetime pattern as
+        # ``_tom_proposal_runtime``). Fed after each turn from the PE
+        # owner's published realized outcome; report-only.
+        self._dual_track_gate_learner = DualTrackGateLearner()
+        # W1.C (CP-16/17): session-held ToM / common-ground record store
+        # so those owners keep cross-turn records, settle prior-turn
+        # predictions, and drive PE-weighted promote/retire.
+        self._social_record_store = SocialRecordStore()
         self._prediction_module = PredictionErrorModule(
             wiring_level=self._config.level_for("prediction_error", WiringLevel.ACTIVE),
         )
@@ -846,6 +859,27 @@ class AgentSessionRunner(
     @property
     def self_temporal_policy(self) -> TemporalPolicy:
         return self._self_temporal_policy
+
+    @property
+    def dual_track_gate_learner(self) -> DualTrackGateLearner:
+        return self._dual_track_gate_learner
+
+    @property
+    def social_record_store(self) -> SocialRecordStore:
+        return self._social_record_store
+
+    @property
+    def prediction_module(self) -> PredictionErrorModule:
+        """Session-held PE owner. Exposed for the CP-11 gate-completeness
+        surfaces (checkpoint export/restore + kill-criteria readout); the
+        published PredictionErrorSnapshot remains the runtime data channel.
+        """
+        return self._prediction_module
+
+    @property
+    def semantic_state_store(self) -> SemanticStateStore:
+        """Session-held semantic owner store (W1.B learned-forecast readout)."""
+        return self._semantic_state_store
 
     @property
     def residual_runtime(self) -> OpenWeightResidualRuntime:
@@ -1044,6 +1078,8 @@ class AgentSessionRunner(
                 substrate_self_mod_pe_reward=self._previous_prediction_reward,
                 substrate_self_mod_pe_threshold=self._joint_schedule.pe_substrate_online_fast_threshold,
                 identity_seed=self._identity_seed,
+                dual_track_gate_learner=self._dual_track_gate_learner,
+                social_record_store=self._social_record_store,
             )
             self._last_session_post_writeback_request = integration_result.session_post_writeback_request
             self._upstream_snapshots = {
@@ -1077,6 +1113,17 @@ class AgentSessionRunner(
                 self._previous_prediction_reward = integration_result.prediction_error_snapshot.error.signed_reward
                 self._previous_prediction_magnitude = integration_result.prediction_error_snapshot.error.magnitude
                 self._previous_prediction_error = integration_result.prediction_error_snapshot.error
+                # W1.A: settle the previous turn's dual-track gate candidate
+                # against the PE owner's published realized outcome. The
+                # session reads the snapshot (never the PE module's
+                # internals) and feeds the session-held learner; bootstrap
+                # turns are skipped inside the learner (no prior features).
+                pe_actual = integration_result.prediction_error_snapshot.actual_outcome
+                if not integration_result.prediction_error_snapshot.bootstrap:
+                    self._dual_track_gate_learner.observe_realized_outcome(
+                        task_progress=pe_actual.task_progress,
+                        relationship_delta=pe_actual.relationship_delta,
+                    )
             imagination_result = self._run_imagination(integration_result)
             if imagination_result is not None:
                 self._recommended_z = imagination_result.selected_trajectory.z_sequence[0]
