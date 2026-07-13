@@ -46,7 +46,6 @@ except (AttributeError, OSError):
 # ---------------------------------------------------------------------------
 
 from lifeform_domain_emogpt import (
-    DEFAULT_REAL_MODEL_ID,
     DEFAULT_REAL_MODEL_SOURCE,
     bootstraps_dir as companion_bootstraps_dir,
     build_companion_lifeform_with_real_substrate,
@@ -87,10 +86,16 @@ async def recalibrate(
     output_dir: pathlib.Path,
     diversity_threshold: float,
     diversity_lr: float,
+    model_source: str,
+    device: str,
+    local_files_only: bool,
 ) -> None:
-    _print_header("Phase 1: load Qwen 2.5 0.5B Instruct + companion scenarios")
+    _print_header(f"Phase 1: load {model_source} + companion scenarios")
     started_load = time.monotonic()
     bundle = build_companion_lifeform_with_real_substrate(
+        model_source=model_source,
+        device=device,
+        local_files_only=local_files_only,
         # Hard-fail the recalibration if Qwen can't be loaded \u2014 a
         # degraded calibration would just produce another set of
         # synthetic-looking weights and be misleading.
@@ -114,7 +119,7 @@ async def recalibrate(
     )
     print(
         "  Each round runs every scenario through the kernel + collects SSL "
-        "trace.\n  With Qwen on CPU, ~30-90s per round. Total ETA: "
+        f"trace.\n  Device={device}. Total ETA depends on model and device: "
         f"{rounds} x ~60s.\n"
     )
     started_loop = time.monotonic()
@@ -163,8 +168,9 @@ async def recalibrate(
         report.final_temporal_snapshot,
         temporal_path,
         metadata={
-            "model_id": DEFAULT_REAL_MODEL_ID,
-            "model_source": DEFAULT_REAL_MODEL_SOURCE,
+            "model_id": bundle.model_id,
+            "model_source": model_source,
+            "device": device,
             "rounds": rounds,
             "calibrated_at_ms": int(time.time() * 1000),
         },
@@ -173,8 +179,9 @@ async def recalibrate(
         report.final_regime_bootstrap,
         regime_path,
         metadata={
-            "model_id": DEFAULT_REAL_MODEL_ID,
-            "model_source": DEFAULT_REAL_MODEL_SOURCE,
+            "model_id": bundle.model_id,
+            "model_source": model_source,
+            "device": device,
             "rounds": rounds,
             "match_rate_baseline": report.rounds[0].regime_match_rate,
             "match_rate_final": report.rounds[-1].regime_match_rate,
@@ -226,6 +233,13 @@ def _cli() -> int:
         default=0.30,
         help="diversity-aware calibrator step size (default 0.30)",
     )
+    parser.add_argument("--model-source", default=DEFAULT_REAL_MODEL_SOURCE)
+    parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--local-files-only",
+        action="store_true",
+        help="refuse network downloads and use only the local HF cache",
+    )
     args = parser.parse_args()
 
     if args.inplace:
@@ -257,6 +271,9 @@ def _cli() -> int:
             output_dir=out,
             diversity_threshold=args.diversity_threshold,
             diversity_lr=args.diversity_lr,
+            model_source=args.model_source,
+            device=args.device,
+            local_files_only=args.local_files_only,
         )
     )
 

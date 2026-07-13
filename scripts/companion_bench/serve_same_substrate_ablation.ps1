@@ -27,6 +27,20 @@ Set-Content -Path $PidFile -Value ""
 
 $RawUpstream = "http://127.0.0.1:8000/v1?mode=raw"
 
+$PreflightArgs = @(
+    "scripts/companion_bench/preflight_llm.py",
+    "--offline",
+    "--model-id", $env:VZ_SUBSTRATE_MODEL_ID,
+    "--artifact-dir", $ArtifactDir
+)
+if ($env:VZ_SUBSTRATE_WEIGHTS_PATH) {
+    $PreflightArgs += @("--weights-path", $env:VZ_SUBSTRATE_WEIGHTS_PATH)
+}
+python @PreflightArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "[serve] local P1 preflight failed"
+}
+
 Write-Host "[serve] substrate=$($env:VZ_SUBSTRATE_MODEL_ID) device=$Device"
 Write-Host "[serve] artifacts -> $ArtifactDir"
 Write-Host "[serve] VZ_TORCH_BACKENDS=$($env:VZ_TORCH_BACKENDS)"
@@ -44,6 +58,36 @@ function Start-AblationService {
     Add-Content -Path $PidFile -Value $proc.Id
 }
 
+function Stop-AblationServices {
+    if (Test-Path $PidFile) {
+        Get-Content $PidFile | Where-Object { $_ } | ForEach-Object {
+            Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Wait-AblationEndpoint {
+    param(
+        [string]$Name,
+        [string]$Url,
+        [int]$TimeoutSeconds = 900
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+                Write-Host "[serve] healthy ${Name}: $Url"
+                return
+            }
+        } catch {
+            Start-Sleep -Seconds 5
+        }
+    }
+    throw "[serve] timed out waiting for ${Name}: $Url"
+}
+
+try {
 Start-AblationService "lifeform-companion" @(
     "lifeform-serve",
     "--vertical", "companion",
@@ -114,30 +158,30 @@ if ($CamelBackend -eq "camel") {
 }
 Start-AblationService "camel-baseline" $CamelArgs
 
-foreach ($track in @("raw", "ref-harness", "camel", "volvence-cold", "volvence")) {
-    $dir = Join-Path $ArtifactDir $track
-    New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    $fpPath = Join-Path $dir "substrate_fingerprint.json"
-    $json = @"
-{
-  "track": "$track",
-  "substrate_model_id": "$($env:VZ_SUBSTRATE_MODEL_ID)",
-  "served_at": "$DateTag"
-}
-"@
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText($fpPath, $json, $utf8NoBom)
-}
-
-Write-Host "[serve] waiting 90s for model load + endpoints..."
-Start-Sleep -Seconds 90
+Wait-AblationEndpoint "lifeform-companion" "http://127.0.0.1:8000/v1/health"
+Wait-AblationEndpoint "lifeform-companion-cold" "http://127.0.0.1:8001/v1/health"
+Wait-AblationEndpoint "ref-harness" "http://127.0.0.1:8500/healthz"
+Wait-AblationEndpoint "camel-baseline" "http://127.0.0.1:8600/healthz"
 
 python scripts/companion_bench/assert_same_substrate.py `
+  --require-weights-sha256 `
   --fingerprint-file "raw=$(Join-Path $ArtifactDir 'raw/substrate_fingerprint.json')" `
   --fingerprint-file "ref-harness=$(Join-Path $ArtifactDir 'ref-harness/substrate_fingerprint.json')" `
   --fingerprint-file "camel=$(Join-Path $ArtifactDir 'camel/substrate_fingerprint.json')" `
   --fingerprint-file "volvence-cold=$(Join-Path $ArtifactDir 'volvence-cold/substrate_fingerprint.json')" `
   --fingerprint-file "volvence=$(Join-Path $ArtifactDir 'volvence/substrate_fingerprint.json')"
+if ($LASTEXITCODE -ne 0) {
+    throw "[serve] same-substrate fingerprint gate failed"
+}
 
 Write-Host "[serve] all endpoints launched. PIDs in $PidFile"
 Write-Host "[serve] stop with: Get-Content $PidFile | ForEach-Object { Stop-Process -Id `$_ -Force -ErrorAction SilentlyContinue }"
+} catch {
+    Write-Error $_
+    foreach ($log in Get-ChildItem $LogDir -Filter "*.err.log" -ErrorAction SilentlyContinue) {
+        Write-Host "[serve] stderr: $($log.FullName)"
+        Get-Content $log.FullName -Tail 40
+    }
+    Stop-AblationServices
+    throw
+}

@@ -41,6 +41,8 @@ import pathlib
 import subprocess
 import sys
 from typing import Any
+import urllib.error
+import urllib.request
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPTS = REPO_ROOT / "scripts" / "companion_bench"
@@ -256,8 +258,12 @@ def phase_real(*, args: argparse.Namespace, tier: str) -> int:
         score_cmd += ["--per-system-timeout-min", str(args.per_system_timeout_min)]
     if args.per_system_retries > 0:
         score_cmd += ["--per-system-retries", str(args.per_system_retries)]
+    if args.resume:
+        score_cmd.append("--resume")
 
     _assert_non_qwen_judges(args)
+    if not args.dry_run:
+        _assert_real_run_ready(args, tier=tier)
 
     print(f"[{tier}] score command:\n  {' '.join(score_cmd)}")
     if not args.dry_run:
@@ -265,6 +271,18 @@ def phase_real(*, args: argparse.Namespace, tier: str) -> int:
         if rc != 0:
             print(f"error: score_reference_systems exited {rc}", file=sys.stderr)
             return rc
+        missing_summaries = tuple(
+            submission_id
+            for submission_id in TRACK_TO_SUBMISSION.values()
+            if not (scores_dir / submission_id / "summary.json").is_file()
+        )
+        if missing_summaries:
+            print(
+                "error: scoring returned without required summaries: "
+                + ", ".join(missing_summaries),
+                file=sys.stderr,
+            )
+            return 1
 
     # Build the comparator command from the produced per-system summaries.
     # Component arms join automatically once their submission ids appear in
@@ -309,6 +327,57 @@ def _assert_non_qwen_judges(args: argparse.Namespace) -> None:
             )
 
 
+def _assert_real_run_ready(args: argparse.Namespace, *, tier: str) -> None:
+    if tier != "p1":
+        return
+    run_manifest = args.output_dir / "run_manifest.json"
+    if not run_manifest.is_file():
+        raise SystemExit(
+            f"P1 readiness manifest missing: {run_manifest}; run the Windows "
+            "preflight/serve wrapper first"
+        )
+    manifest = json.loads(run_manifest.read_text(encoding="utf-8"))
+    if manifest["schema_version"] != "companion-p1-run-manifest.v1":
+        raise SystemExit(f"unsupported P1 run manifest schema: {manifest['schema_version']!r}")
+    if not manifest["temporal_bootstrap_sha256"] or not manifest["regime_bootstrap_sha256"]:
+        raise SystemExit("P1 run manifest does not identify the trained bootstrap pair")
+
+    scores_dir = args.output_dir / "scores"
+    if scores_dir.exists() and any(scores_dir.iterdir()) and not args.resume:
+        raise SystemExit(
+            f"{scores_dir} already contains results; pass --resume or choose a new output dir"
+        )
+
+    health_urls = {
+        "lifeform-companion": "http://127.0.0.1:8000/v1/health",
+        "lifeform-companion-cold": "http://127.0.0.1:8001/v1/health",
+        "ref-harness": "http://127.0.0.1:8500/healthz",
+        "camel": "http://127.0.0.1:8600/healthz",
+    }
+    failures: list[str] = []
+    for label, url in health_urls.items():
+        try:
+            with urllib.request.urlopen(url, timeout=10) as response:
+                if not 200 <= response.status < 300:
+                    failures.append(f"{label}=HTTP {response.status}")
+        except (urllib.error.URLError, TimeoutError) as exc:
+            failures.append(f"{label}={exc}")
+    if failures:
+        raise SystemExit("P1 endpoints are not healthy: " + "; ".join(failures))
+
+    fingerprint_cmd = [
+        sys.executable,
+        str(SCRIPTS / "assert_same_substrate.py"),
+        "--require-weights-sha256",
+    ]
+    for track in TRACK_TO_SUBMISSION:
+        path = args.output_dir / track / "substrate_fingerprint.json"
+        fingerprint_cmd += ["--fingerprint-file", f"{track}={path}"]
+    result = subprocess.run(fingerprint_cmd, cwd=str(REPO_ROOT), check=False)
+    if result.returncode != 0:
+        raise SystemExit("P1 same-substrate fingerprint gate failed")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -337,6 +406,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--family", default=None, help="restrict p0-smoke to one family (F1..F6).")
     p.add_argument("--dry-run", action="store_true", help="print commands without executing (p1/p2).")
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        help="reuse completed per-track summaries in the selected output directory",
+    )
     p.add_argument("--execute", action="store_true", help="actually run sweeps in judge-evidence.")
     p.add_argument("--parallel-sut", type=int, default=1)
     p.add_argument(

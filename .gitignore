@@ -83,6 +83,8 @@ artifacts/companionbench/*
 !artifacts/companionbench/.gitkeep
 artifacts/companion-bench/*
 !artifacts/companion-bench/.gitkeep
+artifacts/companion-ablation/*
+!artifacts/companion-ablation/.gitkeep
 artifacts/companion_bench_smoke/*
 !artifacts/companion_bench_smoke/.gitkeep
 /.local

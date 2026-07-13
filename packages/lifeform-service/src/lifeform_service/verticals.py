@@ -120,29 +120,40 @@ def _try_companion() -> VerticalSpec | None:
         return None
     bdir = bootstraps_dir()
     sdir = scenarios_dir()
-    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+
+    def build(runtime, *, identity_provider=None, memory_scope_root_dir=None, alpha=False):
         from lifeform_core import LifeformConfig
         from volvence_zero.brain import BrainConfig
 
         config = LifeformConfig(
             brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
         )
-        return build_companion_lifeform(
+        lifeform = build_companion_lifeform(
             config=config,
             substrate_runtime=runtime,
             identity_provider=identity_provider,
             response_synthesizer=_expression_synthesizer_for_runtime(
                 runtime,
-                repair_alpha_enabled=True,
+                repair_alpha_enabled=alpha,
             ),
+            semantic_proposal_runtime=_build_llm_semantic_runtime_from_runtime(runtime),
+        )
+        # Publish the Act surface on every companion turn even when the
+        # registry is empty. This does not invent a tool or a routing rule.
+        lifeform.ensure_affordance_registry()
+        return lifeform
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        return build(
+            runtime,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            alpha=True,
         )
 
     return VerticalSpec(
         name="companion",
-        factory=lambda runtime: build_companion_lifeform(
-            substrate_runtime=runtime,
-            response_synthesizer=_expression_synthesizer_for_runtime(runtime),
-        ),
+        factory=lambda runtime: build(runtime),
         has_temporal_bootstrap=(bdir / "companion-temporal.snap").is_file(),
         has_regime_bootstrap=(bdir / "companion-regime.bs").is_file(),
         bootstraps_dir=str(bdir) if bdir.is_dir() else None,
@@ -421,14 +432,15 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
         from lifeform_domain_emogpt import build_companion_lifeform
     except ImportError:
         return None
-    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+
+    def build(runtime, *, identity_provider=None, memory_scope_root_dir=None, alpha=False):
         from lifeform_core import LifeformConfig
         from volvence_zero.brain import BrainConfig
 
         config = LifeformConfig(
             brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
         )
-        return build_companion_lifeform(
+        lifeform = build_companion_lifeform(
             config=config,
             use_temporal_bootstrap=False,
             use_regime_bootstrap=False,
@@ -436,18 +448,24 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
             identity_provider=identity_provider,
             response_synthesizer=_expression_synthesizer_for_runtime(
                 runtime,
-                repair_alpha_enabled=True,
+                repair_alpha_enabled=alpha,
             ),
+            semantic_proposal_runtime=_build_llm_semantic_runtime_from_runtime(runtime),
+        )
+        lifeform.ensure_affordance_registry()
+        return lifeform
+
+    def alpha_factory(runtime, identity_provider, memory_scope_root_dir):
+        return build(
+            runtime,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            alpha=True,
         )
 
     return VerticalSpec(
         name="companion-cold",
-        factory=lambda runtime: build_companion_lifeform(
-            use_temporal_bootstrap=False,
-            use_regime_bootstrap=False,
-            substrate_runtime=runtime,
-            response_synthesizer=_expression_synthesizer_for_runtime(runtime),
-        ),
+        factory=lambda runtime: build(runtime),
         has_temporal_bootstrap=False,
         has_regime_bootstrap=False,
         alpha_factory=alpha_factory,

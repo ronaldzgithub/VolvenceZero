@@ -92,7 +92,11 @@ def fingerprint_from_file(track: str, path: pathlib.Path) -> TrackFingerprint:
     )
 
 
-def assert_consistent(fingerprints: list[TrackFingerprint]) -> TrackFingerprint:
+def assert_consistent(
+    fingerprints: list[TrackFingerprint],
+    *,
+    require_weights_sha256: bool = False,
+) -> TrackFingerprint:
     """Assert every fingerprint shares the same substrate. Returns the canonical.
 
     Raises :class:`SubstrateMismatchError` on any divergence, listing the
@@ -102,6 +106,17 @@ def assert_consistent(fingerprints: list[TrackFingerprint]) -> TrackFingerprint:
 
     if not fingerprints:
         raise SubstrateMismatchError("no fingerprints supplied")
+    if require_weights_sha256:
+        missing_hashes = tuple(
+            fingerprint.track
+            for fingerprint in fingerprints
+            if fingerprint.weights_sha256 is None
+        )
+        if missing_hashes:
+            raise SubstrateMismatchError(
+                "weights_sha256 is required for P1; missing for: "
+                + ", ".join(missing_hashes)
+            )
     base = fingerprints[0]
     mismatches: list[str] = []
     for fp in fingerprints[1:]:
@@ -151,6 +166,11 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="TRACK=PATH",
         help="path to a substrate_fingerprint.json for a track (repeatable).",
     )
+    p.add_argument(
+        "--require-weights-sha256",
+        action="store_true",
+        help="reject every track that lacks a byte-level weight digest",
+    )
     return p
 
 
@@ -176,7 +196,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        canonical = assert_consistent(fingerprints)
+        canonical = assert_consistent(
+            fingerprints,
+            require_weights_sha256=args.require_weights_sha256,
+        )
     except SubstrateMismatchError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1

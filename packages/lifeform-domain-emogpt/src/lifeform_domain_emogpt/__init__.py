@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import pathlib
 import pickle
+from dataclasses import dataclass
+import hashlib
 from typing import Any
 
 from volvence_zero.regime import RegimeBootstrap
@@ -71,6 +73,48 @@ def bootstraps_dir() -> pathlib.Path:
     different pickle file fails loudly rather than silently.
     """
     return pathlib.Path(__file__).resolve().parent / "bootstraps"
+
+
+@dataclass(frozen=True)
+class CompanionBootstrapManifest:
+    """Validated identity of the two companion calibration artifacts."""
+
+    temporal_path: pathlib.Path
+    temporal_sha256: str
+    regime_path: pathlib.Path
+    regime_sha256: str
+
+
+def require_companion_bootstraps() -> CompanionBootstrapManifest:
+    """Validate that the trained companion bootstrap pair is complete.
+
+    ``companion`` and ``companion-cold`` are meaningful matched tracks only
+    when the former has both trained artifacts.  A partial or absent pair is
+    therefore a hard configuration error, never an implicit cold fallback.
+    """
+
+    temporal_path = bootstraps_dir() / "companion-temporal.snap"
+    regime_path = bootstraps_dir() / "companion-regime.bs"
+    missing = tuple(
+        path for path in (temporal_path, regime_path) if not path.is_file()
+    )
+    if missing:
+        rendered = ", ".join(str(path) for path in missing)
+        raise FileNotFoundError(
+            "Companion P1 requires the complete trained bootstrap pair; "
+            f"missing: {rendered}"
+        )
+
+    # Typed loaders validate magic bytes and schema versions before the
+    # manifest can be used by a benchmark preflight.
+    load_companion_temporal_bootstrap()
+    load_companion_regime_bootstrap()
+    return CompanionBootstrapManifest(
+        temporal_path=temporal_path,
+        temporal_sha256=hashlib.sha256(temporal_path.read_bytes()).hexdigest(),
+        regime_path=regime_path,
+        regime_sha256=hashlib.sha256(regime_path.read_bytes()).hexdigest(),
+    )
 
 
 # ---------------------------------------------------------------------------

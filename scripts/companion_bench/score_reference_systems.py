@@ -159,6 +159,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--dry-run", action="store_true",
                    help="Print the planned commands without executing.")
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        help="reuse an existing valid summary.json instead of rerunning that system",
+    )
     p.add_argument("--verbose", "-v", action="store_true")
     return p
 
@@ -192,6 +197,16 @@ def main(argv: list[str] | None = None) -> int:
 
     def _run_one(system: dict, manifest_path: pathlib.Path) -> dict | None:
         sys_artifact_dir = args.output_dir / system["submission_id"]
+        summary_path = sys_artifact_dir / "summary.json"
+        if args.resume and summary_path.is_file():
+            payload = json.loads(summary_path.read_text(encoding="utf-8"))
+            _LOG.info("[%s] resume: reusing %s", system["submission_id"], summary_path)
+            return {
+                "submission_id": system["submission_id"],
+                "system_name": system["system_name"],
+                "leaderboard_category": system["leaderboard_category"],
+                "summary": payload,
+            }
         cmd = [
             sys.executable,
             str(RUNNER),
@@ -269,7 +284,6 @@ def main(argv: list[str] | None = None) -> int:
                 system["submission_id"], max_attempts,
             )
             return None
-        summary_path = sys_artifact_dir / "summary.json"
         if not summary_path.exists():
             _LOG.warning(
                 "[%s] no summary.json at %s; skipping aggregate row",

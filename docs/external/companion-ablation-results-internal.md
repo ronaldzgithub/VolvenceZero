@@ -1,7 +1,7 @@
 # Companion Bench — same-substrate ablation results (internal)
 
-> Status: **TEMPLATE — awaiting first real run (P1)**
-> Last updated: 2026-06-28
+> Status: **WINDOWS P1 READY — awaiting first paid five-track run**
+> Last updated: 2026-07-13
 > Scope: debt #87 (thesis first-stage retain verdict) + #82 / #84
 > Audience: internal review. This is the per-run record; it is NOT an external
 > claim until a verdict reaches `first-stage-retained` AND a judge-bias check
@@ -14,34 +14,30 @@ copy it.
 
 ## How to produce a run
 
-```bash
+```powershell
 # 0. wiring smoke (no GPU/keys) — proves the flow + verdict
 python scripts/companion_bench/run_same_substrate_ablation.py --phase p0-smoke --family F1
 
-# 1. judge variance/calibration evidence first (#48 / #71)
-python scripts/companion_bench/run_same_substrate_ablation.py --phase judge-evidence
+# 1. inspect the exact Windows P1 commands without GPU/API work
+.\scripts\companion_bench\run_p1_windows.ps1 -DryRun
 
-# 2. boot the five same-substrate endpoints (GPU box)
-VZ_SUBSTRATE_MODEL_ID=Qwen/Qwen2.5-7B-Instruct LIFEFORM_LOCAL_API_KEY=... \
-  REFH_EXTRACTOR_BASE_URL=https://api.anthropic.com/v1 \
-  REFH_EXTRACTOR_MODEL=anthropic/claude-3.7-sonnet \
-  REFH_EXTRACTOR_KEY_ENV=ANTHROPIC_API_KEY REFH_EXTRACTOR_FAMILY=anthropic \
-  bash scripts/companion_bench/serve_same_substrate_ablation.sh
-
-# 3. directional run (public 24 × 1 seed), then verdict
-python scripts/companion_bench/run_same_substrate_ablation.py --phase p1
-
-# 4. retain run (24 public + 96 held-out × 3 seeds), then verdict
-python scripts/companion_bench/run_same_substrate_ablation.py --phase p2
+# 2. after .local/llm.env, cached weights and bootstrap pair are ready:
+.\scripts\companion_bench\run_p1_windows.ps1
 ```
+
+P1 covers all 30 public scenarios (24 en + 6 zh), one seed, five tracks.
+P2/held-out/retain is intentionally outside the Windows P1 entrypoint.
 
 ## Red lines (must hold for any quotable number)
 
-1. `same-substrate VERIFIED` — `assert_same_substrate.py` passed for all 5 tracks.
+1. `same-substrate VERIFIED` — all 5 tracks have the same required
+   byte-level `weights_sha256`; model-id-only fingerprints are invalid for P1.
 2. `non-Qwen judges` — per-turn + arc + user-sim are a different family from the Qwen substrate.
 3. `cross_user_memory_isolation` + the other three CompanionBench attestations are True for every track.
 4. `judge-evidence` recorded — judge variance/calibration is on file (a high-σ judge invalidates small deltas).
 5. No held-out scenario text leaked into any prompt.
+6. `run_manifest.json` identifies git state, bootstrap hashes, backend wiring
+   and judge models without containing secrets.
 
 ## Verdict states (from compare_companion_ablation.py)
 

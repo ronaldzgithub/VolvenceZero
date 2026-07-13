@@ -584,7 +584,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         ]
         try:
             with self._torch.no_grad():
-                outputs = self._model(**model_inputs)
+                outputs = self._model(**model_inputs, use_cache=False)
         finally:
             for hook in hooks:
                 hook.remove()
@@ -672,7 +672,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         ]
         try:
             with self._torch.no_grad():
-                outputs = self._model(**model_inputs)
+                outputs = self._model(**model_inputs, use_cache=False)
         finally:
             for hook in hooks:
                 hook.remove()
@@ -815,12 +815,13 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     "eos_token_id": self._generation_eos_token_id(),
                     "repetition_penalty": effective_repetition_penalty,
                 }
-                if os.name == "nt" and str(self._device).startswith("cuda"):
+                if os.name == "nt":
                     # Transformers emits a deprecated tuple-KV-cache warning
-                    # on this stack, and repeated Windows CUDA generations can
-                    # terminate the process with 0xC0000005 before Python can
-                    # raise. Disabling cache is slower but keeps the frozen
-                    # substrate path stable for long OpenAI-compat arcs.
+                    # on this stack, and repeated Windows generations can
+                    # terminate the process with 0xC0000005 on both CUDA and
+                    # CPU before Python can raise. Disabling cache is slower
+                    # but keeps the frozen substrate path stable for long arcs
+                    # and bootstrap calibration.
                     generate_kwargs["use_cache"] = False
                 if effective_temperature > 0:
                     generate_kwargs["temperature"] = effective_temperature
@@ -843,7 +844,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         capture = None
         if captured_layers:
             try:
-                logits_pass = self._model(output_ids[:, :prompt_length])
+                logits_pass = self._model(
+                    output_ids[:, :prompt_length],
+                    use_cache=False,
+                )
                 logits = self._extract_logits(outputs=logits_pass)
                 capture = self._build_runtime_capture(
                     source_text=effective_prompt,
@@ -1456,7 +1460,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         ]
         try:
             with self._torch.no_grad():
-                outputs = self._model(**model_inputs)
+                outputs = self._model(**model_inputs, use_cache=False)
         finally:
             for hook in hooks:
                 hook.remove()
@@ -1493,7 +1497,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         ]
         try:
             with self._torch.no_grad():
-                self._model(**model_inputs)
+                self._model(**model_inputs, use_cache=False)
         finally:
             for hook in hooks:
                 hook.remove()
