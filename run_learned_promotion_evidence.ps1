@@ -40,7 +40,11 @@ for ($Index = 0; $Index -lt $args.Count; $Index++) {
     }
 }
 
-$ReportPath = Join-Path (Split-Path $EvidencePath -Parent) "promotion_report.json"
+$EvidenceParent = Split-Path $EvidencePath -Parent
+if (-not $EvidenceParent) {
+    $EvidenceParent = "."
+}
+$ReportPath = Join-Path $EvidenceParent "promotion_report.json"
 
 & $PythonBin scripts/build_learned_promotion_evidence.py @BuildArgs --output $EvidencePath
 if ($LASTEXITCODE -ne 0) {
