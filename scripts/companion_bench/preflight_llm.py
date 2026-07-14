@@ -15,6 +15,7 @@ snippet. Exit 0 iff all probes succeed.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import pathlib
@@ -40,6 +41,24 @@ from p1_readiness import (  # noqa: E402
     write_run_manifest,
     write_track_fingerprints,
 )
+
+
+def _require_refh_embedder_deps() -> None:
+    """Fail before paid scoring if the selected retrieval embedder cannot load."""
+
+    embedder = os.environ.get("REFH_EMBEDDER", "bge-m3").strip() or "bge-m3"
+    if embedder == "hashing":
+        return
+    if embedder != "bge-m3":
+        raise P1ReadinessError(
+            f"unsupported REFH_EMBEDDER={embedder!r} for P1; expected bge-m3 or hashing"
+        )
+    if importlib.util.find_spec("sentence_transformers") is None:
+        raise P1ReadinessError(
+            "REFH_EMBEDDER=bge-m3 requires sentence-transformers; install "
+            "the companion-ref-harness embed extra or set REFH_EMBEDDER=hashing "
+            "for a dependency-free local smoke run"
+        )
 
 
 def _load_env(*, required: bool) -> None:
@@ -140,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             (("user-sim", user_sim), ("per-turn judge", perturn), ("arc judge", arc))
         )
         require_commands()
+        _require_refh_embedder_deps()
         if not args.skip_port_check:
             require_ports_free()
         gpu_name = require_accelerator(args.substrate_device)

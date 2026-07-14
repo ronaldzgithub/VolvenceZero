@@ -266,6 +266,7 @@ def phase_real(*, args: argparse.Namespace, tier: str) -> int:
         "--arc-model", args.arc_model,
         "--arc-key-env", args.arc_key_env,
         "--paraphrase-seeds", paraphrase_seeds,
+        "--fail-fast-on-system-failure",
     ]
     if tier == "p2":
         score_cmd += ["--include-heldout", "--require-heldout"]
@@ -275,6 +276,8 @@ def phase_real(*, args: argparse.Namespace, tier: str) -> int:
         score_cmd += ["--per-system-timeout-min", str(args.per_system_timeout_min)]
     if args.per_system_retries > 0:
         score_cmd += ["--per-system-retries", str(args.per_system_retries)]
+    if args.sut_max_tokens is not None:
+        score_cmd += ["--sut-max-tokens", str(args.sut_max_tokens)]
     if args.resume:
         score_cmd.append("--resume")
 
@@ -535,6 +538,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Timeout in seconds for each P1 lifeform vertical readiness probe. "
             "Apple/MPS cold starts may need a larger value than the default 60."
+        ),
+    )
+    p.add_argument(
+        "--sut-max-tokens",
+        type=int,
+        default=None,
+        help=(
+            "Max tokens requested from each SUT response. When omitted, "
+            "score_reference_systems uses its default."
         ),
     )
     # Cross-family judge config (defaults are non-Qwen).

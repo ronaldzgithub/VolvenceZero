@@ -19,6 +19,7 @@
 #   VZ_CMS_TORCH_BACKEND       active
 #   VZ_TORCH_BACKENDS          active  (legacy visibility; per-owner wins)
 #   VZ_P1_VERTICAL_PROBE_TIMEOUT_S  180 (MPS cold-start route probe budget)
+#   VZ_P1_SUT_MAX_TOKENS       256   (conservative MPS scoring response cap)
 #
 # Usage:
 #   bash scripts/companion_bench/run_p1_apple.sh
@@ -165,6 +166,7 @@ RUNNER_ARGS=(
   --phase p1
   --output-dir "$ARTIFACT_DIR"
   --vertical-probe-timeout-s "${VZ_P1_VERTICAL_PROBE_TIMEOUT_S:-180}"
+  --sut-max-tokens "${VZ_P1_SUT_MAX_TOKENS:-256}"
   --user-sim-base-url "$OPENROUTER_BASE"
   --user-sim-model "$USER_SIM_MODEL"
   --user-sim-key-env OPENROUTER_API_KEY

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import collections
 import json
 import logging
 import pathlib
@@ -59,7 +60,7 @@ def _load_roster(path: pathlib.Path) -> list[dict]:
     return list(data["systems"])
 
 
-def _build_manifest(system: dict, tmpdir: pathlib.Path) -> pathlib.Path:
+def _build_manifest(system: dict, tmpdir: pathlib.Path, *, sut_max_tokens: int) -> pathlib.Path:
     manifest = {
         "submission_id": system["submission_id"],
         "system_name": system["system_name"],
@@ -67,7 +68,7 @@ def _build_manifest(system: dict, tmpdir: pathlib.Path) -> pathlib.Path:
         "base_url": system["base_url"],
         "api_key_env": system["api_key_env"],
         "system_prompt": system.get("system_prompt", ""),
-        "generation_config": {"temperature": 0.0, "max_tokens": 512},
+        "generation_config": {"temperature": 0.0, "max_tokens": sut_max_tokens},
         "attestation": {
             "no_companionbench_derivative_in_training": True,
             "no_scenario_specific_prompt": True,
@@ -104,6 +105,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--arc-key-env", required=True)
     p.add_argument("--arc-base-url", default="https://api.openai.com/v1")
     p.add_argument("--paraphrase-seeds", default="0")
+    p.add_argument(
+        "--sut-max-tokens",
+        type=int,
+        default=512,
+        help="Max tokens requested from each SUT response (default 512).",
+    )
     p.add_argument("--systems", default=None,
                    help="Comma-separated subset of model_identifiers; default = all roster entries.")
     p.add_argument(
@@ -164,8 +171,40 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="reuse an existing valid summary.json instead of rerunning that system",
     )
+    p.add_argument(
+        "--fail-fast-on-system-failure",
+        action="store_true",
+        help=(
+            "Stop after the first system that fails to produce summary.json. "
+            "Useful for paid P1/P2 runs so one dead endpoint does not burn the "
+            "whole roster."
+        ),
+    )
     p.add_argument("--verbose", "-v", action="store_true")
     return p
+
+
+def _format_failure_ledger(artifact_dir: pathlib.Path, *, limit: int = 3) -> str:
+    ledger = artifact_dir / "arcs" / "arc_failure.jsonl"
+    if not ledger.is_file():
+        return f"no arc failure ledger at {ledger}"
+    counts: collections.Counter[tuple[str, str, str]] = collections.Counter()
+    for line in ledger.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        key = (
+            str(row.get("stage", "?")),
+            str(row.get("exception_type", "?")),
+            str(row.get("exception", "?")),
+        )
+        counts[key] += 1
+    if not counts:
+        return f"empty arc failure ledger at {ledger}"
+    parts = []
+    for (stage, exc_type, exc), count in counts.most_common(limit):
+        parts.append(f"{count}x stage={stage} {exc_type}: {exc}")
+    return "; ".join(parts)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -194,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
     timeout_sec = max(60, int(args.per_system_timeout_min) * 60)
     retries = max(0, int(args.per_system_retries))
     parallelism = max(1, int(args.parallel_sut))
+    sut_max_tokens = max(1, int(args.sut_max_tokens))
 
     def _run_one(system: dict, manifest_path: pathlib.Path) -> dict | None:
         sys_artifact_dir = args.output_dir / system["submission_id"]
@@ -289,6 +329,11 @@ def main(argv: list[str] | None = None) -> int:
                 "[%s] no summary.json at %s; skipping aggregate row",
                 system["submission_id"], summary_path,
             )
+            _LOG.error(
+                "[%s] arc failures: %s",
+                system["submission_id"],
+                _format_failure_ledger(sys_artifact_dir),
+            )
             return None
         payload = json.loads(summary_path.read_text(encoding="utf-8"))
         return {
@@ -300,7 +345,14 @@ def main(argv: list[str] | None = None) -> int:
 
     with tempfile.TemporaryDirectory(prefix="companion-bench-roster-") as tmpdir:
         tmp = pathlib.Path(tmpdir)
-        manifest_paths = {s["submission_id"]: _build_manifest(s, tmp) for s in roster}
+        manifest_paths = {
+            s["submission_id"]: _build_manifest(
+                s,
+                tmp,
+                sut_max_tokens=sut_max_tokens,
+            )
+            for s in roster
+        }
         if parallelism == 1:
             # Serial path: preserve previous deterministic ordering for
             # audit / reproducibility runs.
@@ -308,6 +360,12 @@ def main(argv: list[str] | None = None) -> int:
                 row = _run_one(system, manifest_paths[system["submission_id"]])
                 if row is not None:
                     aggregate["systems"].append(row)
+                elif args.fail_fast_on_system_failure:
+                    _LOG.error(
+                        "[%s] stopping early because --fail-fast-on-system-failure is set",
+                        system["submission_id"],
+                    )
+                    return 1
         else:
             _LOG.info("running %d SUTs with parallelism=%d", len(roster), parallelism)
             with concurrent.futures.ThreadPoolExecutor(
