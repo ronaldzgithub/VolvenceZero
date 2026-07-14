@@ -206,7 +206,8 @@ def phase_p0_smoke(*, output_dir: pathlib.Path, family: str | None) -> int:
         print(f"error: unexpected verdict state {verdict['state']!r}", file=sys.stderr)
         return 1
     print(
-        f"\n  [p0] WIRING OK. {len(smoke_tracks)} tracks scored (5 base + "
+        f"\n  [p0] WIRING OK. {len(smoke_tracks)} tracks scored "
+        f"({len(TRACK_TO_SUBMISSION)} base + "
         f"{len(COMPONENT_TRACK_TO_SUBMISSION)} component arms), verdict emitted "
         f"(state={verdict['state']}). Real signal comes from p1/p2 on a real substrate."
     )

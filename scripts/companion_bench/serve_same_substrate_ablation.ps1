@@ -151,6 +151,10 @@ Start-AblationService "lifeform-ablation-bundle" @(
     "--substrate-mode", "hf-shared",
     "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
     "--substrate-device", $Device,
+    # Preflight already verified + fingerprinted the local weight cache.
+    # Serving must not depend on HF Hub reachability (a proxy flake here
+    # previously triggered a silent builtin-fallback substrate).
+    "--substrate-local-files-only",
     "--enable-openai-compat"
 )
 
@@ -181,7 +185,8 @@ if ($env:REFH_EXTRACTOR_MODEL) {
 }
 Start-AblationService "ref-harness" $RefhArgs
 
-# GAP-11: independent claim-2 arms (memory-only without retrieval, RAG embed-only)
+# GAP-11: independent registry claim-2 arms. :8501 memory-only (summary +
+# user_model + episodic, NO retrieval) and :8502 rag (embed retrieval ONLY).
 $MemoryOnlyArgs = @(
     "companion-ref-harness", "serve",
     "--port", "8501",

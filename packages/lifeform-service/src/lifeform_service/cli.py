@@ -277,6 +277,10 @@ def _build_shared_substrate(args: argparse.Namespace) -> "OpenWeightResidualRunt
             model_id=args.substrate_model_id,
             device=args.substrate_device,
             local_files_only=args.substrate_local_files_only,
+            # hf-shared means "serve THIS model". A silent builtin-fallback
+            # substitute would violate the substrate contract (and poison
+            # same-substrate benchmark runs), so load failures must raise.
+            fallback_mode="deny",
             # Sharing requires frozen weights; explicit kwargs make the
             # invariant impossible to mis-configure. ``create_app``
             # double-checks via _enforce_frozen_for_sharing.

@@ -33,8 +33,8 @@
 | 臂 | substrate 之上的层 | 隔离的变量 | 当前实现 |
 |---|---|---|---|
 | `raw` | 无（裸 substrate） | 任何层 vs 无层的下界 | ✅ [`companion-ablation.md`](./companion-ablation.md) `raw` track |
-| `memory-only` | 标准 memory wrapper（summary+user_model+episodic） | "标准记忆封装"基线 | ✅ `ref-harness`（H-A/H-C 子集） |
-| `RAG` | embed 检索增强 | "标准检索"基线 | ✅ `ref-harness` H-B（embed retrieval） |
+| `memory-only` | 标准 memory wrapper（summary+user_model+episodic） | "标准记忆封装"基线 | ✅ 独立 `memory-only` track（:8501，ref-harness `--components summary,user_model,episodic`） |
+| `RAG` | embed 检索增强 | "标准检索"基线 | ✅ 独立 `rag` track（:8502，ref-harness `--components embed`） |
 | `agent-framework` | 标准开源 agent 框架 | "标准 agent 框架"基线 | ✅ `camel` track |
 | `LoRA-adapter` | 冻结 substrate + persona LoRA，无控制器层 | "只微调不控制"基线 | ✅ serving arm `companion-lora-adapter`（真 LoRA artifact 仍 gate on #41 GPU bake） |
 | `PE-off` | 完整 pipeline 关 PE 主链 | PE 的因果贡献 | ✅ serving arm `companion-pe-drive-off` |
@@ -94,6 +94,16 @@
 
 ## 变更日志
 
+- 2026-07-14 (2): claim 2 独立臂闭合（GAP-11）。`memory-only` / `rag` 从
+  "由 combined ref-harness 概念性覆盖"升级为**独立 serving track**：
+  :8501（summary+user_model+episodic，无检索）与 :8502（embed 检索 only），
+  两个 launcher（.sh/.ps1）、roster（11 entries）、preflight fingerprint、
+  P1 health/topology gate（5 进程）同步扩展。
+  `compare_companion_ablation.py` 的 `claim_gt_standard_layers` 现按冻结
+  registry 要求三条独立 pairwise（memory-only / rag / camel）判 retain；
+  缺任一 registry 臂 cap 至 weak，combined `ref-harness` 降级为补充对照。
+  测试：`tests/companion_ablation/test_standard_layer_arms.py` + 11-track
+  P0 smoke。
 - 2026-07-14: 9-track serving 拓扑收敛为单 `lifeform-serve --ablation-bundle`
   substrate owner + `?vertical=` route selection，替代 8002–8005 component
   进程。`serve_topology.json` / manifest topology / vertical probes 成为 P1

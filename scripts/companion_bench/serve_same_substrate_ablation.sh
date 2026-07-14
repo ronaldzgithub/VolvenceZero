@@ -74,6 +74,7 @@ start lifeform-ablation-bundle \
     --substrate-mode hf-shared \
     --substrate-model-id "$VZ_SUBSTRATE_MODEL_ID" \
     --substrate-device "$VZ_SUBSTRATE_DEVICE" \
+    --substrate-local-files-only \
     --enable-openai-compat
 
 # --- :8500 ref-harness (standard memory wrapper, all four components) ---
