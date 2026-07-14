@@ -27,10 +27,11 @@ user-simulator and BOTH judges MUST be a different family. The defaults below
 use Claude (user-sim + per-turn) and GPT-5 (arc) — none are Qwen. Override with
 the ``--*-model`` / ``--*-key-env`` flags if you use a different non-Qwen vendor.
 
-P1/P2 require the three-process serving topology to be live: one
-``lifeform-serve --ablation-bundle`` owner on :8000 plus ref-harness on :8500
-and camel on :8600 (see serve_same_substrate_ablation.sh). Use ``--dry-run``
-to print the exact commands without executing.
+P1/P2 require the 5-process serving topology to be live: one
+``lifeform-serve --ablation-bundle`` owner on :8000, ref-harness on :8500,
+memory-only on :8501, rag on :8502, and camel on :8600 (see
+serve_same_substrate_ablation.sh). Use ``--dry-run`` to print the exact
+commands without executing.
 """
 
 from __future__ import annotations
@@ -378,6 +379,8 @@ def _assert_real_run_ready(args: argparse.Namespace, *, tier: str) -> None:
     health_urls = {
         "lifeform-ablation-bundle": "http://127.0.0.1:8000/v1/health",
         "ref-harness": "http://127.0.0.1:8500/healthz",
+        "memory-only": "http://127.0.0.1:8501/healthz",
+        "rag": "http://127.0.0.1:8502/healthz",
         "camel": "http://127.0.0.1:8600/healthz",
     }
     failures: list[str] = []
@@ -400,12 +403,27 @@ def _assert_real_run_ready(args: argparse.Namespace, *, tier: str) -> None:
         raise SystemExit("P1 serving topology has an unsupported schema")
     if topology.get("serving_topology") != "single-lifeform-ablation-bundle":
         raise SystemExit("P1 serving topology is not single-lifeform-ablation-bundle")
-    if topology.get("process_count") != 3:
-        raise SystemExit("P1 serving topology must contain exactly three processes")
+    # 5 processes: ablation-bundle + ref-harness + memory-only + rag + camel
+    # (GAP-11 independent claim-2 arms). Older 3-process Windows launches are
+    # rejected because memory-only / rag would be scored against dead ports.
+    if topology.get("process_count") != 5:
+        raise SystemExit(
+            "P1 serving topology must contain exactly five processes "
+            "(ablation-bundle + ref-harness + memory-only + rag + camel); "
+            f"got {topology.get('process_count')!r}"
+        )
+    expected_ports = [8000, 8500, 8501, 8502, 8600]
+    if list(topology.get("ports", [])) != expected_ports:
+        raise SystemExit(
+            f"P1 serving topology ports must be {expected_ports}; "
+            f"got {topology.get('ports')!r}"
+        )
     if tuple(topology.get("ablation_verticals", ())) != tuple(TRACK_TO_VERTICAL.values()):
         raise SystemExit("P1 serving topology vertical set is not the reviewed roster")
 
-    probe_failures = _probe_lifeform_verticals()
+    probe_failures = _probe_lifeform_verticals(
+        timeout_s=max(1, int(getattr(args, "vertical_probe_timeout_s", 60)))
+    )
     if probe_failures:
         raise SystemExit(
             "P1 lifeform vertical route probes failed: " + "; ".join(probe_failures)
@@ -424,7 +442,7 @@ def _assert_real_run_ready(args: argparse.Namespace, *, tier: str) -> None:
         raise SystemExit("P1 same-substrate fingerprint gate failed")
 
 
-def _probe_lifeform_verticals() -> list[str]:
+def _probe_lifeform_verticals(*, timeout_s: int) -> list[str]:
     api_key = os.environ.get("LIFEFORM_LOCAL_API_KEY", "").strip()
     if not api_key:
         return ["LIFEFORM_LOCAL_API_KEY is empty"]
@@ -446,7 +464,7 @@ def _probe_lifeform_verticals() -> list[str]:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(request, timeout=timeout_s) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
             failures.append(f"{track}/{vertical}={exc}")
@@ -508,6 +526,15 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help="Automatic retries per track on non-zero exit (not on timeout).",
+    )
+    p.add_argument(
+        "--vertical-probe-timeout-s",
+        type=int,
+        default=60,
+        help=(
+            "Timeout in seconds for each P1 lifeform vertical readiness probe. "
+            "Apple/MPS cold starts may need a larger value than the default 60."
+        ),
     )
     # Cross-family judge config (defaults are non-Qwen).
     p.add_argument("--user-sim-model", default=DEFAULT_USER_SIM_MODEL)

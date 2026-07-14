@@ -15,13 +15,13 @@
 #                  Volvence with owner feedback requests replaced by random sampling
 #   lora-adapter   Frozen-substrate adapter baseline (no controller bootstraps)
 #
-# Boot the three-process topology first with:
+# Boot the five-process topology first with:
 #   bash scripts/companion_bench/serve_same_substrate_ablation.sh
 # which serves one Qwen on :8000 (mode=raw + six lifeform verticals selected
-# by ?vertical=...), ref-harness on :8500 (upstream -> :8000 mode=raw), and
-# camel on :8600 (upstream -> :8000 mode=raw). That guarantees one in-process
-# frozen substrate owner; the substrate-fingerprint guard
-# (assert_same_substrate.py) is run by the serve script before any scoring.
+# by ?vertical=...), ref-harness on :8500, memory-only on :8501, rag on
+# :8502, and camel on :8600. That guarantees one in-process frozen substrate
+# owner; the substrate-fingerprint guard (assert_same_substrate.py) is run by
+# the serve script before any scoring.
 #
 # Score the roster with:
 #   python scripts/companion_bench/score_reference_systems.py \
@@ -101,50 +101,6 @@ systems:
     system_name: "Same-substrate · standard memory wrapper (ref-harness)"
     model_identifier: ref-harness-qwen
     base_url: http://127.0.0.1:8500/v1
-    api_key_env: LIFEFORM_LOCAL_API_KEY
-    leaderboard_category: bespoke
-    system_prompt: |
-      You are a long-running companion AI. Maintain a stable persona across
-      sessions and reference past conversations when relevant. Never reveal
-      information the user did not actually say.
-
-  - submission_id: abl-memory-only
-    system_name: "Same-substrate · memory-only wrapper (summary+user_model+episodic, no retrieval)"
-    model_identifier: memory-only-qwen
-    base_url: http://127.0.0.1:8501/v1
-    api_key_env: LIFEFORM_LOCAL_API_KEY
-    leaderboard_category: bespoke
-    system_prompt: |
-      You are a long-running companion AI. Maintain a stable persona across
-      sessions and reference past conversations when relevant. Never reveal
-      information the user did not actually say.
-
-  - submission_id: abl-rag
-    system_name: "Same-substrate · RAG wrapper (embed retrieval only)"
-    model_identifier: rag-qwen
-    base_url: http://127.0.0.1:8502/v1
-    api_key_env: LIFEFORM_LOCAL_API_KEY
-    leaderboard_category: bespoke
-    system_prompt: |
-      You are a long-running companion AI. Maintain a stable persona across
-      sessions and reference past conversations when relevant. Never reveal
-      information the user did not actually say.
-
-  - submission_id: abl-memory-only
-    system_name: "Same-substrate · memory-only wrapper (summary+user_model+episodic, no retrieval)"
-    model_identifier: memory-only-qwen
-    base_url: http://127.0.0.1:8501/v1
-    api_key_env: LIFEFORM_LOCAL_API_KEY
-    leaderboard_category: bespoke
-    system_prompt: |
-      You are a long-running companion AI. Maintain a stable persona across
-      sessions and reference past conversations when relevant. Never reveal
-      information the user did not actually say.
-
-  - submission_id: abl-rag
-    system_name: "Same-substrate · RAG wrapper (embed retrieval only)"
-    model_identifier: rag-qwen
-    base_url: http://127.0.0.1:8502/v1
     api_key_env: LIFEFORM_LOCAL_API_KEY
     leaderboard_category: bespoke
     system_prompt: |

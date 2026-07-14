@@ -1,0 +1,18 @@
+{
+  "schema_version": "learned-shadow-soak.v1",
+  "artifact_kind": "learned_shadow_soak_manifest",
+  "artifacts": [
+    {
+      "path": "artifacts/learned_shadow_soak/learned_shadow_soak.json",
+      "sha256": "9d33b7af26d08ab729b2d3b9c21b73425bb590b9079ebf18068594cc9f356e32",
+      "size_bytes": 25129
+    }
+  ],
+  "provenance": {
+    "git_sha": "b007bbde07e1e308c68e7edc5a870de397d2c6a7",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.12.13",
+    "platform": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

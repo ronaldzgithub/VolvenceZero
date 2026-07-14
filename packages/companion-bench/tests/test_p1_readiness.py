@@ -78,7 +78,7 @@ def test_qwen_judge_is_rejected() -> None:
 
 
 def test_p1_ports_are_single_lifeform_topology() -> None:
-    assert P1_PORTS == (8000, 8500, 8600)
+    assert P1_PORTS == (8000, 8500, 8501, 8502, 8600)
 
 
 def test_roster_routes_volvence_tracks_through_vertical_query() -> None:

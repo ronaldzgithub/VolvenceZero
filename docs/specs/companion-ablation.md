@@ -57,7 +57,7 @@
 |---|---|---|---|
 | P0 wiring | deterministic-fake 9-track 全链 + comparator | `run_same_substrate_ablation.py --phase p0-smoke` | 0 |
 | judge-evidence | judge robustness + calibration（#48/#71，SHADOW scaffold） | `--phase judge-evidence` | 小 |
-| P1 directional | 公开 30（24 en + 6 zh）× 1 seed，真 Qwen + 跨家族裁判 | `run_p1_windows.ps1` / `--phase p1` | 中 |
+| P1 directional | 公开 30（24 en + 6 zh）× 1 seed，真 Qwen + 跨家族裁判 | `run_p1_windows.ps1` / `run_p1_apple.sh` / `--phase p1` | 中 |
 | P2 retain | 30 公开 + 96 held-out × 3 seed | `--phase p2`（`--include-heldout --require-heldout`） | 批准预算 |
 
 SUT 是自托管 Qwen（GPU，算力近似免费）；真钱主要在裁判 + 用户模拟器。
@@ -82,14 +82,18 @@ Windows GPU 是 P1 directional 的一等开发执行面，但不是 retain evide
    端口、跨家族模型与 API 连通性，并写 `companion-p1-run-manifest.v1`。
 3. fingerprint 必须包含实际权重文件的 `weights_sha256`；P1
    `assert_same_substrate.py --require-weights-sha256` 不接受只写 model id。
-4. `serve_same_substrate_ablation.ps1` 对三个 HTTP 服务（single lifeform
-   ablation bundle / ref-harness / camel）逐端点轮询健康状态；P1 runner
-   另做六个 `?vertical=` OpenAI 路由探针。固定时长 sleep 不构成 readiness。
-5. `run_p1_windows.ps1` 是 Windows SSOT 入口；正常与异常退出均清理本轮 PID。
-   `-Resume` 只复用已有合法 `summary.json`，`-DryRun` 不启动 GPU/API。
+4. `serve_same_substrate_ablation.(sh|ps1)` 对五个 HTTP 服务（single lifeform
+   ablation bundle / ref-harness / memory-only / rag / camel）逐端点轮询健康状态；P1 runner
+   另做六个 `?vertical=` OpenAI 路由探针。探针超时由
+   `--vertical-probe-timeout-s` 控制；Apple/MPS 入口默认 180s 以覆盖
+   component arm 冷启动，固定时长 sleep 不构成 readiness。
+5. `run_p1_windows.ps1` / `run_p1_apple.sh` 是对应平台的 SSOT 入口；正常与异常退出均清理本轮 PID。
+   `-Resume` / `--resume` 只复用已有合法 `summary.json`，DryRun 不启动 GPU/API。
 6. run manifest 记录 git SHA/clean 状态、权重与 bootstrap hash、learned
    backend wiring、judge model id、serving topology 与 ablation vertical 集合，
    但绝不记录 key 值。
+7. `serve_topology.json` 必须声明 `process_count=5` 与
+   ports `[8000, 8500, 8501, 8502, 8600]`（GAP-11 memory-only / rag 独立进程）。
 
 P1 结果最多是 directional `weak-positive` 或 directional kill signal。
 单 seed/public-only 不能产生 `first-stage-retained`，也不得作为对外 thesis 证据。
@@ -104,7 +108,8 @@ P1 结果最多是 directional `weak-positive` 或 directional kill signal。
 - [`scripts/companion_bench/compare_companion_ablation.py`](../../scripts/companion_bench/compare_companion_ablation.py) — #87 五 claim verdict。
 - [`scripts/companion_bench/run_same_substrate_ablation.py`](../../scripts/companion_bench/run_same_substrate_ablation.py) — P0/judge-evidence/P1/P2 phased driver。
 - [`scripts/companion_bench/run_p1_windows.ps1`](../../scripts/companion_bench/run_p1_windows.ps1) — Windows P1 preflight / serve / score / verdict / cleanup 一键入口。
-- [`scripts/launch_evidence_runs_m2.sh`](../../scripts/launch_evidence_runs_m2.sh) — Apple-silicon (MPS) 一键入口：setup / soak / ablation / all；P1 编排与 Windows 入口同构（preflight → serve → score(+resume 重试) → verdict → teardown）。
+- [`run_companion_bench_p1.sh`](../../run_companion_bench_p1.sh) + [`scripts/companion_bench/run_p1_apple.sh`](../../scripts/companion_bench/run_p1_apple.sh) — Apple-silicon (MPS) P1 一键入口；与 Windows 入口同构（preflight → serve 9-track → score → verdict → teardown），默认打开四个 torch learned backends（`active`）。
+- [`scripts/launch_evidence_runs_m2.sh`](../../scripts/launch_evidence_runs_m2.sh) — Apple-silicon evidence 套件：setup / soak / ablation / all；ablation 子命令可作重试型 wrapper，薄 P1 入口优先用 `run_companion_bench_p1.sh`。
 - [`scripts/companion_bench/p1_readiness.py`](../../scripts/companion_bench/p1_readiness.py) — 权重 digest、bootstrap/run manifest 与本地 fail-loud gate。
 - 结果记录：[`docs/external/companion-ablation-results-internal.md`](../external/companion-ablation-results-internal.md)。
 
@@ -132,3 +137,7 @@ P1 结果最多是 directional `weak-positive` 或 directional kill signal。
   ref-harness embedder/extractor 与 camel compaction fail-loud、逐端点健康轮询
   取代固定 sleep）；新增 `launch_evidence_runs_m2.sh` 一键入口。MPS lane 与
   Windows lane 同为 directional，不构成 retain evidence lane。
+- 2026-07-14：新增与 Windows `run_companion_bench_p1.ps1` 对称的 Apple 薄入口
+  `run_companion_bench_p1.sh` / `run_p1_apple.sh`。默认 `VZ_SUBSTRATE_DEVICE=mps`
+  且四个 owner-local torch backends（SSL / temporal runtime / Internal RL / CMS）
+  为 `active`；复用既有 `serve_same_substrate_ablation.sh` 九轨拓扑。

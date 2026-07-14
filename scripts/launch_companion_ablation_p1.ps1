@@ -34,7 +34,7 @@ $RepoRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $RepoRoot
 
 # --- Guard: never start on top of a live ablation stack -----------------
-$AblationPorts = @(8000, 8001, 8500, 8600)
+$AblationPorts = @(8000, 8500, 8501, 8502, 8600)
 $Busy = @()
 foreach ($Port in $AblationPorts) {
     $conn = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue

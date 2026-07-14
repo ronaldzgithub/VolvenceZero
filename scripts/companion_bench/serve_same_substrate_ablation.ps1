@@ -181,6 +181,36 @@ if ($env:REFH_EXTRACTOR_MODEL) {
 }
 Start-AblationService "ref-harness" $RefhArgs
 
+# GAP-11: independent claim-2 arms (memory-only without retrieval, RAG embed-only)
+$MemoryOnlyArgs = @(
+    "companion-ref-harness", "serve",
+    "--port", "8501",
+    "--upstream-base-url", $RawUpstream,
+    "--upstream-model", "lifeform-raw",
+    "--upstream-key-env", "LIFEFORM_LOCAL_API_KEY",
+    "--components", "summary,user_model,episodic",
+    "--store-mode", "sqlite",
+    "--store-path", (Join-Path $ArtifactDir "memory-only.sqlite3"),
+    "--summary-extractor-base-url", $env:REFH_EXTRACTOR_BASE_URL,
+    "--summary-extractor-model", $env:REFH_EXTRACTOR_MODEL,
+    "--summary-extractor-key-env", $env:REFH_EXTRACTOR_KEY_ENV,
+    "--summary-extractor-family", $(if ($env:REFH_EXTRACTOR_FAMILY) { $env:REFH_EXTRACTOR_FAMILY } else { "openai-compat" })
+)
+Start-AblationService "memory-only" $MemoryOnlyArgs
+
+$RagArgs = @(
+    "companion-ref-harness", "serve",
+    "--port", "8502",
+    "--upstream-base-url", $RawUpstream,
+    "--upstream-model", "lifeform-raw",
+    "--upstream-key-env", "LIFEFORM_LOCAL_API_KEY",
+    "--components", "embed",
+    "--embedder", $RefhEmbedder,
+    "--store-mode", "sqlite",
+    "--store-path", (Join-Path $ArtifactDir "rag.sqlite3")
+)
+Start-AblationService "rag" $RagArgs
+
 # camel memory compaction now requires a cross-family extractor (fail-loud).
 $CamelArgs = @(
     "companion-camel-baseline", "serve",
@@ -206,6 +236,8 @@ Start-AblationService "camel-baseline" $CamelArgs
 
 Wait-AblationEndpoint "lifeform-ablation-bundle" "http://127.0.0.1:8000/v1/health"
 Wait-AblationEndpoint "ref-harness" "http://127.0.0.1:8500/healthz"
+Wait-AblationEndpoint "memory-only" "http://127.0.0.1:8501/healthz"
+Wait-AblationEndpoint "rag" "http://127.0.0.1:8502/healthz"
 Wait-AblationEndpoint "camel-baseline" "http://127.0.0.1:8600/healthz"
 
 $Pids = @(Get-Content $PidFile | Where-Object { $_ })
@@ -214,7 +246,7 @@ $Topology = [ordered]@{
     serving_topology = "single-lifeform-ablation-bundle"
     lifeform_owner_pid = if ($Pids.Count -ge 1) { [int]$Pids[0] } else { $null }
     process_count = $Pids.Count
-    ports = @(8000, 8500, 8600)
+    ports = @(8000, 8500, 8501, 8502, 8600)
     ablation_verticals = @(
         "companion",
         "companion-cold",
@@ -234,6 +266,8 @@ python scripts/companion_bench/assert_same_substrate.py `
   --require-weights-sha256 `
   --fingerprint-file "raw=$(Join-Path $ArtifactDir 'raw/substrate_fingerprint.json')" `
   --fingerprint-file "ref-harness=$(Join-Path $ArtifactDir 'ref-harness/substrate_fingerprint.json')" `
+  --fingerprint-file "memory-only=$(Join-Path $ArtifactDir 'memory-only/substrate_fingerprint.json')" `
+  --fingerprint-file "rag=$(Join-Path $ArtifactDir 'rag/substrate_fingerprint.json')" `
   --fingerprint-file "camel=$(Join-Path $ArtifactDir 'camel/substrate_fingerprint.json')" `
   --fingerprint-file "volvence-cold=$(Join-Path $ArtifactDir 'volvence-cold/substrate_fingerprint.json')" `
   --fingerprint-file "volvence=$(Join-Path $ArtifactDir 'volvence/substrate_fingerprint.json')" `

@@ -2,8 +2,12 @@
 # Complete Apple-silicon (M1/M2/M3) launcher for the two evidence runs:
 #
 #   Run 1  learned-shadow soak       (500 synthetic turns, CPU, no keys needed)
-#   Run 2  same-substrate ablation   (5-track Companion Bench P1, Qwen on MPS,
+#   Run 2  same-substrate ablation   (9-track Companion Bench P1, Qwen on MPS,
 #                                     needs .local/llm.env with OPENROUTER key)
+#
+# Prefer the thin P1 mirror for a Windows-parity one-shot:
+#   bash run_companion_bench_p1.sh
+# This script remains the broader evidence suite (setup / soak / ablation / all).
 #
 # Usage (from the repo root, macOS; `bash` prefix avoids exec-bit issues after
 # a Windows-side checkout):
@@ -18,7 +22,8 @@
 #   ARTIFACT_DIR             ablation artifact dir      (default artifacts/companion-ablation/<utc-tag>)
 #   MAX_ATTEMPTS             ablation retry attempts    (default 3; retries pass --resume)
 #   RESUME=1                 first ablation attempt already passes --resume
-#   KEEP_SERVICES=1          leave the 5 endpoints up after the ablation
+#   KEEP_SERVICES=1          leave ablation endpoints up after the run
+#                            (ports 8000/8500/8501/8502/8600)
 #   VZ_SUBSTRATE_MODEL_ID    default Qwen/Qwen2.5-1.5B-Instruct
 #   VZ_SUBSTRATE_DEVICE      default mps (cpu as last resort; cuda refused on Mac)
 #   VOLVENCE_VENV_DIR        default <repo>/.venv
@@ -47,7 +52,7 @@ VENV_DIR="${VOLVENCE_VENV_DIR:-${REPO_ROOT}/.venv}"
 TURNS="${TURNS:-500}"
 SOAK_OUTPUT_DIR="${SOAK_OUTPUT_DIR:-artifacts/learned_shadow_soak}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"
-ABLATION_PORTS="8000 8001 8500 8600"
+ABLATION_PORTS="8000 8500 8501 8502 8600"
 
 log() { printf '[m2] %s\n' "$*"; }
 die() { printf '[m2] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -193,7 +198,8 @@ cmd_soak() {
 }
 
 # ---------------------------------------------------------------------------
-# ablation 鈥?Run 2 (5-track same-substrate Companion Bench P1 on MPS)
+# ablation — Run 2 (9-track same-substrate Companion Bench P1 on MPS)
+# Prefer `bash run_companion_bench_p1.sh` when you only need the thin P1 mirror.
 # ---------------------------------------------------------------------------
 
 cmd_ablation() {
@@ -268,7 +274,7 @@ cmd_ablation() {
           --user-sim-base-url "$or_base" --user-sim-model "$user_sim" --user-sim-key-env OPENROUTER_API_KEY \
           --perturn-base-url "$or_base" --perturn-model "$perturn" --perturn-key-env OPENROUTER_API_KEY \
           --arc-base-url "$or_base" --arc-model "$arc" --arc-key-env OPENROUTER_API_KEY \
-          "${resume_flag[@]}"; then
+          ${resume_flag[@]+"${resume_flag[@]}"}; then
         rc=0
         break
       fi

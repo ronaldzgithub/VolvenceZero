@@ -19,7 +19,7 @@ REQUIRED_COMMANDS = (
     "companion-ref-harness",
     "companion-camel-baseline",
 )
-P1_PORTS = (8000, 8500, 8600)
+P1_PORTS = (8000, 8500, 8501, 8502, 8600)
 
 
 class P1ReadinessError(RuntimeError):

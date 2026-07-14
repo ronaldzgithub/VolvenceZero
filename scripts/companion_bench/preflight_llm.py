@@ -159,6 +159,8 @@ def main(argv: list[str] | None = None) -> int:
             (
                 "raw",
                 "ref-harness",
+                "memory-only",
+                "rag",
                 "camel",
                 "volvence-cold",
                 "volvence",
