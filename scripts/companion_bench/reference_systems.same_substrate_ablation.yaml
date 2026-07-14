@@ -152,6 +152,28 @@ systems:
       sessions and reference past conversations when relevant. Never reveal
       information the user did not actually say.
 
+  - submission_id: abl-memory-only
+    system_name: "Same-substrate · memory-only wrapper (summary+user_model+episodic, no retrieval)"
+    model_identifier: memory-only-qwen
+    base_url: http://127.0.0.1:8501/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
+  - submission_id: abl-rag
+    system_name: "Same-substrate · RAG wrapper (embed retrieval only)"
+    model_identifier: rag-qwen
+    base_url: http://127.0.0.1:8502/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
   - submission_id: abl-camel
     system_name: "Same-substrate · CAMEL agent framework"
     model_identifier: camel-qwen

@@ -56,6 +56,10 @@ COMPARATOR = SCRIPTS / "compare_companion_ablation.py"
 TRACK_TO_SUBMISSION: dict[str, str] = {
     "raw": "abl-raw",
     "ref-harness": "abl-ref-harness",
+    # GAP-11: independent registry claim-2 arms (memory-only / rag) — the
+    # combined ref-harness wrapper no longer stands in for both.
+    "memory-only": "abl-memory-only",
+    "rag": "abl-rag",
     "camel": "abl-camel",
     "volvence-cold": "abl-volvence-cold",
     "volvence": "abl-volvence",
