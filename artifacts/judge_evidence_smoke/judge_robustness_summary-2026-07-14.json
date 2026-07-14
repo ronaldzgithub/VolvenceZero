@@ -1,0 +1,62 @@
+{
+  "schema_version": "judge-robustness-summary.v1",
+  "sweep_kind": "judge_robustness_summary",
+  "judge_families": [
+    "gpt5",
+    "claude47",
+    "deepseek4",
+    "gemini25"
+  ],
+  "reference_sut": [
+    "raw",
+    "ref-harness",
+    "camel",
+    "volvence"
+  ],
+  "scenario_pack": "public-24",
+  "seed": 42,
+  "dry_run": false,
+  "scores_dir": "artifacts\\companion-ablation\\p0-component-smoke",
+  "system_count": 9,
+  "score_mean": 3.5683709568919912,
+  "score_population_stdev": 0.10747308684744421,
+  "systems": [
+    {
+      "submission_id": "active-learning-off",
+      "final_mean": 3.7168821065371063
+    },
+    {
+      "submission_id": "camel",
+      "final_mean": 3.480264828519035
+    },
+    {
+      "submission_id": "eta-off",
+      "final_mean": 3.5060961440505487
+    },
+    {
+      "submission_id": "lora-adapter",
+      "final_mean": 3.5029104900797043
+    },
+    {
+      "submission_id": "pe-off",
+      "final_mean": 3.628174823035207
+    },
+    {
+      "submission_id": "raw",
+      "final_mean": 3.516109202551708
+    },
+    {
+      "submission_id": "ref-harness",
+      "final_mean": 3.4854068313672157
+    },
+    {
+      "submission_id": "volvence",
+      "final_mean": 3.493814303582762
+    },
+    {
+      "submission_id": "volvence-cold",
+      "final_mean": 3.785679882304632
+    }
+  ],
+  "notes": "Summary-based first real artifact: validates scored-system coverage and non-Qwen judge-family configuration. Full cross-family rank matrix can be layered on this schema when multiple judge output sets are available."
+}

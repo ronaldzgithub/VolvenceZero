@@ -1075,6 +1075,12 @@ class InternalRLSandbox:
     def causal_policy(self) -> CausalZPolicy:
         return self._causal_policy
 
+    @property
+    def latest_reward_composition(self) -> dict[str, object] | None:
+        """The environment's last-step reward composition readout (CP-07)."""
+
+        return self._env.latest_reward_composition
+
     def configure_runtime_backend(self, *, source_text: str | None) -> None:
         if self._residual_runtime is None or not source_text:
             return

@@ -140,12 +140,40 @@ class MetacontrollerSSLTrainer:
         # including the torch_* SHADOW/ACTIVE backend fields, stays readable
         # after optimize() so evidence exporters do not re-run training.
         self._latest_report: SSLTrainingReport | None = None
+        # CP-05 (GAP-09): the most recent torch SHADOW pass's candidate
+        # checkpoint (refined ndim params NOT written to the store) plus a
+        # pure/torch forward-parity report on the untouched live params.
+        # Both are owner-local read-only evidence surfaces.
+        self._latest_torch_candidate: "StoreSSLReport | None" = None
+        self._latest_forward_parity: object | None = None
 
     @property
     def ssl_backend(self) -> WiringLevel:
         """Deploy-wiring readout: the torch SSL backend level this owner runs at."""
 
         return self._ssl_backend
+
+    @property
+    def latest_torch_ssl_candidate(self) -> "StoreSSLReport | None":
+        """Most recent torch SSL pass report incl. candidate checkpoint params.
+
+        Under SHADOW the candidate weights were NOT written to the live
+        store; a later promotion can restore exactly this candidate. Read-only
+        evidence surface (CP-05 / GAP-09).
+        """
+
+        return self._latest_torch_candidate
+
+    @property
+    def latest_ssl_forward_parity(self) -> object | None:
+        """Most recent pure/torch forward-parity report on the live params.
+
+        ``RuntimeNdimShadowReport`` computed right after the SHADOW SSL pass
+        against the UNTOUCHED store params — proves the no-write-back
+        invariant at the forward level, not just via loss scalars.
+        """
+
+        return self._latest_forward_parity
 
     @property
     def latest_report(self) -> SSLTrainingReport | None:
@@ -485,6 +513,34 @@ class MetacontrollerSSLTrainer:
             switch_threshold=store.beta_threshold,
             write_back=write_back,
         )
+        # CP-05 (GAP-09): retain the candidate checkpoint owner-locally and
+        # run a pure/torch forward-parity check on the (untouched-under-
+        # SHADOW) live store params — evidence beyond the loss scalars.
+        self._latest_torch_candidate = report
+        if trace.steps:
+            from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind
+            from volvence_zero.temporal.backend_ndim_runtime import (
+                runtime_ndim_shadow_compare,
+            )
+
+            step = trace.steps[0]
+            step_view = SubstrateSnapshot(
+                model_id="ssl-shadow-parity",
+                is_frozen=True,
+                surface_kind=SurfaceKind.RESIDUAL_STREAM,
+                token_logits=(0.5,),
+                feature_surface=step.feature_surface,
+                residual_activations=step.residual_activations,
+                residual_sequence=(),
+                unavailable_fields=(),
+                description="first trace step as substrate view for SSL parity",
+            )
+            self._latest_forward_parity = runtime_ndim_shadow_compare(
+                store=store,
+                substrate_snapshot=step_view,
+                beta_threshold=store.beta_threshold,
+                action_families=store.action_families,
+            )
         return {
             "backend": self._ssl_backend.value,
             "prediction_loss": report.prediction_loss,

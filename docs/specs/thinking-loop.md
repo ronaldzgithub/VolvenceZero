@@ -328,6 +328,22 @@ ThinkingAdapter(
 
 ## 变更日志补充
 
+- 2026-07-14: CP-21 生产 consumer 闭合（GAP-06）。此前 worker 产出
+  `MidReflectionPayload` 而 temporal owner 只接受 `ControllerPressureAdvisory`，
+  且无人调用 `observe_thinking_artifact` —— 链路断开。本轮闭合：
+  (a) 发布侧转换：`lifeform_thinking.workers.mid_reflection.controller_pressure_advisory_from_mid_reflection`
+  （payload owner 同时拥有两种表示，消费者不重建语义）；
+  (b) `ThinkingAdapter.latest_advisory_artifacts_by_consumer` 暴露契约就绪的
+  advisory artifact（原 `latest_artifacts_by_consumer` 保留富 payload 观测面）；
+  (c) `BrainSession.submit_thinking_artifact(artifact, apply_enabled=False)` 成为
+  lifeform → kernel 的唯一路由入口，按 `consumer_owner` 分发到 world/self
+  temporal owner；
+  (d) `LifeformSession` 在 `on_turn_begin` 收集后自动以 SHADOW 语义转发，
+  routing 结果暴露于 `latest_thinking_advisory_routes`；temporal owner 新增
+  `latest_thinking_advisory_readout` 只读观测面。
+  同时把三个 adapter hook 的失败处理修正为本 spec 冻结的“失败隔离”语义
+  （log + 继续，不再 re-raise；kernel 侧契约违规仍 fail loudly）。测试：
+  `tests/lifeform_e2e/test_thinking_temporal_consumer.py`。
 - 2026-07-13: CP-21 temporal consumer slice. `vz-contracts.thinking` 新增
   `ControllerPressureAdvisory(track, pressure_delta, confidence, evidence)`，作为
   mid-reflection worker 给 temporal owner 的 compact payload。`FullLearnedTemporalPolicy.observe_thinking_artifact(...)`

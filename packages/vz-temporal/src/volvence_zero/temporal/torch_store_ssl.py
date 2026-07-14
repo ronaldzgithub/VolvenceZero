@@ -60,6 +60,14 @@ class StoreSSLReport:
     parameters_changed: int
     parameter_change_rate: float
     wrote_back: bool
+    # CP-05 (GAP-09): the refined weights as an exportable CANDIDATE
+    # checkpoint. Under SHADOW (wrote_back=False) the live store is
+    # untouched but the candidate is retained so promotion can restore
+    # exactly what the SHADOW pass trained instead of retraining blind.
+    # Under ACTIVE these equal what was written back.
+    candidate_encoder_parameters: NdimEncoderParameters | None = None
+    candidate_switch_parameters: NdimSwitchParameters | None = None
+    candidate_decoder_parameters: NdimDecoderParameters | None = None
     description: str = ""
 
 
@@ -284,10 +292,13 @@ def train_store_ssl(
     mean_beta = sum(beta_means) / max(len(beta_means), 1)
     switches = sum(1 for b in beta_means if b >= switch_threshold)
 
+    candidate_encoder = module.to_encoder_params(module.n_input)
+    candidate_switch = module.to_switch_params()
+    candidate_decoder = module.to_decoder_params()
     if write_back:
-        store.ndim_encoder_parameters = module.to_encoder_params(module.n_input)
-        store.ndim_switch_parameters = module.to_switch_params()
-        store.ndim_decoder_parameters = module.to_decoder_params()
+        store.ndim_encoder_parameters = candidate_encoder
+        store.ndim_switch_parameters = candidate_switch
+        store.ndim_decoder_parameters = candidate_decoder
 
     return StoreSSLReport(
         trace_id=trace.trace_id,
@@ -301,6 +312,9 @@ def train_store_ssl(
         parameters_changed=changed,
         parameter_change_rate=changed / max(total_params, 1),
         wrote_back=write_back,
+        candidate_encoder_parameters=candidate_encoder,
+        candidate_switch_parameters=candidate_switch,
+        candidate_decoder_parameters=candidate_decoder,
         description=(
             f"store SSL torch: pred={pred_v:.4f} kl={kl_v:.4f} "
             f"changed={changed} wrote_back={write_back}"

@@ -52,8 +52,15 @@ Environment Interface 不是新的内核 owner，也不是新的 runtime slot。
 
 - `rollback-ready` gate（gate 5）：tick / scene / followup 路由的 SHADOW /
   per-source disablement rollout 仍 pending。
-- tick/followup 的 proactive action 自主闭环（service 层 `FOLLOWUP_DUE` →
-  `run_turn` 编排 + followup outcome lineage）见 uplift 计划 CP-20。
+
+2026-07-14（CP-20 / GAP-07）已闭合：service 层
+`SessionManager.execute_due_followups` 将 due followup 经
+historical-readonly / tenant / consent（`boundary_consent` owner 发布的
+`external_action_blocked` gate）/ cooldown / budget 五重 typed gate 后以
+`run_turn(trigger_kind=FOLLOWUP_DUE, environment_provenance="followup:<id>")`
+执行并 `acknowledge_followup`，proactive turn 走标准 canonical event → PE
+lineage。测试：`packages/lifeform-service/tests/test_followup_execution_loop.py`
+（含 24h 模拟 idle arc：无洪泛、零 consent 违规）。
 
 ## 关键不变量
 

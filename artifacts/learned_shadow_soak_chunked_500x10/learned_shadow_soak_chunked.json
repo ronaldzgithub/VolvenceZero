@@ -1,0 +1,60 @@
+{
+  "schema_version": "learned-shadow-soak-chunked.v1",
+  "artifact_kind": "learned_shadow_soak_chunked",
+  "continuous": false,
+  "promotion_evidence": false,
+  "note": "Chunked Windows lane. Useful for directional stability and evidence surface coverage; not a substitute for continuous real-trace promotion evidence.",
+  "requested_turns": 500,
+  "completed_turns": 40,
+  "completed_real_trace_turns": 36,
+  "chunk_count": 5,
+  "successful_chunk_count": 4,
+  "chunks": [
+    {
+      "chunk_index": 0,
+      "returncode": 0,
+      "artifact_path": "artifacts\\learned_shadow_soak_chunked_500x10\\chunk-000\\learned_shadow_soak.json",
+      "artifact_present": true,
+      "turn_count": 10,
+      "real_trace_turns": 9,
+      "mean_turn_seconds": 0.561,
+      "strict_eta_gate_passed": true
+    },
+    {
+      "chunk_index": 1,
+      "returncode": 0,
+      "artifact_path": "artifacts\\learned_shadow_soak_chunked_500x10\\chunk-001\\learned_shadow_soak.json",
+      "artifact_present": true,
+      "turn_count": 10,
+      "real_trace_turns": 9,
+      "mean_turn_seconds": 0.5653,
+      "strict_eta_gate_passed": true
+    },
+    {
+      "chunk_index": 2,
+      "returncode": 0,
+      "artifact_path": "artifacts\\learned_shadow_soak_chunked_500x10\\chunk-002\\learned_shadow_soak.json",
+      "artifact_present": true,
+      "turn_count": 10,
+      "real_trace_turns": 9,
+      "mean_turn_seconds": 0.5621,
+      "strict_eta_gate_passed": true
+    },
+    {
+      "chunk_index": 3,
+      "returncode": 0,
+      "artifact_path": "artifacts\\learned_shadow_soak_chunked_500x10\\chunk-003\\learned_shadow_soak.json",
+      "artifact_present": true,
+      "turn_count": 10,
+      "real_trace_turns": 9,
+      "mean_turn_seconds": 0.8921,
+      "strict_eta_gate_passed": true
+    },
+    {
+      "chunk_index": 4,
+      "returncode": 3221225501,
+      "artifact_path": "artifacts\\learned_shadow_soak_chunked_500x10\\chunk-004\\learned_shadow_soak.json",
+      "artifact_present": false
+    }
+  ]
+}

@@ -709,7 +709,9 @@ def test_final_wiring_publishes_groups_shadow_scaffold():
     assert value.joint_commitments == ()
     assert value.group_regime_id is None
     assert value.active_predictions == ()
-    assert "R20 SHADOW scaffold" in value.description
+    # CP-18 (GAP-08): no longer a scaffold — the owner derives groups from
+    # canonical frame membership; single-party turns stay empty.
+    assert "R20 group owner" in value.description
 
 
 def test_final_wiring_records_social_prediction_errors_into_credit_ledger():

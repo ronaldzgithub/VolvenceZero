@@ -430,12 +430,44 @@ class CMSMemoryCore:
             )
         self._latest_cms_backend_evidence = {
             "backend": self._cms_backend.value,
+            "band_id": band_id,
             "parameters_changed": result.parameters_changed,
             "parameter_change_rate": result.parameter_change_rate,
             "grad_norm": result.grad_norm,
             "loss": result.loss,
             "wrote_back": wrote_back,
         }
+        if self._cms_backend is WiringLevel.SHADOW:
+            # CP-08 (GAP-09): the SHADOW gate is forward parity on the LIVE
+            # pre-update band weights (pure vs torch vs legacy), not just
+            # the torch step scalars. Runs against the band's own state and
+            # this update's averaged target so parity is exercised on real
+            # runtime vectors.
+            from volvence_zero.memory.torch_cms_band import (
+                CMSBandWeights,
+                cms_band_shadow_dual_run,
+            )
+
+            parity = cms_band_shadow_dual_run(
+                weights=CMSBandWeights(
+                    d_in=mlp.d_in,
+                    d_hidden=mlp.d_hidden,
+                    w1=tuple(pre[3]),
+                    w2=tuple(pre[2]),
+                ),
+                inputs=(tuple(pre[0]), averaged),
+            )
+            self._latest_cms_backend_evidence.update(
+                {
+                    "forward_parity_max_abs_diff_pure_torch": parity.max_abs_diff_pure_torch,
+                    "forward_parity_max_abs_diff_legacy_torch": parity.max_abs_diff_legacy_torch,
+                    "forward_parity_within_tolerance": parity.within_tolerance,
+                    "forward_parity_tolerance": parity.tolerance,
+                    "forward_parity_pure_latency_ms": parity.pure_latency_ms,
+                    "forward_parity_torch_latency_ms": parity.torch_latency_ms,
+                    "forward_parity_promotable": parity.promotable,
+                }
+            )
 
     @staticmethod
     def _weighted_average_target(
@@ -744,6 +776,21 @@ class CMSMemoryCore:
             online_before=_proxy_online_before,
             background_before=_proxy_background_before,
         )
+        if self._latest_cms_backend_evidence is not None:
+            # CP-08 (GAP-09): the SHADOW evidence surface carries this
+            # observation's retention / absorption / drift readouts next to
+            # the torch step + parity fields, so the dual-run comparison the
+            # plan asks for is one artifact, not a downstream re-join.
+            self._latest_cms_backend_evidence.update(
+                {
+                    "new_knowledge_absorption": _clamp(
+                        self._last_new_knowledge_absorption
+                    ),
+                    "old_knowledge_retention": _clamp(
+                        self._last_old_knowledge_retention
+                    ),
+                }
+            )
         self._last_update_ms = timestamp_ms
 
     # ------------------------------------------------------------------

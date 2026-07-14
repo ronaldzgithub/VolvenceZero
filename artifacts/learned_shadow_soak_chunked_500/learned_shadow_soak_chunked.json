@@ -1,0 +1,20 @@
+{
+  "schema_version": "learned-shadow-soak-chunked.v1",
+  "artifact_kind": "learned_shadow_soak_chunked",
+  "continuous": false,
+  "promotion_evidence": false,
+  "note": "Chunked Windows lane. Useful for directional stability and evidence surface coverage; not a substitute for continuous real-trace promotion evidence.",
+  "requested_turns": 500,
+  "completed_turns": 0,
+  "completed_real_trace_turns": 0,
+  "chunk_count": 1,
+  "successful_chunk_count": 0,
+  "chunks": [
+    {
+      "chunk_index": 0,
+      "returncode": 3221225477,
+      "artifact_path": "artifacts\\learned_shadow_soak_chunked_500\\chunk-000\\learned_shadow_soak.json",
+      "artifact_present": false
+    }
+  ]
+}

@@ -2611,6 +2611,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 active_family_reuse=active_family_reuse,
                 active_family_persistence=active_family_persistence,
                 external_switch_pressure_delta=fast_prior_switch_pressure_delta,
+                # CP-06 (GAP-09): behaviour-level comparison — segment-closure
+                # decision and nearest action family per backend.
+                beta_threshold=self._parameter_store.beta_threshold,
+                action_families=self._parameter_store.action_families,
             )
         beta_cont, beta_bin, scalar_beta = switch_obj.compute(
             z_tilde=encoded.z_tilde,

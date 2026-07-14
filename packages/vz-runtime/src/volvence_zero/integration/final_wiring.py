@@ -1422,6 +1422,8 @@ def build_final_runtime_modules(
     # per-turn surprise injected into PE). The caller (lifeform run_turn,
     # which knows trigger_kind) sets this True for apprentice turns.
     apprenticeship_turn: bool = False,
+    apprenticeship_feedback_policy: str = "owner",
+    apprenticeship_constraint_extractor: Any = None,
     substrate_self_mod_pe_magnitude: float = 0.0,
     substrate_self_mod_pe_reward: float = 0.0,
     substrate_self_mod_pe_threshold: float = 0.18,
@@ -1719,6 +1721,7 @@ def build_final_runtime_modules(
             joint_attention=group_joint_attention,
             joint_commitments=group_joint_commitments,
             group_regime_id=group_regime_id,
+            record_store=social_record_store,
         ),
         SocialPredictionAggregateModule(
             wiring_level=config.level_for("social_prediction", WiringLevel.SHADOW),
@@ -1759,6 +1762,8 @@ def build_final_runtime_modules(
             user_input=user_input,
             turn_index=turn_index,
             apprenticeship=apprenticeship_turn,
+            feedback_policy=apprenticeship_feedback_policy,
+            extractor=apprenticeship_constraint_extractor,
         ),
         ExperienceFastPriorModule(
             wiring_level=config.level_for("experience_fast_prior", WiringLevel.SHADOW),
@@ -1919,6 +1924,8 @@ async def run_final_wiring_turn(
     wave_id: str = "wave-0",
     turn_index: int = 0,
     apprenticeship_turn: bool = False,
+    apprenticeship_feedback_policy: str = "owner",
+    apprenticeship_constraint_extractor: Any = None,
     apply_slow_writeback: bool = True,
     substrate_self_mod_pe_magnitude: float = 0.0,
     substrate_self_mod_pe_reward: float = 0.0,
@@ -1966,6 +1973,8 @@ async def run_final_wiring_turn(
         wave_id=wave_id,
         turn_index=turn_index,
         apprenticeship_turn=apprenticeship_turn,
+        apprenticeship_feedback_policy=apprenticeship_feedback_policy,
+        apprenticeship_constraint_extractor=apprenticeship_constraint_extractor,
         substrate_self_mod_pe_magnitude=substrate_self_mod_pe_magnitude,
         substrate_self_mod_pe_reward=substrate_self_mod_pe_reward,
         substrate_self_mod_pe_threshold=substrate_self_mod_pe_threshold,

@@ -71,11 +71,26 @@ async def test_learned_shadow_evidence_covers_all_four_owners_without_writeback(
         assert runtime["steps_compared"] >= 1
         assert runtime["torch_available"] is True
         assert runtime["within_tolerance"] is True, runtime["description"]
+        # CP-06 (GAP-09): behaviour-level comparison dimensions.
+        assert runtime["switch_decision_match"] is True, runtime["description"]
+        assert runtime["family_selection_match"] is True, runtime["description"]
 
     ssl = payload["temporal_ssl"]
     assert ssl["torch_backend"] == "shadow"
     assert ssl["torch_wrote_back"] is False
     assert ssl["trained_steps"] >= 1
+    # CP-05 (GAP-09): SHADOW exports a candidate checkpoint (not written to
+    # the store) plus a forward-parity report on the untouched live params.
+    candidate = ssl["candidate_checkpoint"]
+    assert candidate["wrote_back"] is False
+    assert candidate["candidate_fingerprint"]
+    parity = ssl["forward_parity"]
+    assert parity["within_tolerance"] is True, parity["description"]
+
+    # CP-07 (GAP-09): reward composition purity readout.
+    composition = payload["internal_rl"]["reward_composition"]
+    assert 0.0 <= composition["pe_derived_abs_fraction"] <= 1.0
+    assert composition["component_names"]
 
     rl = payload["internal_rl"]
     tracks = (
@@ -89,6 +104,11 @@ async def test_learned_shadow_evidence_covers_all_four_owners_without_writeback(
     cms = payload["cms"]
     assert cms["backend"] == "shadow"
     assert cms["wrote_back"] is False
+    # CP-08 (GAP-09): live-weight forward parity + anti-forgetting readouts
+    # ride alongside the torch step scalars in one artifact.
+    assert cms["forward_parity_within_tolerance"] is True
+    assert 0.0 <= cms["new_knowledge_absorption"] <= 1.0
+    assert 0.0 <= cms["old_knowledge_retention"] <= 1.0
 
 
 async def test_collector_fails_loudly_on_default_disabled_profile() -> None:

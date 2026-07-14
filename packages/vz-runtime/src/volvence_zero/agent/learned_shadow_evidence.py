@@ -86,6 +86,11 @@ def _runtime_shadow_payload(report: Any, *, track_label: str) -> dict[str, Any]:
         "latency_ok": report.latency_ok,
         "promotable": report.promotable,
         "torch_available": report.torch_available,
+        # CP-06 (GAP-09): behaviour-level comparison dimensions.
+        "switch_decision_match": report.switch_decision_match,
+        "family_selection_match": report.family_selection_match,
+        "nearest_family_pure": report.nearest_family_pure,
+        "nearest_family_torch": report.nearest_family_torch,
         "description": report.description,
     }
 
@@ -281,7 +286,65 @@ def collect_learned_shadow_evidence(runner: Any) -> dict[str, Any]:
         "internal_rl": _internal_rl_payload(runner.joint_loop.latest_internal_rl_report),
         "cms": _cms_payload(learned_core.latest_cms_backend_evidence),
     }
+    # CP-05 (GAP-09): SSL SHADOW candidate checkpoint + forward parity.
+    candidate = runner.joint_loop.latest_torch_ssl_candidate
+    if candidate is not None:
+        from volvence_zero.runtime.kernel import stable_value_hash
+
+        payload["temporal_ssl"]["candidate_checkpoint"] = {
+            "trace_id": candidate.trace_id,
+            "wrote_back": candidate.wrote_back,
+            "candidate_fingerprint": stable_value_hash(
+                (
+                    candidate.candidate_encoder_parameters,
+                    candidate.candidate_switch_parameters,
+                    candidate.candidate_decoder_parameters,
+                )
+            ),
+            "parameters_changed": candidate.parameters_changed,
+        }
+    parity = runner.joint_loop.latest_ssl_forward_parity
+    if parity is not None:
+        payload["temporal_ssl"]["forward_parity"] = _runtime_shadow_payload(
+            parity, track_label="ssl-lane"
+        )
+    # CP-07 (GAP-09): reward composition purity readout.
+    composition = runner.joint_loop.latest_reward_composition
+    if composition is not None:
+        payload["internal_rl"]["reward_composition"] = {
+            "pe_derived_abs_fraction": composition["pe_derived_abs_fraction"],
+            "reward_mode": composition["reward_mode"],
+            "component_names": [name for name, _ in composition["components"]],
+        }
     return payload
+
+
+def collect_internal_rl_no_optimize_proof(
+    *, iterations: int = 40
+) -> dict[str, Any]:
+    """Run the CP-07 offline proof episode: PPO vs no-optimize matched control.
+
+    Wraps ``run_internal_rl_proof`` (owner: vz-temporal) so the learned-shadow
+    soak carries the optimize-beats-no-optimize control evidence in the same
+    artifact. Torch required; synthetic proof tier (not real-trace evidence).
+    """
+
+    from volvence_zero.internal_rl.torch_internal_rl import run_internal_rl_proof
+
+    report = run_internal_rl_proof(iterations=iterations)
+    return {
+        "evidence_kind": "internal_rl_no_optimize_proof",
+        "iterations": iterations,
+        "full_mean_return_before": report.full.mean_return_before,
+        "full_mean_return_after": report.full.mean_return_after,
+        "full_return_improvement": report.full.return_improvement,
+        "no_optimize_mean_return_after": report.no_optimize.mean_return_after,
+        "no_optimize_return_improvement": report.no_optimize.return_improvement,
+        "full_improves": report.full_improves,
+        "control_does_not_improve": report.control_does_not_improve,
+        "full_beats_control": report.full_beats_control,
+        "description": report.description,
+    }
 
 
 __all__ = [
@@ -289,6 +352,7 @@ __all__ = [
     "LEARNED_SHADOW_TEMPORAL_LATENT_DIM",
     "LearnedShadowEvidenceError",
     "build_learned_shadow_rollout_config",
+    "collect_internal_rl_no_optimize_proof",
     "collect_learned_shadow_evidence",
     "collect_strict_eta_gate_evidence",
 ]

@@ -339,6 +339,30 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
 
         return self._world_sandbox.latest_optimization_report
 
+    @property
+    def latest_reward_composition(self):
+        """Most recent world-env reward composition readout (CP-07 / GAP-09).
+
+        Includes ``pe_derived_abs_fraction`` — the share of |reward| that
+        came from PE / segment-credit derived components — so the
+        reward-purity claim is measurable per cycle. ``None`` until a
+        rollout has stepped the environment.
+        """
+
+        return self._world_sandbox.latest_reward_composition
+
+    @property
+    def latest_torch_ssl_candidate(self):
+        """Most recent torch SSL candidate checkpoint report (CP-05 / GAP-09)."""
+
+        return self._ssl_trainer.latest_torch_ssl_candidate
+
+    @property
+    def latest_ssl_forward_parity(self):
+        """Most recent SSL-lane pure/torch forward-parity report (CP-05)."""
+
+        return self._ssl_trainer.latest_ssl_forward_parity
+
     def _aggregate_metacontroller_state(self) -> MetacontrollerRuntimeState:
         return build_temporal_runtime_state_aggregate(
             world_state=self._world_policy.export_runtime_state(),

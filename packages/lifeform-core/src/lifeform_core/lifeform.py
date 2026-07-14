@@ -2121,9 +2121,12 @@ class LifeformSession:
     #   ``lifeform-thinking``. The adapter conforms to
     #   ``ThinkingAdapterProtocol`` (defined above) but at call time
     #   we just look up the method and call it.
-    # * **Fail-loud.** Adapter failures are logged with hook context
-    #   and re-raised so thinking degradation never hides behind a
-    #   successful turn.
+    # * **Isolated.** Adapter failures are logged with hook context and
+    #   SWALLOWED (docs/specs/thinking-loop.md "失败隔离"): a buggy
+    #   thinking plugin must never break the kernel turn path. The
+    #   degradation stays visible through the exception log and the
+    #   adapter snapshot; kernel-side contract violations (e.g. the
+    #   Brain facade rejecting a malformed advisory) still fail loudly.
 
     async def _invoke_thinking_on_turn_begin(self, *, turn_index: int) -> None:
         if self._thinking_adapter is None:
@@ -2144,7 +2147,7 @@ class LifeformSession:
             _logging.getLogger("lifeform_core.lifeform").exception(
                 "thinking_adapter.on_turn_begin raised"
             )
-            raise
+            return
         self._route_thinking_advisories_to_temporal_owners()
 
     def _route_thinking_advisories_to_temporal_owners(self) -> None:
@@ -2197,7 +2200,6 @@ class LifeformSession:
             _logging.getLogger("lifeform_core.lifeform").exception(
                 "thinking_adapter.on_turn_end raised"
             )
-            raise
 
     async def _invoke_thinking_drain(self) -> None:
         if self._thinking_adapter is None:
@@ -2215,4 +2217,3 @@ class LifeformSession:
             _logging.getLogger("lifeform_core.lifeform").exception(
                 "thinking_adapter.drain raised"
             )
-            raise

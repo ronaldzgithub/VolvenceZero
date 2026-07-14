@@ -233,6 +233,18 @@ class RuntimeNdimShadowReport:
     latency_ok: bool
     promotable: bool
     torch_available: bool
+    # CP-06 (GAP-09): behavioural comparison dimensions beyond numeric
+    # parity — would the two backends make the SAME segment-closure
+    # decision (beta >= threshold) and select the SAME nearest action
+    # family for the applied control? Numeric parity within tolerance
+    # implies these match; they are reported explicitly so a divergence
+    # shows up as a behaviour-level flag, not just an epsilon.
+    switch_decision_pure: bool = False
+    switch_decision_torch: bool = False
+    switch_decision_match: bool = True
+    nearest_family_pure: str = ""
+    nearest_family_torch: str = ""
+    family_selection_match: bool = True
     description: str = ""
 
 
@@ -251,6 +263,8 @@ def runtime_ndim_shadow_compare(
     external_switch_pressure_delta: float = 0.0,
     tolerance: float = 1e-7,
     latency_budget_ms: float = 50.0,
+    beta_threshold: float = 0.55,
+    action_families: tuple[Any, ...] = (),
 ) -> RuntimeNdimShadowReport:
     """Phase B SHADOW gate: pure vs torch ndim forward parity + latency.
 
@@ -299,9 +313,25 @@ def runtime_ndim_shadow_compare(
                 "z_tilde": enc.posterior.z_tilde,
                 "beta": beta_cont,
                 "applied": dec.applied_control,
+                "switch_scalar": scalar,
+                "latent": latent,
             },
             elapsed,
         )
+
+    def _nearest_family(latent: tuple[float, ...]) -> str:
+        best_id = ""
+        best_distance = float("inf")
+        for family in action_families:
+            centroid = family.latent_centroid
+            distance = sum(
+                (a - b) * (a - b)
+                for a, b in zip(latent, centroid, strict=False)
+            )
+            if distance < best_distance:
+                best_distance = distance
+                best_id = family.family_id
+        return best_id
 
     pure_out, pure_latency = run(PurePythonBackend())
     if not is_torch_available():
@@ -321,6 +351,10 @@ def runtime_ndim_shadow_compare(
     d_mean, d_z, d_beta, d_applied = md("posterior_mean"), md("z_tilde"), md("beta"), md("applied")
     within = max(d_mean, d_z, d_beta, d_applied) <= tolerance
     latency_ok = torch_latency <= latency_budget_ms
+    switch_pure = pure_out["switch_scalar"] >= beta_threshold
+    switch_torch = torch_out["switch_scalar"] >= beta_threshold
+    family_pure = _nearest_family(pure_out["latent"])
+    family_torch = _nearest_family(torch_out["latent"])
     return RuntimeNdimShadowReport(
         steps_compared=1,
         max_abs_diff_posterior_mean=d_mean,
@@ -335,8 +369,15 @@ def runtime_ndim_shadow_compare(
         latency_ok=latency_ok,
         promotable=within and latency_ok,
         torch_available=True,
+        switch_decision_pure=switch_pure,
+        switch_decision_torch=switch_torch,
+        switch_decision_match=switch_pure == switch_torch,
+        nearest_family_pure=family_pure,
+        nearest_family_torch=family_torch,
+        family_selection_match=family_pure == family_torch,
         description=(
             f"runtime ndim SHADOW parity: mean={d_mean:.2e} z={d_z:.2e} "
-            f"beta={d_beta:.2e} applied={d_applied:.2e} within={within} latency_ok={latency_ok}"
+            f"beta={d_beta:.2e} applied={d_applied:.2e} within={within} latency_ok={latency_ok} "
+            f"switch_match={switch_pure == switch_torch} family_match={family_pure == family_torch}"
         ),
     )

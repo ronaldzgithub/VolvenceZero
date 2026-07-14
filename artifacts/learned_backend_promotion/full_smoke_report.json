@@ -1,0 +1,58 @@
+{
+  "schema_version": "learned-backend-promotion-report.v1",
+  "source_artifact": "artifacts\\learned_shadow_soak_full_smoke\\learned_shadow_soak.json",
+  "reports": [
+    {
+      "component": "temporal_runtime_backend",
+      "eligible": false,
+      "missing_gates": [
+        "real_trace_turns<500",
+        "validation_delta<0.02",
+        "pe_off_control",
+        "eta_off_control"
+      ],
+      "description": "temporal_runtime_backend ACTIVE candidate blocked; missing=('real_trace_turns<500', 'validation_delta<0.02', 'pe_off_control', 'eta_off_control')",
+      "recommended_env": ""
+    },
+    {
+      "component": "temporal_ssl_backend",
+      "eligible": false,
+      "missing_gates": [
+        "real_trace_turns<500",
+        "validation_delta<0.02",
+        "pe_off_control",
+        "eta_off_control",
+        "runtime_active_first"
+      ],
+      "description": "temporal_ssl_backend ACTIVE candidate blocked; missing=('real_trace_turns<500', 'validation_delta<0.02', 'pe_off_control', 'eta_off_control', 'runtime_active_first')",
+      "recommended_env": ""
+    },
+    {
+      "component": "internal_rl_backend",
+      "eligible": false,
+      "missing_gates": [
+        "real_trace_turns<500",
+        "validation_delta<0.02",
+        "pe_off_control",
+        "eta_off_control",
+        "runtime_active_first",
+        "ssl_active_first"
+      ],
+      "description": "internal_rl_backend ACTIVE candidate blocked; missing=('real_trace_turns<500', 'validation_delta<0.02', 'pe_off_control', 'eta_off_control', 'runtime_active_first', 'ssl_active_first')",
+      "recommended_env": ""
+    },
+    {
+      "component": "cms_torch_backend",
+      "eligible": false,
+      "missing_gates": [
+        "real_trace_turns<500",
+        "validation_delta<0.02",
+        "pe_off_control",
+        "eta_off_control"
+      ],
+      "description": "cms_torch_backend ACTIVE candidate blocked; missing=('real_trace_turns<500', 'validation_delta<0.02', 'pe_off_control', 'eta_off_control')",
+      "recommended_env": ""
+    }
+  ],
+  "all_eligible": false
+}

@@ -1,0 +1,96 @@
+{
+  "schema_version": "capacity-ladder-manifest.v1",
+  "description": "CP-24 capacity-to-gain factorial manifest. Produces no claim by itself; each arm must be run on the evidence lane with matched substrate, judge, prompt/context budget, and artifact provenance.",
+  "arms": [
+    {
+      "arm_id": "nz3-pe1-cocoa8-runtime-only-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 3,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime-only",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz3-pe1-cocoa32-runtime-only-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 3,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime-only",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz3-pe1-cocoa128-runtime-only-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 3,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime-only",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz3-pe2-cocoa8-runtime-only-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 3,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime-only",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz3-pe2-cocoa32-runtime-only-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 3,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime-only",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz3-pe2-cocoa128-runtime-only-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 3,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime-only",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz3-pe4-cocoa8-runtime-only-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 3,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime-only",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz3-pe4-cocoa32-runtime-only-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 3,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime-only",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz3-pe4-cocoa128-runtime-only-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 3,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime-only",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    }
+  ]
+}

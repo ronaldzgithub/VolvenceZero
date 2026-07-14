@@ -45,6 +45,7 @@ from volvence_zero.agent.learned_active_gate import (
 from volvence_zero.agent.learned_shadow_evidence import (
     LEARNED_SHADOW_TEMPORAL_LATENT_DIM,
     build_learned_shadow_rollout_config,
+    collect_internal_rl_no_optimize_proof,
     collect_learned_shadow_evidence,
     collect_strict_eta_gate_evidence,
 )
@@ -256,6 +257,12 @@ async def main(
         )
     elif substrate_mode != "synthetic":
         raise ValueError(f"unsupported substrate_mode {substrate_mode!r}")
+    else:
+        from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
+
+        default_runtime = SyntheticOpenWeightResidualRuntime(
+            model_id="learned-shadow-soak-synthetic",
+        )
     runner = AgentSessionRunner(
         config=_rollout_config_for_backend_combo(backend_combo),
         temporal_latent_dim=temporal_latent_dim,
@@ -277,7 +284,8 @@ async def main(
     for index in range(1, turn_count + 1):
         text = _TURN_POOL[(index - 1) % len(_TURN_POOL)]
         result = await runner.run_turn(text)
-        if runner.training_traces and ":real:" in runner.training_traces[-1].trace_id:
+        recent_traces = getattr(runner, "_recent_training_traces")
+        if recent_traces and ":real:" in recent_traces[-1].trace_id:
             real_trace_turns += 1
         if index % sample_every == 0 or index == turn_count:
             pe_value = result.active_snapshots["prediction_error"].value
@@ -321,12 +329,41 @@ async def main(
     total_seconds = time.perf_counter() - started
     mean_turn_seconds = total_seconds / turn_count
 
-    # Fails loudly if any owner is missing evidence or wrote back under SHADOW.
-    payload = collect_learned_shadow_evidence(runner)
+    # Full learned-shadow requires all four owner evidence surfaces. Capacity
+    # ladder partial combos intentionally omit some backends, so they emit a
+    # partial artifact instead of pretending the full profile was exercised.
+    if backend_combo == "runtime+ssl+internal-rl+cms-torch":
+        payload = collect_learned_shadow_evidence(runner)
+    else:
+        payload = {
+            "schema_version": _SOAK_SCHEMA_VERSION,
+            "artifact_kind": "learned_shadow_soak",
+            "partial_backend_combo": True,
+            "backend_combo": backend_combo,
+            "temporal_runtime": {
+                "world_report_present": (
+                    runner.world_temporal_policy.latest_runtime_shadow_report
+                    is not None
+                ),
+                "self_report_present": (
+                    runner.self_temporal_policy.latest_runtime_shadow_report
+                    is not None
+                ),
+            },
+        }
     payload["schema_version"] = _SOAK_SCHEMA_VERSION
     payload["artifact_kind"] = "learned_shadow_soak"
-    payload["evidence_tier"] = "synthetic-cpu-soak"
+    payload["evidence_tier"] = (
+        "real-trace-soak" if real_trace_turns > 0 else "synthetic-cpu-soak"
+    )
+    payload["capacity_arm"] = {
+        "temporal_latent_dim": temporal_latent_dim,
+        "backend_combo": backend_combo,
+        "substrate_mode": substrate_mode,
+        "substrate_model_id": substrate_model_id if substrate_mode == "hf" else "",
+    }
     payload["turn_count"] = turn_count
+    payload["real_trace_turns"] = real_trace_turns
     payload["total_seconds"] = round(total_seconds, 2)
     payload["mean_turn_seconds"] = round(mean_turn_seconds, 4)
     payload["provenance"] = _collect_provenance()
@@ -382,7 +419,15 @@ async def main(
 
     # CP-09: run the strict ETA suite for real instead of hardcoding False.
     print("[soak] running strict ETA gate suite (CP-09)...", flush=True)
-    strict_eta = collect_strict_eta_gate_evidence()
+    try:
+        strict_eta = collect_strict_eta_gate_evidence()
+    except ImportError as exc:
+        strict_eta = {
+            "evidence_kind": "strict_eta_gate",
+            "gate_passed": False,
+            "missing_dependency": "torch",
+            "description": f"strict ETA gate skipped: {exc}",
+        }
     payload["strict_eta_gate"] = strict_eta
     print(
         f"[soak] strict ETA gate_passed={strict_eta['gate_passed']} "
@@ -390,20 +435,50 @@ async def main(
         flush=True,
     )
 
+    # CP-07 (GAP-09): offline optimize-vs-no-optimize matched control.
+    print("[soak] running internal RL no-optimize proof (CP-07)...", flush=True)
+    try:
+        no_optimize_proof = collect_internal_rl_no_optimize_proof()
+    except ImportError as exc:
+        no_optimize_proof = {
+            "evidence_kind": "internal_rl_no_optimize_proof",
+            "full_beats_control": False,
+            "missing_dependency": "torch",
+            "description": f"no-optimize proof skipped: {exc}",
+        }
+    payload["internal_rl_no_optimize_proof"] = no_optimize_proof
+    print(
+        f"[soak] no-optimize proof full_beats_control="
+        f"{no_optimize_proof['full_beats_control']}",
+        flush=True,
+    )
+
     latency_slo_ok = mean_turn_seconds <= _SOAK_MEAN_TURN_SECONDS_SLO
+    validation_delta = 0.0
+    if head_readout_series:
+        last_readout = head_readout_series[-1]
+        validation_delta = max(
+            float(last_readout.get("world_improvement", 0.0)),
+            float(last_readout.get("self_improvement", 0.0)),
+        )
     payload["learned_active_gate"] = {
         "note": (
-            "Synthetic soak lane: real_trace_turns=0 by definition, so BLOCKED "
-            "verdicts are the expected honest outcome. Directional readouts "
-            "only; ACTIVE promotion requires the Linux CUDA real-trace lane. "
-            "strict_eta_gate reflects the CP-09 suite executed this soak."
+            "Soak lane evidence. ACTIVE promotion additionally requires "
+            "component controls (PE-off / ETA-off) from the same-substrate "
+            "ablation and rollback drill evidence. strict_eta_gate reflects "
+            "the CP-09 suite executed this soak."
         ),
         "latency_slo_seconds": _SOAK_MEAN_TURN_SECONDS_SLO,
         "latency_slo_ok": latency_slo_ok,
+        "real_trace_turns": real_trace_turns,
+        "validation_delta": validation_delta,
         "verdicts": _gate_verdicts(
+            real_trace_turns=real_trace_turns,
+            validation_delta=validation_delta,
             safety_gate_ok=True,  # collector verified zero SHADOW write-back
             latency_slo_ok=latency_slo_ok,
             strict_eta_gate_passed=bool(strict_eta["gate_passed"]),
+            rollback_drill_passed=checkpoint_round_trips > 0,
         ),
     }
 
@@ -461,6 +536,32 @@ if __name__ == "__main__":
         default=100,
         help="Export + round-trip-verify a head checkpoint every N turns.",
     )
+    parser.add_argument(
+        "--temporal-latent-dim",
+        type=int,
+        default=LEARNED_SHADOW_TEMPORAL_LATENT_DIM,
+    )
+    parser.add_argument(
+        "--backend-combo",
+        default="runtime+ssl+internal-rl+cms-torch",
+        choices=[
+            "runtime-only",
+            "runtime+ssl",
+            "runtime+ssl+internal-rl",
+            "runtime+ssl+internal-rl+cms-torch",
+        ],
+    )
+    parser.add_argument(
+        "--substrate-mode",
+        default="synthetic",
+        choices=["synthetic", "hf"],
+    )
+    parser.add_argument(
+        "--substrate-model-id",
+        default="Qwen/Qwen2.5-1.5B-Instruct",
+    )
+    parser.add_argument("--substrate-device", default="cuda")
+    parser.add_argument("--substrate-allow-download", action="store_true")
     args = parser.parse_args()
     sys.exit(
         asyncio.run(
@@ -469,6 +570,12 @@ if __name__ == "__main__":
                 turn_count=args.turns,
                 sample_every=max(1, args.sample_every),
                 checkpoint_every=max(1, args.checkpoint_every),
+                temporal_latent_dim=args.temporal_latent_dim,
+                backend_combo=args.backend_combo,
+                substrate_mode=args.substrate_mode,
+                substrate_model_id=args.substrate_model_id,
+                substrate_device=args.substrate_device,
+                substrate_local_files_only=not args.substrate_allow_download,
             )
         )
     )

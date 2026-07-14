@@ -113,6 +113,17 @@ Implemented Phase 5 scaffold:
 
 ## 变更日志
 
+- 2026-07-14: CP-18 frame membership + R14 group regime（GAP-08）。
+  `GroupModule` 不再丢弃 upstream：从 `multi_party_identity` owner 发布的
+  canonical frame scope（speaker + addressees + audience）派生 group
+  identity——≥3 个不同参与者时生成确定性 `frame-group:<sorted members>` id
+  （同一成员集永远同 id，R14 持久身份；单方兼容 frame 永不成组，禁止从
+  文本猜测）。group regime 经 `SocialRecordStore.record_group_regime /
+  group_regime_for` 持久化（单写者 GroupModule）：orchestrator 显式注入的
+  regime 被记录，后续 turn 重建的模块为同一 group 自动 rehydrate，不跨
+  group 泄漏。final wiring 注入 `record_store=social_record_store`。默认
+  wiring 仍 SHADOW；ACTIVE 判据不变（group PE 有不可归约增量）。测试：
+  `tests/test_social_group.py`。
 - 2026-07-13: social-learning slice 3. Group snapshots now emit typed group
   durability predictions and the social prediction aggregate forwards them.
   Tests: `tests/test_social_group.py` + `tests/test_final_wiring.py`.

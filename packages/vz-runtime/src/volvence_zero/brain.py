@@ -97,6 +97,17 @@ class BrainConfig:
     domain_experience_packages: tuple[DomainExperiencePackage, ...] = ()
     final_rollout_config: FinalRolloutConfig | None = None
     rare_heavy_enabled: bool = True
+    # Same-substrate component-causal ablation controls (#87 claim 3).
+    # These expose dialogue-runner PE/ETA knobs through the stable package API
+    # so real `lifeform-serve` endpoints can run matched controls.
+    temporal_policy_kind: Literal["full", "learned_lite"] = "full"
+    external_prediction_error_drive: bool = True
+    prediction_error_readout_only: bool = False
+    primary_prediction_error_dominance_enabled: bool = True
+    apprenticeship_feedback_policy: Literal[
+        "owner", "random", "disabled"
+    ] = "owner"
+    apprenticeship_constraint_extractor: Any = None
     # Rupture-and-Repair v0 Risk 2 mitigation: LLM-sourced external
     # outcome proposals are OFF by default. Set this to True ONLY after
     # reviewing the proposal adapter contract (post-v0 M9). See
@@ -742,6 +753,15 @@ class Brain:
             allow_llm_outcome_proposals=self._config.allow_llm_outcome_proposals,
             user_scope=user_scope,
             owner_hydration_store=owner_hydration_store,
+            external_prediction_error_drive=self._config.external_prediction_error_drive,
+            prediction_error_readout_only=self._config.prediction_error_readout_only,
+            primary_prediction_error_dominance_enabled=(
+                self._config.primary_prediction_error_dominance_enabled
+            ),
+            apprenticeship_feedback_policy=self._config.apprenticeship_feedback_policy,
+            apprenticeship_constraint_extractor=(
+                self._config.apprenticeship_constraint_extractor
+            ),
         )
         if self._temporal_bootstrap is not None:
             # Build fresh policies per session from the trained snapshot so
@@ -750,6 +770,14 @@ class Brain:
             # will clone the world track for the self track when needed.
             runner_kwargs["world_temporal_policy"] = (
                 FullLearnedTemporalPolicy.from_bootstrap_snapshot(self._temporal_bootstrap)
+            )
+        elif self._config.temporal_policy_kind == "learned_lite":
+            from volvence_zero.temporal import LearnedLiteTemporalPolicy
+
+            runner_kwargs["temporal_policy"] = LearnedLiteTemporalPolicy()
+        elif self._config.temporal_policy_kind != "full":
+            raise ValueError(
+                f"unknown temporal_policy_kind {self._config.temporal_policy_kind!r}"
             )
         runner = AgentSessionRunner(**runner_kwargs)
         return BrainSession(runner=runner)

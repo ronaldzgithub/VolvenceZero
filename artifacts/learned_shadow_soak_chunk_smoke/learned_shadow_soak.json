@@ -1,0 +1,391 @@
+{
+  "schema_version": "learned-shadow-soak.v1",
+  "artifact_kind": "learned_shadow_soak",
+  "evidence_tier": "real-trace-soak",
+  "temporal_latent_dim": 16,
+  "backend_wiring": {
+    "temporal_ssl_backend": "shadow",
+    "temporal_runtime_backend": "shadow",
+    "internal_rl_backend": "shadow",
+    "cms_torch_backend": "shadow"
+  },
+  "temporal_runtime": {
+    "world": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 2.220446049250313e-16,
+      "max_abs_diff_z_tilde": 2.220446049250313e-16,
+      "max_abs_diff_beta": 1.1102230246251565e-16,
+      "max_abs_diff_applied": 0.0,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 1.5118000001166365,
+      "torch_latency_ms": 0.8701000001565262,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "description": "runtime ndim SHADOW parity: mean=2.22e-16 z=2.22e-16 beta=1.11e-16 applied=0.00e+00 within=True latency_ok=True"
+    },
+    "self": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 1.1102230246251565e-16,
+      "max_abs_diff_z_tilde": 1.1102230246251565e-16,
+      "max_abs_diff_beta": 1.1102230246251565e-16,
+      "max_abs_diff_applied": 2.220446049250313e-16,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 1.1603000000377506,
+      "torch_latency_ms": 0.78269999994518,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "description": "runtime ndim SHADOW parity: mean=1.11e-16 z=1.11e-16 beta=1.11e-16 applied=2.22e-16 within=True latency_ok=True"
+    }
+  },
+  "temporal_ssl": {
+    "torch_backend": "shadow",
+    "torch_prediction_loss": 0.2973362633639536,
+    "torch_kl_loss": 21.00038886479123,
+    "torch_switch_sparsity": 0.28056963402806356,
+    "torch_parameters_changed": 3372,
+    "torch_grad_norm": 6.257377101657004,
+    "torch_wrote_back": false,
+    "pure_prediction_loss": 0.45152296634941713,
+    "pure_kl_loss": 1.0727838391201439,
+    "trained_steps": 9
+  },
+  "internal_rl": {
+    "kind": "single-track",
+    "task": {
+      "torch_backend": "shadow",
+      "torch_parameters_changed": 48,
+      "torch_policy_loss": 0.33315144387067436,
+      "torch_value_loss": 0.053149719837795414,
+      "torch_approx_kl": 74.47323122302733,
+      "torch_wrote_back": false,
+      "transition_count": 11,
+      "track": "world"
+    }
+  },
+  "cms": {
+    "backend": "shadow",
+    "parameters_changed": 1024,
+    "parameter_change_rate": 1.0,
+    "grad_norm": 0.0006212659163225826,
+    "loss": 0.006792660194046777,
+    "wrote_back": false
+  },
+  "capacity_arm": {
+    "temporal_latent_dim": 16,
+    "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+    "substrate_mode": "synthetic",
+    "substrate_model_id": ""
+  },
+  "turn_count": 20,
+  "real_trace_turns": 19,
+  "total_seconds": 10.59,
+  "mean_turn_seconds": 0.5294,
+  "provenance": {
+    "git_sha": "7d2b429c9996de7dbd3aaa1a03c48165aa5f10d6",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.12.3",
+    "platform": "Windows-11-10.0.26200-SP0"
+  },
+  "cp11_predictive_heads": {
+    "readout_series": [
+      {
+        "turn": 10,
+        "sample_count": 9,
+        "world_learned_mae": 0.147,
+        "world_baseline_mae": 0.043,
+        "self_learned_mae": 0.0249,
+        "self_baseline_mae": 0.0299,
+        "world_improvement": -0.104,
+        "self_improvement": 0.005
+      },
+      {
+        "turn": 20,
+        "sample_count": 19,
+        "world_learned_mae": 0.1118,
+        "world_baseline_mae": 0.0384,
+        "self_learned_mae": 0.0248,
+        "self_baseline_mae": 0.0333,
+        "world_improvement": -0.0734,
+        "self_improvement": 0.0085
+      }
+    ],
+    "kill_criteria_series": [
+      {
+        "turn": 10,
+        "samples_in_window": 9,
+        "window_filled": false,
+        "prediction_self_autocorrelation": 0.9981,
+        "prediction_target_correlation": 0.216,
+        "kill_triggered": false
+      },
+      {
+        "turn": 20,
+        "samples_in_window": 19,
+        "window_filled": false,
+        "prediction_self_autocorrelation": 0.9983,
+        "prediction_target_correlation": 0.1396,
+        "kill_triggered": false
+      }
+    ],
+    "final_kill_criteria": {
+      "samples_in_window": 19,
+      "window_filled": false,
+      "prediction_self_autocorrelation": 0.9983,
+      "prediction_target_correlation": 0.1396,
+      "kill_triggered": false,
+      "description": "CP-11 kill check over 19/64 samples: self-autocorr=0.998, target-corr=0.140, kill_triggered=False. Report-only."
+    },
+    "final_checkpoint": {
+      "schema_version": "predictive-head-checkpoint.v1",
+      "checkpoint_id": "soak-final-20",
+      "feature_dim": 7,
+      "sample_count": 19,
+      "world_weights": [
+        {
+          "axis": "task_progress",
+          "weights": [
+            -0.028862169778465483,
+            -0.010356330316913775,
+            -0.013030989801330278,
+            -0.024758187861242464,
+            -0.00013684067704132803,
+            -0.0003108583323275549,
+            0.44434093886186193
+          ]
+        },
+        {
+          "axis": "regime_stability",
+          "weights": [
+            -0.09291378692695601,
+            -0.0337995297440686,
+            -0.03953839747486444,
+            -0.08670696060639296,
+            -0.0003998103976889879,
+            -0.0007059363833037794,
+            0.31684564022357053
+          ]
+        },
+        {
+          "axis": "action_payoff",
+          "weights": [
+            -0.03310463264267436,
+            -0.011820302280062122,
+            -0.014896969891351499,
+            -0.030874922061802403,
+            -0.00018135017795208492,
+            -0.0002726516731220038,
+            0.43518238888312966
+          ]
+        }
+      ],
+      "self_weights": [
+        {
+          "axis": "relationship_delta",
+          "weights": [
+            -0.0030820136368595054,
+            -0.0013453125763306843,
+            -0.000961577817611066,
+            -0.0038539138459597892,
+            1.1104966489847503e-05,
+            3.3350791278037116e-05,
+            0.4937617320882647
+          ]
+        }
+      ],
+      "abs_error_sums": {
+        "self_baseline": 0.6330684759570487,
+        "self_learned": 0.47176501140946037,
+        "world_baseline": 0.729200715302978,
+        "world_learned": 2.123354810601381
+      }
+    },
+    "checkpoint_round_trips_verified": 2
+  },
+  "dual_track_gate_learner": {
+    "update_count": 19,
+    "running_abs_error": 0.068545,
+    "last_prediction": 0.326508,
+    "last_target": 0.291885,
+    "description": "Session-held dual-track gate learner (bounded online-SGD); report-only SHADOW candidate."
+  },
+  "semantic_owner_forecasts": {
+    "plan_intent": {
+      "update_count": 19,
+      "running_abs_error": 0.0
+    },
+    "commitment": {
+      "update_count": 19,
+      "running_abs_error": 0.0
+    },
+    "open_loop": {
+      "update_count": 19,
+      "running_abs_error": 0.017426
+    },
+    "user_model": {
+      "update_count": 19,
+      "running_abs_error": 0.0
+    },
+    "execution_result": {
+      "update_count": 19,
+      "running_abs_error": 0.0
+    },
+    "belief_assumption": {
+      "update_count": 19,
+      "running_abs_error": 0.0
+    },
+    "relationship_state": {
+      "update_count": 19,
+      "running_abs_error": 0.0
+    },
+    "goal_value": {
+      "update_count": 19,
+      "running_abs_error": 0.0
+    },
+    "boundary_consent": {
+      "update_count": 19,
+      "running_abs_error": 0.015297
+    }
+  },
+  "social_settlement": {
+    "tom_records": {
+      "belief_about_other": 0,
+      "intent_about_other": 0,
+      "feeling_about_other": 0,
+      "preference_about_other": 0
+    },
+    "tom_pending": {
+      "belief_about_other": 0,
+      "intent_about_other": 0,
+      "feeling_about_other": 0,
+      "preference_about_other": 0
+    },
+    "common_ground_dyad_atoms": 0,
+    "common_ground_group_atoms": 0,
+    "common_ground_pending": 0
+  },
+  "strict_eta_gate": {
+    "evidence_kind": "strict_eta_gate",
+    "alphas": [
+      0.0,
+      0.3,
+      1.0
+    ],
+    "epochs": 25,
+    "n_z": 8,
+    "seed": 1234,
+    "sparsity_by_alpha": [
+      {
+        "alpha": 0.0,
+        "switch_sparsity": 0.3808110623365053
+      },
+      {
+        "alpha": 0.3,
+        "switch_sparsity": 0.5263752276206003
+      },
+      {
+        "alpha": 1.0,
+        "switch_sparsity": 0.5334627515195913
+      }
+    ],
+    "high_alpha_increases_sparsity": true,
+    "sparsity_monotone_nondecreasing": true,
+    "held_out_reuse_alpha0": 1.0,
+    "held_out_reuse_high_alpha": 1.0,
+    "held_out_reuse_improves_with_bottleneck": true,
+    "gate_passed": true,
+    "description": "strict ETA: sparsity [0.3808110623365053, 0.5263752276206003, 0.5334627515195913] high_increases=True monotone=True reuse a0=1.000 aH=1.000"
+  },
+  "learned_active_gate": {
+    "note": "Soak lane evidence. ACTIVE promotion additionally requires component controls (PE-off / ETA-off) from the same-substrate ablation and rollback drill evidence. strict_eta_gate reflects the CP-09 suite executed this soak.",
+    "latency_slo_seconds": 5.0,
+    "latency_slo_ok": true,
+    "real_trace_turns": 19,
+    "validation_delta": 0.0085,
+    "verdicts": [
+      {
+        "component": "temporal_runtime_backend",
+        "real_trace_turns": 19,
+        "validation_delta": 0.0085,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "eligible": false,
+        "missing_gates": [
+          "real_trace_turns<500",
+          "validation_delta<0.02",
+          "pe_off_control",
+          "eta_off_control"
+        ],
+        "description": "temporal_runtime_backend ACTIVE candidate blocked; missing=('real_trace_turns<500', 'validation_delta<0.02', 'pe_off_control', 'eta_off_control')"
+      },
+      {
+        "component": "temporal_ssl_backend",
+        "real_trace_turns": 19,
+        "validation_delta": 0.0085,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "eligible": false,
+        "missing_gates": [
+          "real_trace_turns<500",
+          "validation_delta<0.02",
+          "pe_off_control",
+          "eta_off_control",
+          "runtime_active_first"
+        ],
+        "description": "temporal_ssl_backend ACTIVE candidate blocked; missing=('real_trace_turns<500', 'validation_delta<0.02', 'pe_off_control', 'eta_off_control', 'runtime_active_first')"
+      },
+      {
+        "component": "internal_rl_backend",
+        "real_trace_turns": 19,
+        "validation_delta": 0.0085,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "eligible": false,
+        "missing_gates": [
+          "real_trace_turns<500",
+          "validation_delta<0.02",
+          "pe_off_control",
+          "eta_off_control",
+          "runtime_active_first",
+          "ssl_active_first"
+        ],
+        "description": "internal_rl_backend ACTIVE candidate blocked; missing=('real_trace_turns<500', 'validation_delta<0.02', 'pe_off_control', 'eta_off_control', 'runtime_active_first', 'ssl_active_first')"
+      },
+      {
+        "component": "cms_torch_backend",
+        "real_trace_turns": 19,
+        "validation_delta": 0.0085,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "eligible": false,
+        "missing_gates": [
+          "real_trace_turns<500",
+          "validation_delta<0.02",
+          "pe_off_control",
+          "eta_off_control"
+        ],
+        "description": "cms_torch_backend ACTIVE candidate blocked; missing=('real_trace_turns<500', 'validation_delta<0.02', 'pe_off_control', 'eta_off_control')"
+      }
+    ]
+  }
+}

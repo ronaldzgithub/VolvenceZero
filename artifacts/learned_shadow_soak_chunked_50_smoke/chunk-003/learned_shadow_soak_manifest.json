@@ -1,0 +1,18 @@
+{
+  "schema_version": "learned-shadow-soak.v1",
+  "artifact_kind": "learned_shadow_soak_manifest",
+  "artifacts": [
+    {
+      "path": "artifacts\\learned_shadow_soak_chunked_50_smoke\\chunk-003\\learned_shadow_soak.json",
+      "sha256": "e1a9d6629cb066930fdb42f736cc80b366bcad2a80cf2672212e2c53f43dc577",
+      "size_bytes": 12721
+    }
+  ],
+  "provenance": {
+    "git_sha": "7d2b429c9996de7dbd3aaa1a03c48165aa5f10d6",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.12.3",
+    "platform": "Windows-11-10.0.26200-SP0"
+  }
+}

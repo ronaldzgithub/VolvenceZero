@@ -252,6 +252,9 @@ class SocialRecordStore:
         self._cg_dyad_atoms: tuple[CommonGroundAtom, ...] = ()
         self._cg_group_atoms: tuple[CommonGroundAtom, ...] = ()
         self._cg_pending: tuple[PendingSocialPrediction, ...] = ()
+        # R14 / CP-18: persistent per-group regime map (GroupModule is the
+        # single writer).
+        self._group_regimes: dict[str, str] = {}
 
     @property
     def similarity(self) -> SimilarityFn:
@@ -314,6 +317,25 @@ class SocialRecordStore:
         self, pending: tuple[PendingSocialPrediction, ...]
     ) -> None:
         self._cg_pending = pending[-_ATOM_WINDOW:]
+
+    # ----- group regime persistence (R14 / CP-18) -----
+    #
+    # Group regime is runtime state owned by ``GroupModule`` (never a
+    # prompt label). Because owner modules are rebuilt per turn, the
+    # durable per-group regime map lives here — same lifetime pattern as
+    # the ToM record windows. Single writer: only GroupModule mutates it.
+
+    def group_regime_for(self, group_id: str) -> str | None:
+        if not group_id:
+            raise ValueError("group_id must be non-empty")
+        return self._group_regimes.get(group_id)
+
+    def record_group_regime(self, group_id: str, regime_id: str) -> None:
+        if not group_id:
+            raise ValueError("group_id must be non-empty")
+        if not regime_id:
+            raise ValueError("regime_id must be non-empty")
+        self._group_regimes[group_id] = regime_id
 
 
 __all__ = [

@@ -229,6 +229,19 @@ class InternalRLEnvironment:
         self._control_backend = control_backend or TraceResidualInterventionBackend()
         self._evaluation_family_signals = evaluation_family_signals or {}
         self._primary_prediction_error_enabled = primary_prediction_error_enabled
+        # CP-07 (GAP-09): most recent step's reward composition readout.
+        self._latest_reward_composition: dict[str, object] | None = None
+
+    @property
+    def latest_reward_composition(self) -> dict[str, object] | None:
+        """Owner-published readout of the last step's reward components.
+
+        Carries the per-component values, the ``pe_derived_abs_fraction``
+        (share of |reward| from PE / segment-credit derived components) and
+        the reward mode. Read-only evidence for the reward-purity gate.
+        """
+
+        return dict(self._latest_reward_composition) if self._latest_reward_composition else None
 
     def set_evaluation_signals(self, signals: dict[str, float]) -> None:
         self._evaluation_family_signals = dict(signals)
@@ -680,6 +693,32 @@ class InternalRLEnvironment:
             )
             reward_mode = "proof-sparse"
         reward = sum(value for _, value in reward_components)
+        # CP-07 (GAP-09): owner-local reward-composition readout. The plan's
+        # reward-purity gate needs the PE/segment-credit share of |reward|
+        # to be inspectable per step — "reward comes from PE-derived credit"
+        # must be measurable, not asserted. PE-derived component names are a
+        # closed set defined here by the reward owner.
+        pe_component_names = frozenset(
+            {
+                "primary_prediction_error",
+                "prediction_error_readout",
+                "proof_subgoal_complete",
+                "proof_terminal_success",
+            }
+        )
+        total_abs = sum(abs(value) for _, value in reward_components)
+        pe_abs = sum(
+            abs(value)
+            for name, value in reward_components
+            if name in pe_component_names
+        )
+        self._latest_reward_composition = {
+            "components": tuple(
+                (name, round(value, 6)) for name, value in reward_components
+            ),
+            "pe_derived_abs_fraction": (pe_abs / total_abs) if total_abs > 1e-12 else 0.0,
+            "reward_mode": reward_mode,
+        }
         next_previous_snapshot = TemporalAbstractionSnapshot(
             controller_state=temporal_step.controller_state,
             active_abstract_action=temporal_step.active_abstract_action,

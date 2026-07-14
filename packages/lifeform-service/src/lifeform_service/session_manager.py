@@ -154,11 +154,32 @@ class AutonomousTickReport:
     reason: str
 
 
+@dataclass(frozen=True)
+class FollowupExecutionReport:
+    """Typed outcome of one followup consideration (CP-20 / GAP-07).
+
+    ``executed`` is True only when the service actually ran a
+    ``FOLLOWUP_DUE`` turn for the followup. Blocked considerations carry a
+    typed ``reason`` from the closed set: ``consent-blocked`` /
+    ``consent-unknown`` / ``cooldown-active`` / ``budget-exhausted`` /
+    ``historical-readonly`` / ``tenant-denied``. Never a free-form string —
+    downstream flood/consent audits match on these exact values.
+    """
+
+    session_id: str
+    followup_id: str
+    executed: bool
+    reason: str
+
+
 @dataclass
 class _SessionEntry:
     session: LifeformSession
     lifeform: Lifeform
     last_active_at: float
+    # CP-20 (GAP-07): monotonic clock time of the last proactive
+    # (service-initiated FOLLOWUP_DUE) turn; -inf = never engaged.
+    last_proactive_at: float = float("-inf")
     # Records which vertical built this session's lifeform. Save-as-
     # template, listing handlers, and ops dashboards consult this so
     # they route through the right vertical's template adapter rather
@@ -554,6 +575,154 @@ class SessionManager:
                     reason="budget-exhausted",
                 )
             )
+        return tuple(reports)
+
+    async def execute_due_followups(
+        self,
+        *,
+        max_turns: int = 4,
+        per_session_max: int = 1,
+        cooldown_seconds: float = 600.0,
+        tenant_allowlist: frozenset[str] | None = None,
+    ) -> tuple[FollowupExecutionReport, ...]:
+        """Run due followups as canonical ``FOLLOWUP_DUE`` turns (CP-20 / GAP-07).
+
+        Service-level closure of the autonomous loop: every due followup is
+        considered against the gate chain and either executed (one
+        ``run_turn(trigger_kind=FOLLOWUP_DUE)`` with ``followup:<id>``
+        provenance, then ``acknowledge_followup``) or blocked with a typed
+        reason. Gate chain, in order:
+
+        1. ``historical-readonly`` — forked read-only sessions never engage.
+        2. ``tenant-denied`` — ``tenant_allowlist`` (matched against the
+           session's ``end_user_ref``) when provided.
+        3. ``consent-blocked`` / ``consent-unknown`` — the kernel
+           ``boundary_consent`` owner's published ``external_action_blocked``
+           gate. A session without a published boundary_consent snapshot has
+           no consent basis, so it is conservatively blocked
+           (``consent-unknown``) rather than silently engaged.
+        4. ``cooldown-active`` — at most one proactive engagement per
+           ``cooldown_seconds`` per session (anti-flooding).
+        5. ``budget-exhausted`` — global ``max_turns`` and per-session
+           ``per_session_max`` caps per invocation.
+
+        The executed turn goes through the normal canonical-event path, so
+        prediction/outcome/PE lineage is the same as any other turn; the
+        ``followup:<id>`` provenance makes the lineage attributable.
+        """
+
+        from volvence_zero.semantic_state import BoundaryConsentSnapshot
+
+        if max_turns <= 0:
+            raise ValueError("max_turns must be > 0")
+        if per_session_max <= 0:
+            raise ValueError("per_session_max must be > 0")
+        if cooldown_seconds < 0:
+            raise ValueError("cooldown_seconds must be >= 0")
+
+        async with self._lock:
+            evicted = self._evict_idle_locked()
+            entries = tuple(self._sessions.items())
+        await self._shutdown_entries(evicted)
+
+        reports: list[FollowupExecutionReport] = []
+        remaining_budget = max_turns
+        for session_id, entry in entries:
+            due = entry.session.due_followups()
+            if not due:
+                continue
+            if entry.historical_readonly:
+                reports.extend(
+                    FollowupExecutionReport(
+                        session_id=session_id,
+                        followup_id=item.followup_id,
+                        executed=False,
+                        reason="historical-readonly",
+                    )
+                    for item in due
+                )
+                continue
+            if tenant_allowlist is not None and entry.end_user_ref not in tenant_allowlist:
+                reports.extend(
+                    FollowupExecutionReport(
+                        session_id=session_id,
+                        followup_id=item.followup_id,
+                        executed=False,
+                        reason="tenant-denied",
+                    )
+                    for item in due
+                )
+                continue
+            consent_snapshot = entry.session.latest_active_snapshots.get(
+                "boundary_consent"
+            )
+            consent_value = (
+                consent_snapshot.value if consent_snapshot is not None else None
+            )
+            if not isinstance(consent_value, BoundaryConsentSnapshot):
+                reports.extend(
+                    FollowupExecutionReport(
+                        session_id=session_id,
+                        followup_id=item.followup_id,
+                        executed=False,
+                        reason="consent-unknown",
+                    )
+                    for item in due
+                )
+                continue
+            if consent_value.external_action_blocked:
+                reports.extend(
+                    FollowupExecutionReport(
+                        session_id=session_id,
+                        followup_id=item.followup_id,
+                        executed=False,
+                        reason="consent-blocked",
+                    )
+                    for item in due
+                )
+                continue
+            executed_this_session = 0
+            for item in due:
+                if self._clock() - entry.last_proactive_at < cooldown_seconds:
+                    reports.append(
+                        FollowupExecutionReport(
+                            session_id=session_id,
+                            followup_id=item.followup_id,
+                            executed=False,
+                            reason="cooldown-active",
+                        )
+                    )
+                    continue
+                if remaining_budget <= 0 or executed_this_session >= per_session_max:
+                    reports.append(
+                        FollowupExecutionReport(
+                            session_id=session_id,
+                            followup_id=item.followup_id,
+                            executed=False,
+                            reason="budget-exhausted",
+                        )
+                    )
+                    continue
+                from lifeform_core import TurnTriggerKind
+
+                await entry.session.run_turn(
+                    item.description,
+                    trigger_kind=TurnTriggerKind.FOLLOWUP_DUE,
+                    environment_provenance=f"followup:{item.followup_id}",
+                )
+                entry.session.acknowledge_followup(item.followup_id)
+                entry.last_proactive_at = self._clock()
+                entry.last_active_at = self._clock()
+                remaining_budget -= 1
+                executed_this_session += 1
+                reports.append(
+                    FollowupExecutionReport(
+                        session_id=session_id,
+                        followup_id=item.followup_id,
+                        executed=True,
+                        reason="executed",
+                    )
+                )
         return tuple(reports)
 
     # ------------------------------------------------------------------
