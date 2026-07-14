@@ -271,9 +271,15 @@ def phase_real(*, args: argparse.Namespace, tier: str) -> int:
         if rc != 0:
             print(f"error: score_reference_systems exited {rc}", file=sys.stderr)
             return rc
+        roster_ids = _roster_submission_ids(ABLATION_ROSTER)
+        expected_submission_ids = tuple(TRACK_TO_SUBMISSION.values()) + tuple(
+            submission_id
+            for submission_id in COMPONENT_TRACK_TO_SUBMISSION.values()
+            if submission_id in roster_ids
+        )
         missing_summaries = tuple(
             submission_id
-            for submission_id in TRACK_TO_SUBMISSION.values()
+            for submission_id in expected_submission_ids
             if not (scores_dir / submission_id / "summary.json").is_file()
         )
         if missing_summaries:
@@ -351,6 +357,10 @@ def _assert_real_run_ready(args: argparse.Namespace, *, tier: str) -> None:
     health_urls = {
         "lifeform-companion": "http://127.0.0.1:8000/v1/health",
         "lifeform-companion-cold": "http://127.0.0.1:8001/v1/health",
+        "lifeform-companion-pe-drive-off": "http://127.0.0.1:8002/v1/health",
+        "lifeform-companion-eta-off": "http://127.0.0.1:8003/v1/health",
+        "lifeform-companion-active-learning-off": "http://127.0.0.1:8004/v1/health",
+        "lifeform-companion-lora-adapter": "http://127.0.0.1:8005/v1/health",
         "ref-harness": "http://127.0.0.1:8500/healthz",
         "camel": "http://127.0.0.1:8600/healthz",
     }
@@ -370,7 +380,7 @@ def _assert_real_run_ready(args: argparse.Namespace, *, tier: str) -> None:
         str(SCRIPTS / "assert_same_substrate.py"),
         "--require-weights-sha256",
     ]
-    for track in TRACK_TO_SUBMISSION:
+    for track in tuple(TRACK_TO_SUBMISSION) + tuple(COMPONENT_TRACK_TO_SUBMISSION):
         path = args.output_dir / track / "substrate_fingerprint.json"
         fingerprint_cmd += ["--fingerprint-file", f"{track}={path}"]
     result = subprocess.run(fingerprint_cmd, cwd=str(REPO_ROOT), check=False)

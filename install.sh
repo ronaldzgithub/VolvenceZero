@@ -68,7 +68,7 @@ done
 # the *external* PyPI deps declared in each wheel's pyproject.toml
 # (aiohttp / pypdf / beautifulsoup4 / mwparserfromhell / lxml / requests
 # / PyYAML / ...). This keeps pyproject.toml as the single source of
-# truth for runtime deps — install.sh never has to mirror the list.
+# truth for runtime deps 鈥?install.sh never has to mirror the list.
 for pkg in "${PACKAGES[@]}"; do
   if [[ -d "${pkg}" ]]; then
     echo "==> [pass 2] pip install -e ${pkg}"
@@ -95,9 +95,9 @@ if [[ -n "$VOLVENCE_EXTRAS" ]]; then
   if [[ "$VOLVENCE_EXTRAS" == *"hf"* ]]; then
     TORCH_INDEX="$(pytorch_index_url)"
     if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
-      echo "==> Reinstall torch from ${TORCH_INDEX} (CUDA 12.6 — GPU detected)"
+      echo "==> Reinstall torch from ${TORCH_INDEX} (CUDA 12.6 鈥?GPU detected)"
     else
-      echo "==> Reinstall torch from ${TORCH_INDEX} (CPU — no NVIDIA GPU detected)"
+      echo "==> Reinstall torch from ${TORCH_INDEX} (CPU 鈥?no NVIDIA GPU detected)"
     fi
     "$PYTHON_BIN" -m pip uninstall -y torch >/dev/null 2>&1 || true
     "$PYTHON_BIN" -m pip install torch --index-url "${TORCH_INDEX}"

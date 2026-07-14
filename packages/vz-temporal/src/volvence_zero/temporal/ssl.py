@@ -142,6 +142,12 @@ class MetacontrollerSSLTrainer:
         self._latest_report: SSLTrainingReport | None = None
 
     @property
+    def ssl_backend(self) -> WiringLevel:
+        """Deploy-wiring readout: the torch SSL backend level this owner runs at."""
+
+        return self._ssl_backend
+
+    @property
     def latest_report(self) -> SSLTrainingReport | None:
         """Return the most recent SSL training report (evidence readout only)."""
 

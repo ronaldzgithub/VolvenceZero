@@ -920,6 +920,9 @@ class LifeformSession:
         # adapter (when present) is called at three well-defined
         # lifecycle points; see ``_invoke_thinking_*`` helpers below.
         self._thinking_adapter: Any = thinking_adapter
+        # CP-21 (GAP-06): typed routing results of the latest advisory
+        # forwarding to the kernel temporal owners (observability only).
+        self._latest_thinking_advisory_routes: dict[str, str] = {}
         # Lifeform-side owner. It reads the kernel's public snapshots after a
         # turn and publishes ``affordance`` without entering the kernel DAG or
         # importing lifeform code into vz-runtime.
@@ -1673,6 +1676,18 @@ class LifeformSession:
             return {}
         return dict(getter)
 
+    @property
+    def latest_thinking_advisory_routes(self) -> Mapping[str, str]:
+        """Typed routing results of the latest thinking-advisory forwarding.
+
+        Keyed by temporal consumer owner (``world_temporal`` /
+        ``self_temporal``); values are the owner's routing result strings
+        (e.g. ``thinking-advisory:shadow-recorded``). Empty until an
+        advisory-capable adapter has collected at least one artifact.
+        """
+
+        return dict(self._latest_thinking_advisory_routes)
+
     def due_followups(self) -> tuple[FollowupItem, ...]:
         return self._followups.due_now(current_tick=self._tick.tick_index)
 
@@ -2130,6 +2145,36 @@ class LifeformSession:
                 "thinking_adapter.on_turn_begin raised"
             )
             raise
+        self._route_thinking_advisories_to_temporal_owners()
+
+    def _route_thinking_advisories_to_temporal_owners(self) -> None:
+        """Forward freshly-collected advisory artifacts to the kernel (CP-21).
+
+        The thinking adapter publishes contract-ready artifacts via
+        ``latest_advisory_artifacts_by_consumer`` (payload already converted
+        to ``ControllerPressureAdvisory`` on the publisher side). This
+        method forwards them through the Brain facade — the only legal
+        lifeform → kernel path — in SHADOW mode (``apply_enabled=False``:
+        the temporal owner records the advisory as evidence, beta_t is
+        untouched). ACTIVE promotion flips the flag only after the CP-21
+        evidence gate. Adapters without the advisory surface (custom /
+        test fakes) are skipped explicitly; routing failures fail loudly.
+        """
+
+        advisory_getter = getattr(
+            self._thinking_adapter, "latest_advisory_artifacts_by_consumer", None
+        )
+        if advisory_getter is None:
+            return
+        routes: dict[str, str] = {}
+        for consumer, artifact in dict(advisory_getter).items():
+            if consumer not in ("world_temporal", "self_temporal"):
+                continue
+            routes[consumer] = self._brain_session.submit_thinking_artifact(
+                artifact,
+                apply_enabled=False,
+            )
+        self._latest_thinking_advisory_routes = routes
 
     async def _invoke_thinking_on_turn_end(
         self,

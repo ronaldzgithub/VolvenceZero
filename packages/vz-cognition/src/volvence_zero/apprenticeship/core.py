@@ -28,8 +28,11 @@ mutating another owner's state here.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import hashlib
+import json
+from json import JSONDecodeError
 from importlib.resources import files
-from typing import Any, Mapping
+from typing import Any, Mapping, Protocol
 
 from volvence_zero.runtime import (
     RuntimeModule,
@@ -37,7 +40,11 @@ from volvence_zero.runtime import (
     Snapshot,
     WiringLevel,
 )
-from volvence_zero.semantic_embedding import stub_semantic_tokens as _semantic_tokens
+from volvence_zero.semantic_embedding import (
+    semantic_cosine,
+    semantic_embedding,
+    stub_semantic_tokens as _semantic_tokens,
+)
 from volvence_zero.semantic_state import (
     BeliefAssumptionSnapshot,
     BoundaryConsentSnapshot,
@@ -91,6 +98,12 @@ class GuidanceConstraintExtractor(ABC):
         self, *, guidance_text: str, turn_index: int
     ) -> tuple[IntentConstraint, ...]:
         """Return typed operator-intent constraints for one teaching turn."""
+
+
+class _GenerateProtocol(Protocol):
+    def generate(
+        self, *, prompt: str, max_new_tokens: int = ..., temperature: float = ...
+    ) -> str: ...
 
 
 def build_intent_constraint(
@@ -176,6 +189,105 @@ class MappingConstraintExtractor(GuidanceConstraintExtractor):
         return tuple(self._per_turn.get(turn_index, ()))
 
 
+class LLMGuidanceConstraintExtractor(GuidanceConstraintExtractor):
+    """Structured LLM extractor for production apprenticeship turns.
+
+    The prompt body is loaded from ``prompts/extraction.md`` so the LLM-facing
+    instruction stays centralized. If the model returns malformed JSON, this
+    falls back to the deterministic holistic extractor instead of fabricating
+    constraints from a bad parse.
+    """
+
+    extractor_id = "apprenticeship-llm-structured"
+
+    def __init__(self, provider: _GenerateProtocol) -> None:
+        self._provider = provider
+        self._fallback = HolisticGuidanceConstraintExtractor()
+
+    def extract(
+        self, *, guidance_text: str, turn_index: int
+    ) -> tuple[IntentConstraint, ...]:
+        text = (guidance_text or "").strip()
+        if not text:
+            return ()
+        prompt = (
+            f"{load_apprenticeship_prompt_template()}\n\n"
+            "Current teaching turn:\n"
+            '"""\n'
+            f"{text}\n"
+            '"""\n\n'
+            "Return JSON only, as either a list of constraint objects or an object "
+            'with a "constraints" list.'
+        )
+        raw = self._provider.generate(
+            prompt=prompt,
+            max_new_tokens=512,
+            temperature=0.0,
+        )
+        try:
+            payload = json.loads(_strip_json_fence(raw))
+        except (JSONDecodeError, TypeError):
+            return self._fallback.extract(
+                guidance_text=text,
+                turn_index=turn_index,
+            )
+        rows = payload.get("constraints") if isinstance(payload, dict) else payload
+        if not isinstance(rows, list):
+            return self._fallback.extract(
+                guidance_text=text,
+                turn_index=turn_index,
+            )
+        constraints: list[IntentConstraint] = []
+        for index, row in enumerate(rows[:8]):
+            if not isinstance(row, dict):
+                continue
+            statement = str(row.get("statement", "")).strip()
+            if not statement:
+                continue
+            level = str(row.get("level", ConstraintLevel.ABSTRACT.value)).strip()
+            if level not in {ConstraintLevel.FACTUAL.value, ConstraintLevel.ABSTRACT.value}:
+                level = ConstraintLevel.ABSTRACT.value
+            try:
+                polarity = int(row.get("polarity", 1))
+            except (TypeError, ValueError):
+                polarity = 1
+            polarity = max(-1, min(1, polarity))
+            try:
+                confidence = float(row.get("confidence", 0.55))
+            except (TypeError, ValueError):
+                confidence = 0.55
+            target_key = str(row.get("target_key", statement)).strip() or statement
+            constraints.append(
+                build_intent_constraint(
+                    constraint_id=f"guidance:{turn_index}:{index}",
+                    statement=statement,
+                    level=level,
+                    polarity=polarity,
+                    target_key=target_key,
+                    confidence=confidence,
+                    source_turn=turn_index,
+                )
+            )
+        if not constraints:
+            return self._fallback.extract(
+                guidance_text=text,
+                turn_index=turn_index,
+            )
+        return tuple(constraints)
+
+
+def _strip_json_fence(raw: str) -> str:
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines:
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
+
+
 # ---------------------------------------------------------------------------
 # Cognition projection: the records the guidance is compared against.
 # ---------------------------------------------------------------------------
@@ -196,12 +308,19 @@ def _constraint_tokens(constraint: IntentConstraint) -> frozenset[str]:
     return _tokens(constraint.target_key or constraint.statement)
 
 
+def _constraint_embedding(constraint: IntentConstraint) -> tuple[float, ...]:
+    if constraint.embedding:
+        return tuple(constraint.embedding)
+    return semantic_embedding(constraint.target_key or constraint.statement, dim=16)
+
+
 class _CognitionRecord:
-    __slots__ = ("record_id", "tokens", "level")
+    __slots__ = ("embedding", "record_id", "tokens", "level")
 
     def __init__(self, *, record_id: str, text: str, level: str) -> None:
         self.record_id = record_id
         self.tokens = _tokens(text)
+        self.embedding = semantic_embedding(text, dim=16)
         self.level = level
 
 
@@ -262,13 +381,13 @@ def _records_from_boundary(value: BoundaryConsentSnapshot) -> list[_CognitionRec
 def _nearest(
     constraint: IntentConstraint, cognition: list[_CognitionRecord]
 ) -> tuple[float, str]:
-    tokens = _constraint_tokens(constraint)
-    if not tokens:
+    embedding = _constraint_embedding(constraint)
+    if not embedding:
         return (0.0, "")
     best_score = 0.0
     best_id = ""
     for record in cognition:
-        score = _jaccard(tokens, record.tokens)
+        score = max(0.0, semantic_cosine(embedding, record.embedding))
         if score > best_score:
             best_score = score
             best_id = record.record_id
@@ -485,6 +604,20 @@ def _detect_contradictions(
     return tuple(findings)
 
 
+def _random_feedback_sample(*, guidance_text: str, turn_index: int) -> bool:
+    """Deterministic pseudo-random request used only for matched controls.
+
+    The active-learning-off ablation must not read owner disagreement to decide
+    whether to ask for labels. Hashing turn identity gives a reproducible
+    random-sampling baseline without importing process-global RNG state.
+    """
+
+    seed = f"{turn_index}:{guidance_text}".encode("utf-8")
+    digest = hashlib.blake2b(seed, digest_size=2).digest()
+    value = int.from_bytes(digest, "big") / 65535.0
+    return value < 0.33
+
+
 def _idle_snapshot(reason: str) -> ApprenticeshipAlignmentSnapshot:
     return ApprenticeshipAlignmentSnapshot(
         version_space_status=VersionSpaceStatus.IDLE.value,
@@ -532,14 +665,20 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
         turn_index: int = 0,
         apprenticeship: bool = False,
         extractor: GuidanceConstraintExtractor | None = None,
+        feedback_policy: str = "owner",
         revision_enabled: bool = False,
         thresholds: ApprenticeshipThresholds | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
+        if feedback_policy not in {"owner", "random", "disabled"}:
+            raise ValueError(
+                "feedback_policy must be one of 'owner', 'random', 'disabled'"
+            )
         self._user_input = user_input
         self._turn_index = turn_index
         self._apprenticeship = apprenticeship
         self._extractor = extractor or HolisticGuidanceConstraintExtractor()
+        self._feedback_policy = feedback_policy
         self._revision_enabled = revision_enabled
         self._thresholds = thresholds or ApprenticeshipThresholds()
         self._constraints: list[IntentConstraint] = []
@@ -687,10 +826,19 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
         # space, the owner should actively seek guidance rather than commit
         # silently. Derived from this owner's own state (no keyword match).
         is_inconsistent = status == VersionSpaceStatus.INCONSISTENT.value
-        should_request_feedback = is_inconsistent or (
+        owner_should_request_feedback = is_inconsistent or (
             reliability == ReliabilityState.DEFERRING.value
             and guidance_surprise >= self._thresholds.feedback_request_surprise
         )
+        if self._feedback_policy == "owner":
+            should_request_feedback = owner_should_request_feedback
+        elif self._feedback_policy == "disabled":
+            should_request_feedback = False
+        else:
+            should_request_feedback = _random_feedback_sample(
+                guidance_text=guidance_text or "",
+                turn_index=turn_index,
+            )
         max_contradiction_severity = max(
             (finding.severity for finding in contradictions), default=0.0
         )
@@ -701,6 +849,11 @@ class ApprenticeshipAlignmentModule(RuntimeModule[ApprenticeshipAlignmentSnapsho
         )
         if not should_request_feedback:
             feedback_request_reason = ""
+        elif self._feedback_policy == "random":
+            feedback_request_reason = (
+                "random_sampling_baseline: feedback requested by matched-control "
+                "sampling, not owner disagreement"
+            )
         elif is_inconsistent:
             feedback_request_reason = (
                 "version_space_inconsistent: teaching contradicts itself; "

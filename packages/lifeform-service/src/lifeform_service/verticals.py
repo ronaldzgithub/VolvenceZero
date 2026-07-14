@@ -126,7 +126,12 @@ def _try_companion() -> VerticalSpec | None:
         from volvence_zero.brain import BrainConfig
 
         config = LifeformConfig(
-            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+            brain_config=BrainConfig(
+                memory_scope_root_dir=memory_scope_root_dir,
+                apprenticeship_constraint_extractor=(
+                    _build_apprenticeship_extractor_from_runtime(runtime)
+                ),
+            )
         )
         lifeform = build_companion_lifeform(
             config=config,
@@ -159,6 +164,138 @@ def _try_companion() -> VerticalSpec | None:
         bootstraps_dir=str(bdir) if bdir.is_dir() else None,
         scenarios_dir=str(sdir) if sdir.is_dir() else None,
         alpha_factory=alpha_factory,
+    )
+
+
+def _build_companion_component_lifeform(
+    *,
+    runtime,
+    component_label: str,
+):
+    """Build same-substrate component-causal companion ablation arms.
+
+    These verticals are serving-time counterparts of the dialogue benchmark
+    profiles. They keep the same frozen substrate and companion prompt surface
+    while changing only the component under test for #87 claim 3.
+    """
+
+    from lifeform_core import LifeformConfig
+    from lifeform_domain_emogpt import build_companion_lifeform
+    from volvence_zero.brain import BrainConfig
+    from volvence_zero.integration import FinalRolloutConfig
+    from volvence_zero.runtime import WiringLevel
+
+    extractor = _build_apprenticeship_extractor_from_runtime(runtime)
+    if component_label == "pe-drive-off":
+        brain_config = BrainConfig(
+            external_prediction_error_drive=False,
+            apprenticeship_constraint_extractor=extractor,
+        )
+        use_temporal_bootstrap = True
+        use_regime_bootstrap = True
+    elif component_label == "eta-off":
+        brain_config = BrainConfig(
+            temporal_policy_kind="learned_lite",
+            external_prediction_error_drive=False,
+            apprenticeship_constraint_extractor=extractor,
+            final_rollout_config=FinalRolloutConfig(
+                reflection=WiringLevel.DISABLED,
+            ),
+        )
+        use_temporal_bootstrap = False
+        use_regime_bootstrap = True
+    elif component_label == "active-learning-off":
+        brain_config = BrainConfig(
+            apprenticeship_feedback_policy="random",
+            apprenticeship_constraint_extractor=extractor,
+        )
+        use_temporal_bootstrap = True
+        use_regime_bootstrap = True
+    elif component_label == "lora-adapter":
+        brain_config = BrainConfig(
+            temporal_policy_kind="learned_lite",
+            external_prediction_error_drive=False,
+            apprenticeship_feedback_policy="disabled",
+            apprenticeship_constraint_extractor=extractor,
+            final_rollout_config=FinalRolloutConfig(
+                reflection=WiringLevel.DISABLED,
+            ),
+        )
+        use_temporal_bootstrap = False
+        use_regime_bootstrap = False
+    else:
+        raise ValueError(f"unknown companion component ablation {component_label!r}")
+
+    config = LifeformConfig(brain_config=brain_config)
+    lifeform = build_companion_lifeform(
+        config=config,
+        use_temporal_bootstrap=use_temporal_bootstrap,
+        use_regime_bootstrap=use_regime_bootstrap,
+        substrate_runtime=runtime,
+        response_synthesizer=_expression_synthesizer_for_runtime(runtime),
+        semantic_proposal_runtime=_build_llm_semantic_runtime_from_runtime(runtime),
+    )
+    lifeform.ensure_affordance_registry()
+    return lifeform
+
+
+def _component_companion_spec(
+    *,
+    name: str,
+    component_label: str,
+    has_temporal_bootstrap: bool,
+    has_regime_bootstrap: bool,
+) -> VerticalSpec | None:
+    companion = _try_companion()
+    if companion is None:
+        return None
+    return VerticalSpec(
+        name=name,
+        factory=lambda runtime: _build_companion_component_lifeform(
+            runtime=runtime,
+            component_label=component_label,
+        ),
+        has_temporal_bootstrap=has_temporal_bootstrap,
+        has_regime_bootstrap=has_regime_bootstrap,
+        bootstraps_dir=companion.bootstraps_dir,
+        scenarios_dir=companion.scenarios_dir,
+        alpha_factory=None,
+    )
+
+
+def _try_companion_pe_drive_off() -> VerticalSpec | None:
+    return _component_companion_spec(
+        name="companion-pe-drive-off",
+        component_label="pe-drive-off",
+        has_temporal_bootstrap=True,
+        has_regime_bootstrap=True,
+    )
+
+
+def _try_companion_eta_off() -> VerticalSpec | None:
+    return _component_companion_spec(
+        name="companion-eta-off",
+        component_label="eta-off",
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=True,
+    )
+
+
+def _try_companion_active_learning_off() -> VerticalSpec | None:
+    return _component_companion_spec(
+        name="companion-active-learning-off",
+        component_label="active-learning-off",
+        has_temporal_bootstrap=True,
+        has_regime_bootstrap=True,
+    )
+
+
+def _try_companion_lora_adapter() -> VerticalSpec | None:
+    return _component_companion_spec(
+        name="companion-lora-adapter",
+        component_label="lora-adapter",
+        has_temporal_bootstrap=False,
+        has_regime_bootstrap=False,
     )
 
 
@@ -438,7 +575,12 @@ def _try_uncalibrated_companion() -> VerticalSpec | None:
         from volvence_zero.brain import BrainConfig
 
         config = LifeformConfig(
-            brain_config=BrainConfig(memory_scope_root_dir=memory_scope_root_dir)
+            brain_config=BrainConfig(
+                memory_scope_root_dir=memory_scope_root_dir,
+                apprenticeship_constraint_extractor=(
+                    _build_apprenticeship_extractor_from_runtime(runtime)
+                ),
+            )
         )
         lifeform = build_companion_lifeform(
             config=config,
@@ -607,6 +749,27 @@ def _build_llm_semantic_runtime_from_runtime(runtime):
         model=model, tokenizer=tokenizer, device=device
     )
     return LLMSemanticProposalRuntime(provider=provider)
+
+
+def _build_apprenticeship_extractor_from_runtime(runtime):
+    """Build the production structured extractor from the shared HF runtime."""
+
+    if runtime is None:
+        return None
+    model = getattr(runtime, "_model", None)
+    tokenizer = getattr(runtime, "_tokenizer", None)
+    device = getattr(runtime, "_device", "cpu")
+    if model is None or tokenizer is None:
+        return None
+    from volvence_zero.apprenticeship import LLMGuidanceConstraintExtractor
+    from volvence_zero.substrate.text_generation import (
+        HFTextGenerationProvider,
+    )
+
+    provider = HFTextGenerationProvider(
+        model=model, tokenizer=tokenizer, device=device
+    )
+    return LLMGuidanceConstraintExtractor(provider)
 
 
 def _try_zhang_wuji() -> VerticalSpec | None:
@@ -1442,6 +1605,10 @@ def _try_repair30() -> VerticalSpec | None:
 
 _BUILDERS = (
     _try_companion,
+    _try_companion_pe_drive_off,
+    _try_companion_eta_off,
+    _try_companion_active_learning_off,
+    _try_companion_lora_adapter,
     _try_digital_employee_org,
     _try_digital_employee_twin,
     _try_repair30,

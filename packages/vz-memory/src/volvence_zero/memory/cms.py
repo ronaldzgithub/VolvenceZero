@@ -460,6 +460,12 @@ class CMSMemoryCore:
         return tuple(averaged)
 
     @property
+    def cms_backend(self) -> "WiringLevel":
+        """Deploy-wiring readout: the torch band backend level this core runs at."""
+
+        return self._cms_backend
+
+    @property
     def latest_cms_backend_evidence(self) -> dict | None:
         return self._latest_cms_backend_evidence
 

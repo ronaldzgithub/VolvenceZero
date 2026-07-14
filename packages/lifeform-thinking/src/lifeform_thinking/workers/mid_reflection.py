@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from volvence_zero.thinking import (
+    ControllerPressureAdvisory,
     ThinkingArtifact,
     ThinkingPurpose,
     ThinkingTask,
@@ -84,6 +85,40 @@ def _extract_track_tension(snapshot_value: Any, track: str) -> float:
     if track_state is None:
         return 0.5
     return float(getattr(track_state, "tension_level", 0.5))
+
+
+def controller_pressure_advisory_from_mid_reflection(
+    payload: MidReflectionPayload,
+) -> ControllerPressureAdvisory:
+    """Convert the worker's observability payload into the consumer contract.
+
+    CP-21 (GAP-06): the temporal owners consume ONLY
+    ``ControllerPressureAdvisory`` (``observe_thinking_artifact`` raises on
+    anything else). The conversion lives HERE — at the thinking publisher —
+    so the payload owner authors both representations and consumers never
+    rebuild advisory semantics from the raw reflection fields (R8).
+
+    ``confidence`` scales with how decisive the observed pressure is: a
+    neutral reflection (pressure ~ 0) yields low confidence so the bounded
+    owner-side delta (``pressure_delta * confidence * 0.20``) stays near
+    zero, while a strongly signed reflection is allowed more influence.
+    """
+
+    confidence = max(0.0, min(1.0, 0.25 + 0.75 * abs(payload.pressure)))
+    return ControllerPressureAdvisory(
+        track=payload.track,
+        pressure_delta=_clamp_signed(payload.pressure),
+        confidence=confidence,
+        evidence=(
+            payload.rationale,
+            f"observed_cross_track_tension={payload.observed_cross_track_tension:.2f}",
+            f"observed_regime_id={payload.observed_regime_id}",
+        ),
+        description=(
+            f"mid-reflection advisory for {payload.track} track "
+            f"(pressure={payload.pressure:+.2f} confidence={confidence:.2f})"
+        ),
+    )
 
 
 async def mid_reflection_worker(
@@ -155,5 +190,6 @@ async def mid_reflection_worker(
 
 __all__ = [
     "MidReflectionPayload",
+    "controller_pressure_advisory_from_mid_reflection",
     "mid_reflection_worker",
 ]

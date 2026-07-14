@@ -2393,6 +2393,22 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             return 0.0
         return self._thinking_advisory_switch_pressure_delta
 
+    @property
+    def latest_thinking_advisory_readout(self) -> tuple[float, bool, tuple[str, ...]]:
+        """Owner-published readout of the last consumed thinking advisory.
+
+        Returns ``(bounded_switch_pressure_delta, applied, evidence)``.
+        SHADOW consumers record the delta without applying it; evidence
+        strings come from the advisory payload (or the typed rejection
+        reason). Read-only observability surface for CP-21 evidence.
+        """
+
+        return (
+            self._thinking_advisory_switch_pressure_delta,
+            self._thinking_advisory_applied,
+            self._thinking_advisory_evidence,
+        )
+
     def observe_family_outcome_feedback(
         self,
         *,

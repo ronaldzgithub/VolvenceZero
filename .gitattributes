@@ -1,0 +1,7 @@
+# Shell scripts must stay LF: they get executed by bash on macOS / Linux
+# (GPU server, Apple-silicon launcher) where CRLF breaks the interpreter.
+*.sh text eol=lf
+install.sh text eol=lf
+
+# PowerShell is CRLF-native.
+*.ps1 text eol=crlf

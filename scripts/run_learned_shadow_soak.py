@@ -46,12 +46,15 @@ from volvence_zero.agent.learned_shadow_evidence import (
     LEARNED_SHADOW_TEMPORAL_LATENT_DIM,
     build_learned_shadow_rollout_config,
     collect_learned_shadow_evidence,
+    collect_strict_eta_gate_evidence,
 )
 from volvence_zero.agent.session import AgentSessionRunner
+from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.prediction import (
     PredictionErrorModule,
     PredictiveHeadCheckpoint,
 )
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state import SEMANTIC_OWNER_SLOTS
 from volvence_zero.social import TOM_SLOTS
 
@@ -80,6 +83,33 @@ _TURN_POOL: tuple[str, ...] = (
 # 4 turns in well under a minute, so a soak turn averaging above this is a
 # regression worth flagging in the artifact.
 _SOAK_MEAN_TURN_SECONDS_SLO = 5.0
+
+
+def _rollout_config_for_backend_combo(combo: str) -> FinalRolloutConfig:
+    if combo == "runtime+ssl+internal-rl+cms-torch":
+        return build_learned_shadow_rollout_config()
+    if combo == "runtime-only":
+        return FinalRolloutConfig(
+            temporal_runtime_backend=WiringLevel.SHADOW,
+            temporal_ssl_backend=WiringLevel.DISABLED,
+            internal_rl_backend=WiringLevel.DISABLED,
+            cms_torch_backend=WiringLevel.DISABLED,
+        )
+    if combo == "runtime+ssl":
+        return FinalRolloutConfig(
+            temporal_runtime_backend=WiringLevel.SHADOW,
+            temporal_ssl_backend=WiringLevel.SHADOW,
+            internal_rl_backend=WiringLevel.DISABLED,
+            cms_torch_backend=WiringLevel.DISABLED,
+        )
+    if combo == "runtime+ssl+internal-rl":
+        return FinalRolloutConfig(
+            temporal_runtime_backend=WiringLevel.SHADOW,
+            temporal_ssl_backend=WiringLevel.SHADOW,
+            internal_rl_backend=WiringLevel.SHADOW,
+            cms_torch_backend=WiringLevel.DISABLED,
+        )
+    raise ValueError(f"unsupported backend_combo {combo!r}")
 
 
 def _git_output(args: tuple[str, ...]) -> str:
@@ -150,25 +180,28 @@ def _verify_checkpoint_round_trip(checkpoint: PredictiveHeadCheckpoint) -> None:
 
 
 def _gate_verdicts(
-    *, safety_gate_ok: bool, latency_slo_ok: bool
+    *,
+    real_trace_turns: int,
+    validation_delta: float,
+    safety_gate_ok: bool,
+    latency_slo_ok: bool,
+    strict_eta_gate_passed: bool,
+    rollback_drill_passed: bool,
+    pe_off_control_direction_correct: bool = False,
+    eta_off_control_direction_correct: bool = False,
 ) -> list[dict[str, object]]:
-    """Evaluate all four components with honest synthetic-lane evidence.
-
-    real_trace_turns=0 because synthetic soak turns are NOT real traces;
-    control/rollback/eta gates are False because this lane does not run them.
-    Verdicts are therefore expected BLOCKED - that is the honest record.
-    """
+    """Evaluate all four components with honest lane evidence."""
 
     verdicts: list[dict[str, object]] = []
     for component in LearnedBackendComponent:
         evidence = LearnedActiveEvidence(
             component=component,
-            real_trace_turns=0,
-            validation_delta=0.0,
-            strict_eta_gate_passed=False,
-            pe_off_control_direction_correct=False,
-            eta_off_control_direction_correct=False,
-            rollback_drill_passed=False,
+            real_trace_turns=real_trace_turns,
+            validation_delta=validation_delta,
+            strict_eta_gate_passed=strict_eta_gate_passed,
+            pe_off_control_direction_correct=pe_off_control_direction_correct,
+            eta_off_control_direction_correct=eta_off_control_direction_correct,
+            rollback_drill_passed=rollback_drill_passed,
             latency_slo_ok=latency_slo_ok,
             safety_gate_ok=safety_gate_ok,
         )
@@ -176,6 +209,14 @@ def _gate_verdicts(
         verdicts.append(
             {
                 "component": component.value,
+                "real_trace_turns": real_trace_turns,
+                "validation_delta": validation_delta,
+                "strict_eta_gate_passed": strict_eta_gate_passed,
+                "pe_off_control_direction_correct": pe_off_control_direction_correct,
+                "eta_off_control_direction_correct": eta_off_control_direction_correct,
+                "rollback_drill_passed": rollback_drill_passed,
+                "latency_slo_ok": latency_slo_ok,
+                "safety_gate_ok": safety_gate_ok,
                 "eligible": verdict.eligible,
                 "missing_gates": list(verdict.missing_gates),
                 "description": verdict.description,
@@ -190,30 +231,54 @@ async def main(
     turn_count: int,
     sample_every: int,
     checkpoint_every: int,
+    temporal_latent_dim: int = LEARNED_SHADOW_TEMPORAL_LATENT_DIM,
+    backend_combo: str = "runtime+ssl+internal-rl+cms-torch",
+    substrate_mode: str = "synthetic",
+    substrate_model_id: str = "Qwen/Qwen2.5-1.5B-Instruct",
+    substrate_device: str = "cuda",
+    substrate_local_files_only: bool = True,
 ) -> int:
     if turn_count < 3:
         raise ValueError(
             "turn_count must be >= 3 so the joint-loop schedule runs a full "
             f"cycle; got {turn_count}."
         )
+    default_runtime = None
+    if substrate_mode == "hf":
+        from volvence_zero.substrate import build_transformers_runtime_with_fallback
+
+        default_runtime = build_transformers_runtime_with_fallback(
+            model_id=substrate_model_id,
+            device=substrate_device,
+            local_files_only=substrate_local_files_only,
+            allow_live_substrate_mutation=False,
+            fallback_to_builtin=False,
+        )
+    elif substrate_mode != "synthetic":
+        raise ValueError(f"unsupported substrate_mode {substrate_mode!r}")
     runner = AgentSessionRunner(
-        config=build_learned_shadow_rollout_config(),
-        temporal_latent_dim=LEARNED_SHADOW_TEMPORAL_LATENT_DIM,
+        config=_rollout_config_for_backend_combo(backend_combo),
+        temporal_latent_dim=temporal_latent_dim,
+        default_residual_runtime=default_runtime,
         rare_heavy_enabled=False,
     )
     print(
-        f"[soak] profile: n_z={LEARNED_SHADOW_TEMPORAL_LATENT_DIM}, "
-        f"four backends SHADOW, {turn_count} synthetic turns",
+        f"[soak] profile: n_z={temporal_latent_dim}, "
+        f"backend_combo={backend_combo}, substrate_mode={substrate_mode}, "
+        f"{turn_count} turns",
         flush=True,
     )
 
     head_readout_series: list[dict[str, object]] = []
     kill_criteria_series: list[dict[str, object]] = []
     checkpoint_round_trips = 0
+    real_trace_turns = 0
     started = time.perf_counter()
     for index in range(1, turn_count + 1):
         text = _TURN_POOL[(index - 1) % len(_TURN_POOL)]
         result = await runner.run_turn(text)
+        if runner.training_traces and ":real:" in runner.training_traces[-1].trace_id:
+            real_trace_turns += 1
         if index % sample_every == 0 or index == turn_count:
             pe_value = result.active_snapshots["prediction_error"].value
             readout = pe_value.predictive_head_readout
@@ -315,18 +380,30 @@ async def main(
         "common_ground_pending": len(store.pending_common_ground_predictions),
     }
 
+    # CP-09: run the strict ETA suite for real instead of hardcoding False.
+    print("[soak] running strict ETA gate suite (CP-09)...", flush=True)
+    strict_eta = collect_strict_eta_gate_evidence()
+    payload["strict_eta_gate"] = strict_eta
+    print(
+        f"[soak] strict ETA gate_passed={strict_eta['gate_passed']} "
+        f"({strict_eta['description']})",
+        flush=True,
+    )
+
     latency_slo_ok = mean_turn_seconds <= _SOAK_MEAN_TURN_SECONDS_SLO
     payload["learned_active_gate"] = {
         "note": (
             "Synthetic soak lane: real_trace_turns=0 by definition, so BLOCKED "
             "verdicts are the expected honest outcome. Directional readouts "
-            "only; ACTIVE promotion requires the Linux CUDA real-trace lane."
+            "only; ACTIVE promotion requires the Linux CUDA real-trace lane. "
+            "strict_eta_gate reflects the CP-09 suite executed this soak."
         ),
         "latency_slo_seconds": _SOAK_MEAN_TURN_SECONDS_SLO,
         "latency_slo_ok": latency_slo_ok,
         "verdicts": _gate_verdicts(
             safety_gate_ok=True,  # collector verified zero SHADOW write-back
             latency_slo_ok=latency_slo_ok,
+            strict_eta_gate_passed=bool(strict_eta["gate_passed"]),
         ),
     }
 

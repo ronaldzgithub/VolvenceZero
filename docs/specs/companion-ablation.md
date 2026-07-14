@@ -1,6 +1,6 @@
 # Companion Bench Same-Substrate Ablation Spec
 
-> Status: P1 Windows tooling landed; first five-track real run pending weights/bootstrap/keys
+> Status: P1 Windows tooling landed; first nine-track real run pending weights/bootstrap/keys
 > Last updated: 2026-07-13
 > 对应需求: R2（稳定基底 + 自适应控制器）, R7（双轨/关系学习）, R8（快照优先）, R12（评估只读）, R15（可解释 + 可回滚证据）
 > 关联 debt: #82 / #84 / #87（人类世界模型 thesis 第一阶段 retain 证据）
@@ -9,7 +9,7 @@
 
 把"Volvence 的认知控制器层在长程关系任务上优于标准方案"从叙事变成**可证伪、同基底、可复现**的实验。核心是一条因果切分：**固定 substrate，只变 substrate 之上的层**，任何分差都归因于该层而非基底。这是 thesis 第一阶段（人类世界模型）从 "harness-ready" 升到 "first-stage-retained" 的证据来源。
 
-## 同基底矩阵（5 track，全部跑在同一份冻结 Qwen）
+## 同基底矩阵（5 主 track + 4 component arms，全部跑在同一份冻结 Qwen）
 
 | Track | substrate 之上的层 | 隔离的变量 |
 |---|---|---|
@@ -21,6 +21,7 @@
 
 `raw / ref-harness / camel / volvence-cold` 是 matched controls；`volvence` 是被验证系统。
 `volvence vs raw` = 任何层是否有用；`volvence vs ref-harness/camel` = 控制器是否优于标准方案；`volvence vs cold` = 训练增量。
+`pe-off / eta-off / active-learning-off / lora-adapter` 是 component-causal arms，用于第 5 条 `claim_component_causal_contribution`。
 
 ## 关键不变量
 
@@ -30,7 +31,7 @@
 - **公平同 prompt**：五条 track 共享同一 companion system prompt；只有记忆/agent/认知层不同。
 - **evaluation 只读（R12）**：裁判分数是 readout，不回灌学习链路。
 
-> **冻结的 thesis 第一阶段 claim registry SSOT 见 [`human-world-model-ablation.md`](./human-world-model-ablation.md)**——本 spec 是它的实现载体（同基底 5-track 工具链）。registry 在下面四条之上新增 `claim_component_causal_contribution`（PE/ETA/主动学习逐个因果切分），对应的 `PE-off`/`ETA-off`/`active-learning-off`/`LoRA-adapter` 四臂尚未迁到同基底矩阵。
+> **冻结的 thesis 第一阶段 claim registry SSOT 见 [`human-world-model-ablation.md`](./human-world-model-ablation.md)**——本 spec 是它的实现载体。同基底服务矩阵已扩到 9 track：5 个主 track 加 `PE-off` / `ETA-off` / `active-learning-off` / `LoRA-adapter` 四个 component arms。真 LoRA artifact 仍 gate on #41 GPU bake。
 
 ## 四条 retain claim（debt #87）与四态结论
 
@@ -74,9 +75,10 @@ Windows GPU 是 P1 directional 的一等开发执行面，但不是 retain evide
    `companion-regime.bs` typed bootstrap pair；任一缺失即 fail loudly。
    `volvence-cold` 只显式关闭这两个 bootstrap，semantic proposal、
    affordance、PE/credit、memory 和 expression pipeline 与 `volvence` 相同。
-2. `preflight_llm.py` 在付费调用前检查 CUDA、console commands、模型缓存、
-   bootstrap pair、端口、跨家族模型与 API 连通性，并写
-   `companion-p1-run-manifest.v1`。
+2. `preflight_llm.py` 在付费调用前检查加速器（`--substrate-device`，默认
+   `cuda`；Apple silicon 显式传 `mps`，`cpu` 允许但如实记录，设备不可用一律
+   fail-loud、无静默降级）、console commands、模型缓存、bootstrap pair、
+   端口、跨家族模型与 API 连通性，并写 `companion-p1-run-manifest.v1`。
 3. fingerprint 必须包含实际权重文件的 `weights_sha256`；P1
    `assert_same_substrate.py --require-weights-sha256` 不接受只写 model id。
 4. `serve_same_substrate_ablation.ps1` 对四个 HTTP 服务逐端点轮询健康状态，
@@ -93,12 +95,13 @@ P1 结果最多是 directional `weak-positive` 或 directional kill signal。
 
 - [`packages/companion-camel-baseline/`](../../packages/companion-camel-baseline) — CAMEL agent-framework baseline wheel（Apache 2.0，隔离）。
 - [`packages/companion-ref-harness/`](../../packages/companion-ref-harness) — 标准 memory wrapper，H-A+H-B+H-C 四件全开。
-- [`scripts/companion_bench/reference_systems.same_substrate_ablation.yaml`](../../scripts/companion_bench/reference_systems.same_substrate_ablation.yaml) — 5-track roster。
+- [`scripts/companion_bench/reference_systems.same_substrate_ablation.yaml`](../../scripts/companion_bench/reference_systems.same_substrate_ablation.yaml) — 9-track roster（5 主轨 + 4 component arms）。
 - [`scripts/companion_bench/serve_same_substrate_ablation.sh`](../../scripts/companion_bench/serve_same_substrate_ablation.sh) + [`stop_same_substrate_ablation.sh`](../../scripts/companion_bench/stop_same_substrate_ablation.sh) — 同基底服务编排。
 - [`scripts/companion_bench/assert_same_substrate.py`](../../scripts/companion_bench/assert_same_substrate.py) — 同基底 fingerprint 守门。
 - [`scripts/companion_bench/compare_companion_ablation.py`](../../scripts/companion_bench/compare_companion_ablation.py) — #87 四 claim verdict。
 - [`scripts/companion_bench/run_same_substrate_ablation.py`](../../scripts/companion_bench/run_same_substrate_ablation.py) — P0/judge-evidence/P1/P2 phased driver。
 - [`scripts/companion_bench/run_p1_windows.ps1`](../../scripts/companion_bench/run_p1_windows.ps1) — Windows P1 preflight / serve / score / verdict / cleanup 一键入口。
+- [`scripts/launch_evidence_runs_m2.sh`](../../scripts/launch_evidence_runs_m2.sh) — Apple-silicon (MPS) 一键入口：setup / soak / ablation / all；P1 编排与 Windows 入口同构（preflight → serve → score(+resume 重试) → verdict → teardown）。
 - [`scripts/companion_bench/p1_readiness.py`](../../scripts/companion_bench/p1_readiness.py) — 权重 digest、bootstrap/run manifest 与本地 fail-loud gate。
 - 结果记录：[`docs/external/companion-ablation-results-internal.md`](../external/companion-ablation-results-internal.md)。
 
@@ -109,6 +112,14 @@ P1 结果最多是 directional `weak-positive` 或 directional kill signal。
 ## 变更日志
 
 - 2026-06-28：tooling 全套落地（CAMEL baseline wheel + ref-harness H-B/H-C + roster + serve + substrate guard + comparator + phased driver + P0 wiring smoke 通过）。首个真跑（P1/P2）待 GPU/keys。
+- 2026-07-14：component arms serving 迁入同基底矩阵：新增 `companion-pe-drive-off` / `companion-eta-off` / `companion-active-learning-off` / `companion-lora-adapter` verticals；roster、serve launcher、preflight fingerprints、P1/P2 health / summary / fingerprint gate 均扩到 9 track。真 LoRA artifact 仍等待 #41 GPU bake。
 - 2026-07-13：Windows P1 readiness 收敛：companion/cold 同完整 runtime
   接线、bootstrap pair hard gate、实际权重 SHA256、逐端点 health、run manifest、
   resume/dry-run 与 PowerShell 一键编排落地；付费五轨 P1 仍未执行。
+- 2026-07-14：Apple-silicon 执行面落地。`p1_readiness.require_accelerator`
+  显式支持 `cuda / mps / cpu`（fail-loud，无静默降级；`require_cuda` 保留），
+  `preflight_llm.py` 增 `--substrate-device`；`serve_same_substrate_ablation.sh`
+  与 `.ps1` 对齐（保留 preflight 写入的 weights_sha256 fingerprint 不覆盖、
+  ref-harness embedder/extractor 与 camel compaction fail-loud、逐端点健康轮询
+  取代固定 sleep）；新增 `launch_evidence_runs_m2.sh` 一键入口。MPS lane 与
+  Windows lane 同为 directional，不构成 retain evidence lane。

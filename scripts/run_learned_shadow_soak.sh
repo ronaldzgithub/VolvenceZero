@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# W3 (intent-alignment remediation) — GPU-server launcher for the
+# W3 (intent-alignment remediation) 鈥?GPU-server launcher for the
 # learned-shadow long soak.
 #
 # Thin wrapper around scripts/run_learned_shadow_soak.py that:

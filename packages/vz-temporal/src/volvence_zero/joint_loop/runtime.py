@@ -297,6 +297,29 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         return self._residual_runtime
 
     @property
+    def ssl_backend(self):
+        """Deploy-wiring readout: the SSL trainer's torch backend level."""
+
+        return self._ssl_trainer.ssl_backend
+
+    @property
+    def internal_rl_backend(self):
+        """Deploy-wiring readout: the internal-RL sandboxes' torch backend level.
+
+        Both track sandboxes are constructed with the same level; fail loudly
+        if they ever diverge (that would be a wiring bug, not a valid state).
+        """
+
+        world_level = self._world_sandbox.causal_policy.rl_backend
+        self_level = self._self_sandbox.causal_policy.rl_backend
+        if world_level is not self_level:
+            raise RuntimeError(
+                "internal RL backend diverged between world "
+                f"({world_level.value}) and self ({self_level.value}) sandboxes"
+            )
+        return world_level
+
+    @property
     def latest_ssl_report(self):
         """Most recent SSLTrainingReport from the shared trainer (evidence readout).
 

@@ -36,14 +36,14 @@
 | `memory-only` | 标准 memory wrapper（summary+user_model+episodic） | "标准记忆封装"基线 | ✅ `ref-harness`（H-A/H-C 子集） |
 | `RAG` | embed 检索增强 | "标准检索"基线 | ✅ `ref-harness` H-B（embed retrieval） |
 | `agent-framework` | 标准开源 agent 框架 | "标准 agent 框架"基线 | ✅ `camel` track |
-| `LoRA-adapter` | 冻结 substrate + persona LoRA，无控制器层 | "只微调不控制"基线 | ⏳ pending（figure LoRA bake，gate on GPU，见 #41） |
-| `PE-off` | 完整 pipeline 关 PE 主链 | PE 的因果贡献 | ⏳ pending（复用 dialogue `pe-drive-off` profile 迁到同基底） |
-| `ETA-off` | 完整 pipeline 关时间抽象 | ETA 的因果贡献 | ⏳ pending（复用 `eta-off` profile 迁到同基底；关联 #88） |
-| `active-learning-off` | 完整 pipeline 用随机采样替代主动请求反馈 | 主动学习的因果贡献 | ⏳ pending（关联 #90 Stage 1；对照 random-sampling 基线，见 #87 kill 条件） |
+| `LoRA-adapter` | 冻结 substrate + persona LoRA，无控制器层 | "只微调不控制"基线 | ✅ serving arm `companion-lora-adapter`（真 LoRA artifact 仍 gate on #41 GPU bake） |
+| `PE-off` | 完整 pipeline 关 PE 主链 | PE 的因果贡献 | ✅ serving arm `companion-pe-drive-off` |
+| `ETA-off` | 完整 pipeline 关时间抽象 | ETA 的因果贡献 | ✅ serving arm `companion-eta-off`（关联 #88） |
+| `active-learning-off` | 完整 pipeline 用随机采样替代主动请求反馈 | 主动学习的因果贡献 | ✅ serving arm `companion-active-learning-off`（random-sampling baseline） |
 | `volvence-cold` | 完整 pipeline，无训练 bootstrap | 控制器结构本身 | ✅ `volvence-cold` track |
 | `volvence` | 完整 pipeline + 训练 bootstrap | **被验证系统** | ✅ `volvence` track |
 
-**实现说明**：同基底 5-track 工具链（`raw / ref-harness / camel / volvence-cold / volvence`）已 land 并通过 P0 wiring smoke（`claim_pipeline_gt_raw` / `claim_gt_standard_layers` / `claim_training_adds_value` / `claim_heldout_cohort_stable` 就位）。**2026-07-12 起，`claim_component_causal_contribution` 的四臂已完成 P0 wiring**：`compare_companion_ablation.py` 支持 `pe-off` / `eta-off` / `active-learning-off` / `lora-adapter` 四个 component track 并输出第 5 条 claim verdict（任一臂 fail → kill；缺臂 → 最多 weak，且 `first-stage-retained` 必须四臂全 retain）；`run_same_substrate_ablation.py --phase p0-smoke` 以 9 track 全矩阵跑 wiring smoke，P1/P2 在 roster 声明对应 `abl-*` submission id 后自动纳入。**仍缺**：四臂的真实 serving profile（`pe-drive-off` / `eta-off` dialogue profile 迁到同基底 serving、active-learning-off #90 Stage 1、LoRA bake #41，均 gate on GPU），故 claim 3 的真跑 verdict 依旧 pending。
+**实现说明**：同基底 5-track 工具链（`raw / ref-harness / camel / volvence-cold / volvence`）已 land 并通过 P0 wiring smoke（`claim_pipeline_gt_raw` / `claim_gt_standard_layers` / `claim_training_adds_value` / `claim_heldout_cohort_stable` 就位）。**2026-07-12 起，`claim_component_causal_contribution` 的四臂已完成 P0 wiring**：`compare_companion_ablation.py` 支持 `pe-off` / `eta-off` / `active-learning-off` / `lora-adapter` 四个 component track 并输出第 5 条 claim verdict（任一臂 fail → kill；缺臂 → 最多 weak，且 `first-stage-retained` 必须四臂全 retain）。**2026-07-14 起，四臂真实 serving profile 已迁到同基底服务矩阵**：`scripts/companion_bench/reference_systems.same_substrate_ablation.yaml` 声明 9 track，`serve_same_substrate_ablation.{sh,ps1}` 启动 8002–8005 component endpoints，P1/P2 runner 的 health / fingerprint / summary gate 也扩到 9 track。**仍缺**：真 LoRA artifact（#41 GPU bake）与完整 P1/P2 真跑 verdict，故 claim 3 的因果 verdict 依旧 pending。
 
 ## 3. 证据门槛（每条 claim verdict 必备）
 
@@ -89,7 +89,7 @@
 ## 当前状态（2026-07-12）
 
 - **命中态**：`wiring-ready`。claim 1–5 工具链全部 land + 9-track P0 wiring smoke 通过（含 component 四臂 + 第 5 条 claim verdict）。
-- **未跑**：全部真跑 verdict（P1/P2）gate on GPU + 跨家族裁判 keys（预算批准，运维步骤）；component 四臂的真实 serving profile 未落地（#88 / #90 / #41）。
+- **未跑**：全部真跑 verdict（P1/P2）gate on GPU + 跨家族裁判 keys（预算批准，运维步骤）；component 四臂 serving 已落地，但真 LoRA artifact（#41）与真 trace verdict 仍 pending。
 - **可外引结论**：**无**。在 `first-stage-retained` 之前只能说"设计与 ablation 框架已就位"。
 
 ## 变更日志

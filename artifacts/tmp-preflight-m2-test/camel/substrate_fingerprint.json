@@ -1,0 +1,6 @@
+{
+  "track": "camel",
+  "substrate_model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+  "weights_sha256": "fb8c44c48b8359fdd306cdc5f473d7c04d88955013f0dd8549f266e248194da4",
+  "weights_root": "C:\\Users\\Administrator\\.cache\\huggingface\\hub\\models--Qwen--Qwen2.5-1.5B-Instruct\\snapshots\\989aa7980e4cf806f80c7fef2b1adb7bc71aa306"
+}

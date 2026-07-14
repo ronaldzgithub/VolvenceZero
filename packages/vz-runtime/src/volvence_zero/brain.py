@@ -258,6 +258,53 @@ class BrainSession:
             )
         )
 
+    def submit_thinking_artifact(
+        self,
+        artifact: object,
+        *,
+        apply_enabled: bool = False,
+    ) -> str:
+        """Route a thinking artifact to its temporal consumer owner (CP-21).
+
+        The ONLY legal path from the lifeform-side thinking loop into the
+        kernel temporal owners: the facade dispatches on
+        ``artifact.consumer_owner`` (``world_temporal`` / ``self_temporal``)
+        and forwards to that owner's ``observe_thinking_artifact`` guard.
+        The owner enforces status / payload-contract / fingerprint checks
+        itself; SHADOW callers keep ``apply_enabled=False`` so the advisory
+        is recorded as evidence without reaching beta_t.
+
+        Returns the owner's typed routing result string; raises for an
+        unknown consumer owner or a temporal policy without the consumer
+        surface (contract violation — fail loudly, no silent drop).
+        """
+
+        from volvence_zero.temporal import FullLearnedTemporalPolicy
+
+        consumer_owner = artifact.consumer_owner
+        if consumer_owner == "world_temporal":
+            policy = self._runner.world_temporal_policy
+        elif consumer_owner == "self_temporal":
+            policy = self._runner.self_temporal_policy
+        else:
+            raise ValueError(
+                f"submit_thinking_artifact: unknown consumer owner "
+                f"{consumer_owner!r}; temporal routing supports "
+                "'world_temporal' and 'self_temporal' only."
+            )
+        if not isinstance(policy, FullLearnedTemporalPolicy):
+            raise TypeError(
+                f"temporal policy for {consumer_owner!r} "
+                f"({type(policy).__name__}) does not expose the thinking "
+                "consumer surface (observe_thinking_artifact)."
+            )
+        return policy.observe_thinking_artifact(
+            artifact=artifact,
+            expected_snapshot_fingerprint=artifact.task_id,
+            consumer_owner=consumer_owner,
+            apply_enabled=apply_enabled,
+        )
+
     def submit_profile_event(
         self,
         *,

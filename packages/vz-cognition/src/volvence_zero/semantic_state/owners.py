@@ -311,6 +311,10 @@ class PlanIntentModule(SemanticOwnerModule):
     slot_name = "plan_intent"
     owner = "PlanIntentModule"
     value_type = PlanIntentSnapshot
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = (
+        OwnerPredictionKind.PLAN_INTENT_PROGRESS
+    )
+    owner_prediction_track: ClassVar[str] = "world"
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> PlanIntentSnapshot:
         latest = self._latest_active(records)
@@ -343,6 +347,25 @@ class PlanIntentModule(SemanticOwnerModule):
                 problem_progress_assessed += 1
             elif last_outcome is PlanIntentOutcome.OUTCOME_OBSERVED:
                 outcome_observed += 1
+        total_outcomes = (
+            decision_made
+            + assumption_recorded
+            + problem_progress_assessed
+            + outcome_observed
+        )
+        progress_rate = _clamp(
+            (decision_made + problem_progress_assessed + outcome_observed)
+            / max(total_outcomes, 1)
+        )
+        prediction_signals = self._owner_prediction_signals(
+            observed_vector=(confidence, progress_rate),
+            confidence=confidence,
+            evidence_summary=(
+                f"continuity={confidence:.2f} progress_rate={progress_rate:.2f} "
+                f"records={len(records)} revisions="
+                f"{self._store.revision_count_for(self.slot_name)}"
+            ),
+        )
         return PlanIntentSnapshot(
             active_plan_id=latest.record_id if latest else None,
             active_goal=latest.summary if latest else "",
@@ -368,6 +391,7 @@ class PlanIntentModule(SemanticOwnerModule):
             outcome_assumption_recorded_count=assumption_recorded,
             outcome_problem_progress_assessed_count=problem_progress_assessed,
             outcome_observed_count=outcome_observed,
+            owner_prediction_signals=prediction_signals,
         )
 
 
@@ -526,6 +550,10 @@ class OpenLoopModule(SemanticOwnerModule):
     slot_name = "open_loop"
     owner = "OpenLoopModule"
     value_type = OpenLoopSnapshot
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = (
+        OwnerPredictionKind.OPEN_LOOP_CLOSURE
+    )
+    owner_prediction_track: ClassVar[str] = "world"
     # #90 active-learning actuator: also depend on apprenticeship_alignment
     # so a ``should_request_feedback`` signal surfaces as a verification
     # open loop. substrate / memory are inherited from the base owner.
@@ -585,6 +613,15 @@ class OpenLoopModule(SemanticOwnerModule):
             _clamp(len(confirmations) / 5.0),
             request_urgency,
         )
+        prediction_signals = self._owner_prediction_signals(
+            observed_vector=(closure_readiness, closure_pressure),
+            confidence=closure_readiness,
+            evidence_summary=(
+                f"closure_readiness={closure_readiness:.2f} "
+                f"closure_pressure={closure_pressure:.2f} "
+                f"unresolved={len(unresolved)} stale={stale_loops}"
+            ),
+        )
         return OpenLoopSnapshot(
             unresolved_loops=unresolved,
             pending_confirmations=confirmations,
@@ -603,6 +640,7 @@ class OpenLoopModule(SemanticOwnerModule):
             confirmation_debt_count=confirmation_debt,
             closure_readiness=closure_readiness,
             apprenticeship_verification_requests=verification_requests,
+            owner_prediction_signals=prediction_signals,
         )
 
 
@@ -610,6 +648,13 @@ class UserModelModule(SemanticOwnerModule):
     slot_name = "user_model"
     owner = "UserModelModule"
     value_type = UserModelSnapshot
+    # CP-16 boundary: user_model predicts only its AGGREGATE pacing /
+    # stability readout; per-person belief / intent / feeling / preference
+    # predictions belong to the ToM owners.
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = (
+        OwnerPredictionKind.USER_MODEL_PACING
+    )
+    owner_prediction_track: ClassVar[str] = "self"
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> UserModelSnapshot:
         sensitive_boundaries = _records_with_status(records, "blocked")
@@ -631,6 +676,15 @@ class UserModelModule(SemanticOwnerModule):
             if durable_goals or len(active_records) >= 2
             else "unknown"
         )
+        prediction_signals = self._owner_prediction_signals(
+            observed_vector=(stability_score, overwhelm_pattern_strength),
+            confidence=stability_score,
+            evidence_summary=(
+                f"stability={stability_score:.2f} "
+                f"overwhelm={overwhelm_pattern_strength:.2f} "
+                f"pacing={preferred_support_pacing} records={len(records)}"
+            ),
+        )
         return UserModelSnapshot(
             stable_preferences=active_records[-4:],
             working_style_hints=records[-4:],
@@ -646,6 +700,7 @@ class UserModelModule(SemanticOwnerModule):
             preferred_support_pacing=preferred_support_pacing,
             decision_style=decision_style,
             overwhelm_pattern_strength=overwhelm_pattern_strength,
+            owner_prediction_signals=prediction_signals,
         )
 
 
@@ -736,17 +791,33 @@ class BeliefAssumptionModule(SemanticOwnerModule):
     slot_name = "belief_assumption"
     owner = "BeliefAssumptionModule"
     value_type = BeliefAssumptionSnapshot
+    owner_prediction_kind: ClassVar[OwnerPredictionKind | None] = (
+        OwnerPredictionKind.BELIEF_ASSUMPTION_STABILITY
+    )
+    owner_prediction_track: ClassVar[str] = "world"
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> BeliefAssumptionSnapshot:
         verification = tuple(record for record in records if record.confidence < 0.55)
+        mean_confidence = self._mean_confidence(records)
+        verification_ratio = _clamp(len(verification) / max(len(records), 1))
+        prediction_signals = self._owner_prediction_signals(
+            observed_vector=(mean_confidence, verification_ratio),
+            confidence=mean_confidence,
+            evidence_summary=(
+                f"mean_confidence={mean_confidence:.2f} "
+                f"verification_ratio={verification_ratio:.2f} "
+                f"assumptions={len(records)}"
+            ),
+        )
         return BeliefAssumptionSnapshot(
             beliefs=tuple(record for record in records if record.confidence >= 0.55),
             assumptions=records,
             verification_needs=verification,
             contradiction_refs=tuple(record.record_id for record in _records_with_status(records, "blocked")),
-            mean_confidence=self._mean_confidence(records),
+            mean_confidence=mean_confidence,
             control_signal=max(self._batch_signal(batch), _clamp(len(verification) / 5.0)),
             description=f"Belief/assumption owner published assumptions={len(records)} verification={len(verification)}.",
+            owner_prediction_signals=prediction_signals,
         )
 
 

@@ -35,7 +35,7 @@ class OwnerPredictionKind(str, Enum):
     BOUNDARY_CONSENT_STABILITY = "boundary_consent_stability"
     EXECUTION_RESULT_SUCCESS = "execution_result_success"
     GOAL_VALUE_ALIGNMENT = "goal_value_alignment"
-    # Second wave (kinds reserved; publishers not yet wired):
+    # Second wave (publishers wired, CP-12 / GAP-05):
     PLAN_INTENT_PROGRESS = "plan_intent_progress"
     OPEN_LOOP_CLOSURE = "open_loop_closure"
     BELIEF_ASSUMPTION_STABILITY = "belief_assumption_stability"

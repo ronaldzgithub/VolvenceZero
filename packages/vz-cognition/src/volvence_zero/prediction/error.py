@@ -21,11 +21,15 @@ from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.prediction.distribution import DistributionSummary
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.semantic_state import (
+    BeliefAssumptionSnapshot,
     BoundaryConsentSnapshot,
     CommitmentSnapshot,
     ExecutionResultSnapshot,
     GoalValueSnapshot,
+    OpenLoopSnapshot,
+    PlanIntentSnapshot,
     RelationshipStateSnapshot,
+    UserModelSnapshot,
 )
 from volvence_zero.substrate import SubstrateSnapshot, feature_signal_value
 
@@ -785,6 +789,10 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         "goal_value",
         "boundary_consent",
         "execution_result",
+        "plan_intent",
+        "open_loop",
+        "belief_assumption",
+        "user_model",
     )
     default_wiring_level = WiringLevel.ACTIVE
 
@@ -1002,11 +1010,17 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         return self.publish(snapshot)
 
     _OWNER_PREDICTION_SLOTS = (
+        # First wave:
         "commitment",
         "relationship_state",
         "goal_value",
         "boundary_consent",
         "execution_result",
+        # Second wave (CP-12 / GAP-05):
+        "plan_intent",
+        "open_loop",
+        "belief_assumption",
+        "user_model",
     )
 
     def _settle_owner_predictions(
@@ -1031,6 +1045,10 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             GoalValueSnapshot,
             BoundaryConsentSnapshot,
             ExecutionResultSnapshot,
+            PlanIntentSnapshot,
+            OpenLoopSnapshot,
+            BeliefAssumptionSnapshot,
+            UserModelSnapshot,
         )
         settlements: list[OwnerPredictionSettlement] = []
         for slot in self._OWNER_PREDICTION_SLOTS:

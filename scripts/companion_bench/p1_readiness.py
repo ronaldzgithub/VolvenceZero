@@ -19,7 +19,7 @@ REQUIRED_COMMANDS = (
     "companion-ref-harness",
     "companion-camel-baseline",
 )
-P1_PORTS = (8000, 8001, 8500, 8600)
+P1_PORTS = (8000, 8001, 8002, 8003, 8004, 8005, 8500, 8600)
 
 
 class P1ReadinessError(RuntimeError):
@@ -139,14 +139,38 @@ def require_ports_free(host: str = "127.0.0.1") -> None:
         )
 
 
-def require_cuda() -> str:
+def require_accelerator(device: str) -> str:
+    """Fail-loud check that the requested substrate device actually exists.
+
+    ``cuda`` is the default P1 profile (Linux/Windows NVIDIA); ``mps`` is the
+    explicit Apple-silicon opt-in; ``cpu`` is allowed but recorded as such so
+    the throughput expectation is honest. No silent fallback between devices.
+    """
+
     try:
         import torch
     except ImportError as exc:
-        raise P1ReadinessError("torch is not installed; run install.ps1 -Extras hf") from exc
-    if not torch.cuda.is_available():
-        raise P1ReadinessError("torch.cuda.is_available() is false")
-    return str(torch.cuda.get_device_name(0))
+        raise P1ReadinessError(
+            "torch is not installed; install the hf extras (install.sh / install.ps1)"
+        ) from exc
+    if device == "cuda" or device.startswith("cuda:"):
+        if not torch.cuda.is_available():
+            raise P1ReadinessError("torch.cuda.is_available() is false")
+        return str(torch.cuda.get_device_name(0))
+    if device == "mps":
+        mps_backend = getattr(torch.backends, "mps", None)
+        if mps_backend is None or not mps_backend.is_available():
+            raise P1ReadinessError("torch.backends.mps.is_available() is false")
+        return "apple-mps"
+    if device == "cpu":
+        return "cpu"
+    raise P1ReadinessError(
+        f"unsupported substrate device {device!r} (expected cuda / cuda:N / mps / cpu)"
+    )
+
+
+def require_cuda() -> str:
+    return require_accelerator("cuda")
 
 
 def git_identity(repo_root: pathlib.Path) -> tuple[str, bool]:

@@ -333,6 +333,8 @@ class PlanIntentSnapshot:
     outcome_assumption_recorded_count: int = 0
     outcome_problem_progress_assessed_count: int = 0
     outcome_observed_count: int = 0
+    # CP-12 owner prediction signal contract (second wave).
+    owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
 
     def lifecycle_for(self, record_id: str) -> PlanIntentLifecycleEntry | None:
         for entry in self.lifecycle_entries:
@@ -453,6 +455,8 @@ class OpenLoopSnapshot:
     # on every non-apprentice turn (idle alignment => no request). Default
     # empty keeps pre-#90 open-loop snapshots valid.
     apprenticeship_verification_requests: tuple[str, ...] = ()
+    # CP-12 owner prediction signal contract (second wave).
+    owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -467,6 +471,10 @@ class UserModelSnapshot:
     preferred_support_pacing: str = "unknown"
     decision_style: str = "unknown"
     overwhelm_pattern_strength: float = 0.0
+    # CP-12 owner prediction signal contract (second wave). The user_model
+    # owner predicts only its AGGREGATE pacing/stability readout — belief /
+    # intent / feeling / preference about the other belong to the ToM owners.
+    owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -534,6 +542,8 @@ class BeliefAssumptionSnapshot:
     mean_confidence: float
     control_signal: float
     description: str
+    # CP-12 owner prediction signal contract (second wave).
+    owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
 
 
 # ---------------------------------------------------------------------------

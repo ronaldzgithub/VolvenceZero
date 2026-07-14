@@ -193,6 +193,15 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 
 ## 变更日志
 
+- 2026-07-14: CP-12 第二波 settlement 覆盖（GAP-05）。
+  `PredictionErrorModule._OWNER_PREDICTION_SLOTS` 扩至 9 slot（追加
+  plan_intent / open_loop / belief_assumption / user_model），dependencies
+  同步追加四个 slot（upstream.get 容忍禁用 owner）。mismatch 计算逻辑不变，
+  仍 report-only。同日：CP-14/GAP-04 —— 四轴 PE credit records 的唯一派生点
+  收敛为 `CreditModule.process`（`derive_credit_records_from_prediction_error_first`
+  含 segment closure）；`run_final_wiring_turn` 不再 post-propagate 重复派生
+  context-less 四轴记录（此前每轮双计）。测试：
+  `tests/contracts/test_credit_single_derivation_path.py`。
 - 2026-07-12: CP-12 owner prediction signal contract 落地。新增 vz-contracts
   `volvence_zero.owner_prediction`（`OwnerPredictionKind` 闭集 enum /
   `OwnerPredictionSignal` / `OwnerPredictionSettlement` /

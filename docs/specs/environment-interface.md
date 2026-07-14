@@ -1,7 +1,7 @@
 # Environment Interface Spec
 
-> Status: Phase 1 contract landed; partial routing verified
-> Last updated: 2026-05-04
+> Status: Phase 1 contract landed; `canonical-event-routing` 与 `outcome-links-to-prediction` gates satisfied（adapter 口径）；`rollback-ready` pending
+> Last updated: 2026-07-14
 > 对应需求: R-PE, R1, R3, R4, R8, R10, R11, R15, R16-R20
 
 ## 要解决的问题
@@ -40,11 +40,20 @@ Environment Interface 不是新的内核 owner，也不是新的 runtime slot。
 - `tool_result`：`BrainSession.submit_tool_result(...)` 构造 `EnvironmentOutcome`，下一轮 PE action context 与 snapshot replay 携带 `environment_outcome_id`
 - social frame：`MultiPartyIdentityModule` 消费 `EnvironmentEvent.frame`，memory subject / audience scope 与 social PE 路径已有证据测试
 
-仍未完成的 full wiring：
+2026-07-12/13 之后的逐入口验收结果（与下方 Phase 1 gates 一致，SSOT 以 gates 为准）：
 
-- `system_tick` / `scene_event` / `followup_due` 的 canonical event adapter 仍待逐入口验收
-- ingestion envelope provenance -> PE lineage 仍待端到端证据
-- expression / scene outcome 是否都携带 prior prediction id 或 documented prediction context 仍待补测
+- `followup_due` 已验收为 canonical event turn；`system_tick` / `scene_event` 按
+  gate 原文以 **documented compatibility adapter** 口径关闭（tick 不作为 kernel
+  turn；scene close 走 typed `scene_closed_evidence`），见 gate 1。
+- ingestion envelope provenance -> PE lineage 已有端到端证据（gate 3）。
+- expression / scene outcome 的 prior prediction id lineage 已有契约测试（gate 3）。
+
+仍未完成：
+
+- `rollback-ready` gate（gate 5）：tick / scene / followup 路由的 SHADOW /
+  per-source disablement rollout 仍 pending。
+- tick/followup 的 proactive action 自主闭环（service 层 `FOLLOWUP_DUE` →
+  `run_turn` 编排 + followup outcome lineage）见 uplift 计划 CP-20。
 
 ## 关键不变量
 
@@ -258,6 +267,10 @@ Environment Interface Phase 0 has no runtime wiring level because it is design-o
 
 ## 变更日志
 
+- 2026-07-14: 修复 spec 顶部状态与 Phase 1 gates 的自相矛盾（顶部仍写
+  2026-05-04 的 partial 口径，而 gate 1/3 已于 2026-07-12/13 satisfied）。
+  统一 SSOT：入口验收状态以 Phase 1 Acceptance Gates 为准，顶部实现状态段
+  只做指引。无行为变更。
 - 2026-07-13 (2): CP-13 scene + ingestion lineage 闭合。`scene_closed_evidence`
   新增可选 `prediction_id` 并由 `LifeformSession.end_scene` 写入
   `scene_prediction:<id>` evidence ref；`IngestionPipeline` 将

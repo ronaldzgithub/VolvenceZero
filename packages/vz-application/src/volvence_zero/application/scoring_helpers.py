@@ -29,8 +29,8 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from volvence_zero.semantic_embedding import (
-    stub_cosine_similarity as cosine_similarity,
-    stub_semantic_embedding as semantic_embedding,
+    semantic_cosine as cosine_similarity,
+    semantic_embedding,
     stub_semantic_tokens as semantic_tokens,
 )
 

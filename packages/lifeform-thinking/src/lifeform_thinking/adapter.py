@@ -61,7 +61,11 @@ from lifeform_thinking.scheduler import (
     ThinkingWiringLevel,
     WorkerFunc,
 )
-from lifeform_thinking.workers.mid_reflection import mid_reflection_worker
+from lifeform_thinking.workers.mid_reflection import (
+    MidReflectionPayload,
+    controller_pressure_advisory_from_mid_reflection,
+    mid_reflection_worker,
+)
 
 
 _LOG = logging.getLogger("lifeform_thinking.adapter")
@@ -221,6 +225,32 @@ class ThinkingAdapter:
     @property
     def latest_self_artifact(self) -> ThinkingArtifact | None:
         return self._latest_artifacts_by_consumer.get(CONSUMER_SELF_TEMPORAL)
+
+    @property
+    def latest_advisory_artifacts_by_consumer(self) -> Mapping[str, ThinkingArtifact]:
+        """Latest appliable artifacts re-wrapped in the consumer contract.
+
+        CP-21 (GAP-06): the temporal owners accept only
+        ``ControllerPressureAdvisory`` payloads. The thinking side (this
+        adapter + the worker module) owns the conversion, so consumers
+        receive contract-ready artifacts and never rebuild advisory
+        semantics from ``MidReflectionPayload`` internals. Artifacts whose
+        payload is not a ``MidReflectionPayload`` are passed through
+        unchanged (a custom worker may already emit the advisory payload).
+        """
+
+        import dataclasses
+
+        advisory: dict[str, ThinkingArtifact] = {}
+        for consumer, artifact in self._latest_artifacts_by_consumer.items():
+            payload = artifact.payload
+            if isinstance(payload, MidReflectionPayload):
+                artifact = dataclasses.replace(
+                    artifact,
+                    payload=controller_pressure_advisory_from_mid_reflection(payload),
+                )
+            advisory[consumer] = artifact
+        return advisory
 
     def snapshot(self) -> ThinkingAdapterSnapshot:
         """Build a frozen observation of current adapter state.

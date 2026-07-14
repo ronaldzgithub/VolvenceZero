@@ -176,6 +176,62 @@ def _cms_payload(evidence: dict | None) -> dict[str, Any]:
     return dict(evidence)
 
 
+def collect_strict_eta_gate_evidence(
+    *,
+    alphas: tuple[float, ...] = (0.0, 0.3, 1.0),
+    epochs: int = 25,
+    n_z: int = 8,
+    seed: int = 1234,
+) -> dict[str, Any]:
+    """Run the CP-09 strict ETA suite and derive the promotion-gate boolean.
+
+    Wraps ``run_strict_eta_evidence`` (owner: vz-temporal) so the learned-shadow
+    lane and the soak artifact consume one shared payload instead of hardcoding
+    ``strict_eta_gate_passed=False``. The gate passes only when all three
+    directional claims hold on the controlled hierarchical suite:
+
+    1. higher alpha increases switch sparsity (rate-distortion direction),
+    2. sparsity is monotone non-decreasing across the alpha ladder,
+    3. held-out action-family (code) reuse does not degrade under the
+       bottleneck.
+
+    Torch required; raises ImportError otherwise (the caller decides whether
+    that is fatal for its lane). Synthetic-suite tier: this is the mechanism
+    gate, not real-trace capability evidence.
+    """
+
+    from volvence_zero.temporal.torch_metacontroller import run_strict_eta_evidence
+
+    evidence = run_strict_eta_evidence(
+        alphas=alphas, epochs=epochs, n_z=n_z, seed=seed
+    )
+    gate_passed = (
+        evidence.high_alpha_increases_sparsity
+        and evidence.sparsity_monotone_nondecreasing
+        and evidence.held_out_reuse_improves_with_bottleneck
+    )
+    return {
+        "evidence_kind": "strict_eta_gate",
+        "alphas": list(alphas),
+        "epochs": epochs,
+        "n_z": n_z,
+        "seed": seed,
+        "sparsity_by_alpha": [
+            {"alpha": alpha, "switch_sparsity": sparsity}
+            for alpha, sparsity in evidence.sparsity_by_alpha_standard_normal
+        ],
+        "high_alpha_increases_sparsity": evidence.high_alpha_increases_sparsity,
+        "sparsity_monotone_nondecreasing": evidence.sparsity_monotone_nondecreasing,
+        "held_out_reuse_alpha0": evidence.held_out_reuse_standard_normal_alpha0,
+        "held_out_reuse_high_alpha": evidence.held_out_reuse_standard_normal_high_alpha,
+        "held_out_reuse_improves_with_bottleneck": (
+            evidence.held_out_reuse_improves_with_bottleneck
+        ),
+        "gate_passed": gate_passed,
+        "description": evidence.description,
+    }
+
+
 def collect_learned_shadow_evidence(runner: Any) -> dict[str, Any]:
     """Assemble the unified learned-shadow evidence payload from a live runner.
 
@@ -234,4 +290,5 @@ __all__ = [
     "LearnedShadowEvidenceError",
     "build_learned_shadow_rollout_config",
     "collect_learned_shadow_evidence",
+    "collect_strict_eta_gate_evidence",
 ]

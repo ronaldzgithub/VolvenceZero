@@ -75,6 +75,15 @@ FIRST_WAVE = (
     ("execution_result", OwnerPredictionKind.EXECUTION_RESULT_SUCCESS, "world"),
 )
 
+SECOND_WAVE = (
+    ("plan_intent", OwnerPredictionKind.PLAN_INTENT_PROGRESS, "world"),
+    ("open_loop", OwnerPredictionKind.OPEN_LOOP_CLOSURE, "world"),
+    ("belief_assumption", OwnerPredictionKind.BELIEF_ASSUMPTION_STABILITY, "world"),
+    ("user_model", OwnerPredictionKind.USER_MODEL_PACING, "self"),
+)
+
+ALL_WAVES = FIRST_WAVE + SECOND_WAVE
+
 
 async def _owner_snapshot(module_type, store, turn_index):
     from volvence_zero.substrate import (
@@ -95,7 +104,7 @@ async def _owner_snapshot(module_type, store, turn_index):
     return (await module.process({"substrate": substrate, "memory": memory})).value
 
 
-@pytest.mark.parametrize(("slot", "kind", "track"), FIRST_WAVE)
+@pytest.mark.parametrize(("slot", "kind", "track"), ALL_WAVES)
 async def test_first_wave_owner_publishes_then_settles_prediction(
     slot: str, kind: OwnerPredictionKind, track: str
 ) -> None:
@@ -123,7 +132,7 @@ async def test_first_wave_owner_publishes_then_settles_prediction(
     assert fresh.prediction_id != settled.prediction_id
 
 
-@pytest.mark.parametrize(("slot", "kind", "track"), FIRST_WAVE)
+@pytest.mark.parametrize(("slot", "kind", "track"), ALL_WAVES)
 async def test_owner_forecast_is_v2_learned_and_trains_on_settlement(
     slot: str, kind: OwnerPredictionKind, track: str
 ) -> None:
@@ -207,7 +216,11 @@ async def test_pe_owner_computes_settlement_from_settled_signals() -> None:
     settlements = pe_value.owner_prediction_settlements
     assert settlements, "second turn must settle first-turn owner predictions"
     slots = {s.source_slot for s in settlements}
-    assert slots <= {slot for slot, _, _ in FIRST_WAVE}
+    assert slots <= {slot for slot, _, _ in ALL_WAVES}
+    # Second-wave owners (GAP-05) settle through the same single PE owner.
+    assert slots & {slot for slot, _, _ in SECOND_WAVE}, (
+        f"no second-wave owner settlement reached the PE owner; got {slots}"
+    )
     for settlement in settlements:
         assert 0.0 <= settlement.mismatch_magnitude <= 1.0
         assert settlement.settled_turn_index == pe_value.turn_index

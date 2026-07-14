@@ -162,6 +162,46 @@ Start-AblationService "lifeform-companion-cold" @(
     "--enable-openai-compat"
 )
 
+Start-AblationService "lifeform-companion-pe-drive-off" @(
+    "lifeform-serve",
+    "--vertical", "companion-pe-drive-off",
+    "--port", "8002",
+    "--substrate-mode", "hf-shared",
+    "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
+    "--substrate-device", $Device,
+    "--enable-openai-compat"
+)
+
+Start-AblationService "lifeform-companion-eta-off" @(
+    "lifeform-serve",
+    "--vertical", "companion-eta-off",
+    "--port", "8003",
+    "--substrate-mode", "hf-shared",
+    "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
+    "--substrate-device", $Device,
+    "--enable-openai-compat"
+)
+
+Start-AblationService "lifeform-companion-active-learning-off" @(
+    "lifeform-serve",
+    "--vertical", "companion-active-learning-off",
+    "--port", "8004",
+    "--substrate-mode", "hf-shared",
+    "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
+    "--substrate-device", $Device,
+    "--enable-openai-compat"
+)
+
+Start-AblationService "lifeform-companion-lora-adapter" @(
+    "lifeform-serve",
+    "--vertical", "companion-lora-adapter",
+    "--port", "8005",
+    "--substrate-mode", "hf-shared",
+    "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
+    "--substrate-device", $Device,
+    "--enable-openai-compat"
+)
+
 # ref-harness embed component now uses a real semantic embedder (bge-m3) by
 # default. The model loads from the HF cache; if it needs downloading, the
 # serve process honours HF_ENDPOINT + *_PROXY from the environment.
@@ -214,6 +254,10 @@ Start-AblationService "camel-baseline" $CamelArgs
 
 Wait-AblationEndpoint "lifeform-companion" "http://127.0.0.1:8000/v1/health"
 Wait-AblationEndpoint "lifeform-companion-cold" "http://127.0.0.1:8001/v1/health"
+Wait-AblationEndpoint "lifeform-companion-pe-drive-off" "http://127.0.0.1:8002/v1/health"
+Wait-AblationEndpoint "lifeform-companion-eta-off" "http://127.0.0.1:8003/v1/health"
+Wait-AblationEndpoint "lifeform-companion-active-learning-off" "http://127.0.0.1:8004/v1/health"
+Wait-AblationEndpoint "lifeform-companion-lora-adapter" "http://127.0.0.1:8005/v1/health"
 Wait-AblationEndpoint "ref-harness" "http://127.0.0.1:8500/healthz"
 Wait-AblationEndpoint "camel-baseline" "http://127.0.0.1:8600/healthz"
 
@@ -223,7 +267,11 @@ python scripts/companion_bench/assert_same_substrate.py `
   --fingerprint-file "ref-harness=$(Join-Path $ArtifactDir 'ref-harness/substrate_fingerprint.json')" `
   --fingerprint-file "camel=$(Join-Path $ArtifactDir 'camel/substrate_fingerprint.json')" `
   --fingerprint-file "volvence-cold=$(Join-Path $ArtifactDir 'volvence-cold/substrate_fingerprint.json')" `
-  --fingerprint-file "volvence=$(Join-Path $ArtifactDir 'volvence/substrate_fingerprint.json')"
+  --fingerprint-file "volvence=$(Join-Path $ArtifactDir 'volvence/substrate_fingerprint.json')" `
+  --fingerprint-file "pe-off=$(Join-Path $ArtifactDir 'pe-off/substrate_fingerprint.json')" `
+  --fingerprint-file "eta-off=$(Join-Path $ArtifactDir 'eta-off/substrate_fingerprint.json')" `
+  --fingerprint-file "active-learning-off=$(Join-Path $ArtifactDir 'active-learning-off/substrate_fingerprint.json')" `
+  --fingerprint-file "lora-adapter=$(Join-Path $ArtifactDir 'lora-adapter/substrate_fingerprint.json')"
 if ($LASTEXITCODE -ne 0) {
     throw "[serve] same-substrate fingerprint gate failed"
 }

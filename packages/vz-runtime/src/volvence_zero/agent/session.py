@@ -482,6 +482,8 @@ class AgentSessionRunner(
         primary_prediction_error_dominance_enabled: bool = True,
         dialogue_pe_continued_evidence_enabled: bool = True,
         dialogue_commitment_outcome_evidence_enabled: bool = True,
+        apprenticeship_feedback_policy: str = "owner",
+        apprenticeship_constraint_extractor: Any = None,
         allow_llm_outcome_proposals: bool = False,
         user_scope: str = "anonymous",
         owner_hydration_store: Any = None,
@@ -494,6 +496,13 @@ class AgentSessionRunner(
         self._session_id = session_id
         self._dialogue_pe_continued_evidence_enabled = dialogue_pe_continued_evidence_enabled
         self._dialogue_commitment_outcome_evidence_enabled = dialogue_commitment_outcome_evidence_enabled
+        if apprenticeship_feedback_policy not in {"owner", "random", "disabled"}:
+            raise ValueError(
+                "apprenticeship_feedback_policy must be one of "
+                "'owner', 'random', 'disabled'"
+            )
+        self._apprenticeship_feedback_policy = apprenticeship_feedback_policy
+        self._apprenticeship_constraint_extractor = apprenticeship_constraint_extractor
         # Rupture-and-Repair v0: LLM-sourced external outcome proposals
         # are OFF by default. Callers that want to experiment with an
         # LLM proposal adapter must explicitly opt in (see docs/specs/
@@ -1061,6 +1070,8 @@ class AgentSessionRunner(
                 environment_outcome_id=environment_outcome_id,
                 environment_prediction_id=environment_prediction_id,
                 apprenticeship_turn=apprenticeship_turn,
+                apprenticeship_feedback_policy=self._apprenticeship_feedback_policy,
+                apprenticeship_constraint_extractor=self._apprenticeship_constraint_extractor,
                 credit_proposals=self._credit_proposals,
                 reflection_mode=self._reflection_mode,
                 world_temporal_policy=self._world_temporal_policy,

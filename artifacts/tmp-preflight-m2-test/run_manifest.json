@@ -1,0 +1,20 @@
+{
+  "schema_version": "companion-p1-run-manifest.v1",
+  "git_sha": "3682ffe827c714e2e85a923df2ab626cf437e65c",
+  "git_worktree_clean": false,
+  "substrate": {
+    "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "weights_root": "C:\\Users\\Administrator\\.cache\\huggingface\\hub\\models--Qwen--Qwen2.5-1.5B-Instruct\\snapshots\\989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+    "weights_sha256": "fb8c44c48b8359fdd306cdc5f473d7c04d88955013f0dd8549f266e248194da4",
+    "weight_file_count": 1
+  },
+  "temporal_bootstrap_sha256": "90dde4f7730fd4b6a4e6b0fa42a6818e7785bc39012d8886031ad5c3c20f7a53",
+  "regime_bootstrap_sha256": "944d3c9c5aa037cbc7e1edcfc6ad43711c3ea0abfc35dc5973369a7645ad2237",
+  "temporal_runtime_backend": "disabled",
+  "temporal_ssl_backend": "disabled",
+  "internal_rl_backend": "disabled",
+  "cms_torch_backend": "disabled",
+  "user_sim_model": "meta-llama/llama-3.3-70b-instruct",
+  "perturn_model": "deepseek/deepseek-chat",
+  "arc_model": "mistralai/mistral-large"
+}

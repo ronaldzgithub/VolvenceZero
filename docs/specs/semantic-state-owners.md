@@ -99,6 +99,15 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
 
 ## 变更日志
 
+- 2026-07-14: CP-12 第二波 publisher 接线（GAP-05）。`plan_intent`（kind
+  `PLAN_INTENT_PROGRESS`, track world）/ `open_loop`（`OPEN_LOOP_CLOSURE`,
+  world）/ `belief_assumption`（`BELIEF_ASSUMPTION_STABILITY`, world）/
+  `user_model`（`USER_MODEL_PACING`, self）开始在快照发布
+  `owner_prediction_signals`，机制与 first wave 完全一致（store-held v2
+  learned forecaster + owner 自 settle）。`user_model` 只预测自身 aggregate
+  pacing/stability readout，不与 ToM 四 owner 重复拥有对他人的
+  belief/intent/feeling/preference。PE settlement 覆盖扩至 9 slot。测试：
+  `tests/contracts/test_owner_prediction_signal.py`（ALL_WAVES 参数化）。
 - 2026-07-12: CP-12 owner prediction signal contract。`SemanticOwnerModule` 新增
   `owner_prediction_kind` / `owner_prediction_track` 类属性与
   `_owner_prediction_signals(...)` 助手；五个 first-wave owner（commitment /
@@ -110,7 +119,7 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
   mismatch 只由 PE owner 计算（见 `prediction-error-loop.md` 同日条目）；
   消费者无需读取 owner 内部字段即可完成 settlement 消费。第二波
   （plan_intent / open_loop / belief_assumption / user_model）kind 已在闭集
-  enum 预留，publisher 未接。
+  enum 预留，publisher 于 2026-07-14 接线（见上方条目）。
 - 2026-07-13: 登记 character chapter adapter flow。逐章主观烘焙的
   `CharacterSemanticEventBundle` 只能作为 typed proposal source，仍由
   `SemanticStateStore` 单写者合并；禁止用原文关键词或角色 vertical 直写 9 个

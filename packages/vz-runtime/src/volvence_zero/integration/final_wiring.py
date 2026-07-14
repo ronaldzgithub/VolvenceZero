@@ -53,7 +53,6 @@ from volvence_zero.credit.gate import (
     SelfModificationRecord,
     derive_delayed_attribution_credit_records,
     derive_learning_evidence_credit_records,
-    derive_prediction_error_credit_records,
     derive_social_prediction_error_credit_records,
     has_blocking_writeback,
     record_nstep_outcomes_from_segment_closure,
@@ -2329,8 +2328,8 @@ async def run_final_wiring_turn(
             # R-PE #1 (same gate as PE actual-outcome decoupling): when
             # ACTIVE, credit is NOT derived from evaluation — evaluation is
             # a readout, not a learning source. Credit then flows only from
-            # PE aggregation (derive_prediction_error_credit_records below)
-            # and substrate/regime-derived records. SHADOW (default) keeps
+            # the PE-first derivation inside ``CreditModule.process`` and
+            # substrate/regime-derived records. SHADOW (default) keeps
             # the legacy evaluation-derived credit path verbatim.
             credit_decoupled = pe_evaluation_decoupled_active()
             extra_credits = (
@@ -2351,11 +2350,13 @@ async def run_final_wiring_turn(
                 timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 2,
             )
             extra_credits = extra_credits + delayed_credits
-            if prediction_snapshot_value is not None:
-                extra_credits = extra_credits + derive_prediction_error_credit_records(
-                    prediction_error=prediction_snapshot_value.error,
-                    timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 3,
-                )
+            # CP-14 (GAP-04): the four-axis PE records are derived exactly
+            # once per turn, inside ``CreditModule.process`` via
+            # ``derive_credit_records_from_prediction_error_first`` (which
+            # also carries the PE action context and the segment-closure
+            # records). The orchestrator must NOT re-derive them here —
+            # doing so double-counted pe:task / pe:relationship /
+            # pe:regime / pe:action every turn with a context-less copy.
             # Phase 2.A: ask the credit owner to append historical and
             # learned COCOA readouts. The owner owns the learned baseline,
             # checkpoint evidence, and gate audit.

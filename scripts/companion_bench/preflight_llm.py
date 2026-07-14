@@ -32,8 +32,8 @@ from p1_readiness import (  # noqa: E402
     P1ReadinessError,
     build_run_manifest,
     fingerprint_weights,
+    require_accelerator,
     require_commands,
-    require_cuda,
     require_non_qwen_models,
     require_ports_free,
     resolve_weights_root,
@@ -108,6 +108,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="explicit local directory containing weight files",
     )
     parser.add_argument(
+        "--substrate-device",
+        default=os.environ.get("VZ_SUBSTRATE_DEVICE", "cuda"),
+        help="substrate torch device to require: cuda (default) / mps / cpu",
+    )
+    parser.add_argument(
         "--artifact-dir",
         type=pathlib.Path,
         default=REPO_ROOT / "artifacts" / "companion-ablation" / "local",
@@ -137,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
         require_commands()
         if not args.skip_port_check:
             require_ports_free()
-        gpu_name = require_cuda()
+        gpu_name = require_accelerator(args.substrate_device)
         weights_root = resolve_weights_root(model_id, args.weights_path or None)
         fingerprint = fingerprint_weights(model_id, weights_root)
         manifest = build_run_manifest(
@@ -151,7 +156,17 @@ def main(argv: list[str] | None = None) -> int:
         write_track_fingerprints(
             fingerprint,
             args.artifact_dir,
-            ("raw", "ref-harness", "camel", "volvence-cold", "volvence"),
+            (
+                "raw",
+                "ref-harness",
+                "camel",
+                "volvence-cold",
+                "volvence",
+                "pe-off",
+                "eta-off",
+                "active-learning-off",
+                "lora-adapter",
+            ),
         )
     except (P1ReadinessError, FileNotFoundError, subprocess.CalledProcessError) as exc:
         print(f"error: {exc}", file=sys.stderr)
