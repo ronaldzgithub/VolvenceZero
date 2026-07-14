@@ -1,0 +1,18 @@
+{
+  "schema_version": "learned-shadow-soak.v1",
+  "artifact_kind": "learned_shadow_soak_manifest",
+  "artifacts": [
+    {
+      "path": "artifacts\\learned_shadow_soak_hf_cpu_smoke10\\learned_shadow_soak.json",
+      "sha256": "6220aca8252473cf6f00f0197380098969cf0d1af3f3ac0f04e12e2d92e31655",
+      "size_bytes": 16072
+    }
+  ],
+  "provenance": {
+    "git_sha": "c2546f6da0bf136055e2bb950d9c472a56c816c4",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.12.3",
+    "platform": "Windows-11-10.0.26200-SP0"
+  }
+}

@@ -285,7 +285,16 @@ async def main(
         text = _TURN_POOL[(index - 1) % len(_TURN_POOL)]
         result = await runner.run_turn(text)
         recent_traces = getattr(runner, "_recent_training_traces")
-        if recent_traces and ":real:" in recent_traces[-1].trace_id:
+        # Honesty guard: a ":real:" trace_id only means the trace was built
+        # from the previous turn's residual sequence. Synthetic runtimes also
+        # produce residual sequences, so counting them as real traces would
+        # let a synthetic soak satisfy the >=500 real-trace promotion gate.
+        # Real-trace turns require the real open-weight substrate lane.
+        if (
+            substrate_mode == "hf"
+            and recent_traces
+            and ":real:" in recent_traces[-1].trace_id
+        ):
             real_trace_turns += 1
         if index % sample_every == 0 or index == turn_count:
             pe_value = result.active_snapshots["prediction_error"].value
@@ -361,6 +370,7 @@ async def main(
         "backend_combo": backend_combo,
         "substrate_mode": substrate_mode,
         "substrate_model_id": substrate_model_id if substrate_mode == "hf" else "",
+        "substrate_device": substrate_device if substrate_mode == "hf" else "",
     }
     payload["turn_count"] = turn_count
     payload["real_trace_turns"] = real_trace_turns
