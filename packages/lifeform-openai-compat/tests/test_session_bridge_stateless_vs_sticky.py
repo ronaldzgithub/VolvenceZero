@@ -90,7 +90,9 @@ class _FakeSessionManager:
     def __init__(self, *, vertical_name: str = "companion") -> None:
         self.vertical_name = vertical_name
         self._sessions: dict[str, _FakeLifeformSession] = {}
+        self._session_verticals: dict[str, str] = {}
         self.create_calls: list[tuple[str | None, str | None]] = []
+        self.vertical_calls: list[str | None] = []
         # D22: record the per-call tenant_id the bridge plumbs through.
         self.tenant_calls: list[str | None] = []
 
@@ -107,17 +109,23 @@ class _FakeSessionManager:
         user_id: str | None = None,
         template_id: str | None = None,  # noqa: ARG002 - parity with real signature
         tenant_id: str | None = None,
+        vertical_name: str | None = None,
     ) -> _FakeLifeformSession:
         sid = session_id or "auto-fake"
         self.create_calls.append((sid, user_id))
         self.tenant_calls.append(tenant_id)
+        self.vertical_calls.append(vertical_name)
         if sid in self._sessions:
             from lifeform_service import SessionAlreadyExistsError
 
             raise SessionAlreadyExistsError(sid)
         session = _FakeLifeformSession(session_id=sid)
         self._sessions[sid] = session
+        self._session_verticals[sid] = vertical_name or self.vertical_name
         return session
+
+    def vertical_name_for(self, session_id: str) -> str:
+        return self._session_verticals[session_id]
 
 
 def _request(
@@ -216,6 +224,24 @@ def test_derive_session_id_different_model_diverges() -> None:
     )
     res_a = derive_session_id(_request(*common_messages, model="lifeform-companion@qwen2.5-1.5b"))
     res_b = derive_session_id(_request(*common_messages, model="lifeform-companion@qwen2.5-7b"))
+    assert res_a.session_id != res_b.session_id
+
+
+def test_derive_session_id_different_vertical_diverges() -> None:
+    common_messages = (
+        ("system", "warm"),
+        ("user", "hi"),
+        ("assistant", "hello"),
+        ("user", "and?"),
+    )
+    res_a = derive_session_id(
+        _request(*common_messages),
+        vertical_name="companion",
+    )
+    res_b = derive_session_id(
+        _request(*common_messages),
+        vertical_name="companion-cold",
+    )
     assert res_a.session_id != res_b.session_id
 
 
@@ -437,6 +463,40 @@ async def test_lifeform_complete_tenant_id_defaults_none_when_absent() -> None:
     request = _request(("user", "hi"), metadata={"session_id": "no-tenant"})
     await lifeform_complete(request=request, manager=manager)
     assert manager.tenant_calls[0] is None
+
+
+async def test_lifeform_complete_passes_selected_vertical_to_create_session() -> None:
+    manager = _FakeSessionManager()
+    request = _request(
+        ("user", "hi"),
+        metadata={"session_id": "vertical-arc"},
+    )
+    result = await lifeform_complete(
+        request=request,
+        manager=manager,
+        vertical_name="companion-eta-off",
+    )
+    assert manager.vertical_calls[0] == "companion-eta-off"
+    assert result.response.system_fingerprint == "lifeform:companion-eta-off"
+
+
+async def test_lifeform_complete_rejects_explicit_cross_vertical_reuse() -> None:
+    manager = _FakeSessionManager()
+    request = _request(
+        ("user", "hi"),
+        metadata={"session_id": "shared-explicit"},
+    )
+    await lifeform_complete(
+        request=request,
+        manager=manager,
+        vertical_name="companion",
+    )
+    with pytest.raises(ValueError, match="invalid_session_vertical_mismatch"):
+        await lifeform_complete(
+            request=request,
+            manager=manager,
+            vertical_name="companion-cold",
+        )
 
 
 async def test_lifeform_complete_sends_only_latest_user_message_to_kernel() -> None:

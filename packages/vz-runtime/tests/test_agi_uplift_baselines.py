@@ -4,6 +4,7 @@ import pytest
 
 from volvence_zero.agent.baseline_manifest import (
     build_default_behavior_baseline_manifest,
+    build_runtime_behavior_baseline,
 )
 from volvence_zero.agent.session import AgentSessionRunner
 from volvence_zero.agent.paper_suite import (
@@ -158,6 +159,32 @@ def test_default_behavior_baseline_freezes_distinct_product_and_paper_surfaces()
     assert dialogue["allow_live_substrate_mutation"] == "true"
     assert wiring["temporal_ssl_backend"] == "disabled"
     assert wiring["internal_rl_backend"] == "disabled"
+
+
+async def test_runtime_behavior_baseline_replays_identical_digest() -> None:
+    """CP-01 exit (GAP-10): same profile + same script -> same frozen digest."""
+
+    first = await build_runtime_behavior_baseline()
+    second = await build_runtime_behavior_baseline()
+
+    assert first.schema_version == "runtime-behavior-baseline.v1"
+    assert first.turn_count >= 4
+    # PE four-axis are signed but bounded; magnitude is non-negative.
+    for value in (
+        first.pe_task_error,
+        first.pe_relationship_error,
+        first.pe_regime_error,
+        first.pe_action_error,
+    ):
+        assert -1.0 <= value <= 1.0
+    assert 0.0 <= first.pe_magnitude <= 1.0
+    assert first.evaluation_family_means, "evaluation families must freeze"
+    assert first.regime_id
+    # Replay determinism: behaviour digest identical across fresh runners.
+    assert first.digest() == second.digest(), (
+        "runtime baseline is not replayable; CP-01 forbids model upgrades "
+        "until the same seed and profile replay a consistent baseline"
+    )
 
 
 def test_temporal_latent_dimension_is_explicit_and_rollback_safe() -> None:

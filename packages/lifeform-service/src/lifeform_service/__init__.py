@@ -55,8 +55,10 @@ from lifeform_service.session_manager import (
     TimeNodeSnapshot,
 )
 from lifeform_service.verticals import (
+    COMPANION_ABLATION_VERTICAL_NAMES,
     VerticalSpec,
     default_vertical_name,
+    discover_companion_ablation_verticals,
     discover_verticals,
 )
 
@@ -73,10 +75,12 @@ __all__ = (
     "SnapshotNotRestorableError",
     "TimeNodeNotFoundError",
     "TimeNodeSnapshot",
+    "COMPANION_ABLATION_VERTICAL_NAMES",
     "VerticalSpec",
     "create_app",
     "default_figure_bundle_store",
     "default_vertical_name",
+    "discover_companion_ablation_verticals",
     "discover_verticals",
     "lookup_figure_bundle",
     "main",

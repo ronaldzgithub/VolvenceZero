@@ -1,7 +1,7 @@
 # Learned vs Heuristic Coverage Spec
 
 > Status: v0.1
-> Last updated: 2026-07-04
+> Last updated: 2026-07-14
 > 对应需求: R2（稳定基底 + 自适应控制器）、R3/R4（时间抽象 + 内部控制）、R-PE（prediction error 为原始学习信号）、R8（快照 SSOT / 单一所有者）、R9（层级信用）、R15（可解释 + 可回滚迁移）
 
 ## 要解决的问题

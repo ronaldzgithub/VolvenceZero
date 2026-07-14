@@ -116,7 +116,11 @@ class SessionResolution:
     derivation_input: str = ""
 
 
-def derive_session_id(request: ChatCompletionRequest) -> SessionResolution:
+def derive_session_id(
+    request: ChatCompletionRequest,
+    *,
+    vertical_name: str = "",
+) -> SessionResolution:
     """Translate an OpenAI request to the session id we'll use.
 
     See :class:`SessionResolution` for the three kinds of outcome.
@@ -140,7 +144,9 @@ def derive_session_id(request: ChatCompletionRequest) -> SessionResolution:
         # transcript), use the first message of any role.
         messages[0].content if messages else "",
     )
-    derivation_input = f"{request.model}|{system_context}|{first_user_msg}"
+    derivation_input = (
+        f"{vertical_name}|{request.model}|{system_context}|{first_user_msg}"
+    )
     digest = hashlib.sha256(derivation_input.encode("utf-8")).hexdigest()
     return SessionResolution(
         session_id=f"{_AUTO_SESSION_ID_PREFIX}{digest[:_AUTO_SESSION_ID_HEX_LEN]}",
@@ -309,6 +315,7 @@ async def lifeform_complete(
     *,
     request: ChatCompletionRequest,
     manager: SessionManager,
+    vertical_name: str | None = None,
     drain_background: bool = False,
 ) -> LifeformCompletionResult:
     """Run an OpenAI chat completion through the lifeform pipeline.
@@ -323,7 +330,8 @@ async def lifeform_complete(
          and surface the lifeform telemetry on the wrapper struct.
     """
 
-    resolution = derive_session_id(request)
+    selected_vertical = (vertical_name or manager.vertical_name).strip()
+    resolution = derive_session_id(request, vertical_name=selected_vertical)
     user_id = request.metadata.get("user_id", "").strip() or None
     # D22: honour an explicit ``tenant_id`` so a multi-tenant front door
     # can route end-user memory into the two-layer ``{tenant}:{end_user}``
@@ -342,6 +350,7 @@ async def lifeform_complete(
         user_id=user_id,
         template_id=template_id,
         tenant_id=tenant_id,
+        vertical_name=selected_vertical,
     )
 
     if request.messages[-1].role == "tool":
@@ -377,8 +386,8 @@ async def lifeform_complete(
                 response = _tool_call_response(
                     request=request,
                     resolution=resolution,
-                    manager=manager,
                     tool_call=_intent_to_tool_call(tool_intent),
+                    vertical_name=selected_vertical,
                 )
                 return LifeformCompletionResult(
                     response=response,
@@ -443,7 +452,7 @@ async def lifeform_complete(
             completion_tokens=completion_tokens,
             total_tokens=prompt_tokens + completion_tokens,
         ),
-        system_fingerprint=f"lifeform:{manager.vertical_name}",
+        system_fingerprint=f"lifeform:{selected_vertical}",
     )
 
     return LifeformCompletionResult(
@@ -541,8 +550,8 @@ def _tool_call_response(
     *,
     request: ChatCompletionRequest,
     resolution: SessionResolution,
-    manager: SessionManager,
     tool_call: ChatToolCall,
+    vertical_name: str,
 ) -> ChatCompletionResponse:
     system_context, prompt_text, history = split_messages(request.messages)
     prompt_tokens = estimate_prompt_tokens(system_context, prompt_text, history)
@@ -567,7 +576,7 @@ def _tool_call_response(
             completion_tokens=1,
             total_tokens=prompt_tokens + 1,
         ),
-        system_fingerprint=f"lifeform:{manager.vertical_name}",
+        system_fingerprint=f"lifeform:{vertical_name}",
     )
 
 
@@ -615,6 +624,7 @@ async def _get_or_create_session(
     user_id: str | None,
     template_id: str | None = None,
     tenant_id: str | None = None,
+    vertical_name: str | None = None,
 ) -> Any:
     """SessionManager get-or-create with a tiny race-tolerant fallback.
 
@@ -634,6 +644,15 @@ async def _get_or_create_session(
 
     if await manager.has_session(session_id):
         session = await manager.get_session(session_id)
+        if vertical_name:
+            bound_vertical = manager.vertical_name_for(session_id)
+            if bound_vertical != vertical_name:
+                raise ValueError(
+                    "invalid_session_vertical_mismatch: "
+                    f"session_id={session_id!r} is bound to "
+                    f"vertical={bound_vertical!r} but the request selected "
+                    f"vertical={vertical_name!r}"
+                )
         if user_id and not _session_end_user_remap_allowed():
             reader = getattr(manager, "session_end_user", None)
             bound = reader(session_id) if callable(reader) else None
@@ -649,6 +668,7 @@ async def _get_or_create_session(
             user_id=user_id,
             template_id=template_id,
             tenant_id=tenant_id,
+            vertical_name=vertical_name,
         )
     except SessionAlreadyExistsError:
         # Lost the race; fall back to the existing session.

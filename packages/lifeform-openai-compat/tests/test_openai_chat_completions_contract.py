@@ -179,18 +179,32 @@ class _FakeRuntime:
         )
 
 
+class _FakeVerticalRegistry:
+    def __init__(self, names: tuple[str, ...]) -> None:
+        self.names = names
+
+    def require(self, name: str) -> str:
+        if name not in self.names:
+            raise LookupError(name)
+        return name
+
+
 class _FakeSessionManager:
     def __init__(
         self,
         *,
         vertical_name: str = "companion",
         with_runtime: bool = True,
+        vertical_names: tuple[str, ...] = ("companion",),
     ) -> None:
         self.vertical_name = vertical_name
+        self.vertical_registry = _FakeVerticalRegistry(vertical_names)
         self.substrate_runtime: _FakeRuntime | None = (
             _FakeRuntime() if with_runtime else None
         )
         self._sessions: dict[str, _FakeLifeformSession] = {}
+        self._session_verticals: dict[str, str] = {}
+        self.vertical_calls: list[str | None] = []
 
     async def has_session(self, session_id: str) -> bool:
         return session_id in self._sessions
@@ -205,21 +219,34 @@ class _FakeSessionManager:
         user_id: str | None = None,  # noqa: ARG002 - signature parity
         template_id: str | None = None,  # noqa: ARG002
         tenant_id: str | None = None,  # noqa: ARG002 - D22 signature parity
+        vertical_name: str | None = None,
     ) -> _FakeLifeformSession:
         sid = session_id or "auto-fake"
+        self.vertical_calls.append(vertical_name)
         if sid in self._sessions:
             from lifeform_service import SessionAlreadyExistsError
 
             raise SessionAlreadyExistsError(sid)
         session = _FakeLifeformSession(session_id=sid)
         self._sessions[sid] = session
+        self._session_verticals[sid] = vertical_name or self.vertical_name
         return session
 
+    def vertical_name_for(self, session_id: str) -> str:
+        return self._session_verticals[session_id]
 
-def _build_app(*, with_runtime: bool = True, vertical_name: str = "companion") -> web.Application:
+
+def _build_app(
+    *,
+    with_runtime: bool = True,
+    vertical_name: str = "companion",
+    vertical_names: tuple[str, ...] = ("companion",),
+) -> web.Application:
     app = web.Application()
     app["session_manager"] = _FakeSessionManager(
-        vertical_name=vertical_name, with_runtime=with_runtime
+        vertical_name=vertical_name,
+        with_runtime=with_runtime,
+        vertical_names=vertical_names,
     )
     add_openai_routes(app)
     return app
@@ -295,6 +322,69 @@ async def test_lifeform_mode_surfaces_telemetry_headers(lifeform_client) -> None
     # OpenAI-compat consumers drive the presence avatar from the core's
     # real intent.
     assert resp.headers["x-lifeform-expression-intent"] == "support-first"
+
+
+async def test_lifeform_vertical_query_selects_registered_vertical(aiohttp_client) -> None:
+    client = await aiohttp_client(
+        _build_app(
+            with_runtime=True,
+            vertical_names=("companion", "companion-cold"),
+        )
+    )
+    resp = await client.post(
+        "/v1/chat/completions?vertical=companion-cold",
+        json={
+            "model": "lifeform-companion-cold",
+            "messages": [{"role": "user", "content": "Cold opener."}],
+        },
+    )
+    assert resp.status == 200
+    body = await resp.json()
+    assert body["system_fingerprint"] == "lifeform:companion-cold"
+    assert resp.headers["x-lifeform-fingerprint"] == "lifeform:companion-cold"
+    manager = client.app["session_manager"]
+    assert manager.vertical_calls == ["companion-cold"]
+
+
+async def test_lifeform_vertical_header_precedes_query(aiohttp_client) -> None:
+    client = await aiohttp_client(
+        _build_app(
+            with_runtime=True,
+            vertical_names=("companion", "companion-cold", "companion-eta-off"),
+        )
+    )
+    resp = await client.post(
+        "/v1/chat/completions?vertical=companion-cold",
+        headers={"X-Compat-Vertical": "companion-eta-off"},
+        json={
+            "model": "lifeform-companion-eta-off",
+            "messages": [{"role": "user", "content": "ETA opener."}],
+        },
+    )
+    assert resp.status == 200
+    body = await resp.json()
+    assert body["system_fingerprint"] == "lifeform:companion-eta-off"
+    manager = client.app["session_manager"]
+    assert manager.vertical_calls == ["companion-eta-off"]
+
+
+async def test_lifeform_unknown_vertical_returns_400(aiohttp_client) -> None:
+    client = await aiohttp_client(
+        _build_app(
+            with_runtime=True,
+            vertical_names=("companion", "companion-cold"),
+        )
+    )
+    resp = await client.post(
+        "/v1/chat/completions?vertical=unknown-track",
+        json={
+            "model": "lifeform-companion",
+            "messages": [{"role": "user", "content": "Hello."}],
+        },
+    )
+    assert resp.status == 400
+    body = await resp.json()
+    assert body["error"]["code"] == "invalid_vertical"
 
 
 async def test_openai_forced_tool_choice_returns_tool_calls(lifeform_client) -> None:

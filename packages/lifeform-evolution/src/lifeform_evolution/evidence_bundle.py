@@ -43,6 +43,8 @@ import datetime as dt
 import hashlib
 import json
 import pathlib
+import platform as _platform
+import subprocess
 import sys  # noqa: F401  # used in __main__ guard
 
 
@@ -64,6 +66,37 @@ class GateVerdict:
     passed: bool
     evidence: tuple[tuple[str, str], ...]
     threshold: str = ""
+
+
+def _git_output(args: tuple[str, ...]) -> str:
+    try:
+        completed = subprocess.run(
+            ("git",) + args, check=True, capture_output=True, text=True
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return "unknown"
+    return completed.stdout.strip() or "unknown"
+
+
+def collect_bundle_provenance(
+    *, seed_schedule: tuple[int, ...] = ()
+) -> dict[str, object]:
+    """Git / runtime provenance block (GAP-10, aligned with paper-suite).
+
+    The EQ bundle previously carried only per-artifact sha256; retain-grade
+    citation additionally requires the git SHA, working-tree cleanliness and
+    the seed schedule so an independent reviewer can recompute the bundle.
+    """
+
+    status = _git_output(("status", "--porcelain"))
+    return {
+        "git_sha": _git_output(("rev-parse", "HEAD")),
+        "git_branch": _git_output(("branch", "--show-current")),
+        "working_tree_dirty": status not in {"", "unknown"},
+        "python_version": sys.version.split()[0],
+        "platform": _platform.platform(),
+        "seed_schedule": list(seed_schedule),
+    }
 
 
 def _sha256_of_path(path: pathlib.Path) -> str:
@@ -302,6 +335,7 @@ def assemble_bundle(
     long_form_scenario_ids: tuple[str, ...] = _DEFAULT_LONG_FORM_SCENARIO_IDS,
     snr_threshold: float = _DEFAULT_IL_SNR_THRESHOLD,
     pe_window_ratio_threshold: float = _DEFAULT_PE_WINDOW_RATIO_THRESHOLD,
+    seed_schedule: tuple[int, ...] = (),
 ) -> dict[str, object]:
     """Build the bundle manifest from artifacts already on disk.
 
@@ -346,6 +380,9 @@ def assemble_bundle(
         ],
         "three_party_scenario_id": _THREE_PARTY_SCENARIO_ID,
         "artifact_provenance": artifact_records,
+        # GAP-10: retain-grade provenance (git SHA / dirty tree / seeds),
+        # aligned with the paper-suite provenance contract.
+        "provenance": collect_bundle_provenance(seed_schedule=seed_schedule),
         "gates": [_gate_verdict_to_dict(g) for g in gates],
         "overall_passed": overall_passed,
         "summary_message": _summary_message(gates, overall_passed),

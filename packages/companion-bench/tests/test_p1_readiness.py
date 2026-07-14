@@ -14,6 +14,7 @@ SCRIPTS = REPO_ROOT / "scripts" / "companion_bench"
 sys.path.insert(0, str(SCRIPTS))
 
 from p1_readiness import (  # noqa: E402
+    P1_PORTS,
     P1ReadinessError,
     fingerprint_weights,
     require_non_qwen_models,
@@ -74,6 +75,33 @@ def test_track_fingerprints_are_required_for_p1(tmp_path) -> None:
 def test_qwen_judge_is_rejected() -> None:
     with pytest.raises(P1ReadinessError, match="cross-family"):
         require_non_qwen_models((("arc judge", "qwen-plus"),))
+
+
+def test_p1_ports_are_single_lifeform_topology() -> None:
+    assert P1_PORTS == (8000, 8500, 8600)
+
+
+def test_roster_routes_volvence_tracks_through_vertical_query() -> None:
+    import yaml
+
+    roster = yaml.safe_load(
+        (SCRIPTS / "reference_systems.same_substrate_ablation.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    by_id = {entry["submission_id"]: entry for entry in roster["systems"]}
+    expected = {
+        "abl-volvence": "companion",
+        "abl-volvence-cold": "companion-cold",
+        "abl-pe-off": "companion-pe-drive-off",
+        "abl-eta-off": "companion-eta-off",
+        "abl-active-learning-off": "companion-active-learning-off",
+        "abl-lora-adapter": "companion-lora-adapter",
+    }
+    for submission_id, vertical in expected.items():
+        assert by_id[submission_id]["base_url"] == (
+            f"http://127.0.0.1:8000/v1?vertical={vertical}"
+        )
 
 
 def test_p1_readiness_rejects_existing_scores_without_resume(tmp_path) -> None:

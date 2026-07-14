@@ -60,6 +60,35 @@ TRACK_CAMEL = "camel"
 TRACK_VOLVENCE_COLD = "volvence-cold"
 TRACK_VOLVENCE = "volvence"
 
+# Independent standard-layer arms (frozen claim registry claim 2,
+# human-world-model-ablation.md: retain requires ALL THREE pairwise —
+# memory-only, RAG, agent-framework). ``ref-harness`` (the combined
+# 4-component wrapper) remains a supplementary control but can no longer
+# stand in for the memory-only and RAG arms it used to collapse.
+TRACK_MEMORY_ONLY = "memory-only"
+TRACK_RAG = "rag"
+
+STANDARD_LAYER_TRACKS: tuple[str, ...] = (
+    TRACK_MEMORY_ONLY,
+    TRACK_RAG,
+    TRACK_CAMEL,
+)
+
+# Independent standard-layer arms (GAP-11 / frozen claim registry): the
+# registry's claim_gt_standard_layers requires THREE pairwise controls —
+# memory-only / RAG / agent-framework — not a single combined wrapper.
+# ``ref-harness`` (all four components) remains accepted as an additional
+# combined-wrapper control, but it cannot substitute for the independent
+# memory-only and RAG arms.
+TRACK_MEMORY_ONLY = "memory-only"
+TRACK_RAG = "rag"
+
+STANDARD_LAYER_TRACKS: tuple[str, ...] = (
+    TRACK_MEMORY_ONLY,
+    TRACK_RAG,
+    TRACK_CAMEL,
+)
+
 # Component-causal arms (frozen claim registry, human-world-model-ablation.md
 # claim 3 / verdict claim_component_causal_contribution): the full pipeline
 # with exactly one component disabled, plus the "finetune-without-controller"
@@ -78,6 +107,7 @@ COMPONENT_TRACKS: tuple[str, ...] = (
 
 _VALID_TRACKS: frozenset[str] = frozenset(
     {TRACK_RAW, TRACK_REF_HARNESS, TRACK_CAMEL, TRACK_VOLVENCE_COLD, TRACK_VOLVENCE}
+    | set(STANDARD_LAYER_TRACKS)
     | set(COMPONENT_TRACKS)
 )
 
@@ -300,23 +330,40 @@ def build_verdict(
             (eff,),
         ))
 
-    # Claim 2: > standard layers (ref-harness AND camel).
+    # Claim 2: > standard layers. Frozen registry requires ALL THREE
+    # independent pairwise arms (memory-only / rag / camel) for retain;
+    # ref-harness (combined wrapper) is a supplementary control only.
+    # A missing registry arm caps the claim at 'weak' — the old behaviour
+    # where ref-harness stood in for memory-only AND rag over-credited a
+    # single collapsed arm (GAP-11).
+    standard_results = {name: tracks.get(name) for name in STANDARD_LAYER_TRACKS}
     rh = tracks.get(TRACK_REF_HARNESS)
-    camel = tracks.get(TRACK_CAMEL)
-    if volvence is None or (rh is None and camel is None):
+    supplied_standard = {
+        name: t for name, t in standard_results.items() if t is not None
+    }
+    if volvence is None or (not supplied_standard and rh is None):
         claims.append(Claim(
             "claim_gt_standard_layers", INSUFFICIENT,
-            "need 'volvence' and at least one of 'ref-harness'/'camel'",
+            "need 'volvence' and at least one standard-layer arm "
+            f"({', '.join(STANDARD_LAYER_TRACKS)}; 'ref-harness' is "
+            "supplementary only)",
         ))
     else:
-        effs = tuple(
-            pairwise(volvence, c) for c in (rh, camel) if c is not None
-        )
+        controls = list(supplied_standard.values())
+        if rh is not None:
+            controls.append(rh)
+        effs = tuple(pairwise(volvence, c) for c in controls)
         status = _combine_required([e.status for e in effs])
-        missing = [n for n, c in ((TRACK_REF_HARNESS, rh), (TRACK_CAMEL, camel)) if c is None]
-        detail = "; ".join(f"{e.control}: delta={e.delta_mean:+.2f} ci_low={e.ci_low_nonoverlap:+.2f}" for e in effs)
+        missing = [name for name, t in standard_results.items() if t is None]
+        detail = "; ".join(
+            f"{e.control}: delta={e.delta_mean:+.2f} ci_low={e.ci_low_nonoverlap:+.2f}"
+            for e in effs
+        )
         if missing:
-            detail += f" (missing: {', '.join(missing)} -> at most 'weak')"
+            detail += (
+                f" (missing registry arms: {', '.join(missing)} -> at most "
+                "'weak'; frozen registry requires all three pairwise)"
+            )
             if status == RETAIN:
                 status = WEAK
         claims.append(Claim("claim_gt_standard_layers", status, detail, effs))

@@ -6,19 +6,14 @@
 # ONE frozen Qwen so any score delta is attributable to the layer over the
 # substrate, not the substrate itself.
 #
-#   :8000  lifeform-serve --vertical companion        -> mode=lifeform (Volvence full)
+#   :8000  lifeform-serve --ablation-bundle           -> mode=lifeform + ?vertical=<track>
 #                                                      -> mode=raw      (bare Qwen, the `raw` track)
-#   :8001  lifeform-serve --vertical companion-cold   -> mode=lifeform (Volvence, no trained bootstraps)
-#   :8002  lifeform-serve --vertical companion-pe-drive-off
-#   :8003  lifeform-serve --vertical companion-eta-off
-#   :8004  lifeform-serve --vertical companion-active-learning-off
-#   :8005  lifeform-serve --vertical companion-lora-adapter
 #   :8500  companion-ref-harness                      -> upstream :8000/v1?mode=raw  (standard memory wrapper)
 #   :8600  companion-camel-baseline                   -> upstream :8000/v1?mode=raw  (CAMEL agent framework)
 #
 # The ref-harness + camel backends point their upstream at :8000's mode=raw path,
-# guaranteeing byte-identical weights with the `raw` track. The lifeform +
-# companion-cold tracks load the SAME --substrate-model-id in-process.
+# guaranteeing byte-identical weights with the `raw` track. All Volvence
+# ablation arms share the same in-process frozen runtime behind :8000.
 #
 # Required env:
 #   VZ_SUBSTRATE_MODEL_ID   HF model id, e.g. Qwen/Qwen2.5-7B-Instruct
@@ -50,6 +45,7 @@ VZ_SUBSTRATE_DEVICE="${VZ_SUBSTRATE_DEVICE:-cuda}"
 DATE_TAG="$(date -u +%Y%m%dT%H%M%SZ)"
 ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/companion-ablation/${DATE_TAG}}"
 CAMEL_BACKEND="${CAMEL_BACKEND:-camel}"
+export ARTIFACT_DIR
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
@@ -70,58 +66,11 @@ start() {
   ( "$@" >"${LOG_DIR}/${name}.log" 2>&1 & echo "$!" >>"$PID_FILE" )
 }
 
-# --- :8000 companion (mode=lifeform = volvence full, mode=raw = bare Qwen) ---
-start lifeform-companion \
+# --- :8000 unified ablation bundle (mode=raw + six lifeform verticals) ---
+start lifeform-ablation-bundle \
   lifeform-serve \
-    --vertical companion \
+    --ablation-bundle \
     --port 8000 \
-    --substrate-mode hf-shared \
-    --substrate-model-id "$VZ_SUBSTRATE_MODEL_ID" \
-    --substrate-device "$VZ_SUBSTRATE_DEVICE" \
-    --enable-openai-compat
-
-# --- :8001 companion-cold (volvence, no trained bootstraps) ---
-start lifeform-companion-cold \
-  lifeform-serve \
-    --vertical companion-cold \
-    --port 8001 \
-    --substrate-mode hf-shared \
-    --substrate-model-id "$VZ_SUBSTRATE_MODEL_ID" \
-    --substrate-device "$VZ_SUBSTRATE_DEVICE" \
-    --enable-openai-compat
-
-# --- component-causal arms (same substrate, altered controller layer only) ---
-start lifeform-companion-pe-drive-off \
-  lifeform-serve \
-    --vertical companion-pe-drive-off \
-    --port 8002 \
-    --substrate-mode hf-shared \
-    --substrate-model-id "$VZ_SUBSTRATE_MODEL_ID" \
-    --substrate-device "$VZ_SUBSTRATE_DEVICE" \
-    --enable-openai-compat
-
-start lifeform-companion-eta-off \
-  lifeform-serve \
-    --vertical companion-eta-off \
-    --port 8003 \
-    --substrate-mode hf-shared \
-    --substrate-model-id "$VZ_SUBSTRATE_MODEL_ID" \
-    --substrate-device "$VZ_SUBSTRATE_DEVICE" \
-    --enable-openai-compat
-
-start lifeform-companion-active-learning-off \
-  lifeform-serve \
-    --vertical companion-active-learning-off \
-    --port 8004 \
-    --substrate-mode hf-shared \
-    --substrate-model-id "$VZ_SUBSTRATE_MODEL_ID" \
-    --substrate-device "$VZ_SUBSTRATE_DEVICE" \
-    --enable-openai-compat
-
-start lifeform-companion-lora-adapter \
-  lifeform-serve \
-    --vertical companion-lora-adapter \
-    --port 8005 \
     --substrate-mode hf-shared \
     --substrate-model-id "$VZ_SUBSTRATE_MODEL_ID" \
     --substrate-device "$VZ_SUBSTRATE_DEVICE" \
@@ -152,6 +101,38 @@ else
   exit 2
 fi
 start ref-harness "${REFH_ARGS[@]}"
+
+# --- :8501 memory-only arm (registry claim 2: standard memory wrapper WITHOUT
+# retrieval — summary + user_model + episodic; H-A/H-C subset) ---
+MEMORY_ONLY_ARGS=(
+  companion-ref-harness serve
+    --port 8501
+    --upstream-base-url "$RAW_UPSTREAM"
+    --upstream-model lifeform-raw
+    --upstream-key-env LIFEFORM_LOCAL_API_KEY
+    --components summary,user_model,episodic
+    --store-mode sqlite
+    --store-path "${ARTIFACT_DIR}/memory-only.sqlite3"
+    --summary-extractor-base-url "${REFH_EXTRACTOR_BASE_URL}"
+    --summary-extractor-model "$REFH_EXTRACTOR_MODEL"
+    --summary-extractor-key-env "${REFH_EXTRACTOR_KEY_ENV}"
+    --summary-extractor-family "${REFH_EXTRACTOR_FAMILY:-openai-compat}"
+)
+start memory-only "${MEMORY_ONLY_ARGS[@]}"
+
+# --- :8502 RAG arm (registry claim 2: embed retrieval ONLY — H-B) ---
+RAG_ARGS=(
+  companion-ref-harness serve
+    --port 8502
+    --upstream-base-url "$RAW_UPSTREAM"
+    --upstream-model lifeform-raw
+    --upstream-key-env LIFEFORM_LOCAL_API_KEY
+    --components embed
+    --embedder "$REFH_EMBEDDER"
+    --store-mode sqlite
+    --store-path "${ARTIFACT_DIR}/rag.sqlite3"
+)
+start rag "${RAG_ARGS[@]}"
 
 # --- :8600 camel baseline (CAMEL agent framework on the same Qwen) ---
 CAMEL_ARGS=(
@@ -197,7 +178,7 @@ write_fp() {
 }
 JSON
 }
-for track in raw ref-harness camel volvence-cold volvence pe-off eta-off active-learning-off lora-adapter; do
+for track in raw ref-harness memory-only rag camel volvence-cold volvence pe-off eta-off active-learning-off lora-adapter; do
   write_fp "$track"
 done
 
@@ -215,19 +196,47 @@ wait_healthy() {
   echo "[serve] ERROR: timed out waiting for ${name}: ${url}" >&2
   return 1
 }
-wait_healthy lifeform-companion "http://127.0.0.1:8000/v1/health"
-wait_healthy lifeform-companion-cold "http://127.0.0.1:8001/v1/health"
-wait_healthy lifeform-companion-pe-drive-off "http://127.0.0.1:8002/v1/health"
-wait_healthy lifeform-companion-eta-off "http://127.0.0.1:8003/v1/health"
-wait_healthy lifeform-companion-active-learning-off "http://127.0.0.1:8004/v1/health"
-wait_healthy lifeform-companion-lora-adapter "http://127.0.0.1:8005/v1/health"
+wait_healthy lifeform-ablation-bundle "http://127.0.0.1:8000/v1/health"
 wait_healthy ref-harness "http://127.0.0.1:8500/healthz"
+wait_healthy memory-only "http://127.0.0.1:8501/healthz"
+wait_healthy rag "http://127.0.0.1:8502/healthz"
 wait_healthy camel-baseline "http://127.0.0.1:8600/healthz"
+
+python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+artifact_dir = Path(os.environ["ARTIFACT_DIR"])
+pid_file = artifact_dir / "serve.pids"
+pids = [line.strip() for line in pid_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+payload = {
+    "schema_version": "companion-ablation-serving-topology.v1",
+    "serving_topology": "single-lifeform-ablation-bundle",
+    "lifeform_owner_pid": int(pids[0]) if pids else None,
+    "process_count": len(pids),
+    "ports": [8000, 8500, 8501, 8502, 8600],
+    "ablation_verticals": [
+        "companion",
+        "companion-cold",
+        "companion-pe-drive-off",
+        "companion-eta-off",
+        "companion-active-learning-off",
+        "companion-lora-adapter",
+    ],
+}
+(artifact_dir / "serve_topology.json").write_text(
+    json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
+)
+PY
 
 echo "[serve] asserting same-substrate invariant..."
 python scripts/companion_bench/assert_same_substrate.py \
   --fingerprint-file raw="${ARTIFACT_DIR}/raw/substrate_fingerprint.json" \
   --fingerprint-file ref-harness="${ARTIFACT_DIR}/ref-harness/substrate_fingerprint.json" \
+  --fingerprint-file memory-only="${ARTIFACT_DIR}/memory-only/substrate_fingerprint.json" \
+  --fingerprint-file rag="${ARTIFACT_DIR}/rag/substrate_fingerprint.json" \
   --fingerprint-file camel="${ARTIFACT_DIR}/camel/substrate_fingerprint.json" \
   --fingerprint-file volvence-cold="${ARTIFACT_DIR}/volvence-cold/substrate_fingerprint.json" \
   --fingerprint-file volvence="${ARTIFACT_DIR}/volvence/substrate_fingerprint.json" \

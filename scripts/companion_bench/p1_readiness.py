@@ -19,7 +19,7 @@ REQUIRED_COMMANDS = (
     "companion-ref-harness",
     "companion-camel-baseline",
 )
-P1_PORTS = (8000, 8001, 8002, 8003, 8004, 8005, 8500, 8600)
+P1_PORTS = (8000, 8500, 8600)
 
 
 class P1ReadinessError(RuntimeError):
@@ -49,6 +49,8 @@ class P1RunManifest:
     user_sim_model: str
     perturn_model: str
     arc_model: str
+    serving_topology: str
+    ablation_verticals: tuple[str, ...]
 
 
 def require_non_qwen_models(models: Iterable[tuple[str, str]]) -> None:
@@ -217,6 +219,15 @@ def build_run_manifest(
         user_sim_model=user_sim_model,
         perturn_model=perturn_model,
         arc_model=arc_model,
+        serving_topology="single-lifeform-ablation-bundle",
+        ablation_verticals=(
+            "companion",
+            "companion-cold",
+            "companion-pe-drive-off",
+            "companion-eta-off",
+            "companion-active-learning-off",
+            "companion-lora-adapter",
+        ),
     )
 
 

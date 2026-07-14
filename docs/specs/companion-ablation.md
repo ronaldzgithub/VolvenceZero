@@ -1,7 +1,7 @@
 # Companion Bench Same-Substrate Ablation Spec
 
-> Status: P1 Windows tooling landed; first nine-track real run pending weights/bootstrap/keys
-> Last updated: 2026-07-13
+> Status: P1 single-substrate-owner tooling landed; first nine-track real run pending weights/bootstrap/keys
+> Last updated: 2026-07-14
 > 对应需求: R2（稳定基底 + 自适应控制器）, R7（双轨/关系学习）, R8（快照优先）, R12（评估只读）, R15（可解释 + 可回滚证据）
 > 关联 debt: #82 / #84 / #87（人类世界模型 thesis 第一阶段 retain 证据）
 
@@ -25,7 +25,7 @@
 
 ## 关键不变量
 
-- **同基底字节级一致**：五条 track 必须命中同一份 Qwen 权重。工程实现：一个 `lifeform-serve` 进程在 :8000 同时暴露 `mode=lifeform`（volvence）与 `mode=raw`（raw track），`ref-harness`/`camel` 的 upstream 都指向 `:8000/v1?mode=raw`，`volvence-cold` 在 :8001 加载同一 `--substrate-model-id`。`assert_same_substrate.py` 在评分前 fail-loud 校验每条 track 的 `substrate_fingerprint.json` 一致。
+- **同基底字节级一致 + 单 runtime owner**：九条 track 必须命中同一份 Qwen 权重，且 Volvence/component tracks 必须由一个进程级冻结 substrate owner 承载。工程实现：一个 `lifeform-serve --ablation-bundle` 进程在 :8000 同时暴露 `mode=raw`（raw track）与 `mode=lifeform&vertical=<companion-arm>`（六个 Volvence/component tracks），`ref-harness`/`camel` 的 upstream 都指向 `:8000/v1?mode=raw`。`assert_same_substrate.py` 在评分前 fail-loud 校验每条 track 的 `substrate_fingerprint.json` 一致；`serve_topology.json` 记录 `single-lifeform-ablation-bundle` 与唯一 lifeform owner PID。
 - **裁判/用户模拟器非 Qwen（#71/#72）**：substrate 是 Qwen，则 per-turn judge / arc judge / user-simulator 必须跨家族（默认 per-turn=Claude、arc=GPT-5、user-sim=Claude）。`run_same_substrate_ablation.py` 在 p1/p2 入口拒绝 Qwen 裁判。
 - **baseline wheel 隔离**：`companion-ref-harness` 与 `companion-camel-baseline` 禁止 import `volvence_zero.*` / `lifeform_*` / `companion_bench.*`（AST 契约测试静态守门），否则"赢 baseline"会被自家内核污染。
 - **公平同 prompt**：五条 track 共享同一 companion system prompt；只有记忆/agent/认知层不同。
@@ -33,7 +33,7 @@
 
 > **冻结的 thesis 第一阶段 claim registry SSOT 见 [`human-world-model-ablation.md`](./human-world-model-ablation.md)**——本 spec 是它的实现载体。同基底服务矩阵已扩到 9 track：5 个主 track 加 `PE-off` / `ETA-off` / `active-learning-off` / `LoRA-adapter` 四个 component arms。真 LoRA artifact 仍 gate on #41 GPU bake。
 
-## 四条 retain claim（debt #87）与四态结论
+## 五条 retain claim（debt #87）与四态结论
 
 `compare_companion_ablation.py` 读各 track `summary.json`，用 bootstrap CI 算保守非重叠下界 `ci_low = volvence.ci95_lo - control.ci95_hi`，输出：
 
@@ -41,6 +41,7 @@
 2. `claim_gt_standard_layers` — volvence > ref-harness **且** > camel
 3. `claim_training_adds_value` — volvence > volvence-cold
 4. `claim_heldout_cohort_stable` — volvence 的区间足够紧 + 跑在足够多 arc（held-out + 多 seed）
+5. `claim_component_causal_contribution` — `pe-off` / `eta-off` / `active-learning-off` / `lora-adapter` 均显示组件正向因果贡献
 
 每条取 `retain`（delta>0 且 ci_low>0）/ `weak`（delta>0 但 CI 触零）/ `fail`（delta<=0）/ `insufficient_data`。整体四态：
 
@@ -54,7 +55,7 @@
 
 | Phase | 内容 | 入口 | 真钱 |
 |---|---|---|---|
-| P0 wiring | deterministic-fake 5-track 全链 + comparator | `run_same_substrate_ablation.py --phase p0-smoke` | 0 |
+| P0 wiring | deterministic-fake 9-track 全链 + comparator | `run_same_substrate_ablation.py --phase p0-smoke` | 0 |
 | judge-evidence | judge robustness + calibration（#48/#71，SHADOW scaffold） | `--phase judge-evidence` | 小 |
 | P1 directional | 公开 30（24 en + 6 zh）× 1 seed，真 Qwen + 跨家族裁判 | `run_p1_windows.ps1` / `--phase p1` | 中 |
 | P2 retain | 30 公开 + 96 held-out × 3 seed | `--phase p2`（`--include-heldout --require-heldout`） | 批准预算 |
@@ -81,12 +82,14 @@ Windows GPU 是 P1 directional 的一等开发执行面，但不是 retain evide
    端口、跨家族模型与 API 连通性，并写 `companion-p1-run-manifest.v1`。
 3. fingerprint 必须包含实际权重文件的 `weights_sha256`；P1
    `assert_same_substrate.py --require-weights-sha256` 不接受只写 model id。
-4. `serve_same_substrate_ablation.ps1` 对四个 HTTP 服务逐端点轮询健康状态，
-   固定时长 sleep 不构成 readiness。
+4. `serve_same_substrate_ablation.ps1` 对三个 HTTP 服务（single lifeform
+   ablation bundle / ref-harness / camel）逐端点轮询健康状态；P1 runner
+   另做六个 `?vertical=` OpenAI 路由探针。固定时长 sleep 不构成 readiness。
 5. `run_p1_windows.ps1` 是 Windows SSOT 入口；正常与异常退出均清理本轮 PID。
    `-Resume` 只复用已有合法 `summary.json`，`-DryRun` 不启动 GPU/API。
 6. run manifest 记录 git SHA/clean 状态、权重与 bootstrap hash、learned
-   backend wiring 和 judge model id，但绝不记录 key 值。
+   backend wiring、judge model id、serving topology 与 ablation vertical 集合，
+   但绝不记录 key 值。
 
 P1 结果最多是 directional `weak-positive` 或 directional kill signal。
 单 seed/public-only 不能产生 `first-stage-retained`，也不得作为对外 thesis 证据。
@@ -96,9 +99,9 @@ P1 结果最多是 directional `weak-positive` 或 directional kill signal。
 - [`packages/companion-camel-baseline/`](../../packages/companion-camel-baseline) — CAMEL agent-framework baseline wheel（Apache 2.0，隔离）。
 - [`packages/companion-ref-harness/`](../../packages/companion-ref-harness) — 标准 memory wrapper，H-A+H-B+H-C 四件全开。
 - [`scripts/companion_bench/reference_systems.same_substrate_ablation.yaml`](../../scripts/companion_bench/reference_systems.same_substrate_ablation.yaml) — 9-track roster（5 主轨 + 4 component arms）。
-- [`scripts/companion_bench/serve_same_substrate_ablation.sh`](../../scripts/companion_bench/serve_same_substrate_ablation.sh) + [`stop_same_substrate_ablation.sh`](../../scripts/companion_bench/stop_same_substrate_ablation.sh) — 同基底服务编排。
+- [`scripts/companion_bench/serve_same_substrate_ablation.sh`](../../scripts/companion_bench/serve_same_substrate_ablation.sh) + [`stop_same_substrate_ablation.sh`](../../scripts/companion_bench/stop_same_substrate_ablation.sh) — 单 lifeform substrate owner + ref-harness + camel 的同基底服务编排。
 - [`scripts/companion_bench/assert_same_substrate.py`](../../scripts/companion_bench/assert_same_substrate.py) — 同基底 fingerprint 守门。
-- [`scripts/companion_bench/compare_companion_ablation.py`](../../scripts/companion_bench/compare_companion_ablation.py) — #87 四 claim verdict。
+- [`scripts/companion_bench/compare_companion_ablation.py`](../../scripts/companion_bench/compare_companion_ablation.py) — #87 五 claim verdict。
 - [`scripts/companion_bench/run_same_substrate_ablation.py`](../../scripts/companion_bench/run_same_substrate_ablation.py) — P0/judge-evidence/P1/P2 phased driver。
 - [`scripts/companion_bench/run_p1_windows.ps1`](../../scripts/companion_bench/run_p1_windows.ps1) — Windows P1 preflight / serve / score / verdict / cleanup 一键入口。
 - [`scripts/launch_evidence_runs_m2.sh`](../../scripts/launch_evidence_runs_m2.sh) — Apple-silicon (MPS) 一键入口：setup / soak / ablation / all；P1 编排与 Windows 入口同构（preflight → serve → score(+resume 重试) → verdict → teardown）。
@@ -111,6 +114,12 @@ P1 结果最多是 directional `weak-positive` 或 directional kill signal。
 
 ## 变更日志
 
+- 2026-07-14：P1 serving 拓扑从 6 个重复 `lifeform-serve --substrate-mode hf-shared`
+  进程收敛为一个 `lifeform-serve --ablation-bundle` 进程。六个
+  Volvence/component tracks 通过 `?vertical=` 显式路由共享同一冻结 HF runtime；
+  ref-harness/camel 继续独立进程并 upstream 到 `:8000/v1?mode=raw`。P1
+  readiness 新增 `serving_topology` / `serve_topology.json` 与六轨 vertical probe，
+  防止"同权重但多 GPU 副本"再次污染同基底因果解释。
 - 2026-06-28：tooling 全套落地（CAMEL baseline wheel + ref-harness H-B/H-C + roster + serve + substrate guard + comparator + phased driver + P0 wiring smoke 通过）。首个真跑（P1/P2）待 GPU/keys。
 - 2026-07-14：component arms serving 迁入同基底矩阵：新增 `companion-pe-drive-off` / `companion-eta-off` / `companion-active-learning-off` / `companion-lora-adapter` verticals；roster、serve launcher、preflight fingerprints、P1/P2 health / summary / fingerprint gate 均扩到 9 track。真 LoRA artifact 仍等待 #41 GPU bake。
 - 2026-07-13：Windows P1 readiness 收敛：companion/cold 同完整 runtime

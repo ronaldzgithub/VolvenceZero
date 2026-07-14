@@ -521,6 +521,22 @@ bundle dir 中必须有：
 
 ## 变更日志
 
+- 2026-07-14: evidence bundle v2 统一入口（CP-00 / GAP-10）。新增
+  `volvence_zero.agent.evidence_bundle_v2.assemble_evidence_bundle_v2` +
+  单命令 `python scripts/assemble_evidence_bundle_v2.py`：把
+  dialogue/ETA paper-suite、EQ longitudinal、learned-shadow、CompanionBench
+  P1 manifest 五个 lane 聚合为一份 `evidence_bundle_v2.json`（共享
+  git/runtime provenance + 每 lane sha256 fingerprint）；被请求的 lane
+  缺文件 / 非 JSON / 缺该 lane 必需 provenance key 时
+  `EvidenceBundleV2Error` fail loudly，不产出半成品。聚合器不重算任何
+  lane verdict（gate 语义留在各 lane owner）。同轮：EQ
+  `evidence_bundle assemble` 补 `provenance` block（git sha / dirty tree /
+  seed_schedule，对齐 paper-suite 契约）；`baseline_manifest` 新增
+  `build_runtime_behavior_baseline`（CP-01 运行时指标冻结：turn latency、
+  PE 四轴、evaluation family means、credit closure、regime、switch 读数，
+  digest 排除延迟字段且必须可重放）；`learned_coverage_version` 同步为
+  `v0.1@2026-07-14`。测试：`packages/vz-runtime/tests/test_evidence_bundle_v2.py`、
+  `test_agi_uplift_baselines.py::test_runtime_behavior_baseline_replays_identical_digest`。
 - 2026-07-12: CP-LSS-01（learned-shadow closure packet）落地统一 learned-shadow 证据面：
   冻结 operator profile `build_learned_shadow_rollout_config()`（n_z=16 + 四个 torch
   autograd backend 全 SHADOW，生产默认仍全 DISABLED）；单命令

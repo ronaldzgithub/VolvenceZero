@@ -16,11 +16,17 @@ Three-mode dispatch:
   directly (:func:`raw_substrate_complete`). For ablation track 3
   on EQ-Bench / EmpathyBench.
 
-Selection precedence:
+Mode selection precedence:
 
 1. ``X-Compat-Mode`` request header
 2. ``?mode=`` query param
 3. Default = ``lifeform``
+
+Lifeform vertical selection precedence:
+
+1. ``X-Compat-Vertical`` request header
+2. ``?vertical=`` query param
+3. The resolved SessionManager default vertical
 
 Error mapping:
 
@@ -285,10 +291,18 @@ async def _dispatch_lifeform(
     if isinstance(manager_or_response, web.Response):
         return manager_or_response
     resolved_manager = manager_or_response
+    vertical_or_response = _resolve_vertical_for_request(
+        request=request,
+        manager=resolved_manager,
+    )
+    if isinstance(vertical_or_response, web.Response):
+        return vertical_or_response
+    vertical_name = vertical_or_response
     try:
         result = await lifeform_complete(
             request=parsed,
             manager=resolved_manager,
+            vertical_name=vertical_name,
             drain_background=drain_background,
         )
     except SessionEndUserMismatchError as exc:
@@ -361,6 +375,32 @@ def _resolve_lifeform_manager_for_request(
             error="ai_id_not_found",
             detail=f"metadata['dlaas.ai_id']={ai_id!r} is not adopted.",
         )
+
+
+def _resolve_vertical_for_request(
+    *,
+    request: web.Request,
+    manager: Any,
+) -> str | web.Response:
+    """Resolve the per-request lifeform vertical for multi-vertical services."""
+
+    header = request.headers.get("X-Compat-Vertical", "").strip()
+    query = request.query.get("vertical", "").strip()
+    requested = header or query
+    if not requested:
+        return manager.vertical_name
+    try:
+        manager.vertical_registry.require(requested)
+    except LookupError:
+        return _error(
+            status=400,
+            error="invalid_vertical",
+            detail=(
+                f"vertical {requested!r} is not registered; available: "
+                f"{sorted(manager.vertical_registry.names)!r}"
+            ),
+        )
+    return requested
 
 
 async def _emit_sse(

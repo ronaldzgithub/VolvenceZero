@@ -1,4 +1,6 @@
 # Same-substrate Companion Bench ablation — Windows launcher (mirrors .sh).
+# Topology: one lifeform-serve --ablation-bundle process on :8000 owns the
+# frozen HF runtime; ref-harness (:8500) and camel (:8600) consume :8000 raw.
 # Requires: VZ_SUBSTRATE_MODEL_ID, LIFEFORM_LOCAL_API_KEY, VZ_TORCH_BACKENDS=active (optional).
 
 $ErrorActionPreference = "Stop"
@@ -142,60 +144,10 @@ function Wait-AblationEndpoint {
 }
 
 try {
-Start-AblationService "lifeform-companion" @(
+Start-AblationService "lifeform-ablation-bundle" @(
     "lifeform-serve",
-    "--vertical", "companion",
+    "--ablation-bundle",
     "--port", "8000",
-    "--substrate-mode", "hf-shared",
-    "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
-    "--substrate-device", $Device,
-    "--enable-openai-compat"
-)
-
-Start-AblationService "lifeform-companion-cold" @(
-    "lifeform-serve",
-    "--vertical", "companion-cold",
-    "--port", "8001",
-    "--substrate-mode", "hf-shared",
-    "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
-    "--substrate-device", $Device,
-    "--enable-openai-compat"
-)
-
-Start-AblationService "lifeform-companion-pe-drive-off" @(
-    "lifeform-serve",
-    "--vertical", "companion-pe-drive-off",
-    "--port", "8002",
-    "--substrate-mode", "hf-shared",
-    "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
-    "--substrate-device", $Device,
-    "--enable-openai-compat"
-)
-
-Start-AblationService "lifeform-companion-eta-off" @(
-    "lifeform-serve",
-    "--vertical", "companion-eta-off",
-    "--port", "8003",
-    "--substrate-mode", "hf-shared",
-    "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
-    "--substrate-device", $Device,
-    "--enable-openai-compat"
-)
-
-Start-AblationService "lifeform-companion-active-learning-off" @(
-    "lifeform-serve",
-    "--vertical", "companion-active-learning-off",
-    "--port", "8004",
-    "--substrate-mode", "hf-shared",
-    "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
-    "--substrate-device", $Device,
-    "--enable-openai-compat"
-)
-
-Start-AblationService "lifeform-companion-lora-adapter" @(
-    "lifeform-serve",
-    "--vertical", "companion-lora-adapter",
-    "--port", "8005",
     "--substrate-mode", "hf-shared",
     "--substrate-model-id", $env:VZ_SUBSTRATE_MODEL_ID,
     "--substrate-device", $Device,
@@ -252,14 +204,31 @@ if ($CamelBackend -eq "camel") {
 }
 Start-AblationService "camel-baseline" $CamelArgs
 
-Wait-AblationEndpoint "lifeform-companion" "http://127.0.0.1:8000/v1/health"
-Wait-AblationEndpoint "lifeform-companion-cold" "http://127.0.0.1:8001/v1/health"
-Wait-AblationEndpoint "lifeform-companion-pe-drive-off" "http://127.0.0.1:8002/v1/health"
-Wait-AblationEndpoint "lifeform-companion-eta-off" "http://127.0.0.1:8003/v1/health"
-Wait-AblationEndpoint "lifeform-companion-active-learning-off" "http://127.0.0.1:8004/v1/health"
-Wait-AblationEndpoint "lifeform-companion-lora-adapter" "http://127.0.0.1:8005/v1/health"
+Wait-AblationEndpoint "lifeform-ablation-bundle" "http://127.0.0.1:8000/v1/health"
 Wait-AblationEndpoint "ref-harness" "http://127.0.0.1:8500/healthz"
 Wait-AblationEndpoint "camel-baseline" "http://127.0.0.1:8600/healthz"
+
+$Pids = @(Get-Content $PidFile | Where-Object { $_ })
+$Topology = [ordered]@{
+    schema_version = "companion-ablation-serving-topology.v1"
+    serving_topology = "single-lifeform-ablation-bundle"
+    lifeform_owner_pid = if ($Pids.Count -ge 1) { [int]$Pids[0] } else { $null }
+    process_count = $Pids.Count
+    ports = @(8000, 8500, 8600)
+    ablation_verticals = @(
+        "companion",
+        "companion-cold",
+        "companion-pe-drive-off",
+        "companion-eta-off",
+        "companion-active-learning-off",
+        "companion-lora-adapter"
+    )
+}
+# Write BOM-less UTF-8: PS 5.1's `Set-Content -Encoding utf8` emits a BOM,
+# which strict json.loads(encoding="utf-8") consumers reject.
+$TopologyJson = $Topology | ConvertTo-Json -Depth 4
+$TopologyPath = Join-Path (Resolve-Path $ArtifactDir) "serve_topology.json"
+[System.IO.File]::WriteAllText($TopologyPath, $TopologyJson, [System.Text.UTF8Encoding]::new($false))
 
 python scripts/companion_bench/assert_same_substrate.py `
   --require-weights-sha256 `

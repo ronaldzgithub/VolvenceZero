@@ -15,13 +15,13 @@
 #                  Volvence with owner feedback requests replaced by random sampling
 #   lora-adapter   Frozen-substrate adapter baseline (no controller bootstraps)
 #
-# Boot all five endpoints first with:
+# Boot the three-process topology first with:
 #   bash scripts/companion_bench/serve_same_substrate_ablation.sh
-# which serves one Qwen on :8000 (mode=lifeform + mode=raw), companion-cold on
-# :8001, ref-harness on :8500 (upstream -> :8000 mode=raw), and camel on :8600
-# (upstream -> :8000 mode=raw). That guarantees byte-identical weights; the
-# substrate-fingerprint guard (assert_same_substrate.py) is run by the serve
-# script before any scoring.
+# which serves one Qwen on :8000 (mode=raw + six lifeform verticals selected
+# by ?vertical=...), ref-harness on :8500 (upstream -> :8000 mode=raw), and
+# camel on :8600 (upstream -> :8000 mode=raw). That guarantees one in-process
+# frozen substrate owner; the substrate-fingerprint guard
+# (assert_same_substrate.py) is run by the serve script before any scoring.
 #
 # Score the roster with:
 #   python scripts/companion_bench/score_reference_systems.py \
@@ -56,7 +56,7 @@ systems:
   - submission_id: abl-pe-off
     system_name: "Same-substrate · Volvence component arm (PE drive off)"
     model_identifier: lifeform-companion-pe-drive-off
-    base_url: http://127.0.0.1:8002/v1
+    base_url: http://127.0.0.1:8000/v1?vertical=companion-pe-drive-off
     api_key_env: LIFEFORM_LOCAL_API_KEY
     leaderboard_category: bespoke
     system_prompt: |
@@ -67,7 +67,7 @@ systems:
   - submission_id: abl-eta-off
     system_name: "Same-substrate · Volvence component arm (ETA off)"
     model_identifier: lifeform-companion-eta-off
-    base_url: http://127.0.0.1:8003/v1
+    base_url: http://127.0.0.1:8000/v1?vertical=companion-eta-off
     api_key_env: LIFEFORM_LOCAL_API_KEY
     leaderboard_category: bespoke
     system_prompt: |
@@ -78,7 +78,7 @@ systems:
   - submission_id: abl-active-learning-off
     system_name: "Same-substrate · Volvence component arm (active learning off)"
     model_identifier: lifeform-companion-active-learning-off
-    base_url: http://127.0.0.1:8004/v1
+    base_url: http://127.0.0.1:8000/v1?vertical=companion-active-learning-off
     api_key_env: LIFEFORM_LOCAL_API_KEY
     leaderboard_category: bespoke
     system_prompt: |
@@ -89,7 +89,7 @@ systems:
   - submission_id: abl-lora-adapter
     system_name: "Same-substrate · Volvence component arm (LoRA adapter)"
     model_identifier: lifeform-companion-lora-adapter
-    base_url: http://127.0.0.1:8005/v1
+    base_url: http://127.0.0.1:8000/v1?vertical=companion-lora-adapter
     api_key_env: LIFEFORM_LOCAL_API_KEY
     leaderboard_category: bespoke
     system_prompt: |
@@ -101,6 +101,50 @@ systems:
     system_name: "Same-substrate · standard memory wrapper (ref-harness)"
     model_identifier: ref-harness-qwen
     base_url: http://127.0.0.1:8500/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
+  - submission_id: abl-memory-only
+    system_name: "Same-substrate · memory-only wrapper (summary+user_model+episodic, no retrieval)"
+    model_identifier: memory-only-qwen
+    base_url: http://127.0.0.1:8501/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
+  - submission_id: abl-rag
+    system_name: "Same-substrate · RAG wrapper (embed retrieval only)"
+    model_identifier: rag-qwen
+    base_url: http://127.0.0.1:8502/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
+  - submission_id: abl-memory-only
+    system_name: "Same-substrate · memory-only wrapper (summary+user_model+episodic, no retrieval)"
+    model_identifier: memory-only-qwen
+    base_url: http://127.0.0.1:8501/v1
+    api_key_env: LIFEFORM_LOCAL_API_KEY
+    leaderboard_category: bespoke
+    system_prompt: |
+      You are a long-running companion AI. Maintain a stable persona across
+      sessions and reference past conversations when relevant. Never reveal
+      information the user did not actually say.
+
+  - submission_id: abl-rag
+    system_name: "Same-substrate · RAG wrapper (embed retrieval only)"
+    model_identifier: rag-qwen
+    base_url: http://127.0.0.1:8502/v1
     api_key_env: LIFEFORM_LOCAL_API_KEY
     leaderboard_category: bespoke
     system_prompt: |
@@ -122,7 +166,7 @@ systems:
   - submission_id: abl-volvence-cold
     system_name: "Same-substrate · Volvence Lifeform (companion-cold)"
     model_identifier: lifeform-companion-cold
-    base_url: http://127.0.0.1:8001/v1
+    base_url: http://127.0.0.1:8000/v1?vertical=companion-cold
     api_key_env: LIFEFORM_LOCAL_API_KEY
     leaderboard_category: bespoke
     system_prompt: |
@@ -133,7 +177,7 @@ systems:
   - submission_id: abl-volvence
     system_name: "Same-substrate · Volvence Lifeform (companion)"
     model_identifier: lifeform-companion
-    base_url: http://127.0.0.1:8000/v1
+    base_url: http://127.0.0.1:8000/v1?vertical=companion
     api_key_env: LIFEFORM_LOCAL_API_KEY
     leaderboard_category: bespoke
     system_prompt: |

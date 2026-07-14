@@ -36,7 +36,11 @@ from aiohttp import web
 
 from lifeform_service.app import create_app
 from lifeform_service.alpha import AlphaServiceConfig, load_alpha_users
-from lifeform_service.verticals import default_vertical_name, discover_verticals
+from lifeform_service.verticals import (
+    default_vertical_name,
+    discover_companion_ablation_verticals,
+    discover_verticals,
+)
 
 if TYPE_CHECKING:
     from volvence_zero.substrate import OpenWeightResidualRuntime
@@ -69,6 +73,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Vertical name to host. Defaults to the first installed vertical. "
             "Use --list-verticals to inspect the current install."
+        ),
+    )
+    parser.add_argument(
+        "--ablation-bundle",
+        action="store_true",
+        help=(
+            "Host the reviewed Companion Bench ablation vertical bundle in one "
+            "process. Mutually exclusive with --vertical; OpenAI-compat callers "
+            "select the track with X-Compat-Vertical or ?vertical=."
         ),
     )
     parser.add_argument(
@@ -287,7 +300,19 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    discovered = discover_verticals()
+    if args.ablation_bundle and args.vertical:
+        print("--ablation-bundle cannot be combined with --vertical", file=sys.stderr)
+        return 1
+
+    try:
+        discovered = (
+            discover_companion_ablation_verticals()
+            if args.ablation_bundle
+            else discover_verticals()
+        )
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     if args.list_verticals:
         if not discovered:
             print("No verticals available. Install lifeform-domain-emogpt or another vertical.")
@@ -307,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    name = args.vertical or default_vertical_name()
+    name = "companion" if args.ablation_bundle else (args.vertical or default_vertical_name())
     if name not in discovered:
         print(
             f"Unknown vertical {name!r}. Available: {sorted(discovered.keys())}",
@@ -366,14 +391,24 @@ def main(argv: list[str] | None = None) -> int:
 
     protocol_uptake_service = _maybe_build_protocol_uptake_service(args)
 
-    app = create_app(
-        vertical=spec,
-        max_sessions=args.max_sessions,
-        idle_eviction_seconds=idle,
-        substrate_runtime=substrate_runtime,
-        alpha_config=alpha_config,
-        protocol_uptake_service=protocol_uptake_service,
-    )
+    app_kwargs = {
+        "max_sessions": args.max_sessions,
+        "idle_eviction_seconds": idle,
+        "substrate_runtime": substrate_runtime,
+        "alpha_config": alpha_config,
+        "protocol_uptake_service": protocol_uptake_service,
+    }
+    if args.ablation_bundle:
+        app = create_app(
+            verticals=discovered,
+            default_vertical=name,
+            **app_kwargs,
+        )
+    else:
+        app = create_app(
+            vertical=spec,
+            **app_kwargs,
+        )
     if args.enable_openai_compat:
         # Deferred import: keeps lifeform-openai-compat an optional dep
         # (it is in the workspace but not in lifeform-service's pyproject
@@ -406,10 +441,17 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         add_openai_routes(app, api_keys=(api_key,))
     print(
-        f"[lifeform-serve] vertical={spec.name}  "
-        f"temporal_bootstrap={spec.has_temporal_bootstrap}  "
-        f"regime_bootstrap={spec.has_regime_bootstrap}  "
-        f"substrate_mode={args.substrate_mode}"
+        (
+            "[lifeform-serve] ablation_bundle="
+            f"{','.join(discovered.keys())}  default_vertical={name}  "
+            if args.ablation_bundle
+            else (
+                f"[lifeform-serve] vertical={spec.name}  "
+                f"temporal_bootstrap={spec.has_temporal_bootstrap}  "
+                f"regime_bootstrap={spec.has_regime_bootstrap}  "
+            )
+        )
+        + f"substrate_mode={args.substrate_mode}"
         + (f"  alpha_enabled={args.alpha_enabled}" if args.alpha_enabled else "")
         + (
             f"  openai_compat=on(auth_env={args.openai_compat_api_key_env})"

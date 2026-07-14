@@ -436,6 +436,13 @@ class CMSMemoryCore:
             "grad_norm": result.grad_norm,
             "loss": result.loss,
             "wrote_back": wrote_back,
+            # CP-08 (GAP-09): last-known anti-forgetting proxies; the
+            # end-of-observe enrichment refreshes them with this
+            # observation's values. Band updates fired outside a full
+            # observe cycle (e.g. consolidation) keep the prior readout
+            # instead of dropping the fields.
+            "new_knowledge_absorption": _clamp(self._last_new_knowledge_absorption),
+            "old_knowledge_retention": _clamp(self._last_old_knowledge_retention),
         }
         if self._cms_backend is WiringLevel.SHADOW:
             # CP-08 (GAP-09): the SHADOW gate is forward parity on the LIVE

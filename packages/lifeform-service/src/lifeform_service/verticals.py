@@ -1626,6 +1626,15 @@ _BUILDERS = (
     _try_growth_advisor,
 )
 
+COMPANION_ABLATION_VERTICAL_NAMES: tuple[str, ...] = (
+    "companion",
+    "companion-cold",
+    "companion-pe-drive-off",
+    "companion-eta-off",
+    "companion-active-learning-off",
+    "companion-lora-adapter",
+)
+
 
 def discover_verticals() -> dict[str, VerticalSpec]:
     """Return every vertical that successfully imports in this environment."""
@@ -1635,6 +1644,30 @@ def discover_verticals() -> dict[str, VerticalSpec]:
         if spec is not None:
             out[spec.name] = spec
     return out
+
+
+def discover_companion_ablation_verticals() -> dict[str, VerticalSpec]:
+    """Return the reviewed vertical subset used by same-substrate ablation.
+
+    The benchmark host must not expose every installed vertical just because
+    they are importable in the developer environment. This fail-loud subset is
+    the serving SSOT for the 9-track Companion Bench roster.
+    """
+
+    discovered = discover_verticals()
+    missing = tuple(
+        name for name in COMPANION_ABLATION_VERTICAL_NAMES if name not in discovered
+    )
+    if missing:
+        raise RuntimeError(
+            "Companion ablation verticals missing: "
+            + ", ".join(missing)
+            + f"; available: {sorted(discovered.keys())!r}"
+        )
+    return {
+        name: discovered[name]
+        for name in COMPANION_ABLATION_VERTICAL_NAMES
+    }
 
 
 def default_vertical_name() -> str:

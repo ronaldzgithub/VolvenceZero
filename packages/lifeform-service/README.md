@@ -24,11 +24,26 @@ lifeform-serve \
   --substrate-mode hf-shared \
   --substrate-model-id Qwen/Qwen2.5-0.5B-Instruct \
   --substrate-device auto
+
+# Companion Bench same-substrate ablation:
+# one frozen runtime, six reviewed lifeform verticals selected with
+# X-Compat-Vertical / ?vertical= on the OpenAI-compatible route.
+lifeform-serve \
+  --ablation-bundle \
+  --substrate-mode hf-shared \
+  --substrate-model-id Qwen/Qwen2.5-1.5B-Instruct \
+  --substrate-device cuda \
+  --enable-openai-compat
 ```
 
 In `hf-shared` mode the model is **eagerly loaded once at service startup** and the same `TransformersOpenWeightResidualRuntime` Python object is passed into every Brain that the service constructs. Concurrent sessions take turns on it through the asyncio event loop's single-threaded execution model — `runtime.generate(...)` is a blocking torch call, so there is no parallelism inside one process and no need for an explicit lock. Throughput is "one decode in flight at a time"; if you need more, run multiple service processes (one model copy each) behind a load balancer, or graduate to a vLLM-backed runtime.
 
 `/v1/info` reports `substrate_shared`, `substrate_model_id`, and `substrate_runtime_origin` so clients can see which deployment mode is live.
+
+`--ablation-bundle` is intentionally narrower than general vertical discovery:
+it registers only the reviewed Companion Bench verticals (`companion`,
+`companion-cold`, and the four component arms) in one process. This keeps the
+benchmark's owner boundary explicit while still sharing a single frozen model.
 
 ## Frozen-substrate invariant (R2)
 
@@ -39,7 +54,8 @@ A shared runtime **must** be frozen — `supports_live_substrate_mutation == Fal
 - WebSocket route for token-streamed responses
 - Authentication, rate limiting, per-tenant session quotas
 - Persistence (currently sessions live in-memory; restart loses them)
-- Multi-vertical hosting in one process (currently one vertical per service)
+- General-purpose multi-vertical product hosting policy beyond the reviewed
+  Companion Bench ablation bundle
 - Optional vLLM-backed runtime for higher concurrent throughput
 
 Future home of EmoGPT's `emoGPTservice/interface/*`, `emoGPTservice/tenant/*`, `emoGPTservice/persistence/*` and the `start_all_services.{ps1,sh}` / `supervisord.conf` deploy scripts.

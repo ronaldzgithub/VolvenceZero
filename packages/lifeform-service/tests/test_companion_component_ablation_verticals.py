@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from lifeform_core import Lifeform
-from lifeform_service import discover_verticals
+from lifeform_service import (
+    COMPANION_ABLATION_VERTICAL_NAMES,
+    discover_companion_ablation_verticals,
+    discover_verticals,
+)
 
 
 _COMPONENT_VERTICALS = {
@@ -35,6 +39,19 @@ def test_companion_component_ablation_verticals_are_discovered() -> None:
         assert callable(spec.factory)
         assert spec.has_temporal_bootstrap is expected["temporal_bootstrap"]
         assert spec.has_regime_bootstrap is expected["regime_bootstrap"]
+
+
+def test_companion_ablation_bundle_is_reviewed_subset() -> None:
+    specs = discover_companion_ablation_verticals()
+    assert tuple(specs.keys()) == COMPANION_ABLATION_VERTICAL_NAMES
+    assert set(specs) == {
+        "companion",
+        "companion-cold",
+        "companion-pe-drive-off",
+        "companion-eta-off",
+        "companion-active-learning-off",
+        "companion-lora-adapter",
+    }
 
 
 def test_component_factories_build_synthetic_lifeforms() -> None:

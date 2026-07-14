@@ -27,9 +27,10 @@ user-simulator and BOTH judges MUST be a different family. The defaults below
 use Claude (user-sim + per-turn) and GPT-5 (arc) — none are Qwen. Override with
 the ``--*-model`` / ``--*-key-env`` flags if you use a different non-Qwen vendor.
 
-P1/P2 require the five endpoints to be already serving (see
-serve_same_substrate_ablation.sh) and the relevant API keys in the environment.
-Use ``--dry-run`` to print the exact commands without executing.
+P1/P2 require the three-process serving topology to be live: one
+``lifeform-serve --ablation-bundle`` owner on :8000 plus ref-harness on :8500
+and camel on :8600 (see serve_same_substrate_ablation.sh). Use ``--dry-run``
+to print the exact commands without executing.
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -70,6 +72,15 @@ COMPONENT_TRACK_TO_SUBMISSION: dict[str, str] = {
     "eta-off": "abl-eta-off",
     "active-learning-off": "abl-active-learning-off",
     "lora-adapter": "abl-lora-adapter",
+}
+
+TRACK_TO_VERTICAL: dict[str, str] = {
+    "volvence": "companion",
+    "volvence-cold": "companion-cold",
+    "pe-off": "companion-pe-drive-off",
+    "eta-off": "companion-eta-off",
+    "active-learning-off": "companion-active-learning-off",
+    "lora-adapter": "companion-lora-adapter",
 }
 
 
@@ -353,14 +364,15 @@ def _assert_real_run_ready(args: argparse.Namespace, *, tier: str) -> None:
         raise SystemExit(
             f"{scores_dir} already contains results; pass --resume or choose a new output dir"
         )
+    if manifest.get("serving_topology") != "single-lifeform-ablation-bundle":
+        raise SystemExit(
+            "P1 run manifest does not declare the single-lifeform ablation topology"
+        )
+    if tuple(manifest.get("ablation_verticals", ())) != tuple(TRACK_TO_VERTICAL.values()):
+        raise SystemExit("P1 run manifest ablation vertical set is not the reviewed roster")
 
     health_urls = {
-        "lifeform-companion": "http://127.0.0.1:8000/v1/health",
-        "lifeform-companion-cold": "http://127.0.0.1:8001/v1/health",
-        "lifeform-companion-pe-drive-off": "http://127.0.0.1:8002/v1/health",
-        "lifeform-companion-eta-off": "http://127.0.0.1:8003/v1/health",
-        "lifeform-companion-active-learning-off": "http://127.0.0.1:8004/v1/health",
-        "lifeform-companion-lora-adapter": "http://127.0.0.1:8005/v1/health",
+        "lifeform-ablation-bundle": "http://127.0.0.1:8000/v1/health",
         "ref-harness": "http://127.0.0.1:8500/healthz",
         "camel": "http://127.0.0.1:8600/healthz",
     }
@@ -375,6 +387,26 @@ def _assert_real_run_ready(args: argparse.Namespace, *, tier: str) -> None:
     if failures:
         raise SystemExit("P1 endpoints are not healthy: " + "; ".join(failures))
 
+    topology_path = args.output_dir / "serve_topology.json"
+    if not topology_path.is_file():
+        raise SystemExit(f"P1 serving topology missing: {topology_path}")
+    # utf-8-sig: Windows PowerShell 5.1 writers may emit a UTF-8 BOM.
+    topology = json.loads(topology_path.read_text(encoding="utf-8-sig"))
+    if topology.get("schema_version") != "companion-ablation-serving-topology.v1":
+        raise SystemExit("P1 serving topology has an unsupported schema")
+    if topology.get("serving_topology") != "single-lifeform-ablation-bundle":
+        raise SystemExit("P1 serving topology is not single-lifeform-ablation-bundle")
+    if topology.get("process_count") != 3:
+        raise SystemExit("P1 serving topology must contain exactly three processes")
+    if tuple(topology.get("ablation_verticals", ())) != tuple(TRACK_TO_VERTICAL.values()):
+        raise SystemExit("P1 serving topology vertical set is not the reviewed roster")
+
+    probe_failures = _probe_lifeform_verticals()
+    if probe_failures:
+        raise SystemExit(
+            "P1 lifeform vertical route probes failed: " + "; ".join(probe_failures)
+        )
+
     fingerprint_cmd = [
         sys.executable,
         str(SCRIPTS / "assert_same_substrate.py"),
@@ -386,6 +418,41 @@ def _assert_real_run_ready(args: argparse.Namespace, *, tier: str) -> None:
     result = subprocess.run(fingerprint_cmd, cwd=str(REPO_ROOT), check=False)
     if result.returncode != 0:
         raise SystemExit("P1 same-substrate fingerprint gate failed")
+
+
+def _probe_lifeform_verticals() -> list[str]:
+    api_key = os.environ.get("LIFEFORM_LOCAL_API_KEY", "").strip()
+    if not api_key:
+        return ["LIFEFORM_LOCAL_API_KEY is empty"]
+    failures: list[str] = []
+    for track, vertical in TRACK_TO_VERTICAL.items():
+        body = {
+            "model": f"lifeform-{vertical}",
+            "messages": [{"role": "user", "content": "p1 readiness probe"}],
+            "max_tokens": 1,
+            "temperature": 0.0,
+        }
+        request = urllib.request.Request(
+            f"http://127.0.0.1:8000/v1/chat/completions?vertical={vertical}",
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+            failures.append(f"{track}/{vertical}={exc}")
+            continue
+        expected = f"lifeform:{vertical}"
+        if payload.get("system_fingerprint") != expected:
+            failures.append(
+                f"{track}/{vertical}=fingerprint {payload.get('system_fingerprint')!r}"
+            )
+    return failures
 
 
 # ---------------------------------------------------------------------------

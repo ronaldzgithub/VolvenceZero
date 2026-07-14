@@ -173,6 +173,24 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-14: SHADOW 证据完整性补全（GAP-09 / CP-05/06/07）。
+  (a) CP-05：`train_store_ssl` 的 `StoreSSLReport` 新增
+  `candidate_encoder/switch/decoder_parameters` —— SHADOW 下 store 不动但
+  候选 checkpoint 可导出；`MetacontrollerSSLTrainer` 保留 owner-local
+  `latest_torch_ssl_candidate` 与 `latest_ssl_forward_parity`（SHADOW SSL
+  跑完后对未动的 live params 跑 pure/torch forward parity，不再只有 loss
+  标量）。(b) CP-06：`runtime_ndim_shadow_compare` 新增行为级对比维度：
+  `switch_decision_pure/torch/match`（beta≥threshold 的 segment-closure
+  决策）与 `nearest_family_pure/torch` + `family_selection_match`（applied
+  latent 最近 action family），call site 传入 store 的 beta_threshold 与
+  action_families。(c) CP-07：`InternalRLEnvironment` 发布
+  `latest_reward_composition`（含 `pe_derived_abs_fraction`，PE/segment-
+  credit 派生分量占 |reward| 的比例，闭集组件名单由 reward owner 定义）；
+  `run_internal_rl_proof`（optimize vs no-optimize matched control）经
+  `collect_internal_rl_no_optimize_proof` 接入 learned-shadow soak artifact。
+  证据面经 `learned_shadow_evidence.collect_learned_shadow_evidence` 统一
+  导出。测试：`packages/vz-runtime/tests/test_learned_shadow_evidence.py`、
+  `packages/vz-temporal/tests/test_temporal_contracts.py`。
 - 2026-07-12: ndim runtime forward 的 `SHADOW` 语义补齐为真实 per-step
   pure/torch 双跑。`FullLearnedTemporalPolicy` 保持 pure path 为唯一 live
   writer，并发布 owner-local `latest_runtime_shadow_report`，比较同一轮的
