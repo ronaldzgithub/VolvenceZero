@@ -1,0 +1,19 @@
+{
+  "schema_version": "learned-shadow-evidence-manifest.v1",
+  "artifact_kind": "learned_shadow_evidence_manifest",
+  "source_schema_version": "learned-shadow-evidence-smoke.v1",
+  "artifacts": [
+    {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/learned_active_evidence/shadow_smoke/learned_shadow_evidence_smoke.json",
+      "sha256": "a7e15f6e9507cce4f5fca23f5c4adf689c0097789fb824246b1cdbefbb1d0ed7",
+      "size_bytes": 5613
+    }
+  ],
+  "provenance": {
+    "git_sha": "5ac2f84fd4dc8c0053c4e53bf75b984ada427d28",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.12.13",
+    "platform": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

@@ -11,8 +11,8 @@ Merges the three independent evidence sources the promotion gate
    ``verdict_p2.json``) — PE-off / ETA-off component-control direction
    (claim_component_causal_contribution pairwise effects);
 3. the CMS anti-forgetting A/B contract suite
-   (``tests/test_cms_anti_forgetting_evidence.py``) executed live — CMS
-   retention / absorption bits.
+   (``packages/vz-memory/tests/test_cms_anti_forgetting_evidence.py``)
+   executed live — CMS retention / absorption bits.
 
 The output is an evidence artifact consumable by
 ``scripts/evaluate_learned_backend_promotion.py``. This script never flips
@@ -37,7 +37,7 @@ _COMPONENTS = (
     "internal_rl_backend",
     "cms_torch_backend",
 )
-_CMS_AB_TEST = "tests/test_cms_anti_forgetting_evidence.py"
+_CMS_AB_TEST = "packages/vz-memory/tests/test_cms_anti_forgetting_evidence.py"
 
 
 class PromotionEvidenceError(SystemExit):

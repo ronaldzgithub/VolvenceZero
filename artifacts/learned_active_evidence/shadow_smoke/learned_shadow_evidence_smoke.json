@@ -1,0 +1,152 @@
+{
+  "schema_version": "learned-shadow-evidence-smoke.v1",
+  "artifact_kind": "learned_shadow_evidence_smoke",
+  "evidence_tier": "p0-wiring-synthetic",
+  "temporal_latent_dim": 16,
+  "backend_wiring": {
+    "temporal_ssl_backend": "shadow",
+    "temporal_runtime_backend": "shadow",
+    "internal_rl_backend": "shadow",
+    "cms_torch_backend": "shadow"
+  },
+  "temporal_runtime": {
+    "world": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 2.7755575615628914e-17,
+      "max_abs_diff_z_tilde": 2.7755575615628914e-17,
+      "max_abs_diff_beta": 1.1102230246251565e-16,
+      "max_abs_diff_applied": 2.7755575615628914e-17,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 0.724500001524575,
+      "torch_latency_ms": 0.5133340018801391,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "switch_decision_match": true,
+      "family_selection_match": true,
+      "nearest_family_pure": "discovered_family_4",
+      "nearest_family_torch": "discovered_family_4",
+      "description": "runtime ndim SHADOW parity: mean=2.78e-17 z=2.78e-17 beta=1.11e-16 applied=2.78e-17 within=True latency_ok=True switch_match=True family_match=True"
+    },
+    "self": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 2.7755575615628914e-17,
+      "max_abs_diff_z_tilde": 2.7755575615628914e-17,
+      "max_abs_diff_beta": 1.1102230246251565e-16,
+      "max_abs_diff_applied": 1.1102230246251565e-16,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 0.7089999999152496,
+      "torch_latency_ms": 0.42970800132025033,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "switch_decision_match": true,
+      "family_selection_match": true,
+      "nearest_family_pure": "discovered_family_4",
+      "nearest_family_torch": "discovered_family_4",
+      "description": "runtime ndim SHADOW parity: mean=2.78e-17 z=2.78e-17 beta=1.11e-16 applied=1.11e-16 within=True latency_ok=True switch_match=True family_match=True"
+    }
+  },
+  "temporal_ssl": {
+    "torch_backend": "shadow",
+    "torch_prediction_loss": 0.05058320388494001,
+    "torch_kl_loss": 38.33411461619005,
+    "torch_switch_sparsity": 0.43079294495823606,
+    "torch_parameters_changed": 3231,
+    "torch_grad_norm": 2.924619557033565,
+    "torch_wrote_back": false,
+    "pure_prediction_loss": 0.1711833518909145,
+    "pure_kl_loss": 2.2278685816102644,
+    "trained_steps": 6,
+    "candidate_checkpoint": {
+      "trace_id": "agent-session:real:4",
+      "wrote_back": false,
+      "candidate_fingerprint": "f3666011f154782c124a4aa5bf6e1e58089d768ec8ac4220c61edcae99500ca1",
+      "parameters_changed": 3231
+    },
+    "forward_parity": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 5.551115123125783e-17,
+      "max_abs_diff_z_tilde": 5.551115123125783e-17,
+      "max_abs_diff_beta": 0.0,
+      "max_abs_diff_applied": 1.1102230246251565e-16,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 0.2871670003514737,
+      "torch_latency_ms": 0.28737499815179035,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "switch_decision_match": true,
+      "family_selection_match": true,
+      "nearest_family_pure": "discovered_family_4",
+      "nearest_family_torch": "discovered_family_4",
+      "description": "runtime ndim SHADOW parity: mean=5.55e-17 z=5.55e-17 beta=0.00e+00 applied=1.11e-16 within=True latency_ok=True switch_match=True family_match=True"
+    }
+  },
+  "internal_rl": {
+    "kind": "single-track",
+    "task": {
+      "torch_backend": "shadow",
+      "torch_parameters_changed": 49,
+      "torch_policy_loss": 0.3362814851888708,
+      "torch_value_loss": 0.0038405998377442152,
+      "torch_approx_kl": 16.246689132546692,
+      "torch_wrote_back": false,
+      "transition_count": 9,
+      "track": "world"
+    },
+    "reward_composition": {
+      "pe_derived_abs_fraction": 0.3294786445072037,
+      "reward_mode": "dense",
+      "component_names": [
+        "control_effect",
+        "control_energy_bonus",
+        "replacement_alignment",
+        "persistence_bonus",
+        "switch_bonus",
+        "staleness_penalty",
+        "primary_prediction_error",
+        "task_outcome_delta",
+        "relationship_outcome_delta",
+        "learning_outcome_delta",
+        "abstraction_outcome_delta",
+        "stability_outcome_delta",
+        "experience_mix_delta",
+        "experience_regime_delta",
+        "experience_action_delta",
+        "experience_sequence_delta",
+        "experience_control_prior",
+        "prediction_error_readout"
+      ]
+    }
+  },
+  "cms": {
+    "backend": "shadow",
+    "band_id": "online-fast",
+    "parameters_changed": 1024,
+    "parameter_change_rate": 1.0,
+    "grad_norm": 0.0005509979870875556,
+    "loss": 0.0016104284863920218,
+    "wrote_back": false,
+    "new_knowledge_absorption": 0.048074981895320605,
+    "old_knowledge_retention": 1.0,
+    "forward_parity_max_abs_diff_pure_torch": 0.0,
+    "forward_parity_max_abs_diff_legacy_torch": 0.0,
+    "forward_parity_within_tolerance": true,
+    "forward_parity_tolerance": 1e-09,
+    "forward_parity_pure_latency_ms": 0.07433300197590142,
+    "forward_parity_torch_latency_ms": 0.01841600169427693,
+    "forward_parity_promotable": true
+  },
+  "turn_count": 4,
+  "provenance": {
+    "git_sha": "5ac2f84fd4dc8c0053c4e53bf75b984ada427d28",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.12.13",
+    "platform": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}
