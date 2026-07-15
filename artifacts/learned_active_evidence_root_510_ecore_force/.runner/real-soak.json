@@ -1,0 +1,31 @@
+{
+  "schema_version": "learned-active-evidence-runner.v1",
+  "stage": "real-soak",
+  "completed_at": "2026-07-15T06:14:38.375853+00:00",
+  "artifact": "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\real_soak\\learned_shadow_soak.json",
+  "command": [
+    "C:\\ProgramData\\miniconda3\\python.exe",
+    "-u",
+    "scripts/run_learned_shadow_soak.py",
+    "--turns",
+    "510",
+    "--sample-every",
+    "25",
+    "--checkpoint-every",
+    "100",
+    "--temporal-latent-dim",
+    "16",
+    "--backend-combo",
+    "runtime+ssl+internal-rl+cms-torch",
+    "--substrate-mode",
+    "hf",
+    "--substrate-model-id",
+    "Qwen/Qwen2.5-1.5B-Instruct",
+    "--substrate-device",
+    "cuda",
+    "--output-dir",
+    "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\real_soak"
+  ],
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.3"
+}

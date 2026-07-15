@@ -1,0 +1,18 @@
+{
+  "schema_version": "learned-shadow-soak.v1",
+  "artifact_kind": "learned_shadow_soak_manifest",
+  "artifacts": [
+    {
+      "path": "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\real_soak\\learned_shadow_soak.json",
+      "sha256": "a8738d314e400fe2aab90b8e9da6813416eb4a2a52d453de2951bad5075627e3",
+      "size_bytes": 26173
+    }
+  ],
+  "provenance": {
+    "git_sha": "51feb771eb8ce190e591ceef68ba808e109af4c6",
+    "git_branch": "main",
+    "working_tree_dirty": false,
+    "python_version": "3.12.3",
+    "platform": "Windows-11-10.0.26200-SP0"
+  }
+}

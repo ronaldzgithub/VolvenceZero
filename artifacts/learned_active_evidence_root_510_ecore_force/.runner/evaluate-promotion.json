@@ -1,0 +1,16 @@
+{
+  "schema_version": "learned-active-evidence-runner.v1",
+  "stage": "evaluate-promotion",
+  "completed_at": "2026-07-15T06:16:20.716292+00:00",
+  "artifact": "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\promotion\\promotion_report.json",
+  "command": [
+    "C:\\ProgramData\\miniconda3\\python.exe",
+    "scripts/evaluate_learned_backend_promotion.py",
+    "--artifact",
+    "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\promotion\\promotion_evidence.json",
+    "--output",
+    "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\promotion\\promotion_report.json"
+  ],
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.3"
+}

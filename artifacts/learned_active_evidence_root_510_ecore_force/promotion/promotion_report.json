@@ -1,0 +1,54 @@
+{
+  "schema_version": "learned-backend-promotion-report.v1",
+  "source_artifact": "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\promotion\\promotion_evidence.json",
+  "reports": [
+    {
+      "component": "temporal_runtime_backend",
+      "eligible": false,
+      "missing_gates": [
+        "validation_delta<0.02",
+        "pe_off_control",
+        "eta_off_control"
+      ],
+      "description": "temporal_runtime_backend ACTIVE candidate blocked; missing=('validation_delta<0.02', 'pe_off_control', 'eta_off_control')",
+      "recommended_env": ""
+    },
+    {
+      "component": "temporal_ssl_backend",
+      "eligible": false,
+      "missing_gates": [
+        "validation_delta<0.02",
+        "pe_off_control",
+        "eta_off_control",
+        "runtime_active_first"
+      ],
+      "description": "temporal_ssl_backend ACTIVE candidate blocked; missing=('validation_delta<0.02', 'pe_off_control', 'eta_off_control', 'runtime_active_first')",
+      "recommended_env": ""
+    },
+    {
+      "component": "internal_rl_backend",
+      "eligible": false,
+      "missing_gates": [
+        "validation_delta<0.02",
+        "pe_off_control",
+        "eta_off_control",
+        "runtime_active_first",
+        "ssl_active_first"
+      ],
+      "description": "internal_rl_backend ACTIVE candidate blocked; missing=('validation_delta<0.02', 'pe_off_control', 'eta_off_control', 'runtime_active_first', 'ssl_active_first')",
+      "recommended_env": ""
+    },
+    {
+      "component": "cms_torch_backend",
+      "eligible": false,
+      "missing_gates": [
+        "validation_delta<0.02",
+        "pe_off_control",
+        "eta_off_control"
+      ],
+      "description": "cms_torch_backend ACTIVE candidate blocked; missing=('validation_delta<0.02', 'pe_off_control', 'eta_off_control')",
+      "recommended_env": ""
+    }
+  ],
+  "all_eligible": false
+}

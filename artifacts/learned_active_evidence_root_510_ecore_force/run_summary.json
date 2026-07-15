@@ -1,0 +1,15 @@
+{
+  "schema_version": "learned-active-evidence-runner.v1",
+  "generated_at": "2026-07-15T06:16:20.718459+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.3",
+  "selected_stages": [
+    "build-promotion-evidence",
+    "evaluate-promotion"
+  ],
+  "artifacts": {
+    "build-promotion-evidence": "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\promotion\\promotion_evidence.json",
+    "evaluate-promotion": "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\promotion\\promotion_report.json"
+  },
+  "notes": "Chunked soak is stability evidence only. ACTIVE promotion requires the continuous real-soak artifact plus component controls and CMS A/B."
+}

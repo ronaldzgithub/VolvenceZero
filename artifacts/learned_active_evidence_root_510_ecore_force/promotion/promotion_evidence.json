@@ -1,0 +1,109 @@
+{
+  "schema_version": "learned-backend-promotion-evidence.v1",
+  "artifact_kind": "learned_backend_promotion_evidence",
+  "generated_at": "2026-07-15T06:16:19.612774+00:00",
+  "sources": {
+    "soak_artifact": "E:\\VolvenceZero\\artifacts\\learned_active_evidence_root_510_ecore_force\\real_soak\\learned_shadow_soak.json",
+    "ablation_verdict": null,
+    "cms_ab_suite": "packages/vz-memory/tests/test_cms_anti_forgetting_evidence.py"
+  },
+  "soak_summary": {
+    "real_trace_turns": 509,
+    "validation_delta": 0.0139,
+    "strict_eta_gate_passed": true,
+    "rollback_drill_passed": true,
+    "latency_slo_ok": true,
+    "safety_gate_ok": true,
+    "internal_rl_no_optimize_full_beats_control": true,
+    "soak_capacity_arm": {
+      "temporal_latent_dim": 16,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "substrate_mode": "hf",
+      "substrate_model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+      "substrate_device": "cuda"
+    },
+    "soak_turn_count": 510,
+    "soak_mean_turn_seconds": 3.713
+  },
+  "component_controls": {
+    "pe_off_control_direction_correct": false,
+    "eta_off_control_direction_correct": false,
+    "pe_off_control_detail": "no ablation verdict supplied",
+    "eta_off_control_detail": "no ablation verdict supplied"
+  },
+  "cms_ab_evidence": {
+    "cms_ab_suite": "packages/vz-memory/tests/test_cms_anti_forgetting_evidence.py",
+    "cms_ab_suite_passed": true,
+    "cms_ab_suite_tail": ".                                                                        [100%]\n1 passed in 0.22s",
+    "cms_retention_non_degrading": true,
+    "cms_absorption_improved": true
+  },
+  "learned_active_gate": {
+    "evidence": [
+      {
+        "component": "temporal_runtime_backend",
+        "real_trace_turns": 509,
+        "validation_delta": 0.0139,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "prior_runtime_active": false,
+        "prior_ssl_active": false,
+        "internal_rl_no_reward_leakage": true,
+        "cms_retention_non_degrading": true,
+        "cms_absorption_improved": true
+      },
+      {
+        "component": "temporal_ssl_backend",
+        "real_trace_turns": 509,
+        "validation_delta": 0.0139,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "prior_runtime_active": false,
+        "prior_ssl_active": false,
+        "internal_rl_no_reward_leakage": true,
+        "cms_retention_non_degrading": true,
+        "cms_absorption_improved": true
+      },
+      {
+        "component": "internal_rl_backend",
+        "real_trace_turns": 509,
+        "validation_delta": 0.0139,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "prior_runtime_active": false,
+        "prior_ssl_active": false,
+        "internal_rl_no_reward_leakage": true,
+        "cms_retention_non_degrading": true,
+        "cms_absorption_improved": true
+      },
+      {
+        "component": "cms_torch_backend",
+        "real_trace_turns": 509,
+        "validation_delta": 0.0139,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "prior_runtime_active": false,
+        "prior_ssl_active": false,
+        "internal_rl_no_reward_leakage": true,
+        "cms_retention_non_degrading": true,
+        "cms_absorption_improved": true
+      }
+    ]
+  }
+}
