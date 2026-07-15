@@ -89,8 +89,10 @@ Windows GPU 是 P1 directional 的一等开发执行面，但不是 retain evide
    component arm 冷启动，固定时长 sleep 不构成 readiness。
 5. `run_p1_windows.ps1` / `run_p1_apple.sh` 是对应平台的 SSOT 入口；正常与异常退出均清理本轮 PID。
    `-Resume` / `--resume` 只复用已有合法 `summary.json`，DryRun 不启动 GPU/API。
-   Apple/MPS 入口默认 `VZ_P1_SUT_MAX_TOKENS=256`（可覆盖），以降低本地
-   MPS scoring 进程的内存压力；平台差异必须随 run manifest / logs 一并留痕。
+   Apple/MPS 入口默认 `VZ_P1_SUT_MAX_TOKENS=96`（可覆盖；Apple CPU 保持
+   `256`），配合 MPS generation input cap 与逐轮 allocator cache 释放，避免
+   unified-memory 压力触发 macOS jetsam；平台差异必须随 run manifest / logs
+   一并留痕。Windows/CUDA 入口及其 token budget 不受此约束影响。
 6. run manifest 记录 git SHA/clean 状态、权重与 bootstrap hash、learned
    backend wiring、judge model id、serving topology 与 ablation vertical 集合，
    但绝不记录 key 值。

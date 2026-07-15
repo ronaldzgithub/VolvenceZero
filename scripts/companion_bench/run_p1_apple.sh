@@ -19,7 +19,7 @@
 #   VZ_CMS_TORCH_BACKEND       active
 #   VZ_TORCH_BACKENDS          active  (legacy visibility; per-owner wins)
 #   VZ_P1_VERTICAL_PROBE_TIMEOUT_S  180 (MPS cold-start route probe budget)
-#   VZ_P1_SUT_MAX_TOKENS       256   (conservative MPS scoring response cap)
+#   VZ_P1_SUT_MAX_TOKENS       96 on MPS, 256 on CPU (scoring response cap)
 #
 # Usage:
 #   bash scripts/companion_bench/run_p1_apple.sh
@@ -146,6 +146,14 @@ export LIFEFORM_LOCAL_API_KEY="${LIFEFORM_LOCAL_API_KEY:-local-ablation-key}"
 if [[ "$VZ_SUBSTRATE_DEVICE" == cuda* ]]; then
   die "VZ_SUBSTRATE_DEVICE=cuda on macOS; use mps (default) or cpu"
 fi
+if [[ "$VZ_SUBSTRATE_DEVICE" == mps* ]]; then
+  export VZ_P1_SUT_MAX_TOKENS="${VZ_P1_SUT_MAX_TOKENS:-96}"
+else
+  export VZ_P1_SUT_MAX_TOKENS="${VZ_P1_SUT_MAX_TOKENS:-256}"
+fi
+if [[ ! "$VZ_P1_SUT_MAX_TOKENS" =~ ^[1-9][0-9]*$ ]]; then
+  die "VZ_P1_SUT_MAX_TOKENS must be a positive integer, got '${VZ_P1_SUT_MAX_TOKENS}'"
+fi
 
 if [[ -z "$ARTIFACT_DIR" ]]; then
   ARTIFACT_DIR="artifacts/companion-ablation/$(date -u +%Y%m%dT%H%M%SZ)"
@@ -166,7 +174,7 @@ RUNNER_ARGS=(
   --phase p1
   --output-dir "$ARTIFACT_DIR"
   --vertical-probe-timeout-s "${VZ_P1_VERTICAL_PROBE_TIMEOUT_S:-180}"
-  --sut-max-tokens "${VZ_P1_SUT_MAX_TOKENS:-256}"
+  --sut-max-tokens "$VZ_P1_SUT_MAX_TOKENS"
   --user-sim-base-url "$OPENROUTER_BASE"
   --user-sim-model "$USER_SIM_MODEL"
   --user-sim-key-env OPENROUTER_API_KEY

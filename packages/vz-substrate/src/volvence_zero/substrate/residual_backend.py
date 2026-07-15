@@ -109,6 +109,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         model: object | None = None,
         tokenizer: object | None = None,
         max_length: int = 64,
+        mps_generation_max_input_tokens: int = 1024,
         top_k_logits: int = 8,
         activation_width: int = 8,
         layer_indices: tuple[int, ...] | None = None,
@@ -128,6 +129,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self.supports_offline_substrate_training = allow_offline_substrate_training
         self._device = self._resolve_device(device=device)
         self._max_length = max(1, max_length)
+        self._mps_generation_max_input_tokens = max(1, mps_generation_max_input_tokens)
         self._top_k_logits = max(1, top_k_logits)
         self._activation_width = max(1, activation_width)
         self._control_scale = max(0.0, control_scale)
@@ -869,7 +871,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             if cuda is not None and cuda.is_available():
                 cuda.empty_cache()
 
-        return GenerationResult(
+        result = GenerationResult(
             text=generated_text,
             token_count=token_count,
             capture=capture,
@@ -880,6 +882,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"control={'on' if control_delta is not None else 'off'}"
             ),
         )
+        if str(self._device).startswith("mps"):
+            # MPS uses unified memory and retains released generation buffers
+            # in its allocator cache. Long multi-turn evidence runs otherwise
+            # grow until macOS jetsam kills the shared substrate process.
+            del new_token_ids
+            del output_ids
+            del input_ids
+            del model_inputs
+            self._release_mps_generation_cache()
+        return result
 
     def _apply_generation_constraints(
         self,
@@ -1082,6 +1094,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         model_inputs: dict[str, object] = {}
         for key, value in encoded.items():
             if isinstance(value, self._torch.Tensor):
+                if (
+                    str(self._device).startswith("mps")
+                    and value.ndim >= 2
+                    and value.shape[-1] > self._mps_generation_max_input_tokens
+                ):
+                    # Keep the most recent context. This cap is intentionally
+                    # MPS-only: CUDA evidence hosts retain their existing full
+                    # context behaviour and memory envelope.
+                    value = value[..., -self._mps_generation_max_input_tokens :]
                 model_inputs[key] = value.to(self._device)
             else:
                 model_inputs[key] = value
@@ -1089,6 +1110,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         if not isinstance(input_ids, self._torch.Tensor):
             raise ValueError(f"Transformers runtime '{self.model_id}' chat template did not return tensor input_ids.")
         return model_inputs
+
+    def _release_mps_generation_cache(self) -> None:
+        if not str(self._device).startswith("mps"):
+            return
+        mps = getattr(self._torch, "mps", None)
+        if mps is None or not mps.is_available():
+            return
+        mps.synchronize()
+        mps.empty_cache()
 
     def _generation_eos_token_id(self) -> int | list[int]:
         token_ids: list[int] = []
@@ -1785,6 +1815,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             model=self._model,
             tokenizer=self._tokenizer,
             max_length=self._max_length,
+            mps_generation_max_input_tokens=self._mps_generation_max_input_tokens,
             top_k_logits=self._top_k_logits,
             activation_width=self._activation_width,
             layer_indices=self._layer_indices,
