@@ -178,7 +178,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._online_fast_optimizer_state_description = ""
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
-        if os.name == "nt" and str(self._device).startswith("cuda"):
+        # Windows CUDA hosts with the Raptor Lake Vmin Shift defect (pre-fix
+        # microcode) intermittently corrupt the token-level hook capture path.
+        # Default to the pooled summary there; bypass with
+        # VZ_TORCH_BACKENDS_FORCE=1 on a stabilized lane (E-core pinned or
+        # patched microcode) because promotion evidence requires the real
+        # residual sequence. Same switch as final_wiring.py. Reversible.
+        force = os.environ.get("VZ_TORCH_BACKENDS_FORCE", "").strip().lower() in (
+            "1", "true", "on", "yes",
+        )
+        if not force and os.name == "nt" and str(self._device).startswith("cuda"):
             return self._capture_pooled_summary(source_text=source_text)
         return self._capture_with_hooks(source_text=source_text)
 

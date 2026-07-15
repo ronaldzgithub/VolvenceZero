@@ -996,13 +996,21 @@ class CausalZPolicy:
             return {**disabled, "backend": "skipped-no-transitions"}
         if not is_torch_available():
             return {**disabled, "backend": "skipped-no-torch"}
-        if os.name == "nt" and os.environ.get("VZ_SUBSTRATE_DEVICE", "").startswith("cuda"):
+        force = os.environ.get("VZ_TORCH_BACKENDS_FORCE", "").strip().lower() in (
+            "1", "true", "on", "yes",
+        )
+        if (
+            not force
+            and os.name == "nt"
+            and os.environ.get("VZ_SUBSTRATE_DEVICE", "").startswith("cuda")
+        ):
             # Mirror the SSL trainer guard (temporal/ssl.py): the float64 CPU
             # torch autograd path spawns background parallel-for worker threads
             # that intermittently trip a native 0xC0000005 on Windows CUDA
             # hosts after sustained load. Skip the torch refinement here; the
             # heuristic pure-policy update remains the live writer and substrate
-            # inference stays on GPU.
+            # inference stays on GPU. Bypass with VZ_TORCH_BACKENDS_FORCE=1 on
+            # a stabilized lane (E-core pinned or patched microcode).
             return {**disabled, "backend": "skipped-windows-cuda"}
 
         from volvence_zero.internal_rl.torch_causal_ppo import torch_causal_ppo_update
