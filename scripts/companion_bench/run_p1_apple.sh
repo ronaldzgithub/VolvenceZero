@@ -20,6 +20,7 @@
 #   VZ_TORCH_BACKENDS          active  (legacy visibility; per-owner wins)
 #   VZ_P1_VERTICAL_PROBE_TIMEOUT_S  180 (MPS cold-start route probe budget)
 #   VZ_P1_SUT_MAX_TOKENS       96 on MPS, 256 on CPU (scoring response cap)
+#   VZ_P1_MIN_FREE_DISK_GIB    15    (artifact + macOS swap safety floor)
 #
 # Usage:
 #   bash scripts/companion_bench/run_p1_apple.sh
@@ -85,6 +86,24 @@ require_darwin() {
   [[ "$(uname -s)" == "Darwin" ]] || die "run_p1_apple.sh targets macOS; on Windows use run_p1_windows.ps1"
 }
 
+require_free_disk() {
+  local minimum_gib="${VZ_P1_MIN_FREE_DISK_GIB:-15}"
+  if [[ ! "$minimum_gib" =~ ^[1-9][0-9]*$ ]]; then
+    die "VZ_P1_MIN_FREE_DISK_GIB must be a positive integer, got '${minimum_gib}'"
+  fi
+  local available_kib
+  available_kib="$(df -Pk "$REPO_ROOT" | awk 'NR == 2 { print $4 }')"
+  if [[ ! "$available_kib" =~ ^[0-9]+$ ]]; then
+    die "could not determine free disk space for ${REPO_ROOT}"
+  fi
+  local required_kib=$((minimum_gib * 1024 * 1024))
+  local available_gib=$((available_kib / 1024 / 1024))
+  if (( available_kib < required_kib )); then
+    die "only ${available_gib} GiB disk free; P1 requires at least ${minimum_gib} GiB for artifacts and macOS swap"
+  fi
+  log "disk preflight: ${available_gib} GiB free (minimum ${minimum_gib} GiB)"
+}
+
 load_llm_env() {
   local env_file="${REPO_ROOT}/.local/llm.env"
   [[ -f "$env_file" ]] || die ".local/llm.env not found — need OPENROUTER_API_KEY + ABLATION_* models"
@@ -135,6 +154,9 @@ activate_torch_backends() {
 }
 
 require_darwin
+if [[ "$DRY_RUN" -eq 0 ]]; then
+  require_free_disk
+fi
 load_llm_env
 derive_extractor_env
 activate_torch_backends

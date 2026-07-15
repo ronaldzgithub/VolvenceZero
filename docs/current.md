@@ -79,3 +79,41 @@
 `cognitive AGI thesis stronger`：还需要更长程、多域、跨 seed、跨 substrate 的结果。
 
 一句话：**跑完且 gate 全绿，就可以说 learned 肌肉终于“点亮并有第一阶段证据”；但还不能说整个系统的学习 thesis 已经完全证明。**
+
+
+
+
+建议分三步继续。不要直接跑总 --resume，P1 需要先启动完整服务拓扑。
+
+先补 P1 同基底消融
+bash run_companion_bench_p1.sh
+.local/llm.env 已存在。该命令会完成预检、启动服务、跑 9-track，并生成：
+
+artifacts/companion-ablation/<run-id>/verdict_p1.json
+涉及付费裁判 API。
+
+补足 continuous real trace
+当前 500 turns 只形成 499 traces，建议跑 525：
+
+bash run_learned_active_evidence.sh \
+  --only real-soak \
+  --force-stage \
+  --turns 525 \
+  --substrate-mode hf \
+  --substrate-device mps
+预计约 43 分钟。注意：这只能补 trace 数量，validation_delta 仍可能低于 0.02。
+
+接入 P1 verdict 并继续构建 promotion report
+把路径替换成实际 P1 目录：
+
+bash run_learned_active_evidence.sh \
+  --resume \
+  --substrate-mode hf \
+  --substrate-device mps \
+  --ablation-verdict artifacts/companion-ablation/<run-id>/verdict_p1.json
+它会跳过已有阶段，接入消融结果并生成 promotion evidence/report。
+
+最终查看：
+
+artifacts/learned_active_evidence/promotion/promotion_report.json
+目标是 all_eligible=true；若仍为 false，应按其中的 missing_gates 继续处理。
