@@ -1,0 +1,24 @@
+{
+  "schema_version": "learned-active-evidence-runner.v1",
+  "stage": "platform-chunked-soak",
+  "completed_at": "2026-07-14T17:27:46.317328+00:00",
+  "artifact": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/learned_active_evidence/platform_chunked_soak/learned_shadow_soak_chunked.json",
+  "command": [
+    "/Users/mengfu/miniconda3/envs/volvence-m2/bin/python",
+    "-u",
+    "scripts/run_learned_shadow_soak_chunks.py",
+    "--chunks",
+    "25",
+    "--turns-per-chunk",
+    "20",
+    "--output-dir",
+    "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/learned_active_evidence/platform_chunked_soak",
+    "--substrate-mode",
+    "hf",
+    "--substrate-device",
+    "mps"
+  ],
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "python": "3.12.13",
+  "promotion_evidence": false
+}

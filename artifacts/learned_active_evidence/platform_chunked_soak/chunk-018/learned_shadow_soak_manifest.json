@@ -1,0 +1,18 @@
+{
+  "schema_version": "learned-shadow-soak.v1",
+  "artifact_kind": "learned_shadow_soak_manifest",
+  "artifacts": [
+    {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/learned_active_evidence/platform_chunked_soak/chunk-018/learned_shadow_soak.json",
+      "sha256": "329f96ed36726654c0b56613e6109876da9a2d3597a640d3d529a65d50a7e4d3",
+      "size_bytes": 15640
+    }
+  ],
+  "provenance": {
+    "git_sha": "6c36c5951c3f6330e4ee0aa3626955bf36f3616a",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.12.13",
+    "platform": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

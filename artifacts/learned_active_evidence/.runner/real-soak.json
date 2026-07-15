@@ -1,0 +1,31 @@
+{
+  "schema_version": "learned-active-evidence-runner.v1",
+  "stage": "real-soak",
+  "completed_at": "2026-07-14T18:08:19.871047+00:00",
+  "artifact": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/learned_active_evidence/real_soak/learned_shadow_soak.json",
+  "command": [
+    "/Users/mengfu/miniconda3/envs/volvence-m2/bin/python",
+    "-u",
+    "scripts/run_learned_shadow_soak.py",
+    "--turns",
+    "500",
+    "--sample-every",
+    "25",
+    "--checkpoint-every",
+    "100",
+    "--temporal-latent-dim",
+    "16",
+    "--backend-combo",
+    "runtime+ssl+internal-rl+cms-torch",
+    "--substrate-mode",
+    "hf",
+    "--substrate-model-id",
+    "Qwen/Qwen2.5-1.5B-Instruct",
+    "--substrate-device",
+    "mps",
+    "--output-dir",
+    "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/learned_active_evidence/real_soak"
+  ],
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "python": "3.12.13"
+}

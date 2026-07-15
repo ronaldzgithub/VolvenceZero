@@ -47,3 +47,35 @@
 当前系统能 demo 出来的差异化（regime 持久身份、关系状态机、拒答边界）**多数是结构性的，不是学出来的**（#86 原话）。这在融资尽调和自我认知上是同一个风险：如果第二道门的消融结果显示增益主要来自结构 + prompt 工程而非学习闭环，那整个 NL/ETA 押注需要重新定价。好消息是你们的证据体系诚实到足以发现这一点——kill 条件都是自己预先写好的；坏消息是这个最关键的实验，到今天为止一次都还没跑。
 
 **优先级排序很清楚**：GPU lane 上跑 P1 消融（含 volvence 轨）> 500-turn learned-shadow soak > torch 后端 SHADOW 比对 > 其他一切。这三件事之前，"距离 cognitive AGI 还有多远"这个问题的诚实答案是——**连自己的第一阶段 thesis 都还没进考场。**
+
+
+
+
+
+
+
+不完全是。**跑完这些，意味着“learned 后端具备晋升 ACTIVE 的工程与证据包”**，但不自动等于“所有 learned 算法都已经证明有效”。
+
+更准确地说：
+
+如果 `run_learned_active_evidence.*` 最终产出的 `promotion_report.json` 里 `all_eligible=true`，可以说明这几件事成立：
+
+- torch metacontroller / SSL / Internal RL / CMS torch band 已经在真实链路上跑通。
+- SHADOW 对照、rollback、latency、安全门、CMS A/B、capacity/gain、component ablation 都满足当前 gate。
+- 可以比较诚实地把对应 backend 从 `DISABLED/SHADOW` 推到 `ACTIVE`，至少不再只是“代码写好了”。
+
+但它仍然不是终局证明：
+
+- 它证明的是 **这些 learned backend 在当前任务域、当前 substrate、当前 trace 分布下有正向证据**。
+- 它不证明所有认知行为已经主要由学习驱动。
+- 它不证明跨域泛化、长期抗遗忘、开放环境适应都解决了。
+- 如果 ablation 只到 P1，而不是 P2 held-out multi-seed，证据强度还只是 directional/first-stage 候选。
+
+所以结论可以这样分级：
+
+`wiring-ready`：脚本/链路跑通。  
+`promotion-eligible`：learned backend 可以负责任地 ACTIVE。  
+`first-stage-retained`：同基底消融证明 Volvence learned/controller 层确实优于标准方案。  
+`cognitive AGI thesis stronger`：还需要更长程、多域、跨 seed、跨 substrate 的结果。
+
+一句话：**跑完且 gate 全绿，就可以说 learned 肌肉终于“点亮并有第一阶段证据”；但还不能说整个系统的学习 thesis 已经完全证明。**
