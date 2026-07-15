@@ -1,0 +1,18 @@
+{
+  "schema_version": "learned-shadow-soak.v1",
+  "artifact_kind": "learned_shadow_soak_manifest",
+  "artifacts": [
+    {
+      "path": "artifacts\\learned_shadow_soak_windows_synthetic_180_no_specialization\\learned_shadow_soak.json",
+      "sha256": "ba5caa6b806c8fadcc8207fd6f469172bd0db59ad79b571c559620cf9027178a",
+      "size_bytes": 13118
+    }
+  ],
+  "provenance": {
+    "git_sha": "4295c16dade08bf03c0811711fe6c939845ab767",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.12.3",
+    "platform": "Windows-11-10.0.26200-SP0"
+  }
+}

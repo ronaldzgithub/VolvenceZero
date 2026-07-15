@@ -60,43 +60,82 @@ def identity_mat(n: int) -> Mat:
 
 
 def mat_vec(matrix: Mat, vector: Vec) -> Vec:
-    return tuple(
-        sum(w * v for w, v in zip(row, vector))
-        for row in matrix
-    )
+    values: list[float] = []
+    expected = len(vector)
+    for row_index, row in enumerate(matrix):
+        if len(row) != expected:
+            raise ValueError(
+                f"mat_vec row {row_index} length {len(row)} != vector length {expected}"
+            )
+        total = 0.0
+        for col_index in range(expected):
+            total += float(row[col_index]) * float(vector[col_index])
+        values.append(total)
+    return tuple(values)
 
 
 def vec_add(a: Vec, b: Vec) -> Vec:
-    return tuple(x + y for x, y in zip(a, b))
+    if len(a) != len(b):
+        raise ValueError(f"vec_add length mismatch: {len(a)} != {len(b)}")
+    values: list[float] = []
+    for index in range(len(a)):
+        values.append(float(a[index]) + float(b[index]))
+    return tuple(values)
 
 
 def vec_sub(a: Vec, b: Vec) -> Vec:
-    return tuple(x - y for x, y in zip(a, b))
+    if len(a) != len(b):
+        raise ValueError(f"vec_sub length mismatch: {len(a)} != {len(b)}")
+    values: list[float] = []
+    for index in range(len(a)):
+        values.append(float(a[index]) - float(b[index]))
+    return tuple(values)
 
 
 def vec_mul(a: Vec, b: Vec) -> Vec:
     """Element-wise multiplication (Hadamard product)."""
-    return tuple(x * y for x, y in zip(a, b))
+    if len(a) != len(b):
+        raise ValueError(f"vec_mul length mismatch: {len(a)} != {len(b)}")
+    values: list[float] = []
+    for index in range(len(a)):
+        values.append(float(a[index]) * float(b[index]))
+    return tuple(values)
 
 
 def vec_scale(a: Vec, s: float) -> Vec:
-    return tuple(x * s for x in a)
+    scale = float(s)
+    values: list[float] = []
+    for value in a:
+        values.append(float(value) * scale)
+    return tuple(values)
 
 
 def vec_clamp(a: Vec, lo: float = 0.0, hi: float = 1.0) -> Vec:
-    return tuple(clamp(x, lo, hi) for x in a)
+    values: list[float] = []
+    for value in a:
+        values.append(clamp(float(value), lo, hi))
+    return tuple(values)
 
 
 def vec_sigmoid(a: Vec) -> Vec:
-    return tuple(sigmoid(x) for x in a)
+    values: list[float] = []
+    for value in a:
+        values.append(sigmoid(float(value)))
+    return tuple(values)
 
 
 def vec_tanh(a: Vec) -> Vec:
-    return tuple(tanh(x) for x in a)
+    values: list[float] = []
+    for value in a:
+        values.append(tanh(float(value)))
+    return tuple(values)
 
 
 def vec_abs(a: Vec) -> Vec:
-    return tuple(abs(x) for x in a)
+    values: list[float] = []
+    for value in a:
+        values.append(abs(float(value)))
+    return tuple(values)
 
 
 def vec_mean(a: Vec) -> float:
@@ -108,11 +147,20 @@ def vec_max(a: Vec) -> float:
 
 
 def vec_norm(a: Vec) -> float:
-    return math.sqrt(sum(x * x for x in a))
+    total = 0.0
+    for value in a:
+        numeric = float(value)
+        total += numeric * numeric
+    return math.sqrt(total)
 
 
 def dot(a: Vec, b: Vec) -> float:
-    return sum(x * y for x, y in zip(a, b))
+    if len(a) != len(b):
+        raise ValueError(f"dot length mismatch: {len(a)} != {len(b)}")
+    total = 0.0
+    for index in range(len(a)):
+        total += float(a[index]) * float(b[index])
+    return total
 
 
 # --- GRU cell ---
@@ -135,7 +183,7 @@ def gru_cell(
             b_h,
         )
     )
-    one_minus_z = tuple(1.0 - z for z in z_gate)
+    one_minus_z = tuple(1.0 - float(z) for z in z_gate)
     return vec_add(vec_mul(one_minus_z, h_prev), vec_mul(z_gate, h_candidate))
 
 

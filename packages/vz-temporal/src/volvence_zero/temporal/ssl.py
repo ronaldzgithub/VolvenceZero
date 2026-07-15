@@ -39,6 +39,52 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _scaled_outer_rows(
+    *,
+    row_scales: tuple[float, ...],
+    columns: tuple[float, ...],
+    row_count: int,
+    col_count: int,
+) -> tuple[tuple[float, ...], ...]:
+    if len(row_scales) < row_count:
+        raise ValueError(
+            f"row_scales length {len(row_scales)} < row_count {row_count}"
+        )
+    if len(columns) < col_count:
+        raise ValueError(f"columns length {len(columns)} < col_count {col_count}")
+    rows: list[tuple[float, ...]] = []
+    for row_index in range(row_count):
+        row: list[float] = []
+        scale = float(row_scales[row_index])
+        for col_index in range(col_count):
+            row.append(scale * float(columns[col_index]))
+        rows.append(tuple(row))
+    return tuple(rows)
+
+
+def _bias_update(
+    *,
+    biases: tuple[float, ...],
+    deltas: tuple[float, ...],
+    learning_rate: float,
+    delta_scale: float,
+    bias_delta: float,
+    bias_scale: float,
+) -> tuple[float, ...]:
+    if len(deltas) < len(biases):
+        raise ValueError(f"deltas length {len(deltas)} < biases length {len(biases)}")
+    values: list[float] = []
+    for index, bias in enumerate(biases):
+        values.append(
+            _clamp(
+                float(bias)
+                + float(deltas[index]) * learning_rate * delta_scale
+                + bias_delta * bias_scale
+            )
+        )
+    return tuple(values)
+
+
 def _mean_abs(values: tuple[float, ...]) -> float:
     if not values:
         return 0.0
@@ -755,53 +801,53 @@ class MetacontrollerSSLTrainer:
                 gru=type(store.ndim_encoder_parameters.gru)(
                     W_z=store.ndim_encoder_parameters.gru.W_z,
                     U_z=store.ndim_encoder_parameters.gru.U_z,
-                    b_z=tuple(
-                        _clamp(
-                            bias
-                            + posterior_delta[index] * encoder_lr * 0.10
-                            + encoder_decision.bias_delta * 0.01
-                        )
-                        for index, bias in enumerate(store.ndim_encoder_parameters.gru.b_z)
+                    b_z=_bias_update(
+                        biases=store.ndim_encoder_parameters.gru.b_z,
+                        deltas=posterior_delta,
+                        learning_rate=encoder_lr,
+                        delta_scale=0.10,
+                        bias_delta=encoder_decision.bias_delta,
+                        bias_scale=0.01,
                     ),
                     W_r=store.ndim_encoder_parameters.gru.W_r,
                     U_r=store.ndim_encoder_parameters.gru.U_r,
-                    b_r=tuple(
-                        _clamp(
-                            bias
-                            + posterior_delta[index] * encoder_lr * 0.06
-                            + encoder_decision.bias_delta * 0.008
-                        )
-                        for index, bias in enumerate(store.ndim_encoder_parameters.gru.b_r)
+                    b_r=_bias_update(
+                        biases=store.ndim_encoder_parameters.gru.b_r,
+                        deltas=posterior_delta,
+                        learning_rate=encoder_lr,
+                        delta_scale=0.06,
+                        bias_delta=encoder_decision.bias_delta,
+                        bias_scale=0.008,
                     ),
                     W_h=store.ndim_encoder_parameters.gru.W_h,
                     U_h=store.ndim_encoder_parameters.gru.U_h,
-                    b_h=tuple(
-                        _clamp(
-                            bias
-                            + posterior_delta[index] * encoder_lr * 0.08
-                            + encoder_decision.bias_delta * 0.01
-                        )
-                        for index, bias in enumerate(store.ndim_encoder_parameters.gru.b_h)
+                    b_h=_bias_update(
+                        biases=store.ndim_encoder_parameters.gru.b_h,
+                        deltas=posterior_delta,
+                        learning_rate=encoder_lr,
+                        delta_scale=0.08,
+                        bias_delta=encoder_decision.bias_delta,
+                        bias_scale=0.01,
                     ),
                 ),
                 posterior_proj=self._m3_encoder.update(
-                    gradients=tuple(
-                        tuple(
-                            posterior_delta[row_index] * encoded.posterior.hidden_state[col_index]
-                            for col_index in range(len(row))
-                        )
-                        for row_index, row in enumerate(store.ndim_encoder_parameters.posterior_proj)
+                    gradients=_scaled_outer_rows(
+                        row_scales=posterior_delta,
+                        columns=encoded.posterior.hidden_state,
+                        row_count=len(store.ndim_encoder_parameters.posterior_proj),
+                        col_count=len(store.ndim_encoder_parameters.posterior_proj[0]),
                     ),
                     learning_rate=encoder_lr,
                     parameters=store.ndim_encoder_parameters.posterior_proj,
                 ),
                 posterior_std_proj=self._m3_encoder.update(
-                    gradients=tuple(
-                        tuple(
-                            (0.25 - encoded.posterior.posterior_std[row_index]) * encoded.posterior.hidden_state[col_index]
-                            for col_index in range(len(row))
-                        )
-                        for row_index, row in enumerate(store.ndim_encoder_parameters.posterior_std_proj)
+                    gradients=_scaled_outer_rows(
+                        row_scales=tuple(
+                            0.25 - value for value in encoded.posterior.posterior_std
+                        ),
+                        columns=encoded.posterior.hidden_state,
+                        row_count=len(store.ndim_encoder_parameters.posterior_std_proj),
+                        col_count=len(store.ndim_encoder_parameters.posterior_std_proj[0]),
                     ),
                     learning_rate=encoder_lr * (0.15 + encoder_decision.momentum_gate * 0.20),
                     parameters=store.ndim_encoder_parameters.posterior_std_proj,
@@ -810,47 +856,55 @@ class MetacontrollerSSLTrainer:
             store.ndim_decoder_parameters = type(store.ndim_decoder_parameters)(
                 decoder_ffn=type(store.ndim_decoder_parameters.decoder_ffn)(
                     W1=self._m3_decoder.update(
-                        gradients=tuple(
-                            tuple(
-                                target_delta[row_index] * encoded.z_tilde[col_index]
-                                for col_index in range(len(row))
-                            )
-                            for row_index, row in enumerate(store.ndim_decoder_parameters.decoder_ffn.W1)
+                        gradients=_scaled_outer_rows(
+                            row_scales=target_delta,
+                            columns=encoded.z_tilde,
+                            row_count=len(store.ndim_decoder_parameters.decoder_ffn.W1),
+                            col_count=len(store.ndim_decoder_parameters.decoder_ffn.W1[0]),
                         ),
                         learning_rate=decoder_lr,
                         parameters=store.ndim_decoder_parameters.decoder_ffn.W1,
                     ),
-                    b1=tuple(
-                        _clamp(
-                            bias + target_delta[index] * decoder_lr * 0.10 + decoder_decision.bias_delta * 0.01
-                        )
-                        for index, bias in enumerate(store.ndim_decoder_parameters.decoder_ffn.b1)
+                    b1=_bias_update(
+                        biases=store.ndim_decoder_parameters.decoder_ffn.b1,
+                        deltas=target_delta,
+                        learning_rate=decoder_lr,
+                        delta_scale=0.10,
+                        bias_delta=decoder_decision.bias_delta,
+                        bias_scale=0.01,
                     ),
                     W2=self._m3_decoder.update(
-                        gradients=tuple(
-                            tuple(
-                                target_delta[row_index] * decoder_control.decoder_output[col_index]
-                                for col_index in range(len(row))
-                            )
-                            for row_index, row in enumerate(store.ndim_decoder_parameters.decoder_ffn.W2)
+                        gradients=_scaled_outer_rows(
+                            row_scales=target_delta,
+                            columns=decoder_control.decoder_output,
+                            row_count=len(store.ndim_decoder_parameters.decoder_ffn.W2),
+                            col_count=len(store.ndim_decoder_parameters.decoder_ffn.W2[0]),
                         ),
                         learning_rate=decoder_lr,
                         parameters=store.ndim_decoder_parameters.decoder_ffn.W2,
                     ),
-                    b2=tuple(
-                        _clamp(
-                            bias + target_delta[index] * decoder_lr * 0.10 + decoder_decision.bias_delta * 0.01
-                        )
-                        for index, bias in enumerate(store.ndim_decoder_parameters.decoder_ffn.b2)
+                    b2=_bias_update(
+                        biases=store.ndim_decoder_parameters.decoder_ffn.b2,
+                        deltas=target_delta,
+                        learning_rate=decoder_lr,
+                        delta_scale=0.10,
+                        bias_delta=decoder_decision.bias_delta,
+                        bias_scale=0.01,
                     ),
                 )
             )
             store.ndim_switch_parameters = type(store.ndim_switch_parameters)(
                 gate_ffn=type(store.ndim_switch_parameters.gate_ffn)(
                     W1=store.ndim_switch_parameters.gate_ffn.W1,
-                    b1=tuple(_clamp(bias + switch_delta) for bias in store.ndim_switch_parameters.gate_ffn.b1),
+                    b1=tuple(
+                        _clamp(float(bias) + switch_delta)
+                        for bias in store.ndim_switch_parameters.gate_ffn.b1
+                    ),
                     W2=store.ndim_switch_parameters.gate_ffn.W2,
-                    b2=tuple(_clamp(bias + switch_delta) for bias in store.ndim_switch_parameters.gate_ffn.b2),
+                    b2=tuple(
+                        _clamp(float(bias) + switch_delta)
+                        for bias in store.ndim_switch_parameters.gate_ffn.b2
+                    ),
                 )
             )
             store.switch_bias = _clamp(store.switch_bias + switch_delta)

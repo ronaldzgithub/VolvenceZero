@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass, is_dataclass, replace
+from dataclasses import dataclass, fields, is_dataclass, replace
 from enum import Enum
 from hashlib import sha256
 from typing import Any, Mapping
@@ -1550,19 +1550,27 @@ def _hash_payload(payload: object) -> str:
 
 def _to_serializable(payload: object) -> object:
     if is_dataclass(payload):
-        return {
-            key: _to_serializable(value)
-            for key, value in asdict(payload).items()
-        }
+        result: dict[str, object] = {}
+        for dataclass_field in fields(payload):
+            result[dataclass_field.name] = _to_serializable(
+                getattr(payload, dataclass_field.name)
+            )
+        return result
     if isinstance(payload, dict):
-        return {
-            str(key): _to_serializable(value)
-            for key, value in payload.items()
-        }
+        result: dict[str, object] = {}
+        for key, value in payload.items():
+            result[str(key)] = _to_serializable(value)
+        return result
     if isinstance(payload, tuple):
-        return tuple(_to_serializable(value) for value in payload)
+        values: list[object] = []
+        for value in payload:
+            values.append(_to_serializable(value))
+        return tuple(values)
     if isinstance(payload, list):
-        return [_to_serializable(value) for value in payload]
+        values: list[object] = []
+        for value in payload:
+            values.append(_to_serializable(value))
+        return values
     return payload
 
 

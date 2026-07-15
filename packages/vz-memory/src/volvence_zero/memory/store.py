@@ -973,7 +973,7 @@ class MemoryStore:
 
     def _learned_signal_dim(self) -> int:
         if self._learned_core is not None:
-            return len(self._learned_core.snapshot().online_fast.vector)
+            return self._learned_core.dim
         return 6
 
     def _owner_signal(

@@ -36,6 +36,47 @@ class CMSBandMLP:
         self._w2_momentum = [0.0] * (d_hidden * d_in)
         self._w1_momentum = [0.0] * (d_in * d_hidden)
 
+    def _validate_invariants(self) -> None:
+        """Fail loudly if owner-local MLP state is malformed."""
+
+        if not isinstance(self._d_in, int) or self._d_in <= 0:
+            raise ValueError(f"CMSBandMLP _d_in must be a positive int, got {self._d_in!r}")
+        if not isinstance(self._d_hidden, int) or self._d_hidden <= 0:
+            raise ValueError(
+                f"CMSBandMLP _d_hidden must be a positive int, got {self._d_hidden!r}"
+            )
+        expected_state = self._d_in
+        expected_w1 = self._d_in * self._d_hidden
+        expected_w2 = self._d_hidden * self._d_in
+        groups = (
+            ("_state", self._state, expected_state),
+            ("_state_momentum", self._state_momentum, expected_state),
+            ("_w1", self._w1, expected_w1),
+            ("_w2", self._w2, expected_w2),
+            ("_w1_momentum", self._w1_momentum, expected_w1),
+            ("_w2_momentum", self._w2_momentum, expected_w2),
+        )
+        for name, values, expected_len in groups:
+            if not isinstance(values, list):
+                raise ValueError(f"CMSBandMLP {name} must be a list, got {type(values).__name__}")
+            if len(values) != expected_len:
+                raise ValueError(
+                    f"CMSBandMLP {name} length {len(values)} != expected {expected_len}"
+                )
+            bad = next(
+                (
+                    (index, value)
+                    for index, value in enumerate(values)
+                    if not isinstance(value, (int, float))
+                ),
+                None,
+            )
+            if bad is not None:
+                index, value = bad
+                raise ValueError(
+                    f"CMSBandMLP {name}[{index}] must be numeric, got {type(value).__name__}"
+                )
+
     @property
     def d_in(self) -> int:
         return self._d_in
@@ -45,6 +86,9 @@ class CMSBandMLP:
         return self._d_hidden
 
     def forward(self, x: tuple[float, ...] | list[float]) -> tuple[float, ...]:
+        self._validate_invariants()
+        if len(x) != self._d_in:
+            raise ValueError(f"CMSBandMLP input length {len(x)} != d_in {self._d_in}")
         h = _matvec(self._w2, x, self._d_hidden, self._d_in)
         a = [math.tanh(v) for v in h]
         residual = _matvec(self._w1, a, self._d_in, self._d_hidden)
@@ -120,6 +164,11 @@ class CMSBandMLP:
         lr_scale: float,
         momentum_gate: float,
     ) -> None:
+        self._validate_invariants()
+        if len(target) != self._d_in:
+            raise ValueError(
+                f"CMSBandMLP target length {len(target)} != d_in {self._d_in}"
+            )
         x = self._state
         d_in = self._d_in
         d_hidden = self._d_hidden
@@ -185,11 +234,14 @@ class CMSBandMLP:
         self._w1 = list(params[3])
         self._w2_momentum = list(params[4])
         self._w1_momentum = list(params[5])
+        self._validate_invariants()
 
     def parameter_count(self) -> int:
         return self._d_in + self._d_hidden * self._d_in + self._d_in * self._d_hidden
 
     def mix_from(self, other: CMSBandMLP, *, strength: float, factor: float) -> None:
+        self._validate_invariants()
+        other._validate_invariants()
         rate = _clamp(strength * factor)
         for i in range(self._d_in):
             self._state[i] = _clamp(
