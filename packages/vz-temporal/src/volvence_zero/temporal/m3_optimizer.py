@@ -78,21 +78,33 @@ class M3Optimizer:
     ) -> tuple[tuple[float, ...], ...]:
         """Apply one M3 update step and return the new parameters."""
         updated: list[tuple[float, ...]] = []
+        if len(gradients) != self._num_groups:
+            raise ValueError(f"M3 gradients group count {len(gradients)} != {self._num_groups}")
+        if len(parameters) != self._num_groups:
+            raise ValueError(f"M3 parameters group count {len(parameters)} != {self._num_groups}")
         for group_idx in range(self._num_groups):
             grad = gradients[group_idx]
             param = parameters[group_idx]
+            if len(grad) != self._group_dim:
+                raise ValueError(
+                    f"M3 gradient group {group_idx} length {len(grad)} != {self._group_dim}"
+                )
+            if len(param) != self._group_dim:
+                raise ValueError(
+                    f"M3 parameter group {group_idx} length {len(param)} != {self._group_dim}"
+                )
             fast = self._fast_momentum[group_idx]
             for dim_idx in range(self._group_dim):
                 fast[dim_idx] = (
                     self._fast_beta * fast[dim_idx]
-                    + (1.0 - self._fast_beta) * grad[dim_idx]
+                    + (1.0 - self._fast_beta) * float(grad[dim_idx])
                 )
-            effective_grad = tuple(fast[d] for d in range(self._group_dim))
-            new_param = tuple(
-                _clamp(param[d] + learning_rate * effective_grad[d])
-                for d in range(self._group_dim)
-            )
-            updated.append(new_param)
+            new_values: list[float] = []
+            for dim_idx in range(self._group_dim):
+                new_values.append(
+                    _clamp(float(param[dim_idx]) + learning_rate * fast[dim_idx])
+                )
+            updated.append(tuple(new_values))
 
         self._step_count += 1
 
@@ -121,17 +133,23 @@ class M3Optimizer:
             for dim_idx in range(self._group_dim):
                 result[dim_idx] += abs(self._slow_momentum[group_idx][dim_idx])
         scale = 1.0 / self._num_groups
-        return tuple(_clamp(v * scale) for v in result)
+        values: list[float] = []
+        for value in result:
+            values.append(_clamp(value * scale))
+        return tuple(values)
 
     def export_state(self) -> M3OptimizerState:
-        mean_fast_norm = (
-            sum(abs(value) for row in self._fast_momentum for value in row)
-            / max(self._num_groups * self._group_dim, 1)
-        )
-        mean_slow_norm = (
-            sum(abs(value) for row in self._slow_momentum for value in row)
-            / max(self._num_groups * self._group_dim, 1)
-        )
+        fast_total = 0.0
+        slow_total = 0.0
+        for row in self._fast_momentum:
+            for value in row:
+                fast_total += abs(value)
+        for row in self._slow_momentum:
+            for value in row:
+                slow_total += abs(value)
+        denom = max(self._num_groups * self._group_dim, 1)
+        mean_fast_norm = fast_total / denom
+        mean_slow_norm = slow_total / denom
         return M3OptimizerState(
             fast_momentum=tuple(tuple(row) for row in self._fast_momentum),
             slow_momentum=tuple(tuple(row) for row in self._slow_momentum),

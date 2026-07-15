@@ -134,6 +134,7 @@ class CMSBandMLP:
 
         See ``docs/specs/cms-atlas-titans-uplift.md`` §3.
         """
+        self._validate_invariants()
         if not targets:
             return
         if len(targets) != len(weights):
@@ -141,16 +142,29 @@ class CMSBandMLP:
                 f"replay targets length {len(targets)} != weights length {len(weights)}"
             )
         d_in = self._d_in
-        weight_total = sum(max(0.0, weight) for weight in weights)
+        weight_total = 0.0
+        for index, weight in enumerate(weights):
+            if not isinstance(weight, (int, float)):
+                raise ValueError(
+                    f"CMSBandMLP replay weight {index} must be numeric, got {type(weight).__name__}"
+                )
+            weight_total += max(0.0, float(weight))
         if weight_total <= 1e-9:
             return
         averaged = [0.0] * d_in
         for target, weight in zip(targets, weights, strict=True):
+            if len(target) != d_in:
+                raise ValueError(f"CMSBandMLP replay target length {len(target)} != d_in {d_in}")
             normalized_weight = max(0.0, weight) / weight_total
             if normalized_weight <= 0.0:
                 continue
             for i in range(d_in):
-                averaged[i] += normalized_weight * target[i]
+                value = target[i]
+                if not isinstance(value, (int, float)):
+                    raise ValueError(
+                        f"CMSBandMLP replay target[{i}] must be numeric, got {type(value).__name__}"
+                    )
+                averaged[i] += normalized_weight * float(value)
         self._apply_single_target_update(
             target=tuple(averaged),
             lr_scale=lr_scale,
@@ -182,15 +196,25 @@ class CMSBandMLP:
 
         dy = [y[i] - target[i] for i in range(d_in)]
 
-        grad_w1 = [dy[i] * a[j] for i in range(d_in) for j in range(d_hidden)]
+        grad_w1: list[float] = []
+        for i in range(d_in):
+            for j in range(d_hidden):
+                grad_w1.append(dy[i] * a[j])
 
-        grad_a = [
-            sum(dy[i] * self._w1[i * d_hidden + j] for i in range(d_in))
-            for j in range(d_hidden)
-        ]
-        grad_h = [grad_a[j] * (1.0 - a[j] * a[j]) for j in range(d_hidden)]
+        grad_a: list[float] = []
+        for j in range(d_hidden):
+            total = 0.0
+            for i in range(d_in):
+                total += dy[i] * self._w1[i * d_hidden + j]
+            grad_a.append(total)
+        grad_h: list[float] = []
+        for j in range(d_hidden):
+            grad_h.append(grad_a[j] * (1.0 - a[j] * a[j]))
 
-        grad_w2 = [grad_h[j] * x[k] for j in range(d_hidden) for k in range(d_in)]
+        grad_w2: list[float] = []
+        for j in range(d_hidden):
+            for k in range(d_in):
+                grad_w2.append(grad_h[j] * x[k])
 
         w1_len = d_in * d_hidden
         for i in range(w1_len):

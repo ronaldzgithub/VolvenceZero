@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import os
 import platform
 from pathlib import Path
 import subprocess
@@ -81,7 +82,15 @@ def _run_command(
     print(f"[learned-active] $ {printable}", flush=True)
     if dry_run:
         return 0
-    completed = subprocess.run(command, cwd=str(REPO_ROOT), check=False)
+    env = os.environ.copy()
+    # Long learned-shadow soaks exercise hot pure-Python loops in CPython
+    # 3.11/3.12. On this workload the adaptive specializing interpreter can
+    # produce native crashes before a Python exception is raised; disabling it
+    # keeps the promotion lane deterministic and does not change owner logic.
+    env.setdefault("PYTHON_DISABLE_SPECIALIZATION", "1")
+    env.setdefault("PYTHONFAULTHANDLER", "1")
+    env.setdefault("TOKENIZERS_PARALLELISM", "false")
+    completed = subprocess.run(command, cwd=str(REPO_ROOT), env=env, check=False)
     if completed.returncode != 0 and not allow_failure:
         raise SystemExit(f"stage command failed ({completed.returncode}): {printable}")
     return completed.returncode

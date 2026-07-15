@@ -1548,6 +1548,40 @@ def _hash_payload(payload: object) -> str:
     return sha256(serialized.encode("utf-8")).hexdigest()
 
 
+def _sum_tuple(values: tuple[float, ...]) -> float:
+    total = 0.0
+    for value in values:
+        total += float(value)
+    return total
+
+
+def _compact_ndim_params_hash(store: MetacontrollerParameterStore) -> str:
+    """Cheap per-step parameter fingerprint for ndim runtime telemetry.
+
+    Full recursive JSON hashing of all ndim parameter matrices is too expensive
+    for internal-RL rollout hot paths. This compact digest is sufficient for
+    detecting parameter-version movement in snapshots while keeping the runtime
+    step side-effect free and deterministic.
+    """
+
+    encoder = store.ndim_encoder_parameters
+    switch = store.ndim_switch_parameters
+    decoder = store.ndim_decoder_parameters
+    parts: list[str] = [f"mode=ndim", f"n_z={store.n_z}"]
+    if encoder is not None:
+        parts.append(f"enc_bz={_sum_tuple(encoder.gru.b_z):.12f}")
+        parts.append(f"enc_br={_sum_tuple(encoder.gru.b_r):.12f}")
+        parts.append(f"enc_bh={_sum_tuple(encoder.gru.b_h):.12f}")
+    if switch is not None:
+        parts.append(f"sw_b1={_sum_tuple(switch.gate_ffn.b1):.12f}")
+        parts.append(f"sw_b2={_sum_tuple(switch.gate_ffn.b2):.12f}")
+    if decoder is not None:
+        parts.append(f"dec_b1={_sum_tuple(decoder.decoder_ffn.b1):.12f}")
+        parts.append(f"dec_b2={_sum_tuple(decoder.decoder_ffn.b2):.12f}")
+    parts.append(f"beta={store.beta_threshold:.12f}")
+    return sha256("|".join(parts).encode("utf-8")).hexdigest()
+
+
 def _to_serializable(payload: object) -> object:
     if is_dataclass(payload):
         result: dict[str, object] = {}
@@ -2690,14 +2724,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             decoder_applied_control=decoder_control.applied_control,
             policy_replacement_score=policy_replacement_score,
         )
-        params_hash = _hash_payload({
-            "mode": self.mode.value,
-            "n_z": n_z,
-            "ndim_encoder_parameters": self._parameter_store.ndim_encoder_parameters,
-            "ndim_switch_parameters": self._parameter_store.ndim_switch_parameters,
-            "ndim_decoder_parameters": self._parameter_store.ndim_decoder_parameters,
-            "beta_threshold": self._parameter_store.beta_threshold,
-        })
+        params_hash = _compact_ndim_params_hash(self._parameter_store)
         description = (
             f"Full-learned ndim metacontroller n_z={n_z}, "
             f"effective_beta={effective_scalar_beta:.3f}, seq_len={encoded.sequence_length}, "

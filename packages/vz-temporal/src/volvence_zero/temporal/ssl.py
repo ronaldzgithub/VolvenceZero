@@ -85,6 +85,13 @@ def _bias_update(
     return tuple(values)
 
 
+def _posterior_std_row_scales(values: tuple[float, ...]) -> tuple[float, ...]:
+    result: list[float] = []
+    for value in values:
+        result.append(0.25 - float(value))
+    return tuple(result)
+
+
 def _mean_abs(values: tuple[float, ...]) -> float:
     if not values:
         return 0.0
@@ -842,9 +849,7 @@ class MetacontrollerSSLTrainer:
                 ),
                 posterior_std_proj=self._m3_encoder.update(
                     gradients=_scaled_outer_rows(
-                        row_scales=tuple(
-                            0.25 - value for value in encoded.posterior.posterior_std
-                        ),
+                        row_scales=_posterior_std_row_scales(encoded.posterior.posterior_std),
                         columns=encoded.posterior.hidden_state,
                         row_count=len(store.ndim_encoder_parameters.posterior_std_proj),
                         col_count=len(store.ndim_encoder_parameters.posterior_std_proj[0]),
@@ -853,44 +858,48 @@ class MetacontrollerSSLTrainer:
                     parameters=store.ndim_encoder_parameters.posterior_std_proj,
                 ),
             )
+            decoder_w1 = self._m3_decoder.update(
+                gradients=_scaled_outer_rows(
+                    row_scales=target_delta,
+                    columns=encoded.z_tilde,
+                    row_count=len(store.ndim_decoder_parameters.decoder_ffn.W1),
+                    col_count=len(store.ndim_decoder_parameters.decoder_ffn.W1[0]),
+                ),
+                learning_rate=decoder_lr,
+                parameters=store.ndim_decoder_parameters.decoder_ffn.W1,
+            )
+            decoder_b1 = _bias_update(
+                biases=store.ndim_decoder_parameters.decoder_ffn.b1,
+                deltas=target_delta,
+                learning_rate=decoder_lr,
+                delta_scale=0.10,
+                bias_delta=decoder_decision.bias_delta,
+                bias_scale=0.01,
+            )
+            decoder_w2 = self._m3_decoder.update(
+                gradients=_scaled_outer_rows(
+                    row_scales=target_delta,
+                    columns=decoder_control.decoder_output,
+                    row_count=len(store.ndim_decoder_parameters.decoder_ffn.W2),
+                    col_count=len(store.ndim_decoder_parameters.decoder_ffn.W2[0]),
+                ),
+                learning_rate=decoder_lr,
+                parameters=store.ndim_decoder_parameters.decoder_ffn.W2,
+            )
+            decoder_b2 = _bias_update(
+                biases=store.ndim_decoder_parameters.decoder_ffn.b2,
+                deltas=target_delta,
+                learning_rate=decoder_lr,
+                delta_scale=0.10,
+                bias_delta=decoder_decision.bias_delta,
+                bias_scale=0.01,
+            )
             store.ndim_decoder_parameters = type(store.ndim_decoder_parameters)(
                 decoder_ffn=type(store.ndim_decoder_parameters.decoder_ffn)(
-                    W1=self._m3_decoder.update(
-                        gradients=_scaled_outer_rows(
-                            row_scales=target_delta,
-                            columns=encoded.z_tilde,
-                            row_count=len(store.ndim_decoder_parameters.decoder_ffn.W1),
-                            col_count=len(store.ndim_decoder_parameters.decoder_ffn.W1[0]),
-                        ),
-                        learning_rate=decoder_lr,
-                        parameters=store.ndim_decoder_parameters.decoder_ffn.W1,
-                    ),
-                    b1=_bias_update(
-                        biases=store.ndim_decoder_parameters.decoder_ffn.b1,
-                        deltas=target_delta,
-                        learning_rate=decoder_lr,
-                        delta_scale=0.10,
-                        bias_delta=decoder_decision.bias_delta,
-                        bias_scale=0.01,
-                    ),
-                    W2=self._m3_decoder.update(
-                        gradients=_scaled_outer_rows(
-                            row_scales=target_delta,
-                            columns=decoder_control.decoder_output,
-                            row_count=len(store.ndim_decoder_parameters.decoder_ffn.W2),
-                            col_count=len(store.ndim_decoder_parameters.decoder_ffn.W2[0]),
-                        ),
-                        learning_rate=decoder_lr,
-                        parameters=store.ndim_decoder_parameters.decoder_ffn.W2,
-                    ),
-                    b2=_bias_update(
-                        biases=store.ndim_decoder_parameters.decoder_ffn.b2,
-                        deltas=target_delta,
-                        learning_rate=decoder_lr,
-                        delta_scale=0.10,
-                        bias_delta=decoder_decision.bias_delta,
-                        bias_scale=0.01,
-                    ),
+                    W1=decoder_w1,
+                    b1=decoder_b1,
+                    W2=decoder_w2,
+                    b2=decoder_b2,
                 )
             )
             store.ndim_switch_parameters = type(store.ndim_switch_parameters)(
