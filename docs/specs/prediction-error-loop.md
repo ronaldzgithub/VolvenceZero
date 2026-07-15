@@ -214,6 +214,22 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
   magnitude 公式）。PE dependencies 追加 relationship_state / goal_value /
   boundary_consent / execution_result（对齐 commitment overlay 先例，upstream.get
   容忍禁用 owner）。测试：`tests/contracts/test_owner_prediction_signal.py`。
+- 2026-07-15: CP-11 heads 特征加宽 + gate 窗口度量。(a) `_featurize_outcome_evidence`
+  从 7 维聚合扩到 **18 维**：substrate signals 增加 spread/peak 聚合、substrate delta
+  增加 max-abs，新增 owner-internal **滞后 realized outcome（4 轴）与滞后 signed
+  learned-head error（4 轴）** AR 特征（PE owner 本就消费每轮 `ActualOutcome`，
+  lag 状态不出 owner，R8 不变）；checkpoint `feature_dim` 相应变为 18（schema
+  版本不变，旧 7 维 checkpoint restore 按既有 fail-loud 路径拒绝）。(b)
+  `PredictiveHeadReadout` 追加 report-only 窗口字段：`window_size(=200)` /
+  `window_sample_count` / `window_world_improvement` / `window_self_improvement`
+  + 残差诊断 `window_axis_learned_maes` / `window_axis_baseline_maes` /
+  `window_target_stds` / `window_persistence_maes`（lag-1 persistence 参照）。
+  依据：510-turn real-trace soak 显示累计 improvement 在 ~50 turn 后即平台
+  （world +0.011 / self +0.014 各窗口平稳），瓶颈是特征而非训练时长；CP-11 gate
+  原文 ">= 0.02 improvement over >= 200 turns" 的直接读法是 trailing window，
+  `run_learned_shadow_soak.py` 的 `validation_delta` 改为窗口满 200 时取窗口
+  improvement（artifact 新增 `validation_delta_basis` 声明度量基准，窗口未满时
+  显式标注 cumulative fallback）。live prediction chain 不变，全部 report-only。
 - 2026-07-12: CP-11 world/self predictive heads SHADOW 落地。PE owner 内部新增
   `_WorldPredictiveHead`（task/regime/action 轴）与 `_SelfPredictiveHead`
   （relationship 轴）：共享 compact evidence 特征（`_featurize_outcome_evidence`

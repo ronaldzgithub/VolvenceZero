@@ -194,6 +194,16 @@ class PredictiveHeadReadout:
     plan CP-11) can be evaluated from artifacts without flipping anything.
     ``improvement`` is ``baseline_mae - learned_mae`` (positive = learned
     heads are better).
+
+    The ``window_*`` fields measure the same improvement over the trailing
+    ``window_size`` scored samples only, which is the direct reading of the
+    CP-11 gate wording (">= 0.02 improvement over >= 200 turns"): the
+    cumulative fields mix the cold-start phase into the mean forever, the
+    windowed fields describe the converged head. Diagnostics
+    (``window_axis_*`` / ``window_target_stds`` /
+    ``window_persistence_maes``) locate the residual error: per-axis MAE
+    split, realized-target noise floor, and a lag-1 persistence predictor
+    reference. All report-only.
     """
 
     world_learned_mae: float
@@ -204,6 +214,14 @@ class PredictiveHeadReadout:
     world_improvement: float
     self_improvement: float
     description: str = ""
+    window_size: int = 0
+    window_sample_count: int = 0
+    window_world_improvement: float = 0.0
+    window_self_improvement: float = 0.0
+    window_axis_learned_maes: tuple[tuple[str, float], ...] = ()
+    window_axis_baseline_maes: tuple[tuple[str, float], ...] = ()
+    window_target_stds: tuple[tuple[str, float], ...] = ()
+    window_persistence_maes: tuple[tuple[str, float], ...] = ()
 
 
 PREDICTIVE_HEAD_CHECKPOINT_SCHEMA_VERSION = "predictive-head-checkpoint.v1"
@@ -359,11 +377,32 @@ class _OutcomeAxisCalibration:
     novelty_weight: float = 0.0
 
 
-def _featurize_outcome_evidence(evidence: "_OutcomeEvidence") -> tuple[float, ...]:
+# Fixed axis order shared by the CP-11 lagged features and diagnostics.
+_HEAD_AXES = ("task_progress", "regime_stability", "action_payoff", "relationship_delta")
+
+# Trailing window used by the CP-11 gate readout. Matches the plan CP-11
+# wording ">= 0.02 improvement over >= 200 turns": the windowed MAE describes
+# the converged head instead of forever mixing the cold-start phase into a
+# cumulative mean.
+_HEAD_GATE_WINDOW = 200
+
+
+def _featurize_outcome_evidence(
+    evidence: "_OutcomeEvidence",
+    *,
+    lagged_targets: tuple[float, ...],
+    lagged_errors: tuple[float, ...],
+) -> tuple[float, ...]:
     """Fixed-order compact feature vector shared by the CP-11 learned heads.
 
     Uses stable aggregates rather than raw dict keys so the feature
     dimensionality never drifts with upstream signal vocabularies.
+    ``lagged_targets`` are the previous scored turn's realized outcomes per
+    axis (``_HEAD_AXES`` order, neutral 0.5 cold start) and ``lagged_errors``
+    the previous signed learned-head errors (target - prediction, clamped to
+    [-1, 1], 0.0 cold start). Both are owner-internal: the PE owner already
+    sees every realized ``ActualOutcome``, so the AR structure stays inside
+    the single owner (R8).
     """
 
     def _mean(values: dict[str, float], default: float = 0.5) -> float:
@@ -371,16 +410,36 @@ def _featurize_outcome_evidence(evidence: "_OutcomeEvidence") -> tuple[float, ..
             return default
         return sum(values.values()) / len(values)
 
+    def _spread(values: dict[str, float]) -> float:
+        if len(values) < 2:
+            return 0.0
+        mean = sum(values.values()) / len(values)
+        return math.sqrt(sum((v - mean) ** 2 for v in values.values()) / len(values))
+
+    def _peak(values: dict[str, float], default: float = 0.5) -> float:
+        if not values:
+            return default
+        return max(values.values())
+
+    if len(lagged_targets) != len(_HEAD_AXES) or len(lagged_errors) != len(_HEAD_AXES):
+        raise ValueError(
+            f"lagged feature length mismatch: expected {len(_HEAD_AXES)} per "
+            f"group, got targets={len(lagged_targets)} errors={len(lagged_errors)}"
+        )
+
+    delta_abs = [abs(v) for v in evidence.substrate_delta.values()]
     return (
         _clamp_unit(_mean(evidence.family_signals)),
         _clamp_unit(_mean(evidence.substrate_signals)),
+        _clamp_unit(_spread(evidence.substrate_signals)),
+        _clamp_unit(_peak(evidence.substrate_signals)),
         _clamp_unit(_mean(evidence.previous_substrate_signals)),
-        _clamp_unit(
-            sum(abs(v) for v in evidence.substrate_delta.values())
-            / max(len(evidence.substrate_delta), 1)
-        ),
+        _clamp_unit(sum(delta_abs) / max(len(delta_abs), 1)),
+        _clamp_unit(max(delta_abs, default=0.0)),
         _clamp_unit(evidence.cross_track_tension),
         _clamp_unit(evidence.regime_stability),
+        *(_clamp_unit(t) for t in lagged_targets),
+        *(max(-1.0, min(1.0, e)) for e in lagged_errors),
         1.0,  # bias
     )
 
@@ -838,11 +897,13 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         self._offline_lss_update_count = 0
         # CP-11 world/self predictive heads (SHADOW dual-run inside the single
         # PE owner; no new slot). The learned heads predict next-turn outcome
-        # axes from the same compact evidence features; on the following turn
-        # they are scored against the realized ActualOutcome next to the
-        # hand-crafted head, and updated with bounded online SGD. Their
-        # readout is report-only until the plan CP-11 gate is met.
-        feature_dim = 7
+        # axes from the same compact evidence features plus owner-internal
+        # lagged realized outcomes / signed errors (AR structure); on the
+        # following turn they are scored against the realized ActualOutcome
+        # next to the hand-crafted head, and updated with bounded online SGD.
+        # Their readout is report-only until the plan CP-11 gate is met.
+        # 9 evidence aggregates + 4 lagged targets + 4 lagged errors + bias.
+        feature_dim = 9 + 2 * len(_HEAD_AXES) + 1
         self._head_feature_dim = feature_dim
         self._world_head = _WorldPredictiveHead(feature_dim=feature_dim)
         self._self_head = _SelfPredictiveHead(feature_dim=feature_dim)
@@ -859,6 +920,28 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         self._head_recent_pairs: deque[tuple[float, float]] = deque(
             maxlen=_HEAD_KILL_WINDOW
         )
+        # CP-11 gate window: per scored sample a record of
+        # (learned_abs, baseline_abs, targets, persistence_abs | None), each
+        # a per-axis tuple in _HEAD_AXES order. Drives the trailing-window
+        # gate readout and the residual-error diagnostics. Report-only.
+        self._head_window_records: deque[
+            tuple[
+                tuple[float, ...],
+                tuple[float, ...],
+                tuple[float, ...],
+                tuple[float, ...] | None,
+            ]
+        ] = deque(maxlen=_HEAD_GATE_WINDOW)
+        # Owner-internal lag state feeding the AR features: previous scored
+        # turn's realized targets (neutral 0.5 cold start) and previous
+        # signed learned-head errors (0.0 cold start).
+        self._head_lagged_targets: tuple[float, ...] = tuple(
+            0.5 for _ in _HEAD_AXES
+        )
+        self._head_lagged_errors: tuple[float, ...] = tuple(
+            0.0 for _ in _HEAD_AXES
+        )
+        self._head_has_lag = False
 
     # ------------------------------------------------------------------
     # Offline gradient-LSS rare-heavy surface (Phase F). Runtime PE is
@@ -1499,6 +1582,47 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 sum(world_targets.values()) + self_targets["relationship_delta"]
             ) / 4.0
             self._head_recent_pairs.append((learned_mean, target_mean))
+
+            # Gate-window record + lag-state advance (all per-axis, fixed
+            # _HEAD_AXES order). Persistence reference = previous scored
+            # turn's realized target, only defined once a lag exists.
+            targets_by_axis = {**world_targets, **self_targets}
+            learned_by_axis = {**world_learned, **self_learned}
+            baseline_by_axis = {
+                "task_progress": evaluated_prediction.predicted_task_progress,
+                "regime_stability": evaluated_prediction.predicted_regime_stability,
+                "action_payoff": evaluated_prediction.predicted_action_payoff,
+                "relationship_delta": _clamp_unit(
+                    evaluated_prediction.predicted_relationship_delta
+                ),
+            }
+            targets_tuple = tuple(targets_by_axis[axis] for axis in _HEAD_AXES)
+            learned_abs = tuple(
+                abs(learned_by_axis[axis] - targets_by_axis[axis]) for axis in _HEAD_AXES
+            )
+            baseline_abs = tuple(
+                abs(baseline_by_axis[axis] - targets_by_axis[axis]) for axis in _HEAD_AXES
+            )
+            persistence_abs = (
+                tuple(
+                    abs(lag - target)
+                    for lag, target in zip(
+                        self._head_lagged_targets, targets_tuple, strict=True
+                    )
+                )
+                if self._head_has_lag
+                else None
+            )
+            self._head_window_records.append(
+                (learned_abs, baseline_abs, targets_tuple, persistence_abs)
+            )
+            self._head_lagged_targets = targets_tuple
+            self._head_lagged_errors = tuple(
+                max(-1.0, min(1.0, targets_by_axis[axis] - learned_by_axis[axis]))
+                for axis in _HEAD_AXES
+            )
+            self._head_has_lag = True
+
             features: tuple[float, ...] = pending["features"]
             self._world_head.update(features=features, targets=world_targets)
             self._self_head.update(features=features, targets=self_targets)
@@ -1510,7 +1634,9 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 evaluation_snapshot=evaluation_snapshot,
                 dual_track_snapshot=dual_track_snapshot,
                 regime_snapshot=regime_snapshot,
-            )
+            ),
+            lagged_targets=self._head_lagged_targets,
+            lagged_errors=self._head_lagged_errors,
         )
         self._pending_head_forecast = {
             "features": next_features,
@@ -1525,6 +1651,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         world_baseline_mae = self._head_abs_error_sums["world_baseline"] / count
         self_learned_mae = self._head_abs_error_sums["self_learned"] / count
         self_baseline_mae = self._head_abs_error_sums["self_baseline"] / count
+        window = self._window_readout()
         return PredictiveHeadReadout(
             world_learned_mae=round(world_learned_mae, 4),
             world_baseline_mae=round(world_baseline_mae, 4),
@@ -1538,7 +1665,74 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
                 f"MAE {world_learned_mae:.3f}/{world_baseline_mae:.3f}, self "
                 f"{self_learned_mae:.3f}/{self_baseline_mae:.3f}. Report-only."
             ),
+            **window,
         )
+
+    def _window_readout(self) -> dict[str, Any]:
+        """Trailing-window gate readout + residual diagnostics (report-only)."""
+
+        records = list(self._head_window_records)
+        n = len(records)
+        if n == 0:
+            return {"window_size": _HEAD_GATE_WINDOW, "window_sample_count": 0}
+        axis_count = len(_HEAD_AXES)
+        world_axis_indices = tuple(range(axis_count - 1))
+        self_axis_index = axis_count - 1
+
+        learned_sums = [0.0] * axis_count
+        baseline_sums = [0.0] * axis_count
+        target_values: list[list[float]] = [[] for _ in _HEAD_AXES]
+        persistence_sums = [0.0] * axis_count
+        persistence_count = 0
+        for learned_abs, baseline_abs, targets, persistence_abs in records:
+            for i in range(axis_count):
+                learned_sums[i] += learned_abs[i]
+                baseline_sums[i] += baseline_abs[i]
+                target_values[i].append(targets[i])
+            if persistence_abs is not None:
+                persistence_count += 1
+                for i in range(axis_count):
+                    persistence_sums[i] += persistence_abs[i]
+
+        learned_maes = [s / n for s in learned_sums]
+        baseline_maes = [s / n for s in baseline_sums]
+        world_learned = sum(learned_maes[i] for i in world_axis_indices) / len(
+            world_axis_indices
+        )
+        world_baseline = sum(baseline_maes[i] for i in world_axis_indices) / len(
+            world_axis_indices
+        )
+
+        def _std(values: list[float]) -> float:
+            if len(values) < 2:
+                return 0.0
+            mean = sum(values) / len(values)
+            return math.sqrt(sum((v - mean) ** 2 for v in values) / len(values))
+
+        return {
+            "window_size": _HEAD_GATE_WINDOW,
+            "window_sample_count": n,
+            "window_world_improvement": round(world_baseline - world_learned, 4),
+            "window_self_improvement": round(
+                baseline_maes[self_axis_index] - learned_maes[self_axis_index], 4
+            ),
+            "window_axis_learned_maes": tuple(
+                (axis, round(learned_maes[i], 4)) for i, axis in enumerate(_HEAD_AXES)
+            ),
+            "window_axis_baseline_maes": tuple(
+                (axis, round(baseline_maes[i], 4)) for i, axis in enumerate(_HEAD_AXES)
+            ),
+            "window_target_stds": tuple(
+                (axis, round(_std(target_values[i]), 4))
+                for i, axis in enumerate(_HEAD_AXES)
+            ),
+            "window_persistence_maes": tuple(
+                (axis, round(persistence_sums[i] / persistence_count, 4))
+                for i, axis in enumerate(_HEAD_AXES)
+            )
+            if persistence_count
+            else (),
+        }
 
     # ------------------------------------------------------------------
     # CP-11 gate completeness surface (W1.D): session-medium checkpoint
@@ -1594,6 +1788,12 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         self._head_abs_error_sums = restored_sums
         self._head_recent_pairs.clear()
         self._pending_head_forecast = None
+        # Like the kill window, the gate window and lag state restart empty:
+        # their evidence must come from the live session, not history.
+        self._head_window_records.clear()
+        self._head_lagged_targets = tuple(0.5 for _ in _HEAD_AXES)
+        self._head_lagged_errors = tuple(0.0 for _ in _HEAD_AXES)
+        self._head_has_lag = False
 
     def predictive_head_kill_criteria(self) -> PredictiveHeadKillCriteria:
         """Self-reward autocorrelation check over the recent scored window."""

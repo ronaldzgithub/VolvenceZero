@@ -310,6 +310,14 @@ async def main(
                         "self_baseline_mae": readout.self_baseline_mae,
                         "world_improvement": readout.world_improvement,
                         "self_improvement": readout.self_improvement,
+                        "window_size": readout.window_size,
+                        "window_sample_count": readout.window_sample_count,
+                        "window_world_improvement": readout.window_world_improvement,
+                        "window_self_improvement": readout.window_self_improvement,
+                        "window_axis_learned_maes": list(readout.window_axis_learned_maes),
+                        "window_axis_baseline_maes": list(readout.window_axis_baseline_maes),
+                        "window_target_stds": list(readout.window_target_stds),
+                        "window_persistence_maes": list(readout.window_persistence_maes),
                     }
                 )
             kill = runner.prediction_module.predictive_head_kill_criteria()
@@ -465,12 +473,29 @@ async def main(
 
     latency_slo_ok = mean_turn_seconds <= _SOAK_MEAN_TURN_SECONDS_SLO
     validation_delta = 0.0
+    validation_delta_basis = "none"
     if head_readout_series:
         last_readout = head_readout_series[-1]
-        validation_delta = max(
-            float(last_readout.get("world_improvement", 0.0)),
-            float(last_readout.get("self_improvement", 0.0)),
-        )
+        window_count = int(last_readout["window_sample_count"])
+        window_size = int(last_readout["window_size"])
+        if window_count >= window_size:
+            # Plan CP-11 gate wording: ">= 0.02 improvement over >= 200
+            # turns". A filled trailing window measures the converged head;
+            # the cumulative mean mixes cold-start error in forever.
+            validation_delta = max(
+                float(last_readout["window_world_improvement"]),
+                float(last_readout["window_self_improvement"]),
+            )
+            validation_delta_basis = f"trailing-window-{window_size}"
+        else:
+            # Short soaks cannot fill the gate window; report the cumulative
+            # improvement and say so (the gate also requires >= 500 real
+            # trace turns, so short lanes stay blocked regardless).
+            validation_delta = max(
+                float(last_readout["world_improvement"]),
+                float(last_readout["self_improvement"]),
+            )
+            validation_delta_basis = f"cumulative-window-unfilled-{window_count}"
     payload["learned_active_gate"] = {
         "note": (
             "Soak lane evidence. ACTIVE promotion additionally requires "
@@ -482,6 +507,7 @@ async def main(
         "latency_slo_ok": latency_slo_ok,
         "real_trace_turns": real_trace_turns,
         "validation_delta": validation_delta,
+        "validation_delta_basis": validation_delta_basis,
         "verdicts": _gate_verdicts(
             real_trace_turns=real_trace_turns,
             validation_delta=validation_delta,

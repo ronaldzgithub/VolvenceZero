@@ -64,8 +64,9 @@ class CaptureRuntime(SyntheticOpenWeightResidualRuntime):
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
         generation_constraints=None,
+        capture_residuals: bool = True,
     ) -> GenerationResult:
-        del max_new_tokens, temperature
+        del max_new_tokens, temperature, capture_residuals
         self.last_control_scale = control_scale
         self.last_control_parameters = control_parameters
         self.last_chat_messages = chat_messages
