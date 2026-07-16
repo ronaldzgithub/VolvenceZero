@@ -471,6 +471,24 @@ def run_submission(
                     )
                     continue
             stage = "run_arc"
+            current = len(per_arc_scores) + len(failures) + 1
+            _LOG.info(
+                "[%s] %d/%d starting %s seed=%d",
+                manifest.submission_id,
+                current,
+                total_planned,
+                spec.scenario_id,
+                seed,
+            )
+            _emit_arc_progress(
+                arc_dir,
+                submission_id=manifest.submission_id,
+                event="arc_started",
+                scenario_id=spec.scenario_id,
+                paraphrase_seed=seed,
+                scored=len(per_arc_scores),
+                total=total_planned,
+            )
             arc_started = time.monotonic()
             try:
                 arc = run_arc(
