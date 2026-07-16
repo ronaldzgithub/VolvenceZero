@@ -1,7 +1,7 @@
 # Learned vs Heuristic Coverage Spec
 
 > Status: v0.1
-> Last updated: 2026-07-14
+> Last updated: 2026-07-16
 > 对应需求: R2（稳定基底 + 自适应控制器）、R3/R4（时间抽象 + 内部控制）、R-PE（prediction error 为原始学习信号）、R8（快照 SSOT / 单一所有者）、R9（层级信用）、R15（可解释 + 可回滚迁移）
 
 ## 要解决的问题
@@ -224,19 +224,27 @@ slots：`plan_intent` · `commitment` · `open_loop` · `user_model` · `executi
 
 ### 内核级 headline（诚实结论）
 
-**在默认 wiring 下，内核里真正"学出来"的东西**（2026-07-13 更新，从三处扩到六处）：
+**在默认 wiring 下，内核里真正"学出来"的东西**（2026-07-16 更新，从六处扩到十四处）：
 1. `_PELearnedCritic`（PE epistemic，18-dim 线性回归）—— [#7](../known-debts.md)
 2. `_RewardingStateHead`（COCOA credit baseline，15-dim 线性 head）—— [#6](../known-debts.md)
 3. CMS `LearnedUpdateRule` band 更新门控（+ 可选 Titans PE-gate）—— [#89](../known-debts.md)
-4. `DualTrackGateLearner`（world/self gate shadow，session-held online-SGD，PE realized outcome 打分；report-only）—— W1.A
-5. 语义 owner forecast v2（9 个 semantic owner slot per-维 learned forecast，settlement 时更新；W1.B 首批为 5 slot，后续代码与契约测试扩到全 slot）—— W1.B
+4. `DualTrackGateLearner`（world/self gate shadow，session-held online-SGD，PE realized outcome 打分；report-only，C3 起带 promotion readout + checkpoint 回滚）—— W1.A
+5. 语义 owner forecast v2（9 个 semantic owner slot per-维 learned forecast，settlement 时更新）—— W1.B
 6. ToM / common-ground prediction settlement + PE-weighted promote/retire（跨轮 record store）—— W1.C（CP-16/17 核）
+7. `FamilyMatchWeights` action-family 匹配 head（settled outcome 驱动有界 SGD，回滚包络）—— T2
+8. β_t 阈值 learnable（store `beta_threshold`，`temporal-prior` 组在线更新）—— T1
+9. PE 轴 external-outcome bias 校准（`ExternalOutcomeBiasCalibrator`）+ AAC alignment severity 校准（`_AlignmentSeverityCalibrator`），静态表=初始化+回滚点 —— C2
+10. regime external-outcome score 在线 settle（`_external_outcome_scores`，包络约束）—— C1
+11. `GateRiskLearner`（ModificationGate learned risk 旁路，report-only，规则不让位）+ `ScheduleGateLearner`（joint loop SHADOW 门控）—— C3 / T3
+12. 群体 durability score（G1：GROUP_COMMITMENT_DURABILITY settlement 驱动 per-group learned confidence）—— CP-18
+13. CMS torch band SHADOW dual-run settle + promotion readout（默认 DISABLED，晋升路径代码完备）—— M2
+14. rare-heavy `PeftLoraRareHeavyBackend` 真 PEFT LoRA 训练接缝（注入时；默认 builtin fallback）—— S1
 
-其中 4–6 为 2026-07-13 intent-alignment remediation 落地；4 仍是 report-only shadow 字段（不进 RL reward），5/6 直接驱动签发预测与 record 生命周期。
+其中 4–6 为 2026-07-13 intent-alignment remediation，7–14 为 2026-07-16 认知 AGI 代码完整度收敛包（T1–T3 / C1–C4 / M1–M2 / S1 / A1–A2 / I1 / G1 / D1）落地。11/13 为 report-only shadow / SHADOW dual-run（不进 live 决策）；其余直接参与运行时适应。
 
-**其余绝大多数决策是 hand-crafted 规则或 frozen-substrate readout**；ETA 论文级的 torch metacontroller / Internal RL / ndim GRU 已实现但**默认 DISABLED 或因 `n_z=3` 未实例化**。同时存在一个**显著的 `should-be-learned-but-hand-crafted` 桶**（尤以 `vz-cognition` regime/dual_track/apprenticeship 与 `vz-substrate`/`vz-temporal` 的 stub·静态映射为最），它是 [#88](../known-debts.md)–[#91](../known-debts.md) / [#79](../known-debts.md)–[#81](../known-debts.md) 的直接来源。
+**其余多数决策仍是 hand-crafted 规则或 frozen-substrate readout**；ETA 论文级的 torch metacontroller / Internal RL / ndim GRU 已实现且 2026-07-16 起**一键可选**（`temporal_profile="learned-ndim"` / `TorchCausalZPolicy` first-class / `rare_heavy_training_backend="peft-lora"`），但**默认仍 legacy/DISABLED 待证据门**。`should-be-learned-but-hand-crafted` 桶经 2026-07-16 收敛包大幅缩减（见第 7 节：#79/#80 PE 侧/#81/#88 family 匹配/#89 代码侧/#90 protocol 残余/#91 全部划勾），**代码侧剩余实质项**为：`score_regimes` 固定系数（gate 于 [#44](../known-debts.md) SYS-1 真 trace）、`apply_prediction_error_signal` 固定写入阈值、temporal torch 三后端 ACTIVE flip（gate 于 ≥500 turn 证据）、`semantic_feature_surface_from_text` 固定 prototype。
 
-对外口径应为："架构齐、契约稳、回滚全；learned 肌肉小且部分默认未接入；capacity→gain 的 scale 曲线尚未证明"（对齐 [#86](../known-debts.md)）。
+对外口径应为："架构齐、契约稳、回滚全；learned 肌肉已就位且晋升路径（SHADOW dual-run + promotion readout + kill 条件 + checkpoint 回滚）代码完备；默认 wiring 保守，ACTIVE flip 与 capacity→gain 的 scale 曲线 gate 于真 trace / GPU 证据"（对齐 [#86](../known-debts.md)）。
 
 ---
 

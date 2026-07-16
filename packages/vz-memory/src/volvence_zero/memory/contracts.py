@@ -150,6 +150,9 @@ class MemoryStoreCheckpoint:
     cms_state: CMSCheckpointState | None
     promotion_threshold: float
     semantic_index: tuple[tuple[str, tuple[float, ...]], ...]
+    # #89 residual: learned PE write-gate threshold. Default keeps
+    # pre-gate checkpoints loadable (they restore the initial 0.15).
+    pe_write_gate_threshold: float = 0.15
 
 
 def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | None:
@@ -299,6 +302,7 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
             cms_state=cms_state,
             promotion_threshold=float(parsed.get("promotion_threshold", 0.3)),
             semantic_index=semantic_index,
+            pe_write_gate_threshold=float(parsed.get("pe_write_gate_threshold", 0.15)),
         )
     except (KeyError, TypeError, ValueError):
         return None

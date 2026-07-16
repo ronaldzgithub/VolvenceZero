@@ -32,6 +32,7 @@ from volvence_zero.memory.contracts import (
     Track,
     _reconstruct_checkpoint,
 )
+from volvence_zero.memory.pe_write_gate import PeWriteGate
 from volvence_zero.memory.persistence import (
     PersistenceBackend,
     deserialize_checkpoint,
@@ -134,6 +135,10 @@ class MemoryStore:
         self._artifact_store = ArtifactStore()
         self._derived_index = DerivedRetrievalIndex()
         self._promotion_threshold = _clamp_strength(promotion_threshold)
+        # #89 residual: bounded-learned admission gate for PE-driven
+        # writes. The historical fixed magnitude>=0.15 threshold is its
+        # initialisation and rollback point.
+        self._pe_write_gate = PeWriteGate()
         self._persistence_backend = persistence_backend
         self._persistence_version = 0
         self._context_reset_count = 0
@@ -189,6 +194,10 @@ class MemoryStore:
     @property
     def promotion_threshold(self) -> float:
         return self._promotion_threshold
+
+    @property
+    def pe_write_gate(self) -> PeWriteGate:
+        return self._pe_write_gate
 
     @property
     def _entries(self) -> dict[str, MemoryEntry]:
@@ -544,6 +553,11 @@ class MemoryStore:
                     "cms_atlas_replay_active",
                     float(cms_state.atlas_replay_active) if cms_state is not None else 0.0,
                 ),
+                # #89 residual: bounded-learned PE write gate readout.
+                ("pe_write_gate_threshold", self._pe_write_gate.threshold),
+                ("pe_write_gate_settled_useful", float(self._pe_write_gate.settled_useful_count)),
+                ("pe_write_gate_settled_unused", float(self._pe_write_gate.settled_unused_count)),
+                ("pe_write_gate_pending", float(self._pe_write_gate.pending_count)),
             ),
             cms_band_vectors=(
                 (
@@ -667,6 +681,17 @@ class MemoryStore:
             return ()
         pe = prediction_error_snapshot.error
         operations: list[str] = []
+        # #89 residual: settle prior PE-driven writes against their
+        # realized usefulness before gating this turn's write. The gate
+        # clock advances once per settled (non-bootstrap) PE turn.
+        self._pe_write_gate.begin_turn()
+        settled_useful, settled_unused = self._pe_write_gate.settle(self._entries)
+        if settled_useful or settled_unused:
+            operations.append(
+                "prediction-error:write-gate-settle:"
+                f"{settled_useful}+/{settled_unused}-"
+                f":threshold={self._pe_write_gate.threshold:.3f}"
+            )
         magnitude = pe.magnitude
         primary_dimension = max(
             (
@@ -697,7 +722,7 @@ class MemoryStore:
             else Track.SELF if primary_dimension == "relationship"
             else Track.SHARED
         )
-        if magnitude >= 0.15:
+        if self._pe_write_gate.should_write(magnitude):
             entry = self.write(
                 MemoryWriteRequest(
                     content=f"prediction_error:{primary_dimension}:{prediction_error_snapshot.error.description}",
@@ -707,6 +732,9 @@ class MemoryStore:
                     strength=_clamp_strength(min(1.0, 0.45 + magnitude * 0.2)),
                 ),
                 timestamp_ms=timestamp_ms,
+            )
+            self._pe_write_gate.record_write(
+                entry_id=entry.entry_id, strength=entry.strength
             )
             operations.append(f"prediction-error-write:{entry.entry_id}")
         if pe.relationship_error < -0.15:
@@ -808,6 +836,7 @@ class MemoryStore:
             cms_state=self._learned_core.export_state() if self._learned_core is not None else None,
             promotion_threshold=self._promotion_threshold,
             semantic_index=self._derived_index.export_state(),
+            pe_write_gate_threshold=self._pe_write_gate.threshold,
         )
 
     def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> MemoryStoreCheckpoint:
@@ -820,6 +849,7 @@ class MemoryStore:
             pending_decays=checkpoint.pending_decays,
         )
         self._promotion_threshold = checkpoint.promotion_threshold
+        self._pe_write_gate.restore_threshold(checkpoint.pe_write_gate_threshold)
         self._derived_index.restore(checkpoint.semantic_index)
         if self._learned_core is not None and checkpoint.cms_state is not None:
             self._learned_core.restore_state(checkpoint.cms_state)

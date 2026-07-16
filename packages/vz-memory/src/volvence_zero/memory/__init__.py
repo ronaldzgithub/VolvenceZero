@@ -39,6 +39,10 @@ from volvence_zero.memory.persistence import (
     serialize_checkpoint,
 )
 from volvence_zero.memory.contracts import MemoryAttributeReadout
+from volvence_zero.memory.pe_write_gate import (
+    PE_WRITE_GATE_INITIAL_THRESHOLD,
+    PeWriteGate,
+)
 from volvence_zero.memory.store import (
     build_default_memory_store,
     MemoryEntry,
@@ -92,6 +96,8 @@ __all__ = [
     "serialize_checkpoint",
     "build_default_memory_store",
     "MemoryAttributeReadout",
+    "PE_WRITE_GATE_INITIAL_THRESHOLD",
+    "PeWriteGate",
     "MemoryEntry",
     "MemoryModule",
     "MemoryStoreCheckpoint",
