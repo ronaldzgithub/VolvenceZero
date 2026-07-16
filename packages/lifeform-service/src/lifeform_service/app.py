@@ -76,6 +76,10 @@ from lifeform_service.openai_utterance_client import (
     build_utterance_client_from_env,
 )
 from lifeform_service.protocol_routes import register_protocol_routes
+from lifeform_service.teaching_case import (
+    TeachingCaseService,
+    register_teaching_case_routes,
+)
 from lifeform_service.protocol_uptake import ProtocolUptakeService
 from lifeform_service.session_manager import (
     SessionAlreadyExistsError,
@@ -294,6 +298,12 @@ def create_app(
     app.on_startup.append(_install_alpha_reload_signal_handler)
     if protocol_uptake_service is not None:
         register_protocol_routes(app, uptake_service=protocol_uptake_service)
+    # TeachingCase closure (runtime-ingestion spec): operator
+    # demonstrations enter the kernel exclusively through
+    # IngestionPipeline -> canonical turn path, scoped to dedicated
+    # ``ingestion-`` sessions. Always registered — the service has no
+    # external dependency beyond the ingestion wheel.
+    register_teaching_case_routes(app, service=TeachingCaseService())
     # Governance-demo simulator routes. The cache is always installed
     # (default: companion_bench DeterministicFakeUtteranceClient). When
     # ``utterance_backend`` is ``None`` and ``PROTOCOL_LLM_API_KEY`` is

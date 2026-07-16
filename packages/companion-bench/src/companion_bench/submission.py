@@ -222,8 +222,41 @@ class SubmissionResult:
             "cost": self.cost.to_json(),
             "started_at": self.started_at,
             "finished_at": self.finished_at,
-            "arc_count": len(self.arc_bundles),
+            "arc_count": self.aggregate.arc_count,
         }
+
+
+def _arc_bundle_path(
+    arc_dir: pathlib.Path,
+    *,
+    submission_id: str,
+    scenario_id: str,
+    paraphrase_seed: int,
+) -> pathlib.Path:
+    from companion_bench.arc_runner import _derive_arc_id
+
+    arc_id = _derive_arc_id(
+        submission_id=submission_id,
+        scenario_id=scenario_id,
+        paraphrase_seed=paraphrase_seed,
+    )
+    return arc_dir / f"{arc_id}.bundle.json"
+
+
+def _load_bundle_final_score(path: pathlib.Path) -> CompanionBenchScore:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    final_score = data["final_score"]
+    return CompanionBenchScore(
+        final=float(final_score["final"]),
+        raw=float(final_score["raw"]),
+        a6_cap_applied=bool(final_score["a6_cap_applied"]),
+        axis_scores={
+            AxisId(k): float(v) for k, v in final_score["axis_scores"].items()
+        },
+        weights={
+            AxisId(k): float(v) for k, v in final_score["weights"].items()
+        },
+    )
 
 
 def _arc_run_config_from_manifest(
@@ -302,6 +335,7 @@ def run_submission(
     artifact_dir: pathlib.Path | str | None = None,
     user_simulator_model: str = "fake/user-sim",
     fail_isolated: bool = True,
+    resume_completed_arcs: bool = True,
 ) -> SubmissionResult:
     """Run one submission across (specs × paraphrase_seeds) → SubmissionResult.
 
@@ -322,6 +356,7 @@ def run_submission(
     started_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
     tracker = CostTracker()
     bundles: list[ArcBundle] = []
+    per_arc_scores: list[CompanionBenchScore] = []
     arc_dir = pathlib.Path(artifact_dir) if artifact_dir else None
     if arc_dir:
         arc_dir.mkdir(parents=True, exist_ok=True)
@@ -334,6 +369,16 @@ def run_submission(
         for seed in paraphrase_seeds:
             if seed >= spec.paraphrase_seed_count:
                 continue
+            if arc_dir is not None and resume_completed_arcs:
+                existing = _arc_bundle_path(
+                    arc_dir,
+                    submission_id=manifest.submission_id,
+                    scenario_id=spec.scenario_id,
+                    paraphrase_seed=seed,
+                )
+                if existing.is_file():
+                    per_arc_scores.append(_load_bundle_final_score(existing))
+                    continue
             stage = "run_arc"
             try:
                 arc = run_arc(
@@ -390,6 +435,7 @@ def run_submission(
                     final_score=final,
                 )
                 bundles.append(bundle)
+                per_arc_scores.append(final)
                 if arc_dir is not None:
                     _write_bundle(bundle, arc_dir)
             except Exception as exc:
@@ -429,9 +475,15 @@ def run_submission(
             for entry in failures:
                 fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+    if not per_arc_scores:
+        raise ValueError(
+            f"submission {manifest.submission_id!r} produced no scored arcs "
+            f"({len(failures)} arc(s) failed this pass; check arcs/arc_failure.jsonl)"
+        )
+
     aggregate = aggregate_submission(
         submission_id=manifest.submission_id,
-        per_arc_scores=[b.final_score for b in bundles],
+        per_arc_scores=per_arc_scores,
     )
     cost = tracker.freeze()
     finished_at = _dt.datetime.now(_dt.timezone.utc).isoformat()

@@ -43,6 +43,7 @@ from volvence_zero.runtime import (
 from volvence_zero.semantic_embedding import (
     semantic_cosine,
     semantic_embedding,
+    semantic_topic_similarity,
     stub_semantic_tokens as _semantic_tokens,
 )
 from volvence_zero.semantic_state import (
@@ -293,15 +294,6 @@ def _strip_json_fence(raw: str) -> str:
 # ---------------------------------------------------------------------------
 def _tokens(text: str) -> frozenset[str]:
     return frozenset(_semantic_tokens(text)) if text else frozenset()
-
-
-def _jaccard(left: frozenset[str], right: frozenset[str]) -> float:
-    if not left or not right:
-        return 0.0
-    intersection = len(left & right)
-    if intersection == 0:
-        return 0.0
-    return intersection / len(left | right)
 
 
 def _constraint_tokens(constraint: IntentConstraint) -> frozenset[str]:
@@ -563,7 +555,13 @@ def _detect_contradictions(
                 continue
             if candidate.polarity * other.polarity >= 0:
                 continue  # same stance, not a contradiction
-            topic_sim = _jaccard(cand_tokens, other_tokens)
+            # M1 (#91 follow-up): backend-aware topic similarity — real
+            # embedding cosine when a substrate backend is installed,
+            # byte-identical stub-token Jaccard otherwise.
+            topic_sim = semantic_topic_similarity(
+                candidate.target_key or candidate.statement,
+                other.target_key or other.statement,
+            )
             if topic_sim < thresholds.contradiction_topic:
                 continue
             pair_key = frozenset({candidate.constraint_id, other.constraint_id})

@@ -64,19 +64,18 @@ def test_forks_share_canonical_entrypoints() -> None:
     All embedding consumers bind to the canonical
     :mod:`volvence_zero.semantic_embedding` module:
 
-    * ``tokens`` / ``cosine`` everywhere are the canonical stub helpers.
-    * ``application.scoring_helpers`` still binds embedding to the pure
-      ``stub_semantic_embedding`` (it is paired with stub-space literal
-      prototypes in ``runtime_helpers``; migrating it to the seam is a #91
-      follow-up that requires cleaning those literals together).
-    * ``dual_track`` / ``evaluation`` now route embedding through the #91
-      seam ``semantic_embedding`` (stub fallback when no backend is set),
-      so a real substrate backend is honored when injected.
+    * ``tokens`` everywhere are the canonical stub helpers (tokens are a
+      lexical notion, not an embedding-space one).
+    * ``application.scoring_helpers`` / ``dual_track`` / ``evaluation``
+      all route embedding through the #91 seam ``semantic_embedding``
+      (stub fallback when no backend is set), so a real substrate
+      backend is honored when injected — including the lazily computed
+      prototype vectors (M1 / #91 follow-up).
     """
     from volvence_zero.semantic_embedding import (
+        semantic_cosine,
         semantic_embedding as seam_embedding,
         stub_cosine_similarity,
-        stub_semantic_embedding,
         stub_semantic_tokens,
     )
     from volvence_zero.application.scoring_helpers import (
@@ -95,9 +94,9 @@ def test_forks_share_canonical_entrypoints() -> None:
         _semantic_tokens as evaluation_tokens,
     )
 
-    assert semantic_embedding is stub_semantic_embedding
+    assert semantic_embedding is seam_embedding
     assert semantic_tokens is stub_semantic_tokens
-    assert cosine_similarity is stub_cosine_similarity
+    assert cosine_similarity is semantic_cosine
 
     assert dual_track_embedding is seam_embedding
     assert dual_track_tokens is stub_semantic_tokens
@@ -164,6 +163,101 @@ def test_prototypes_are_lazy_and_reflect_injected_backend() -> None:
     set_semantic_embedding_backend(_ConstBackend())
     assert task_pressure_prototype() == const
     assert support_presence_prototype() == const
+
+
+class _UnitBackend:
+    """Backend that embeds every text onto the first basis vector."""
+
+    def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+        return tuple(1.0 if i == 0 else 0.0 for i in range(dim))
+
+
+class _OtherBackend:
+    def embed(self, text: str, *, dim: int) -> tuple[float, ...]:
+        return tuple(1.0 if i == 1 else 0.0 for i in range(dim))
+
+
+def test_same_owner_reinstall_is_allowed() -> None:
+    """M1 (#91): the same substrate may refresh its own backend."""
+    from volvence_zero.semantic_embedding import (
+        semantic_embedding_backend_status,
+        set_semantic_embedding_backend,
+    )
+
+    assert (
+        set_semantic_embedding_backend(_UnitBackend(), owner="substrate-a")
+        == "installed"
+    )
+    assert (
+        set_semantic_embedding_backend(_UnitBackend(), owner="substrate-a")
+        == "installed"
+    )
+    assert semantic_embedding_backend_status() == ("backend", "substrate-a", False)
+
+
+def test_second_substrate_demotes_to_stub_and_latches_conflict() -> None:
+    """M1 (#91): two substrates in one process must not cross-contaminate.
+
+    A second install from a DIFFERENT owner demotes the process-global
+    seam to the deterministic stub for everyone and latches an
+    observable conflict flag until an explicit reset (the rollback path).
+    """
+    from volvence_zero.semantic_embedding import (
+        reset_semantic_embedding_backend,
+        semantic_embedding,
+        semantic_embedding_backend_status,
+        set_semantic_embedding_backend,
+        stub_semantic_embedding,
+    )
+
+    set_semantic_embedding_backend(_UnitBackend(), owner="substrate-a")
+    assert (
+        set_semantic_embedding_backend(_OtherBackend(), owner="substrate-b")
+        == "conflict-stub"
+    )
+    assert semantic_embedding_backend_status() == ("stub", "", True)
+    assert semantic_embedding("anything", dim=8) == stub_semantic_embedding(
+        "anything", dim=8
+    )
+
+    reset_semantic_embedding_backend()
+    assert semantic_embedding_backend_status() == ("stub", "", False)
+
+
+def test_topic_similarity_stub_fallback_matches_jaccard() -> None:
+    """M1 (#91): without a backend the historical Jaccard is byte-identical."""
+    from volvence_zero.semantic_embedding import (
+        semantic_topic_similarity,
+        stub_semantic_tokens,
+    )
+
+    pairs = (
+        ("always run the failing test first", "run the failing test before edits"),
+        ("完全不相关的句子", "another unrelated sentence"),
+        ("", "non-empty"),
+    )
+    for left_text, right_text in pairs:
+        left = frozenset(stub_semantic_tokens(left_text))
+        right = frozenset(stub_semantic_tokens(right_text))
+        if not left or not right:
+            expected = 0.0
+        else:
+            inter = len(left & right)
+            expected = inter / len(left | right) if inter else 0.0
+        assert semantic_topic_similarity(left_text, right_text) == expected
+
+
+def test_topic_similarity_uses_backend_cosine_when_installed() -> None:
+    """M1 (#91): with a real backend, topic similarity is clamped cosine."""
+    from volvence_zero.semantic_embedding import (
+        semantic_topic_similarity,
+        set_semantic_embedding_backend,
+    )
+
+    set_semantic_embedding_backend(_UnitBackend(), owner="substrate-a")
+    # _UnitBackend maps every text to the same unit vector -> cosine 1.0,
+    # even for texts with zero token overlap (proving the backend is used).
+    assert semantic_topic_similarity("完全不相关的句子", "totally unrelated") == 1.0
 
 
 def test_canonical_modulus_is_coprime_with_common_dims() -> None:

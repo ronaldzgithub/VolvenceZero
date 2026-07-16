@@ -1930,9 +1930,10 @@ def derive_actual_outcome(
 # applied to the corresponding axis of ``ActualOutcome``; the result is
 # clamped to the axis' valid range (task / regime / action to ``[0, 1]``,
 # relationship_delta to ``[-1, 1]``). Values are scaled by the evidence's
-# confidence before being applied. The table is a documented static
-# mapping, NOT learned — learned outcome weighting is explicitly
-# post-v0 (see docs/specs/rupture-and-repair.md).
+# confidence before being applied. Since C2 (2026-07-16) this table is the
+# INITIALISATION + rollback point of ``ExternalOutcomeBiasCalibrator``,
+# which nudges per-kind biases toward co-occurring internal evidence with
+# drift bounded to the calibrator's envelope.
 _EXTERNAL_OUTCOME_AXIS_BIAS: dict[
     DialogueExternalOutcomeKind,
     tuple[float, float, float, float],

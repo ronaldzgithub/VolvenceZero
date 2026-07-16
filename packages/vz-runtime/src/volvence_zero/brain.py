@@ -57,6 +57,7 @@ from volvence_zero.semantic_embedding import (
 )
 from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
+    PeftLoraRareHeavyBackend,
     SubstrateAdapter,
     SubstrateTextEncoderBackend,
     SyntheticOpenWeightResidualRuntime,
@@ -181,6 +182,16 @@ class BrainConfig:
     # the same effect. Process-global seam: single-substrate only; a
     # multi-substrate process should leave this DISABLED (#91 follow-up).
     semantic_embedding_backend_wiring: WiringLevel = WiringLevel.ACTIVE
+    # S1: offline rare-heavy adapter training backend. "builtin" (default)
+    # keeps the runtime's built-in adapter-delta autograd loop — the
+    # documented fallback and rollback target. "peft-lora" installs
+    # PeftLoraRareHeavyBackend on the substrate runtime so every
+    # rare-heavy clone (session_training_phase / joint-loop pipeline)
+    # trains real LoRA matrices on the frozen base model; the artifact
+    # still enters the live runtime only through the existing replay
+    # comparison + ModificationGate path. Requires a real transformers
+    # runtime — configuring it with a synthetic substrate fails loudly.
+    rare_heavy_training_backend: Literal["builtin", "peft-lora"] = "builtin"
 
     def resolved_temporal_latent_dim(self) -> int:
         """Resolve the effective controller capacity (profile-aware).
@@ -731,6 +742,7 @@ class Brain:
         """
         runtime = self._resolve_substrate_runtime()
         self._install_semantic_embedding_backend(runtime)
+        self._install_rare_heavy_training_backend(runtime)
         synthesizer = response_synthesizer or self._response_synthesizer
         identity = self._identity_provider.resolve(session_id)
         user_scope = scope_key_for(identity)
@@ -840,9 +852,48 @@ class Brain:
             reset_semantic_embedding_backend()
             return
         if isinstance(runtime, TransformersOpenWeightResidualRuntime):
-            set_semantic_embedding_backend(SubstrateTextEncoderBackend(runtime))
+            # M1 (#91 follow-up): owner-scoped install. A second Brain with a
+            # DIFFERENT substrate in the same process demotes the seam to
+            # the stub for everyone (observable via
+            # semantic_embedding_backend_status()) instead of silently
+            # cross-contaminating embedding spaces.
+            set_semantic_embedding_backend(
+                SubstrateTextEncoderBackend(runtime),
+                owner=runtime.model_id,
+            )
         else:
             reset_semantic_embedding_backend()
+
+    def _install_rare_heavy_training_backend(
+        self, runtime: OpenWeightResidualRuntime
+    ) -> None:
+        """Install the configured offline rare-heavy training backend (S1).
+
+        ``"builtin"`` leaves the runtime untouched (built-in adapter-delta
+        loop / synthetic heuristic — the rollback target). ``"peft-lora"``
+        installs :class:`PeftLoraRareHeavyBackend` on a real transformers
+        runtime; ``clone_for_rare_heavy`` propagates it into every offline
+        clone, so ``session_training_phase`` orchestration is unchanged.
+        Misconfiguration (peft-lora on a non-transformers runtime) fails
+        loudly instead of silently training the heuristic path.
+        """
+
+        if self._config.rare_heavy_training_backend == "builtin":
+            return
+        if self._config.rare_heavy_training_backend != "peft-lora":
+            raise ValueError(
+                "unknown rare_heavy_training_backend "
+                f"{self._config.rare_heavy_training_backend!r}; "
+                "expected 'builtin' or 'peft-lora'"
+            )
+        if not isinstance(runtime, TransformersOpenWeightResidualRuntime):
+            raise ValueError(
+                "BrainConfig(rare_heavy_training_backend='peft-lora') requires a "
+                "real transformers substrate runtime; got "
+                f"{type(runtime).__name__}. Use substrate_mode='hf' or inject "
+                "a TransformersOpenWeightResidualRuntime."
+            )
+        runtime.set_rare_heavy_training_backend(PeftLoraRareHeavyBackend())
 
     def _resolve_substrate_runtime(self) -> OpenWeightResidualRuntime:
         if self._config.substrate_mode == "injected":

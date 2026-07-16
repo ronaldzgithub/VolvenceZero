@@ -17,13 +17,18 @@ from volvence_zero.evaluation.cross_generation_aggregator import (
     CrossGenerationAggregatorModule,
     ModificationGateEvidence,
     build_cross_generation_aggregate_snapshot,
+    build_cross_generation_window_snapshot,
 )
 from volvence_zero.evaluation.expensive_layer import (
     ExpensiveLayerModule,
     ExpensiveLayerSnapshot,
     HeadToHeadResult,
+    LlmJudgeBackend,
+    LlmJudgeCase,
     LlmJudgeReadout,
     build_deterministic_head_to_head_snapshot,
+    build_substrate_geometry_scores,
+    run_llm_judge_readouts,
 )
 from volvence_zero.evaluation.mid_layer import (
     CounterfactualContributionReadout,
@@ -42,11 +47,16 @@ __all__ = [
     "ExpensiveLayerModule",
     "ExpensiveLayerSnapshot",
     "HeadToHeadResult",
+    "LlmJudgeBackend",
+    "LlmJudgeCase",
     "LlmJudgeReadout",
     "MidLayerModule",
     "MidLayerScore",
     "MidLayerSnapshot",
     "ModificationGateEvidence",
     "build_cross_generation_aggregate_snapshot",
+    "build_cross_generation_window_snapshot",
     "build_deterministic_head_to_head_snapshot",
+    "build_substrate_geometry_scores",
+    "run_llm_judge_readouts",
 ]

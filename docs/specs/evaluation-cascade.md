@@ -150,15 +150,16 @@ class MidLayerModule(RuntimeModule[MidLayerSnapshot]):
     slot_name = "evaluation_mid"
     owner = "MidLayerModule"
     value_type = MidLayerSnapshot
-    dependencies = ("evaluation", "credit") # 消费 cheap_layer + credit owner COG-1 readouts
+    # C4 (2026-07-16)：加 prediction_error / regime，聚合 PE 与 regime 只读 readout
+    dependencies = ("evaluation", "credit", "prediction_error", "regime")
     default_wiring_level = WiringLevel.SHADOW
 ```
 
 **关键不变量（mid_layer）**：
 
-- `dependencies = ("evaluation", "credit")` — 消费 cheap snapshot 与 credit owner 发布的 counterfactual / least-control readout；不重新计算 credit
-- `aggregated_scores` 不重复 cheap layer 字段；只发布 cheap layer 无法表达的 ablation delta / 跨场景聚合
-- counterfactual_readouts 来自 `credit.counterfactual_readouts` 的镜像，不在本 owner 重新计算（R8 SSOT）
+- `dependencies = ("evaluation", "credit", "prediction_error", "regime")` — 消费 cheap snapshot、credit owner 发布的 counterfactual / least-control readout、PE owner 的 magnitude / decomposition readout、regime owner 的 persistence / candidate-margin readout；不重新计算任何 owner 状态
+- `aggregated_scores` 不重复 cheap layer 字段；只发布 cheap layer 无法表达的 ablation delta / 跨场景聚合 / owner readout 再发射（C4 实装：`least_control_*` + `pe_magnitude` + `pe_epistemic_fraction` + `regime_persistence` + `regime_candidate_margin`）
+- counterfactual_readouts 来自 `credit.counterfactual_readouts` 的镜像，不在本 owner 重新计算（R8 SSOT）；PE bootstrap 轮不发 PE score
 
 ### A2.3 expensive_layer
 
@@ -198,16 +199,18 @@ class ExpensiveLayerModule(RuntimeModule[ExpensiveLayerSnapshot]):
     slot_name = "evaluation_expensive"
     owner = "ExpensiveLayerModule"
     value_type = ExpensiveLayerSnapshot
-    dependencies = ("evaluation_mid",)     # 消费 mid_layer
+    # C4 (2026-07-16)：加 substrate，发布 persona-vector 式几何 readout
+    dependencies = ("evaluation_mid", "substrate")
     default_wiring_level = WiringLevel.SHADOW
 ```
 
 **关键不变量（expensive_layer）**：
 
 - `LlmJudgeReadout.is_gate_eligible` 类常量 `False` — 在 dataclass 中显式声明此 readout 不进 gate；contract test 强制（详见 §错误处理）
-- LLM-judge 调用走集中 prompt 管理（[`llm-prompt-centralization.mdc`](../../.cursor/rules/llm-prompt-centralization.mdc)）
-- 不调用 LLM 时 `llm_judge_readouts = ()`；contract test 验证 SHADOW 模式下整个 expensive_layer 可零 LLM 调用运行
-- 当前最小实现新增 `build_deterministic_head_to_head_snapshot(...)`：从 profile-level `metric_means` 生成 `HeadToHeadResult`，不调用 LLM，不进入 Face / reward 路径。它用于 Phase 2 smoke / paper-suite aggregate 将 metric delta 提升为 expensive-layer head-to-head evidence。
+- LLM-judge 调用走集中 prompt 管理（[`llm-prompt-centralization.mdc`](../../.cursor/rules/llm-prompt-centralization.mdc)）——C4 实装：prompt 集中在 `evaluation/prompts.py`，调用走可注入 `LlmJudgeBackend` 接缝 + `submit_judge_cases(...)`，malformed 回复 fail-loud（不允许静默丢 readout）
+- 不调用 LLM 时 `llm_judge_readouts = ()`；contract test 验证 SHADOW 模式下整个 expensive_layer 可零 LLM 调用运行（未注入 backend 或无 pending case 即零调用）
+- C4 substrate 几何 readout：`build_substrate_geometry_scores(...)` 只读 substrate owner 发布的 `residual_sequence`，产 `persona_geometry_norm` / `persona_geometry_drift` 两个监控入口 score（persona-vector 式），不触碰模型
+- `build_deterministic_head_to_head_snapshot(...)`：从 profile-level `metric_means` 生成 `HeadToHeadResult`，不调用 LLM，不进入 Face / reward 路径。它用于 Phase 2 smoke / paper-suite aggregate 将 metric delta 提升为 expensive-layer head-to-head evidence。
 
 ### A2.4 CrossGenerationAggregator
 
@@ -240,11 +243,13 @@ class CrossGenerationAggregatorModule(RuntimeModule[CrossGenerationAggregateSnap
     default_wiring_level = WiringLevel.SHADOW
 ```
 
-当前最小实现：
+当前实现（C4 2026-07-16 实体化）：
 
-- `build_cross_generation_aggregate_snapshot(expensive_snapshot=...)` 从 `ExpensiveLayerSnapshot.head_to_head_results` 计算 `head_to_head_aggregate_winrate` 与 `validation_score`。
-- 当 `head_to_head_results` 为空时保持 skeleton empty snapshot 行为。
+- `build_cross_generation_aggregate_snapshot(expensive_snapshot=...)` 从单个 `ExpensiveLayerSnapshot.head_to_head_results` 计算 `head_to_head_aggregate_winrate` 与 `validation_score`（保留为单代际 helper）。
+- `build_cross_generation_window_snapshot(window=...)` 跨多代际窗口聚合所有 head-to-head 行；模块持有按 `generation_id` 键控的有界窗口（最近 5 代，最旧先逐出），`process()` 发布窗口聚合。
+- 当窗口 / `head_to_head_results` 为空时保持 skeleton empty snapshot 行为。
 - `llm_judge_readouts` 明确不进入 `ModificationGateEvidence`，只作为 expensive layer readout。
+- `audit_evidence_id` 保持 `None` 直到 audit owner ACTIVE（OA-4）。
 
 **关键不变量（aggregator）**：
 

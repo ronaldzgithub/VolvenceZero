@@ -52,6 +52,10 @@ from volvence_zero.substrate.residual_intervention import (
     TraceResidualInterventionBackend,
     apply_residual_control,
 )
+from volvence_zero.substrate.rare_heavy_training import (
+    RareHeavyAdapterTrainingBackend,
+    RareHeavyTrainingRequest,
+)
 from volvence_zero.substrate.residual_training import build_training_trace
 from volvence_zero.substrate.residual_helpers import (
     RARE_HEAVY_ANCHOR_ORDER,
@@ -116,6 +120,22 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._online_fast_source_state_hash = ""
         self._online_fast_signal: tuple[float, ...] = ()
         self._online_fast_optimizer_state_description = ""
+        # S1: injectable real rare-heavy training backend. None -> the
+        # built-in heuristic/adapter-delta path stays the documented fallback.
+        self._rare_heavy_training_backend: RareHeavyAdapterTrainingBackend | None = None
+
+    def set_rare_heavy_training_backend(
+        self, backend: RareHeavyAdapterTrainingBackend | None
+    ) -> None:
+        """Install (or clear) the offline rare-heavy training backend.
+
+        Mirrors the transformers runtime seam so wiring/contract tests can
+        exercise the delegation path without the HF stack. An injected
+        backend that fails must fail loudly; clearing the backend restores
+        the built-in path (R15 rollback).
+        """
+
+        self._rare_heavy_training_backend = backend
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
         trace = build_training_trace(trace_id=f"{self.model_id}:capture", source_text=source_text)
@@ -313,6 +333,42 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             previous_update_count=self._rare_heavy_update_count,
             substrate_steps_per_trace=substrate_steps_per_trace,
         )
+        backend = self._rare_heavy_training_backend
+        if backend is not None:
+            for trace in traces:
+                if self._rare_heavy_activation_width > 0 and self._rare_heavy_layer_indices:
+                    break
+                self._remember_trace_shape(trace)
+            if self._rare_heavy_activation_width <= 0 or not self._rare_heavy_layer_indices:
+                raise ValueError(
+                    "Synthetic runtime cannot delegate rare-heavy training: no "
+                    "residual shape observed (provide traces with residual "
+                    "activations or capture at least once before training)."
+                )
+            result = backend.train(
+                RareHeavyTrainingRequest(
+                    model_id=self.model_id,
+                    hidden_size=self._rare_heavy_activation_width,
+                    layer_indices=self._rare_heavy_layer_indices,
+                    device="cpu",
+                    traces=traces,
+                )
+            )
+            return _checkpoint_with_adapter_payload(
+                checkpoint,
+                training_mode=result.training_mode,
+                compatibility_fingerprint=_build_compatibility_fingerprint(
+                    model_id=self.model_id,
+                    runtime_origin=self.runtime_origin,
+                    hidden_size=self._rare_heavy_activation_width,
+                    layer_indices=self._rare_heavy_layer_indices,
+                    training_mode=result.training_mode,
+                ),
+                adapter_scale=1.0,
+                adapter_training_loss=result.training_loss,
+                adapter_layers=result.adapter_layers,
+                description=f"{checkpoint.description} {result.description}",
+            )
         adapter_layers, training_loss = self._train_adapter_deltas(
             traces=traces,
             substrate_steps_per_trace=substrate_steps_per_trace,
@@ -343,6 +399,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             model_id=self.model_id,
             allow_offline_substrate_training=True,
         )
+        cloned.set_rare_heavy_training_backend(self._rare_heavy_training_backend)
         cloned.import_rare_heavy_state(self.export_rare_heavy_state())
         return cloned
 

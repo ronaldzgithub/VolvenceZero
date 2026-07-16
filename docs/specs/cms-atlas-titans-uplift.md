@@ -179,6 +179,16 @@ The learned CMS path (PE-gate + ATLAS replay) is CPU-ACTIVE by default via the f
 
 **torch band ACTIVE promotion (Stage 1, follow-up):** flipping `cms_torch_backend` DISABLED→SHADOW→ACTIVE (autograd write-back into W1/W2) and the >=500-turn real-substrate anti-forgetting gain curves + torch rollback drill are GPU-gated and tracked as known-debt #89 Stage 1 (same cadence as #88 / #6 / #7).
 
+### 7.5 Stage 1 code-side closure (M2, 2026-07-16)
+
+The code half of Stage 1 is now complete; only the >=500-turn real-trace evidence run remains GPU-gated:
+
+- **SHADOW update-outcome dual-run**: each SHADOW band update now settles a pure-vs-torch comparison — both candidates start from the same pre-update weights and chase the same replay-averaged target; their one-step landing MSE (`update_outcome_pure_mse` / `update_outcome_torch_mse`) is published in `latest_cms_backend_evidence` and aggregated by the promotion tracker. Forward parity (`cms_band_shadow_dual_run`) results are aggregated in lockstep.
+- **`CMSMemoryCore.cms_backend_promotion_readout()`** (report-only, frozen dataclass): exit conditions = `settled_comparisons >= 50` + forward-parity pass rate `>= 0.99` + torch update-outcome not worse than pure; kill condition = torch mean MSE worse by `>= 0.05` (recommend staying on / rolling back to the pure baseline). `promotable=True` means the CODE gate passes; the ACTIVE flip stays gated on the real-trace run. The readout ships inside the learned-shadow evidence artifact (`collect_learned_shadow_evidence` → `cms.promotion_readout`).
+- **ACTIVE rollback drill (R15)**: every ACTIVE torch write-back records the band's full pre-update `export_params` tuple; `rollback_last_torch_writeback(band_id)` restores it exactly (single-shot, fails loudly without a recorded write-back).
+- **Anti-forgetting window hooks**: absorption/retention proxies now also aggregate over a bounded 64-observation window (`absorption_window_mean` / `retention_window_mean` in the promotion readout), the code-side metric surface for the gain-curve evidence run.
+- Tests: `tests/test_m2_cms_torch_closure.py` (SHADOW settlement, promotion gate dimensions, DISABLED no-op, rollback drill, window aggregates).
+
 ## 8. Acceptance ladder (must pass in order)
 
 1. Unit: `test_cms_uplift_disabled_path_is_bit_equal_to_legacy` — disabled flags reproduce pre-uplift band MLP / decisions for a deterministic seed.

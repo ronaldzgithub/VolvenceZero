@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Mapping
 
 from volvence_zero.learned_update import (
@@ -59,6 +60,74 @@ _REPLAY_DEFAULT_GAMMA: dict[str, float] = {
 }
 _REPLAY_HARD_CAP_K: int = 32
 
+# --- M2 (#89 code side): SHADOW→ACTIVE promotion tracker constants ----------
+# Exit conditions for the torch band backend, evaluated purely in code; the
+# ACTIVE flip itself stays gated on ≥500-turn real-trace evidence (#89 Stage 1).
+_CMS_PROMOTION_MIN_COMPARISONS: int = 50
+_CMS_PROMOTION_PARITY_FLOOR: float = 0.99
+# The torch one-step update must land at least as close to the target as the
+# pure manual-backprop step (mean per-update MSE, band outputs live in [0,1]).
+_CMS_PROMOTION_MSE_SLACK: float = 1e-6
+# Kill condition: torch step consistently lands materially farther from the
+# target than the pure step -> recommend rollback to DISABLED.
+_CMS_KILL_MSE_DEGRADATION: float = 0.05
+# Bounded window for the #89 anti-forgetting gain-curve hooks.
+_ANTI_FORGETTING_WINDOW: int = 64
+
+
+@dataclass(frozen=True)
+class CMSBackendPromotionReadout:
+    """Code-level promotion verdict for the torch CMS band backend (M2 / #89).
+
+    Report-only. Aggregates the SHADOW dual-run outcomes (forward parity +
+    update-outcome comparison pure-vs-torch) plus the bounded anti-forgetting
+    window, and evaluates the documented exit / kill conditions. ``promotable``
+    means the CODE gate passes; the ACTIVE flip additionally requires the
+    real-trace evidence run (#89 Stage 1), which is out of scope here.
+    """
+
+    backend: str
+    torch_available: bool
+    settled_comparisons: int
+    parity_checks: int
+    parity_pass_rate: float
+    pure_update_mse: float
+    torch_update_mse: float
+    min_comparisons_met: bool
+    parity_floor_met: bool
+    torch_not_worse: bool
+    kill_condition_met: bool
+    promotable: bool
+    absorption_window_mean: float
+    retention_window_mean: float
+    anti_forgetting_samples: int
+    description: str
+
+
+def _pure_band_forward(
+    *,
+    d_in: int,
+    d_hidden: int,
+    w1_flat: tuple[float, ...],
+    w2_flat: tuple[float, ...],
+    x: tuple[float, ...],
+) -> tuple[float, ...]:
+    """Legacy band forward ``y = clamp(x + W1 tanh(W2 x), 0, 1)`` from flat weights."""
+
+    hidden = tuple(
+        math.tanh(value) for value in _matvec(list(w2_flat), x, d_hidden, d_in)
+    )
+    residual = _matvec(list(w1_flat), hidden, d_in, d_hidden)
+    return tuple(
+        _clamp(x_value + r_value) for x_value, r_value in zip(x, residual, strict=True)
+    )
+
+
+def _mse(left: tuple[float, ...], right: tuple[float, ...]) -> float:
+    return sum((a - b) ** 2 for a, b in zip(left, right, strict=True)) / max(
+        len(left), 1
+    )
+
 
 class CMSMemoryCore:
     """Multi-timescale memory core with gradient-style updates.
@@ -104,6 +173,24 @@ class CMSMemoryCore:
         # while keeping the band's pure state/momentum for coherent backflow.
         self._cms_backend = cms_backend if cms_backend is not None else _WiringLevel.DISABLED
         self._latest_cms_backend_evidence: dict | None = None
+        # M2 (#89 code side): SHADOW dual-run promotion tracker. Aggregates
+        # forward-parity results and the pure-vs-torch update-outcome
+        # comparison across band updates so `cms_backend_promotion_readout()`
+        # can evaluate the exit / kill conditions in code.
+        self._backend_settled_comparisons = 0
+        self._backend_parity_checks = 0
+        self._backend_parity_passes = 0
+        self._backend_pure_mse_sum = 0.0
+        self._backend_torch_mse_sum = 0.0
+        # M2 (#89): rollback drill for ACTIVE torch write-back. Keyed by
+        # band_id; each entry is the band's full pre-update export_params
+        # tuple, restorable via `rollback_last_torch_writeback`.
+        self._last_pre_writeback_params: dict[str, tuple] = {}
+        # M2 (#89): bounded anti-forgetting window (absorption, retention)
+        # feeding the gain-curve hooks of the evidence run.
+        self._anti_forgetting_window: deque[tuple[float, float]] = deque(
+            maxlen=_ANTI_FORGETTING_WINDOW
+        )
         self._mode = mode
         self._variant = CMSVariant(variant)
         self._session_cadence = max(session_cadence, 1)
@@ -424,6 +511,9 @@ class CMSMemoryCore:
         )
         wrote_back = self._cms_backend is WiringLevel.ACTIVE
         if wrote_back:
+            # M2 (#89): retain the full pre-update params as the rollback
+            # point for this write-back (R15 rollback drill contract).
+            self._last_pre_writeback_params[band_id] = pre
             post = mlp.export_params()  # state/momentum from the pure update
             mlp.restore_params(
                 (post[0], post[1], result.w2_flat, result.w1_flat, post[4], post[5])
@@ -475,6 +565,41 @@ class CMSMemoryCore:
                     "forward_parity_promotable": parity.promotable,
                 }
             )
+            self._backend_parity_checks += 1
+            if parity.within_tolerance:
+                self._backend_parity_passes += 1
+            # M2 (#89 code side): update-outcome dual-run. Both candidates
+            # started from the same pre-update weights and chased the same
+            # averaged target; compare where their one-step updates landed
+            # (forward on the pre-update state vs the target). This is the
+            # apples-to-apples "which update rule learns better" comparison
+            # the SHADOW->ACTIVE gate needs, aggregated by the promotion
+            # tracker; report-only, no write-back.
+            post_pure = mlp.export_params()
+            pure_output = _pure_band_forward(
+                d_in=mlp.d_in, d_hidden=mlp.d_hidden,
+                w1_flat=tuple(post_pure[3]), w2_flat=tuple(post_pure[2]),
+                x=tuple(pre[0]),
+            )
+            torch_output = _pure_band_forward(
+                d_in=mlp.d_in, d_hidden=mlp.d_hidden,
+                w1_flat=result.w1_flat, w2_flat=result.w2_flat,
+                x=tuple(pre[0]),
+            )
+            pure_update_mse = _mse(pure_output, averaged)
+            torch_update_mse = _mse(torch_output, averaged)
+            self._backend_settled_comparisons += 1
+            self._backend_pure_mse_sum += pure_update_mse
+            self._backend_torch_mse_sum += torch_update_mse
+            self._latest_cms_backend_evidence.update(
+                {
+                    "update_outcome_pure_mse": pure_update_mse,
+                    "update_outcome_torch_mse": torch_update_mse,
+                    "update_outcome_settled_comparisons": (
+                        self._backend_settled_comparisons
+                    ),
+                }
+            )
 
     @staticmethod
     def _weighted_average_target(
@@ -507,6 +632,113 @@ class CMSMemoryCore:
     @property
     def latest_cms_backend_evidence(self) -> dict | None:
         return self._latest_cms_backend_evidence
+
+    def cms_backend_promotion_readout(self) -> CMSBackendPromotionReadout:
+        """Evaluate the code-level SHADOW→ACTIVE gate for the torch band backend.
+
+        M2 (#89 code side). Report-only: aggregates the SHADOW dual-run
+        evidence collected so far and evaluates the documented exit
+        conditions (enough settled comparisons + forward-parity floor +
+        torch update-outcome not worse than pure) and the kill condition
+        (torch materially worse → recommend staying on / rolling back to the
+        pure baseline). ``promotable=True`` means only that the CODE gate
+        passes; the ACTIVE flip stays gated on the ≥500-turn real-trace
+        evidence run (#89 Stage 1).
+        """
+
+        from volvence_zero.tensor_backend import is_torch_available
+
+        comparisons = self._backend_settled_comparisons
+        parity_rate = (
+            self._backend_parity_passes / self._backend_parity_checks
+            if self._backend_parity_checks
+            else 0.0
+        )
+        pure_mse = (
+            self._backend_pure_mse_sum / comparisons if comparisons else 0.0
+        )
+        torch_mse = (
+            self._backend_torch_mse_sum / comparisons if comparisons else 0.0
+        )
+        min_met = comparisons >= _CMS_PROMOTION_MIN_COMPARISONS
+        parity_met = (
+            self._backend_parity_checks > 0
+            and parity_rate >= _CMS_PROMOTION_PARITY_FLOOR
+        )
+        not_worse = comparisons > 0 and (
+            torch_mse <= pure_mse + _CMS_PROMOTION_MSE_SLACK
+        )
+        kill = comparisons >= _CMS_PROMOTION_MIN_COMPARISONS and (
+            torch_mse >= pure_mse + _CMS_KILL_MSE_DEGRADATION
+        )
+        torch_ok = is_torch_available()
+        promotable = torch_ok and min_met and parity_met and not_worse and not kill
+        samples = len(self._anti_forgetting_window)
+        absorption_mean = (
+            sum(item[0] for item in self._anti_forgetting_window) / samples
+            if samples
+            else 0.0
+        )
+        retention_mean = (
+            sum(item[1] for item in self._anti_forgetting_window) / samples
+            if samples
+            else 1.0
+        )
+        return CMSBackendPromotionReadout(
+            backend=self._cms_backend.value,
+            torch_available=torch_ok,
+            settled_comparisons=comparisons,
+            parity_checks=self._backend_parity_checks,
+            parity_pass_rate=parity_rate,
+            pure_update_mse=pure_mse,
+            torch_update_mse=torch_mse,
+            min_comparisons_met=min_met,
+            parity_floor_met=parity_met,
+            torch_not_worse=not_worse,
+            kill_condition_met=kill,
+            promotable=promotable,
+            absorption_window_mean=absorption_mean,
+            retention_window_mean=retention_mean,
+            anti_forgetting_samples=samples,
+            description=(
+                f"CMS torch backend promotion gate: backend={self._cms_backend.value} "
+                f"comparisons={comparisons}/{_CMS_PROMOTION_MIN_COMPARISONS} "
+                f"parity_rate={parity_rate:.3f} pure_mse={pure_mse:.5f} "
+                f"torch_mse={torch_mse:.5f} kill={kill} promotable={promotable}"
+            ),
+        )
+
+    def rollback_last_torch_writeback(self, band_id: str) -> None:
+        """Restore a band to its state before the last ACTIVE torch write-back.
+
+        M2 (#89): R15 rollback drill for the ACTIVE path. Restores the FULL
+        pre-update export_params tuple (state, momentum, and weights), i.e.
+        the band returns to exactly where it was before that update ran.
+        Fails loudly when no write-back has been recorded for the band.
+        """
+
+        record = self._last_pre_writeback_params.get(band_id)
+        if record is None:
+            raise KeyError(
+                f"no torch write-back recorded for band {band_id!r}; "
+                "rollback_last_torch_writeback requires a prior ACTIVE update."
+            )
+        self._mlp_for_band(band_id).restore_params(record)
+        del self._last_pre_writeback_params[band_id]
+
+    def _mlp_for_band(self, band_id: str) -> CMSBandMLP:
+        if self._mode != "mlp":
+            raise ValueError(
+                f"band MLP access requires mode='mlp', core is {self._mode!r}."
+            )
+        bands = {
+            "online-fast": self._online_mlp,
+            "session-medium": self._session_mlp,
+            "background-slow": self._background_mlp,
+        }
+        if band_id not in bands:
+            raise KeyError(f"unknown CMS band {band_id!r}.")
+        return bands[band_id]
 
     def _decide_band_update(
         self,
@@ -650,6 +882,14 @@ class CMSMemoryCore:
         )
         self._last_new_knowledge_absorption = online_drift
         self._last_old_knowledge_retention = _clamp(1.0 - background_drift)
+        # M2 (#89): feed the bounded gain-curve window so the promotion
+        # readout can report windowed absorption/retention aggregates.
+        self._anti_forgetting_window.append(
+            (
+                _clamp(self._last_new_knowledge_absorption),
+                _clamp(self._last_old_knowledge_retention),
+            )
+        )
 
     # ------------------------------------------------------------------
     # observe_substrate

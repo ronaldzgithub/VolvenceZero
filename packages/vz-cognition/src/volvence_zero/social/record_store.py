@@ -61,6 +61,9 @@ DISCONFIRM_SIMILARITY = 0.40
 MAX_PENDING_AGE_TURNS = 6
 _CONFIRM_CONFIDENCE_GAIN = 0.10
 _DISCONFIRM_CONFIDENCE_LOSS = 0.20
+# G1 / CP-18: uninformed prior for the learned per-group
+# commitment-durability score (see ``group_durability_for``).
+GROUP_DURABILITY_PRIOR = 0.5
 
 
 def default_summary_similarity(left: str, right: str) -> float:
@@ -255,6 +258,10 @@ class SocialRecordStore:
         # R14 / CP-18: persistent per-group regime map (GroupModule is the
         # single writer).
         self._group_regimes: dict[str, str] = {}
+        # G1 / CP-18: pending group-durability predictions + the learned
+        # per-group durability score they settle into.
+        self._group_pending: tuple[PendingSocialPrediction, ...] = ()
+        self._group_durability: dict[str, float] = {}
 
     @property
     def similarity(self) -> SimilarityFn:
@@ -337,10 +344,60 @@ class SocialRecordStore:
             raise ValueError("regime_id must be non-empty")
         self._group_regimes[group_id] = regime_id
 
+    # ----- group PE settlement state (G1 / CP-18) -----
+    #
+    # Same settlement machinery as the ToM / common-ground owners:
+    # GroupModule issues GROUP_COMMITMENT_DURABILITY predictions, parks
+    # them here, and settles them against the NEXT turn's observed
+    # group state. The per-group durability score is the bounded
+    # learned readout of that PE stream (CONFIRMED pushes up,
+    # DISCONFIRMED pushes down) — it feeds the confidence of future
+    # durability predictions so the group-level PE actually shapes the
+    # owner's forward model instead of dead-ending in telemetry.
+    # Single writer: only GroupModule mutates these.
+
+    @property
+    def pending_group_predictions(self) -> tuple[PendingSocialPrediction, ...]:
+        return self._group_pending
+
+    def set_pending_group_predictions(
+        self, pending: tuple[PendingSocialPrediction, ...]
+    ) -> None:
+        self._group_pending = pending[-_RECORD_WINDOW:]
+
+    def group_durability_for(self, group_id: str) -> float:
+        """Learned commitment-durability score, 0.5 uninformed prior."""
+
+        if not group_id:
+            raise ValueError("group_id must be non-empty")
+        return self._group_durability.get(group_id, GROUP_DURABILITY_PRIOR)
+
+    def apply_group_settlement(
+        self, group_id: str, outcome: SocialPredictionOutcome
+    ) -> float:
+        """Bounded online update of the learned durability score.
+
+        CONFIRMED: score += gain. DISCONFIRMED: score -= loss (the
+        asymmetry mirrors the ToM confidence table: broken joint
+        commitments are stronger evidence than kept ones). STALE /
+        UNKNOWN: no update. Returns the post-update score.
+        """
+
+        if not group_id:
+            raise ValueError("group_id must be non-empty")
+        score = self.group_durability_for(group_id)
+        if outcome is SocialPredictionOutcome.CONFIRMED:
+            score = min(1.0, score + _CONFIRM_CONFIDENCE_GAIN)
+        elif outcome is SocialPredictionOutcome.DISCONFIRMED:
+            score = max(0.0, score - _DISCONFIRM_CONFIDENCE_LOSS)
+        self._group_durability[group_id] = score
+        return score
+
 
 __all__ = [
     "CONFIRM_SIMILARITY",
     "DISCONFIRM_SIMILARITY",
+    "GROUP_DURABILITY_PRIOR",
     "MAX_PENDING_AGE_TURNS",
     "TOM_SLOTS",
     "PendingSocialPrediction",

@@ -42,6 +42,10 @@ from volvence_zero.behavior_protocol import (
 )
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
+from volvence_zero.application.types import (
+    ApprenticeshipProtocolAlignmentSnapshot,
+)
+
 from volvence_zero.protocol_runtime.owner import ProtocolRegistryModule
 from volvence_zero.protocol_runtime.revision_queue import (
     ApprovalOutcome,
@@ -59,7 +63,14 @@ class ProtocolRevisionQueueModule(
     slot_name: ClassVar[str] = "protocol_revision_queue"
     owner: ClassVar[str] = "ProtocolRevisionQueueModule"
     value_type: ClassVar[type[Any]] = ProtocolRevisionQueueSnapshot
-    dependencies: ClassVar[tuple[str, ...]] = ("protocol_reflection",)
+    # A1 (#90 residue): in addition to background-slow reflection
+    # proposals, route guidance-conflict proposals published by the
+    # apprenticeship protocol-alignment owner through the SAME gate +
+    # queue + dedup path (single revision router, R8).
+    dependencies: ClassVar[tuple[str, ...]] = (
+        "protocol_reflection",
+        "apprenticeship_protocol_alignment",
+    )
     default_wiring_level: ClassVar[WiringLevel] = WiringLevel.SHADOW
 
     def __init__(
@@ -115,6 +126,11 @@ class ProtocolRevisionQueueModule(
             reflection.value, ProtocolReflectionSnapshot
         ):
             proposals = reflection.value.protocol_revision_proposals
+        alignment = upstream.get("apprenticeship_protocol_alignment")
+        if alignment is not None and isinstance(
+            alignment.value, ApprenticeshipProtocolAlignmentSnapshot
+        ):
+            proposals = proposals + alignment.value.revision_proposals
 
         newly_routed: list[ProtocolRevisionQueueEntry] = []
         auto_applied_this_turn = 0

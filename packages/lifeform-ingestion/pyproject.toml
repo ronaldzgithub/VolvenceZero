@@ -29,6 +29,9 @@ dependencies = [
 #   pip install lifeform-ingestion[pdf]        # just PDF
 pdf = ["pypdf>=4.0"]
 docx = ["python-docx>=1.0"]
+# Gap 3 slice 2b: web adapter. requests + readability-lxml only (the
+# spec forbids Playwright / browser auto-install for this stage).
+web = ["requests>=2.31", "readability-lxml>=0.8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

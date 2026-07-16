@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from volvence_zero.dual_track.core import (
     DualTrackLearnedGateShadow,
     TrackState,
+    derive_learned_gate_shadow,
 )
 
 _FEATURE_DIM = 6
@@ -64,6 +65,54 @@ class DualTrackGateLearnerReadout:
     description: str
 
 
+@dataclass(frozen=True)
+class DualTrackGateLearnerState:
+    """Checkpointable learner state (C3 rollback contract).
+
+    ``export_state()`` / ``restore_state()`` give the promotion path a
+    concrete rollback artifact: before any ACTIVE flip the caller
+    checkpoints this state, and rolling back means restoring it (or
+    constructing a fresh learner, which is the neutral-prior reset).
+    """
+
+    weights: tuple[float, ...]
+    update_count: int
+    abs_error_sum: float
+    heuristic_abs_error_sum: float
+    settled_comparison_count: int
+
+
+# C3 promotion exit conditions (code-complete; the ACTIVE flip itself is
+# gated on external-anchor evidence per CP-19 and is NOT taken here).
+_PROMOTION_MIN_UPDATES = 50
+# The learned gate must beat the fixed-prior heuristic candidate's MAE by
+# at least this margin over the same settled turns.
+_PROMOTION_MAE_MARGIN = 0.02
+# Kill condition: after enough settlements, a learner clearly WORSE than
+# the heuristic candidate should be reset to the neutral prior.
+_KILL_MAE_DEGRADATION = 0.10
+
+
+@dataclass(frozen=True)
+class DualTrackGatePromotionReadout:
+    """CP-19 promotion / kill evidence for the learned fusion gate.
+
+    Report-only: ``ready`` means every code-level exit condition holds
+    and only external-anchor evidence remains; ``kill_recommended``
+    means the SHADOW dual-run shows sustained degradation versus the
+    fixed-prior candidate and the learner should be ``reset()``.
+    """
+
+    ready: bool
+    kill_recommended: bool
+    update_count: int
+    learned_mae: float
+    heuristic_mae: float
+    mae_improvement: float
+    blocking_reasons: tuple[str, ...]
+    description: str
+
+
 class DualTrackGateLearner:
     """Bounded online-SGD learner for the dual-track fusion gate weight."""
 
@@ -80,6 +129,13 @@ class DualTrackGateLearner:
         self._abs_error_sum = 0.0
         self._last_prediction = 0.5
         self._last_target = 0.5
+        # C3 SHADOW dual-run: the fixed-prior heuristic candidate's
+        # world_weight for the same turn, settled against the same target
+        # so promotion evidence compares like-for-like.
+        self._latest_heuristic_weight: float | None = None
+        self._settleable_heuristic_weight: float | None = None
+        self._heuristic_abs_error_sum = 0.0
+        self._settled_comparison_count = 0
 
     # ----- prediction path (called by DualTrackModule each turn) -----
 
@@ -116,9 +172,18 @@ class DualTrackGateLearner:
             cross_track_tension=cross_track_tension,
         )
         # Rotate the settlement window: the previous turn's features become
-        # settleable by this turn's realized outcome consumer.
+        # settleable by this turn's realized outcome consumer. The
+        # fixed-prior heuristic candidate's weight rotates in lockstep so
+        # both candidates are settled against the same realized target
+        # (C3 SHADOW dual-run).
         self._settleable_features = self._latest_features
         self._latest_features = features
+        self._settleable_heuristic_weight = self._latest_heuristic_weight
+        self._latest_heuristic_weight = derive_learned_gate_shadow(
+            world_track=world_track,
+            self_track=self_track,
+            cross_track_tension=cross_track_tension,
+        ).world_weight
         world_weight = self._predict_world_weight(features)
         self_weight = _clamp(1.0 - world_weight)
         running_mae = self.running_abs_error
@@ -156,6 +221,8 @@ class DualTrackGateLearner:
 
         features = self._settleable_features
         self._settleable_features = None
+        heuristic_weight = self._settleable_heuristic_weight
+        self._settleable_heuristic_weight = None
         if features is None:
             return False
         relationship_unit = _clamp((relationship_delta + 1.0) / 2.0)
@@ -172,6 +239,9 @@ class DualTrackGateLearner:
         ]
         self._update_count += 1
         self._abs_error_sum += abs(target - prediction)
+        if heuristic_weight is not None:
+            self._heuristic_abs_error_sum += abs(target - heuristic_weight)
+            self._settled_comparison_count += 1
         self._last_prediction = prediction
         self._last_target = target
         return True
@@ -199,4 +269,101 @@ class DualTrackGateLearner:
                 "Session-held dual-track gate learner (bounded online-SGD); "
                 "report-only SHADOW candidate."
             ),
+        )
+
+    @property
+    def heuristic_running_abs_error(self) -> float:
+        if self._settled_comparison_count == 0:
+            return 0.0
+        return self._heuristic_abs_error_sum / self._settled_comparison_count
+
+    # ----- C3 promotion / rollback contract -----
+
+    def promotion_readout(self) -> DualTrackGatePromotionReadout:
+        """Evaluate the code-level exit conditions for promotion or kill.
+
+        Report-only: nothing here flips any wiring. ``ready=True`` means
+        "only external-anchor evidence remains before an ACTIVE packet";
+        ``kill_recommended=True`` means the dual-run shows sustained
+        degradation and the caller should ``reset()``.
+        """
+
+        learned_mae = self.running_abs_error
+        heuristic_mae = self.heuristic_running_abs_error
+        improvement = heuristic_mae - learned_mae
+        blocking: list[str] = []
+        if self._update_count < _PROMOTION_MIN_UPDATES:
+            blocking.append(
+                f"updates {self._update_count} below required {_PROMOTION_MIN_UPDATES}"
+            )
+        if self._settled_comparison_count < _PROMOTION_MIN_UPDATES:
+            blocking.append(
+                f"settled dual-run comparisons {self._settled_comparison_count} "
+                f"below required {_PROMOTION_MIN_UPDATES}"
+            )
+        if improvement < _PROMOTION_MAE_MARGIN:
+            blocking.append(
+                f"MAE improvement {improvement:.4f} below margin "
+                f"{_PROMOTION_MAE_MARGIN:.4f} (learned={learned_mae:.4f} "
+                f"heuristic={heuristic_mae:.4f})"
+            )
+        kill = (
+            self._settled_comparison_count >= _PROMOTION_MIN_UPDATES
+            and improvement <= -_KILL_MAE_DEGRADATION
+        )
+        ready = not blocking
+        return DualTrackGatePromotionReadout(
+            ready=ready,
+            kill_recommended=kill,
+            update_count=self._update_count,
+            learned_mae=round(learned_mae, 6),
+            heuristic_mae=round(heuristic_mae, 6),
+            mae_improvement=round(improvement, 6),
+            blocking_reasons=tuple(blocking),
+            description=(
+                "CP-19 gate promotion evidence: "
+                + ("READY (evidence-gated ACTIVE flip remains)" if ready else "NOT READY")
+                + ("; KILL recommended (reset to neutral prior)" if kill else "")
+                + f"; learned_mae={learned_mae:.4f} heuristic_mae={heuristic_mae:.4f}."
+            ),
+        )
+
+    def export_state(self) -> DualTrackGateLearnerState:
+        return DualTrackGateLearnerState(
+            weights=tuple(self._weights),
+            update_count=self._update_count,
+            abs_error_sum=self._abs_error_sum,
+            heuristic_abs_error_sum=self._heuristic_abs_error_sum,
+            settled_comparison_count=self._settled_comparison_count,
+        )
+
+    def restore_state(self, state: DualTrackGateLearnerState) -> None:
+        if len(state.weights) != _FEATURE_DIM:
+            raise ValueError(
+                f"gate learner state has {len(state.weights)} weights, "
+                f"expected {_FEATURE_DIM}"
+            )
+        self._weights = list(state.weights)
+        self._update_count = max(0, state.update_count)
+        self._abs_error_sum = max(0.0, state.abs_error_sum)
+        self._heuristic_abs_error_sum = max(0.0, state.heuristic_abs_error_sum)
+        self._settled_comparison_count = max(0, state.settled_comparison_count)
+        # Pending settlement windows do not survive a restore: they refer
+        # to turns the restored learner never saw.
+        self._latest_features = None
+        self._settleable_features = None
+        self._latest_heuristic_weight = None
+        self._settleable_heuristic_weight = None
+
+    def reset(self) -> None:
+        """Kill-path rollback: return to the neutral 0.5/0.5 prior."""
+
+        self.restore_state(
+            DualTrackGateLearnerState(
+                weights=tuple([0.0] * (_FEATURE_DIM - 1) + [0.5]),
+                update_count=0,
+                abs_error_sum=0.0,
+                heuristic_abs_error_sum=0.0,
+                settled_comparison_count=0,
+            )
         )

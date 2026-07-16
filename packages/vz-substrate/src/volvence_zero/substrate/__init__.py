@@ -48,6 +48,13 @@ from volvence_zero.substrate.persona_lora_pool import (
     PersonaLoRARecord,
     default_pool as default_persona_lora_pool,
 )
+from volvence_zero.substrate.rare_heavy_training import (
+    RARE_HEAVY_PEFT_TRAINING_MODE,
+    PeftLoraRareHeavyBackend,
+    RareHeavyAdapterTrainingBackend,
+    RareHeavyAdapterTrainingResult,
+    RareHeavyTrainingRequest,
+)
 from volvence_zero.substrate.residual_backend import (
     build_builtin_transformers_runtime,
     build_transformers_runtime_with_fallback,
@@ -137,6 +144,11 @@ __all__ = [
     "PersonaLoRANotFound",
     "PersonaLoRAPool",
     "PersonaLoRARecord",
+    "RARE_HEAVY_PEFT_TRAINING_MODE",
+    "PeftLoraRareHeavyBackend",
+    "RareHeavyAdapterTrainingBackend",
+    "RareHeavyAdapterTrainingResult",
+    "RareHeavyTrainingRequest",
     "SubstrateDeltaAdapterLayer",
     "SubstrateOnlineFastCheckpoint",
     "SubstrateRareHeavyCheckpoint",

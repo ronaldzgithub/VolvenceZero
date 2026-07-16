@@ -637,6 +637,16 @@ class GroupSnapshot:
     group_regime_id: str | None
     active_predictions: tuple[SocialPrediction, ...]
     description: str
+    # G1 (CP-18): owner-settled outcomes for group-durability predictions
+    # issued on a prior turn (same settlement contract the ToM /
+    # common-ground owners use). SocialPredictionErrorModule forwards
+    # these; the group-level PE is never reconstructed downstream.
+    settled_errors: tuple[SocialPredictionError, ...] = ()
+    # Learned commitment-durability score for the active group
+    # ([0,1], store-held, PE-settlement updated). 0.5 = uninformed
+    # prior; published so consumers read the learned state instead of
+    # rebuilding it from settlement history.
+    group_durability_score: float = 0.5
 
     def __post_init__(self) -> None:
         group_ids = tuple(group.group_id for group in self.groups)
@@ -656,6 +666,9 @@ class GroupSnapshot:
             prediction.prediction_id for prediction in self.active_predictions
         )
         _require_unique_non_empty("active_predictions.prediction_id", prediction_ids)
+        settled_ids = tuple(error.error_id for error in self.settled_errors)
+        _require_unique_non_empty("settled_errors.error_id", settled_ids)
+        _require_unit_interval("group_durability_score", self.group_durability_score)
         _require_non_empty("description", self.description)
 
 

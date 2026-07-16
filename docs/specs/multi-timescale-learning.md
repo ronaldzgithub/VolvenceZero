@@ -1,7 +1,7 @@
 # 多时间尺度学习框架 Spec
 
 > Status: draft
-> Last updated: 2026-04-25
+> Last updated: 2026-07-16
 > 对应需求: R1, R2, R13
 
 ## 要解决的问题
@@ -112,6 +112,7 @@ rare-heavy (定期离线):
 - 当前 `ScheduledJointLoopResult` 已显式发布 owner path 与 schedule telemetry（如 `ssl_interval` / `rl_interval` / due bits），使 session-medium / background-slow cadence 可检查、可测试
 - 当前 substrate rare-heavy 已从 v1 的 bounded scalar state 升级到 `adapter-delta-v2` owner path：`SSLRLTrainingPipeline.export_rare_heavy_artifact()` 现在可同时导出 `temporal / memory / substrate` 三类 artifact，其中 substrate checkpoint 不再只携带控制尺度、语义混合权重和 anchor bias，还会携带 owner-side adapter delta payload、compatibility fingerprint、training mode 与 payload parameter count
 - 当前 substrate owner 已补充 rare-heavy `export / import / rollback / clone_for_rare_heavy / train_rare_heavy` surface；session 不直写 substrate 内部状态，而是通过 artifact 交给 owner 审阅或在实验/rare-heavy lane 应用。默认 continual learner 的主证据来自 memory / temporal / regime / reflection owner writeback；offline clone 仍是训练 owner，显式 frozen runner 保留 review-only / no-import 语义
+- 当前 rare-heavy adapter 训练已有可注入真训练接缝（S1，2026-07-16）：`vz-substrate/rare_heavy_training.py` 定义 `RareHeavyAdapterTrainingBackend` protocol（`RareHeavyTrainingRequest` → `RareHeavyAdapterTrainingResult`），`PeftLoraRareHeavyBackend` 实现真 PEFT LoRA 训练（冻结 base、只训 LoRA 矩阵、causal-LM loss、`B@A` 积经 sign-preserving bucket pooling 投影为 hidden 宽 per-layer delta）；两个 runtime 经 `set_rare_heavy_training_backend` 注入、`clone_for_rare_heavy` 传播，`train_rare_heavy` 有 backend 时委托之（失败 fail loudly，不静默回退），无 backend 时保持内置 adapter-delta autograd loop（transformers）/ 启发式统计调权（synthetic）为文档化 fallback；`BrainConfig.rare_heavy_training_backend="peft-lora"` 为配置入口（要求真 transformers runtime，否则 fail loudly）。产出 checkpoint 携带 `training_mode="peft-lora-v1"` fingerprint，走既有 `import_rare_heavy_state` / replay 比对 / `ModificationGate` 编排不变
 - 当前 `SSLRLTrainingPipeline` 已从“trace 顺序绑定”的轻量 pass 收敛为分阶段 batch loop：SSL 阶段按 trace 迭代直到收敛或上限，RL 阶段按 substrate batch 迭代直到收敛或上限，并在结束后导出 substrate rare-heavy checkpoint；若 substrate owner 没有产出 `adapter-delta-v2` checkpoint，pipeline 会 fail closed，而不是静默退回旧 bounded 模式
 - 当前 `AgentSessionRunner` 已补充 substrate-aware rare-heavy review 入口：当 PE-scheduled joint loop 发出 `rare_heavy_review_recommended`，session owner 会基于最近 trace window 与最近真实 substrate capture window 克隆 offline temporal/memory/substrate state，运行轻量 `SSLRLTrainingPipeline` 生成 candidate artifact。默认主路径把这些 artifact 视为 review / evidence bundle / rollback-ready upgrade candidate；显式实验或 rare-heavy import lane 才会回写 online substrate owner，显式 frozen runner 仍只保留 review-only 证据链
 - 当前 offline pipeline 已把 `TRANSITION` 从占位状态收紧为真实 takeover phase：进入 RL 前会先跑 causal takeover 检查，显式发布 `transition_agreement`、`switch_sparsity_retention`、`family_reuse_retention` 与 `takeover_ready`

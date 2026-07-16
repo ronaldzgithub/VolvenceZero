@@ -97,7 +97,13 @@ def test_queue_module_owns_protocol_revision_queue_slot() -> None:
     m = ProtocolRevisionQueueModule()
     assert m.slot_name == "protocol_revision_queue"
     assert m.owner == "ProtocolRevisionQueueModule"
-    assert m.dependencies == ("protocol_reflection",)
+    # A1 (#90 residue): guidance-conflict proposals from the
+    # apprenticeship protocol-alignment owner route through this same
+    # gate + queue (single revision router).
+    assert m.dependencies == (
+        "protocol_reflection",
+        "apprenticeship_protocol_alignment",
+    )
     assert m.wiring_level is WiringLevel.SHADOW
 
 

@@ -4,7 +4,12 @@ from volvence_zero.regime.hint_readout import (
     readout_cognitive_depth_hint,
     readout_participation_hint,
 )
-from volvence_zero.regime.contracts import ApplicationBrief, ExpressionBrief
+from volvence_zero.regime.contracts import (
+    DEFAULT_DOMAIN_HINT_CATALOG,
+    ApplicationBrief,
+    DomainHintCatalog,
+    ExpressionBrief,
+)
 from volvence_zero.regime.identity import (
     CognitiveDepth,
     CognitiveDepthHint,
@@ -34,6 +39,8 @@ from volvence_zero.regime.templates import (
 
 __all__ = [
     "ApplicationBrief",
+    "DEFAULT_DOMAIN_HINT_CATALOG",
+    "DomainHintCatalog",
     "CognitiveDepth",
     "CognitiveDepthHint",
     "ExpressionBrief",

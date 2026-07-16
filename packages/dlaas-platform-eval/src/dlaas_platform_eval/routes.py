@@ -37,7 +37,6 @@ from dlaas_platform_contracts import (
     ExamRunSpec,
     ExamRunStatus,
     ExamSubmissionScore,
-    LaunchLicenseSpec,
     RubricEntry,
 )
 from dlaas_platform_launcher import (
@@ -58,8 +57,16 @@ from dlaas_platform_registry import (
     assert_tenant_id_matches,
     require_tenant_auth,
 )
+from dlaas_platform_registry.assets import AssetNotFound, AssetStore
 
 from dlaas_platform_eval import question_gen
+from dlaas_platform_eval.audience import (
+    AssetCorpusError,
+    AudienceAnalysisError,
+    LLMAudienceAnalyzer,
+    build_audience_analyzer_from_env,
+    load_asset_corpus,
+)
 from dlaas_platform_eval.grader import RubricGrader
 from dlaas_platform_eval.llm_grader import (
     GraderResponseError,
@@ -76,21 +83,30 @@ EVAL_BUNDLE_APP_KEY = "dlaas_eval_bundle"
 class EvalBundle:
     """Container the api wheel reads to dispatch eval state."""
 
-    __slots__ = ("eval_store", "templates", "grader")
+    __slots__ = ("eval_store", "templates", "assets", "grader", "audience_analyzer")
 
     def __init__(
         self,
         *,
         registry: Registry,
         grader: RubricGrader | None = None,
+        audience_analyzer: LLMAudienceAnalyzer | None = None,
     ) -> None:
         self.eval_store = EvalStore(registry)
         self.templates = TemplateStore(registry)
+        self.assets = AssetStore(registry)
         # Default grader comes from the env-driven factory: a real
         # LLMRubricGrader when EVAL_LLM_* / PROTOCOL_LLM_* is
         # configured, else the fail-closed DefaultRubricGrader (which
         # logs its loud warning). Tests pass an explicit ``grader=``.
         self.grader = grader or build_grader_from_env()
+        # Debt #14: audience analysis shares the same env contract. A
+        # ``None`` analyzer keeps the honest SHADOW passthrough
+        # (caller-supplied fields verbatim, evidence_stats.analyzer
+        # = "none").
+        self.audience_analyzer = (
+            audience_analyzer or build_audience_analyzer_from_env()
+        )
 
 
 def attach_eval_routes(
@@ -98,13 +114,18 @@ def attach_eval_routes(
     *,
     registry: Registry,
     grader: RubricGrader | None = None,
+    audience_analyzer: LLMAudienceAnalyzer | None = None,
 ) -> web.Application:
     if REGISTRY_APP_KEY not in app:
         raise ValueError(
             "attach_eval_routes requires app[REGISTRY_APP_KEY] "
             "(dlaas_platform_api.build_dlaas_app handles this)."
         )
-    app[EVAL_BUNDLE_APP_KEY] = EvalBundle(registry=registry, grader=grader)
+    app[EVAL_BUNDLE_APP_KEY] = EvalBundle(
+        registry=registry,
+        grader=grader,
+        audience_analyzer=audience_analyzer,
+    )
     R = app.router
     R.add_post(
         "/dlaas/templates/{template_id}/audience/analyze",
@@ -152,6 +173,17 @@ def attach_eval_routes(
 
 
 async def _handle_audience_analyze(request: web.Request) -> web.Response:
+    """Audience analysis (debt #14).
+
+    With the eval LLM configured (or an injected analyzer), the route
+    resolves each linked asset's actual content, runs the corpus
+    through :class:`LLMAudienceAnalyzer`, and persists the extracted
+    cohort profile — caller-supplied fields stay authoritative
+    (the store's analyzer seam only fills empty slots). Without an
+    analyzer the route keeps the honest SHADOW passthrough and stamps
+    ``evidence_stats.analyzer = "none"``.
+    """
+
     tenant = await require_tenant_auth(request)
     template_id = request.match_info["template_id"]
     bundle: EvalBundle = request.app[EVAL_BUNDLE_APP_KEY]
@@ -162,14 +194,64 @@ async def _handle_audience_analyze(request: web.Request) -> web.Response:
     cohort_name = str(data.get("cohort_name", "default") or "default")
     asset_ids = tuple(str(a) for a in (data.get("asset_ids") or ()))
 
-    # Slice 6 default: a deterministic placeholder profile keyed off
-    # the cohort name + asset id count. Real LLM-driven cohort
-    # analysis lands when a typed audience analyser is plugged in.
+    analyzer = bundle.audience_analyzer
+    corpus_analyzer_callable = None
+    evidence_stats: dict[str, Any] = {
+        "asset_count": len(asset_ids),
+        "analyzer": "none",
+    }
+    if analyzer is not None and asset_ids:
+        assets = []
+        for asset_id in asset_ids:
+            try:
+                asset = await bundle.assets.get(asset_id)
+            except AssetNotFound:
+                return _error(404, "asset_not_found", asset_id)
+            # Assets are tenant-owned; a template must not analyse
+            # another tenant's corpus.
+            assert_tenant_id_matches(tenant, asset.tenant_id)
+            assets.append(asset)
+        try:
+            corpus_chunks = load_asset_corpus(tuple(assets))
+        except AssetCorpusError as exc:
+            return _error(422, "asset_corpus_unreadable", str(exc))
+        try:
+            # Blocking LLM I/O runs off the event loop.
+            enriched = await asyncio.to_thread(
+                analyzer.analyze,
+                cohort_name=cohort_name,
+                corpus_chunks=corpus_chunks,
+            )
+        except AudienceAnalysisError as exc:
+            _LOG.error(
+                "audience analysis failed for template=%s: %s",
+                template_id,
+                exc,
+            )
+            return _error(502, "audience_analysis_error", str(exc))
+        evidence_stats = {
+            "asset_count": len(asset_ids),
+            **dict(enriched.get("evidence_stats") or {}),
+        }
+        # The store's seam takes enriched.evidence_stats wholesale, so
+        # fold the asset_count into it before handing over.
+        precomputed = {**enriched, "evidence_stats": evidence_stats}
+
+        def _precomputed_analyzer(**_kwargs: Any) -> Mapping[str, Any]:
+            # Analysis already ran above (off-loop); the store seam
+            # receives the precomputed enrichment and applies its
+            # caller-fields-take-precedence merge.
+            return precomputed
+
+        corpus_analyzer_callable = _precomputed_analyzer
+
     profile = await bundle.eval_store.upsert_audience_profile(
         template_id=template_id,
         cohort_name=cohort_name,
         asset_ids=asset_ids,
-        common_questions=(),
+        common_questions=tuple(
+            str(q) for q in (data.get("common_questions") or ())
+        ),
         communication_style=str(data.get("communication_style", "") or ""),
         emotion_triggers=tuple(
             str(t) for t in (data.get("emotion_triggers") or ())
@@ -177,10 +259,8 @@ async def _handle_audience_analyze(request: web.Request) -> web.Response:
         decision_patterns=tuple(
             str(p) for p in (data.get("decision_patterns") or ())
         ),
-        evidence_stats={
-            "asset_count": len(asset_ids),
-            "default_grader": True,
-        },
+        evidence_stats=evidence_stats,
+        corpus_analyzer_callable=corpus_analyzer_callable,
     )
     return web.json_response({"status": "ok", **profile.to_json()})
 

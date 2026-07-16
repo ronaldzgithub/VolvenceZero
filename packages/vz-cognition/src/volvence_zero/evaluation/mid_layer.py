@@ -8,16 +8,18 @@ or ACTIVE promotion is gated by the SHADOW-evidence flow described in spec
 
 Phased implementation:
 
-- **T8 (this packet)**: declare ``MidLayerSnapshot``,
+- **T8**: declare ``MidLayerSnapshot``,
   ``CounterfactualContributionReadout``, ``MidLayerScore``, and the
-  ``MidLayerModule`` skeleton with ``default_wiring_level=DISABLED``. The
-  module's ``process()`` returns an empty snapshot until step 2 of the
-  cascade rollout (which lives in a future packet). Contract tests pin the
-  schema shape so COG-1 / OA-4 evidence can plug into a stable surface.
+  ``MidLayerModule`` skeleton with ``default_wiring_level=DISABLED``.
+  Contract tests pin the schema shape so COG-1 / OA-4 evidence can plug
+  into a stable surface.
 
-- **Future**: implement actual ablation aggregation + counterfactual readout
-  extraction from ``CreditSnapshot.counterfactual_readouts``; wire into
-  paper-suite-small benchmark; produce SHADOW evidence document.
+- **C4 (2026-07-16)**: real aggregation — COG-1 counterfactual readouts +
+  least-control scores from the credit owner, PE readouts (magnitude /
+  uncertainty split / learned-critic validation) from the PE owner, and
+  regime readouts (active-regime persistence / candidate margin) from
+  the regime owner. All strictly read-only re-emission of owner-published
+  snapshot fields (R8 / R12); wiring stays DISABLED by default.
 
 Failure semantics (spec §跨层 failure semantics F2):
 - Any internal failure must ``raise`` and propagate; consumers receive the
@@ -138,13 +140,13 @@ class MidLayerModule(RuntimeModule[MidLayerSnapshot]):
     slot_name = "evaluation_mid"
     owner = "MidLayerModule"
     value_type = MidLayerSnapshot
-    dependencies = ("evaluation", "credit")
+    dependencies = ("evaluation", "credit", "prediction_error", "regime")
     default_wiring_level = WiringLevel.DISABLED
 
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
     ) -> Snapshot[MidLayerSnapshot]:
-        """Emit COG-1 readout surfaces from the credit owner."""
+        """Aggregate credit / PE / regime readouts into the mid tier."""
         # Sanity: cheap_layer snapshot must be present per declared dependency.
         # Use direct dict-style consumption so missing slot raises (fail-loudly)
         # — kernel UpstreamView already enforces this for declared dependencies.
@@ -194,6 +196,8 @@ class MidLayerModule(RuntimeModule[MidLayerSnapshot]):
                     evidence=least_control.description,
                 )
             )
+        scores.extend(self._pe_scores(upstream))
+        scores.extend(self._regime_scores(upstream))
         snapshot = MidLayerSnapshot(
             scenario_id="",
             seeds=(),
@@ -204,9 +208,105 @@ class MidLayerModule(RuntimeModule[MidLayerSnapshot]):
             acceptance_gate_passed=True,
             acceptance_gate_reasons=(),
             description=(
-                "mid_layer COG-1 readout extraction: "
+                "mid_layer readout aggregation: "
                 f"{len(counterfactual_readouts)} counterfactual readouts, "
-                f"{len(scores)} least-control scores."
+                f"{len(scores)} credit/PE/regime scores."
             ),
         )
         return self.publish(snapshot)
+
+    def _pe_scores(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> tuple[MidLayerScore, ...]:
+        """Re-emit PE owner readouts (R8: no recomputation)."""
+
+        from volvence_zero.prediction.error import PredictionErrorSnapshot
+
+        pe_snapshot = upstream.get("prediction_error")
+        if pe_snapshot is None or not isinstance(
+            pe_snapshot.value, PredictionErrorSnapshot
+        ):
+            return ()
+        pe_value = pe_snapshot.value
+        if pe_value.bootstrap:
+            return ()
+        scores = [
+            MidLayerScore(
+                family="learning",
+                metric_name="pe_magnitude",
+                value=pe_value.error.magnitude,
+                confidence=0.70,
+                baseline_label="",
+                delta_vs_baseline=None,
+                evidence=pe_value.error.description,
+            ),
+        ]
+        decomposition = pe_value.pe_decomposition
+        if decomposition is not None:
+            scores.append(
+                MidLayerScore(
+                    family="learning",
+                    metric_name="pe_epistemic_fraction",
+                    value=(
+                        decomposition.epistemic_magnitude
+                        / max(
+                            decomposition.epistemic_magnitude
+                            + decomposition.aleatoric_magnitude,
+                            1e-9,
+                        )
+                    ),
+                    confidence=0.55,
+                    baseline_label="",
+                    delta_vs_baseline=None,
+                    evidence=decomposition.description,
+                )
+            )
+        return tuple(scores)
+
+    def _regime_scores(
+        self, upstream: Mapping[str, Snapshot[Any]]
+    ) -> tuple[MidLayerScore, ...]:
+        """Re-emit regime owner readouts (R8: no recomputation)."""
+
+        from volvence_zero.regime import RegimeSnapshot
+
+        regime_snapshot = upstream.get("regime")
+        if regime_snapshot is None or not isinstance(
+            regime_snapshot.value, RegimeSnapshot
+        ):
+            return ()
+        regime_value = regime_snapshot.value
+        scores = [
+            MidLayerScore(
+                family="abstraction",
+                metric_name="regime_persistence",
+                value=min(regime_value.turns_in_current_regime / 10.0, 1.0),
+                confidence=0.65,
+                baseline_label="",
+                delta_vs_baseline=None,
+                evidence=(
+                    f"active={regime_value.active_regime.regime_id} "
+                    f"turns={regime_value.turns_in_current_regime} "
+                    f"changed={regime_value.regime_changed}"
+                ),
+            ),
+        ]
+        ranked = sorted(
+            (score for _, score in regime_value.candidate_regimes), reverse=True
+        )
+        if len(ranked) >= 2:
+            scores.append(
+                MidLayerScore(
+                    family="abstraction",
+                    metric_name="regime_candidate_margin",
+                    value=max(0.0, min(1.0, ranked[0] - ranked[1])),
+                    confidence=0.65,
+                    baseline_label="",
+                    delta_vs_baseline=None,
+                    evidence=(
+                        f"top1={ranked[0]:.3f} top2={ranked[1]:.3f} over "
+                        f"{len(ranked)} candidates"
+                    ),
+                )
+            )
+        return tuple(scores)

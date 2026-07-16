@@ -17,9 +17,27 @@ cannot import vz-application by tier order. It consumes the enriched
 ``ApprenticeshipAlignmentSnapshot.guidance_constraints`` (enriched
 publisher, R8) so it does NOT re-extract guidance.
 
-Packet 1 scope: SHADOW-only readout. No PE overlay, no belief / protocol
-revision. Comparison uses protocol STRUCTURAL fields for the verdict;
-character-bigram token overlap is used only for candidate RECALL.
+Packet 1 scope was SHADOW-only readout. A1 (#90 residue) completes the
+two follow-up paths from the draft spec:
+
+* **PE overlay (Step 2b resolution)** — the snapshot now publishes a
+  bounded ``pe_overlay_magnitude`` derived from the structural verdicts
+  (guidance surprise + strongest conflict severity). Kernel-tier PE
+  cannot read this application slot (tier order), so the overlay enters
+  learning application-side; the content-layer overlay on
+  ``apprenticeship_alignment`` is unchanged.
+* **Protocol revision path (Step 3)** — conflict verdicts whose matched
+  artifact carries protocol lineage (``protocol:{id}:playbook:{entry}``
+  / ``protocol:{id}:knowledge:{entry}``, the compiler's namespaced id
+  convention) are turned into typed ``ProtocolRevisionProposal``s
+  (WEIGHT_DECAY, review level L3 with a 1-turn window, so the R10 gate
+  always queues them for human review until evidence accumulates).
+  ``ProtocolRevisionQueueModule`` routes them; this owner never mutates
+  the registry itself. Non-protocol artifacts (case-derived playbook
+  rules etc.) produce no proposal — their revision path is reflection.
+
+Comparison uses protocol STRUCTURAL fields for the verdict;
+similarity is used only for candidate RECALL.
 """
 
 from __future__ import annotations
@@ -31,17 +49,23 @@ from volvence_zero.apprenticeship import (
     ConstraintLevel,
     IntentConstraint,
 )
+from volvence_zero.behavior_protocol import (
+    ProposalEvidence,
+    ProtocolRevisionChangeKind,
+    ProtocolRevisionProposal,
+    ProtocolRevisionTargetField,
+    ReviewLevel,
+)
 from volvence_zero.runtime import (
     RuntimeModule,
     RuntimePlaceholderValue,
     Snapshot,
     WiringLevel,
 )
-from volvence_zero.semantic_embedding import stub_semantic_tokens as _semantic_tokens
+from volvence_zero.semantic_embedding import semantic_topic_similarity
 
 from volvence_zero.application.types import (
     ApprenticeshipProtocolAlignmentSnapshot,
-    BoundaryPolicySnapshot,
     DomainKnowledgeSnapshot,
     PlaybookRule,
     ProtocolAlignmentRef,
@@ -53,17 +77,12 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
-def _tokens(text: str) -> frozenset[str]:
-    return frozenset(_semantic_tokens(text)) if text else frozenset()
-
-
-def _jaccard(left: frozenset[str], right: frozenset[str]) -> float:
-    if not left or not right:
+def _topic_similarity(left_text: str, right_text: str) -> float:
+    # M1 (#91): backend-aware topic similarity — embedding cosine when a
+    # substrate backend is installed, stub-token Jaccard otherwise.
+    if not left_text or not right_text:
         return 0.0
-    inter = len(left & right)
-    if inter == 0:
-        return 0.0
-    return inter / len(left | right)
+    return semantic_topic_similarity(left_text, right_text)
 
 
 class _ProtocolThresholds:
@@ -83,6 +102,42 @@ _RELATION_CONFLICT = "conflict"
 _LAYER_STRATEGY = "strategy"
 _LAYER_KNOWLEDGE = "knowledge"
 
+# Compiler lineage-id convention (exact protocol format, see
+# ``protocol_runtime/compiler.py`` ``_protocol_rule_id`` /
+# ``_protocol_record_id``): ``protocol:{protocol_id}:{kind}:{entry_id}``.
+_PROTOCOL_LINEAGE_NAMESPACE = "protocol"
+_LINEAGE_KIND_BY_LAYER = {
+    _LAYER_STRATEGY: "playbook",
+    _LAYER_KNOWLEDGE: "knowledge",
+}
+_TARGET_FIELD_BY_LAYER = {
+    _LAYER_STRATEGY: ProtocolRevisionTargetField.STRATEGY_PRIOR,
+    _LAYER_KNOWLEDGE: ProtocolRevisionTargetField.KNOWLEDGE_SEED,
+}
+
+
+def _parse_protocol_lineage(target_ref: str, *, layer: str) -> tuple[str, str] | None:
+    """Split a compiled artifact id back into (protocol_id, entry_id).
+
+    Returns None for artifacts without protocol lineage (e.g.
+    ``playbook:case-derived:...``) — those are revised via reflection,
+    not via guidance-conflict proposals.
+    """
+
+    kind = _LINEAGE_KIND_BY_LAYER.get(layer)
+    if kind is None:
+        return None
+    parts = target_ref.split(":")
+    if len(parts) < 4:
+        return None
+    if parts[0] != _PROTOCOL_LINEAGE_NAMESPACE or parts[2] != kind:
+        return None
+    protocol_id = parts[1]
+    entry_id = ":".join(parts[3:])
+    if not protocol_id or not entry_id:
+        return None
+    return (protocol_id, entry_id)
+
 
 def _idle_snapshot(reason: str) -> ApprenticeshipProtocolAlignmentSnapshot:
     return ApprenticeshipProtocolAlignmentSnapshot(
@@ -98,22 +153,22 @@ def _idle_snapshot(reason: str) -> ApprenticeshipProtocolAlignmentSnapshot:
 
 
 class _StrategyTarget:
-    __slots__ = ("rule_id", "pattern_tokens", "avoid_tokens")
+    __slots__ = ("rule_id", "pattern_text", "avoid_text")
 
     def __init__(self, rule: PlaybookRule) -> None:
         self.rule_id = rule.rule_id
-        self.pattern_tokens = _tokens(
+        self.pattern_text = (
             f"{rule.problem_pattern} {' '.join(rule.recommended_ordering)}"
         )
-        self.avoid_tokens = _tokens(" ".join(rule.avoid_patterns))
+        self.avoid_text = " ".join(rule.avoid_patterns)
 
 
 class _KnowledgeTarget:
-    __slots__ = ("hit_id", "tokens", "has_conflict")
+    __slots__ = ("hit_id", "text", "has_conflict")
 
     def __init__(self, *, hit_id: str, text: str, has_conflict: bool) -> None:
         self.hit_id = hit_id
-        self.tokens = _tokens(text)
+        self.text = text
         self.has_conflict = has_conflict
 
 
@@ -232,12 +287,31 @@ class ApprenticeshipProtocolAlignmentModule(
             status = "consistent"
         reliability = "reliable" if in_agreement else "deferring"
 
+        # A1 Step 2b: PE-shaped overlay readout. Bounded [0,1] blend of
+        # version-space novelty (surprise) and the strongest structural
+        # conflict. Application-side consumption only (tier order).
+        max_conflict_severity = max(
+            (ref.severity for ref in contradiction_refs), default=0.0
+        )
+        pe_overlay_magnitude = round(
+            _clamp(0.5 * guidance_surprise + 0.5 * max_conflict_severity), 4
+        )
+        pe_overlay_source = (
+            f"protocol-structural verdicts: surprise={guidance_surprise:.2f} "
+            f"max_conflict_severity={max_conflict_severity:.2f} "
+            f"(0.5/0.5 blend, report-only)"
+        )
+
+        revision_proposals = self._derive_revision_proposals(contradiction_refs)
+
         description = (
             f"Apprenticeship protocol alignment: status={status} "
             f"reliability={reliability} surprise={guidance_surprise:.2f} "
             f"agreement={in_agreement} matched_protocols={matched_protocol_count} "
             f"covered={covered_count} novel={novel_count} "
-            f"conflicts={len(contradiction_refs)}."
+            f"conflicts={len(contradiction_refs)} "
+            f"pe_overlay={pe_overlay_magnitude:.2f} "
+            f"revision_proposals={len(revision_proposals)}."
         )
         return ApprenticeshipProtocolAlignmentSnapshot(
             version_space_status=status,
@@ -248,7 +322,60 @@ class ApprenticeshipProtocolAlignmentModule(
             alignment_refs=tuple(alignment_refs),
             contradiction_refs=tuple(contradiction_refs),
             description=description,
+            pe_overlay_magnitude=pe_overlay_magnitude,
+            pe_overlay_source=pe_overlay_source,
+            revision_proposals=revision_proposals,
         )
+
+    @staticmethod
+    def _derive_revision_proposals(
+        contradiction_refs: list[ProtocolAlignmentRef],
+    ) -> tuple[ProtocolRevisionProposal, ...]:
+        """A1 Step 3: conflict verdicts → typed protocol-delta proposals.
+
+        Only conflicts against protocol-lineage artifacts qualify. The
+        proposal is deliberately conservative: WEIGHT_DECAY at review
+        level L3 with a 1-turn observation window, which the R10 gate
+        (``evaluate_protocol_revision``) always routes to the human
+        queue — a single operator utterance never silently mutates a
+        protocol. Proposal ids are deterministic per (constraint,
+        target) so the queue router's dedup holds across turns.
+        """
+
+        proposals: list[ProtocolRevisionProposal] = []
+        seen: set[str] = set()
+        for ref in contradiction_refs:
+            lineage = _parse_protocol_lineage(ref.target_ref, layer=ref.layer)
+            if lineage is None:
+                continue
+            protocol_id, entry_id = lineage
+            proposal_id = (
+                f"protoalign:{ref.guidance_constraint_id}:{ref.target_ref}"
+            )
+            if proposal_id in seen:
+                continue
+            seen.add(proposal_id)
+            proposals.append(
+                ProtocolRevisionProposal(
+                    proposal_id=proposal_id,
+                    target_protocol_id=protocol_id,
+                    target_field=_TARGET_FIELD_BY_LAYER[ref.layer],
+                    target_entry_id=entry_id,
+                    change_kind=ProtocolRevisionChangeKind.WEIGHT_DECAY,
+                    evidence=ProposalEvidence(
+                        observation_window_turns=1,
+                        pe_signature=(
+                            f"protocol_alignment_conflict severity={ref.severity:.2f}"
+                        ),
+                        summary=(
+                            f"operator guidance {ref.guidance_constraint_id} "
+                            f"conflicts with {ref.target_ref}: {ref.description}"
+                        ),
+                    ),
+                    required_review_level=ReviewLevel.L3,
+                )
+            )
+        return tuple(proposals)
 
     def _classify_constraint(
         self,
@@ -257,7 +384,7 @@ class ApprenticeshipProtocolAlignmentModule(
         strategy_targets: list[_StrategyTarget],
         knowledge_targets: list[_KnowledgeTarget],
     ) -> ProtocolAlignmentRef:
-        tokens = _tokens(constraint.target_key or constraint.statement)
+        constraint_text = constraint.target_key or constraint.statement
 
         # --- strategy layer (richest structural fields) ----------------
         best_rule_overlap = 0.0
@@ -265,11 +392,11 @@ class ApprenticeshipProtocolAlignmentModule(
         best_avoid_overlap = 0.0
         best_avoid_id = ""
         for target in strategy_targets:
-            overlap = _jaccard(tokens, target.pattern_tokens)
+            overlap = _topic_similarity(constraint_text, target.pattern_text)
             if overlap > best_rule_overlap:
                 best_rule_overlap = overlap
                 best_rule_id = target.rule_id
-            avoid_overlap = _jaccard(tokens, target.avoid_tokens)
+            avoid_overlap = _topic_similarity(constraint_text, target.avoid_text)
             if avoid_overlap > best_avoid_overlap:
                 best_avoid_overlap = avoid_overlap
                 best_avoid_id = target.rule_id
@@ -320,7 +447,7 @@ class ApprenticeshipProtocolAlignmentModule(
         best_hit_id = ""
         best_hit_conflict = False
         for target in knowledge_targets:
-            overlap = _jaccard(tokens, target.tokens)
+            overlap = _topic_similarity(constraint_text, target.text)
             if overlap > best_hit_overlap:
                 best_hit_overlap = overlap
                 best_hit_id = target.hit_id

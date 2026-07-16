@@ -11,12 +11,16 @@ from volvence_zero.dual_track.core import (
 from volvence_zero.dual_track.gate_learner import (
     DualTrackGateLearner,
     DualTrackGateLearnerReadout,
+    DualTrackGateLearnerState,
+    DualTrackGatePromotionReadout,
 )
 
 __all__ = [
     "DualTrackModule",
     "DualTrackGateLearner",
     "DualTrackGateLearnerReadout",
+    "DualTrackGateLearnerState",
+    "DualTrackGatePromotionReadout",
     "DualTrackLearnedGateShadow",
     "DualTrackSnapshot",
     "TrackState",

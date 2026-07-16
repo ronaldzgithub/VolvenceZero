@@ -25,6 +25,7 @@ from enum import Enum
 import math
 from typing import TYPE_CHECKING, Any, Mapping
 
+from volvence_zero.behavior_protocol import ProtocolRevisionProposal
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
@@ -382,7 +383,7 @@ class ProtocolAlignmentRef:
 
 @dataclass(frozen=True)
 class ApprenticeshipProtocolAlignmentSnapshot:
-    """Protocol-layer reliable-apprenticeship readout (DRAFT Packet 1).
+    """Protocol-layer reliable-apprenticeship readout (Packet 1 + A1).
 
     Compares the operator-guidance constraints published by the
     vz-cognition ``apprenticeship_alignment`` owner against the
@@ -390,8 +391,21 @@ class ApprenticeshipProtocolAlignmentSnapshot:
     / ``domain_knowledge`` / ``boundary_policy``) — a FINITE structured
     option set, where the reliable-active-apprenticeship reliability /
     eluder notions are well-defined (unlike the open content layer).
-    SHADOW-only readout in Packet 1: no PE overlay, no belief/protocol
-    revision. See ``docs/specs/apprenticeship-alignment-protocol-layer-draft.md``.
+
+    A1 (#90 residue, Step 2b + Step 3 of
+    ``docs/specs/apprenticeship-alignment-protocol-layer-draft.md``):
+
+    * ``pe_overlay_magnitude`` / ``pe_overlay_source`` — PE-shaped
+      overlay readout derived from the structural verdicts. Kernel-tier
+      PE cannot consume this application slot (tier order), so the
+      overlay enters learning application-side: report-only evidence
+      plus the revision path below. The content-layer PE overlay on
+      ``apprenticeship_alignment`` is unchanged.
+    * ``revision_proposals`` — protocol-delta revision proposals derived
+      from conflict verdicts whose matched artifact carries protocol
+      lineage (``protocol:{id}:playbook/knowledge:{entry}``). Routed by
+      ``ProtocolRevisionQueueModule`` through the R10 ModificationGate;
+      this owner never mutates the registry itself.
     """
 
     version_space_status: str
@@ -402,6 +416,9 @@ class ApprenticeshipProtocolAlignmentSnapshot:
     alignment_refs: tuple[ProtocolAlignmentRef, ...]
     contradiction_refs: tuple[ProtocolAlignmentRef, ...]
     description: str
+    pe_overlay_magnitude: float = 0.0
+    pe_overlay_source: str = ""
+    revision_proposals: tuple["ProtocolRevisionProposal", ...] = ()
 
 
 @dataclass(frozen=True)

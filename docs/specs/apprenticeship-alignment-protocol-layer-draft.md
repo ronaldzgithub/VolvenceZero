@@ -1,8 +1,9 @@
 # DRAFT 提案：学徒对齐版本空间下沉到 Protocol / 控制器层
 
-> **状态：Packet 1 已落地（SHADOW），后续 packet 仍为提案。**
+> **状态：Packet 1 + A1（PE overlay readout + 协议修订路径）已落地（SHADOW）。**
 > Packet 1（protocol 层只读对比）已实现：vz-cognition 的 `ApprenticeshipAlignmentSnapshot` 增 `guidance_constraints`（enriched publisher）；vz-application 新增 `apprenticeship_protocol_alignment` owner（SHADOW），把 guidance 约束与编译后 strategy/knowledge 工件做有限选项集层比对。
-> 现有内容层 token Jaccard 实现保持不变，作为 Goal B 兜底。PE overlay / protocol-delta 修订 / 理论保证仍未实施（见 §10 决定与 §9 后续 step）。
+> A1（2026-07-16，#90 残余）已实现：快照新增 `pe_overlay_magnitude` / `pe_overlay_source`（结构裁决派生的 PE-shaped 只读 overlay，application 侧消费——Step 2b 的 tier 约束落锤）与 `revision_proposals`（protocol-lineage 冲突 → 保守 WEIGHT_DECAY / L3 / 1-turn window typed 提案——Step 3）；`ProtocolRevisionQueueModule` 增加 `apprenticeship_protocol_alignment` 依赖，同一 R10 gate + 人审队列 + dedup 路由（单 router，R8）。契约测试 `tests/contracts/test_apprenticeship_protocol_revision_path.py`。
+> 现有内容层 token Jaccard 实现保持不变，作为 Goal B 兜底（M1 后 topic 相似度走 `semantic_topic_similarity` hybrid 接缝）。理论保证仍未实施（§8 触发条件未满足）。
 > 本文件描述演进意图；已落地部分以代码为准。
 
 ---
@@ -124,9 +125,9 @@ flowchart TB
 - **当前**：内容层 Jaccard 版，SHADOW，保留为过渡兜底（无 protocol/LLM 时）。
 - **Step 1（draft 落地）✅ 已完成**：vz-application 新增 protocol 层比较路径（`apprenticeship_protocol_alignment`，SHADOW），消费 enriched `guidance_constraints` + 编译后 strategy/knowledge 工件，结构层 covered/novel/conflict 判定 + 候选召回。注：当前 owner 与上游 `apprenticeship_alignment` 都是 SHADOW，`propagate` 中 SHADOW→SHADOW 依赖拿不到（SHADOW 输出不进 active 链），所以默认全 SHADOW 配置下本 owner inert，靠 standalone 单测验证；要在 propagate 里真正点亮需先把 `apprenticeship_alignment` 升 ACTIVE。
 - **Step 2a（门控）✅ 已完成**：`build_final_runtime_modules` / `run_final_wiring_turn` 新增 `apprenticeship_turn: bool = False` 参数，取代写死的 `apprenticeship=True`。默认 False → 普通 turn 发布 idle apprenticeship 快照、**不向 PE 注入每轮 Jaccard surprise**；调用方（知道 `trigger_kind` 的 lifeform `run_turn`）在 apprentice/ingestion turn 设 True。这是安全激活的前提。
-- **Step 2b（待决，tier 约束）**：⚠️ 草案原写"PE overlay 改读 protocol 层 mismatch"**不可行**——PE 在 `vz-cognition`，protocol 层 owner 在 `vz-application`（下游），PE 跨不了 tier。所以 protocol 层的结构化裁决**只能经 application 层进学习**（`credit` / `reflection` / `experience_consolidation` 同时消费 PE + protocol-alignment 快照），**不是** PE 直接读。PE 的 overlay 继续挂在内容层 `apprenticeship_alignment`（kernel-tier 认识论 surprise），且仅在 `apprenticeship_turn=True` 时触发。需拍板：protocol 裁决接到哪个 application-tier 消费者（credit / reflection / 只读）。
+- **Step 2b（✅ 已落锤，A1 2026-07-16）**：⚠️ 草案原写"PE overlay 改读 protocol 层 mismatch"**不可行**——PE 在 `vz-cognition`，protocol 层 owner 在 `vz-application`（下游），PE 跨不了 tier。**落锤**：protocol 裁决经**两条 application-tier 路径**进学习——(a) `protocol_revision_queue`（行为学习面：conflict → typed 修订提案 → R10 gate，对应 R-MI「改行为→protocol」）；(b) 快照自带 `pe_overlay_magnitude` / `pe_overlay_source` PE-shaped 只读 readout（evidence/telemetry 消费，report-only）。PE 的 overlay 继续挂在内容层 `apprenticeship_alignment`（kernel-tier 认识论 surprise），且仅在 `apprenticeship_turn=True` 时触发。credit/reflection 直接消费 protocol 快照的路线**不采用**（避免 kernel-tier 类型跨界 import）。
 - **Step 2c（lifeform）✅ 已完成**：`apprenticeship_turn` 已贯通三层——`LifeformSession.run_turn`（按 `is_apprenticeship_trigger(trigger_kind)`，signature-guard 透传）→ `BrainSession.run_turn_async`/`run_turn` → `AgentSession.run_turn` → `run_final_wiring_turn`。默认 False，全部 additive/backward-compatible。门控现在在真实 apprentice/ingestion turn 自动点亮，普通 chat turn 保持 idle（不向 PE 注噪）。`test_agent_session_runner` 49/49 通过。
-- **Step 3（按需）**：protocol-delta 修订建议进 `protocol_revision_queue`。
+- **Step 3（✅ 已完成，A1 2026-07-16）**：protocol-delta 修订建议进 `protocol_revision_queue`。alignment owner 对 protocol-lineage（`protocol:{id}:playbook/knowledge:{entry}`，compiler 命名约定精确解析）conflict 产出保守提案（WEIGHT_DECAY / L3 / `observation_window_turns=1` → gate 恒 QUEUED_FOR_HUMAN，单句 operator 指导永不静默改协议）；非 lineage 工件（case-derived 等）不出提案，其修订仍走 reflection。`ProtocolRevisionQueueModule` 是唯一 router（dedup by proposal_id 跨 turn 保持）。
 - 任一步可回滚到 SHADOW/DISABLED；内容层 Jaccard 版本始终保留为 fallback。
 
 ## 10. 待决问题（请拍板）

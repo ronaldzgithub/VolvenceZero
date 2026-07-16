@@ -44,6 +44,8 @@ class _FakeSession:
         user_input: str,
         *,
         trigger_kind: TurnTriggerKind = TurnTriggerKind.USER_INPUT,
+        environment_provenance: str | None = None,
+        environment_consent_context: tuple[str, ...] = (),
     ):
         self.run_turn_calls.append((user_input, trigger_kind))
         if user_input in self._raise_on:
@@ -208,7 +210,14 @@ async def test_pipeline_does_not_reach_for_owner_stores_on_fake_session() -> Non
     """
 
     class _BareMinimumSession:
-        async def run_turn(self, user_input, *, trigger_kind=TurnTriggerKind.USER_INPUT):
+        async def run_turn(
+            self,
+            user_input,
+            *,
+            trigger_kind=TurnTriggerKind.USER_INPUT,
+            environment_provenance=None,
+            environment_consent_context=(),
+        ):
             return SimpleNamespace(response=SimpleNamespace(text="ok"))
 
         async def end_scene(self, *, reason="", drain_slow_loop=True):

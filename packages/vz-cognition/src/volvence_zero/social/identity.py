@@ -167,11 +167,12 @@ def _common_ground_predictions(
 def _owner_settled_errors(
     upstream: Mapping[str, Snapshot[Any]]
 ) -> tuple[SocialPredictionError, ...]:
-    """Forward owner-settled errors (W1.C) without reconstruction.
+    """Forward owner-settled errors (W1.C / G1) without reconstruction.
 
-    The ToM owners and the common-ground owner settle their own prior
-    predictions and publish typed ``settled_errors``; this lifter only
-    concatenates them (owner field already stamped by the producer).
+    The ToM owners, the common-ground owner and the group owner settle
+    their own prior predictions and publish typed ``settled_errors``;
+    this lifter only concatenates them (owner field already stamped by
+    the producer).
     """
 
     publisher_types = (
@@ -180,6 +181,7 @@ def _owner_settled_errors(
         FeelingAboutOtherSnapshot,
         PreferenceAboutOtherSnapshot,
         CommonGroundSnapshot,
+        GroupSnapshot,
     )
     errors: list[SocialPredictionError] = []
     for slot in (
@@ -188,6 +190,7 @@ def _owner_settled_errors(
         "feeling_about_other",
         "preference_about_other",
         "common_ground",
+        "groups",
     ):
         snapshot = upstream.get(slot)
         if snapshot is None:
@@ -340,6 +343,8 @@ class SocialPredictionErrorModule(RuntimeModule[SocialPredictionErrorSnapshot]):
         "feeling_about_other",
         "preference_about_other",
         "common_ground",
+        # G1: forward group-owner settled durability PE.
+        "groups",
     )
     default_wiring_level = WiringLevel.SHADOW
 

@@ -99,8 +99,13 @@ Implemented Phase 5 scaffold:
   `GROUP_COMMITMENT_DURABILITY` `active_predictions` for explicit active
   group state with joint attention / joint commitments; `SocialPredictionAggregateModule`
   forwards these predictions from public `GroupSnapshot.active_predictions`
-  without reconstructing group state. v1 is prediction-only; incremental
-  group-level PE retain evidence remains SHADOW / future work.
+  without reconstructing group state.
+- 2026-07-16 G1: the durability predictions now settle (next-turn
+  observed joint state, `SocialRecordStore`-held pending window) into
+  `GroupSnapshot.settled_errors` plus a learned per-group
+  `group_durability_score` that feeds future prediction confidence;
+  `SocialPredictionErrorModule` forwards the settled errors verbatim.
+  Wiring stays SHADOW pending the CP-18 evidence gate.
 
 ## 与其他能力域的关系
 
@@ -113,6 +118,21 @@ Implemented Phase 5 scaffold:
 
 ## 变更日志
 
+- 2026-07-16: G1 group-level PE settlement 学习闭环。`GroupModule` 复用
+  ToM / common-ground 的 `settle_pending_predictions` 结算机制：
+  GROUP_COMMITMENT_DURABILITY 预测停放在 `SocialRecordStore`
+  （`pending_group_predictions`，单写者 GroupModule），下一 turn 用
+  observed joint state 的 typed summary（commitments / attention /
+  regime 计数，语义相似度、无关键词）结算。结算结果驱动有界 learned
+  per-group durability score（[0,1]，先验 0.5：CONFIRMED +0.10 /
+  DISCONFIRMED −0.20，与 ToM confidence 表同一不对称性），该 score 成为
+  下一次 durability 预测的 confidence（受 group identity confidence
+  上界钳制），并作为 `GroupSnapshot.group_durability_score` 发布。
+  settled errors 发布于 `GroupSnapshot.settled_errors`，由
+  `SocialPredictionErrorModule` 直接转发（新增 `groups` 依赖，不做下游
+  重建）。final wiring 注入 `turn_index`。无 store 时保持无状态 scaffold。
+  默认 wiring 仍 SHADOW；这条 settled PE 流即 CP-18 ACTIVE 判据所需的
+  group-level PE 证据源。测试：`tests/test_social_group_settlement.py`。
 - 2026-07-14: CP-18 frame membership + R14 group regime（GAP-08）。
   `GroupModule` 不再丢弃 upstream：从 `multi_party_identity` owner 发布的
   canonical frame scope（speaker + addressees + audience）派生 group

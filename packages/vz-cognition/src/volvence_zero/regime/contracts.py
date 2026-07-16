@@ -99,6 +99,96 @@ class ApplicationBrief:
 
 
 @dataclass(frozen=True)
+class DomainHintCatalog:
+    """Reviewer-curated per-knowledge-domain hint data (#81).
+
+    Replaces the ``if domain == "X": return "..."`` chains that used
+    to live in ``vz-application/runtime_helpers.py``: the curated hint
+    summary and topic tags are owner-published typed data next to
+    :class:`ApplicationBrief` (whose ``domain_affinity`` already owns
+    the closed knowledge-domain vocabulary), not branch logic in a
+    consumer. Adding a new reviewed domain means adding one catalog
+    entry; a contract test enforces summary/topic-tag consistency so
+    a reviewer cannot update one side and forget the other.
+
+    ``language`` keys the catalog for future i18n: a second-language
+    rollout registers another catalog instance instead of doubling
+    every hardcoded branch.
+    """
+
+    language: str = "en"
+    summary_per_domain: tuple[tuple[str, str], ...] = ()
+    topic_tags_per_domain: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    default_summary: str = ""
+    default_topic_tags: tuple[str, ...] = ("general",)
+
+    def summary_for(self, domain: str) -> str:
+        for d, summary in self.summary_per_domain:
+            if d == domain:
+                return summary
+        return self.default_summary
+
+    def topic_tags_for(self, domain: str) -> tuple[str, ...]:
+        for d, tags in self.topic_tags_per_domain:
+            if d == domain:
+                return tags
+        return self.default_topic_tags
+
+
+# Curated English catalog (SSOT for domain hint readouts). Text is
+# byte-identical to the pre-#81 ``runtime_helpers`` branches so the
+# migration is a pure ownership move, not a copy change.
+DEFAULT_DOMAIN_HINT_CATALOG = DomainHintCatalog(
+    language="en",
+    summary_per_domain=(
+        (
+            "family_transition",
+            "Separate emotional stabilization from legal or procedural next steps, and keep any "
+            "child-safety or jurisdiction-sensitive guidance explicitly bounded.",
+        ),
+        (
+            "professional_process",
+            "Use sourced high-level process guidance first, and avoid definitive professional conclusions "
+            "before local specifics are confirmed.",
+        ),
+        (
+            "career_decision",
+            "Frame trade-offs explicitly, reduce ambiguity, and prefer the smallest next step over a full "
+            "life-plan answer.",
+        ),
+        (
+            "structured_decision_support",
+            "Prefer option framing, trade-off comparison, and one grounded next action instead of broad "
+            "multi-branch advice.",
+        ),
+        (
+            "relational_repair",
+            "Prioritize de-escalation, acknowledgement, and safety before moving into explanation or planning.",
+        ),
+        (
+            "emotional_support_basics",
+            "Acknowledge the felt experience first, then add structure gradually so the response does not "
+            "skip past distress.",
+        ),
+    ),
+    topic_tags_per_domain=(
+        ("family_transition", ("family", "transition", "procedure")),
+        ("professional_process", ("professional", "process", "bounded-advice")),
+        ("career_decision", ("career", "tradeoff", "next-step")),
+        ("structured_decision_support", ("decision", "structure", "options")),
+        ("relational_repair", ("repair", "de-escalation", "safety")),
+        ("emotional_support_basics", ("support", "stabilization", "presence")),
+        ("general_support_guidance", ("support", "boundedness")),
+    ),
+    default_summary=(
+        "Keep the response grounded, bounded, and shaped by the current regime rather than defaulting to a "
+        "generic information dump."
+    ),
+    default_topic_tags=("general",),
+)
+
+
+@dataclass(frozen=True)
 class RegimeIdentity:
     regime_id: str
     name: str

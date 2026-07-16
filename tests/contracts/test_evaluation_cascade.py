@@ -169,7 +169,12 @@ def test_mid_layer_module_skeleton() -> None:
 
     assert MidLayerModule.slot_name == "evaluation_mid"
     assert MidLayerModule.owner == "MidLayerModule"
-    assert MidLayerModule.dependencies == ("evaluation", "credit")
+    assert MidLayerModule.dependencies == (
+        "evaluation",
+        "credit",
+        "prediction_error",
+        "regime",
+    )
     from volvence_zero.runtime.kernel import WiringLevel
 
     assert MidLayerModule.default_wiring_level is WiringLevel.DISABLED
@@ -285,7 +290,7 @@ def test_expensive_layer_module_skeleton() -> None:
 
     assert ExpensiveLayerModule.slot_name == "evaluation_expensive"
     assert ExpensiveLayerModule.owner == "ExpensiveLayerModule"
-    assert ExpensiveLayerModule.dependencies == ("evaluation_mid",)
+    assert ExpensiveLayerModule.dependencies == ("evaluation_mid", "substrate")
     assert ExpensiveLayerModule.default_wiring_level is WiringLevel.DISABLED
 
 

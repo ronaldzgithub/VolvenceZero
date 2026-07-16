@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Mapping
@@ -130,6 +131,25 @@ class CounterfactualContributionReadout:
 
 
 @dataclass(frozen=True)
+class GateRiskShadowReadout:
+    """C3 report-only learned risk score for the modification gate.
+
+    The rule cascade in ``evaluate_gate_reasons`` stays the safety floor
+    (R9/R10 boundary — never bypassed). This readout publishes a bounded
+    learned risk estimate alongside each gate decision so promotion
+    evidence can compare "what the learned head would have said" against
+    the realized rule decisions. It never feeds back into the decision.
+    """
+
+    predicted_risk: float
+    realized_block: bool
+    update_count: int
+    running_abs_error: float
+    agreement_rate: float
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class LeastControlReadout:
     """COG-1 report-only least-control evidence.
 
@@ -157,6 +177,9 @@ class CreditSnapshot:
     rewarding_state_head: RewardingStateHeadState | None = None
     counterfactual_readouts: tuple[CounterfactualContributionReadout, ...] = ()
     least_control_readout: LeastControlReadout | None = None
+    # C3: latest report-only learned gate-risk readout (None until the
+    # first proposal passes through the gate this session).
+    gate_risk_readout: GateRiskShadowReadout | None = None
 
 
 @dataclass(frozen=True)
@@ -719,6 +742,116 @@ def derive_abstract_action_credit_records(
             timestamp_ms=timestamp_ms,
         ),
     )
+
+
+_GATE_RISK_FEATURE_DIM = 10
+
+
+def gate_risk_features(
+    *,
+    proposal: ModificationProposal,
+    evaluation_snapshot: EvaluationSnapshot,
+) -> tuple[float, ...]:
+    """Featurize a proposal + evaluation context for the risk learner.
+
+    Only typed proposal fields and published evaluation readouts are
+    consumed — no proposal-text keyword matching.
+    """
+
+    metric_values = {
+        score.metric_name: score.value
+        for score in evaluation_snapshot.turn_scores + evaluation_snapshot.session_scores
+    }
+    alert_pressure = 0.0
+    if any(alert.severity == "CRITICAL" for alert in evaluation_snapshot.structured_alerts):
+        alert_pressure = 1.0
+    elif any(alert.severity == "HIGH" for alert in evaluation_snapshot.structured_alerts):
+        alert_pressure = 0.6
+    elif evaluation_snapshot.structured_alerts:
+        alert_pressure = 0.3
+    framing_risk = (
+        proposal.framing_check.risk_score if proposal.framing_check is not None else 0.0
+    )
+    return (
+        _clamp(proposal.validation_delta),
+        _clamp_unit(proposal.capacity_cost),
+        1.0 if proposal.is_reversible else 0.0,
+        1.0 if proposal.rollback_evidence else 0.0,
+        1.0 if proposal.desired_gate is ModificationGate.ONLINE else 0.0,
+        1.0 if proposal.desired_gate is ModificationGate.BACKGROUND else 0.0,
+        alert_pressure,
+        _clamp_unit(metric_values.get("contract_integrity", 1.0)),
+        _clamp_unit(framing_risk),
+        1.0,  # bias
+    )
+
+
+class GateRiskLearner:
+    """C3 bounded online logistic head predicting gate-block risk.
+
+    SHADOW bypass input only: the learner observes each realized rule
+    decision as its supervision target and publishes a report-only
+    ``GateRiskShadowReadout``. It has no path into
+    ``evaluate_gate_reasons`` — the rule cascade remains the R9/R10
+    safety floor, and removing it is out of scope by design.
+    """
+
+    _LEARNING_RATE = 0.10
+    _WEIGHT_BOUND = 3.0
+
+    def __init__(self) -> None:
+        self._weights = [0.0] * _GATE_RISK_FEATURE_DIM
+        self._update_count = 0
+        self._abs_error_sum = 0.0
+        self._agreement_count = 0
+
+    @property
+    def update_count(self) -> int:
+        return self._update_count
+
+    def predict_risk(self, features: tuple[float, ...]) -> float:
+        if len(features) != _GATE_RISK_FEATURE_DIM:
+            raise ValueError(
+                f"gate risk features have dim {len(features)}, "
+                f"expected {_GATE_RISK_FEATURE_DIM}"
+            )
+        raw = sum(w * f for w, f in zip(self._weights, features, strict=True))
+        return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, raw))))
+
+    def observe_decision(
+        self,
+        *,
+        features: tuple[float, ...],
+        decision: GateDecision,
+    ) -> GateRiskShadowReadout:
+        """Settle one gate decision: one clamped logistic-SGD step."""
+
+        prediction = self.predict_risk(features)
+        target = 1.0 if decision is GateDecision.BLOCK else 0.0
+        error = target - prediction
+        self._weights = [
+            max(-self._WEIGHT_BOUND, min(self._WEIGHT_BOUND, w + self._LEARNING_RATE * error * f))
+            for w, f in zip(self._weights, features, strict=True)
+        ]
+        self._update_count += 1
+        self._abs_error_sum += abs(error)
+        if (prediction >= 0.5) == (target >= 0.5):
+            self._agreement_count += 1
+        running_abs_error = self._abs_error_sum / self._update_count
+        agreement_rate = self._agreement_count / self._update_count
+        return GateRiskShadowReadout(
+            predicted_risk=round(prediction, 6),
+            realized_block=decision is GateDecision.BLOCK,
+            update_count=self._update_count,
+            running_abs_error=round(running_abs_error, 6),
+            agreement_rate=round(agreement_rate, 6),
+            description=(
+                "C3 SHADOW gate-risk readout (report-only, rules remain the "
+                f"safety floor): predicted={prediction:.3f} "
+                f"realized={'BLOCK' if decision is GateDecision.BLOCK else 'ALLOW'} "
+                f"agreement={agreement_rate:.3f} over {self._update_count} decisions."
+            ),
+        )
 
 
 def evaluate_gate(
@@ -1484,6 +1617,10 @@ class CreditLedger:
         self._nstep_ledger: list[NStepAttributionEntry] = []
         self._max_ledger_entries = 1000
         self._rewarding_state_head = _RewardingStateHead()
+        # C3: report-only learned gate-risk head; settled on every gate
+        # decision this ledger observes. Never consulted by the rules.
+        self._gate_risk_learner = GateRiskLearner()
+        self._latest_gate_risk_readout: GateRiskShadowReadout | None = None
 
     @property
     def recent_credits(self) -> tuple[CreditRecord, ...]:
@@ -1510,6 +1647,26 @@ class CreditLedger:
 
     def record_modification(self, record: SelfModificationRecord) -> None:
         self._recent_modifications.append(record)
+
+    def observe_gate_decision(
+        self,
+        *,
+        proposal: ModificationProposal,
+        evaluation_snapshot: EvaluationSnapshot,
+        decision: GateDecision,
+    ) -> GateRiskShadowReadout:
+        """C3 SHADOW bypass: settle the learned risk head on a realized
+        rule decision and keep the latest readout for the snapshot."""
+
+        readout = self._gate_risk_learner.observe_decision(
+            features=gate_risk_features(
+                proposal=proposal,
+                evaluation_snapshot=evaluation_snapshot,
+            ),
+            decision=decision,
+        )
+        self._latest_gate_risk_readout = readout
+        return readout
 
     def restore_rewarding_state_head(self, state: RewardingStateHeadState) -> None:
         self._rewarding_state_head.restore_state(state)
@@ -1737,6 +1894,7 @@ class CreditLedger:
             rewarding_state_head=self._rewarding_state_head.export_state(),
             counterfactual_readouts=tuple(self._recent_counterfactual_readouts[-5:]),
             least_control_readout=self.least_control_readout(),
+            gate_risk_readout=self._latest_gate_risk_readout,
         )
 
 
@@ -1837,6 +1995,11 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
         for proposal in proposals:
             gate_reasons = evaluate_gate_reasons(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
             decision = GateDecision.BLOCK if gate_reasons else GateDecision.ALLOW
+            self._ledger.observe_gate_decision(
+                proposal=proposal,
+                evaluation_snapshot=evaluation_snapshot,
+                decision=decision,
+            )
             if decision is GateDecision.ALLOW:
                 justification = f"ALLOWED: {proposal.justification}"
             else:

@@ -1,7 +1,7 @@
 # Runtime Ingestion + Apprenticeship Trigger Spec
 
 > Status: draft
-> Last updated: 2026-04-29
+> Last updated: 2026-07-16
 > 对应需求: R6, R8, R10, R15
 > 来源: `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 2 + Gap 3
 
@@ -329,5 +329,8 @@ async def handle_teaching_case_submit(req: web.Request) -> web.Response:
 
 ## 变更日志
 
+- 2026-07-16（I1，slice 2b + TeachingCase 闭合）：
+  - **web adapter land**：`lifeform_ingestion/sources/web.py` 提供 `envelope_from_url`（requests + readability-lxml，`[web]` extra 懒加载缺依赖 fail loudly）与 `envelope_from_html`（离线解析路径）。遵守本 spec 约束：显式 `urllib.robotparser` robots.txt 门（404/410 = 无策略放行，disallow 或 robots 不可达 → raise，不假定许可）、timeout 默认 10s + 1 次 retry、content-type 白名单（text/html / xhtml / text/plain）、响应字节上限、scheme 仅 http/https 且拒绝 userinfo（SSRF 第一遍纪律）、无 Playwright。`extractor="stdlib"` 是**显式**调用方兜底（整页文本），绝不静默替代 readability。测试 `tests/ingestion/test_sources_web.py`（fake requests，无网络）。
+  - **TeachingCase service 闭合**：`lifeform_service/teaching_case.py` 落地 §Service-side TeachingCase 接入——`TeachingCase` typed 契约 + `teaching_case_envelope`（CORPUS / `teaching-{case_id}` / per-field locator，与 spec 样例一致）+ `TeachingCaseService`（in-memory audit store，只调 `IngestionPipeline.process_envelope`，场景结束触发 R6 slow loop）+ 路由 `POST /v1/sessions/{sid}/teaching-cases`（强制 `ingestion-` session 前缀隔离）/ `GET /v1/teaching-cases` / `POST /v1/teaching-cases/{id}/retire`（R15 回滚标记，保留 envelope lineage）。`lifeform-service` 显式声明 `lifeform-ingestion` 依赖。测试 `tests/service/test_teaching_case.py`。
 - 2026-07-13：明确 fictional character 主观 live-through 与 raw BOOK ingestion 的边界；BOOK ingestion 不能代表主角亲历，逐章烘焙必须先经过 reviewed chapter artifact。
 - 2026-04-29：初始版本，对应 `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 2 + Gap 3 设计冻结。

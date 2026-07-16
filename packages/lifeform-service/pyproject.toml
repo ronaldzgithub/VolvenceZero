@@ -20,6 +20,10 @@ dependencies = [
     "lifeform-domain-figure==0.1.*",
     "lifeform-protocol-runtime==0.1.*",
     "lifeform-mcp-bridge==0.1.*",
+    # TeachingCase closure: the service translates operator teaching
+    # cases into IngestionEnvelopes and drives IngestionPipeline (the
+    # ONLY kernel entry — never LifeformSession.run_turn directly).
+    "lifeform-ingestion==0.1.*",
     # ``plugin_attach`` translates ``ContractSpec.plugins`` into
     # in-kernel objects on every adopt; the contracts wheel is the
     # SSOT for the plugin schema.

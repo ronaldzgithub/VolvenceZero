@@ -1,7 +1,7 @@
 # Semantic Embedding Backend Spec
 
-> Status: v0.1
-> Last updated: 2026-07-04
+> Status: v0.2
+> Last updated: 2026-07-16
 > 对应需求: R2（冻结基底 + 有界控制器）、R4（表达层不替代内部控制）、R8（快照 SSOT / 单一所有者）、R15（可回滚迁移）
 
 ## 要解决的问题
@@ -22,9 +22,11 @@
 
 - **Seam（`vz-contracts`，`volvence_zero.semantic_embedding`）**：
   - `SemanticEmbeddingBackend` Protocol：`embed(text: str, *, dim: int) -> tuple[float, ...]`（返回 L2-归一化向量）。
-  - `set_semantic_embedding_backend(backend | None)` / `get_semantic_embedding_backend()` / `reset_semantic_embedding_backend()`（进程级，wiring 时设置）。
+  - `set_semantic_embedding_backend(backend | None, *, owner="")` / `get_semantic_embedding_backend()` / `reset_semantic_embedding_backend()`（进程级，wiring 时设置）。返回 `"installed" / "cleared" / "conflict-stub"`。
+  - **多 substrate 隔离（v0.2）**：seam 记录安装 `owner`（Brain 注入时传 `runtime.model_id`）。同 owner 可重复安装；**不同 owner 二次安装**触发进程级降级为 stub（所有消费者）并锁存 conflict 标志，直到显式 reset（回滚路径）。`semantic_embedding_backend_status() -> (state, owner, conflict)` 提供可观测性。
   - `semantic_embedding(text, *, dim=8)`：backend 存在→`backend.embed`，否则→`stub_semantic_embedding`。
   - `semantic_cosine(a, b)`：与 backend 无关（两侧均 L2-归一化，点积）。
+  - **`semantic_topic_similarity(left_text, right_text) -> [0,1]`（v0.2）**：backend-aware 主题相似度。有真实 backend→两文本 16 维嵌入的 clamped cosine；无 backend→与历史 stub-token Jaccard byte-identical。所有手写 `Jaccard(stub_semantic_tokens(...))` 的消费者迁到此单一接缝。
 - **真实 backend（`vz-substrate`，`SubstrateTextEncoderBackend`）**：持有 `OpenWeightResidualRuntime`，`embed` = `runtime.capture(source_text=text)` → 取 `feature_surface` 稳定序展平 → L2 归一化 → 截/补到 `dim`（口径与 `memory.retrieval._substrate_embedding` 一致）；LRU 缓存 `(text, dim)`（`VZ_SEMANTIC_EMBED_CACHE`）；空文本 delegate stub。
 - **注入点（`vz-runtime`，`Brain._install_semantic_embedding_backend`）**：session 解析 runtime 后，按 wiring/env + isinstance 决定 set/reset。
 
@@ -37,12 +39,13 @@
 | 复用口径 | [continuum-memory.md](./continuum-memory.md) | `_substrate_embedding` 投影口径来源 |
 | 消费者 | [dual-track-learning](./00_INDEX.md) / [评估体系](./00_INDEX.md) | track 分配 / prototype 打分 |
 
-## 当前落地范围（v0.1）
+## 当前落地范围（v0.2）
 
-- **已迁到 seam**：`dual_track/core.py`（WORLD/SELF track）、`evaluation/semantic_readouts.py`（+ `backbone.py` 调用点）、`application/storage.py`（domain-knowledge 检索）。
-- **暂未迁移（#91 follow-up）**：`application/scoring_helpers.py` + `application/runtime_helpers.py`——`scoring_helpers.semantic_embedding` 被 `runtime_helpers` 与 **stub-空间字面量 prototype** 配对使用，直接切 seam 会造成跨空间 cosine 错误；需与该处字面量 prototype 一并 lazy 化后迁移。
-- **DLaaS 多 substrate 进程共存**：进程级全局 backend 仅适用于单 substrate；多实例部署应保持 `DISABLED`（stub），作为 #91 follow-up。
+- **已迁到 seam**：`dual_track/core.py`（WORLD/SELF track）、`evaluation/semantic_readouts.py`（+ `backbone.py` 调用点）、`application/storage.py`（domain-knowledge 检索）、`application/scoring_helpers.py`（`semantic_similarity` 逐调用嵌入，lazy，与 runtime_helpers prototype 同空间）。
+- **topic similarity 消费者（v0.2）**：`apprenticeship/core.py` 矛盾检测、`application/modules/apprenticeship_protocol_alignment.py` strategy/knowledge 覆盖匹配——均由手写 stub-token Jaccard 迁到 `semantic_topic_similarity`（无 backend 时行为 byte-identical）。
+- **多 substrate 进程共存（v0.2）**：owner-scoped 安装 + conflict 降级 stub（见上），多实例部署不再依赖"人工保持 DISABLED"；conflict 可经 `semantic_embedding_backend_status()` 观测。
 
 ## 变更日志
 
+- 2026-07-16：v0.2（M1 / #91 follow-up）。owner-scoped 安装 + 多 substrate conflict 降级 + `semantic_embedding_backend_status` 可观测性；新增 `semantic_topic_similarity` hybrid 接缝并迁移 apprenticeship 矛盾检测与 protocol alignment 覆盖匹配；scoring_helpers 确认逐调用 lazy 嵌入。契约测试扩 owner/conflict/topic-similarity 分支（`tests/contracts/test_semantic_embedding_ssot.py`）。
 - 2026-07-04：v0.1 初版。seam（vz-contracts）+ SubstrateTextEncoderBackend（vz-substrate）+ Brain 注入 + dual_track/evaluation/storage 迁移 + 契约测试。落地 known-debts #91 修法 1。

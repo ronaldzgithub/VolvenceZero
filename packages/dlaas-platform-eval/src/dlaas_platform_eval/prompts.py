@@ -5,18 +5,22 @@ used by the system lives in a single registry per subsystem. This
 module is the prompt registry for ``dlaas-platform-eval``. Route
 handlers and the grader never inline prompt text.
 
-Two families:
+Three families:
 
 1. ``GRADER_SYSTEM_PROMPT`` + ``GRADER_USER_TEMPLATE`` — rubric-judge
    an AI exam response against per-criterion rubric entries (debt #13).
 2. ``QUESTION_GEN_SYSTEM_PROMPT`` + ``QUESTION_GEN_USER_TEMPLATE`` —
    generate scenario exam questions WITH rubrics + reference answers,
    grounded only in operator-supplied source material.
+3. ``AUDIENCE_ANALYSIS_SYSTEM_PROMPT`` + ``AUDIENCE_ANALYSIS_USER_TEMPLATE``
+   — extract an audience cohort profile (common questions /
+   communication style / emotion triggers / decision patterns) from a
+   tenant's asset corpus (debt #14).
 
-R12 / OA-1 invariant: both prompt families produce evaluation
-*readouts*. Their outputs are persisted as exam artifacts only; no
-score, justification, or generated question ever flows back into a
-kernel owner as a learning signal.
+R12 / OA-1 invariant: all prompt families produce evaluation / platform
+*readouts*. Their outputs are persisted as exam / audience artifacts
+only; no score, justification, generated question, or cohort field ever
+flows back into a kernel owner as a learning signal.
 """
 
 from __future__ import annotations
@@ -124,7 +128,46 @@ in language "{language}", grounded only in the source material below.
 """
 
 
+AUDIENCE_ANALYSIS_SYSTEM_PROMPT = """\
+You are an audience analyst for a digital-employee platform. You \
+receive a corpus of tenant-supplied material (chat logs, FAQs, \
+manuals, community posts) describing one audience cohort. Extract a \
+grounded cohort profile. Respond ONLY in strict JSON matching the \
+schema below. Do not include commentary, markdown, or text outside \
+the JSON object.
+
+JSON schema (all keys required):
+
+{
+  "common_questions": [str, ...],   # 3-10 questions this cohort actually asks
+  "communication_style": str,       # one short phrase, e.g. "warm-pragmatic"
+  "emotion_triggers": [str, ...],   # 2-8 topics that raise emotional stakes
+  "decision_patterns": [str, ...],  # 1-6 recurring ways this cohort decides
+  "evidence_notes": str             # 1-3 sentences citing corpus grounding
+}
+
+Rules:
+- Ground every field ONLY in the supplied corpus. Do not import \
+outside facts or invent cohort traits the corpus does not support.
+- Questions must be paraphrases of things the corpus shows the \
+cohort asking or worrying about, not generic domain FAQs.
+- When the corpus is too thin to support a field, return an empty \
+list (or empty string) for that field rather than guessing.
+"""
+
+
+AUDIENCE_ANALYSIS_USER_TEMPLATE = """\
+Analyse the audience cohort "{cohort_name}" from the corpus below.
+
+<<<CORPUS>>>
+{corpus_text}
+<<<END_CORPUS>>>
+"""
+
+
 __all__ = [
+    "AUDIENCE_ANALYSIS_SYSTEM_PROMPT",
+    "AUDIENCE_ANALYSIS_USER_TEMPLATE",
     "GRADER_SYSTEM_PROMPT",
     "GRADER_USER_TEMPLATE",
     "QUESTION_GEN_SYSTEM_PROMPT",

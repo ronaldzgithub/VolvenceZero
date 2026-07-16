@@ -117,6 +117,42 @@ def test_dry_run_smoke_with_fakes_one_family(tmp_path: pathlib.Path) -> None:
     assert "per_axis_scores" in payload
 
 
+def test_run_submission_resumes_existing_arc_bundles(tmp_path: pathlib.Path) -> None:
+    public_dir = pathlib.Path(str(res.files("companion_bench") / "scenarios" / "public"))
+    specs = load_scenarios_dir(public_dir, include_held_out=False)[:2]
+    manifest = SubmissionManifest(
+        submission_id="resume-smoke",
+        system_name="ResumeSmoke",
+        model_identifier="fake-sut/echo",
+        base_url="http://localhost",
+        api_key_env="UNSET",
+        system_prompt="",
+        generation_config={},
+        attestation=SubmissionAttestation(True, True, True, True),
+        leaderboard_category="bespoke",
+    )
+    artifact_dir = tmp_path / "artifacts"
+    first = dry_run_with_fakes(
+        manifest=manifest,
+        specs=specs,
+        sut_client=EchoFakeSUTClient(),
+        user_backend=DeterministicFakeUtteranceClient(),
+        paraphrase_seeds=(0,),
+        artifact_dir=artifact_dir,
+    )
+    assert first.aggregate.arc_count == 2
+    second = dry_run_with_fakes(
+        manifest=manifest,
+        specs=specs,
+        sut_client=EchoFakeSUTClient(),
+        user_backend=DeterministicFakeUtteranceClient(),
+        paraphrase_seeds=(0,),
+        artifact_dir=artifact_dir,
+    )
+    assert second.aggregate.arc_count == 2
+    assert len(second.arc_bundles) == 0
+
+
 def test_dry_run_full_public_set(tmp_path: pathlib.Path) -> None:
     """Full 30-scenario × 1-seed run completes inside the smoke budget.
 

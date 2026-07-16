@@ -23,6 +23,7 @@ Scope boundaries:
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any
 
 from volvence_zero.integration import FinalRolloutConfig
@@ -286,6 +287,13 @@ def collect_learned_shadow_evidence(runner: Any) -> dict[str, Any]:
         "internal_rl": _internal_rl_payload(runner.joint_loop.latest_internal_rl_report),
         "cms": _cms_payload(learned_core.latest_cms_backend_evidence),
     }
+    # M2 (#89 code side): the CMS torch-band promotion gate readout — settled
+    # pure-vs-torch update-outcome comparisons, parity pass rate, and the
+    # bounded anti-forgetting window — ships inside the same artifact so the
+    # SHADOW->ACTIVE decision is one payload, not a downstream re-join.
+    payload["cms"]["promotion_readout"] = asdict(
+        learned_core.cms_backend_promotion_readout()
+    )
     # CP-05 (GAP-09): SSL SHADOW candidate checkpoint + forward parity.
     candidate = runner.joint_loop.latest_torch_ssl_candidate
     if candidate is not None:

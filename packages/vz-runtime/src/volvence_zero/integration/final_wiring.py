@@ -1722,6 +1722,7 @@ def build_final_runtime_modules(
             joint_commitments=group_joint_commitments,
             group_regime_id=group_regime_id,
             record_store=social_record_store,
+            turn_index=turn_index,
         ),
         SocialPredictionAggregateModule(
             wiring_level=config.level_for("social_prediction", WiringLevel.SHADOW),

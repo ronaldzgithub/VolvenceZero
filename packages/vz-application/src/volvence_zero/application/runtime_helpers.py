@@ -50,7 +50,7 @@ from volvence_zero.application.retrieval_readout import (
 
 if TYPE_CHECKING:
     from volvence_zero.prediction.error import PredictionErrorSnapshot
-    from volvence_zero.regime import RegimeSnapshot
+    from volvence_zero.regime import DomainHintCatalog, RegimeSnapshot
     from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
 
@@ -719,53 +719,24 @@ def _has_jurisdiction_context(text: str) -> bool:
     return _semantic_similarity(text, JURISDICTION_CONTEXT_PROTOTYPE) >= 0.52
 
 
+# #81: hint summary / topic tags are owner-published typed data
+# (``DomainHintCatalog`` next to ``ApplicationBrief`` in
+# ``vz-cognition.regime.contracts``), not if/elif branches here. The
+# thin wrappers keep existing call sites (``modules/domain_knowledge``)
+# unchanged; a contract test pins zero literal-domain equality branches
+# in this file and summary/tag consistency in the catalog.
+def _domain_hint_catalog() -> "DomainHintCatalog":
+    from volvence_zero.regime import DEFAULT_DOMAIN_HINT_CATALOG
+
+    return DEFAULT_DOMAIN_HINT_CATALOG
+
+
 def _domain_summary(domain: str, *, regime_id: str | None) -> str:
-    if domain == "family_transition":
-        return (
-            "Separate emotional stabilization from legal or procedural next steps, and keep any "
-            "child-safety or jurisdiction-sensitive guidance explicitly bounded."
-        )
-    if domain == "professional_process":
-        return (
-            "Use sourced high-level process guidance first, and avoid definitive professional conclusions "
-            "before local specifics are confirmed."
-        )
-    if domain == "career_decision":
-        return (
-            "Frame trade-offs explicitly, reduce ambiguity, and prefer the smallest next step over a full "
-            "life-plan answer."
-        )
-    if domain == "structured_decision_support":
-        return (
-            "Prefer option framing, trade-off comparison, and one grounded next action instead of broad "
-            "multi-branch advice."
-        )
-    if domain == "relational_repair":
-        return (
-            "Prioritize de-escalation, acknowledgement, and safety before moving into explanation or planning."
-        )
-    if domain == "emotional_support_basics":
-        return (
-            "Acknowledge the felt experience first, then add structure gradually so the response does not "
-            "skip past distress."
-        )
-    return (
-        "Keep the response grounded, bounded, and shaped by the current regime rather than defaulting to a "
-        "generic information dump."
-    )
+    return _domain_hint_catalog().summary_for(domain)
 
 
 def _domain_topic_tags(domain: str) -> tuple[str, ...]:
-    tags = {
-        "family_transition": ("family", "transition", "procedure"),
-        "professional_process": ("professional", "process", "bounded-advice"),
-        "career_decision": ("career", "tradeoff", "next-step"),
-        "structured_decision_support": ("decision", "structure", "options"),
-        "relational_repair": ("repair", "de-escalation", "safety"),
-        "emotional_support_basics": ("support", "stabilization", "presence"),
-        "general_support_guidance": ("support", "boundedness"),
-    }
-    return tags.get(domain, ("general",))
+    return _domain_hint_catalog().topic_tags_for(domain)
 
 
 def _domain_source_type(domain: str) -> KnowledgeSourceType:

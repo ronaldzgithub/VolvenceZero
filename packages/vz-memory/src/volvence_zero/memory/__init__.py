@@ -1,4 +1,5 @@
 from volvence_zero.memory.cms import (
+    CMSBackendPromotionReadout,
     CMSBandMLP,
     CMSBandState,
     CMSCheckpointState,
@@ -67,6 +68,7 @@ __all__ = [
     "CMSContinuumProfile",
     "CMSContinuumReconstructionEdge",
     "CMSHopeSelfModificationState",
+    "CMSBackendPromotionReadout",
     "CMSMemoryCore",
     "CMSState",
     "CMSTowerConsolidationUpdate",

@@ -87,6 +87,10 @@ from volvence_zero.substrate.residual_intervention import (  # noqa: E402,F401
     TraceResidualInterventionBackend,
     apply_residual_control,
 )
+from volvence_zero.substrate.rare_heavy_training import (  # noqa: E402
+    RareHeavyAdapterTrainingBackend,
+    RareHeavyTrainingRequest,
+)
 from volvence_zero.substrate.residual_synthetic import (  # noqa: E402,F401
     SyntheticOpenWeightResidualRuntime,
 )
@@ -176,6 +180,23 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._online_fast_source_state_hash = ""
         self._online_fast_signal: tuple[float, ...] = ()
         self._online_fast_optimizer_state_description = ""
+        # S1: injectable real rare-heavy training backend (e.g. PEFT LoRA).
+        # None -> the built-in adapter-delta autograd loop stays in charge.
+        self._rare_heavy_training_backend: RareHeavyAdapterTrainingBackend | None = None
+
+    def set_rare_heavy_training_backend(
+        self, backend: RareHeavyAdapterTrainingBackend | None
+    ) -> None:
+        """Install (or clear) the offline rare-heavy training backend.
+
+        When set, ``train_rare_heavy`` delegates adapter training to the
+        backend instead of the built-in ``_train_adapter_deltas`` loop.
+        A backend failure fails loudly — an explicitly injected backend
+        never silently falls back to the built-in loop (R15: the fallback
+        is the *uninjected* configuration, reachable by clearing this).
+        """
+
+        self._rare_heavy_training_backend = backend
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
         # Windows CUDA hosts with the Raptor Lake Vmin Shift defect (pre-fix
@@ -1791,6 +1812,32 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             previous_update_count=self._rare_heavy_update_count,
             substrate_steps_per_trace=substrate_steps_per_trace,
         )
+        backend = self._rare_heavy_training_backend
+        if backend is not None:
+            result = backend.train(
+                RareHeavyTrainingRequest(
+                    model_id=self.model_id,
+                    hidden_size=self._hidden_size,
+                    layer_indices=self._layer_indices,
+                    device=str(self._device),
+                    traces=traces,
+                )
+            )
+            return _checkpoint_with_adapter_payload(
+                checkpoint,
+                training_mode=result.training_mode,
+                compatibility_fingerprint=_build_compatibility_fingerprint(
+                    model_id=self.model_id,
+                    runtime_origin=self.runtime_origin,
+                    hidden_size=self._hidden_size,
+                    layer_indices=self._layer_indices,
+                    training_mode=result.training_mode,
+                ),
+                adapter_scale=1.0,
+                adapter_training_loss=result.training_loss,
+                adapter_layers=result.adapter_layers,
+                description=f"{checkpoint.description} {result.description}",
+            )
         adapter_layers, training_loss = self._train_adapter_deltas(
             traces=traces,
             substrate_steps_per_trace=substrate_steps_per_trace,
@@ -1832,6 +1879,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             runtime_origin=self._runtime_origin,
             allow_offline_substrate_training=True,
         )
+        cloned.set_rare_heavy_training_backend(self._rare_heavy_training_backend)
         cloned.import_rare_heavy_state(self.export_rare_heavy_state())
         return cloned
 

@@ -91,6 +91,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "'F1' or 'F1,F2,F3'."
         ),
     )
+    p.add_argument(
+        "--no-resume-arcs",
+        action="store_true",
+        help=(
+            "Re-score every scenario even when arcs/<arc_id>.bundle.json already "
+            "exists. Default resumes per-arc from existing bundle files."
+        ),
+    )
     p.add_argument("--verbose", "-v", action="store_true")
     return p
 
@@ -229,6 +237,7 @@ def main(argv: list[str] | None = None) -> int:
         paraphrase_seeds=paraphrase_seeds,
         artifact_dir=bundle_dir,
         user_simulator_model=args.user_sim_model,
+        resume_completed_arcs=not args.no_resume_arcs,
     )
     summary_path = args.summary or args.artifact_dir / "summary.json"
     write_submission_summary(result, summary_path)
@@ -236,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
         "submission %s complete; mean score = %.2f (n=%d arcs); cost USD = %s; summary → %s",
         manifest.submission_id,
         result.aggregate.final_mean,
-        len(result.arc_bundles),
+        result.aggregate.arc_count,
         result.cost.total_usd,
         summary_path,
     )
