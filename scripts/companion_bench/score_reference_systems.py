@@ -307,6 +307,7 @@ def main(argv: list[str] | None = None) -> int:
             "--arc-model", args.arc_model,
             "--arc-key-env", args.arc_key_env,
             "--paraphrase-seeds", args.paraphrase_seeds,
+            "-v",
         ]
         if args.include_heldout:
             cmd.append("--include-heldout")

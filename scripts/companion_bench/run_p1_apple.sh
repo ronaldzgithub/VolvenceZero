@@ -170,8 +170,10 @@ if [[ "$VZ_SUBSTRATE_DEVICE" == cuda* ]]; then
 fi
 if [[ "$VZ_SUBSTRATE_DEVICE" == mps* ]]; then
   export VZ_P1_SUT_MAX_TOKENS="${VZ_P1_SUT_MAX_TOKENS:-96}"
+  export VZ_P1_PER_SYSTEM_TIMEOUT_MIN="${VZ_P1_PER_SYSTEM_TIMEOUT_MIN:-480}"
 else
   export VZ_P1_SUT_MAX_TOKENS="${VZ_P1_SUT_MAX_TOKENS:-256}"
+  export VZ_P1_PER_SYSTEM_TIMEOUT_MIN="${VZ_P1_PER_SYSTEM_TIMEOUT_MIN:-240}"
 fi
 if [[ ! "$VZ_P1_SUT_MAX_TOKENS" =~ ^[1-9][0-9]*$ ]]; then
   die "VZ_P1_SUT_MAX_TOKENS must be a positive integer, got '${VZ_P1_SUT_MAX_TOKENS}'"
@@ -196,6 +198,7 @@ RUNNER_ARGS=(
   --phase p1
   --output-dir "$ARTIFACT_DIR"
   --vertical-probe-timeout-s "${VZ_P1_VERTICAL_PROBE_TIMEOUT_S:-180}"
+  --per-system-timeout-min "${VZ_P1_PER_SYSTEM_TIMEOUT_MIN}"
   --sut-max-tokens "$VZ_P1_SUT_MAX_TOKENS"
   --user-sim-base-url "$OPENROUTER_BASE"
   --user-sim-model "$USER_SIM_MODEL"
@@ -294,3 +297,4 @@ run_with_wake_lock bash scripts/companion_bench/serve_same_substrate_ablation.sh
 
 run_with_wake_lock python "${RUNNER_ARGS[@]}"
 log "verdict: ${ARTIFACT_DIR}/verdict_p1.json"
+log "progress: bash scripts/companion_bench/watch_p1_progress.sh ${ARTIFACT_DIR} --follow"

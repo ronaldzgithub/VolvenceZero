@@ -20,7 +20,9 @@ from __future__ import annotations
 import dataclasses
 import datetime as _dt
 import json
+import logging
 import pathlib
+import time
 from typing import Iterable
 
 import yaml
@@ -56,6 +58,8 @@ from companion_bench.judge_perturn import (
     score_arc_perturn,
 )
 from companion_bench.spec import AxisId, ScenarioSpec, scenario_hash
+
+_LOG = logging.getLogger("companion_bench.submission")
 from companion_bench.sut_client import SUTClient
 from companion_bench.user_simulator import UtteranceClient
 
@@ -259,6 +263,52 @@ def _load_bundle_final_score(path: pathlib.Path) -> CompanionBenchScore:
     )
 
 
+def _planned_arc_count(
+    specs: Iterable[ScenarioSpec], paraphrase_seeds: Iterable[int],
+) -> int:
+    total = 0
+    for spec in specs:
+        for seed in paraphrase_seeds:
+            if seed < spec.paraphrase_seed_count:
+                total += 1
+    return total
+
+
+def _progress_file(arc_dir: pathlib.Path | None) -> pathlib.Path | None:
+    if arc_dir is None:
+        return None
+    return arc_dir.parent / "progress.jsonl"
+
+
+def _emit_arc_progress(
+    arc_dir: pathlib.Path | None,
+    *,
+    submission_id: str,
+    event: str,
+    scenario_id: str,
+    paraphrase_seed: int,
+    scored: int,
+    total: int,
+    **extra: object,
+) -> None:
+    path = _progress_file(arc_dir)
+    if path is None:
+        return
+    payload = {
+        "ts": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "submission_id": submission_id,
+        "event": event,
+        "scenario_id": scenario_id,
+        "paraphrase_seed": paraphrase_seed,
+        "scored": scored,
+        "total": total,
+        **extra,
+    }
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        fh.flush()
+
+
 def _arc_run_config_from_manifest(
     manifest: SubmissionManifest,
     *,
@@ -364,9 +414,33 @@ def run_submission(
     arc_config = _arc_run_config_from_manifest(
         manifest, user_simulator_model=user_simulator_model
     )
+    specs_list = list(specs)
+    seeds_list = list(paraphrase_seeds)
+    total_planned = _planned_arc_count(specs_list, seeds_list)
+    on_disk = 0
+    if arc_dir is not None and resume_completed_arcs:
+        for spec in specs_list:
+            for seed in seeds_list:
+                if seed >= spec.paraphrase_seed_count:
+                    continue
+                if _arc_bundle_path(
+                    arc_dir,
+                    submission_id=manifest.submission_id,
+                    scenario_id=spec.scenario_id,
+                    paraphrase_seed=seed,
+                ).is_file():
+                    on_disk += 1
+    to_run = total_planned - on_disk
+    _LOG.info(
+        "[%s] arc plan: total=%d on_disk=%d to_run=%d",
+        manifest.submission_id,
+        total_planned,
+        on_disk,
+        to_run,
+    )
 
-    for spec in specs:
-        for seed in paraphrase_seeds:
+    for spec in specs_list:
+        for seed in seeds_list:
             if seed >= spec.paraphrase_seed_count:
                 continue
             if arc_dir is not None and resume_completed_arcs:
@@ -378,8 +452,26 @@ def run_submission(
                 )
                 if existing.is_file():
                     per_arc_scores.append(_load_bundle_final_score(existing))
+                    scored = len(per_arc_scores)
+                    _LOG.info(
+                        "[%s] %d/%d scored (resumed %s)",
+                        manifest.submission_id,
+                        scored,
+                        total_planned,
+                        spec.scenario_id,
+                    )
+                    _emit_arc_progress(
+                        arc_dir,
+                        submission_id=manifest.submission_id,
+                        event="arc_resumed",
+                        scenario_id=spec.scenario_id,
+                        paraphrase_seed=seed,
+                        scored=scored,
+                        total=total_planned,
+                    )
                     continue
             stage = "run_arc"
+            arc_started = time.monotonic()
             try:
                 arc = run_arc(
                     spec=spec,
@@ -438,6 +530,28 @@ def run_submission(
                 per_arc_scores.append(final)
                 if arc_dir is not None:
                     _write_bundle(bundle, arc_dir)
+                scored = len(per_arc_scores)
+                elapsed_s = round(time.monotonic() - arc_started, 1)
+                _LOG.info(
+                    "[%s] %d/%d scored %s ok final=%.1f elapsed=%ss",
+                    manifest.submission_id,
+                    scored,
+                    total_planned,
+                    spec.scenario_id,
+                    final.final,
+                    elapsed_s,
+                )
+                _emit_arc_progress(
+                    arc_dir,
+                    submission_id=manifest.submission_id,
+                    event="arc_ok",
+                    scenario_id=spec.scenario_id,
+                    paraphrase_seed=seed,
+                    scored=scored,
+                    total=total_planned,
+                    final=final.final,
+                    elapsed_s=elapsed_s,
+                )
             except Exception as exc:
                 if not fail_isolated:
                     raise
@@ -467,6 +581,31 @@ def run_submission(
                         "exception_type": type(exc).__name__,
                         "exception": str(exc),
                     }
+                )
+                elapsed_s = round(time.monotonic() - arc_started, 1)
+                _LOG.warning(
+                    "[%s] %d/%d scored %s FAILED stage=%s %s: %s (elapsed=%ss)",
+                    manifest.submission_id,
+                    len(per_arc_scores),
+                    total_planned,
+                    spec.scenario_id,
+                    stage,
+                    type(exc).__name__,
+                    exc,
+                    elapsed_s,
+                )
+                _emit_arc_progress(
+                    arc_dir,
+                    submission_id=manifest.submission_id,
+                    event="arc_failed",
+                    scenario_id=spec.scenario_id,
+                    paraphrase_seed=seed,
+                    scored=len(per_arc_scores),
+                    total=total_planned,
+                    stage=stage,
+                    exception_type=type(exc).__name__,
+                    exception=str(exc),
+                    elapsed_s=elapsed_s,
                 )
 
     if arc_dir is not None and failures:
