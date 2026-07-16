@@ -232,6 +232,48 @@ fi
 
 PID_FILE="${ARTIFACT_DIR}/serve.pids"
 
+stop_stale_ablation_services() {
+  if [[ -f "$PID_FILE" ]]; then
+    bash scripts/companion_bench/stop_same_substrate_ablation.sh "$PID_FILE" || true
+    log "stopped stale ablation services from ${PID_FILE}"
+    sleep 1
+  fi
+}
+
+clear_occupied_p1_ports() {
+  local freed=""
+  if ! freed="$(python - <<'PY'
+import sys
+
+sys.path.insert(0, "scripts/companion_bench")
+from p1_readiness import P1ReadinessError, free_p1_ports, require_ports_free
+
+killed = free_p1_ports()
+if killed:
+    print(",".join(str(pid) for pid in killed), end="")
+try:
+    require_ports_free()
+except P1ReadinessError as exc:
+    print(str(exc), file=sys.stderr)
+    raise SystemExit(2) from exc
+PY
+)"; then
+    die "could not free P1 ports; see error above"
+  fi
+  if [[ -n "$freed" ]]; then
+    log "freed P1 ports (8000/8500/8501/8502/8600) by killing pid(s): ${freed}"
+  fi
+}
+
+run_with_wake_lock() {
+  if command -v caffeinate >/dev/null 2>&1; then
+    log "sleep lock: caffeinate -dimsu (keep lid open; clamshell sleep is not blocked)"
+    caffeinate -dimsu "$@"
+  else
+    "$@"
+  fi
+}
+
 cleanup_services() {
   if [[ "$KEEP_SERVICES" -eq 1 ]]; then
     log "KEEP_SERVICES=1 — leaving endpoints up (PIDs in ${PID_FILE})"
@@ -244,9 +286,11 @@ cleanup_services() {
 }
 trap cleanup_services EXIT
 
+stop_stale_ablation_services
+clear_occupied_p1_ports
 python "${PREFLIGHT_ARGS[@]}"
 log "booting same-substrate endpoints (ablation-bundle + ref-harness + memory-only + rag + camel)..."
-bash scripts/companion_bench/serve_same_substrate_ablation.sh
+run_with_wake_lock bash scripts/companion_bench/serve_same_substrate_ablation.sh
 
-python "${RUNNER_ARGS[@]}"
+run_with_wake_lock python "${RUNNER_ARGS[@]}"
 log "verdict: ${ARTIFACT_DIR}/verdict_p1.json"

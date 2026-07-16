@@ -362,6 +362,7 @@ class MetacontrollerSSLTrainer:
                     memory_signal=0.0,
                     reflection_signal=0.0,
                     params=store.ndim_switch_parameters,
+                    beta_threshold=store.beta_threshold,
                 )
                 latent_code = tuple(
                     _clamp(
@@ -387,6 +388,7 @@ class MetacontrollerSSLTrainer:
                     reflection_signal=0.0,
                     previous_binary=0,
                     previous_steps_since_switch=previous_steps,
+                    beta_threshold=store.beta_threshold,
                 )
                 scalar_beta = switch_decision.beta_continuous
                 latent_code = tuple(
@@ -459,7 +461,7 @@ class MetacontrollerSSLTrainer:
         persist_count = 0
         current_persist = 0
         for bv in beta_values:
-            if bv >= 0.55:
+            if bv >= store.beta_threshold:
                 if current_persist > 0:
                     persistence_steps_sum += current_persist
                     persist_count += 1

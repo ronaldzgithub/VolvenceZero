@@ -17,11 +17,13 @@ from volvence_zero.semantic_state import SEMANTIC_OWNER_SLOTS, semantic_control_
 from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
 from volvence_zero.temporal_types import ControllerState, TemporalAbstractionSnapshot, TemporalSegmentClosure
 from volvence_zero.temporal.metacontroller_components import (
+    DEFAULT_FAMILY_MATCH_WEIGHTS,
     ActionFamilyObservation,
     DecoderControl,
     DiscoveredActionFamily,
     EncodedSequence,
     FamilyCompetitionState,
+    FamilyMatchWeights,
     NdimDecoderParameters,
     NdimResidualDecoder,
     NdimEncoderParameters,
@@ -39,9 +41,11 @@ from volvence_zero.temporal.metacontroller_components import (
     build_ndim_switch_parameters,
     build_family_competition_state,
     discover_latent_action_family,
+    family_match_features,
     residual_sequence_from_snapshot,
     summarize_feature_surface,
     summarize_residual_activations,
+    update_family_match_weights,
     update_family_outcome_history,
 )
 from volvence_zero.temporal.m3_optimizer import M3OptimizerState
@@ -468,6 +472,12 @@ class MetacontrollerParameterStore:
         self.persistence = 0.65
         self.learning_rate = 0.08
         self.clip_epsilon = 0.2
+        # Learned action-family match head (#86/#88): the historical fixed
+        # cosine-mix coefficients are the initialisation; settled family
+        # outcomes drive bounded online updates (rollback = reset to
+        # DEFAULT_FAMILY_MATCH_WEIGHTS, never further than the envelope).
+        self.family_match_weights: FamilyMatchWeights = DEFAULT_FAMILY_MATCH_WEIGHTS
+        self._latest_family_match_features: dict[str, tuple[float, ...]] = {}
         self.update_steps: dict[Track, int] = {
             Track.WORLD: 0,
             Track.SELF: 0,
@@ -947,6 +957,19 @@ class MetacontrollerParameterStore:
         if updated_families == self.action_families:
             return False
         self.action_families = updated_families
+        # Settle the learned match head: the features cached at selection
+        # time carry the credit for this settled outcome (bounded update,
+        # weights never leave the envelope around the initial values).
+        cached_features = self._latest_family_match_features.get(feedback.family_id)
+        if cached_features is not None:
+            outcome_signal = (
+                feedback.outcome_value * 0.7 + feedback.delayed_credit_delta * 0.3
+            )
+            self.family_match_weights = update_family_match_weights(
+                self.family_match_weights,
+                features=cached_features,
+                outcome_signal=outcome_signal,
+            )
         return True
 
     def record_fast_prior_signals(
@@ -1076,9 +1099,20 @@ class MetacontrollerParameterStore:
             current_family_continuation_bias=current_family_continuation_bias,
             active_family_competition_bias=active_family_competition_bias,
             allow_topology_maintenance=self.learning_phase.startswith("ssl") or not self.action_families,
+            match_weights=self.family_match_weights,
         )
         if self.action_families != previous_families:
             self._action_family_version += 1
+        # Cache the winning family's match features so a later settled
+        # outcome for this family can credit the match head (bounded SGD).
+        selected_family = next(
+            (family for family in self.action_families if family.family_id == active_label),
+            None,
+        )
+        if selected_family is not None:
+            self._latest_family_match_features[active_label] = family_match_features(
+                selected_family, observation
+            )
         self._latest = replace(self._latest, active_label=active_label)
         return (active_label, family_summary)
 
@@ -2668,6 +2702,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             active_family_persistence=active_family_persistence,
             external_switch_pressure_delta=fast_prior_switch_pressure_delta,
             params=self._parameter_store.ndim_switch_parameters,
+            beta_threshold=self._parameter_store.beta_threshold,
         )
         z_candidate = latent_override or encoded.z_tilde
         if binary_gate_override:
@@ -2683,7 +2718,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         else:
             effective_gate = beta_cont
             effective_scalar_beta = scalar_beta
-            is_switching_scalar = scalar_beta >= 0.55
+            is_switching_scalar = scalar_beta >= self._parameter_store.beta_threshold
             persistence_window = 0.0 if is_switching_scalar else float(previous_steps + 1)
         latent_code = tuple(
             _clamp(effective_gate[i] * z_candidate[i] + (1.0 - effective_gate[i]) * previous_code[i])
@@ -2762,6 +2797,15 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         policy_replacement_score: float,
         binary_gate_override: bool,
     ) -> TemporalStep:
+        """LEGACY rollback baseline (n_z == 3): hand-tuned 3-dim recurrence.
+
+        This path is NOT the learned metacontroller — it is the frozen
+        pure-Python fallback kept for rollback and byte-stable baselines.
+        The learned controller path is ``_step_impl_ndim`` (n_z > 3),
+        selected via ``temporal_latent_dim`` / ``TEMPORAL_PROFILE_LATENT_DIMS``
+        profiles. Promotion of the ndim path to the shipped default is
+        gated on evidence (#86/#88), not on code readiness.
+        """
         previous_code = previous_snapshot.controller_state.code if previous_snapshot is not None else self._previous_code
         previous_steps = (
             previous_snapshot.controller_state.steps_since_switch if previous_snapshot is not None else 0
@@ -2804,6 +2848,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             external_switch_pressure_delta=fast_prior_switch_pressure_delta,
             previous_binary=self._previous_beta_binary,
             previous_steps_since_switch=previous_steps,
+            beta_threshold=self._parameter_store.beta_threshold,
         )
         z_candidate = latent_override or encoded.z_tilde
         if binary_gate_override:

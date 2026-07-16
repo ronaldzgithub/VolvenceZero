@@ -32,7 +32,22 @@ from volvence_zero.internal_rl.sandbox import (
     derive_abstract_action_credit,
 )
 
+
+def load_torch_internal_rl():
+    """First-class lazy entry to the torch Internal RL backend (#88).
+
+    The facade stays torch-free; this loader is the sanctioned way to
+    reach ``TorchCausalZPolicy`` / ``TorchInternalRLConfig`` and the PPO
+    trainer without a module-level torch import. Raises ImportError with
+    install guidance when torch is unavailable.
+    """
+
+    from volvence_zero.internal_rl import torch_internal_rl
+
+    return torch_internal_rl
+
 __all__ = [
+    "load_torch_internal_rl",
     "CausalPolicyCheckpoint",
     "CausalPolicyParameters",
     "CausalPolicyState",

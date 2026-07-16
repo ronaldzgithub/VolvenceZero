@@ -52,7 +52,11 @@ from volvence_zero.regime.scoring import (
     build_regime_identity,
     score_regimes,
 )
-from volvence_zero.regime.templates import REGIME_TEMPLATES
+from volvence_zero.regime.templates import (
+    REGIME_TEMPLATES,
+    consolidation_gain_multipliers,
+    metacontroller_evidence_deltas,
+)
 
 if TYPE_CHECKING:
     from volvence_zero.temporal.interface import MetacontrollerRuntimeState
@@ -62,7 +66,12 @@ if TYPE_CHECKING:
 # ``DelayedOutcomeAttribution.outcome_score`` values in ``[0, 1]``.
 # 0.5 is neutral; positive outcomes pull toward 1.0, negative outcomes
 # pull toward 0.0. Scaled by evidence confidence before being applied.
-# This is a documented static mapping; learned scoring is post-v0.
+#
+# #80 (C1): this table is the *initialisation* of the learned per-kind
+# calibration owned by RegimeModule (``_external_outcome_scores``). At
+# ingestion time the module nudges each kind's score toward the internal
+# n-step blended trajectory for the same source turn (bounded drift of
+# +/- _EXTERNAL_OUTCOME_SCORE_ENVELOPE; rollback = reset to this table).
 _EXTERNAL_OUTCOME_REGIME_SCORE: dict[DialogueExternalOutcomeKind, float] = {
     DialogueExternalOutcomeKind.HELPED: 0.85,
     DialogueExternalOutcomeKind.FELT_HEARD: 0.85,
@@ -83,6 +92,11 @@ _EXTERNAL_OUTCOME_REGIME_SCORE: dict[DialogueExternalOutcomeKind, float] = {
     DialogueExternalOutcomeKind.REPURCHASE: 0.95,
     DialogueExternalOutcomeKind.CHURNED: 0.05,
 }
+
+# Bounded learning envelope for the per-kind calibration: each learned
+# score may drift at most this far from its table initialisation.
+_EXTERNAL_OUTCOME_SCORE_ENVELOPE = 0.12
+_EXTERNAL_OUTCOME_SCORE_LR = 0.10
 
 
 class RegimeModule(RuntimeModule[RegimeSnapshot]):
@@ -144,6 +158,11 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             template.regime_id: {} for template in REGIME_TEMPLATES
         }
         self._selection_weight_lr = 0.02
+        # #80 (C1): learned per-kind external-outcome calibration; the
+        # static table is the initialisation and the rollback point.
+        self._external_outcome_scores: dict[DialogueExternalOutcomeKind, float] = dict(
+            _EXTERNAL_OUTCOME_REGIME_SCORE
+        )
         if bootstrap is not None:
             # Apply only the entries that name a known regime; unknown ids
             # are silently dropped so an artifact from a future build with
@@ -545,9 +564,22 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             return ()
         matured: list[DelayedOutcomeAttribution] = []
         for entry in entries:
-            score = _EXTERNAL_OUTCOME_REGIME_SCORE.get(entry.kind)
+            score = self._external_outcome_scores.get(entry.kind)
             if score is None:
                 continue
+            # #80: settle the learned per-kind calibration against the
+            # internal n-step blended trajectory for the same source turn.
+            # High-confidence entries calibrate harder; drift stays inside
+            # the envelope around the static table (rollback point).
+            internal_blend = self._nstep_blended_score(int(entry.turn_index))
+            initial = _EXTERNAL_OUTCOME_REGIME_SCORE[entry.kind]
+            calibrated = score + _EXTERNAL_OUTCOME_SCORE_LR * float(entry.confidence) * (
+                internal_blend - score
+            )
+            self._external_outcome_scores[entry.kind] = max(
+                initial - _EXTERNAL_OUTCOME_SCORE_ENVELOPE,
+                min(initial + _EXTERNAL_OUTCOME_SCORE_ENVELOPE, calibrated),
+            )
             # Confidence scales how far the score moves away from 0.5
             # (neutral). This keeps low-confidence entries from fully
             # replacing the internal trajectory.
@@ -805,6 +837,11 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         self._turns_in_current_regime = 1
         return f"switch to higher-scoring regime with candidate score {top_score:.2f}"
 
+    _CONSOLIDATION_UPDATE_LABELS = {
+        "increase_self_track_priority": "strategy-prior:self-track",
+        "increase_world_track_priority": "strategy-prior:world-track",
+    }
+
     def apply_policy_consolidation(
         self,
         *,
@@ -815,25 +852,18 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
     ) -> tuple[str, ...]:
         applied: list[str] = []
         for update in strategy_updates:
-            if update == "increase_self_track_priority":
-                self._strategy_priors["emotional_support"] = _clamp(
-                    self._strategy_priors["emotional_support"] + strategy_gain * 1.35
+            # #79: the regime->gain mapping lives in the template table
+            # (consolidation_affinity), not in hardcoded regime ids here.
+            rows = consolidation_gain_multipliers(update)
+            if not rows:
+                continue
+            for regime_id, multiplier in rows:
+                self._strategy_priors[regime_id] = _clamp(
+                    self._strategy_priors[regime_id] + strategy_gain * multiplier
                 )
-                self._strategy_priors["repair_and_deescalation"] = _clamp(
-                    self._strategy_priors["repair_and_deescalation"] + strategy_gain * 0.95
-                )
-                self._strategy_priors["acquaintance_building"] = _clamp(
-                    self._strategy_priors["acquaintance_building"] + strategy_gain * 0.7
-                )
-                applied.append("strategy-prior:self-track")
-            elif update == "increase_world_track_priority":
-                self._strategy_priors["problem_solving"] = _clamp(
-                    self._strategy_priors["problem_solving"] + strategy_gain * 1.35
-                )
-                self._strategy_priors["guided_exploration"] = _clamp(
-                    self._strategy_priors["guided_exploration"] + strategy_gain * 0.8
-                )
-                applied.append("strategy-prior:world-track")
+            applied.append(
+                self._CONSOLIDATION_UPDATE_LABELS.get(update, f"strategy-prior:{update}")
+            )
         for regime_id, value in regime_effectiveness_updates:
             if regime_id not in self._historical_effectiveness:
                 continue
@@ -844,6 +874,26 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             )
             applied.append(f"regime-effectiveness:{regime_id}")
         return tuple(applied)
+
+    _EVIDENCE_SIGNAL_LABELS = {
+        "self_axis": "metacontroller:repair",
+        "world_axis": "metacontroller:task",
+        "shared_axis": "metacontroller:exploration",
+        "stabilize_axis": "metacontroller:stabilize",
+        "sparse_switch": "metacontroller:sparse-switch",
+        "posterior_guard": "metacontroller:posterior-guard",
+        "replacement": "metacontroller:replacement",
+        "rollback_guard": "metacontroller:guard",
+    }
+
+    def _apply_evidence_signal(self, signal: str, applied: list[str]) -> None:
+        """Apply one evidence signal's prior deltas from the template table (#79)."""
+
+        rows = metacontroller_evidence_deltas(signal)
+        for regime_id, delta in rows:
+            self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + delta)
+        if rows:
+            applied.append(self._EVIDENCE_SIGNAL_LABELS[signal])
 
     def apply_metacontroller_evidence(
         self,
@@ -856,40 +906,22 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         applied: list[str] = []
         world_bias, self_bias, shared_bias = _metacontroller_action_profile(metacontroller_state)
         if self_bias >= world_bias and self_bias >= shared_bias:
-            for regime_id in ("repair_and_deescalation", "emotional_support"):
-                self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.04)
-            applied.append("metacontroller:repair")
+            dominant_signal = "self_axis"
         elif world_bias >= self_bias and world_bias >= shared_bias:
-            for regime_id in ("problem_solving", "guided_exploration"):
-                self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.04)
-            applied.append("metacontroller:task")
+            dominant_signal = "world_axis"
         elif shared_bias >= max(world_bias, self_bias):
-            for regime_id in ("guided_exploration", "acquaintance_building"):
-                self._strategy_priors[regime_id] = _clamp(self._strategy_priors[regime_id] + 0.04)
-            applied.append("metacontroller:exploration")
+            dominant_signal = "shared_axis"
         else:
-            self._strategy_priors["casual_social"] = _clamp(self._strategy_priors["casual_social"] + 0.02)
-            applied.append("metacontroller:stabilize")
+            dominant_signal = "stabilize_axis"
+        self._apply_evidence_signal(dominant_signal, applied)
         if metacontroller_state.binary_switch_rate > 0.55:
-            self._strategy_priors["guided_exploration"] = _clamp(
-                self._strategy_priors["guided_exploration"] + 0.03
-            )
-            applied.append("metacontroller:sparse-switch")
+            self._apply_evidence_signal("sparse_switch", applied)
         if metacontroller_state.posterior_drift > 0.45:
-            self._strategy_priors["repair_and_deescalation"] = _clamp(
-                self._strategy_priors["repair_and_deescalation"] + 0.03
-            )
-            applied.append("metacontroller:posterior-guard")
+            self._apply_evidence_signal("posterior_guard", applied)
         if metacontroller_state.policy_replacement_score > 0.45:
-            self._strategy_priors["problem_solving"] = _clamp(
-                self._strategy_priors["problem_solving"] + 0.03
-            )
-            applied.append("metacontroller:replacement")
+            self._apply_evidence_signal("replacement", applied)
         if rollback_reasons:
-            self._strategy_priors["repair_and_deescalation"] = _clamp(
-                self._strategy_priors["repair_and_deescalation"] + 0.05
-            )
-            applied.append("metacontroller:guard")
+            self._apply_evidence_signal("rollback_guard", applied)
         return tuple(applied)
 
     def create_checkpoint(self, *, checkpoint_id: str) -> RegimeCheckpoint:

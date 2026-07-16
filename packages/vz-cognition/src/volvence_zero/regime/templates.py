@@ -16,6 +16,42 @@ class _RegimeTemplate:
     exit_conditions: str
     expression_brief: ExpressionBrief = field(default_factory=ExpressionBrief)
     application_brief: ApplicationBrief = field(default_factory=ApplicationBrief)
+    # #79: declarative evidence->prior affinities. Each entry maps a named
+    # metacontroller evidence signal to the strategy-prior delta this
+    # regime receives when the signal fires. RegimeModule iterates the
+    # template table instead of hardcoding regime ids, so adding a regime
+    # only requires a new template row.
+    #
+    # Signal names: "self_axis" / "world_axis" / "shared_axis" /
+    # "stabilize_axis" (dominant metacontroller action axis),
+    # "sparse_switch", "posterior_guard", "replacement", "rollback_guard".
+    metacontroller_evidence_affinity: tuple[tuple[str, float], ...] = ()
+    # #79: reflection consolidation affinities. Maps a consolidation
+    # strategy-update name to a gain multiplier applied on top of
+    # ``strategy_gain``.
+    consolidation_affinity: tuple[tuple[str, float], ...] = ()
+
+
+def metacontroller_evidence_deltas(signal: str) -> tuple[tuple[str, float], ...]:
+    """(regime_id, prior_delta) rows for one evidence signal (#79 table)."""
+
+    rows: list[tuple[str, float]] = []
+    for template in REGIME_TEMPLATES:
+        for name, delta in template.metacontroller_evidence_affinity:
+            if name == signal:
+                rows.append((template.regime_id, delta))
+    return tuple(rows)
+
+
+def consolidation_gain_multipliers(update: str) -> tuple[tuple[str, float], ...]:
+    """(regime_id, gain_multiplier) rows for one consolidation update (#79)."""
+
+    rows: list[tuple[str, float]] = []
+    for template in REGIME_TEMPLATES:
+        for name, multiplier in template.consolidation_affinity:
+            if name == update:
+                rows.append((template.regime_id, multiplier))
+    return tuple(rows)
 
 
 REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
@@ -42,6 +78,7 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             continuum_target_position=0.50,
             decision_kind_hint="direct-answer",
         ),
+        metacontroller_evidence_affinity=(("stabilize_axis", 0.02),),
     ),
     _RegimeTemplate(
         regime_id="acquaintance_building",
@@ -66,6 +103,8 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             continuum_target_position=0.55,
             decision_kind_hint="warmth-first",
         ),
+        metacontroller_evidence_affinity=(("shared_axis", 0.04),),
+        consolidation_affinity=(("increase_self_track_priority", 0.7),),
     ),
     _RegimeTemplate(
         regime_id="emotional_support",
@@ -99,6 +138,8 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             continuum_target_position=0.72,
             decision_kind_hint="support-first",
         ),
+        metacontroller_evidence_affinity=(("self_axis", 0.04),),
+        consolidation_affinity=(("increase_self_track_priority", 1.35),),
     ),
     _RegimeTemplate(
         regime_id="guided_exploration",
@@ -132,6 +173,12 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             decision_kind_hint="judgment-process",
             support_decision_threshold=0.36,
         ),
+        metacontroller_evidence_affinity=(
+            ("world_axis", 0.04),
+            ("shared_axis", 0.04),
+            ("sparse_switch", 0.03),
+        ),
+        consolidation_affinity=(("increase_world_track_priority", 0.8),),
     ),
     _RegimeTemplate(
         regime_id="problem_solving",
@@ -165,6 +212,11 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             continuum_target_position=0.44,
             decision_kind_hint="structure-first",
         ),
+        metacontroller_evidence_affinity=(
+            ("world_axis", 0.04),
+            ("replacement", 0.03),
+        ),
+        consolidation_affinity=(("increase_world_track_priority", 1.35),),
     ),
     _RegimeTemplate(
         regime_id="repair_and_deescalation",
@@ -201,6 +253,12 @@ REGIME_TEMPLATES: tuple[_RegimeTemplate, ...] = (
             continuum_target_position=0.82,
             decision_kind_hint="repair-first",
         ),
+        metacontroller_evidence_affinity=(
+            ("self_axis", 0.04),
+            ("posterior_guard", 0.03),
+            ("rollback_guard", 0.05),
+        ),
+        consolidation_affinity=(("increase_self_track_priority", 0.95),),
     ),
 )
 

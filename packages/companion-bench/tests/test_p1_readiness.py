@@ -17,6 +17,7 @@ from p1_readiness import (  # noqa: E402
     P1_PORTS,
     P1ReadinessError,
     fingerprint_weights,
+    free_p1_ports,
     require_non_qwen_models,
     write_track_fingerprints,
 )
@@ -79,6 +80,28 @@ def test_qwen_judge_is_rejected() -> None:
 
 def test_p1_ports_are_single_lifeform_topology() -> None:
     assert P1_PORTS == (8000, 8500, 8501, 8502, 8600)
+
+
+def test_free_p1_ports_kills_listeners(monkeypatch) -> None:
+    occupied_calls = {"n": 0}
+
+    def fake_occupied(host: str = "127.0.0.1") -> tuple[int, ...]:
+        occupied_calls["n"] += 1
+        return (8000,) if occupied_calls["n"] <= 2 else ()
+
+    monkeypatch.setattr("p1_readiness.occupied_p1_ports", fake_occupied)
+    monkeypatch.setattr("p1_readiness._pids_listening_on_port", lambda port: (4242,))
+    killed: list[int] = []
+
+    def fake_kill(pid: int, sig: int) -> None:
+        killed.append(pid)
+
+    monkeypatch.setattr("p1_readiness.os.kill", fake_kill)
+    monkeypatch.setattr("p1_readiness.time.sleep", lambda _s: None)
+
+    result = free_p1_ports(sigkill_after_s=0, wait_free_s=1, poll_interval_s=0)
+    assert result == (4242,)
+    assert killed
 
 
 def test_roster_routes_volvence_tracks_through_vertical_query() -> None:
@@ -153,7 +176,10 @@ systems:
     )
     summary = tmp_path / "scores" / "completed" / "summary.json"
     summary.parent.mkdir(parents=True)
-    summary.write_text(json.dumps({"aggregate": {"final_mean": 1.0}}), encoding="utf-8")
+    summary.write_text(
+        json.dumps({"aggregate": {"final_mean": 1.0}, "arc_count": 30}),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(
         scorer.subprocess,
         "run",
@@ -184,6 +210,65 @@ systems:
         ]
     )
     assert rc == 0
+
+
+def test_score_resume_rejects_incomplete_summary(monkeypatch, tmp_path) -> None:
+    scorer = _load_script("score_reference_systems.py")
+    roster = tmp_path / "roster.yaml"
+    roster.write_text(
+        """
+systems:
+  - submission_id: partial
+    system_name: Partial
+    model_identifier: partial-model
+    base_url: http://127.0.0.1:1/v1
+    api_key_env: UNUSED
+    leaderboard_category: bespoke
+""".lstrip(),
+        encoding="utf-8",
+    )
+    summary = tmp_path / "scores" / "partial" / "summary.json"
+    summary.parent.mkdir(parents=True)
+    summary.write_text(
+        json.dumps({"aggregate": {"final_mean": 1.0}, "arc_count": 2}),
+        encoding="utf-8",
+    )
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(scorer.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        scorer,
+        "_expected_arc_count",
+        lambda _args: 30,
+    )
+
+    rc = scorer.main(
+        [
+            "--roster",
+            str(roster),
+            "--output-dir",
+            str(tmp_path / "scores"),
+            "--user-sim-model",
+            "openai/gpt-5-mini",
+            "--user-sim-key-env",
+            "UNUSED",
+            "--perturn-model",
+            "openai/gpt-5-mini",
+            "--perturn-key-env",
+            "UNUSED",
+            "--arc-model",
+            "anthropic/claude",
+            "--arc-key-env",
+            "UNUSED",
+            "--resume",
+        ]
+    )
+    assert rc == 0
+    assert calls, "incomplete summary should trigger a rerun"
 
 
 def _write_weight(root: pathlib.Path) -> pathlib.Path:

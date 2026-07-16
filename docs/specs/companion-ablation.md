@@ -88,7 +88,11 @@ Windows GPU 是 P1 directional 的一等开发执行面，但不是 retain evide
    `--vertical-probe-timeout-s` 控制；Apple/MPS 入口默认 180s 以覆盖
    component arm 冷启动，固定时长 sleep 不构成 readiness。
 5. `run_p1_windows.ps1` / `run_p1_apple.sh` 是对应平台的 SSOT 入口；正常与异常退出均清理本轮 PID。
-   `-Resume` / `--resume` 只复用已有合法 `summary.json`，DryRun 不启动 GPU/API。
+   启动前会先 `stop` 同 run 目录下的 `serve.pids` 残留进程，并自动 SIGTERM/SIGKILL
+   清理仍占用 P1 五端口的监听进程（含 foreign uvicorn 占 8000）。Apple 入口内置
+   `caffeinate -dimsu` 防 idle 睡眠（合盖睡眠仍需开盖）。`-Resume` / `--resume` 只复用
+   `arc_count` 达标的 `summary.json`（P1 单 seed 为 30 arcs）；不完整 summary 会重跑该轨，
+   DryRun 不启动 GPU/API。
    Apple/MPS 入口默认 `VZ_P1_SUT_MAX_TOKENS=96`（可覆盖；Apple CPU 保持
    `256`），配合 MPS generation input cap 与逐轮 allocator cache 释放，避免
    unified-memory 压力触发 macOS jetsam；平台差异必须随 run manifest / logs

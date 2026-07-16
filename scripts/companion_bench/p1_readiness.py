@@ -8,8 +8,10 @@ import json
 import os
 import pathlib
 import shutil
+import signal
 import socket
 import subprocess
+import time
 from typing import Iterable
 
 
@@ -128,16 +130,101 @@ def require_commands() -> None:
         )
 
 
-def require_ports_free(host: str = "127.0.0.1") -> None:
+def _listener_on_port(port: int) -> str:
+    try:
+        proc = subprocess.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    lines = [line for line in proc.stdout.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return ""
+    return lines[1].strip()
+
+
+def _pids_listening_on_port(port: int) -> tuple[int, ...]:
+    try:
+        proc = subprocess.run(
+            ["lsof", "-t", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ()
+    pids: list[int] = []
+    for line in proc.stdout.splitlines():
+        token = line.strip()
+        if token.isdigit():
+            pids.append(int(token))
+    return tuple(dict.fromkeys(pids))
+
+
+def occupied_p1_ports(host: str = "127.0.0.1") -> tuple[int, ...]:
     occupied: list[int] = []
     for port in P1_PORTS:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             if sock.connect_ex((host, port)) == 0:
                 occupied.append(port)
+    return tuple(occupied)
+
+
+def free_p1_ports(
+    *,
+    host: str = "127.0.0.1",
+    sigkill_after_s: float = 2.0,
+    wait_free_s: float = 10.0,
+    poll_interval_s: float = 0.25,
+) -> tuple[int, ...]:
+    """Terminate listeners on P1 ports so a fresh ablation stack can bind."""
+
+    killed: list[int] = []
+
+    def _kill_listeners(sig: int) -> None:
+        for port in occupied_p1_ports(host):
+            for pid in _pids_listening_on_port(port):
+                try:
+                    os.kill(pid, sig)
+                    killed.append(pid)
+                except ProcessLookupError:
+                    continue
+
+    _kill_listeners(signal.SIGTERM)
+    if sigkill_after_s > 0:
+        time.sleep(sigkill_after_s)
+    _kill_listeners(signal.SIGKILL)
+
+    deadline = time.monotonic() + wait_free_s
+    while time.monotonic() < deadline:
+        if not occupied_p1_ports(host):
+            break
+        _kill_listeners(signal.SIGKILL)
+        time.sleep(poll_interval_s)
+
+    return tuple(dict.fromkeys(killed))
+
+
+def require_ports_free(host: str = "127.0.0.1") -> None:
+    occupied = occupied_p1_ports(host)
     if occupied:
+        details: list[str] = []
+        for port in occupied:
+            listener = _listener_on_port(port)
+            if listener:
+                details.append(f"{port} ({listener})")
+            else:
+                details.append(str(port))
         raise P1ReadinessError(
             "P1 service ports are already occupied: "
-            + ", ".join(str(port) for port in occupied)
+            + "; ".join(details)
+            + ". Stop foreign listeners (lsof -i :PORT) or tear down stale ablation "
+            + "services: bash run_companion_bench_p1.sh --stop --artifact-dir <run>"
         )
 
 

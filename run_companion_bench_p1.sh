@@ -21,6 +21,8 @@
 #   bash run_companion_bench_p1.sh --stop
 #   bash run_companion_bench_p1.sh --artifact-dir artifacts/companion-ablation/<tag> --resume
 #   bash run_companion_bench_p1.sh --keep-services
+#
+# run_p1_apple.sh 已内置 caffeinate -dimsu；运行期间请接电并保持开盖（合盖仍会睡眠）。
 
 set -euo pipefail
 

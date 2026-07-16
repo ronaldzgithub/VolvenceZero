@@ -62,6 +62,57 @@ _ALIGNMENT_TRANSITION_SEVERITY: dict[tuple[str, str], float] = {
 }
 
 
+class _AlignmentSeverityCalibrator:
+    """C2 (#86): bounded learned calibration of the AAC severity table.
+
+    The static table is the initialisation and the rollback point. After a
+    transition contributes to PE, the calibrator settles its severity
+    against the realized relationship movement on the following turn: a
+    "regression" transition whose realized relationship delta was not
+    actually negative gets its severity pulled down (and vice versa).
+    Drift is bounded to the envelope around the table value.
+    """
+
+    _ENVELOPE = 0.15
+    _LEARNING_RATE = 0.05
+
+    def __init__(self) -> None:
+        self._severities: dict[tuple[str, str], float] = dict(
+            _ALIGNMENT_TRANSITION_SEVERITY
+        )
+        self._pending: list[tuple[tuple[str, str], bool]] = []
+
+    def severity_for(self, key: tuple[str, str]) -> float:
+        return self._severities.get(key, 0.0)
+
+    def record_applied(self, key: tuple[str, str], *, is_recovery: bool) -> None:
+        if key in self._severities:
+            self._pending.append((key, is_recovery))
+
+    def settle(self, *, realized_relationship_delta: float) -> int:
+        """Settle pending transitions against the realized trajectory."""
+
+        if not self._pending:
+            return 0
+        settled = 0
+        for key, is_recovery in self._pending:
+            realized = _clamp_unit(
+                realized_relationship_delta
+                if is_recovery
+                else -realized_relationship_delta
+            )
+            initial = _ALIGNMENT_TRANSITION_SEVERITY[key]
+            current = self._severities[key]
+            candidate = current + self._LEARNING_RATE * (realized - current)
+            self._severities[key] = max(
+                max(0.0, initial - self._ENVELOPE),
+                min(initial + self._ENVELOPE, candidate),
+            )
+            settled += 1
+        self._pending = []
+        return settled
+
+
 @dataclass(frozen=True)
 class PredictionActionContext:
     segment_id: str = ""
@@ -869,6 +920,11 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         self._turn_index = 0
         self._outcome_head = _PredictionErrorHead()
         self._action_context = action_context or PredictionActionContext()
+        # C2 (#80/#86): bounded learned calibrations. Static tables stay
+        # the initialisation + rollback points; the calibrators settle
+        # against realized internal trajectories inside this owner only.
+        self._external_bias_calibrator = ExternalOutcomeBiasCalibrator()
+        self._alignment_severity_calibrator = _AlignmentSeverityCalibrator()
         # Phase 1.B: owner-internal Curiosity-Critic running-stats head.
         # Decay is the EMA retention factor; pe_critic_decay = 0.9 means
         # each new sample contributes 10% to the EMA mean / variance.
@@ -1273,13 +1329,17 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             if previous_alignment == entry.alignment_state.value:
                 continue
             key = (previous_alignment, entry.alignment_state.value)
-            severity = _ALIGNMENT_TRANSITION_SEVERITY.get(key, 0.0)
+            severity = self._alignment_severity_calibrator.severity_for(key)
             if severity <= 0.0:
                 continue
-            if key in recovery_keys:
+            is_recovery = key in recovery_keys
+            if is_recovery:
                 recovery_weight += severity
             else:
                 regression_weight += severity
+            self._alignment_severity_calibrator.record_applied(
+                key, is_recovery=is_recovery
+            )
             transitions.append(
                 f"{entry.record_id}:{previous_alignment}->{entry.alignment_state.value}"
             )
@@ -1378,6 +1438,12 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             regime_snapshot=regime_snapshot,
             action_context=self._action_context,
             external_outcome_snapshot=external_outcome_snapshot,
+            bias_calibrator=self._external_bias_calibrator,
+        )
+        # C2: settle last turn's applied alignment-transition severities
+        # against this turn's realized relationship movement.
+        self._alignment_severity_calibrator.settle(
+            realized_relationship_delta=actual_outcome.relationship_delta
         )
         bootstrap = previous_prediction is None
         evaluated_prediction = previous_prediction
@@ -1839,6 +1905,7 @@ def derive_actual_outcome(
     regime_snapshot: RegimeSnapshot | None,
     action_context: PredictionActionContext | None = None,
     external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None = None,
+    bias_calibrator: ExternalOutcomeBiasCalibrator | None = None,
 ) -> ActualOutcome:
     evidence = _build_outcome_evidence(
         substrate_snapshot=substrate_snapshot,
@@ -1855,6 +1922,7 @@ def derive_actual_outcome(
     return _apply_external_outcome_bias(
         base=base,
         external_outcome_snapshot=external_outcome_snapshot,
+        bias_calibrator=bias_calibrator,
     )
 
 
@@ -1892,10 +1960,66 @@ _EXTERNAL_OUTCOME_AXIS_BIAS: dict[
 }
 
 
+class ExternalOutcomeBiasCalibrator:
+    """C2 (#80): bounded learned calibration of the external-outcome axis biases.
+
+    The static ``_EXTERNAL_OUTCOME_AXIS_BIAS`` table is the initialisation
+    and the rollback point. At application time each kind's per-axis bias
+    is nudged toward the co-occurring *internal* axis signal (scaled by
+    evidence confidence), so the external vocabulary stays calibrated
+    against what the kernel's own evidence chain observed. Drift is
+    bounded to the envelope around the table values.
+    """
+
+    _ENVELOPE = 0.15
+    _LEARNING_RATE = 0.08
+
+    def __init__(self) -> None:
+        self._biases: dict[DialogueExternalOutcomeKind, list[float]] = {
+            kind: list(values) for kind, values in _EXTERNAL_OUTCOME_AXIS_BIAS.items()
+        }
+
+    def bias_for(
+        self, kind: DialogueExternalOutcomeKind
+    ) -> tuple[float, float, float, float] | None:
+        values = self._biases.get(kind)
+        if values is None:
+            return None
+        return (values[0], values[1], values[2], values[3])
+
+    def calibrate(
+        self,
+        kind: DialogueExternalOutcomeKind,
+        *,
+        confidence: float,
+        internal_outcome: ActualOutcome,
+    ) -> None:
+        values = self._biases.get(kind)
+        if values is None:
+            return
+        internal_signals = (
+            _clamp_signed((internal_outcome.task_progress - 0.5) * 2.0),
+            _clamp_signed(internal_outcome.relationship_delta),
+            _clamp_signed((internal_outcome.regime_stability - 0.5) * 2.0),
+            _clamp_signed((internal_outcome.action_payoff - 0.5) * 2.0),
+        )
+        initial = _EXTERNAL_OUTCOME_AXIS_BIAS[kind]
+        scale = max(0.0, min(1.0, confidence))
+        for index in range(4):
+            candidate = values[index] + self._LEARNING_RATE * scale * (
+                internal_signals[index] - values[index]
+            )
+            values[index] = max(
+                initial[index] - self._ENVELOPE,
+                min(initial[index] + self._ENVELOPE, candidate),
+            )
+
+
 def _apply_external_outcome_bias(
     *,
     base: ActualOutcome,
     external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None,
+    bias_calibrator: ExternalOutcomeBiasCalibrator | None = None,
 ) -> ActualOutcome:
     """Bias ``base`` by per-entry kind deltas from the external snapshot.
 
@@ -1916,7 +2040,11 @@ def _apply_external_outcome_bias(
     action_bias = 0.0
     refs: list[str] = []
     for entry in entries:
-        weights = _EXTERNAL_OUTCOME_AXIS_BIAS.get(entry.kind)
+        weights = (
+            bias_calibrator.bias_for(entry.kind)
+            if bias_calibrator is not None
+            else _EXTERNAL_OUTCOME_AXIS_BIAS.get(entry.kind)
+        )
         if weights is None:
             continue
         scale = max(0.0, min(1.0, float(entry.confidence)))
@@ -1926,6 +2054,14 @@ def _apply_external_outcome_bias(
         regime_bias += regime_delta * scale
         action_bias += action_delta * scale
         refs.append(entry.evidence_id)
+        if bias_calibrator is not None:
+            # Settle the learned calibration against the internal
+            # (pre-bias) outcome that co-occurred with this evidence.
+            bias_calibrator.calibrate(
+                entry.kind,
+                confidence=scale,
+                internal_outcome=base,
+            )
 
     if not refs:
         return base

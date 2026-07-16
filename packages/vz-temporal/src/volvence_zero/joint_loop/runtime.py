@@ -165,10 +165,41 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._rl_batch_accumulation_size = max(1, rl_batch_accumulation_size)
         self._pending_task_rollouts: list = []
         self._pending_relationship_rollouts: list = []
+        # T3 (#88): learned SSL->RL schedule gate, report-only SHADOW.
+        # The rule cascade stays the live writer; the learner's shadow
+        # recommendation is published in schedule telemetry and settled
+        # against realized SSL improvement so promotion evidence can be
+        # collected without touching the live decision.
+        from volvence_zero.joint_loop.gate_learner import ScheduleGateLearner
+
+        self._schedule_gate_learner = ScheduleGateLearner()
+        self._last_ssl_prediction_loss: float | None = None
         self.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
 
     def set_external_learning_signals(self, signals: dict[str, float]) -> None:
         self._external_learning_signals = dict(signals)
+
+    @property
+    def schedule_gate_learner(self):
+        """Read-only access to the SHADOW schedule gate (evidence collection)."""
+
+        return self._schedule_gate_learner
+
+    def _settle_schedule_gate(self, *, current_ssl_prediction_loss: float) -> None:
+        """Settle the learned schedule gate against realized SSL improvement.
+
+        Positive gain = the learning turn reduced prediction loss relative
+        to the previous learning turn. First learning turn only seeds the
+        baseline.
+        """
+
+        previous = self._last_ssl_prediction_loss
+        self._last_ssl_prediction_loss = current_ssl_prediction_loss
+        if previous is None:
+            return
+        self._schedule_gate_learner.observe_realized_outcome(
+            realized_gain=previous - current_ssl_prediction_loss
+        )
 
     @property
     def primary_prediction_error_dominance_enabled(self) -> bool:
@@ -944,6 +975,39 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             else "No CMS core attached."
         )
         rare_heavy_review_recommended = self._pe_rare_heavy_due(schedule=active_schedule)
+        # T3 (#88): report-only learned schedule gate. Derive the shadow
+        # from the same inputs the rule cascade consumes and publish it in
+        # telemetry; the live decision below is untouched (rollback = drop
+        # these telemetry entries).
+        from volvence_zero.joint_loop.gate_learner import build_schedule_gate_features
+
+        (
+            gate_pe_pressure,
+            gate_family_stability,
+            gate_rollback_risk,
+            gate_transition_pressure,
+            gate_substrate_pressure,
+            gate_rare_heavy_pressure,
+        ) = self._joint_schedule_inputs(turn_index=turn_index, schedule=active_schedule)
+        gate_shadow = self._schedule_gate_learner.derive_shadow(
+            build_schedule_gate_features(
+                pe_pressure=gate_pe_pressure,
+                family_stability=gate_family_stability,
+                rollback_risk=gate_rollback_risk,
+                transition_pressure=gate_transition_pressure,
+                substrate_pressure=gate_substrate_pressure,
+                rare_heavy_pressure=gate_rare_heavy_pressure,
+                experience_credit=self._experience_credit_signal(),
+                control_prior_strength=self._experience_control_prior_signal(),
+                pe_full_cycle_due=pe_full_cycle_due,
+                rl_due=rl_due,
+            )
+        )
+        schedule_telemetry = schedule_telemetry + (
+            ("learned_gate_pressure_x1000", int(gate_shadow.predicted_learning_gain * 1000)),
+            ("learned_gate_recommends_learning", int(gate_shadow.recommends_learning)),
+            ("learned_gate_settled_count", gate_shadow.settled_count),
+        )
         batch_schedule_action = self._batch_schedule_action(
             turn_index=turn_index,
             schedule=active_schedule,
@@ -981,6 +1045,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 schedule_action=schedule_action,
                 metacontroller_state=cycle_report.metacontroller_state,
             )
+            self._settle_schedule_gate(current_ssl_prediction_loss=cycle_report.ssl_prediction_loss)
             return ScheduledJointLoopResult(
                 turn_index=turn_index,
                 schedule_action=schedule_action,
@@ -1016,6 +1081,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 metacontroller_state = self._aggregate_metacontroller_state()
                 self._world_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
                 self._self_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+                self._settle_schedule_gate(
+                    current_ssl_prediction_loss=(
+                        world_ssl_report.prediction_loss + self_ssl_report.prediction_loss
+                    )
+                    / 2.0
+                )
                 return ScheduledJointLoopResult(
                     turn_index=turn_index,
                     schedule_action=batch_schedule_action,
@@ -1064,6 +1135,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             metacontroller_state = self._aggregate_metacontroller_state()
             self._world_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
             self._self_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+            self._settle_schedule_gate(
+                current_ssl_prediction_loss=(
+                    world_ssl_report.prediction_loss + self_ssl_report.prediction_loss
+                )
+                / 2.0
+            )
             schedule_action = (
                 "ssl-only-pe"
                 if pe_ssl_due and not pe_full_cycle_due

@@ -151,6 +151,7 @@ class BackendNdimMetacontroller:
         active_family_persistence: float,
         external_switch_pressure_delta: float,
         params: NdimSwitchParameters,
+        beta_threshold: float = 0.55,
     ) -> tuple[tuple[float, ...], tuple[float, ...], float]:
         b = self._b
         n = self._n_z
@@ -180,8 +181,8 @@ class BackendNdimMetacontroller:
             bias_vec = b.vector(tuple(bias for _ in range(n)))
             beta_cont = b.sigmoid(b.add(raw, bias_vec))
             beta_cont_f = b.to_floats(beta_cont)
-        threshold = 0.55
-        beta_binary = tuple(1.0 if v >= threshold else 0.0 for v in beta_cont_f)
+        # Mirror NdimSwitchUnit: threshold owned by the parameter store.
+        beta_binary = tuple(1.0 if v >= beta_threshold else 0.0 for v in beta_cont_f)
         scalar_mean = sum(beta_cont_f) / max(len(beta_cont_f), 1)
         return beta_cont_f, beta_binary, scalar_mean
 

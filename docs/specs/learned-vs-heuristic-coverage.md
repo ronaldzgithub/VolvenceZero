@@ -63,15 +63,15 @@
 |--------|------|------|
 | 默认策略类（名义 FullLearned，实际 legacy n_z=3） | `hand-crafted`（默认执行态） | `final_wiring.py:1357` · store `n_z=3`：`interface.py:406` |
 | runtime forward 后端解析（仅 `ACTIVE` 时返回 torch backend，否则 legacy） | `hand-crafted`（默认 DISABLED） | `interface.py:2023-2027`（`_resolve_backend_ndim_mc`） · `final_wiring.py:223` |
-| β_t 切换（legacy `SwitchUnit`：加权 delta+std+memory/reflection + **0.55 阈值**） | `hand-crafted` | `metacontroller_components.py:359-372` |
+| β_t 切换（legacy `SwitchUnit`：加权 delta+std+memory/reflection；阈值自 2026-07-16 起由 store `beta_threshold` 注入，0.55 仅为初始值，`temporal-prior` 组在线可更新） | `hand-crafted`（gate 公式）+ 阈值参数化 | `metacontroller_components.py`（`compute_decision(beta_threshold=…)`）· `interface.py`（legacy/ndim step 均传 `store.beta_threshold`） |
 | z_t 编码（legacy `SequenceEncoder`：3 维 recurrence + CMS 0.5/0.3/0.2 混合） | `hand-crafted` | `metacontroller_components.py:192-248` |
 | z_t 解码（legacy `ResidualDecoder`：固定矩阵 + 0.65/0.35 blend） | `hand-crafted` | `metacontroller_components.py:432-441` |
-| action family 匹配（cosine + 固定权重 `_family_match_score`） | `should-be-learned-but-hand-crafted` | `metacontroller_components.py:486-515` |
-| `Ndim{SequenceEncoder,SwitchUnit,ResidualDecoder}` GRU/FFN（`DEFAULT_N_Z=16`） | `bounded-learned`（**默认未实例化**，仅 `n_z>3`） | `metacontroller_components.py:1238` · `interface.py:1987-1995` |
+| action family 匹配（`_family_match_score`：2026-07-16 起为 learned 匹配 head——`FamilyMatchWeights` 由 store 拥有、settled family outcome 驱动有界 SGD，历史固定系数降级为初始化，权重被 `FAMILY_MATCH_WEIGHT_ENVELOPE` 回滚包络约束） | `bounded-learned`（初始=历史系数，回滚=reset 到 `DEFAULT_FAMILY_MATCH_WEIGHTS`） | `metacontroller_components.py`（`FamilyMatchWeights` / `family_match_features` / `update_family_match_weights`）· `interface.py`（`observe_family_outcome_feedback` settlement） |
+| `Ndim{SequenceEncoder,SwitchUnit,ResidualDecoder}` GRU/FFN（`DEFAULT_N_Z=16`） | `bounded-learned`（**默认未实例化**，仅 `n_z>3`；2026-07-16 起可经 `BrainConfig.temporal_profile="learned-ndim"` 一键选择，默认仍 legacy-3dim 待证据门） | `metacontroller_components.py:1238` · `interface.py:1987-1995` · `brain.py`（`TEMPORAL_PROFILE_LATENT_DIMS`） |
 | `TorchMetacontroller`（GRU + STE switch + 真 `torch.autograd` SSL Eq.3） | `bounded-learned`（**默认 DISABLED**，非 facade 导出） | `torch_metacontroller.py:126-133` · `ssl.py:428-431` |
 | `TorchCausalZPolicy` + PPO/GAE（Internal RL on z_t） | `bounded-learned`（**默认 DISABLED**） | `internal_rl/torch_internal_rl.py:75-144` · `sandbox.py:257,979-992` |
 | Internal RL 主路径（默认）= 线性 policy head + `math.sin` 伪噪声 + analytic PPO-shaped 更新 | `hand-crafted` | `internal_rl/sandbox.py:521-541,624+` |
-| joint loop SSL→RL（PE 门控：仅 `pe_magnitude>=0.6` 触发全 cycle；默认 M3 启发式 SSL + 伪 PPO） | `hand-crafted`（含小 meta-rule `LearnedUpdateRule`） | `joint_loop/scheduling.py:143-146` · `runtime.py:321-367` · `ssl.py:585-638` |
+| joint loop SSL→RL（PE 门控：仅 `pe_magnitude>=0.6` 触发全 cycle；默认 M3 启发式 SSL + 伪 PPO） | `hand-crafted`（含小 meta-rule `LearnedUpdateRule`）；2026-07-16 起叠加 **report-only SHADOW learned gate**（`ScheduleGateLearner`：有界 logistic head，以 SSL prediction-loss 改善 settle，遥测发布 `learned_gate_*`，live 决策仍为规则级联） | `joint_loop/scheduling.py:143-146` · `runtime.py`（`_settle_schedule_gate`）· `gate_learner.py` |
 
 **卡点链接**：本 wheel 的 bounded-learned 部件几乎全部默认 `DISABLED`/未实例化 → [#88](../known-debts.md)（ETA torch 后端默认 DISABLED）。
 
@@ -125,9 +125,9 @@
 | `score_regimes`（6 regime 固定系数线性公式；注释 "requires real learning over collected traces"） | `should-be-learned-but-hand-crafted` | `regime/scoring.py:201-404` |
 | 最终 regime 选择（最高分 wins）+ hold/switch | `hand-crafted` | `regime/identity.py:247-248,788-806` |
 | 在线 historical_effectiveness / selection_weights 更新（`*0.7+*0.3`，lr=0.02） | `hand-crafted` | `regime/identity.py:439-465,146` |
-| `apply_metacontroller_evidence`（if/elif 写死 regime_id 字符串调 strategy_priors） | `should-be-learned-but-hand-crafted` | `regime/identity.py:848-893` |
-| `apply_policy_consolidation`（硬编码 regime_id 映射） | `should-be-learned-but-hand-crafted` | `regime/identity.py:808-846` |
-| external outcome → regime score（静态表，"post-v0"） | `should-be-learned-but-hand-crafted` | `regime/identity.py:65-85,548` |
+| `apply_metacontroller_evidence`（2026-07-16 起查 `templates.py` 的 `metacontroller_evidence_affinity` 表，identity.py 零硬编码 regime_id，AST 契约守门） | `hand-crafted`（表驱动；learned head 待 #44 SYS-1） | `regime/templates.py`（`metacontroller_evidence_deltas`）· `regime/identity.py`（`_apply_evidence_signal`）· `tests/contracts/test_regime_no_hardcoded_evidence_mapping.py` |
+| `apply_policy_consolidation`（2026-07-16 起查 `consolidation_affinity` 表） | `hand-crafted`（表驱动） | `regime/templates.py`（`consolidation_gain_multipliers`）· `regime/identity.py` |
+| external outcome → regime score（2026-07-16 起为 learned 校准：静态表=初始化+回滚点，`_external_outcome_scores` 以内部 n-step blended 轨迹在线 settle，drift 受 `_EXTERNAL_OUTCOME_SCORE_ENVELOPE` 约束） | `bounded-learned`（初始=静态表） | `regime/identity.py`（`_ingest_external_outcome_attributions` 校准段） |
 | regime 模板（固定 3-float embedding + regime_id 字符串） | `hand-crafted` | `regime/templates.py:23-172` |
 
 #### DualTrackModule — `dual_track`

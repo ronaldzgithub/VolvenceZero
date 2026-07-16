@@ -184,6 +184,43 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _resolve_seeds(raw: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in raw.split(",") if x.strip())
+
+
+def _expected_arc_count(args: argparse.Namespace) -> int:
+    from importlib.resources import files
+
+    from companion_bench.spec import load_scenarios_dir
+
+    public_dir = pathlib.Path(str(files("companion_bench") / "scenarios" / "public"))
+    specs = list(load_scenarios_dir(public_dir, include_held_out=False))
+    if args.family:
+        families = {part.strip() for part in args.family.split(",") if part.strip()}
+        specs = [spec for spec in specs if spec.family in families]
+    scenario_count = len(specs)
+    if args.include_heldout:
+        from companion_bench.heldout_loader import load_heldout_scenarios
+
+        scenario_count += len(load_heldout_scenarios())
+    return scenario_count * len(_resolve_seeds(args.paraphrase_seeds))
+
+
+def _summary_resumable(payload: dict, *, expected_arcs: int) -> bool:
+    arc_count = payload.get("arc_count")
+    if not isinstance(arc_count, int):
+        _LOG.warning("resume: summary missing arc_count; will rerun")
+        return False
+    if arc_count < expected_arcs:
+        _LOG.warning(
+            "resume: summary has arc_count=%d < expected %d; will rerun",
+            arc_count,
+            expected_arcs,
+        )
+        return False
+    return True
+
+
 def _format_failure_ledger(artifact_dir: pathlib.Path, *, limit: int = 3) -> str:
     ledger = artifact_dir / "arcs" / "arc_failure.jsonl"
     if not ledger.is_file():
@@ -234,19 +271,27 @@ def main(argv: list[str] | None = None) -> int:
     retries = max(0, int(args.per_system_retries))
     parallelism = max(1, int(args.parallel_sut))
     sut_max_tokens = max(1, int(args.sut_max_tokens))
+    expected_arcs = _expected_arc_count(args)
 
     def _run_one(system: dict, manifest_path: pathlib.Path) -> dict | None:
         sys_artifact_dir = args.output_dir / system["submission_id"]
         summary_path = sys_artifact_dir / "summary.json"
         if args.resume and summary_path.is_file():
             payload = json.loads(summary_path.read_text(encoding="utf-8"))
-            _LOG.info("[%s] resume: reusing %s", system["submission_id"], summary_path)
-            return {
-                "submission_id": system["submission_id"],
-                "system_name": system["system_name"],
-                "leaderboard_category": system["leaderboard_category"],
-                "summary": payload,
-            }
+            if not _summary_resumable(payload, expected_arcs=expected_arcs):
+                _LOG.info(
+                    "[%s] resume: incomplete summary at %s; rerunning",
+                    system["submission_id"],
+                    summary_path,
+                )
+            else:
+                _LOG.info("[%s] resume: reusing %s", system["submission_id"], summary_path)
+                return {
+                    "submission_id": system["submission_id"],
+                    "system_name": system["system_name"],
+                    "leaderboard_category": system["leaderboard_category"],
+                    "summary": payload,
+                }
         cmd = [
             sys.executable,
             str(RUNNER),

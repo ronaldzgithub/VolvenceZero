@@ -72,6 +72,16 @@ from volvence_zero.temporal import (
 
 SubstrateMode = Literal["synthetic", "hf", "injected"]
 
+# Named temporal controller capacity profiles (#86/#88). The learned ndim
+# metacontroller (GRU encoder + element-wise switch + FFN decoder, pure
+# Python, CPU-runnable) is a complete first-class path selected by profile;
+# the shipped default stays on the legacy 3-dim rollback baseline until the
+# evidence gate (>=500-turn validation_delta) clears promotion.
+TEMPORAL_PROFILE_LATENT_DIMS: dict[str, int] = {
+    "legacy-3dim": 3,
+    "learned-ndim": 16,
+}
+
 
 @dataclass(frozen=True)
 class BrainConfig:
@@ -93,6 +103,11 @@ class BrainConfig:
     # legacy pure-Python rollback baseline; learned-backend promotion profiles
     # use 16/64/256 behind owner-local WiringLevel gates.
     temporal_latent_dim: int = 3
+    # Named capacity profile (see TEMPORAL_PROFILE_LATENT_DIMS). When set,
+    # it resolves the effective latent dim; passing both a profile and a
+    # non-default temporal_latent_dim is a config error (single owner for
+    # the capacity knob). None keeps temporal_latent_dim authoritative.
+    temporal_profile: str | None = None
     application_persistence_dir: str | None = None
     domain_experience_packages: tuple[DomainExperiencePackage, ...] = ()
     final_rollout_config: FinalRolloutConfig | None = None
@@ -166,6 +181,28 @@ class BrainConfig:
     # the same effect. Process-global seam: single-substrate only; a
     # multi-substrate process should leave this DISABLED (#91 follow-up).
     semantic_embedding_backend_wiring: WiringLevel = WiringLevel.ACTIVE
+
+    def resolved_temporal_latent_dim(self) -> int:
+        """Resolve the effective controller capacity (profile-aware).
+
+        ``temporal_profile`` and an explicit non-default
+        ``temporal_latent_dim`` are mutually exclusive so the capacity knob
+        keeps a single owner. Fail loudly on unknown profiles.
+        """
+
+        if self.temporal_profile is None:
+            return self.temporal_latent_dim
+        if self.temporal_profile not in TEMPORAL_PROFILE_LATENT_DIMS:
+            raise ValueError(
+                f"unknown temporal_profile {self.temporal_profile!r}; "
+                f"expected one of {sorted(TEMPORAL_PROFILE_LATENT_DIMS)}"
+            )
+        if self.temporal_latent_dim != 3:
+            raise ValueError(
+                "pass either temporal_profile or an explicit "
+                "temporal_latent_dim, not both"
+            )
+        return TEMPORAL_PROFILE_LATENT_DIMS[self.temporal_profile]
 
 
 def _seed_owner_hydration_snapshots_once(
@@ -744,7 +781,7 @@ class Brain:
             substrate_adapter_factory=self._substrate_adapter_factory,
             response_synthesizer=synthesizer,
             semantic_proposal_runtime=self._semantic_proposal_runtime,
-            temporal_latent_dim=self._config.temporal_latent_dim,
+            temporal_latent_dim=self._config.resolved_temporal_latent_dim(),
             rare_heavy_enabled=self._config.rare_heavy_enabled,
             regime_bootstrap=self._regime_bootstrap,
             identity_seed=self._identity_seed,

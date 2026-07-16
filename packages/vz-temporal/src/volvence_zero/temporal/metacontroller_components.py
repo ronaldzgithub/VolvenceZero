@@ -355,6 +355,7 @@ class SwitchUnit:
         external_switch_pressure_delta: float = 0.0,
         previous_binary: int = 0,
         previous_steps_since_switch: int = 0,
+        beta_threshold: float = 0.55,
     ) -> SwitchGateDecision:
         delta = tuple(abs(current - previous) for current, previous in zip(z_tilde, previous_code, strict=True))
         raw_gate = switch_bias
@@ -369,7 +370,10 @@ class SwitchUnit:
         raw_gate -= continuation_bias * 0.30
         raw_gate += external_switch_pressure_delta
         beta_continuous = clamp_unit(raw_gate)
-        beta_binary = 1 if beta_continuous >= 0.55 else 0
+        # beta_threshold is owned by MetacontrollerParameterStore (learnable via
+        # the temporal-prior "beta-threshold" update group); 0.55 is only the
+        # initialisation, not a hardcoded decision rule.
+        beta_binary = 1 if beta_continuous >= beta_threshold else 0
         binary_switch_rate = (beta_binary + previous_binary) / 2.0
         mean_persistence_window = 0.0 if beta_binary else float(previous_steps_since_switch + 1)
         return SwitchGateDecision(
@@ -483,36 +487,133 @@ def _dominant_axis(values: tuple[float, ...]) -> str:
     return "shared"
 
 
+@dataclass(frozen=True)
+class FamilyMatchWeights:
+    """Learned weights for the action-family match head.
+
+    The historical fixed coefficients are kept as the *initialisation*;
+    the vector is owned by ``MetacontrollerParameterStore`` and updated
+    online from settled family-outcome feedback (bounded SGD within
+    ``FAMILY_MATCH_WEIGHT_ENVELOPE`` of the initial values, so a runaway
+    update can never leave the rollback envelope).
+    """
+
+    latent_similarity: float = 0.48
+    decoder_similarity: float = 0.24
+    stability: float = 0.08
+    switch_alignment: float = 0.05
+    drift_alignment: float = 0.03
+    competition: float = 0.08
+    long_term_payoff: float = 0.08
+    delayed_credit: float = 0.14
+    monopoly_pressure: float = -0.05
+    stagnation_pressure: float = -0.03
+    outcome_driven: float = 0.18
+
+    def as_tuple(self) -> tuple[float, ...]:
+        return (
+            self.latent_similarity,
+            self.decoder_similarity,
+            self.stability,
+            self.switch_alignment,
+            self.drift_alignment,
+            self.competition,
+            self.long_term_payoff,
+            self.delayed_credit,
+            self.monopoly_pressure,
+            self.stagnation_pressure,
+            self.outcome_driven,
+        )
+
+
+DEFAULT_FAMILY_MATCH_WEIGHTS = FamilyMatchWeights()
+
+# Bounded-learning envelope: each weight may drift at most this far from
+# its initial value. This is the rollback guarantee (R15): resetting to
+# DEFAULT_FAMILY_MATCH_WEIGHTS is always a valid, nearby rollback point.
+FAMILY_MATCH_WEIGHT_ENVELOPE = 0.12
+
+
+def family_match_features(
+    family: DiscoveredActionFamily,
+    observation: ActionFamilyObservation,
+) -> tuple[float, ...]:
+    """Feature vector for the match head (same order as FamilyMatchWeights)."""
+
+    latent_similarity = _cosine_similarity(observation.latent_code, family.latent_centroid)
+    decoder_similarity = _cosine_similarity(observation.decoder_control, family.decoder_centroid)
+    switch_alignment = clamp_unit(1.0 - abs(observation.switch_gate - family.switch_bias))
+    drift_alignment = clamp_unit(1.0 - abs(observation.posterior_drift - family.mean_posterior_drift))
+    delayed_credit = clamp_signed(family.delayed_credit_sum / 3.0)
+    outcome_driven = family.outcome_driven_score if family.outcome_history else 0.0
+    return (
+        latent_similarity,
+        decoder_similarity,
+        family.stability,
+        switch_alignment,
+        drift_alignment,
+        family.competition_score,
+        family.long_term_payoff,
+        delayed_credit,
+        family.monopoly_pressure,
+        family.stagnation_pressure,
+        outcome_driven,
+    )
+
+
+def update_family_match_weights(
+    weights: FamilyMatchWeights,
+    *,
+    features: tuple[float, ...],
+    outcome_signal: float,
+    learning_rate: float = 0.02,
+) -> FamilyMatchWeights:
+    """One bounded online SGD step on the match head.
+
+    ``outcome_signal`` in [-1, 1]: a settled outcome for the family the
+    head selected. Positive outcomes reinforce the features that were
+    responsible for the selection; negative outcomes suppress them.
+    Every weight stays inside FAMILY_MATCH_WEIGHT_ENVELOPE of its
+    initial value.
+    """
+
+    signal = clamp_signed(outcome_signal)
+    if signal == 0.0:
+        return weights
+    defaults = DEFAULT_FAMILY_MATCH_WEIGHTS.as_tuple()
+    current = weights.as_tuple()
+    updated = []
+    for index, (weight, default, feature) in enumerate(
+        zip(current, defaults, features, strict=True)
+    ):
+        del index
+        candidate = weight + learning_rate * signal * feature
+        low = default - FAMILY_MATCH_WEIGHT_ENVELOPE
+        high = default + FAMILY_MATCH_WEIGHT_ENVELOPE
+        updated.append(max(low, min(high, candidate)))
+    return FamilyMatchWeights(*updated)
+
+
 def _family_match_score(
     family: DiscoveredActionFamily,
     observation: ActionFamilyObservation,
     *,
     current_active_family_id: str | None = None,
     current_family_continuation_bias: float = 0.0,
+    match_weights: FamilyMatchWeights | None = None,
 ) -> float:
-    latent_similarity = _cosine_similarity(observation.latent_code, family.latent_centroid)
-    decoder_similarity = _cosine_similarity(observation.decoder_control, family.decoder_centroid)
-    switch_alignment = 1.0 - abs(observation.switch_gate - family.switch_bias)
-    delayed_credit_bonus = clamp_signed(family.delayed_credit_sum / 3.0) * 0.14
-    base = (
-        latent_similarity * 0.48
-        + decoder_similarity * 0.24
-        + family.stability * 0.08
-        + clamp_unit(switch_alignment) * 0.05
-        + clamp_unit(1.0 - abs(observation.posterior_drift - family.mean_posterior_drift)) * 0.03
-        + family.competition_score * 0.08
-        + family.long_term_payoff * 0.08
-        + delayed_credit_bonus
-        - family.monopoly_pressure * 0.05
-        - family.stagnation_pressure * 0.03
+    weights = match_weights or DEFAULT_FAMILY_MATCH_WEIGHTS
+    features = family_match_features(family, observation)
+    base = sum(
+        weight * feature
+        for weight, feature in zip(weights.as_tuple(), features, strict=True)
     )
-    outcome_bonus = family.outcome_driven_score * 0.18 if family.outcome_history else 0.0
     active_family_bias = 0.0
     if current_active_family_id is not None and family.family_id == current_active_family_id:
         active_family_bias = current_family_continuation_bias * 0.12
     elif current_family_continuation_bias > 0.0:
         active_family_bias = -current_family_continuation_bias * 0.03
-    return base + outcome_bonus + active_family_bias
+    return base + active_family_bias
 
 
 def _family_summary(
@@ -986,6 +1087,7 @@ def classify_latent_action(
     action_families: tuple[DiscoveredActionFamily, ...],
     current_active_family_id: str | None = None,
     current_family_continuation_bias: float = 0.0,
+    match_weights: FamilyMatchWeights | None = None,
 ) -> tuple[str, str, float]:
     best_label = "unassigned_action"
     best_score = float("-inf")
@@ -996,6 +1098,7 @@ def classify_latent_action(
             observation,
             current_active_family_id=current_active_family_id,
             current_family_continuation_bias=current_family_continuation_bias,
+            match_weights=match_weights,
         )
         if score > best_score:
             best_label = family.family_id
@@ -1024,6 +1127,7 @@ def discover_latent_action_family(
     similarity_threshold: float = 0.84,
     split_similarity_threshold: float = 0.93,
     split_support_threshold: int = 6,
+    match_weights: FamilyMatchWeights | None = None,
 ) -> tuple[tuple[DiscoveredActionFamily, ...], str, str]:
     if not action_families:
         family = _refresh_family_summary(
@@ -1040,6 +1144,7 @@ def discover_latent_action_family(
             action_families=(family,),
             current_active_family_id=current_active_family_id,
             current_family_continuation_bias=current_family_continuation_bias,
+            match_weights=match_weights,
         )
         return ((family,), label, summary)
     best_label, _, best_score = classify_latent_action(
@@ -1047,6 +1152,7 @@ def discover_latent_action_family(
         action_families=action_families,
         current_active_family_id=current_active_family_id,
         current_family_continuation_bias=current_family_continuation_bias,
+        match_weights=match_weights,
     )
     updated_families = list(action_families)
     best_index = next(
@@ -1176,6 +1282,7 @@ def discover_latent_action_family(
         action_families=families_tuple,
         current_active_family_id=current_active_family_id,
         current_family_continuation_bias=current_family_continuation_bias,
+        match_weights=match_weights,
     )
     families_tuple = _update_family_competition_state(
         families_tuple,
@@ -1194,6 +1301,7 @@ def discover_latent_action_family(
             action_families=families_tuple,
             current_active_family_id=current_active_family_id,
             current_family_continuation_bias=current_family_continuation_bias,
+            match_weights=match_weights,
         )
         families_tuple = _update_family_competition_state(
             families_tuple,
@@ -1471,6 +1579,7 @@ class NdimSwitchUnit:
         active_family_persistence: float = 0.0,
         external_switch_pressure_delta: float = 0.0,
         params: NdimSwitchParameters | None = None,
+        beta_threshold: float = 0.55,
     ) -> tuple[Vec, Vec, float]:
         """Returns (beta_continuous, beta_binary, scalar_beta_mean)."""
         active_params = params or self._params
@@ -1495,8 +1604,9 @@ class NdimSwitchUnit:
             + external_switch_pressure_delta
         )
         beta_continuous = vec_sigmoid(vec_add(raw, tuple(bias for _ in range(self._n_z))))
-        threshold = 0.55
-        beta_binary = tuple(1.0 if b >= threshold else 0.0 for b in beta_continuous)
+        # STE-ready binarisation: the threshold is owned by the parameter
+        # store (learnable); 0.55 is only the initial value.
+        beta_binary = tuple(1.0 if b >= beta_threshold else 0.0 for b in beta_continuous)
         scalar_mean = vec_mean(beta_continuous)
         return beta_continuous, beta_binary, scalar_mean
 
