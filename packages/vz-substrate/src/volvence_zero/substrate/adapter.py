@@ -436,10 +436,23 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
         )
         feature_surface = capture.feature_surface
         if not any(signal.name == "semantic_surface_active" for signal in feature_surface):
-            feature_surface = feature_surface + semantic_feature_surface_from_text(
+            # R8 single-owner merge (coverage 5.1 / #91 residual): runtimes
+            # that publish their own substrate-grounded semantic pulls
+            # (hybrid hidden-state x anchor-bank readouts) own those names.
+            # ``feature_signal_map`` is last-wins, so appending the full
+            # hash fallback used to shadow the real readouts for every
+            # consumer; the fallback now only fills genuinely missing
+            # signals (decision_delegation / social / surface markers).
+            runtime_owned_names = {signal.name for signal in feature_surface}
+            fallback_surface = semantic_feature_surface_from_text(
                 effective_source_text,
                 fallback_active=float(fallback_active),
                 source=f"{capture_source}:semantic-readout",
+            )
+            feature_surface = feature_surface + tuple(
+                signal
+                for signal in fallback_surface
+                if signal.name not in runtime_owned_names
             )
         return SubstrateSnapshot(
             model_id=self.model_id,

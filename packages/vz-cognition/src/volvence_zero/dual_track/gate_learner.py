@@ -28,12 +28,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
 from volvence_zero.dual_track.core import (
     DualTrackLearnedGateShadow,
     TrackState,
     derive_learned_gate_shadow,
 )
 
+_DUAL_TRACK_GATE_OWNER_NAME = "dual_track_gate_learner"
+_DUAL_TRACK_GATE_SCHEMA_VERSION = 1
 _FEATURE_DIM = 6
 # Same movement cap as the heuristic candidate: the learned weight may not
 # leave [0.5 - CAP, 0.5 + CAP] while the gate is SHADOW.
@@ -336,6 +344,68 @@ class DualTrackGateLearner:
             heuristic_abs_error_sum=self._heuristic_abs_error_sum,
             settled_comparison_count=self._settled_comparison_count,
         )
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        state = self.export_state()
+        return OwnerPersistenceSnapshot(
+            owner_name=_DUAL_TRACK_GATE_OWNER_NAME,
+            schema_version=_DUAL_TRACK_GATE_SCHEMA_VERSION,
+            payload={
+                "weights": list(state.weights),
+                "update_count": state.update_count,
+                "abs_error_sum": state.abs_error_sum,
+                "heuristic_abs_error_sum": state.heuristic_abs_error_sum,
+                "settled_comparison_count": state.settled_comparison_count,
+            },
+            description=(
+                "DualTrackGateLearner snapshot "
+                f"updates={state.update_count} settled={state.settled_comparison_count}"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        if snapshot.owner_name != _DUAL_TRACK_GATE_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                "DualTrackGateLearner expected owner_name="
+                f"{_DUAL_TRACK_GATE_OWNER_NAME!r}, got {snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _DUAL_TRACK_GATE_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                "DualTrackGateLearner unsupported schema_version="
+                f"{snapshot.schema_version!r}; expected "
+                f"{_DUAL_TRACK_GATE_SCHEMA_VERSION}"
+            )
+        try:
+            weights = snapshot.payload["weights"]
+            if not isinstance(weights, list | tuple):
+                raise HydrationPayloadInvalidError(
+                    "DualTrackGateLearner weights must be a list; "
+                    f"got {type(weights).__name__}"
+                )
+            self.restore_state(
+                DualTrackGateLearnerState(
+                    weights=tuple(float(value) for value in weights),
+                    update_count=int(snapshot.payload["update_count"]),
+                    abs_error_sum=float(snapshot.payload["abs_error_sum"]),
+                    heuristic_abs_error_sum=float(
+                        snapshot.payload["heuristic_abs_error_sum"]
+                    ),
+                    settled_comparison_count=int(
+                        snapshot.payload["settled_comparison_count"]
+                    ),
+                )
+            )
+        except KeyError as exc:
+            raise HydrationPayloadInvalidError(
+                "DualTrackGateLearner payload missing key "
+                f"{exc.args[0]!r}"
+            ) from exc
+        except ValueError as exc:
+            raise HydrationPayloadInvalidError(
+                f"DualTrackGateLearner payload is structurally invalid: {exc}"
+            ) from exc
 
     def restore_state(self, state: DualTrackGateLearnerState) -> None:
         if len(state.weights) != _FEATURE_DIM:

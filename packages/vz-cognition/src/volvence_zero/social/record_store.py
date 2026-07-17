@@ -29,9 +29,16 @@ promote/retire — never raw text matching.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from typing import Callable
+from typing import Any, Callable
 
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
 from volvence_zero.semantic_embedding import (
     semantic_embedding as _semantic_embedding,
     stub_cosine_similarity as _cosine_similarity,
@@ -39,13 +46,17 @@ from volvence_zero.semantic_embedding import (
 from volvence_zero.social_cognition import (
     CommonGroundAtom,
     OtherMindRecord,
+    OtherMindRecordKind,
     OtherMindRecordStatus,
     SocialPrediction,
     SocialPredictionError,
     SocialPredictionOutcome,
+    SocialScopeKind,
 )
 
 SimilarityFn = Callable[[str, str], float]
+_SOCIAL_RECORD_OWNER_NAME = "social_record_store"
+_SOCIAL_RECORD_SCHEMA_VERSION = 1
 
 TOM_SLOTS: tuple[str, ...] = (
     "belief_about_other",
@@ -263,6 +274,118 @@ class SocialRecordStore:
         self._group_pending: tuple[PendingSocialPrediction, ...] = ()
         self._group_durability: dict[str, float] = {}
 
+    # ----- cross-session hydration -----
+    #
+    # Only stable owner-owned state is persisted. Pending predictions
+    # are intentionally session-scoped: carrying an unsettled prediction
+    # across a scene/session boundary would extend a one-turn settlement
+    # contract beyond the evidence window that issued it.
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        return OwnerPersistenceSnapshot(
+            owner_name=_SOCIAL_RECORD_OWNER_NAME,
+            schema_version=_SOCIAL_RECORD_SCHEMA_VERSION,
+            payload={
+                "tom_records": {
+                    slot: [_serialize_other_mind_record(record) for record in records]
+                    for slot, records in self._tom_records.items()
+                },
+                "common_ground": {
+                    "dyad_atoms": [
+                        _serialize_common_ground_atom(atom)
+                        for atom in self._cg_dyad_atoms
+                    ],
+                    "group_atoms": [
+                        _serialize_common_ground_atom(atom)
+                        for atom in self._cg_group_atoms
+                    ],
+                },
+                "group_regimes": dict(self._group_regimes),
+                "group_durability": dict(self._group_durability),
+            },
+            description=(
+                f"SocialRecordStore snapshot v{_SOCIAL_RECORD_SCHEMA_VERSION}: "
+                f"{sum(len(records) for records in self._tom_records.values())} ToM records, "
+                f"{len(self._cg_dyad_atoms) + len(self._cg_group_atoms)} common-ground atoms"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        if snapshot.owner_name != _SOCIAL_RECORD_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                "SocialRecordStore expected owner_name="
+                f"{_SOCIAL_RECORD_OWNER_NAME!r}, got {snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _SOCIAL_RECORD_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                "SocialRecordStore unsupported schema_version="
+                f"{snapshot.schema_version!r}; expected "
+                f"{_SOCIAL_RECORD_SCHEMA_VERSION}"
+            )
+        payload = snapshot.payload
+        try:
+            tom_records_blob = _mapping_value(payload, "tom_records", default={})
+            common_ground_blob = _mapping_value(payload, "common_ground", default={})
+            group_regimes_blob = _mapping_value(payload, "group_regimes", default={})
+            group_durability_blob = _mapping_value(payload, "group_durability", default={})
+        except HydrationPayloadInvalidError:
+            raise
+
+        unknown_slots = set(tom_records_blob).difference(TOM_SLOTS)
+        if unknown_slots:
+            raise HydrationPayloadInvalidError(
+                "SocialRecordStore payload references unknown ToM slot(s): "
+                f"{sorted(unknown_slots)!r}; expected subset of {TOM_SLOTS!r}"
+            )
+
+        new_tom_records: dict[str, tuple[OtherMindRecord, ...]] = {}
+        for slot in TOM_SLOTS:
+            entries = tom_records_blob.get(slot, ())
+            if not isinstance(entries, list | tuple):
+                raise HydrationPayloadInvalidError(
+                    "SocialRecordStore payload['tom_records']"
+                    f"[{slot!r}] must be a list; got {type(entries).__name__}"
+                )
+            new_tom_records[slot] = tuple(
+                _deserialize_other_mind_record(entry) for entry in entries
+            )[-_RECORD_WINDOW:]
+
+        dyad_blob = common_ground_blob.get("dyad_atoms", ())
+        group_blob = common_ground_blob.get("group_atoms", ())
+        if not isinstance(dyad_blob, list | tuple):
+            raise HydrationPayloadInvalidError(
+                "SocialRecordStore common_ground.dyad_atoms must be a list; "
+                f"got {type(dyad_blob).__name__}"
+            )
+        if not isinstance(group_blob, list | tuple):
+            raise HydrationPayloadInvalidError(
+                "SocialRecordStore common_ground.group_atoms must be a list; "
+                f"got {type(group_blob).__name__}"
+            )
+
+        self._tom_records = new_tom_records
+        self._tom_pending = {slot: () for slot in TOM_SLOTS}
+        self._cg_dyad_atoms = tuple(
+            _deserialize_common_ground_atom(entry) for entry in dyad_blob
+        )[-_ATOM_WINDOW:]
+        self._cg_group_atoms = tuple(
+            _deserialize_common_ground_atom(entry) for entry in group_blob
+        )[-_ATOM_WINDOW:]
+        self._cg_pending = ()
+        self._group_regimes = {
+            str(group_id): str(regime_id)
+            for group_id, regime_id in group_regimes_blob.items()
+            if str(group_id).strip() and str(regime_id).strip()
+        }
+        self._group_pending = ()
+        self._group_durability = {
+            str(group_id): max(0.0, min(1.0, float(score)))
+            for group_id, score in group_durability_blob.items()
+            if str(group_id).strip()
+        }
+
     @property
     def similarity(self) -> SimilarityFn:
         return self._similarity
@@ -392,6 +515,117 @@ class SocialRecordStore:
             score = max(0.0, score - _DISCONFIRM_CONFIDENCE_LOSS)
         self._group_durability[group_id] = score
         return score
+
+
+def _mapping_value(
+    payload: Mapping[str, Any],
+    key: str,
+    *,
+    default: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    value = payload.get(key, default)
+    if not isinstance(value, Mapping):
+        raise HydrationPayloadInvalidError(
+            f"SocialRecordStore payload[{key!r}] must be a mapping; "
+            f"got {type(value).__name__}"
+        )
+    return value
+
+
+def _serialize_other_mind_record(record: OtherMindRecord) -> dict[str, Any]:
+    return {
+        "record_id": record.record_id,
+        "interlocutor_id": record.interlocutor_id,
+        "kind": record.kind.value,
+        "summary": record.summary,
+        "detail": record.detail,
+        "confidence": record.confidence,
+        "status": record.status.value,
+        "source_turn": record.source_turn,
+        "prediction_error_refs": list(record.prediction_error_refs),
+        "evidence": record.evidence,
+    }
+
+
+def _deserialize_other_mind_record(blob: Mapping[str, Any]) -> OtherMindRecord:
+    try:
+        refs = blob.get("prediction_error_refs", ())
+        if not isinstance(refs, list | tuple):
+            raise HydrationPayloadInvalidError(
+                "OtherMindRecord.prediction_error_refs must be a list; "
+                f"got {type(refs).__name__}"
+            )
+        return OtherMindRecord(
+            record_id=str(blob["record_id"]),
+            interlocutor_id=str(blob["interlocutor_id"]),
+            kind=OtherMindRecordKind(str(blob["kind"])),
+            summary=str(blob["summary"]),
+            detail=str(blob["detail"]),
+            confidence=float(blob["confidence"]),
+            status=OtherMindRecordStatus(str(blob["status"])),
+            source_turn=int(blob["source_turn"]),
+            prediction_error_refs=tuple(str(item) for item in refs),
+            evidence=str(blob["evidence"]),
+        )
+    except KeyError as exc:
+        raise HydrationPayloadInvalidError(
+            f"SocialRecordStore OtherMindRecord missing key {exc.args[0]!r}; "
+            f"blob={blob!r}"
+        ) from exc
+    except ValueError as exc:
+        raise HydrationPayloadInvalidError(
+            f"SocialRecordStore OtherMindRecord invalid enum/value: {exc}; "
+            f"blob={blob!r}"
+        ) from exc
+
+
+def _serialize_common_ground_atom(atom: CommonGroundAtom) -> dict[str, Any]:
+    return {
+        "atom_id": atom.atom_id,
+        "scope_id": atom.scope_id,
+        "scope_kind": atom.scope_kind.value,
+        "summary": atom.summary,
+        "recursion_depth": atom.recursion_depth,
+        "confidence": atom.confidence,
+        "accepted_by_ids": list(atom.accepted_by_ids),
+        "evidence": list(atom.evidence),
+    }
+
+
+def _deserialize_common_ground_atom(blob: Mapping[str, Any]) -> CommonGroundAtom:
+    try:
+        accepted = blob["accepted_by_ids"]
+        evidence = blob["evidence"]
+        if not isinstance(accepted, list | tuple):
+            raise HydrationPayloadInvalidError(
+                "CommonGroundAtom.accepted_by_ids must be a list; "
+                f"got {type(accepted).__name__}"
+            )
+        if not isinstance(evidence, list | tuple):
+            raise HydrationPayloadInvalidError(
+                "CommonGroundAtom.evidence must be a list; "
+                f"got {type(evidence).__name__}"
+            )
+        return CommonGroundAtom(
+            atom_id=str(blob["atom_id"]),
+            scope_id=str(blob["scope_id"]),
+            scope_kind=SocialScopeKind(str(blob["scope_kind"])),
+            summary=str(blob["summary"]),
+            recursion_depth=int(blob["recursion_depth"]),
+            confidence=float(blob["confidence"]),
+            accepted_by_ids=tuple(str(item) for item in accepted),
+            evidence=tuple(str(item) for item in evidence),
+        )
+    except KeyError as exc:
+        raise HydrationPayloadInvalidError(
+            f"SocialRecordStore CommonGroundAtom missing key {exc.args[0]!r}; "
+            f"blob={blob!r}"
+        ) from exc
+    except ValueError as exc:
+        raise HydrationPayloadInvalidError(
+            f"SocialRecordStore CommonGroundAtom invalid enum/value: {exc}; "
+            f"blob={blob!r}"
+        ) from exc
 
 
 __all__ = [

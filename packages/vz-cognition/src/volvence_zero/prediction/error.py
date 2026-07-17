@@ -18,6 +18,12 @@ from volvence_zero.dialogue_trace import (
 )
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation import EvaluationSnapshot
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
 from volvence_zero.prediction.distribution import DistributionSummary
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.semantic_state import (
@@ -276,6 +282,8 @@ class PredictiveHeadReadout:
 
 
 PREDICTIVE_HEAD_CHECKPOINT_SCHEMA_VERSION = "predictive-head-checkpoint.v1"
+_PREDICTION_ERROR_HEADS_OWNER_NAME = "prediction_error_heads"
+_PREDICTION_ERROR_HEADS_SCHEMA_VERSION = 1
 
 # Rolling window used by the CP-11 self-reward autocorrelation kill check.
 # 64 samples matches the PE distribution window's max size so both owner
@@ -1861,6 +1869,53 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         self._head_lagged_errors = tuple(0.0 for _ in _HEAD_AXES)
         self._head_has_lag = False
 
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        critic_state = self._critic.export_state()
+        return OwnerPersistenceSnapshot(
+            owner_name=_PREDICTION_ERROR_HEADS_OWNER_NAME,
+            schema_version=_PREDICTION_ERROR_HEADS_SCHEMA_VERSION,
+            payload={
+                "critic": _serialize_pe_critic_state(critic_state),
+                "predictive_heads": _serialize_predictive_head_checkpoint(
+                    self.export_predictive_head_checkpoint(
+                        checkpoint_id="prediction-error-heads:hydration"
+                    )
+                ),
+            },
+            description=(
+                "PredictionErrorModule learned-head snapshot "
+                f"critic_updates={critic_state.update_count} "
+                f"predictive_samples={self._head_sample_count}"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        if snapshot.owner_name != _PREDICTION_ERROR_HEADS_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                "PredictionErrorModule expected owner_name="
+                f"{_PREDICTION_ERROR_HEADS_OWNER_NAME!r}, got {snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _PREDICTION_ERROR_HEADS_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                "PredictionErrorModule unsupported schema_version="
+                f"{snapshot.schema_version!r}; expected "
+                f"{_PREDICTION_ERROR_HEADS_SCHEMA_VERSION}"
+            )
+        try:
+            critic_blob = snapshot.payload["critic"]
+            heads_blob = snapshot.payload["predictive_heads"]
+        except KeyError as exc:
+            raise HydrationPayloadInvalidError(
+                "PredictionErrorModule learned-head payload missing key "
+                f"{exc.args[0]!r}"
+            ) from exc
+        self._critic.restore_state(_deserialize_pe_critic_state(critic_blob))
+        self.restore_predictive_head_checkpoint(
+            _deserialize_predictive_head_checkpoint(heads_blob)
+        )
+
     def predictive_head_kill_criteria(self) -> PredictiveHeadKillCriteria:
         """Self-reward autocorrelation check over the recent scored window."""
 
@@ -2808,3 +2863,96 @@ def _clamp_unit(value: float) -> float:
 
 def _clamp_signed(value: float) -> float:
     return max(-1.0, min(1.0, float(value)))
+
+
+def _serialize_pe_critic_state(state: PECriticHeadState) -> dict[str, object]:
+    return {
+        "rule_id": state.rule_id,
+        "feature_dim": state.feature_dim,
+        "update_count": state.update_count,
+        "axis_weights": list(state.axis_weights),
+        "axis_biases": list(state.axis_biases),
+        "last_prediction": state.last_prediction,
+        "last_target": state.last_target,
+        "last_validation_delta": state.last_validation_delta,
+        "last_capacity_cost": state.last_capacity_cost,
+        "last_rollback_evidence": state.last_rollback_evidence,
+        "description": state.description,
+    }
+
+
+def _deserialize_pe_critic_state(blob: object) -> PECriticHeadState:
+    if not isinstance(blob, Mapping):
+        raise HydrationPayloadInvalidError(
+            "PredictionErrorModule critic payload must be a mapping; "
+            f"got {type(blob).__name__}"
+        )
+    try:
+        return PECriticHeadState(
+            rule_id=str(blob["rule_id"]),
+            feature_dim=int(blob["feature_dim"]),
+            update_count=int(blob["update_count"]),
+            axis_weights=tuple(
+                (str(axis), tuple(float(value) for value in weights))
+                for axis, weights in blob["axis_weights"]
+            ),
+            axis_biases=tuple(
+                (str(axis), float(value)) for axis, value in blob["axis_biases"]
+            ),
+            last_prediction=float(blob["last_prediction"]),
+            last_target=float(blob["last_target"]),
+            last_validation_delta=float(blob["last_validation_delta"]),
+            last_capacity_cost=float(blob["last_capacity_cost"]),
+            last_rollback_evidence=str(blob["last_rollback_evidence"]),
+            description=str(blob.get("description", "")),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HydrationPayloadInvalidError(
+            "PredictionErrorModule critic payload is structurally invalid: "
+            f"{exc}; blob={blob!r}"
+        ) from exc
+
+
+def _serialize_predictive_head_checkpoint(
+    checkpoint: PredictiveHeadCheckpoint,
+) -> dict[str, object]:
+    return {
+        "schema_version": checkpoint.schema_version,
+        "checkpoint_id": checkpoint.checkpoint_id,
+        "feature_dim": checkpoint.feature_dim,
+        "world_weights": list(checkpoint.world_weights),
+        "self_weights": list(checkpoint.self_weights),
+        "sample_count": checkpoint.sample_count,
+        "abs_error_sums": list(checkpoint.abs_error_sums),
+    }
+
+
+def _deserialize_predictive_head_checkpoint(blob: object) -> PredictiveHeadCheckpoint:
+    if not isinstance(blob, Mapping):
+        raise HydrationPayloadInvalidError(
+            "PredictionErrorModule predictive_heads payload must be a mapping; "
+            f"got {type(blob).__name__}"
+        )
+    try:
+        return PredictiveHeadCheckpoint(
+            schema_version=str(blob["schema_version"]),
+            checkpoint_id=str(blob["checkpoint_id"]),
+            feature_dim=int(blob["feature_dim"]),
+            world_weights=tuple(
+                (str(axis), tuple(float(value) for value in weights))
+                for axis, weights in blob["world_weights"]
+            ),
+            self_weights=tuple(
+                (str(axis), tuple(float(value) for value in weights))
+                for axis, weights in blob["self_weights"]
+            ),
+            sample_count=int(blob["sample_count"]),
+            abs_error_sums=tuple(
+                (str(axis), float(value)) for axis, value in blob["abs_error_sums"]
+            ),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HydrationPayloadInvalidError(
+            "PredictionErrorModule predictive_heads payload is structurally invalid: "
+            f"{exc}; blob={blob!r}"
+        ) from exc

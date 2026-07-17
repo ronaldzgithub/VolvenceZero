@@ -83,6 +83,163 @@ def test_semantic_state_unknown_slot_in_payload_fails_loud() -> None:
         )
 
 
+def test_social_record_store_owner_name_mismatch_fails_loud() -> None:
+    from volvence_zero.social import SocialRecordStore
+
+    store = SocialRecordStore()
+    with pytest.raises(HydrationOwnerMismatchError, match="owner_name"):
+        store.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="not_social_record_store",
+                schema_version=1,
+                payload={},
+            )
+        )
+
+
+def test_social_record_store_version_mismatch_fails_loud() -> None:
+    from volvence_zero.social import SocialRecordStore
+
+    store = SocialRecordStore()
+    with pytest.raises(HydrationVersionMismatchError, match="schema_version"):
+        store.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="social_record_store",
+                schema_version=99,
+                payload={},
+            )
+        )
+
+
+def test_social_record_store_unknown_tom_slot_fails_loud() -> None:
+    from volvence_zero.social import SocialRecordStore
+
+    store = SocialRecordStore()
+    with pytest.raises(HydrationPayloadInvalidError, match="unknown ToM slot"):
+        store.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="social_record_store",
+                schema_version=1,
+                payload={"tom_records": {"not_a_slot": []}},
+            )
+        )
+
+
+def test_social_record_store_invalid_atom_blob_fails_loud() -> None:
+    from volvence_zero.social import SocialRecordStore
+
+    store = SocialRecordStore()
+    with pytest.raises(HydrationPayloadInvalidError, match="CommonGroundAtom"):
+        store.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="social_record_store",
+                schema_version=1,
+                payload={
+                    "common_ground": {
+                        "dyad_atoms": [
+                            {
+                                "atom_id": "cg-1",
+                                "scope_id": "self+bob",
+                                "scope_kind": "dyad",
+                                # missing summary / recursion_depth / etc.
+                            }
+                        ]
+                    }
+                },
+            )
+        )
+
+
+def test_regime_owner_name_mismatch_fails_loud() -> None:
+    from volvence_zero.regime import RegimeModule
+
+    module = RegimeModule()
+    with pytest.raises(HydrationOwnerMismatchError, match="owner_name"):
+        module.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="not_regime",
+                schema_version=1,
+                payload={},
+            )
+        )
+
+
+def test_regime_version_mismatch_fails_loud() -> None:
+    from volvence_zero.regime import RegimeModule
+
+    module = RegimeModule()
+    with pytest.raises(HydrationVersionMismatchError, match="schema_version"):
+        module.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="regime",
+                schema_version=99,
+                payload={},
+            )
+        )
+
+
+def test_regime_invalid_payload_fails_loud() -> None:
+    from volvence_zero.regime import RegimeModule
+
+    module = RegimeModule()
+    with pytest.raises(HydrationPayloadInvalidError, match="payload"):
+        module.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="regime",
+                schema_version=1,
+                payload={"historical_effectiveness": {"bad": "shape"}},
+            )
+        )
+
+
+def test_prediction_error_heads_owner_name_mismatch_fails_loud() -> None:
+    from volvence_zero.prediction.error import PredictionErrorModule
+
+    module = PredictionErrorModule()
+    with pytest.raises(HydrationOwnerMismatchError, match="owner_name"):
+        module.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="not_prediction_error_heads",
+                schema_version=1,
+                payload={},
+            )
+        )
+
+
+def test_prediction_error_heads_missing_key_fails_loud() -> None:
+    from volvence_zero.prediction.error import PredictionErrorModule
+
+    module = PredictionErrorModule()
+    with pytest.raises(HydrationPayloadInvalidError, match="missing key"):
+        module.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="prediction_error_heads",
+                schema_version=1,
+                payload={"critic": {}},
+            )
+        )
+
+
+def test_dual_track_gate_learner_invalid_weights_fails_loud() -> None:
+    from volvence_zero.dual_track.gate_learner import DualTrackGateLearner
+
+    learner = DualTrackGateLearner()
+    with pytest.raises(HydrationPayloadInvalidError, match="weights"):
+        learner.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="dual_track_gate_learner",
+                schema_version=1,
+                payload={
+                    "weights": "not-a-list",
+                    "update_count": 0,
+                    "abs_error_sum": 0.0,
+                    "heuristic_abs_error_sum": 0.0,
+                    "settled_comparison_count": 0,
+                },
+            )
+        )
+
+
 def test_followup_manager_owner_name_mismatch_fails_loud() -> None:
     from lifeform_core.followup_manager import FollowupManager
 

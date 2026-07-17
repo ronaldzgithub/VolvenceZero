@@ -24,7 +24,11 @@ from lifeform_core import Lifeform, LifeformConfig, TickEngineConfig
 from lifeform_core.types import TurnTriggerKind
 from lifeform_domain_emogpt import build_companion_vitals_bootstrap
 from volvence_zero.brain import BrainConfig
-from volvence_zero.environment import EnvironmentEventKind
+from volvence_zero.environment import (
+    EnvironmentActorRef,
+    EnvironmentEventKind,
+    EnvironmentFrame,
+)
 
 
 def _build_lifeform() -> Lifeform:
@@ -95,3 +99,29 @@ async def test_followup_due_host_path_from_due_followup_to_canonical_turn() -> N
     assert result.environment_trigger_kind == TurnTriggerKind.FOLLOWUP_DUE.value
     # The product layer, not the lifeform, retires the followup after acting.
     assert session.acknowledge_followup(item.followup_id) is True
+
+
+async def test_product_supplied_multi_party_frame_reaches_social_owners() -> None:
+    lifeform = _build_lifeform()
+    session = lifeform.create_session(session_id="canon-route-multi-party")
+    frame = EnvironmentFrame(
+        actor=EnvironmentActorRef(actor_id="alice", display_name="Alice"),
+        active_speaker_id="alice",
+        addressee_ids=("self", "bob"),
+        subject_ids=("alice", "bob"),
+        audience_ids=("self", "bob", "cara"),
+    )
+
+    result = await session.run_turn(
+        "Alice is asking Bob to review the plan while Cara observes.",
+        environment_frame=frame,
+    )
+
+    assert result.active_speaker_id == "alice"
+    assert result.audience_ids == ("self", "bob", "cara")
+    role_snapshot = result.active_snapshots["conversational_role"].value
+    assert role_snapshot.active_speaker_id == "alice"
+    assert role_snapshot.addressee_ids == ("self", "bob")
+    assert role_snapshot.subject_ids == ("alice", "bob")
+    user_model_snapshot = result.active_snapshots["user_model"].value
+    assert user_model_snapshot.interlocutor_ids == ("alice", "bob", "cara", "self")

@@ -29,8 +29,11 @@ def test_owner_hydration_matrix_freezes_owner_by_owner_decisions() -> None:
     assert matrix["followup_manager"].decision == "hydrate"
     assert matrix["vitals"].decision == "hydrate"
     assert matrix["protocol_registry"].decision == "hydrate"
+    assert matrix["social_record_store"].decision == "hydrate"
+    assert matrix["prediction_error_heads"].decision == "hydrate"
+    assert matrix["dual_track_gate_learner"].decision == "hydrate"
     assert matrix["memory"].decision == "external-owner"
-    assert matrix["regime"].decision == "explicit-no-hydrate"
+    assert matrix["regime"].decision == "hydrate"
     assert matrix["world_temporal"].decision == "explicit-no-hydrate"
     assert matrix["self_temporal"].decision == "explicit-no-hydrate"
     assert len(matrix) == len(OWNER_HYDRATION_MATRIX)
@@ -112,6 +115,177 @@ def test_semantic_state_store_round_trip() -> None:
     assert target.records_for("commitment") == source.records_for("commitment")
     assert target.lifecycle_for("commitment") == source.lifecycle_for("commitment")
     assert target.records_for("open_loop") == source.records_for("open_loop")
+
+
+def test_social_record_store_round_trip_drops_pending_predictions() -> None:
+    from volvence_zero.social import SocialRecordStore
+    from volvence_zero.social_cognition import (
+        CommonGroundAtom,
+        OtherMindRecord,
+        OtherMindRecordKind,
+        OtherMindRecordStatus,
+        SocialPrediction,
+        SocialPredictionKind,
+        SocialPredictionOutcome,
+        SocialScopeKind,
+    )
+    from volvence_zero.social.record_store import PendingSocialPrediction
+
+    source = SocialRecordStore()
+    source.set_tom_records(
+        "belief_about_other",
+        (
+            OtherMindRecord(
+                record_id="belief-1",
+                interlocutor_id="bob",
+                kind=OtherMindRecordKind.BELIEF,
+                summary="Bob thinks the plan is risky",
+                detail="Bob expressed concern during planning.",
+                confidence=0.72,
+                status=OtherMindRecordStatus.ACTIVE,
+                source_turn=3,
+                prediction_error_refs=("spe-1",),
+                evidence="turn-3",
+            ),
+        ),
+    )
+    source.set_pending_tom_predictions(
+        "belief_about_other",
+        (
+            PendingSocialPrediction(
+                prediction=SocialPrediction(
+                    prediction_id="pending-belief-1",
+                    kind=SocialPredictionKind.BELIEF_ABOUT_OTHER,
+                    scope_kind=SocialScopeKind.INTERLOCUTOR,
+                    scope_id="bob",
+                    subject_ids=("bob",),
+                    audience_ids=("self",),
+                    predicted_outcome="Bob will still think the plan is risky",
+                    confidence=0.7,
+                    evidence=("turn-3",),
+                ),
+                source_record_id="belief-1",
+                issued_turn=3,
+            ),
+        ),
+    )
+    source.set_common_ground_atoms(
+        dyad_atoms=(
+            CommonGroundAtom(
+                atom_id="cg-1",
+                scope_id="self+bob",
+                scope_kind=SocialScopeKind.DYAD,
+                summary="We agreed to revisit the plan tomorrow",
+                recursion_depth=0,
+                confidence=0.8,
+                accepted_by_ids=("self", "bob"),
+                evidence=("turn-4",),
+            ),
+        ),
+        group_atoms=(),
+    )
+    source.record_group_regime("frame-group:alice+bob+cara", "problem_solving")
+    source.apply_group_settlement(
+        "frame-group:alice+bob+cara",
+        outcome=SocialPredictionOutcome.CONFIRMED,
+    )
+
+    exported = source.export_persistence_snapshot()
+    assert exported.owner_name == "social_record_store"
+    assert exported.schema_version == 1
+
+    target = SocialRecordStore()
+    target.hydrate_from_persistence(exported)
+    re_exported = target.export_persistence_snapshot()
+
+    assert exported.payload == re_exported.payload
+    assert target.tom_records("belief_about_other") == source.tom_records("belief_about_other")
+    assert target.common_ground_dyad_atoms == source.common_ground_dyad_atoms
+    assert (
+        target.group_regime_for("frame-group:alice+bob+cara")
+        == "problem_solving"
+    )
+    assert target.group_durability_for("frame-group:alice+bob+cara") > 0.5
+    assert target.pending_tom_predictions("belief_about_other") == ()
+
+
+def test_regime_module_round_trip() -> None:
+    from volvence_zero.regime import RegimeCheckpoint, RegimeModule
+
+    source = RegimeModule()
+    source.restore_checkpoint(
+        RegimeCheckpoint(
+            checkpoint_id="regime-test",
+            historical_effectiveness=(("problem_solving", 0.77),),
+            strategy_priors=(("problem_solving", 0.11),),
+            active_regime_id="problem_solving",
+            previous_regime_id="guided_exploration",
+            turns_in_current_regime=4,
+            turn_index=9,
+            regime_sequence=("guided_exploration", "problem_solving"),
+            attribution_horizons=(2, 4),
+            selection_weights=(("problem_solving", 1.05),),
+            feature_weights=(("problem_solving", (("task_pressure", 0.2),)),),
+            external_outcome_scores=(("helped", 0.88),),
+            learned_score_weights=(("problem_solving", (0.1, 0.0, -0.1, 0.02)),),
+            learned_score_update_count=3,
+            learned_score_abs_error_sum=0.4,
+            learned_score_baseline_abs_error_sum=0.7,
+            learned_score_settled_count=3,
+            learned_score_last_target_regime_id="problem_solving",
+        )
+    )
+
+    exported = source.export_persistence_snapshot()
+    assert exported.owner_name == "regime"
+    assert exported.schema_version == 1
+
+    target = RegimeModule()
+    target.hydrate_from_persistence(exported)
+    re_exported = target.export_persistence_snapshot()
+
+    assert exported.payload == re_exported.payload
+
+
+def test_prediction_error_heads_round_trip() -> None:
+    from volvence_zero.prediction.error import PredictionErrorModule
+
+    source = PredictionErrorModule()
+    exported = source.export_persistence_snapshot()
+    assert exported.owner_name == "prediction_error_heads"
+    assert exported.schema_version == 1
+
+    target = PredictionErrorModule()
+    target.hydrate_from_persistence(exported)
+    re_exported = target.export_persistence_snapshot()
+
+    assert exported.payload == re_exported.payload
+
+
+def test_dual_track_gate_learner_round_trip() -> None:
+    from volvence_zero.dual_track.gate_learner import (
+        DualTrackGateLearner,
+        DualTrackGateLearnerState,
+    )
+
+    source = DualTrackGateLearner()
+    source.restore_state(
+        DualTrackGateLearnerState(
+            weights=(0.1, -0.1, 0.2, 0.0, 0.05, 0.55),
+            update_count=7,
+            abs_error_sum=1.2,
+            heuristic_abs_error_sum=1.6,
+            settled_comparison_count=6,
+        )
+    )
+    exported = source.export_persistence_snapshot()
+    assert exported.owner_name == "dual_track_gate_learner"
+
+    target = DualTrackGateLearner()
+    target.hydrate_from_persistence(exported)
+    re_exported = target.export_persistence_snapshot()
+
+    assert exported.payload == re_exported.payload
 
 
 def test_owner_hydration_seed_once_does_not_overwrite_existing_payload() -> None:

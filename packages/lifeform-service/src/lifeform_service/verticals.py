@@ -143,6 +143,14 @@ def _try_companion() -> VerticalSpec | None:
             ),
             semantic_proposal_runtime=_build_llm_semantic_runtime_from_runtime(runtime),
         )
+        try:
+            from lifeform_thinking import build_default_thinking_adapter
+        except ImportError:
+            build_default_thinking_adapter = None
+        if build_default_thinking_adapter is not None:
+            lifeform = lifeform.with_thinking_adapter_factory(
+                build_default_thinking_adapter
+            )
         # Publish the Act surface on every companion turn even when the
         # registry is empty. This does not invent a tool or a routing rule.
         lifeform.ensure_affordance_registry()

@@ -59,7 +59,7 @@ from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeKind,
 )
-from volvence_zero.environment import build_environment_event
+from volvence_zero.environment import EnvironmentFrame, build_environment_event
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import MemoryStore
 from volvence_zero.semantic_state import (
@@ -1762,6 +1762,7 @@ class LifeformSession:
         trigger_kind: TurnTriggerKind = TurnTriggerKind.USER_INPUT,
         environment_provenance: str | None = None,
         environment_consent_context: tuple[str, ...] = (),
+        environment_frame: EnvironmentFrame | None = None,
     ) -> Any:
         """Run one turn through the kernel.
 
@@ -1819,6 +1820,7 @@ class LifeformSession:
                 payload_summary=user_input,
                 scene_id=open_scene.scene_id,
                 timestamp_ms=self._tick.tick_index,
+                frame=environment_frame,
                 provenance=(
                     environment_provenance
                     if environment_provenance is not None

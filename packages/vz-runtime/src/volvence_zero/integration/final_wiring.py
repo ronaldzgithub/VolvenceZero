@@ -63,7 +63,9 @@ from volvence_zero.dual_track import (
     DualTrackSnapshot,
 )
 from volvence_zero.evaluation import (
+    CrossGenerationAggregatorModule,
     CrossSessionBenchmarkSuite,
+    ExpensiveLayerModule,
     EvaluationBackbone,
     EvaluationReport,
     EvaluationModule,
@@ -72,6 +74,7 @@ from volvence_zero.evaluation import (
     EvolutionDecision,
     EvolutionJudgement,
     JudgementCategory,
+    MidLayerModule,
 )
 from volvence_zero.environment import EnvironmentEvent
 from volvence_zero.memory import MemoryModule, MemoryStore, Track, build_default_memory_store
@@ -213,6 +216,9 @@ class FinalRolloutConfig:
     # no-op in the default all-SHADOW config; validated via standalone.
     apprenticeship_protocol_alignment: WiringLevel = WiringLevel.SHADOW
     evaluation: WiringLevel = WiringLevel.ACTIVE
+    evaluation_mid: WiringLevel = WiringLevel.SHADOW
+    evaluation_expensive: WiringLevel = WiringLevel.DISABLED
+    evaluation_cross_generation: WiringLevel = WiringLevel.DISABLED
     prediction_error: WiringLevel = WiringLevel.ACTIVE
     regime: WiringLevel = WiringLevel.ACTIVE
     credit: WiringLevel = WiringLevel.ACTIVE
@@ -1817,6 +1823,18 @@ def build_final_runtime_modules(
         CreditModule(
             pending_proposals=credit_proposals,
             wiring_level=config.level_for("credit", WiringLevel.SHADOW),
+        ),
+        MidLayerModule(
+            wiring_level=config.level_for("evaluation_mid", WiringLevel.SHADOW),
+        ),
+        ExpensiveLayerModule(
+            wiring_level=config.level_for("evaluation_expensive", WiringLevel.DISABLED),
+            generation_id=wave_id,
+        ),
+        CrossGenerationAggregatorModule(
+            wiring_level=config.level_for(
+                "evaluation_cross_generation", WiringLevel.DISABLED
+            ),
         ),
         AuditModule(
             wiring_level=config.level_for("audit", WiringLevel.SHADOW),

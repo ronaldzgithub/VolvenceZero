@@ -298,6 +298,22 @@ class SessionLifecycleMixin:
             self._semantic_state_store, "semantic_state"
         )
         persisted.append("semantic_state")
+        self._owner_hydration_store.export_and_save_owner(
+            self._regime_module, "regime"
+        )
+        persisted.append("regime")
+        self._owner_hydration_store.export_and_save_owner(
+            self._prediction_module, "prediction_error_heads"
+        )
+        persisted.append("prediction_error_heads")
+        self._owner_hydration_store.export_and_save_owner(
+            self._dual_track_gate_learner, "dual_track_gate_learner"
+        )
+        persisted.append("dual_track_gate_learner")
+        self._owner_hydration_store.export_and_save_owner(
+            self._social_record_store, "social_record_store"
+        )
+        persisted.append("social_record_store")
         return tuple(persisted)
 
     def begin_new_context(self, *, reason: str = "manual") -> tuple[str, ...]:

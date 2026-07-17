@@ -101,6 +101,24 @@ OWNER_HYDRATION_MATRIX: tuple[OwnerHydrationMatrixEntry, ...] = (
         reason="Protocol registry is hydratable when the application owner exposes the protocol.",
     ),
     OwnerHydrationMatrixEntry(
+        owner_name="social_record_store",
+        decision="hydrate",
+        storage_key=_key_for("social_record_store"),
+        reason="ToM, common-ground, and group social state are owner-held records that must survive session boundaries.",
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="prediction_error_heads",
+        decision="hydrate",
+        storage_key=_key_for("prediction_error_heads"),
+        reason="PredictionErrorModule owns learned PE critic and predictive-head parameters.",
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="dual_track_gate_learner",
+        decision="hydrate",
+        storage_key=_key_for("dual_track_gate_learner"),
+        reason="DualTrackGateLearner is session-held learned state for the dual-track SHADOW gate candidate.",
+    ),
+    OwnerHydrationMatrixEntry(
         owner_name="memory",
         decision="external-owner",
         storage_key="memory/store",
@@ -108,9 +126,9 @@ OWNER_HYDRATION_MATRIX: tuple[OwnerHydrationMatrixEntry, ...] = (
     ),
     OwnerHydrationMatrixEntry(
         owner_name="regime",
-        decision="explicit-no-hydrate",
-        storage_key="none",
-        reason="Regime persists through its owner/readouts; no hydratable protocol is implemented yet.",
+        decision="hydrate",
+        storage_key=_key_for("regime"),
+        reason="RegimeModule owns persistent regime identity, delayed payoff, and bounded calibration state.",
     ),
     OwnerHydrationMatrixEntry(
         owner_name="world_temporal",

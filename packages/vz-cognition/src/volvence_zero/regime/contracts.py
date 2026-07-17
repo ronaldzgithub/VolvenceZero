@@ -207,6 +207,26 @@ class RegimeSelectionWeights:
 
 
 @dataclass(frozen=True)
+class RegimeLearnedScoreShadow:
+    """Report-only learned regime scorer candidate.
+
+    The live regime choice remains ``candidate_regimes``. This readout
+    lets evidence compare the learned candidate against the hand-crafted
+    scorer without changing behavior.
+    """
+
+    learned_scores: tuple[tuple[str, float], ...]
+    baseline_scores: tuple[tuple[str, float], ...]
+    update_count: int
+    running_abs_error: float
+    last_target_regime_id: str
+    ready: bool
+    kill_recommended: bool
+    blocking_reasons: tuple[str, ...]
+    description: str
+
+
+@dataclass(frozen=True)
 class RegimeBootstrap:
     """Pre-trained regime classifier state.
 
@@ -245,6 +265,7 @@ class RegimeSnapshot:
     effectiveness_trend: tuple[tuple[str, float], ...] = ()
     regime_changed: bool = False
     selection_weights: RegimeSelectionWeights | None = None
+    learned_score_shadow: RegimeLearnedScoreShadow | None = None
     # Gap 8: participation + cognitive-depth hints. Defaults are the
     # "neutral / fully-structured / focused" baseline so pre-Gap-8
     # consumers keep seeing the same behaviour when they ignore the
@@ -273,6 +294,15 @@ class RegimeCheckpoint:
     regime_sequence: tuple[str, ...] = ()
     sequence_payoffs: tuple["RegimeSequencePayoff", ...] = ()
     attribution_horizons: tuple[int, ...] = (2,)
+    selection_weights: tuple[tuple[str, float], ...] = ()
+    feature_weights: tuple[tuple[str, tuple[tuple[str, float], ...]], ...] = ()
+    external_outcome_scores: tuple[tuple[str, float], ...] = ()
+    learned_score_weights: tuple[tuple[str, tuple[float, ...]], ...] = ()
+    learned_score_update_count: int = 0
+    learned_score_abs_error_sum: float = 0.0
+    learned_score_baseline_abs_error_sum: float = 0.0
+    learned_score_settled_count: int = 0
+    learned_score_last_target_regime_id: str = ""
 
 
 @dataclass(frozen=True)

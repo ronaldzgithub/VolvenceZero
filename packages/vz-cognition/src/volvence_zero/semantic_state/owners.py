@@ -23,6 +23,7 @@ from volvence_zero.owner_prediction import (
     settle_owner_prediction,
 )
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.social_cognition import MultiPartyIdentitySnapshot
 from volvence_zero.substrate import SubstrateSnapshot
 
 from volvence_zero.semantic_state.contracts import (
@@ -648,6 +649,7 @@ class UserModelModule(SemanticOwnerModule):
     slot_name = "user_model"
     owner = "UserModelModule"
     value_type = UserModelSnapshot
+    dependencies = ("substrate", "memory", "multi_party_identity")
     # CP-16 boundary: user_model predicts only its AGGREGATE pacing /
     # stability readout; per-person belief / intent / feeling / preference
     # predictions belong to the ToM owners.
@@ -655,6 +657,24 @@ class UserModelModule(SemanticOwnerModule):
         OwnerPredictionKind.USER_MODEL_PACING
     )
     owner_prediction_track: ClassVar[str] = "self"
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._current_interlocutor_ids: tuple[str, ...] = ()
+
+    async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[UserModelSnapshot]:
+        identity_snapshot = upstream.get("multi_party_identity")
+        if (
+            identity_snapshot is not None
+            and isinstance(identity_snapshot.value, MultiPartyIdentitySnapshot)
+        ):
+            self._current_interlocutor_ids = tuple(
+                identity.interlocutor_id
+                for identity in identity_snapshot.value.interlocutors
+            )
+        else:
+            self._current_interlocutor_ids = ()
+        return await super().process(upstream)  # type: ignore[return-value]
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> UserModelSnapshot:
         sensitive_boundaries = _records_with_status(records, "blocked")
@@ -701,6 +721,7 @@ class UserModelModule(SemanticOwnerModule):
             decision_style=decision_style,
             overwhelm_pattern_strength=overwhelm_pattern_strength,
             owner_prediction_signals=prediction_signals,
+            interlocutor_ids=self._current_interlocutor_ids,
         )
 
 

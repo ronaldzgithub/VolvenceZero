@@ -1,29 +1,433 @@
-评估完成。我读了设计源头（thesis、R1–R20 索引）、`learned-vs-heuristic-coverage`（learned 占比 SSOT）、known-debts 和最新的消融证据目录。用仓库自己的诚实纪律来回答，结论是：**认知架构的模块划分、快照契约与主链接线已具备较高完成度；learned 肌肉仍小且部分默认未接入；可外引的 thesis 因果结论与 capacity→gain scale 曲线均尚未取得。** 展开如下。
+# VolvenceZero Cognitive AGI 当前状态
 
-## 已经走到哪了
+> Status: live status summary
+> Last updated: 2026-07-17
+> 详细判断、晋升协议与命令见 [`current.md`](./current.md)。
+> 本文件只记录当前事实、剩余代码、晋升状态和下一步，不把计划写成已完成。
 
-**第一层：认知架构骨架 —— 高完成度，但仍有明确缺口（这是目前最大的资产）**
+## 1. 当前总状态
 
-R-PE + R1–R20 已有系统性的 spec、slot、owner 与契约测试覆盖，但并非每条设计律都对应一个独立 owner，也并非每条路径都已完成 SHADOW→ACTIVE 的回滚验证。PE → credit → z_t/β_t → action family → reflection → memory 的闭环骨架真实存在；CMS 多时间尺度记忆、双轨（World/Self）、regime、9 个语义 owner、ToM/共同基础、vitals、中频思考循环、affordance 和学徒对齐均已有实现与契约守门。仍未闭合的部分包括 R20 群体认知 scaffold、runtime ingestion 的 Phase 2、部分学徒协议路径，以及大量 SHADOW / DISABLED / hand-crafted 路径。因此更准确的评价是：**结构骨架和边界设计已基本齐备，但不能称“全部落地”或“结构问题已经回答完”。**
+| 维度 | 当前状态 | 完成度 | 还差什么 |
+|---|---|---:|---|
+| 架构 / 契约 / owner / 回滚骨架 | 高完成度 | 约 85–90% | social continuity、thinking→temporal、deep evaluation、protocol slow loop |
+| 第一阶段认知系统代码 | 大部分已实现 | 约 80–88% | **12–20% 关键代码**，见第 4 节 |
+| 默认 learned 决策主导度 | 较低 | 约 10–20% | temporal authoritative learned path、regime / reflection / affordance learned 化 |
+| learned backend 实现 | 已就位 | 约 70–80% | 主要剩晋升、默认接管与少量 owner 生命周期 |
+| 晋升证据 | 部分就绪 | 尚未全绿 | promotion report 的 component gates |
+| thesis 因果证据 | harness-ready | 约 5% | P1 directional + P2 held-out multi-seed |
+| 开放世界 cognitive AGI | 未开始证明 | 不适用 | 跨域、跨模态、因果结构发现、mesa-objective detection |
 
-**第二层：学习肌肉 —— 刚起步，且这是有量化基线的**
+## 2. 本轮已经取得的代码进展
 
-`learned-vs-heuristic-coverage.md`（2026-07-13 更新）将默认 wiring 下真正“学出来”的能力归为 **6 类**：PE learned critic、COCOA credit head、CMS band 更新门控、dual-track gate learner（仍为 report-only shadow）、语义 owner learned forecast，以及 ToM/common-ground prediction settlement。coverage 文档记录的是首批 5 个语义 owner；当前代码与契约测试已把 forecast 覆盖到 9 个语义 slot。按运行时适应影响力粗估，除 `vz-memory`（约 45–55%，CMS 门控主导）外，其他 wheel 大致为 5–20%，其中 `vz-temporal` 默认路径约 5%、实际生效的论文级 learned backend 接近 0%。最关键的一点是：**torch metacontroller、Internal RL 与 ndim GRU 已实现，但四个 torch backend 默认均为 DISABLED，且默认 `n_z=3` 不实例化 ndim 参数。** 7 月 13 日 run manifest 也记录四个 backend 均为 `disabled`。因此当前主路径的时间抽象仍主要由纯 Python legacy 启发式实现承担。
+### Learned 部件从 6 类扩展到 14 类
 
-**第三层：因果证据 —— 工具链就绪，verdict 还没拿到**
+当前 coverage 登记的主要 bounded-learned 部件包括：
 
-同基底主矩阵（raw / ref-harness / CAMEL / volvence-cold / volvence）与 component-causal 四臂（PE-off / ETA-off / active-learning-off / LoRA-adapter）现在已接成 **9-track serving roster**，fingerprint、health、summary 与 verdict gate 都已扩到 9 轨；冻结 claim registry 仍是 **5 条 retain claim**。P0 9-track smoke 已跑通，P1 / P2 也已有 9-track dry-run 命令链；C1 judge-evidence 已能从 score summaries 产出非 dry-run summary artifact。EQ-Bench 3 在 synthetic vertical 上有 45/45 wiring dry-run 记录，但真实 Qwen、真实裁判和三轨评分尚未完成。7 月 13 日真跑生成了 run manifest、fingerprint、局部 scores、日志与 `arc_failure.jsonl`，但没有完整 summary 或 verdict；失败既包含超时，也包含 SSL/URL 错误。learned-shadow 方面：3-turn full smoke、HF/CPU smoke、5×10 chunk smoke 均通过；但 Windows 连续 500-turn CUDA / HF-CPU / synthetic full lane 均触发 native crash（`0xC0000005` / `0xC0000409`），因此 **连续 500-turn real-trace artifact 仍未取得，需要 Linux/GPU lane 重跑**。仓库已有 P0、合成、单元 A/B、hosted directional 与新的 smoke 证据，但**到今天为止，没有任何 `first-stage-retained` 级别、可外引的因果结论。**
+1. PE learned critic；
+2. COCOA rewarding-state head；
+3. CMS learned band gate；
+4. DualTrackGateLearner；
+5. semantic owner forecast；
+6. ToM / common-ground prediction settlement；
+7. learned action-family matching；
+8. learnable β_t threshold；
+9. PE external-outcome / AAC calibration；
+10. regime outcome calibration；
+11. GateRiskLearner / ScheduleGateLearner；
+12. group durability learned score；
+13. CMS torch SHADOW settle / promotion readout；
+14. PEFT LoRA rare-heavy backend。
 
-## 距离"认知 AGI"还差多少
+其中部分是 ACTIVE，部分仍是 SHADOW / report-only，不能将“14 类代码存在”解释为“14 类均已主导运行时”。
 
-按 thesis 自己定义的刻度，还隔着三道门，依次是：
+### 2026-07-16 至 2026-07-17 主要闭合项
 
-**第一道门（近端，周期取决于算力、keys、serving 与预算）：证明骨架里的学习是真的。** #87 的冻结 registry 现有 5 条 retain claim，要求完整 pipeline、PE、ETA、主动学习与训练增量在同基底 matched controls 下显著优于 raw、memory/RAG、agent framework、LoRA 和随机采样等基线。这道门有明确 kill 条件：如果主动学习不优于随机采样、控制器不优于普通 memory/RAG，或训练 bootstrap 无增量，thesis 应收缩为产品型 memory / companion 公司。仓库已有不含完整 Volvence 因果矩阵的 hosted directional runs，但**完整 P1/P2 retain 问题尚未被正面检验**。
+- `temporal_profile="learned-ndim"` 可实例化 ndim controller；
+- torch metacontroller、SSL、Internal RL、CMS torch 的 owner-local 晋升路径已齐；
+- action-family matching learned 化；
+- PE / regime 静态表降为 learned calibrator 的初始化与回滚点；
+- PE memory write gate learned 化；
+- DualTrackGateLearner 增 promotion / checkpoint / rollback；
+- evaluation mid / expensive / cross-generation 从空壳变为实体 readout；
+- semantic embedding 多 substrate 隔离代码；
+- rare-heavy 真 PEFT LoRA backend；
+- apprenticeship protocol conflict → typed revision proposal；
+- web ingestion 与 teaching-case 路径；
+- R20 group durability prediction / settlement；
+- DLaaS evaluation 真实现。
 
-**第二道门（中期）：把 learned 肌肉接进主链并证明 scale 曲线。** 三个 torch backend + cms_torch_backend 走 SHADOW→ACTIVE，`n_z ∈ {3,16,64,256}` 容量阶梯 × ≥500 turn 真 trace 的增益曲线（#86/#88）。同时消化那个"显著的 should-be-learned-but-hand-crafted 桶"——regime 打分固定系数、硬编码 regime_id 映射、外部 outcome 静态 bias 表等（#79–#81、#88–#91）。这决定了系统是"有学习架构"还是"在学习"。
+### 证据执行面进展
 
-**第三道门（北极星，thesis 明言是未来里程碑而非当前目标）："奇点刻度"**——在很大程度未知的连续环境中，凭 <10 次有效反馈自主重构环境因果结构并迁移到不相关新环境。这与当前状态之间的距离目前无法用工程量估算，它依赖前两道门的结果来判断路线本身是否成立。
+- learned-shadow smoke 与四 backend SHADOW profile 已有；
+- 连续 509 real-trace artifact 已形成；
+- 9-track same-substrate serving roster 已形成；
+- P1 / P2 driver、fingerprint、claim registry、promotion evaluator 已有；
+- 当前仍无 P2 `first-stage-retained` verdict。
 
-## 一句话总结
+## 3. 默认 authoritative 路径事实
 
-如果把“cognitive AGI”拆成 **结构（架构闭环）→ 肌肉（真实 learned 部件）→ 证据（因果 ablation）→ 泛化（奇点刻度）** 四段：结构骨架与契约边界已达较高完成度，但 R20、ingestion Phase 2、protocol-level apprenticeship 与 should-be-learned 桶仍开放；默认 learned 肌肉较小，且核心 ETA backend 尚未成为 authoritative 主路径；已有工程和方向性证据，但可外引的 thesis retain 证据仍为空；奇点刻度所要求的开放环境泛化尚未开始。当前关键路径是 **500-turn real-trace soak + 完整同基底 ablation**，同时还要完成真 LoRA artifact、跨家族 judge robustness / human anchor 与 SHADOW→ACTIVE 晋升证据。瓶颈更准确地说是**算力、代码接线、运维与证据编排的组合**；这些实验会首次对路线是否值得继续加注给出 retain / kill 级答案。
+### 当前默认配置
+
+```text
+substrate_mode = synthetic
+temporal_latent_dim = 3
+temporal_ssl_backend = DISABLED
+temporal_runtime_backend = DISABLED
+internal_rl_backend = DISABLED
+cms_torch_backend = DISABLED
+```
+
+因此默认运行时仍是：
+
+- synthetic substrate；
+- legacy 3 维 z_t recurrence；
+- 手写 β_t gate 公式；
+- analytic / heuristic Internal RL baseline；
+- pure-Python CMS band update；
+- learned backend 不写 live state。
+
+### 默认已经 ACTIVE 的核心结构
+
+- substrate / memory / retrieval；
+- dual-track；
+- prediction error；
+- credit；
+- regime；
+- reflection；
+- 9 semantic owners；
+- multi-party identity / conversational role；
+- ToM 四 owner；
+- common ground；
+- rupture state / interlocutor state；
+- apprenticeship alignment；
+- session post slow loop；
+- owner hydration（有 persistence backend 时）。
+
+### 仍 SHADOW / DISABLED 的关键项
+
+| 项 | 默认状态 | 说明 |
+|---|---|---|
+| `apprenticeship_protocol_alignment` | SHADOW | protocol 层只比较 / 提案，不进 active chain |
+| `groups` | SHADOW | group PE 代码已有，尚未晋升 |
+| `protocol_reflection` | SHADOW | background protocol reflection 未晋升 |
+| `protocol_revision_queue` | SHADOW | 人审队列路径未晋升 |
+| `protocol_temporal_prior` | DISABLED | protocol mixture 不进入 β_t |
+| `audit` | SHADOW | audit owner 非 authoritative |
+| temporal runtime / SSL / Internal RL / CMS torch | DISABLED | 四个核心 learned backend |
+| evaluation mid / expensive / cross-generation | DISABLED / off-path | 代码已实体化，默认深层级联未接管 |
+
+## 4. 剩余 12–20% 关键代码
+
+这些不是“测试跑完就会完成”的项目。
+
+### P0-1：learned regime selector
+
+当前：
+
+- 六 regime 主评分仍是固定系数特征工程；
+- learned selection weight 只做外围校准。
+
+要做：
+
+- Regime owner 内 trace-conditioned learned scorer；
+- baseline / learned SHADOW 双跑；
+- delayed PE-derived settlement；
+- checkpoint / reset / kill condition；
+- evaluation 只读，不作为训练源。
+
+完成标准：
+
+- ≥500 turn held-out 增益；
+- 无 unsafe switching；
+- 可恢复到当前 scorer。
+
+### P0-2：全部 adaptive owner 的跨 session continuity
+
+当前已持久化：
+
+- memory；
+- semantic state；
+- vitals；
+- followup；
+- protocol registry。
+
+仍需闭合：
+
+- SocialRecordStore / ToM / common ground / group durability；
+- regime live learned state；
+- temporal learned controller checkpoint 自动续接；
+- PE / credit / dual-track 等 learned heads 的关系级参数生命周期。
+
+约束：
+
+- 每个 owner 自己导出 snapshot / checkpoint；
+- runtime 只负责保存与加载；
+- 禁止 generic store 直写内部字段；
+- temporal 不复制为第二 owner；
+- user scope、schema version、fingerprint、rollback 必须完整。
+
+### P0-3：多人社会认知产品路径
+
+当前：
+
+- 默认 turn 仍主要是 `primary/self`；
+- ToM / common ground 有 owner，但无 LLM / EnvironmentEvent 时 fail-closed；
+- per-interlocutor semantic state 不完整；
+- groups 仍 SHADOW。
+
+要做：
+
+- speaker / addressee / subject / audience 的正式产品输入；
+- per-interlocutor keyed owner；
+- social state 跨 session；
+- wrong-person / wrong-audience PE；
+- group owner ACTIVE consumer。
+
+### P0-4：thinking → temporal 闭环
+
+当前：
+
+- thinking scheduler / worker / fingerprint guard 已有；
+- companion 默认未完整接入；
+- advisory 不影响 β_t / z_t。
+
+要做：
+
+- production thinking factory；
+- thinking owner 发布 compact advisory；
+- temporal owner 消费；
+- SHADOW 双跑；
+- stale artifact fail closed；
+- 不阻塞实时 turn。
+
+### P1-1：learned affordance selection
+
+当前仍含 hash·z_t score 与固定阈值。目标是 temporal owner 发布 learned affordance/action-family candidate，AffordanceModule 只负责 registry、safety、rate limit、schema 和执行。
+
+### P1-2：World / Self predictive model 扩容
+
+当前是小型 head、低维向量、规则状态机与 bounded forecast。仍需：
+
+- compositional latent state；
+- counterfactual rollout；
+- delayed outcome attribution；
+-高容量但有界的 World / Self 分轨学习；
+- checkpoint 与 kill condition。
+
+### P1-3：9 semantic owner proposal 覆盖
+
+当前 LLM structured path 主要覆盖 5/9 owner。需要补 `plan_intent`、`open_loop`、`execution_result`、`belief_assumption` 等正式 typed proposal source，但最终写入仍由各 owner 单写。
+
+### P1-4：learned reflection / consolidation
+
+当前 promotion、decay、policy consolidation、tension、lesson 仍以阈值为主。需要先做 owner-local SHADOW candidate，再由 evidence 决定是否 ACTIVE。
+
+### P1-5：deep evaluation 正式 SHADOW 接线
+
+mid / expensive / cross-generation 代码已在，但需要：
+
+- 注册进主 DAG；
+- persona / function direction 基底；
+-跨 generation drift；
+-只读异常监控；
+-禁止进入 reward。
+
+## 5. 四 backend 晋升状态
+
+晋升顺序固定：
+
+```text
+temporal runtime
+    ↓
+temporal SSL
+    ↓
+Internal RL
+    ↓
+CMS torch
+```
+
+不能并行一次性 ACTIVE。
+
+### 通用 gate
+
+- `real_trace_turns >= 500`
+- `validation_delta >= 0.02`
+- strict ETA gate
+- PE-off control direction
+- ETA-off control direction
+- rollback drill
+- latency SLO
+- safety gate
+
+### 组件附加 gate
+
+- SSL：runtime 必须已 ACTIVE；
+- Internal RL：runtime + SSL 已 ACTIVE，且 no reward leakage；
+- CMS torch：retention 不退化、absorption 有提升。
+
+### 当前判断
+
+| 组件 | 实现 | SHADOW | ACTIVE 资格 |
+|---|---|---|---|
+| temporal runtime | 已有 | 已有 dual-run | 未确认全 gate |
+| temporal SSL | 已有 | 已有 autograd copy-run | 等 runtime 晋升 + 全 gate |
+| Internal RL | 已有 | 已有 PPO evidence path | 等 runtime / SSL + leakage gate |
+| CMS torch | 已有 | 已有 parity / MSE / rollback | 等 retention / absorption + 全 gate |
+
+## 6. 下一步执行命令
+
+### Step A：恢复执行完整 learned evidence
+
+```bash
+bash run_learned_active_evidence.sh \
+  --resume \
+  --substrate-mode hf \
+  --substrate-device mps
+```
+
+CUDA host 将 `mps` 改为 `cuda`。
+
+runner 阶段：
+
+```text
+shadow-smoke
+platform-chunked-soak
+real-soak
+capacity-ladder
+same-substrate-ablation
+build-promotion-evidence
+evaluate-promotion
+```
+
+### Step B：执行真实 capacity ladder
+
+```bash
+bash run_learned_active_evidence.sh \
+  --only capacity-ladder \
+  --force-stage \
+  --execute-capacity \
+  --capacity-n-z 16,64,256 \
+  --capacity-turns 500 \
+  --substrate-mode hf \
+  --substrate-device mps
+```
+
+### Step C：执行 P1 9-track
+
+```bash
+bash run_companion_bench_p1.sh --resume
+```
+
+产物：
+
+```text
+artifacts/companion-ablation/<run-id>/verdict_p1.json
+```
+
+### Step D：接入 verdict 并生成 promotion report
+
+```bash
+bash run_learned_active_evidence.sh \
+  --resume \
+  --substrate-mode hf \
+  --substrate-device mps \
+  --ablation-verdict artifacts/companion-ablation/<run-id>/verdict_p1.json
+```
+
+检查：
+
+```text
+artifacts/learned_active_evidence/promotion/promotion_report.json
+```
+
+目标：
+
+```text
+all_eligible=true
+```
+
+若为 false，按 component 的 `missing_gates` 逐项处理，不放宽门槛。
+
+### Step E：P2 held-out multi-seed
+
+P1 只提供 directional evidence。P2 必须加入：
+
+- held-out；
+- multi-seed；
+- cross-family judge；
+- blinded human anchor；
+- longitudinal 20-session；
+- relationship continuity；
+- uncertainty interval；
+-严格同 substrate / prompt / context / tool budget。
+
+## 7. ACTIVE 发布与回滚
+
+每次只晋升一个组件：
+
+1. 冻结 evidence bundle 与 git SHA；
+2. 只改一个 wiring；
+3. 小 cohort canary；
+4. 比较 learned vs rollback snapshot；
+5. 监控 PE、regime switching、memory retention、latency、安全；
+6. 达到退出条件后扩大；
+7. 再开始下一个组件。
+
+立即回滚条件：
+
+- validation delta 转负；
+- control direction 反转；
+- unsafe switching；
+- reward leakage；
+- CMS retention 退化；
+- absorption 无提升；
+- fingerprint / schema mismatch；
+- latency / safety gate 失败；
+- learned state 无法恢复。
+
+回滚：
+
+- wiring 恢复 SHADOW / DISABLED；
+- 恢复晋升前 checkpoint；
+- 保留失败 trace 与 generation；
+- 更新 promotion artifact / known debt；
+- 禁止在下游写补丁掩盖上游失败。
+
+## 8. 当前结论等级
+
+| 等级 | 当前是否达到 | 说明 |
+|---|---|---|
+| `wiring-ready` | 基本达到 | 代码、schema、SHADOW、runner 齐 |
+| `promotion-eligible` | 未整体达到 | 需逐组件 `all_eligible` |
+| `first-stage-retained` | 未达到 | 需 P2 held-out multi-seed |
+| `cognitive AGI thesis stronger` | 未达到 | 需长程、多域、跨 substrate、开放环境 |
+
+## 9. 当前最高优先级
+
+代码线：
+
+```text
+adaptive owner continuity
+→ learned regime SHADOW
+→ multi-party product path
+→ thinking→temporal SHADOW
+→ deep evaluation SHADOW
+```
+
+证据线：
+
+```text
+读取现有 509 real-trace missing_gates
+→ capacity ladder
+→ P1 9-track
+→ promotion report
+→ runtime ACTIVE canary
+→ SSL
+→ Internal RL
+→ CMS torch
+→ P2 held-out multi-seed
+```
+
+## 10. 最简状态陈述
+
+> VolvenceZero 的认知骨架约完成 85–90%，仓库定义的第一阶段认知代码约完成 80–88%，剩余 12–20% 是长期 owner continuity、learned regime、多人社会认知、thinking→temporal 和深层只读监控等关键闭环。14 类 learned 部件与四个 torch backend 已有代码，但默认 learned 决策主导度仍仅约 10–20%；四 backend 仍需按 runtime→SSL→Internal RL→CMS 顺序通过 ≥500 real trace、validation delta、控制臂、回滚、性能、安全与 P2 held-out multi-seed 后逐组件晋升。当前可以称 wiring-ready，不能称 first-stage-retained，更不能称 cognitive AGI 已完成。

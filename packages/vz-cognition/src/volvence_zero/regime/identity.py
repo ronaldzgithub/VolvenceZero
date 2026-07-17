@@ -19,6 +19,12 @@ from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.prediction.error import PredictionErrorSnapshot
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 from volvence_zero.regime.contracts import (
@@ -40,6 +46,10 @@ from volvence_zero.regime.hints import (
     ParticipationLevel,
     derive_cognitive_depth_hint,
     derive_participation_hint,
+)
+from volvence_zero.regime.score_learner import (
+    RegimeScoreLearner,
+    RegimeScoreLearnerState,
 )
 from volvence_zero.regime.scoring import (
     _abstract_action_profile,
@@ -97,6 +107,8 @@ _EXTERNAL_OUTCOME_REGIME_SCORE: dict[DialogueExternalOutcomeKind, float] = {
 # score may drift at most this far from its table initialisation.
 _EXTERNAL_OUTCOME_SCORE_ENVELOPE = 0.12
 _EXTERNAL_OUTCOME_SCORE_LR = 0.10
+_REGIME_OWNER_NAME = "regime"
+_REGIME_SCHEMA_VERSION = 1
 
 
 class RegimeModule(RuntimeModule[RegimeSnapshot]):
@@ -207,6 +219,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         self._effectiveness_history: dict[str, list[float]] = {
             template.regime_id: [] for template in REGIME_TEMPLATES
         }
+        self._score_learner = RegimeScoreLearner()
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[RegimeSnapshot]:
         from volvence_zero.application.runtime import ExperienceFastPriorSnapshot
@@ -263,6 +276,11 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             feature_weights=self._feature_weights,
             experience_regime_biases=experience_regime_biases,
         )
+        learned_score_shadow = self._score_learner.score(
+            baseline_scores=candidates,
+            historical_effectiveness=self._historical_effectiveness,
+            strategy_priors=self._strategy_priors,
+        )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
         regime_changed = self._active_regime_id != previous_active and previous_active is not None
@@ -284,6 +302,11 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             action_family_version=action_family_version,
         )
         delayed_attributions = delayed_attributions_internal + external_attributions
+        for attribution in delayed_attributions:
+            self._score_learner.observe_delayed_payoff(
+                regime_id=attribution.regime_id,
+                outcome_score=attribution.outcome_score,
+            )
         delayed_outcomes = tuple(
             (item.regime_id, item.outcome_score) for item in delayed_attributions
         )
@@ -333,6 +356,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
                     weights=tuple(sorted(self._selection_weights.items())),
                     learning_rate=self._selection_weight_lr,
                 ),
+                learned_score_shadow=learned_score_shadow,
                 description=description,
                 # Gap 8 slice 2: hint derivation routed through
                 # ``_derive_hints`` (readout vs scaffold mode).
@@ -384,6 +408,11 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             feature_weights=self._feature_weights,
             experience_regime_biases=experience_regime_biases,
         )
+        learned_score_shadow = self._score_learner.score(
+            baseline_scores=candidates,
+            historical_effectiveness=self._historical_effectiveness,
+            strategy_priors=self._strategy_priors,
+        )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
         regime_changed = self._active_regime_id != previous_active and previous_active is not None
@@ -394,6 +423,11 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             action_family_version=action_family_version,
         )
         self._regime_sequence.append(self._active_regime_id or chosen_regime_id)
+        for attribution in delayed_attributions:
+            self._score_learner.observe_delayed_payoff(
+                regime_id=attribution.regime_id,
+                outcome_score=attribution.outcome_score,
+            )
         identity_hints = self._identity_hints(memory_snapshot)
         active_regime = build_regime_identity(
             regime_id=self._active_regime_id or chosen_regime_id,
@@ -434,6 +468,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
                     weights=tuple(sorted(self._selection_weights.items())),
                     learning_rate=self._selection_weight_lr,
                 ),
+                learned_score_shadow=learned_score_shadow,
                 description="Standalone regime snapshot.",
                 # Gap 8 slice 2: routed through ``_derive_hints``.
                 participation_hint=participation_hint,
@@ -925,6 +960,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         return tuple(applied)
 
     def create_checkpoint(self, *, checkpoint_id: str) -> RegimeCheckpoint:
+        score_state = self._score_learner.export_state()
         return RegimeCheckpoint(
             checkpoint_id=checkpoint_id,
             historical_effectiveness=tuple(sorted(self._historical_effectiveness.items())),
@@ -942,6 +978,24 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             regime_sequence=tuple(self._regime_sequence),
             sequence_payoffs=self._sorted_sequence_payoffs(),
             attribution_horizons=self._attribution_horizons,
+            selection_weights=tuple(sorted(self._selection_weights.items())),
+            feature_weights=tuple(
+                (regime_id, tuple(sorted(weights.items())))
+                for regime_id, weights in sorted(self._feature_weights.items())
+            ),
+            external_outcome_scores=tuple(
+                (kind.value, score)
+                for kind, score in sorted(
+                    self._external_outcome_scores.items(),
+                    key=lambda item: item[0].value,
+                )
+            ),
+            learned_score_weights=score_state.weights,
+            learned_score_update_count=score_state.update_count,
+            learned_score_abs_error_sum=score_state.abs_error_sum,
+            learned_score_baseline_abs_error_sum=score_state.baseline_abs_error_sum,
+            learned_score_settled_count=score_state.settled_count,
+            learned_score_last_target_regime_id=score_state.last_target_regime_id,
         )
 
     def restore_checkpoint(self, checkpoint: RegimeCheckpoint) -> None:
@@ -966,6 +1020,284 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             for item in checkpoint.sequence_payoffs
         }
         self._attribution_horizons = checkpoint.attribution_horizons
+        known_ids = {template.regime_id for template in REGIME_TEMPLATES}
+        if checkpoint.selection_weights:
+            self._selection_weights = {
+                template.regime_id: self._selection_weights.get(template.regime_id, 1.0)
+                for template in REGIME_TEMPLATES
+            }
+            for regime_id, weight in checkpoint.selection_weights:
+                if regime_id in known_ids:
+                    self._selection_weights[regime_id] = max(0.85, min(1.15, float(weight)))
+        if checkpoint.feature_weights:
+            self._feature_weights = {
+                template.regime_id: {} for template in REGIME_TEMPLATES
+            }
+            for regime_id, entries in checkpoint.feature_weights:
+                if regime_id in known_ids:
+                    self._feature_weights[regime_id] = {
+                        feature_name: max(-0.75, min(0.75, float(value)))
+                        for feature_name, value in entries
+                    }
+        if checkpoint.external_outcome_scores:
+            self._external_outcome_scores = dict(_EXTERNAL_OUTCOME_REGIME_SCORE)
+            for kind_value, score in checkpoint.external_outcome_scores:
+                kind = DialogueExternalOutcomeKind(kind_value)
+                baseline = _EXTERNAL_OUTCOME_REGIME_SCORE[kind]
+                self._external_outcome_scores[kind] = max(
+                    baseline - _EXTERNAL_OUTCOME_SCORE_ENVELOPE,
+                    min(baseline + _EXTERNAL_OUTCOME_SCORE_ENVELOPE, float(score)),
+                )
+        self._score_learner.restore_state(
+            RegimeScoreLearnerState(
+                weights=checkpoint.learned_score_weights,
+                update_count=checkpoint.learned_score_update_count,
+                abs_error_sum=checkpoint.learned_score_abs_error_sum,
+                baseline_abs_error_sum=checkpoint.learned_score_baseline_abs_error_sum,
+                settled_count=checkpoint.learned_score_settled_count,
+                last_target_regime_id=checkpoint.learned_score_last_target_regime_id,
+            )
+        )
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        checkpoint = self.create_checkpoint(checkpoint_id="regime:hydration")
+        return OwnerPersistenceSnapshot(
+            owner_name=_REGIME_OWNER_NAME,
+            schema_version=_REGIME_SCHEMA_VERSION,
+            payload=_serialize_regime_checkpoint(checkpoint),
+            description=(
+                f"RegimeModule snapshot v{_REGIME_SCHEMA_VERSION}: "
+                f"active={self._active_regime_id or 'none'}, turn={self._turn_index}"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        if snapshot.owner_name != _REGIME_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                f"RegimeModule expected owner_name={_REGIME_OWNER_NAME!r}, "
+                f"got {snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _REGIME_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                f"RegimeModule unsupported schema_version={snapshot.schema_version!r}; "
+                f"expected {_REGIME_SCHEMA_VERSION}"
+            )
+        checkpoint = _deserialize_regime_checkpoint(snapshot.payload)
+        self.restore_checkpoint(checkpoint)
+
+
+def _serialize_regime_checkpoint(checkpoint: RegimeCheckpoint) -> dict[str, object]:
+    return {
+        "checkpoint_id": checkpoint.checkpoint_id,
+        "historical_effectiveness": list(checkpoint.historical_effectiveness),
+        "strategy_priors": list(checkpoint.strategy_priors),
+        "active_regime_id": checkpoint.active_regime_id,
+        "previous_regime_id": checkpoint.previous_regime_id,
+        "turns_in_current_regime": checkpoint.turns_in_current_regime,
+        "turn_index": checkpoint.turn_index,
+        "pending_outcomes": [_serialize_pending_outcome(item) for item in checkpoint.pending_outcomes],
+        "last_delayed_outcomes": list(checkpoint.last_delayed_outcomes),
+        "last_delayed_attributions": [
+            _serialize_attribution(item) for item in checkpoint.last_delayed_attributions
+        ],
+        "delayed_attribution_ledger": [
+            _serialize_attribution(item) for item in checkpoint.delayed_attribution_ledger
+        ],
+        "delayed_payoffs": [_serialize_payoff(item) for item in checkpoint.delayed_payoffs],
+        "turn_evaluation_scores": list(checkpoint.turn_evaluation_scores),
+        "regime_sequence": list(checkpoint.regime_sequence),
+        "sequence_payoffs": [_serialize_sequence_payoff(item) for item in checkpoint.sequence_payoffs],
+        "attribution_horizons": list(checkpoint.attribution_horizons),
+        "selection_weights": list(checkpoint.selection_weights),
+        "feature_weights": [
+            (regime_id, list(entries)) for regime_id, entries in checkpoint.feature_weights
+        ],
+        "external_outcome_scores": list(checkpoint.external_outcome_scores),
+        "learned_score_weights": [
+            (regime_id, list(weights))
+            for regime_id, weights in checkpoint.learned_score_weights
+        ],
+        "learned_score_update_count": checkpoint.learned_score_update_count,
+        "learned_score_abs_error_sum": checkpoint.learned_score_abs_error_sum,
+        "learned_score_baseline_abs_error_sum": checkpoint.learned_score_baseline_abs_error_sum,
+        "learned_score_settled_count": checkpoint.learned_score_settled_count,
+        "learned_score_last_target_regime_id": checkpoint.learned_score_last_target_regime_id,
+    }
+
+
+def _deserialize_regime_checkpoint(payload) -> RegimeCheckpoint:
+    if not isinstance(payload, dict):
+        raise HydrationPayloadInvalidError(
+            f"RegimeModule payload must be a dict; got {type(payload).__name__}"
+        )
+    try:
+        return RegimeCheckpoint(
+            checkpoint_id=str(payload.get("checkpoint_id", "regime:hydration")),
+            historical_effectiveness=_pairs(payload.get("historical_effectiveness", ())),
+            strategy_priors=_pairs(payload.get("strategy_priors", ())),
+            active_regime_id=_optional_str(payload.get("active_regime_id")),
+            previous_regime_id=_optional_str(payload.get("previous_regime_id")),
+            turns_in_current_regime=int(payload.get("turns_in_current_regime", 0)),
+            turn_index=int(payload.get("turn_index", 0)),
+            pending_outcomes=tuple(
+                _deserialize_pending_outcome(item)
+                for item in payload.get("pending_outcomes", ())
+            ),
+            last_delayed_outcomes=_pairs(payload.get("last_delayed_outcomes", ())),
+            last_delayed_attributions=tuple(
+                _deserialize_attribution(item)
+                for item in payload.get("last_delayed_attributions", ())
+            ),
+            delayed_attribution_ledger=tuple(
+                _deserialize_attribution(item)
+                for item in payload.get("delayed_attribution_ledger", ())
+            ),
+            delayed_payoffs=tuple(
+                _deserialize_payoff(item)
+                for item in payload.get("delayed_payoffs", ())
+            ),
+            turn_evaluation_scores=tuple(
+                float(value) for value in payload.get("turn_evaluation_scores", ())
+            ),
+            regime_sequence=tuple(str(value) for value in payload.get("regime_sequence", ())),
+            sequence_payoffs=tuple(
+                _deserialize_sequence_payoff(item)
+                for item in payload.get("sequence_payoffs", ())
+            ),
+            attribution_horizons=tuple(
+                max(1, min(8, int(value)))
+                for value in payload.get("attribution_horizons", (2,))
+            ),
+            selection_weights=_pairs(payload.get("selection_weights", ())),
+            feature_weights=tuple(
+                (str(regime_id), _pairs(entries))
+                for regime_id, entries in payload.get("feature_weights", ())
+            ),
+            external_outcome_scores=_pairs(payload.get("external_outcome_scores", ())),
+            learned_score_weights=tuple(
+                (str(regime_id), tuple(float(value) for value in weights))
+                for regime_id, weights in payload.get("learned_score_weights", ())
+            ),
+            learned_score_update_count=int(payload.get("learned_score_update_count", 0)),
+            learned_score_abs_error_sum=float(payload.get("learned_score_abs_error_sum", 0.0)),
+            learned_score_baseline_abs_error_sum=float(
+                payload.get("learned_score_baseline_abs_error_sum", 0.0)
+            ),
+            learned_score_settled_count=int(payload.get("learned_score_settled_count", 0)),
+            learned_score_last_target_regime_id=str(
+                payload.get("learned_score_last_target_regime_id", "")
+            ),
+        )
+    except (TypeError, ValueError) as exc:
+        raise HydrationPayloadInvalidError(
+            f"RegimeModule payload is structurally invalid: {exc}; "
+            f"payload_keys={sorted(payload)!r}"
+        ) from exc
+
+
+def _optional_str(value) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text if text else None
+
+
+def _pairs(raw) -> tuple[tuple[str, float], ...]:
+    return tuple((str(key), float(value)) for key, value in raw)
+
+
+def _serialize_pending_outcome(item: PendingRegimeOutcome) -> dict[str, object]:
+    return {
+        "regime_id": item.regime_id,
+        "source_turn_index": item.source_turn_index,
+        "source_wave_id": item.source_wave_id,
+        "abstract_action": item.abstract_action,
+        "action_family_version": item.action_family_version,
+        "resolution_horizon_turns": item.resolution_horizon_turns,
+    }
+
+
+def _deserialize_pending_outcome(item) -> PendingRegimeOutcome:
+    return PendingRegimeOutcome(
+        regime_id=str(item["regime_id"]),
+        source_turn_index=int(item["source_turn_index"]),
+        source_wave_id=str(item["source_wave_id"]),
+        abstract_action=_optional_str(item.get("abstract_action")),
+        action_family_version=int(item.get("action_family_version", 0)),
+        resolution_horizon_turns=int(item.get("resolution_horizon_turns", 2)),
+    )
+
+
+def _serialize_attribution(item: DelayedOutcomeAttribution) -> dict[str, object]:
+    return {
+        "regime_id": item.regime_id,
+        "outcome_score": item.outcome_score,
+        "source_turn_index": item.source_turn_index,
+        "source_wave_id": item.source_wave_id,
+        "abstract_action": item.abstract_action,
+        "action_family_version": item.action_family_version,
+        "resolved_turn_index": item.resolved_turn_index,
+    }
+
+
+def _deserialize_attribution(item) -> DelayedOutcomeAttribution:
+    return DelayedOutcomeAttribution(
+        regime_id=str(item["regime_id"]),
+        outcome_score=float(item["outcome_score"]),
+        source_turn_index=int(item["source_turn_index"]),
+        source_wave_id=str(item["source_wave_id"]),
+        abstract_action=_optional_str(item.get("abstract_action")),
+        action_family_version=int(item.get("action_family_version", 0)),
+        resolved_turn_index=int(item.get("resolved_turn_index", 0)),
+    )
+
+
+def _serialize_payoff(item: DelayedOutcomePayoff) -> dict[str, object]:
+    return {
+        "regime_id": item.regime_id,
+        "abstract_action": item.abstract_action,
+        "action_family_version": item.action_family_version,
+        "sample_count": item.sample_count,
+        "rolling_payoff": item.rolling_payoff,
+        "latest_outcome": item.latest_outcome,
+        "last_source_wave_id": item.last_source_wave_id,
+    }
+
+
+def _deserialize_payoff(item) -> DelayedOutcomePayoff:
+    return DelayedOutcomePayoff(
+        regime_id=str(item["regime_id"]),
+        abstract_action=_optional_str(item.get("abstract_action")),
+        action_family_version=int(item.get("action_family_version", 0)),
+        sample_count=int(item["sample_count"]),
+        rolling_payoff=float(item["rolling_payoff"]),
+        latest_outcome=float(item["latest_outcome"]),
+        last_source_wave_id=str(item["last_source_wave_id"]),
+    )
+
+
+def _serialize_sequence_payoff(item: RegimeSequencePayoff) -> dict[str, object]:
+    return {
+        "regime_sequence": list(item.regime_sequence),
+        "family_version": item.family_version,
+        "sample_count": item.sample_count,
+        "rolling_payoff": item.rolling_payoff,
+        "latest_outcome": item.latest_outcome,
+        "last_source_wave_id": item.last_source_wave_id,
+    }
+
+
+def _deserialize_sequence_payoff(item) -> RegimeSequencePayoff:
+    return RegimeSequencePayoff(
+        regime_sequence=tuple(str(value) for value in item["regime_sequence"]),
+        family_version=int(item.get("family_version", 0)),
+        sample_count=int(item["sample_count"]),
+        rolling_payoff=float(item["rolling_payoff"]),
+        latest_outcome=float(item["latest_outcome"]),
+        last_source_wave_id=str(item["last_source_wave_id"]),
+    )
 
 __all__ = [
     "CognitiveDepth",

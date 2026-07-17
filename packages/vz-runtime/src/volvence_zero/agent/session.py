@@ -705,6 +705,10 @@ class AgentSessionRunner(
             wiring_level=self._config.level_for("regime", WiringLevel.ACTIVE),
             bootstrap=regime_bootstrap,
         )
+        if self._owner_hydration_store is not None:
+            self._owner_hydration_store.hydrate_owner_if_present(
+                self._regime_module, "regime"
+            )
         # Behavior Protocol Runtime packet 1.3''' (production wiring of
         # 1.3'' machinery): the identity seed flows through to
         # ``run_final_wiring_turn`` each turn, populating
@@ -718,13 +722,25 @@ class AgentSessionRunner(
         # ``_tom_proposal_runtime``). Fed after each turn from the PE
         # owner's published realized outcome; report-only.
         self._dual_track_gate_learner = DualTrackGateLearner()
+        if self._owner_hydration_store is not None:
+            self._owner_hydration_store.hydrate_owner_if_present(
+                self._dual_track_gate_learner, "dual_track_gate_learner"
+            )
         # W1.C (CP-16/17): session-held ToM / common-ground record store
         # so those owners keep cross-turn records, settle prior-turn
         # predictions, and drive PE-weighted promote/retire.
         self._social_record_store = SocialRecordStore()
+        if self._owner_hydration_store is not None:
+            self._owner_hydration_store.hydrate_owner_if_present(
+                self._social_record_store, "social_record_store"
+            )
         self._prediction_module = PredictionErrorModule(
             wiring_level=self._config.level_for("prediction_error", WiringLevel.ACTIVE),
         )
+        if self._owner_hydration_store is not None:
+            self._owner_hydration_store.hydrate_owner_if_present(
+                self._prediction_module, "prediction_error_heads"
+            )
         self._dialogue_external_outcome_module = DialogueExternalOutcomeModule(
             wiring_level=self._config.level_for(
                 "dialogue_external_outcome", WiringLevel.ACTIVE

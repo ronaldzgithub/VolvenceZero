@@ -9,6 +9,7 @@ from volvence_zero.regime.contracts import (
     ApplicationBrief,
     DomainHintCatalog,
     ExpressionBrief,
+    RegimeLearnedScoreShadow,
 )
 from volvence_zero.regime.identity import (
     CognitiveDepth,
@@ -55,6 +56,7 @@ __all__ = [
     "RegimeBootstrap",
     "RegimeCheckpoint",
     "RegimeIdentity",
+    "RegimeLearnedScoreShadow",
     "RegimeModule",
     "RegimeSelectionWeights",
     "RegimeSequencePayoff",

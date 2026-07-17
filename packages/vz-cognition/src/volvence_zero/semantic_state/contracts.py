@@ -475,6 +475,10 @@ class UserModelSnapshot:
     # owner predicts only its AGGREGATE pacing/stability readout — belief /
     # intent / feeling / preference about the other belong to the ToM owners.
     owner_prediction_signals: tuple[OwnerPredictionSignal, ...] = ()
+    # E2: social identity keys observed this turn. This is a readout of
+    # the canonical ``multi_party_identity`` snapshot, not a second owner
+    # for ToM / common-ground state.
+    interlocutor_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
