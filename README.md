@@ -37,6 +37,8 @@ bash run_learned_shadow_smoke.sh
 bash run_learned_shadow_soak.sh --turns 500 --substrate-mode hf --substrate-device mps
 bash run_learned_capacity_ladder.sh --n-z 16,64,256 --turns 500
 bash run_learned_promotion_evidence.sh --soak-artifact artifacts/.../learned_shadow_soak.json --ablation-verdict artifacts/.../verdict_p1.json
+bash run_affordance_learner_probe.sh
+bash run_longitudinal_continuity.sh
 ```
 
 PowerShell equivalents:
@@ -46,6 +48,8 @@ powershell -ExecutionPolicy Bypass -File .\run_learned_shadow_smoke.ps1
 powershell -ExecutionPolicy Bypass -File .\run_learned_shadow_soak.ps1 --turns 500 --substrate-mode hf --substrate-device cuda
 powershell -ExecutionPolicy Bypass -File .\run_learned_capacity_ladder.ps1 --n-z 16,64,256 --turns 500
 powershell -ExecutionPolicy Bypass -File .\run_learned_promotion_evidence.ps1 --soak-artifact artifacts\...\learned_shadow_soak.json --ablation-verdict artifacts\...\verdict_p1.json
+powershell -ExecutionPolicy Bypass -File .\run_affordance_learner_probe.ps1
+powershell -ExecutionPolicy Bypass -File .\run_longitudinal_continuity.ps1
 ```
 
 ### Evidence Boundary

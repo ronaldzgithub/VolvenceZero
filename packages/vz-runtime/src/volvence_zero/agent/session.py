@@ -913,6 +913,28 @@ class AgentSessionRunner(
         return self._dual_track_gate_learner
 
     @property
+    def credit_module(self) -> CreditModule:
+        """Session-held credit owner (G1). Exposed for evidence exporters
+        (learned-head update counts); the published CreditSnapshot remains
+        the runtime data channel.
+        """
+        return self._credit_module
+
+    @property
+    def reflection_consolidation_learner(self) -> ConsolidationScoreLearner:
+        """Session-held SHADOW consolidation learner (G4). Evidence readout
+        only; the live consolidation path never reads it.
+        """
+        return self._reflection_consolidation_learner
+
+    @property
+    def regime_module(self) -> RegimeModule:
+        """Session-held regime owner. Exposed for evidence exporters; the
+        published RegimeSnapshot remains the runtime data channel.
+        """
+        return self._regime_module
+
+    @property
     def social_record_store(self) -> SocialRecordStore:
         return self._social_record_store
 

@@ -99,6 +99,7 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
 
 ## 变更日志
 
+- 2026-07-17: G2 LLM proposal 覆盖 9/9。`_GENERIC_LLM_SLOT_IDS` 从 4 slot 扩到 8（`plan_intent` / `open_loop` / `execution_result` / `belief_assumption` 加入既有 JSON-schema generic 路径；commitment 仍走专用分类器，合计 9/9 全部 semantic owner 具备 typed LLM proposal source）。per-slot 语义说明集中在 `_GENERIC_SLOT_SEMANTIC_HINTS`（llm-prompt-centralization；原四 slot 的 prompt 字节不变）。owner 单写者、`min_proposal_confidence` 过滤、unparseable→NoOp fail-safe 均不变。测试：`tests/test_llm_semantic_runtime.py` 新四 slot 参数化用例 + hint-line 边界用例。
 - 2026-07-14: CP-12 第二波 publisher 接线（GAP-05）。`plan_intent`（kind
   `PLAN_INTENT_PROGRESS`, track world）/ `open_loop`（`OPEN_LOOP_CLOSURE`,
   world）/ `belief_assumption`（`BELIEF_ASSUMPTION_STABILITY`, world）/

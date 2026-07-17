@@ -446,6 +446,17 @@ kernel outcome.
 
 ## 变更日志
 
+- 2026-07-17: G3 learned scorer SHADOW 候选（scorer.v2 路线首切片）。新增
+  `lifeform_affordance.score_learner.AffordanceScoreLearner`：有界线性残差
+  head（v1 分数 = 初始化 + 回滚点，零权重时逐字节等于 live 分数）；
+  `AffordanceModule` 每 turn dual-run 并经
+  `AffordanceCandidate.shadow_learned_score`（默认 None，旧快照兼容）
+  report-only 发布；settlement 走 `AffordanceInvoker.set_outcome_listener`
+  接缝——仅 backend 真跑（SUCCEEDED / BACKEND_FAILED）才结算，pre-flight
+  gate 不结算；`begin_turn()` 轮换 settleable 窗口防跨 turn 错配；
+  `promotion_readout()`（≥50 settle + MAE margin）与 `reset()` 回滚。live
+  selection / safety gate / rate limit 全部不动。测试：
+  `tests/test_affordance_score_learner.py`。
 - 2026-07-12: per-turn publisher closure — `LifeformConfig.affordance_wiring`
   controls a lifeform-side `AffordanceModule`. When an affordance registry
   exists, `Lifeform.create_session()` constructs the module and

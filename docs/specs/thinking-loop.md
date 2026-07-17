@@ -328,6 +328,7 @@ ThinkingAdapter(
 
 ## 变更日志补充
 
+- 2026-07-17: G5b advisory SHADOW 路由端到端守门。companion vertical 现于 `lifeform-thinking` 可用时自动注册 `build_default_thinking_adapter`（缺依赖时行为不变）；新增 e2e 测试 `tests/lifeform_e2e/test_thinking_advisory_shadow_routing.py`：两 turn 后 `latest_thinking_advisory_routes` 产出 typed 结果（`thinking-advisory:*`），且 SHADOW（`apply_enabled=False`）下 β_t 与无 adapter 基线字节一致。ACTIVE flip（`apply_enabled=True`）仍 gate 于 advisory-on/off 长程增益证据。
 - 2026-07-14: CP-21 生产 consumer 闭合（GAP-06）。此前 worker 产出
   `MidReflectionPayload` 而 temporal owner 只接受 `ControllerPressureAdvisory`，
   且无人调用 `observe_thinking_artifact` —— 链路断开。本轮闭合：

@@ -415,6 +415,48 @@ async def main(
         "description": gate_readout.description,
     }
 
+    # G-series SHADOW learners (2026-07-17): capture settle counts +
+    # promotion readouts so a soak run doubles as their promotion-evidence
+    # accumulation lane. All report-only; none of these touch live paths.
+    regime_shadow = None
+    regime_snapshot = runner.upstream_snapshots.get("regime")
+    if regime_snapshot is not None:
+        regime_shadow = regime_snapshot.value.learned_score_shadow
+    payload["regime_score_learner"] = (
+        {
+            "update_count": regime_shadow.update_count,
+            "running_abs_error": regime_shadow.running_abs_error,
+            "last_target_regime_id": regime_shadow.last_target_regime_id,
+            "ready": regime_shadow.ready,
+            "kill_recommended": regime_shadow.kill_recommended,
+            "blocking_reasons": list(regime_shadow.blocking_reasons),
+            "description": regime_shadow.description,
+        }
+        if regime_shadow is not None
+        else {"present": False, "reason": "regime snapshot missing or shadow field unset"}
+    )
+
+    consolidation_readout = runner.reflection_consolidation_learner.promotion_readout()
+    payload["reflection_consolidation_learner"] = {
+        "settled_count": consolidation_readout.settled_count,
+        "learned_mae": consolidation_readout.learned_mae,
+        "baseline_mae": consolidation_readout.baseline_mae,
+        "mae_improvement": consolidation_readout.mae_improvement,
+        "ready": consolidation_readout.ready,
+        "kill_recommended": consolidation_readout.kill_recommended,
+        "blocking_reasons": list(consolidation_readout.blocking_reasons),
+        "description": consolidation_readout.description,
+    }
+
+    cocoa_state = runner.credit_module.ledger.export_rewarding_state_head()
+    gate_risk_state = runner.credit_module.ledger.export_gate_risk_learner()
+    payload["credit_learned_heads"] = {
+        "rewarding_state_head_update_count": cocoa_state.update_count,
+        "rewarding_state_head_last_validation_delta": cocoa_state.last_validation_delta,
+        "gate_risk_update_count": gate_risk_state.update_count,
+        "gate_risk_agreement_count": gate_risk_state.agreement_count,
+    }
+
     payload["semantic_owner_forecasts"] = {
         slot: {
             "update_count": stats[0],

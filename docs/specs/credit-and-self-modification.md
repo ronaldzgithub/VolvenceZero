@@ -184,6 +184,7 @@ class FramingAwarenessCheck:
 
 ## 变更日志
 
+- 2026-07-17: G1 session-held credit owner + `credit_heads` hydration。`CreditModule` 由 `AgentSessionRunner` 持有单实例（`final_wiring` 未注入时保留历史 per-turn 构造作为回滚路径），`set_pending_proposals` 每 turn 只刷新 proposal buffer——COCOA `_RewardingStateHead` 与 `GateRiskLearner`（新增 `GateRiskLearnerState` export/restore）从此跨 turn 累积。`CreditModule` 实现 `HydratableOwnerProtocol`（owner name `credit_heads`，schema v1，float-only payload；owner/version/payload 三类 mismatch 抛典型 `HydrationError` 子类），进入 `OWNER_HYDRATION_MATRIX` 并随 `persist_owners()` 跨 session 续接。规则 gate 级联不变（R9/R10 安全底线）；learned heads 仍不进入 gate 决策。契约测试：`tests/contracts/test_owner_hydration_{protocol,failures_loud}.py` credit 段。
 - 2026-06-20: 登记关联设计 spec [`relational-soft-verifier.md`](./relational-soft-verifier.md)（design / SHADOW-only）：拟在 `credit` owner 引入"可组合验证器 + 逐源漂移监控"与新 gate `VZ_RELATIONAL_SOFT_VERIFIER`（三阶升级，复用本 spec Wave E3 的 readout-only→acceptance-gate 协议 + rollback drill）；组内归一化 advantage 作用在 z_rel 控制器空间而非 token；外部人审锚只读不回灌。未改动本 owner，待 SHADOW 证据通过后再落地。
 - 2026-05-09: Wave E3 (debt #6 闭合候选) 增补 promotion criteria 表格，明确 `readout-only` -> `readout-with-acceptance` -> `acceptance gate` 的三阶升级标准 + rollback drill 准入要求；不修改任何运行时 owner，仅是路线图侧的契约增强。
 - 2026-05-22: OA-3 最小切片。新增 typed `FramingAwarenessCheck` / `FramingRiskKind`，并让 `evaluate_gate_reasons(...)` 在高风险且缺少 inoculation 声明时 fail-closed；不引入任何关键词推断。

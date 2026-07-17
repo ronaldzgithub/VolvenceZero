@@ -118,6 +118,7 @@ Implemented Phase 5 scaffold:
 
 ## 变更日志
 
+- 2026-07-17: G5a 首个产品级 typed consumer。`LifeformSession.group_snapshot` 从 shadow slot 读 frozen `GroupSnapshot`（含 `group_durability_score` / `settled_errors`），groups 保持 SHADOW；三人 `environment_frame` e2e（`tests/lifeform_e2e/test_group_product_consumer.py`）验证 frame-derived group id 跨 turn 持久（R14）与单主体不产生群组。这是 CP-18 ACTIVE 证据门前的诚实消费面。
 - 2026-07-16: G1 group-level PE settlement 学习闭环。`GroupModule` 复用
   ToM / common-ground 的 `settle_pending_predictions` 结算机制：
   GROUP_COMMITMENT_DURABILITY 预测停放在 `SocialRecordStore`

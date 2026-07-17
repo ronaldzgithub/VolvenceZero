@@ -213,6 +213,7 @@ def create_session(self, *, session_id, ...):
 
 ## 变更日志
 
+- 2026-07-17: P0 continuity + G1 扩容。`OWNER_HYDRATION_MATRIX` 新增五条 hydrate 条目：`social_record_store`（ToM records / common-ground atoms / group regime / group durability；pending predictions 刻意不持久化——跨 session 结算语义不成立）、`regime`（由 explicit-no-hydrate 翻转；复用扩展后的 `RegimeCheckpoint`，含 selection/feature weights、external-outcome calibration、learned scorer state）、`prediction_error_heads`（PE learned critic + CP-11 predictive heads）、`dual_track_gate_learner`、`credit_heads`（COCOA head + gate-risk learner，见 G1）。`world_temporal` / `self_temporal` 维持 explicit-no-hydrate（temporal checkpoint / rare-heavy owner 单一所有权）。全部 owner 自实现 export/hydrate、fail-loud 三态、round-trip 契约测试覆盖。
 - 2026-07-13: long-horizon closure matrix。`OwnerHydrationStore` 新增
   `OwnerHydrationMatrixEntry` / `OWNER_HYDRATION_MATRIX`，把 semantic_state /
   followup_manager / vitals / protocol_registry 的 hydrate 决策、memory 的

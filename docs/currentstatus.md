@@ -38,6 +38,10 @@
 
 全部 SHADOW / report-only / opt-in；默认行为字节不变；每包单点回滚。
 
+### Spec 同步（同日补齐）
+
+七份能力域 spec 已按包补变更日志：`credit-and-self-modification.md`（G1）、`owner-hydration.md`（P0 五条新 hydrate 条目 + G1）、`semantic-state-owners.md`（G2）、`affordance.md`（G3）、`continuum-memory.md`（G4）、`thinking-loop.md`（G5b）、`social_cognition/05_joint_entity.md`（G5a）；另有 `learned-vs-heuristic-coverage.md` 第三包变更日志。
+
 ## 3. 默认 authoritative 路径事实
 
 ```text
@@ -78,7 +82,20 @@ live 决策仍由结构 + 启发式主导；SHADOW learners（regime / affordanc
 - learned persona / function vectors 与 mesa-objective readout（P2）；
 - 跨模态 latent action basis、开放环境因果结构发现（P2，研究前沿）。
 
-## 6. 证据线（不变）
+## 6. 核心结论：瓶颈已从代码转移到证据
+
+两轮补齐后的关键判断：**写代码已经不是瓶颈**。每个 learned 部件都有实现、SHADOW 双跑、promotion readout 与回滚路径，但没有一个拿到过晋升证据——当前所有 SHADOW learner 的 settle 计数为零或接近零，四个 torch backend 的 component gate 未全绿。"还差多少"的答案已经从"差代码"变成"差证据"。
+
+下一步按杠杆大小排序：
+
+### 第一优先：跑证据线（不需要写代码）
+
+```bash
+bash run_learned_active_evidence.sh --resume --substrate-mode hf --substrate-device mps
+bash run_companion_bench_p1.sh --resume
+```
+
+目标是 `promotion_report.json` 的 `all_eligible=true`，然后按固定顺序逐组件 ACTIVE：
 
 ```text
 读取现有 real-trace missing_gates
@@ -90,8 +107,25 @@ live 决策仍由结构 + 启发式主导；SHADOW learners（regime / affordanc
 → P2 held-out multi-seed（first-stage-retained）
 ```
 
-SHADOW learners 的 ACTIVE flip 同样 gate 于各自 promotion readout（≥50 settle + MAE margin）与真 trace 证据。
+这是把 learned 主导度从 10–20% 提上去的唯一合法路径。
+
+### 第二优先：让 SHADOW learners 积累 settle（采集 lane 已补，2026-07-17）
+
+RegimeScoreLearner / AffordanceScoreLearner / ConsolidationScoreLearner 各需 ≥50 次 settle + MAE 领先 margin 才达 promotion readout 的 ready。采集面现已闭合：
+
+- soak artifact（`run_learned_shadow_soak.py`）新增 `regime_score_learner` / `reflection_consolidation_learner` / `credit_learned_heads` 三段 readout——regime 与 consolidation learner 在 kernel 主链内每 turn 自然 settle，soak 即积累（8-turn 冒烟已见 settle 5 / 7 次）；
+- affordance learner 的 settlement 只来自真实工具调用，kernel-only soak 覆盖不到，已补独立 lifeform 级 lane：`run_affordance_learner_probe.sh` / `.ps1`（真实 registry → module → invoker → outcome listener 全链，机制证据 EXIT(0) 已过；promotion 仍需 ≥50 次真实使用 settle）。
+
+### 第三优先：跨 session continuity 证据（longitudinal lane 已补，2026-07-17）
+
+- 新增 `tests/longitudinal/test_cross_session_learned_state_continuity.py`：同一用户 20 sessions × 2 turns，断言 social record（种子 ToM record 跨全部边界存活）、regime `turn_index` 累计到 40、dual-track gate learner ≥20 次 settle、PE critic / COCOA head 计数跨边界不回退、六个 hydratable owner 每 session 全部持久化；另有跨用户隔离用例（bob 全部计数从零开始）。本机已跑通（2 passed）。
+- 双平台入口：`run_longitudinal_continuity.sh` / `.ps1`（含既有 owner-hydration longitudinal 套件）。
+- 剩余：在真实部署 scoped backend 上重复该 lane 作为发布证据。
+
+### 第四优先（唯一的代码大项）：World / Self predictive model 扩容
+
+建议等 capacity ladder 结果出来再定容量方向——如果 `n_z=16→64` 无增益，盲目扩 World/Self model 容量是浪费。
 
 ## 7. 最简状态陈述
 
-> 第一阶段认知系统代码经 P0 + P1 两轮补齐后约完成 91–95%：owner continuity、learned regime/affordance/consolidation SHADOW 候选、9/9 semantic LLM proposal、session-held credit owner、group 产品 consumer 与 thinking advisory SHADOW 链均已在代码中。默认 learned 主导度仍约 10–20%；四个 torch backend 与全部 SHADOW learners 的 ACTIVE 均 gate 于 ≥500 real-trace、validation delta、控制臂、回滚、性能、安全与 P2 held-out multi-seed 证据。当前状态是 wiring-ready 且 promotion-path-complete，不是 first-stage-retained。
+> 第一阶段认知系统代码经 P0 + P1 两轮补齐后约完成 91–95%：owner continuity、learned regime/affordance/consolidation SHADOW 候选、9/9 semantic LLM proposal、session-held credit owner、group 产品 consumer 与 thinking advisory SHADOW 链均已在代码中。默认 learned 主导度仍约 10–20%；四个 torch backend 与全部 SHADOW learners 的 ACTIVE 均 gate 于 ≥500 real-trace、validation delta、控制臂、回滚、性能、安全与 P2 held-out multi-seed 证据。当前状态是 wiring-ready 且 promotion-path-complete，不是 first-stage-retained。**瓶颈已从"写代码"转移到"跑证据"：最优的下一步不是继续写实现，而是把 promotion pipeline 真正跑完一遍。**

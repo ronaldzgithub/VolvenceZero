@@ -968,6 +968,17 @@ class LifeformSession:
         return self._brain_session
 
     @property
+    def affordance_module(self) -> Any:
+        """Session-held AffordanceModule (or None when not wired).
+
+        Evidence readout surface (G3 probe lane): callers read the SHADOW
+        score learner's promotion readout through this handle; live
+        selection still flows exclusively through the published
+        ``affordance`` snapshot.
+        """
+        return self._affordance_module
+
+    @property
     def historical_readonly(self) -> bool:
         return self._historical_readonly
 

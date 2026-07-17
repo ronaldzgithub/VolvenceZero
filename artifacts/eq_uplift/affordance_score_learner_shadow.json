@@ -1,0 +1,27 @@
+{
+  "schema_version": "affordance-score-learner-probe.v1",
+  "rounds": 6,
+  "promotion_readout": {
+    "settled_count": 12,
+    "learned_mae": 0.375066,
+    "baseline_mae": 0.345275,
+    "mae_improvement": -0.029791,
+    "ready": false,
+    "kill_recommended": false,
+    "blocking_reasons": [
+      "settled_count<50",
+      "mae_improvement<0.02"
+    ]
+  },
+  "shadow_scores_at_equal_base": {
+    "reliable_tool": 0.3361,
+    "flaky_tool": 0.3361
+  },
+  "exit_checks": {
+    "settled_count_matches_invocations": true,
+    "shadow_scores_published": true,
+    "report_only_selection_unchanged": true
+  },
+  "exit_0": true,
+  "description": "Stage 0 machinery evidence for the SHADOW affordance score learner; promotion still gates on >=50 real-usage settles."
+}
