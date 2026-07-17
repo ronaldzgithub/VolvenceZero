@@ -240,6 +240,48 @@ def test_dual_track_gate_learner_invalid_weights_fails_loud() -> None:
         )
 
 
+def test_credit_module_owner_name_mismatch_fails_loud() -> None:
+    from volvence_zero.credit.gate import CreditModule
+
+    module = CreditModule()
+    with pytest.raises(HydrationOwnerMismatchError, match="owner_name"):
+        module.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="not_credit_heads",
+                schema_version=1,
+                payload={},
+            )
+        )
+
+
+def test_credit_module_version_mismatch_fails_loud() -> None:
+    from volvence_zero.credit.gate import CreditModule
+
+    module = CreditModule()
+    with pytest.raises(HydrationVersionMismatchError, match="schema_version"):
+        module.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="credit_heads",
+                schema_version=99,
+                payload={},
+            )
+        )
+
+
+def test_credit_module_missing_key_fails_loud() -> None:
+    from volvence_zero.credit.gate import CreditModule
+
+    module = CreditModule()
+    with pytest.raises(HydrationPayloadInvalidError, match="missing key"):
+        module.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="credit_heads",
+                schema_version=1,
+                payload={"rewarding_state_head": {}},
+            )
+        )
+
+
 def test_followup_manager_owner_name_mismatch_fails_loud() -> None:
     from lifeform_core.followup_manager import FollowupManager
 

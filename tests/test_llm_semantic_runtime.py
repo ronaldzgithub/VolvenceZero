@@ -169,13 +169,19 @@ def test_runtime_structured_malformed_output_falls_back() -> None:
     )
 
 
-def test_runtime_routes_non_commitment_to_base() -> None:
+def test_runtime_routes_unknown_slot_to_base() -> None:
+    """Slots outside the nine semantic owners never invoke the LLM.
+
+    G2 widened the generic allowlist to all nine semantic slots, so the
+    fail-closed guard now lives at the boundary of the semantic owner
+    registry itself: an unknown slot falls through to base untouched.
+    """
     provider = _ScriptedProvider([])
     runtime = LLMSemanticProposalRuntime(provider=provider)
 
-    batch = _propose(runtime, target_slot="open_loop", user_input="hi")
+    batch = _propose(runtime, target_slot="not_a_semantic_slot", user_input="hi")
 
-    assert provider.prompts == [], "non-commitment slots must NOT call LLM"
+    assert provider.prompts == [], "unknown slots must NOT call LLM"
     assert batch.runtime_id == NoOpSemanticProposalRuntime.runtime_id
     assert all(
         p.operation is SemanticProposalOperation.OBSERVE for p in batch.proposals
@@ -307,28 +313,66 @@ def test_runtime_emits_user_model_typed_proposal_from_schema_payload() -> None:
     assert proposal.confidence == 0.74
 
 
-def test_runtime_falls_back_to_base_for_other_slots() -> None:
-    """Slots NOT in the generic allowlist still delegate to base.
+@pytest.mark.parametrize(
+    ("slot", "operation", "expected_op"),
+    [
+        ("plan_intent", "create", SemanticProposalOperation.CREATE),
+        ("open_loop", "observe", SemanticProposalOperation.OBSERVE),
+        ("execution_result", "complete", SemanticProposalOperation.COMPLETE),
+        ("belief_assumption", "create", SemanticProposalOperation.CREATE),
+    ],
+)
+def test_runtime_emits_typed_proposals_for_remaining_four_slots(
+    slot: str, operation: str, expected_op: SemanticProposalOperation
+) -> None:
+    """G2 (P1-3): the last four semantic owners join the generic LLM path.
 
-    Spot-checks that the W2-B extension only widened the allowlist and
-    did not silently route every slot through the generic path. The
-    test uses ``plan_intent`` (out of scope for this wave) and
-    asserts the runtime did not call the LLM at all.
+    Every one of the nine semantic slots now has a typed LLM proposal
+    source when an LLM runtime is wired; owners keep single-writer
+    semantics and their own confidence filters.
     """
-    provider = _ScriptedProvider([])  # any call would explode
+    provider = _ScriptedProvider([
+        (
+            '{"runtime_id": "test", "schema_version": 1, "description": "g2", '
+            f'"proposals": [{{"proposal_id": "ignored", "target_slot": "{slot}", '
+            f'"operation": "{operation}", "summary": "typed {slot} signal", '
+            f'"detail": "Typed proposal for {slot}.", "confidence": 0.7, '
+            '"evidence": "typed evidence", "control_signal": 0.4}]}'
+        )
+    ])
     runtime = LLMSemanticProposalRuntime(provider=provider)
 
     batch = _propose(
         runtime,
-        target_slot="plan_intent",
-        user_input="I want to plan something.",
+        target_slot=slot,
+        user_input="I finished planning what to do next week.",
         turn_index=9,
     )
 
-    assert provider.prompts == [], (
-        "plan_intent must not invoke the LLM; it should fall through to base"
+    assert batch.proposals, f"{slot} generic path must emit a proposal"
+    proposal = batch.proposals[0]
+    assert proposal.target_slot == slot
+    assert proposal.operation is expected_op
+    assert proposal.proposal_id == f"{slot}:llm-{operation}:9:0"
+    assert f"Target owner slot: {slot}" in provider.prompts[0]
+    assert "Slot semantics:" in provider.prompts[0]
+
+
+def test_generic_prompt_for_original_slots_has_no_hint_line() -> None:
+    """The original four generic slots keep their prompt byte-shape."""
+    provider = _ScriptedProvider([
+        '{"runtime_id": "test", "schema_version": 1, "description": "d", "proposals": []}'
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    _propose(
+        runtime,
+        target_slot="goal_value",
+        user_input="thinking about goals",
+        turn_index=1,
     )
-    assert batch.runtime_id == NoOpSemanticProposalRuntime.runtime_id
+
+    assert "Slot semantics:" not in provider.prompts[0]
 
 
 def test_runtime_generic_payload_target_mismatch_falls_back() -> None:
@@ -439,12 +483,34 @@ def test_runtime_classifies_each_label_correctly() -> None:
 
 
 def _previous_with_active(count: int):
-    """A duck-typed previous snapshot exposing ``active_commitments``."""
+    """A real ``CommitmentSnapshot`` with ``count`` active commitments.
 
-    class _S:
-        active_commitments = tuple(object() for _ in range(count))
+    ``_has_active_commitment`` dispatches via ``isinstance`` (R8 typed
+    dispatch), so a duck-typed stand-in no longer satisfies the guard.
+    """
+    from volvence_zero.semantic_state import CommitmentSnapshot, SemanticRecord
 
-    return _S()
+    records = tuple(
+        SemanticRecord(
+            record_id=f"commit-{index}",
+            summary=f"active commitment {index}",
+            detail="test fixture",
+            confidence=0.8,
+            status="active",
+            source_turn=0,
+            evidence="fixture",
+        )
+        for index in range(count)
+    )
+    return CommitmentSnapshot(
+        active_commitments=records,
+        honored_commitment_refs=(),
+        at_risk_commitments=(),
+        trust_obligation_count=0,
+        continuity_score=0.5,
+        control_signal=0.0,
+        description="fixture commitment snapshot",
+    )
 
 
 @pytest.mark.parametrize(

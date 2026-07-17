@@ -307,6 +307,10 @@ class SessionLifecycleMixin:
         )
         persisted.append("prediction_error_heads")
         self._owner_hydration_store.export_and_save_owner(
+            self._credit_module, "credit_heads"
+        )
+        persisted.append("credit_heads")
+        self._owner_hydration_store.export_and_save_owner(
             self._dual_track_gate_learner, "dual_track_gate_learner"
         )
         persisted.append("dual_track_gate_learner")

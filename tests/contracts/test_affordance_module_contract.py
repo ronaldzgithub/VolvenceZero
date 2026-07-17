@@ -75,7 +75,9 @@ def test_affordance_module_satisfies_runtime_module_contract() -> None:
     assert module.slot_name == "affordance"
     assert module.owner == "AffordanceModule"
     assert module.value_type is AffordanceSnapshot
-    assert module.dependencies == ("temporal_abstraction",)
+    # CP-04 added the typed consent gate: boundary_consent joined the
+    # declared dependency set alongside the metacontroller z_t source.
+    assert module.dependencies == ("temporal_abstraction", "boundary_consent")
     # Default wiring level is ACTIVE post long-horizon-closure: the
     # module publishes its z_t-driven snapshot so downstream
     # consumers can pick it up without an explicit opt-in.

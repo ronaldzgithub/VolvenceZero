@@ -78,6 +78,7 @@ from volvence_zero.dialogue_trace import (
     DialogueOutcomeEvidence,
 )
 from volvence_zero.credit.gate import (
+    CreditModule,
     CreditSnapshot,
     GateDecision,
     ModificationGate,
@@ -130,7 +131,12 @@ from volvence_zero.prediction.error import (
     PredictionErrorModule,
     PredictionErrorSnapshot,
 )
-from volvence_zero.reflection import ReflectionSnapshot, WritebackMode, WritebackResult
+from volvence_zero.reflection import (
+    ConsolidationScoreLearner,
+    ReflectionSnapshot,
+    WritebackMode,
+    WritebackResult,
+)
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.regime import RegimeBootstrap, RegimeModule, RegimeSnapshot
 from volvence_zero.rupture_state import RuptureStateSnapshot
@@ -709,6 +715,18 @@ class AgentSessionRunner(
             self._owner_hydration_store.hydrate_owner_if_present(
                 self._regime_module, "regime"
             )
+        # G1: ONE stable CreditModule per session so the ledger's learned
+        # heads (COCOA rewarding-state + gate-risk) accumulate across turns
+        # instead of resetting on the per-turn module rebuild. The per-turn
+        # proposal buffer is refreshed inside run_final_wiring_turn.
+        self._credit_module = CreditModule(
+            pending_proposals=credit_proposals,
+            wiring_level=self._config.level_for("credit", WiringLevel.SHADOW),
+        )
+        if self._owner_hydration_store is not None:
+            self._owner_hydration_store.hydrate_owner_if_present(
+                self._credit_module, "credit_heads"
+            )
         # Behavior Protocol Runtime packet 1.3''' (production wiring of
         # 1.3'' machinery): the identity seed flows through to
         # ``run_final_wiring_turn`` each turn, populating
@@ -726,6 +744,11 @@ class AgentSessionRunner(
             self._owner_hydration_store.hydrate_owner_if_present(
                 self._dual_track_gate_learner, "dual_track_gate_learner"
             )
+        # G4: session-held SHADOW learner for the reflection consolidation
+        # score (report-only). The per-turn ReflectionEngine rebuild
+        # receives this ONE instance so weights accumulate across turns;
+        # settlement happens below from the published PE snapshot.
+        self._reflection_consolidation_learner = ConsolidationScoreLearner()
         # W1.C (CP-16/17): session-held ToM / common-ground record store
         # so those owners keep cross-turn records, settle prior-turn
         # predictions, and drive PE-weighted promote/retire.
@@ -1089,6 +1112,7 @@ class AgentSessionRunner(
                 apprenticeship_feedback_policy=self._apprenticeship_feedback_policy,
                 apprenticeship_constraint_extractor=self._apprenticeship_constraint_extractor,
                 credit_proposals=self._credit_proposals,
+                credit_module=self._credit_module,
                 reflection_mode=self._reflection_mode,
                 world_temporal_policy=self._world_temporal_policy,
                 self_temporal_policy=self._self_temporal_policy,
@@ -1107,6 +1131,7 @@ class AgentSessionRunner(
                 identity_seed=self._identity_seed,
                 dual_track_gate_learner=self._dual_track_gate_learner,
                 social_record_store=self._social_record_store,
+                reflection_consolidation_learner=self._reflection_consolidation_learner,
             )
             self._last_session_post_writeback_request = integration_result.session_post_writeback_request
             self._upstream_snapshots = {
@@ -1150,6 +1175,11 @@ class AgentSessionRunner(
                     self._dual_track_gate_learner.observe_realized_outcome(
                         task_progress=pe_actual.task_progress,
                         relationship_delta=pe_actual.relationship_delta,
+                    )
+                    # G4: settle the previous turn's SHADOW consolidation
+                    # candidate against realized PE (report-only).
+                    self._reflection_consolidation_learner.observe_realized_outcome(
+                        pe_magnitude=integration_result.prediction_error_snapshot.error.magnitude,
                     )
             imagination_result = self._run_imagination(integration_result)
             if imagination_result is not None:

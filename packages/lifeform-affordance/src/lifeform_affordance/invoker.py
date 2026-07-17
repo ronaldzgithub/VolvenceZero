@@ -548,6 +548,25 @@ class AffordanceInvoker:
         self._rate_limiter = _PerAffordanceRateLimiter(clock=clock)
         self._idempotency_results: dict[str, AffordanceInvocationResult] = {}
         self._task_handles: dict[str, AffordanceTaskHandle] = {}
+        # G3: optional realized-outcome listener (e.g. the affordance
+        # module's SHADOW score learner). Called only when a backend
+        # actually ran (SUCCEEDED / BACKEND_FAILED); pre-flight gates
+        # never settle learning because nothing was invoked.
+        self._outcome_listener: Callable[..., object] | None = None
+
+    def set_outcome_listener(
+        self, listener: Callable[..., object] | None
+    ) -> None:
+        """Register / clear the realized-outcome listener seam (G3).
+
+        The listener is called as
+        ``listener(descriptor_name=..., succeeded=...)`` after every
+        invocation whose backend ran. Report-only consumers (the SHADOW
+        affordance score learner) must not raise; exceptions propagate
+        (fail loudly) because a broken listener is a wiring bug.
+        """
+
+        self._outcome_listener = listener
 
     # ------------------------------------------------------------------
     # Backend registration
@@ -968,6 +987,11 @@ class AffordanceInvoker:
             AffordanceInvocationStatus.SUCCEEDED,
             AffordanceInvocationStatus.BACKEND_FAILED,
         }
+        if ran_backend and self._outcome_listener is not None:
+            self._outcome_listener(
+                descriptor_name=descriptor.name,
+                succeeded=status is AffordanceInvocationStatus.SUCCEEDED,
+            )
         tool_event_ids: tuple[str, ...] = ()
         # Pre-flight gates (BOUNDARY / RATE_LIMITED / PARAMETER_INVALID /
         # EXCLUDED / BACKEND_MISSING), non-TOOL kinds, and session-less

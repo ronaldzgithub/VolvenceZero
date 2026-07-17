@@ -112,17 +112,49 @@ _MIN_GENERIC_PROPOSAL_CONFIDENCE = 0.35
 # that need typed relational signals (LTV / private-domain ops, EQ
 # companion under stress) can drive these owners through the same JSON-
 # schema generic path that ``boundary_consent`` / ``goal_value`` use.
-# The shared schema (``schemas/proposal.schema.json``) is target_slot-
-# agnostic so no schema change is required; the prompt template
-# (``prompts/extraction.md``) is also slot-generic. Owners that opt into
-# this path inherit the same fail-loud parsing + fallback-to-base
-# behaviour used by the original two slots.
+# G2 (P1-3): extended again to the remaining four semantic owners
+# (``plan_intent`` / ``open_loop`` / ``execution_result`` /
+# ``belief_assumption``) so every one of the nine slots has a typed LLM
+# proposal source when an LLM runtime is wired. The shared schema
+# (``schemas/proposal.schema.json``) is target_slot-agnostic so no schema
+# change is required; the prompt template (``prompts/extraction.md``) is
+# also slot-generic. Owners that opt into this path inherit the same
+# fail-loud parsing + fallback-to-base behaviour used by the original
+# two slots.
 _GENERIC_LLM_SLOT_IDS = frozenset({
     "boundary_consent",
     "goal_value",
     "relationship_state",
     "user_model",
+    "plan_intent",
+    "open_loop",
+    "execution_result",
+    "belief_assumption",
 })
+
+# Centralised per-slot semantics appended to the generic extraction
+# prompt (llm-prompt-centralization rule: the hint text lives HERE, in
+# one map, never inline at call sites). Slots without an entry keep the
+# slot-generic template unchanged so the original four slots' prompts
+# stay byte-identical.
+_GENERIC_SLOT_SEMANTIC_HINTS: dict[str, str] = {
+    "plan_intent": (
+        "plan_intent tracks concrete plans or intentions the user states "
+        "for themselves or asks the assistant to help with."
+    ),
+    "open_loop": (
+        "open_loop tracks unresolved questions, promised follow-ups, or "
+        "topics the user expects to return to later."
+    ),
+    "execution_result": (
+        "execution_result tracks the user reporting the outcome of a "
+        "previously planned or attempted action (success, failure, partial)."
+    ),
+    "belief_assumption": (
+        "belief_assumption tracks factual beliefs or working assumptions "
+        "the user states about their world or situation."
+    ),
+}
 
 
 def _has_active_commitment(previous_snapshot: SemanticSnapshotValue | None) -> bool:
@@ -285,9 +317,12 @@ def _parse_structured_commitment_decision(text: str) -> _CommitmentDecision | No
 def _generic_prompt(*, target_slot: str, user_input: str) -> str:
     template = load_semantic_prompt_template()
     schema = load_semantic_json_schema()
+    hint = _GENERIC_SLOT_SEMANTIC_HINTS.get(target_slot)
+    hint_line = f"Slot semantics: {hint}\n" if hint is not None else ""
     return (
         f"{template}\n\n"
         f"Target owner slot: {target_slot}\n"
+        f"{hint_line}"
         "Return JSON matching this schema. Only emit proposals whose target_slot equals the target owner slot.\n"
         f"Schema:\n{schema}\n\n"
         "User message:\n"

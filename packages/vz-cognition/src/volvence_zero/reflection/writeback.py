@@ -23,6 +23,7 @@ from volvence_zero.memory import (
     Track,
 )
 from volvence_zero.prediction.error import PredictionErrorSnapshot
+from volvence_zero.reflection.consolidation_learner import ConsolidationScoreLearner
 from volvence_zero.regime import RegimeCheckpoint, RegimeSnapshot
 from volvence_zero.rupture_state import RuptureKind, RuptureStateSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
@@ -208,6 +209,10 @@ class ConsolidationScore:
     regime_effectiveness_gain: float
     confidence: float
     description: str
+    # G4: report-only learned candidate. ``None`` when no session-held
+    # learner is wired; NEVER consumed by promote/decay decisions or the
+    # writeback gate while the learner is SHADOW.
+    learned_promotion_score: float | None = None
 
 
 @dataclass(frozen=True)
@@ -484,11 +489,20 @@ def rupture_repair_memory_entries(
 class ReflectionEngine:
     """Builds proposal-first slow reflection artifacts from current session state."""
 
-    def __init__(self, *, writeback_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY) -> None:
+    def __init__(
+        self,
+        *,
+        writeback_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
+        consolidation_learner: "ConsolidationScoreLearner | None" = None,
+    ) -> None:
         self._writeback_mode = writeback_mode
         self._proposal_outcome_ledger: list[ProposalOutcomeEntry] = []
         self._last_bundle: StructuralProposalBundle | None = None
         self._last_metric_snapshot: tuple[tuple[str, float], ...] = ()
+        # G4: optional session-held SHADOW learner (report-only). The
+        # engine itself is rebuilt per turn; the learner survives via
+        # the session runner (DualTrackGateLearner lifetime pattern).
+        self._consolidation_learner = consolidation_learner
 
     @property
     def writeback_mode(self) -> WritebackMode:
@@ -1200,6 +1214,22 @@ class ReflectionEngine:
         strategy_gain = max(0.02, min(0.08, 0.02 + promotion_score * 0.05))
         regime_effectiveness_gain = max(0.2, min(0.45, 0.2 + promotion_score * 0.25))
         confidence = _clamp((memory_pressure + positive_credit + (1.0 - cross_tension) + (1.0 - pe_penalty)) / 4.0)
+        # G4: report-only SHADOW dual-run over the same features. Never
+        # feeds promote/decay decisions or the writeback gate.
+        learned_promotion_score: float | None = None
+        if self._consolidation_learner is not None:
+            learned_promotion_score = self._consolidation_learner.shadow_score(
+                features=(
+                    memory_pressure,
+                    _clamp(cross_tension),
+                    _clamp(alert_pressure),
+                    _clamp(positive_credit),
+                    _clamp(negative_credit),
+                    _clamp(pe_penalty),
+                    1.0,
+                ),
+                baseline_promotion=promotion_score,
+            )
         return ConsolidationScore(
             promotion_score=promotion_score,
             decay_score=decay_score,
@@ -1211,6 +1241,7 @@ class ReflectionEngine:
                 f"consolidation promotion={promotion_score:.3f} decay={decay_score:.3f} "
                 f"threshold_delta={threshold_delta:.3f}"
             ),
+            learned_promotion_score=learned_promotion_score,
         )
 
     def _tensions(

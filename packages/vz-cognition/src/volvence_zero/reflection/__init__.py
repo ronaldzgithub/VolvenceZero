@@ -1,3 +1,8 @@
+from volvence_zero.reflection.consolidation_learner import (
+    ConsolidationPromotionReadout,
+    ConsolidationScoreLearner,
+    ConsolidationScoreLearnerState,
+)
 from volvence_zero.reflection.engine import ProtocolReflectionEngine
 from volvence_zero.reflection.protocol_revision_rules import (
     ADD_STRATEGY_MIN_TURNS,
@@ -53,7 +58,10 @@ __all__ = [
     "STRATEGY_DECAY_PE_THRESHOLD",
     "STRATEGY_REINFORCE_MIN_TURNS",
     "STRATEGY_REINFORCE_PE_THRESHOLD",
+    "ConsolidationPromotionReadout",
     "ConsolidationScore",
+    "ConsolidationScoreLearner",
+    "ConsolidationScoreLearnerState",
     "EvidencePack",
     "MemoryConsolidation",
     "PolicyConsolidation",

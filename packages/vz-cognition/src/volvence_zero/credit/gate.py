@@ -11,6 +11,12 @@ from volvence_zero.audit.types import AuditSnapshot
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.evaluation.types import EvaluationSnapshot
 from volvence_zero.memory import Track
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
 from volvence_zero.prediction.error import PredictionActionContext, PredictionError, PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import SocialPredictionError, SocialPredictionOutcome
@@ -786,6 +792,16 @@ def gate_risk_features(
     )
 
 
+@dataclass(frozen=True)
+class GateRiskLearnerState:
+    """Checkpointable state for the SHADOW gate-risk head (float-only)."""
+
+    weights: tuple[float, ...]
+    update_count: int
+    abs_error_sum: float
+    agreement_count: int
+
+
 class GateRiskLearner:
     """C3 bounded online logistic head predicting gate-block risk.
 
@@ -808,6 +824,28 @@ class GateRiskLearner:
     @property
     def update_count(self) -> int:
         return self._update_count
+
+    def export_state(self) -> GateRiskLearnerState:
+        return GateRiskLearnerState(
+            weights=tuple(self._weights),
+            update_count=self._update_count,
+            abs_error_sum=self._abs_error_sum,
+            agreement_count=self._agreement_count,
+        )
+
+    def restore_state(self, state: GateRiskLearnerState) -> None:
+        if len(state.weights) != _GATE_RISK_FEATURE_DIM:
+            raise ValueError(
+                f"gate risk learner state has {len(state.weights)} weights, "
+                f"expected {_GATE_RISK_FEATURE_DIM}"
+            )
+        self._weights = [
+            max(-self._WEIGHT_BOUND, min(self._WEIGHT_BOUND, float(value)))
+            for value in state.weights
+        ]
+        self._update_count = max(0, state.update_count)
+        self._abs_error_sum = max(0.0, state.abs_error_sum)
+        self._agreement_count = max(0, min(state.agreement_count, self._update_count))
 
     def predict_risk(self, features: tuple[float, ...]) -> float:
         if len(features) != _GATE_RISK_FEATURE_DIM:
@@ -1671,6 +1709,15 @@ class CreditLedger:
     def restore_rewarding_state_head(self, state: RewardingStateHeadState) -> None:
         self._rewarding_state_head.restore_state(state)
 
+    def export_rewarding_state_head(self) -> RewardingStateHeadState:
+        return self._rewarding_state_head.export_state()
+
+    def export_gate_risk_learner(self) -> GateRiskLearnerState:
+        return self._gate_risk_learner.export_state()
+
+    def restore_gate_risk_learner(self, state: GateRiskLearnerState) -> None:
+        self._gate_risk_learner.restore_state(state)
+
     def derive_learned_counterfactual_contribution_records(
         self,
         *,
@@ -1898,6 +1945,10 @@ class CreditLedger:
         )
 
 
+_CREDIT_HEADS_OWNER_NAME = "credit_heads"
+_CREDIT_HEADS_SCHEMA_VERSION = 1
+
+
 class CreditModule(RuntimeModule[CreditSnapshot]):
     slot_name = "credit"
     owner = "CreditModule"
@@ -1919,6 +1970,115 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
     @property
     def ledger(self) -> CreditLedger:
         return self._ledger
+
+    def set_pending_proposals(
+        self, proposals: tuple[ModificationProposal, ...]
+    ) -> None:
+        """Per-turn input for a session-held module instance.
+
+        The learned heads inside the ledger must accumulate across turns,
+        so the runtime injects ONE stable ``CreditModule`` and refreshes
+        only this per-turn proposal buffer.
+        """
+
+        self._pending_proposals = proposals
+
+    # ------------------------------------------------------------------
+    # G1: cross-session continuity for the credit learned heads.
+    # ------------------------------------------------------------------
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        head_state = self._ledger.export_rewarding_state_head()
+        risk_state = self._ledger.export_gate_risk_learner()
+        return OwnerPersistenceSnapshot(
+            owner_name=_CREDIT_HEADS_OWNER_NAME,
+            schema_version=_CREDIT_HEADS_SCHEMA_VERSION,
+            payload={
+                "rewarding_state_head": {
+                    "rule_id": head_state.rule_id,
+                    "feature_dim": head_state.feature_dim,
+                    "update_count": head_state.update_count,
+                    "weights": list(head_state.weights),
+                    "bias": head_state.bias,
+                    "last_prediction": head_state.last_prediction,
+                    "last_target": head_state.last_target,
+                    "last_validation_delta": head_state.last_validation_delta,
+                    "last_capacity_cost": head_state.last_capacity_cost,
+                    "last_rollback_evidence": head_state.last_rollback_evidence,
+                },
+                "gate_risk_learner": {
+                    "weights": list(risk_state.weights),
+                    "update_count": risk_state.update_count,
+                    "abs_error_sum": risk_state.abs_error_sum,
+                    "agreement_count": risk_state.agreement_count,
+                },
+            },
+            description=(
+                "CreditModule learned-head snapshot "
+                f"cocoa_updates={head_state.update_count} "
+                f"gate_risk_updates={risk_state.update_count}"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        if snapshot.owner_name != _CREDIT_HEADS_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                "CreditModule expected owner_name="
+                f"{_CREDIT_HEADS_OWNER_NAME!r}, got {snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _CREDIT_HEADS_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                "CreditModule unsupported schema_version="
+                f"{snapshot.schema_version!r}; expected "
+                f"{_CREDIT_HEADS_SCHEMA_VERSION}"
+            )
+        try:
+            head_blob = snapshot.payload["rewarding_state_head"]
+            risk_blob = snapshot.payload["gate_risk_learner"]
+            head_weights = head_blob["weights"]
+            risk_weights = risk_blob["weights"]
+            if not isinstance(head_weights, list | tuple):
+                raise HydrationPayloadInvalidError(
+                    "CreditModule rewarding_state_head.weights must be a list; "
+                    f"got {type(head_weights).__name__}"
+                )
+            if not isinstance(risk_weights, list | tuple):
+                raise HydrationPayloadInvalidError(
+                    "CreditModule gate_risk_learner.weights must be a list; "
+                    f"got {type(risk_weights).__name__}"
+                )
+            self._ledger.restore_rewarding_state_head(
+                RewardingStateHeadState(
+                    rule_id=str(head_blob["rule_id"]),
+                    feature_dim=int(head_blob["feature_dim"]),
+                    update_count=int(head_blob["update_count"]),
+                    weights=tuple(float(value) for value in head_weights),
+                    bias=float(head_blob["bias"]),
+                    last_prediction=float(head_blob["last_prediction"]),
+                    last_target=float(head_blob["last_target"]),
+                    last_validation_delta=float(head_blob["last_validation_delta"]),
+                    last_capacity_cost=float(head_blob["last_capacity_cost"]),
+                    last_rollback_evidence=str(head_blob["last_rollback_evidence"]),
+                )
+            )
+            self._ledger.restore_gate_risk_learner(
+                GateRiskLearnerState(
+                    weights=tuple(float(value) for value in risk_weights),
+                    update_count=int(risk_blob["update_count"]),
+                    abs_error_sum=float(risk_blob["abs_error_sum"]),
+                    agreement_count=int(risk_blob["agreement_count"]),
+                )
+            )
+        except KeyError as exc:
+            raise HydrationPayloadInvalidError(
+                f"CreditModule learned-head payload missing key {exc.args[0]!r}"
+            ) from exc
+        except (TypeError, ValueError) as exc:
+            raise HydrationPayloadInvalidError(
+                f"CreditModule learned-head payload is structurally invalid: {exc}"
+            ) from exc
 
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[CreditSnapshot]:
         dual_track_snapshot = upstream["dual_track"]

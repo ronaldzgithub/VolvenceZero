@@ -50,6 +50,11 @@ from lifeform_affordance.module import (
     AffordanceModule,
     score_affordance_candidates,
 )
+from lifeform_affordance.score_learner import (
+    AffordanceScoreLearner,
+    AffordanceScoreLearnerState,
+    AffordanceScorePromotionReadout,
+)
 from lifeform_affordance.registry import (
     AffordanceAlreadyRegisteredError,
     AffordanceLintWarning,
@@ -122,6 +127,9 @@ __all__ = [
     "AffordanceRegistryError",
     "AffordanceRegistrySealedError",
     "AffordanceSafety",
+    "AffordanceScoreLearner",
+    "AffordanceScoreLearnerState",
+    "AffordanceScorePromotionReadout",
     "AffordanceScoringContext",
     "AffordanceSnapshot",
     "BoundaryCheckContext",

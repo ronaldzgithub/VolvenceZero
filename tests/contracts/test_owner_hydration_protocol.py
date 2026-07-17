@@ -32,6 +32,7 @@ def test_owner_hydration_matrix_freezes_owner_by_owner_decisions() -> None:
     assert matrix["social_record_store"].decision == "hydrate"
     assert matrix["prediction_error_heads"].decision == "hydrate"
     assert matrix["dual_track_gate_learner"].decision == "hydrate"
+    assert matrix["credit_heads"].decision == "hydrate"
     assert matrix["memory"].decision == "external-owner"
     assert matrix["regime"].decision == "hydrate"
     assert matrix["world_temporal"].decision == "explicit-no-hydrate"
@@ -256,6 +257,48 @@ def test_prediction_error_heads_round_trip() -> None:
     assert exported.schema_version == 1
 
     target = PredictionErrorModule()
+    target.hydrate_from_persistence(exported)
+    re_exported = target.export_persistence_snapshot()
+
+    assert exported.payload == re_exported.payload
+
+
+def test_credit_module_learned_heads_round_trip() -> None:
+    from volvence_zero.credit.gate import (
+        CreditModule,
+        GateRiskLearnerState,
+        RewardingStateHeadState,
+    )
+
+    source = CreditModule()
+    source.ledger.restore_rewarding_state_head(
+        RewardingStateHeadState(
+            rule_id="credit.rewarding_state_head.v1",
+            feature_dim=15,
+            update_count=6,
+            weights=tuple(0.01 * i for i in range(15)),
+            bias=0.2,
+            last_prediction=0.55,
+            last_target=0.6,
+            last_validation_delta=0.03,
+            last_capacity_cost=0.02,
+            last_rollback_evidence="credit-rewarding-state:1:6",
+        )
+    )
+    source.ledger.restore_gate_risk_learner(
+        GateRiskLearnerState(
+            weights=tuple(0.05 * i for i in range(len(source.ledger.export_gate_risk_learner().weights))),
+            update_count=9,
+            abs_error_sum=2.1,
+            agreement_count=7,
+        )
+    )
+
+    exported = source.export_persistence_snapshot()
+    assert exported.owner_name == "credit_heads"
+    assert exported.schema_version == 1
+
+    target = CreditModule()
     target.hydrate_from_persistence(exported)
     re_exported = target.export_persistence_snapshot()
 

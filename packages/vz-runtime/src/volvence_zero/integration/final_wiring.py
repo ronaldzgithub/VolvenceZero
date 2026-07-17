@@ -86,6 +86,7 @@ from volvence_zero.prediction.error import (
     pe_evaluation_decoupled_active,
 )
 from volvence_zero.reflection import (
+    ConsolidationScoreLearner,
     ProtocolReflectionEngine,
     ReflectionEngine,
     ReflectionModule,
@@ -1419,6 +1420,7 @@ def build_final_runtime_modules(
     self_temporal_policy: TemporalPolicy | None = None,
     prediction_module: PredictionErrorModule | None = None,
     regime_module: RegimeModule | None = None,
+    credit_module: CreditModule | None = None,
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
     turn_index: int = 0,
@@ -1451,6 +1453,7 @@ def build_final_runtime_modules(
     identity_seed: IdentitySeed | None = None,
     dual_track_gate_learner: DualTrackGateLearner | None = None,
     social_record_store: SocialRecordStore | None = None,
+    reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
 ) -> list[Any]:
     if domain_experience_packages:
         application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
@@ -1556,6 +1559,13 @@ def build_final_runtime_modules(
         )
     if prediction_module is not None:
         prediction_module.set_action_context(prediction_action_context)
+    # G1: a session-held CreditModule is injected so the ledger's learned
+    # heads (COCOA rewarding-state + gate-risk) accumulate across turns.
+    # Only the per-turn proposal buffer is refreshed here; standalone /
+    # test callers that pass no module keep the historical per-call
+    # construction below.
+    if credit_module is not None:
+        credit_module.set_pending_proposals(credit_proposals)
     # Dialogue external outcome and rupture_state are wired alongside
     # the existing graph. The outcome module has no declared upstream,
     # so topological sort places it early; rupture_state declares
@@ -1820,7 +1830,8 @@ def build_final_runtime_modules(
         ResponseAssemblyModule(
             wiring_level=config.level_for("response_assembly", WiringLevel.ACTIVE),
         ),
-        CreditModule(
+        credit_module
+        or CreditModule(
             pending_proposals=credit_proposals,
             wiring_level=config.level_for("credit", WiringLevel.SHADOW),
         ),
@@ -1840,7 +1851,10 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("audit", WiringLevel.SHADOW),
         ),
         ReflectionModule(
-            engine=ReflectionEngine(writeback_mode=reflection_mode),
+            engine=ReflectionEngine(
+                writeback_mode=reflection_mode,
+                consolidation_learner=reflection_consolidation_learner,
+            ),
             wiring_level=config.level_for("reflection", WiringLevel.SHADOW),
         ),
         ProtocolReflectionEngine(
@@ -1932,12 +1946,14 @@ async def run_final_wiring_turn(
     self_temporal_policy: TemporalPolicy | None = None,
     prediction_module: PredictionErrorModule | None = None,
     regime_module: RegimeModule | None = None,
+    credit_module: CreditModule | None = None,
     dialogue_external_outcome_module: DialogueExternalOutcomeModule | None = None,
     rupture_state_module: RuptureStateModule | None = None,
     protocol_registry_module: ProtocolRegistryModule | None = None,
     identity_seed: IdentitySeed | None = None,
     dual_track_gate_learner: DualTrackGateLearner | None = None,
     social_record_store: SocialRecordStore | None = None,
+    reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
     user_scope: str = "anonymous",
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
@@ -1988,6 +2004,7 @@ async def run_final_wiring_turn(
         self_temporal_policy=self_temporal_policy,
         prediction_module=prediction_module,
         regime_module=regime_module,
+        credit_module=credit_module,
         session_id=session_id,
         wave_id=wave_id,
         turn_index=turn_index,
@@ -2015,6 +2032,7 @@ async def run_final_wiring_turn(
         identity_seed=identity_seed,
         dual_track_gate_learner=dual_track_gate_learner,
         social_record_store=social_record_store,
+        reflection_consolidation_learner=reflection_consolidation_learner,
     )
     if upstream_snapshots:
         for module in modules:

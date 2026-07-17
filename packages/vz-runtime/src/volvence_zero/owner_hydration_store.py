@@ -119,6 +119,12 @@ OWNER_HYDRATION_MATRIX: tuple[OwnerHydrationMatrixEntry, ...] = (
         reason="DualTrackGateLearner is session-held learned state for the dual-track SHADOW gate candidate.",
     ),
     OwnerHydrationMatrixEntry(
+        owner_name="credit_heads",
+        decision="hydrate",
+        storage_key=_key_for("credit_heads"),
+        reason="CreditModule owns the COCOA rewarding-state head and the SHADOW gate-risk learner.",
+    ),
+    OwnerHydrationMatrixEntry(
         owner_name="memory",
         decision="external-owner",
         storage_key="memory/store",

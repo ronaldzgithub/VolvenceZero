@@ -71,6 +71,7 @@ from volvence_zero.semantic_state import BoundaryConsentSnapshot
 from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
 from lifeform_affordance.registry import AffordanceRegistry
+from lifeform_affordance.score_learner import AffordanceScoreLearner
 from lifeform_affordance.snapshot import (
     AffordanceCandidate,
     AffordanceSnapshot,
@@ -297,13 +298,35 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
         *,
         registry: AffordanceRegistry,
         wiring_level: WiringLevel | None = None,
+        score_learner: AffordanceScoreLearner | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._registry = registry
+        # G3: report-only learned scorer candidate. Session-held via this
+        # module (the module itself is constructed once per session by
+        # the lifeform layer). The learner never touches live selection.
+        self._score_learner = score_learner or AffordanceScoreLearner()
 
     @property
     def registry(self) -> AffordanceRegistry:
         return self._registry
+
+    @property
+    def score_learner(self) -> AffordanceScoreLearner:
+        return self._score_learner
+
+    def observe_invocation_outcome(
+        self, *, descriptor_name: str, succeeded: bool
+    ) -> bool:
+        """Settle a realized tool outcome into the SHADOW learner.
+
+        Wired from the invoker's outcome-listener seam by the lifeform
+        layer; report-only (no effect on live selection).
+        """
+
+        return self._score_learner.observe_invocation_outcome(
+            descriptor_name=descriptor_name, succeeded=succeeded
+        )
 
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
@@ -363,6 +386,10 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
             scoring_source = "z_t_projection" if z_t else "neutral_cold_start"
 
         candidates: list[AffordanceCandidate] = []
+        # G3: rotate the learner's settleable window to THIS turn's
+        # candidates before rescoring (stale windows must not absorb
+        # credit for outcomes they did not propose).
+        self._score_learner.begin_turn()
         for descriptor in descriptors:
             blocked_reason = _regime_blocked_reason(
                 descriptor, active_regime_id=active_regime_id
@@ -375,7 +402,8 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
             if blocked_reason:
                 # Blocked candidates are kept in the snapshot for audit
                 # but with score=0 to make the selection invariant
-                # trivially satisfied.
+                # trivially satisfied. Blocked candidates are not
+                # shadow-scored: the safety gate is not learnable.
                 candidates.append(
                     AffordanceCandidate(
                         descriptor_name=descriptor.name,
@@ -388,6 +416,12 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
                     )
                 )
             else:
+                shadow_score = self._score_learner.shadow_score(
+                    descriptor_name=descriptor.name,
+                    base_score=score,
+                    kind=descriptor.kind,
+                    latency_class=descriptor.cost_model.latency_class,
+                )
                 candidates.append(
                     AffordanceCandidate(
                         descriptor_name=descriptor.name,
@@ -397,6 +431,7 @@ class AffordanceModule(RuntimeModule[AffordanceSnapshot]):
                             f"score={score:.4f}:z_dim={len(z_t)}"
                         ),
                         expected_cost=descriptor.cost_model,
+                        shadow_learned_score=shadow_score,
                     )
                 )
 

@@ -41,6 +41,10 @@ class AffordanceCandidate:
     rationale: str
     expected_cost: AffordanceCost
     blocked_reason: str = ""
+    # G3: report-only learned scorer candidate. ``None`` when no learner
+    # is wired (default snapshots stay byte-compatible); NEVER consumed
+    # by live selection while the learner is SHADOW.
+    shadow_learned_score: float | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.score <= 1.0:

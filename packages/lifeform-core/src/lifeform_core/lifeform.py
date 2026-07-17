@@ -749,6 +749,14 @@ class Lifeform:
                 registry=self._mcp_registry,
                 wiring_level=self._config.affordance_wiring,
             )
+            # G3: wire realized tool outcomes back into the module's
+            # SHADOW score learner (report-only; live selection
+            # untouched). Duck-typed seam so lifeform-core keeps its
+            # thin import surface toward lifeform-affordance.
+            if self._mcp_invoker is not None:
+                self._mcp_invoker.set_outcome_listener(
+                    affordance_module.observe_invocation_outcome
+                )
         session = LifeformSession(
             brain_session=brain_session,
             tick=TickEngine(self._config.tick),
@@ -1549,6 +1557,30 @@ class LifeformSession:
         if published is None:
             return None
         if isinstance(published.value, CommonGroundSnapshot):
+            return published.value
+        return None
+
+    @property
+    def group_snapshot(self) -> Any:
+        """G5a: read the typed ``groups`` snapshot (R20 / CP-18).
+
+        Returns the latest ``GroupSnapshot`` published by ``GroupModule``
+        — SHADOW by default, so this reads the shadow slot too. This is
+        the first honest product-facing consumer of the group owner:
+        hosts can observe frame-derived group identity, the persistent
+        group regime, the learned ``group_durability_score``, and
+        settled group-level prediction errors BEFORE the owner is
+        promoted to ACTIVE. Returns ``None`` before the first turn or
+        when the owner published nothing.
+        """
+        from volvence_zero.social_cognition import GroupSnapshot
+
+        active = self._latest_active_snapshots
+        shadow = self._latest_shadow_snapshots
+        published = active.get("groups") or shadow.get("groups")
+        if published is None:
+            return None
+        if isinstance(published.value, GroupSnapshot):
             return published.value
         return None
 
