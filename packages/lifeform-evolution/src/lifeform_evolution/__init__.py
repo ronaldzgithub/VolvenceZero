@@ -113,6 +113,19 @@ from lifeform_evolution.scenario_pack import (
     load_scenario_pack_dir,
     load_scenarios,
 )
+from lifeform_evolution.semantic_proposal_ablation import (
+    DEFAULT_ABLATION_PROBE_CASES,
+    AblationArmResult,
+    AblationProbeCase,
+    AblationProbeTurn,
+    ScriptedProposalSpec,
+    ScriptedSemanticProposalRuntime,
+    SemanticProposalAblationError,
+    SemanticProposalAblationReport,
+    SemanticProposalAblationRunResult,
+    SlotExpectation,
+    run_semantic_proposal_ablation_async,
+)
 from lifeform_evolution.snapshot_io import (
     SnapshotArtifact,
     load_snapshot,
@@ -132,6 +145,10 @@ from lifeform_evolution.trace_collector import (
 )
 
 __all__ = (
+    "DEFAULT_ABLATION_PROBE_CASES",
+    "AblationArmResult",
+    "AblationProbeCase",
+    "AblationProbeTurn",
     "BenchmarkReport",
     "CompanionEvidenceGate",
     "CompanionEvidenceReport",
@@ -152,8 +169,14 @@ __all__ = (
     "RoundQualityMetrics",
     "RoundReport",
     "ScenarioPackError",
+    "ScriptedProposalSpec",
     "ScriptedScenario",
+    "ScriptedSemanticProposalRuntime",
     "ScriptedTurn",
+    "SemanticProposalAblationError",
+    "SemanticProposalAblationReport",
+    "SemanticProposalAblationRunResult",
+    "SlotExpectation",
     "SnapshotArtifact",
     "SSLDemoReport",
     "SocialCognitionEvidenceGate",
@@ -204,6 +227,7 @@ __all__ = (
     "run_regime_calibrator_async",
     "run_relationship_repair_alpha_gate",
     "run_relationship_repair_alpha_gate_async",
+    "run_semantic_proposal_ablation_async",
     "run_social_cognition_evidence",
     "run_social_cognition_evidence_async",
     "run_ssl_demo",

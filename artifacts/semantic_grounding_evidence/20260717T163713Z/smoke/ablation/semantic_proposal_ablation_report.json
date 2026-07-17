@@ -1,0 +1,899 @@
+{
+  "schema_version": "semantic-proposal-ablation.v1",
+  "artifact_kind": "semantic_proposal_ablation_report",
+  "non_gating": true,
+  "substrate_fingerprint": "synthetic:companion-semantic-surface",
+  "case_ids": [
+    "commitment-arc",
+    "emotional-repair",
+    "boundary-goal",
+    "typed-event-invariance"
+  ],
+  "on_arm": {
+    "arm_id": "semantic-proposal-on",
+    "runtime_id": "semantic-scripted-probe",
+    "turn_count": 20,
+    "overall_hit_rate": 1.0,
+    "proposal_channel_hit_rate": 1.0,
+    "typed_event_hit_rate": 1.0,
+    "mean_pe_magnitude": 0.14357,
+    "slot_metrics": [
+      {
+        "slot": "belief_about_other",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "belief_assumption",
+        "expectation_total": 1,
+        "expectation_hits": 1,
+        "hit_rate": 1.0,
+        "nonempty_turn_ratio": 0.35
+      },
+      {
+        "slot": "boundary_consent",
+        "expectation_total": 3,
+        "expectation_hits": 3,
+        "hit_rate": 1.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "commitment",
+        "expectation_total": 6,
+        "expectation_hits": 6,
+        "hit_rate": 1.0,
+        "nonempty_turn_ratio": 0.5
+      },
+      {
+        "slot": "common_ground",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "conversational_role",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 1.0
+      },
+      {
+        "slot": "execution_result",
+        "expectation_total": 4,
+        "expectation_hits": 4,
+        "hit_rate": 1.0,
+        "nonempty_turn_ratio": 0.3
+      },
+      {
+        "slot": "feeling_about_other",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "goal_value",
+        "expectation_total": 2,
+        "expectation_hits": 2,
+        "hit_rate": 1.0,
+        "nonempty_turn_ratio": 0.35
+      },
+      {
+        "slot": "group_joint_commitments",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "groups",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "intent_about_other",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "open_loop",
+        "expectation_total": 1,
+        "expectation_hits": 1,
+        "hit_rate": 1.0,
+        "nonempty_turn_ratio": 0.25
+      },
+      {
+        "slot": "plan_intent",
+        "expectation_total": 2,
+        "expectation_hits": 2,
+        "hit_rate": 1.0,
+        "nonempty_turn_ratio": 0.45
+      },
+      {
+        "slot": "preference_about_other",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "relationship_state",
+        "expectation_total": 2,
+        "expectation_hits": 2,
+        "hit_rate": 1.0,
+        "nonempty_turn_ratio": 0.35
+      },
+      {
+        "slot": "user_model",
+        "expectation_total": 1,
+        "expectation_hits": 1,
+        "hit_rate": 1.0,
+        "nonempty_turn_ratio": 0.1
+      }
+    ],
+    "expectation_outcomes": [
+      {
+        "expectation_id": "commitment-created",
+        "case_id": "commitment-arc",
+        "slot": "commitment",
+        "channel": "proposal-channel",
+        "after_turn": 0,
+        "field_name": "active_commitments",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "commitment-advocated",
+        "case_id": "commitment-arc",
+        "slot": "commitment",
+        "channel": "proposal-channel",
+        "after_turn": 1,
+        "field_name": "advocacy_proposed_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "plan-revised",
+        "case_id": "commitment-arc",
+        "slot": "plan_intent",
+        "channel": "proposal-channel",
+        "after_turn": 1,
+        "field_name": "plan_revision_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "commitment-completed",
+        "case_id": "commitment-arc",
+        "slot": "commitment",
+        "channel": "proposal-channel",
+        "after_turn": 2,
+        "field_name": "outcome_completed_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "loop-closed",
+        "case_id": "commitment-arc",
+        "slot": "open_loop",
+        "channel": "proposal-channel",
+        "after_turn": 2,
+        "field_name": "closure_refs",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "commitment-deferred",
+        "case_id": "commitment-arc",
+        "slot": "commitment",
+        "channel": "proposal-channel",
+        "after_turn": 3,
+        "field_name": "followup_defer_only_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "execution-completed",
+        "case_id": "commitment-arc",
+        "slot": "execution_result",
+        "channel": "proposal-channel",
+        "after_turn": 4,
+        "field_name": "completed_actions",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "tension-registered",
+        "case_id": "emotional-repair",
+        "slot": "relationship_state",
+        "channel": "proposal-channel",
+        "after_turn": 0,
+        "field_name": "unresolved_tension_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "sensitive-boundary",
+        "case_id": "emotional-repair",
+        "slot": "user_model",
+        "channel": "proposal-channel",
+        "after_turn": 1,
+        "field_name": "sensitive_boundaries",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "contradiction-flagged",
+        "case_id": "emotional-repair",
+        "slot": "belief_assumption",
+        "channel": "proposal-channel",
+        "after_turn": 2,
+        "field_name": "contradiction_refs",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "repair-recorded",
+        "case_id": "emotional-repair",
+        "slot": "relationship_state",
+        "channel": "proposal-channel",
+        "after_turn": 3,
+        "field_name": "recent_repair_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "goal-deferred",
+        "case_id": "emotional-repair",
+        "slot": "goal_value",
+        "channel": "proposal-channel",
+        "after_turn": 4,
+        "field_name": "deferred_goal_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "boundary-denied",
+        "case_id": "boundary-goal",
+        "slot": "boundary_consent",
+        "channel": "proposal-channel",
+        "after_turn": 0,
+        "field_name": "denied_boundaries",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "goal-conflicted",
+        "case_id": "boundary-goal",
+        "slot": "goal_value",
+        "channel": "proposal-channel",
+        "after_turn": 1,
+        "field_name": "conflicted_goal_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "consent-revoked",
+        "case_id": "boundary-goal",
+        "slot": "boundary_consent",
+        "channel": "proposal-channel",
+        "after_turn": 2,
+        "field_name": "revocation_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "plan-constrained",
+        "case_id": "boundary-goal",
+        "slot": "plan_intent",
+        "channel": "proposal-channel",
+        "after_turn": 3,
+        "field_name": "active_constraints",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "execution-failed",
+        "case_id": "boundary-goal",
+        "slot": "execution_result",
+        "channel": "proposal-channel",
+        "after_turn": 4,
+        "field_name": "failed_actions",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "task-commitment-created",
+        "case_id": "typed-event-invariance",
+        "slot": "commitment",
+        "channel": "typed-event",
+        "after_turn": 0,
+        "field_name": "active_commitments",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "tool-success-recorded",
+        "case_id": "typed-event-invariance",
+        "slot": "execution_result",
+        "channel": "typed-event",
+        "after_turn": 1,
+        "field_name": "completed_actions",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "tool-failure-recorded",
+        "case_id": "typed-event-invariance",
+        "slot": "execution_result",
+        "channel": "typed-event",
+        "after_turn": 2,
+        "field_name": "failed_actions",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "profile-denial-recorded",
+        "case_id": "typed-event-invariance",
+        "slot": "boundary_consent",
+        "channel": "typed-event",
+        "after_turn": 3,
+        "field_name": "denied_boundaries",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "task-commitment-completed",
+        "case_id": "typed-event-invariance",
+        "slot": "commitment",
+        "channel": "typed-event",
+        "after_turn": 4,
+        "field_name": "outcome_completed_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      }
+    ],
+    "grounding_verdict": "insufficient-coverage"
+  },
+  "off_arm": {
+    "arm_id": "semantic-proposal-off",
+    "runtime_id": "semantic-noop",
+    "turn_count": 20,
+    "overall_hit_rate": 0.227273,
+    "proposal_channel_hit_rate": 0.0,
+    "typed_event_hit_rate": 1.0,
+    "mean_pe_magnitude": 0.134975,
+    "slot_metrics": [
+      {
+        "slot": "belief_about_other",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "belief_assumption",
+        "expectation_total": 1,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 1.0
+      },
+      {
+        "slot": "boundary_consent",
+        "expectation_total": 3,
+        "expectation_hits": 1,
+        "hit_rate": 0.333333,
+        "nonempty_turn_ratio": 1.0
+      },
+      {
+        "slot": "commitment",
+        "expectation_total": 6,
+        "expectation_hits": 2,
+        "hit_rate": 0.333333,
+        "nonempty_turn_ratio": 0.25
+      },
+      {
+        "slot": "common_ground",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "conversational_role",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 1.0
+      },
+      {
+        "slot": "execution_result",
+        "expectation_total": 4,
+        "expectation_hits": 2,
+        "hit_rate": 0.5,
+        "nonempty_turn_ratio": 1.0
+      },
+      {
+        "slot": "feeling_about_other",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "goal_value",
+        "expectation_total": 2,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 1.0
+      },
+      {
+        "slot": "group_joint_commitments",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "groups",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "intent_about_other",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "open_loop",
+        "expectation_total": 1,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 1.0
+      },
+      {
+        "slot": "plan_intent",
+        "expectation_total": 2,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 1.0
+      },
+      {
+        "slot": "preference_about_other",
+        "expectation_total": 0,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 0.0
+      },
+      {
+        "slot": "relationship_state",
+        "expectation_total": 2,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 1.0
+      },
+      {
+        "slot": "user_model",
+        "expectation_total": 1,
+        "expectation_hits": 0,
+        "hit_rate": 0.0,
+        "nonempty_turn_ratio": 1.0
+      }
+    ],
+    "expectation_outcomes": [
+      {
+        "expectation_id": "commitment-created",
+        "case_id": "commitment-arc",
+        "slot": "commitment",
+        "channel": "proposal-channel",
+        "after_turn": 0,
+        "field_name": "active_commitments",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "commitment-advocated",
+        "case_id": "commitment-arc",
+        "slot": "commitment",
+        "channel": "proposal-channel",
+        "after_turn": 1,
+        "field_name": "advocacy_proposed_count",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "plan-revised",
+        "case_id": "commitment-arc",
+        "slot": "plan_intent",
+        "channel": "proposal-channel",
+        "after_turn": 1,
+        "field_name": "plan_revision_count",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "commitment-completed",
+        "case_id": "commitment-arc",
+        "slot": "commitment",
+        "channel": "proposal-channel",
+        "after_turn": 2,
+        "field_name": "outcome_completed_count",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "loop-closed",
+        "case_id": "commitment-arc",
+        "slot": "open_loop",
+        "channel": "proposal-channel",
+        "after_turn": 2,
+        "field_name": "closure_refs",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "commitment-deferred",
+        "case_id": "commitment-arc",
+        "slot": "commitment",
+        "channel": "proposal-channel",
+        "after_turn": 3,
+        "field_name": "followup_defer_only_count",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "execution-completed",
+        "case_id": "commitment-arc",
+        "slot": "execution_result",
+        "channel": "proposal-channel",
+        "after_turn": 4,
+        "field_name": "completed_actions",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "tension-registered",
+        "case_id": "emotional-repair",
+        "slot": "relationship_state",
+        "channel": "proposal-channel",
+        "after_turn": 0,
+        "field_name": "unresolved_tension_count",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "sensitive-boundary",
+        "case_id": "emotional-repair",
+        "slot": "user_model",
+        "channel": "proposal-channel",
+        "after_turn": 1,
+        "field_name": "sensitive_boundaries",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "contradiction-flagged",
+        "case_id": "emotional-repair",
+        "slot": "belief_assumption",
+        "channel": "proposal-channel",
+        "after_turn": 2,
+        "field_name": "contradiction_refs",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "repair-recorded",
+        "case_id": "emotional-repair",
+        "slot": "relationship_state",
+        "channel": "proposal-channel",
+        "after_turn": 3,
+        "field_name": "recent_repair_count",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "goal-deferred",
+        "case_id": "emotional-repair",
+        "slot": "goal_value",
+        "channel": "proposal-channel",
+        "after_turn": 4,
+        "field_name": "deferred_goal_count",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "boundary-denied",
+        "case_id": "boundary-goal",
+        "slot": "boundary_consent",
+        "channel": "proposal-channel",
+        "after_turn": 0,
+        "field_name": "denied_boundaries",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "goal-conflicted",
+        "case_id": "boundary-goal",
+        "slot": "goal_value",
+        "channel": "proposal-channel",
+        "after_turn": 1,
+        "field_name": "conflicted_goal_count",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "consent-revoked",
+        "case_id": "boundary-goal",
+        "slot": "boundary_consent",
+        "channel": "proposal-channel",
+        "after_turn": 2,
+        "field_name": "revocation_count",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "plan-constrained",
+        "case_id": "boundary-goal",
+        "slot": "plan_intent",
+        "channel": "proposal-channel",
+        "after_turn": 3,
+        "field_name": "active_constraints",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "execution-failed",
+        "case_id": "boundary-goal",
+        "slot": "execution_result",
+        "channel": "proposal-channel",
+        "after_turn": 4,
+        "field_name": "failed_actions",
+        "min_value": 1.0,
+        "observed_value": 0.0,
+        "hit": false
+      },
+      {
+        "expectation_id": "task-commitment-created",
+        "case_id": "typed-event-invariance",
+        "slot": "commitment",
+        "channel": "typed-event",
+        "after_turn": 0,
+        "field_name": "active_commitments",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "tool-success-recorded",
+        "case_id": "typed-event-invariance",
+        "slot": "execution_result",
+        "channel": "typed-event",
+        "after_turn": 1,
+        "field_name": "completed_actions",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "tool-failure-recorded",
+        "case_id": "typed-event-invariance",
+        "slot": "execution_result",
+        "channel": "typed-event",
+        "after_turn": 2,
+        "field_name": "failed_actions",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "profile-denial-recorded",
+        "case_id": "typed-event-invariance",
+        "slot": "boundary_consent",
+        "channel": "typed-event",
+        "after_turn": 3,
+        "field_name": "denied_boundaries",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      },
+      {
+        "expectation_id": "task-commitment-completed",
+        "case_id": "typed-event-invariance",
+        "slot": "commitment",
+        "channel": "typed-event",
+        "after_turn": 4,
+        "field_name": "outcome_completed_count",
+        "min_value": 1.0,
+        "observed_value": 1.0,
+        "hit": true
+      }
+    ],
+    "grounding_verdict": "insufficient-coverage"
+  },
+  "slot_dependencies": [
+    {
+      "slot": "belief_assumption",
+      "on_hit_rate": 1.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 1.0
+    },
+    {
+      "slot": "goal_value",
+      "on_hit_rate": 1.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 1.0
+    },
+    {
+      "slot": "open_loop",
+      "on_hit_rate": 1.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 1.0
+    },
+    {
+      "slot": "plan_intent",
+      "on_hit_rate": 1.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 1.0
+    },
+    {
+      "slot": "relationship_state",
+      "on_hit_rate": 1.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 1.0
+    },
+    {
+      "slot": "user_model",
+      "on_hit_rate": 1.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 1.0
+    },
+    {
+      "slot": "boundary_consent",
+      "on_hit_rate": 1.0,
+      "off_hit_rate": 0.333333,
+      "hit_rate_drop": 0.666667
+    },
+    {
+      "slot": "commitment",
+      "on_hit_rate": 1.0,
+      "off_hit_rate": 0.333333,
+      "hit_rate_drop": 0.666667
+    },
+    {
+      "slot": "execution_result",
+      "on_hit_rate": 1.0,
+      "off_hit_rate": 0.5,
+      "hit_rate_drop": 0.5
+    },
+    {
+      "slot": "belief_about_other",
+      "on_hit_rate": 0.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 0.0
+    },
+    {
+      "slot": "common_ground",
+      "on_hit_rate": 0.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 0.0
+    },
+    {
+      "slot": "conversational_role",
+      "on_hit_rate": 0.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 0.0
+    },
+    {
+      "slot": "feeling_about_other",
+      "on_hit_rate": 0.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 0.0
+    },
+    {
+      "slot": "group_joint_commitments",
+      "on_hit_rate": 0.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 0.0
+    },
+    {
+      "slot": "groups",
+      "on_hit_rate": 0.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 0.0
+    },
+    {
+      "slot": "intent_about_other",
+      "on_hit_rate": 0.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 0.0
+    },
+    {
+      "slot": "preference_about_other",
+      "on_hit_rate": 0.0,
+      "off_hit_rate": 0.0,
+      "hit_rate_drop": 0.0
+    }
+  ],
+  "overall_drop": 0.772727,
+  "proposal_channel_drop": 1.0,
+  "typed_event_drop": 0.0,
+  "bootstrap": {
+    "mean_drop": 0.764149,
+    "ci_low": 0.25,
+    "ci_high": 1.0,
+    "resample_count": 500,
+    "seed": 11
+  },
+  "verdict": "llm-proposal-dependent",
+  "description": "Semantic-proposal dependency ablation (non-gating). Verdict 'llm-proposal-dependent': overall lifecycle hit-rate drop +0.773 (proposal-channel +1.000, typed-event +0.000); bootstrap 95% CI [+0.250, +1.000]. An 'llm-proposal-dependent' verdict downgrades the external claim to 'LLM-assisted typed semantic tracking' and must be reported as-is.",
+  "provenance": {
+    "git_sha": "c8c7437d0a8c7f1434930ea699adf232815c7667",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.5",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O"
+  },
+  "substrate_mode": "synthetic",
+  "grounding_report_refs": {
+    "on": {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/ablation/semantic_grounding_report_on.json",
+      "sha256": "af24476be76c8c19f4e6fa2e7844f762a0ccaf6cb013f71299dc59eaa2325daf",
+      "size_bytes": 4966
+    },
+    "off": {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/ablation/semantic_grounding_report_off.json",
+      "sha256": "81654ca2b49aee102f2655efd2249d593332de915dfd79b6fd63bb3dd0c548b7",
+      "size_bytes": 4893
+    }
+  },
+  "evidence_tier": "synthetic-smoke: wiring + differential-design evidence only; the dependency claim requires the hf lane with --arm-runtime hf-llm."
+}

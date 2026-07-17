@@ -1,0 +1,38 @@
+{
+  "schema_version": "semantic-proposal-ablation-manifest.v1",
+  "artifact_kind": "semantic_proposal_ablation_manifest",
+  "artifacts": [
+    {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/ablation/semantic_grounding_turns_on.json",
+      "sha256": "7cd64d62b14d5c19aab32a779a1fe2cdb860c983000b70c6834f9035e4aa95bb",
+      "size_bytes": 21274
+    },
+    {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/ablation/semantic_grounding_report_on.json",
+      "sha256": "af24476be76c8c19f4e6fa2e7844f762a0ccaf6cb013f71299dc59eaa2325daf",
+      "size_bytes": 4966
+    },
+    {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/ablation/semantic_grounding_turns_off.json",
+      "sha256": "a99171e42aa10d187aa365afec871b9ac8660ceb880bc20176f736306f59fb94",
+      "size_bytes": 21824
+    },
+    {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/ablation/semantic_grounding_report_off.json",
+      "sha256": "81654ca2b49aee102f2655efd2249d593332de915dfd79b6fd63bb3dd0c548b7",
+      "size_bytes": 4893
+    },
+    {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/ablation/semantic_proposal_ablation_report.json",
+      "sha256": "b9987900814e1910ea40fcd48218f6c01761ebbb74e923dd5a3ee5a1e798b777",
+      "size_bytes": 25079
+    }
+  ],
+  "provenance": {
+    "git_sha": "c8c7437d0a8c7f1434930ea699adf232815c7667",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.5",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O"
+  }
+}

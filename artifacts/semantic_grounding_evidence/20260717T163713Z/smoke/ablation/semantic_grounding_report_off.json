@@ -1,0 +1,186 @@
+{
+  "schema_version": "semantic-grounding-report.v1",
+  "artifact_kind": "semantic_grounding_report",
+  "non_gating": true,
+  "axes": [
+    "relationship_state.trust_level",
+    "relationship_state.repair_pressure",
+    "relationship_state.emotional_load",
+    "relationship_state.unresolved_tension_count",
+    "relationship_state.recent_repair_count",
+    "commitment.active_commitments_count",
+    "commitment.at_risk_commitments_count",
+    "commitment.outcome_completed_count",
+    "commitment.alignment_reject_count",
+    "open_loop.unresolved_loops_count",
+    "open_loop.closure_refs_count",
+    "open_loop.closure_pressure",
+    "common_ground.dyad_atoms_count",
+    "common_ground.group_atoms_count",
+    "user_model.stable_preferences_count",
+    "user_model.sensitive_boundaries_count",
+    "boundary_consent.granted_consents_count",
+    "boundary_consent.denied_boundaries_count",
+    "goal_value.explicit_goals_count",
+    "goal_value.value_conflict",
+    "belief_assumption.beliefs_count",
+    "belief_assumption.contradiction_refs_count",
+    "plan_intent.plan_revision_count",
+    "plan_intent.completed_plan_refs_count",
+    "execution_result.completed_actions_count",
+    "execution_result.failed_actions_count"
+  ],
+  "thresholds": {
+    "min_closed_segments": 50,
+    "min_reused_families": 3,
+    "min_nonzero_delta_ratio": 0.3,
+    "shuffle_count": 200,
+    "shuffle_seed": 7,
+    "d2_max_lag": 3,
+    "d3_margin": 0.1,
+    "d3_min_samples_per_signature": 2
+  },
+  "coverage": {
+    "turn_count": 20,
+    "closed_segment_count": 0,
+    "family_count": 2,
+    "reused_family_count": 2,
+    "nonzero_delta_ratio": 0.8,
+    "meets_thresholds": false,
+    "description": "20 turns, 0 closed segments, 2 families (2 reused across cases), nonzero-delta ratio 0.800."
+  },
+  "d1_discrimination": {
+    "real_value": 0.018009,
+    "shuffled_mean": 0.058266,
+    "shuffled_p95": 0.115409,
+    "shuffle_count": 200,
+    "passed": false,
+    "description": "D1 discrimination: between/within separation of semantic delta vectors grouped by family. real=0.0180, shuffled p95=0.1154, families=2."
+  },
+  "d2_lead": {
+    "peak_lag": 1,
+    "peak_value": 0.793857,
+    "shuffled_p95": 0.793857,
+    "coupling_ok": true,
+    "lead_ok": true,
+    "passed": true,
+    "lag_correlations": [
+      [
+        -3,
+        0.649519
+      ],
+      [
+        -2,
+        0.57735
+      ],
+      [
+        -1,
+        0.505181
+      ],
+      [
+        0,
+        0.57735
+      ],
+      [
+        1,
+        0.793857
+      ],
+      [
+        2,
+        0.721688
+      ],
+      [
+        3,
+        0.57735
+      ]
+    ],
+    "description": "D2 lead: switch events (beta closure / is_switching) vs semantic delta events. peak lag=1 (>=0 means switch leads or is synchronous), peak=0.7939, shuffled-timing p95=0.7939."
+  },
+  "d3_transfer": {
+    "same_family_similarity": -0.118119,
+    "cross_family_similarity": 0.211731,
+    "margin": 0.1,
+    "evaluable": true,
+    "passed": false,
+    "same_family_pair_count": 9,
+    "cross_family_pair_count": 9,
+    "description": "D3 transfer: cross-case signature similarity. same-family mean=-0.1181 vs cross-family mean=0.2117 (margin 0.1); evaluable=True (9 same-family pairs, 9 cross-family pairs across distinct cases)."
+  },
+  "family_signatures": [
+    {
+      "family": "discovered_family_0",
+      "sample_count": 6,
+      "case_count": 3,
+      "centroid": [
+        -0.186989,
+        0.0,
+        0.003848,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.229416,
+        0.0,
+        -0.034943,
+        0.0,
+        0.155417,
+        0.0,
+        0.0,
+        -0.204124,
+        0.0,
+        0.083333,
+        -0.229416,
+        -0.034943,
+        0.186989,
+        -0.333333,
+        0.0,
+        0.0,
+        -0.229416,
+        -0.333333,
+        -0.229416
+      ]
+    },
+    {
+      "family": "discovered_family_2",
+      "sample_count": 14,
+      "case_count": 4,
+      "centroid": [
+        -0.0,
+        0.0,
+        -0.038478,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.034943,
+        0.0,
+        -0.031083,
+        0.0,
+        0.0,
+        0.102062,
+        0.0,
+        -0.041667,
+        0.0,
+        -0.034943,
+        -0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "verdict": "insufficient-coverage",
+  "description": "Latent-semantic grounding readout (non-gating). Verdict 'insufficient-coverage': D1 passed=False, D2 passed=True, D3 passed=False, coverage met=False. A 'fail' verdict is a kill signal for the 'emergent abstraction is grounded' claim and must be reported as-is.",
+  "provenance": {
+    "git_sha": "c8c7437d0a8c7f1434930ea699adf232815c7667",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.5",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O"
+  }
+}

@@ -117,6 +117,15 @@
   - 当前轻量 verdict 先绑定 `semantic-spine-ready`、`canonical_mean_semantic_spine_coverage`、`canonical_mean_cognitive_loop_readiness` 与 `cross-session-growth`，作为完整 companion 证据前的地基门
 - repeated-run verdict 优先使用 paper-suite secondary metric summary 的 sample count / mean，避免只看单次 reference dashboard
 
+### Semantic grounding claims（设计冻结；详见 [`semantic-grounding-evidence.md`](./semantic-grounding-evidence.md)）
+
+- `claim_latent_abstraction_semantically_grounded`
+  - 命题：latent action family 对应真实语义动态（区分性 / 领先性 / 迁移性），不是表面措辞聚类
+  - 需要：`semantic_grounding_report.json` 的 D1/D2/D3 全部通过 shuffled control 且覆盖统计达门槛；fail 是该主张的 kill 信号，不允许换口径重跑
+- `claim_semantic_tracking_not_llm_dependent`
+  - 命题：语义 owner 状态追踪由 typed 结构 + PE 闭环承担，不依赖单一 LLM proposal 通道
+  - 需要：`semantic_proposal_ablation_report.json` 中 off 臂 per-slot lifecycle 命中率相对 on 臂无大幅退化，两臂同 substrate fingerprint / seed / scenario；off 臂大幅退化时该 claim 必须降级为 "LLM-assisted typed semantic tracking"，不得静默保留原口径
+
 ### Same-substrate Companion Bench ablation claims（debt #87；详见 [`companion-ablation.md`](./companion-ablation.md)）
 
 > **冻结的 thesis 第一阶段 claim registry SSOT 见 [`human-world-model-ablation.md`](./human-world-model-ablation.md)**（5 条 retain claim + 8 臂 matched-control matrix + 证据门槛 + 4 态分级 + kill 条件）。下面是同基底工具链已实现的 4 条；registry 相对本节新增 `claim_component_causal_contribution`（PE/ETA/主动学习逐个因果切分，四臂待迁同基底）。
@@ -521,6 +530,8 @@ bundle dir 中必须有：
 
 ## 变更日志
 
+- 2026-07-17: semantic grounding claims 的两个实验包实现完成：`volvence_zero.agent.semantic_grounding`（D1/D2/D3 + shuffled controls）+ `scripts/build_semantic_grounding_report.py`；`lifeform_evolution.semantic_proposal_ablation`（9-slot scripted probe、on/off matched 双臂、case-level bootstrap CI、两臂 grounding 交叉读数）+ `scripts/build_semantic_proposal_ablation_report.py` + vertical 工厂 `VZ_SEMANTIC_PROPOSAL_CHANNEL` 通道级开关。synthetic smoke lane 差分设计验证通过；hf substrate 真实 trace 运行 pending。
+- 2026-07-17: 新增 semantic grounding claims（`claim_latent_abstraction_semantically_grounded` / `claim_semantic_tracking_not_llm_dependent`），绑定 `docs/specs/semantic-grounding-evidence.md` 的两个实验设计与 non-gating artifact；实现与真实 trace 运行 pending。
 - 2026-07-14: evidence bundle v2 统一入口（CP-00 / GAP-10）。新增
   `volvence_zero.agent.evidence_bundle_v2.assemble_evidence_bundle_v2` +
   单命令 `python scripts/assemble_evidence_bundle_v2.py`：把

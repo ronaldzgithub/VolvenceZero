@@ -1,0 +1,92 @@
+{
+  "schema_version": "semantic-grounding-evidence-summary.v1",
+  "artifact_kind": "semantic_grounding_evidence_summary",
+  "non_gating": true,
+  "lanes_requested": [
+    "unit",
+    "smoke"
+  ],
+  "overall_status": "passed",
+  "stages": [
+    {
+      "stage_id": "unit-pytest",
+      "command": [
+        "/Users/mengfu/miniconda3/bin/python",
+        "-m",
+        "pytest",
+        "packages/vz-runtime/tests/test_semantic_grounding.py",
+        "tests/lifeform_e2e/test_semantic_proposal_ablation.py",
+        "packages/lifeform-service/tests/test_semantic_proposal_channel_switch.py",
+        "-q"
+      ],
+      "status": "passed",
+      "elapsed_seconds": 15.27,
+      "notes": {
+        "returncode": 0,
+        "log": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/unit-pytest.log"
+      }
+    },
+    {
+      "stage_id": "smoke-ablation",
+      "command": [
+        "/Users/mengfu/miniconda3/bin/python",
+        "-u",
+        "scripts/build_semantic_proposal_ablation_report.py",
+        "--output-dir",
+        "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/ablation"
+      ],
+      "status": "passed",
+      "elapsed_seconds": 3.83,
+      "notes": {
+        "returncode": 0,
+        "log": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke-ablation.log"
+      }
+    },
+    {
+      "stage_id": "smoke-grounding",
+      "command": [
+        "/Users/mengfu/miniconda3/bin/python",
+        "-u",
+        "scripts/build_semantic_grounding_report.py",
+        "--run-capture",
+        "--output-dir",
+        "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/grounding"
+      ],
+      "status": "passed",
+      "elapsed_seconds": 13.24,
+      "notes": {
+        "returncode": 0,
+        "log": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke-grounding.log"
+      }
+    }
+  ],
+  "verdicts": {
+    "smoke": {
+      "semantic_proposal_ablation": {
+        "verdict": "llm-proposal-dependent",
+        "overall_drop": 0.772727,
+        "proposal_channel_drop": 1.0,
+        "typed_event_drop": 0.0,
+        "on_arm_grounding": "insufficient-coverage",
+        "off_arm_grounding": "insufficient-coverage",
+        "evidence_tier": "synthetic-smoke: wiring + differential-design evidence only; the dependency claim requires the hf lane with --arm-runtime hf-llm."
+      },
+      "semantic_grounding": {
+        "verdict": "insufficient-coverage",
+        "d1_passed": false,
+        "d2_passed": false,
+        "d3_passed": true,
+        "coverage_met": false,
+        "evidence_tier": "synthetic-smoke: wiring evidence only; real grounding evidence requires the hf substrate lane."
+      }
+    }
+  },
+  "provenance": {
+    "git_sha": "c8c7437d0a8c7f1434930ea699adf232815c7667",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.5",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O"
+  },
+  "notes": "smoke-lane verdicts are wiring/differential-design evidence only and are not citable for the semantic grounding claims; claim evidence requires the hf lane (see docs/specs/semantic-grounding-evidence.md and the claims in docs/specs/evidence_program.md)."
+}

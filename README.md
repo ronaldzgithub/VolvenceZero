@@ -1,5 +1,57 @@
 # VolvenceZero
 
+## Semantic Grounding Evidence
+
+One command runs the two experiments of
+`docs/specs/semantic-grounding-evidence.md` — the latent–semantic
+grounding readout (D1 discrimination / D2 lead / D3 transfer with
+shuffled controls) and the LLM-proposal dependency ablation (matched
+on/off arms). These feed `claim_latent_abstraction_semantically_grounded`
+and `claim_semantic_tracking_not_llm_dependent` in
+`docs/specs/evidence_program.md`.
+
+```bash
+# Anytime (CI-safe, ~1 min): harness unit tests + synthetic smoke lane.
+bash run_semantic_grounding_evidence.sh
+
+# Milestone evidence run (real Qwen substrate; the citable one):
+bash run_semantic_grounding_evidence.sh --lane hf --substrate-device mps
+bash run_semantic_grounding_evidence.sh --lane hf --substrate-device cuda
+
+# First hf run on a machine without cached weights:
+bash run_semantic_grounding_evidence.sh --lane hf --substrate-allow-download
+
+# Everything (unit + smoke + hf):
+bash run_semantic_grounding_evidence.sh --lane all
+```
+
+Each run writes a fresh timestamped directory under
+`artifacts/semantic_grounding_evidence/` containing per-stage logs, the
+two report artifacts with sha256 manifests, and a `summary.json` with
+per-stage status and extracted verdicts. Exit code is non-zero on any
+stage failure.
+
+Evidence tiers (enforced in the artifacts, not just by convention):
+
+- `unit` — pytest acceptance for both harnesses. Validates the harness,
+  produces no evidence.
+- `smoke` — synthetic substrate. Wiring + differential-design check
+  only; reports are stamped `evidence_tier: synthetic-smoke` and the
+  grounding verdict is expected to be `insufficient-coverage`. Never
+  citable for the claims.
+- `hf` — shared real substrate for both ablation arms (identical
+  residual path; only the proposal channel differs) plus a real-trace
+  grounding capture. This is the lane that produces claim evidence. A
+  grounding `fail` here is a kill signal for the "emergent abstraction
+  is grounded" claim and must be reported as-is; an ablation
+  `llm-proposal-dependent` verdict downgrades the external claim to
+  "LLM-assisted typed semantic tracking".
+
+If the hf grounding report says `insufficient-coverage`, raise
+`--hf-turns-per-case` (coverage gate: >= 50 closed segments). The
+channel-level runtime switch used by the off arm is also available for
+manual A/B on any vertical: `VZ_SEMANTIC_PROPOSAL_CHANNEL=noop`.
+
 ## Learned Backend ACTIVE Evidence
 
 The root launchers below are thin shell wrappers around the Python evidence

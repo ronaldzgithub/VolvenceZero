@@ -1,0 +1,23 @@
+{
+  "schema_version": "semantic-grounding-manifest.v1",
+  "artifact_kind": "semantic_grounding_manifest",
+  "artifacts": [
+    {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/grounding/semantic_grounding_turns.json",
+      "sha256": "aa59b4387e1b41b4429e3ab3eb458b9452c31e3a561945da4c5d73602e069a32",
+      "size_bytes": 74595
+    },
+    {
+      "path": "/Users/mengfu/Documents/GitHub/VolvenceDeploy/external/VolvenceZero/artifacts/semantic_grounding_evidence/20260717T163713Z/smoke/grounding/semantic_grounding_report.json",
+      "sha256": "26c1f9e181ae0e135a865019f06d61908293814d4edafe0add2f82a24b3532d0",
+      "size_bytes": 6580
+    }
+  ],
+  "provenance": {
+    "git_sha": "c8c7437d0a8c7f1434930ea699adf232815c7667",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.5",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O"
+  }
+}

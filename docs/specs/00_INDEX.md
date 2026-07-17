@@ -212,6 +212,23 @@
 
 ---
 
+### 9A. Semantic Grounding 证据（已实现；hf 真实 trace 运行 pending）
+
+**对应需求**：R3/R4（时间抽象 + 内部控制）、R8（快照优先）、R11（内部状态可发布）、R12（评估 readout-only）、R15（可回滚演进）、R-PE
+
+| Spec | 内容 |
+|------|------|
+| [semantic-grounding-evidence.md](./semantic-grounding-evidence.md) | 两个实验设计：latent–semantic grounding readout（D1 区分性 / D2 领先性 / D3 迁移性 + shuffled controls）与 LLM-proposal 依赖消融（on/off matched 两臂）；`semantic_grounding_report.json` / `semantic_proposal_ablation_report.json` 两个 non-gating reference artifact |
+
+**核心不变量**：
+- 全部输入来自既有公共快照与 replay export，out-of-turn 只读分析，不重建 owner 内部状态
+- readout-only：结果不回灌学习路径，不进入 reward
+- 语义 delta 只来自 typed owner snapshot diff，禁止从文本关键词重建
+- 消融两臂必须同 substrate fingerprint / seed / scenario；grounding 判据必须带 shuffled control
+- 首版 non-gating；grounding fail 是"涌现抽象已 grounded"主张的 kill 信号，升级为 promotion gate 需独立收敛包
+
+---
+
 ### 10. 认知 Regime
 
 **对应需求**：R14（社交与认知 Regime 的持久身份）

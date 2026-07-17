@@ -719,6 +719,25 @@ def _try_growth_advisor() -> VerticalSpec | None:
     )
 
 
+#: Env switch for the semantic-proposal ablation (experiment 2 of
+#: docs/specs/semantic-grounding-evidence.md). ``llm`` (default) keeps the
+#: current behaviour; ``noop`` skips LLM injection on ALL verticals that
+#: route through :func:`_build_llm_semantic_runtime_from_runtime`, which is
+#: the channel-level off arm (semantic + auto-derived ToM + common-ground
+#: proposal runtimes all stay NoOp). Invalid values fail loudly.
+_SEMANTIC_PROPOSAL_CHANNEL_ENV = "VZ_SEMANTIC_PROPOSAL_CHANNEL"
+
+
+def _semantic_proposal_channel() -> str:
+    raw = os.environ.get(_SEMANTIC_PROPOSAL_CHANNEL_ENV, "llm").strip().lower()
+    if raw not in {"llm", "noop"}:
+        raise ValueError(
+            f"{_SEMANTIC_PROPOSAL_CHANNEL_ENV} must be 'llm' or 'noop', "
+            f"got {raw!r}."
+        )
+    return raw
+
+
 def _build_llm_semantic_runtime_from_runtime(runtime):
     """Wrap a TransformersOpenWeightResidualRuntime's underlying HF
     model + tokenizer in an :class:`LLMSemanticProposalRuntime`.
@@ -737,8 +756,16 @@ def _build_llm_semantic_runtime_from_runtime(runtime):
     does not expose HF internals — e.g. the builtin synthetic
     fallback runtime, which would only emit theatre against random
     weights.
+
+    ``VZ_SEMANTIC_PROPOSAL_CHANNEL=noop`` forces the explicit NoOp
+    runtime even when a real HF runtime is present: the matched off
+    arm of the semantic-proposal ablation.
     """
 
+    if _semantic_proposal_channel() == "noop":
+        from volvence_zero.semantic_state import NoOpSemanticProposalRuntime
+
+        return NoOpSemanticProposalRuntime()
     if runtime is None:
         return None
     model = getattr(runtime, "_model", None)
