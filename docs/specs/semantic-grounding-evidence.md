@@ -161,6 +161,7 @@
 | 实验 2 通道级开关（vertical 工厂 choke point） | `lifeform_service.verticals`：`VZ_SEMANTIC_PROPOSAL_CHANNEL=llm\|noop`（非法值 fail loudly） |
 | 实验 2 harness（9-slot scripted probe + 双臂 runner + 报告） | `packages/lifeform-evolution/src/lifeform_evolution/semantic_proposal_ablation.py` |
 | 实验 2 CLI（双臂 + 两臂 grounding 交叉读数 + manifest） | `scripts/build_semantic_proposal_ablation_report.py` |
+| 流水线编排（unit / smoke / hf 三 lane + summary.json） | `run_semantic_grounding_evidence.sh` → `scripts/run_semantic_grounding_evidence.py`（用法见根 `README.md`） |
 | 测试 | `packages/vz-runtime/tests/test_semantic_grounding.py`、`tests/lifeform_e2e/test_semantic_proposal_ablation.py`、`packages/lifeform-service/tests/test_semantic_proposal_channel_switch.py` |
 
 实验 2 的 probe 判据全部是 OBSERVE-immune 的 typed 字段检查（blocked / deferred / completed 状态、revision 计数、confidence-floored commitment slot），并按证据通道分层：`proposal-channel`（只有语义感知 runtime 能从用户话语满足）vs `typed-event`（外部 typed 事件经 adapter runtime 在两臂都生效，作为不变性对照）。synthetic smoke lane 的 on 臂用 scripted probe runtime 精确重放 ground-truth 声明；hf lane 用共享 substrate 包装的 `LLMSemanticProposalRuntime`（`--arm-runtime hf-llm`）。
