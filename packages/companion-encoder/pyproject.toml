@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "companion-encoder"
+version = "0.1.0a0"
+description = "Open-weights relationship encoder (training + evaluation scaffold): reads canonical companion-standard trajectories, predicts per-anchor relationship state (phase + trust/continuity/repair) and produces trajectory embeddings implementing the SemanticEmbeddingBackend seam. Weights are NOT published until release gates G1-G4 pass (see docs/external/relationship-representation-rfc-v0.md)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Companion Standard Contributors" }]
+keywords = ["relationship", "encoder", "representation", "companion-ai", "companion-encoder"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+# Core stays torch-free so dataset/serialization/baseline tooling imports
+# anywhere; training/eval pull the [train] extra.
+dependencies = [
+    "companion-standard==0.1.*",
+]
+
+[project.optional-dependencies]
+train = [
+    "torch>=2.2",
+]
+hf = [
+    "torch>=2.2",
+    "transformers>=4.40",
+]
+test = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+companion-encoder = "companion_encoder.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["companion_encoder*"]
+
+[tool.setuptools.package-data]
+companion_encoder = ["prompts/*.md"]
