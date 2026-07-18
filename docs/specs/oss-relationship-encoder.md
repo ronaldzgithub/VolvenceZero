@@ -140,7 +140,34 @@ live-through 开源分支只用公版 / 自造叙事材料。
 | 4 | 是否接受社区训练数据贡献（conformance 过了就收？） | v0 不收，G1 审计面失控；v1 再议 |
 | 5 | 发布主体与品牌（Volvence 官方 vs 独立标准组织形象） | 与 Option A Open Decision #1（命名族）一起定 |
 
+## 实施记录（2026-07-18，M0 + M1-v0 完成）
+
+M0（标准 SSOT 就位）与 M1 数据管线 v0 已落地为 `packages/companion-trajgen/`
+（模块 `companion_trajgen`，Apache-2.0，依赖 `companion-standard` + `companion-bench`；
+独立包而非并入 companion-bench，保持 bench 评测纯度）。与草稿的对齐/差异：
+
+- **FSM ground-truth 标注器**（`labeler.py`）：16 动作词表 → 确定性关系状态游走
+  `(phase, trust, continuity, repair_pressure)`，逐 session 起点 + 逐 FSM anchor 发标签；
+  未登记动作 fail-loud（词表增长是 RFC-level 变更）。标签来自生成时 FSM 状态，
+  judge 不可入标签（`LabelSource` 类型级排除 + AST 守门
+  `test_companion_trajgen_only_fsm_ground_truth_label_source`）。
+- **轨迹导出**（`exporter.py`）：`ArcRecord` → canonical `InteractionTrajectory`，
+  bench 1-based (session, turn-pair) 坐标 → 标准 0-based 平铺 turn 坐标
+  （user turn t → trajectory index (t-1)*2）；每条导出前过 conformance round-trip。
+- **双模式**：`fsm`（DeterministicFakeUtteranceClient + 包内 DeterministicFakeSUTClient，
+  零 LLM 成本，两次运行字节级一致已验证）；`llm`（bench 的 OpenAIUtteranceClient +
+  OpenAIChatClient，采购口径与 bench 共用）。CLI：`companion-trajgen generate`。
+- **held-out 结构性排除**：禁止 import `heldout_loader` + 所有 `load_scenarios_dir`
+  调用 AST 强制 `include_held_out=False`（`test_companion_trajgen_boundaries.py`）。
+- **M1 验收**：公开 30 场景 × 3 seeds = 90 条轨迹全部通过 `check_trajectory_document`；
+  train/val 按场景族整族划分（默认 val = F5, F6），无跨族泄漏
+  （`tests/test_companion_trajgen_pipeline.py`）。10^4 规模留给 LLM 模式批量跑
+  （管线已就绪，规模由生成预算决定）。
+- **M3 live-through 公版语料分支**：未启动（非 M1 范围）。M2（encoder 训练）未启动，
+  G1-G4 gate 全部未过——不发布任何权重，对外口径不变。
+
 ## 变更日志
 
 - 2026-07-18 v0 草稿。与 Option A spec 同批产出；训练部分为规划性内容，
   代码落地时以代码为准并回改本 spec。
+- 2026-07-18 M0 + M1-v0 落地（companion-trajgen），新增实施记录一节。

@@ -29,16 +29,28 @@
 
 | 层 | wheel | 契约作用 |
 |----|-------|----------|
-| 内核 contracts | `vz-contracts` | 所有 vz-* / lifeform-* 共享的 Snapshot / RuntimeModule / Guards 类型；零产品知识 |
+| **公开表征标准** | `companion-standard` | Relationship Representation Standard（Phase A1，`docs/specs/oss-relationship-representation-standard.md`）：9 类 semantic owner snapshot value 类型 + slot 注册表常量、ToM `OtherMindRecord`、`OwnerPredictionSignal`（表示部分）、`SemanticEmbeddingBackend` seam + stub、`Snapshot` 容器、canonical trajectory schema。零依赖纯 stdlib；这些类型的**唯一 SSOT**，内核经 re-export 消费 |
+| 内核 contracts | `vz-contracts` | 所有 vz-* / lifeform-* 共享的 RuntimeModule / Guards / propagate 机制类型；从 `companion-standard` re-export 共享表示类型；零产品知识 |
 | 内核 owner snapshot | `vz-substrate` / `vz-temporal` / `vz-memory` / `vz-cognition` / `vz-application` / `vz-runtime` | §3 列出的运行时 slot |
 | 生命体侧契约 | `lifeform-core` | `VitalsBootstrap` / `VitalsSnapshot` / `DriveSpec` / `DriveLevel` / `TurnSummary` 等；不进入内核运行时 slot |
 | 垂直经验 | `lifeform-domain-*` | `DomainExperiencePackage` / `VitalsBootstrap`；编译进既有内核 application owner |
 
 当前 wheel 命名以代码为准：`prediction_error`、`credit`、`dual_track`、`regime`、`semantic_state`、`evaluation` 和 social cognition owner 均由 `vz-cognition` 承载。`vz-pe-credit` / `vz-self-model` / `vz-evaluation` 只可作为历史能力域简称，不是当前 package 名。
 
+**Phase A1 SSOT 迁移注记（2026-07-18）**：以下共享表示类型的定义处已迁至 `companion-standard`，内核侧原模块改为 re-export（既有 `volvence_zero.*` import 路径不变）：
+
+| 类型组 | 新 SSOT | 内核 re-export 处 |
+|--------|---------|-------------------|
+| `SemanticRecord` + 9 类 snapshot + lifecycle entries + outcome 枚举 + `SEMANTIC_OWNER_SLOTS` + funnel stage 词表 | `companion_standard.semantic_state` | `volvence_zero.semantic_state.contracts` |
+| `OwnerPredictionKind` / `OwnerPredictionSignal`（settle 机制留内核） | `companion_standard.owner_prediction` | `volvence_zero.owner_prediction` |
+| `OtherMindRecord` + kind / status 枚举（owner snapshots 留内核） | `companion_standard.social_cognition` | `volvence_zero.social_cognition` |
+| `SemanticEmbeddingBackend` + stub（backend 注册机制留内核） | `companion_standard.embedding` | `volvence_zero.semantic_embedding` |
+| `Snapshot` 容器（propagate / guards 机制留内核） | `companion_standard.kernel` | `volvence_zero.runtime.kernel` |
+
 **关键不变量**：
 
 - `vz-*` 不得 import `lifeform-*`；CI 由 `tests/contracts/test_import_boundaries.py` 强制
+- `companion_standard` 不得 import 任何 `volvence_zero.*` / `lifeform_*`（`tests/contracts/test_companion_standard_no_internal_imports.py`）；内核 wheel 中只有 re-export 站点（`vz-contracts` / `vz-cognition`）可直接 import `companion_standard`（`COMPANION_STANDARD_IMPORTERS`）
 - vertical 不引入新的 runtime owner，只通过 `volvence_zero.application.domain_experience` 编译进 `domain_knowledge` / `case_memory` / `strategy_playbook` / `boundary_policy` / `application rare-heavy state`
 - vitals layer 的 `VitalsSnapshot` 是 lifeform-side 公共契约，由 `VitalsModule` 唯一拥有；**不**作为内核 runtime slot 出现在 §6 注册表
 - `Brain` / `BrainSession` 是内核暴露给 lifeform 层的 stable facade，详见 `docs/specs/core-package-boundary.md`

@@ -4,6 +4,14 @@ This module is deliberately data-only. It lives in ``vz-contracts`` so
 kernel owners, lifeform-side readouts, and evidence tooling can share the
 same immutable shapes without reversing package dependencies.
 
+SSOT split (oss-relationship-representation-standard.md, Phase A1): the
+core ToM *representation* — :class:`OtherMindRecord` and its kind / status
+enums — lives in ``companion_standard.social_cognition`` (the public
+Relationship Representation Standard) and is re-exported here. Everything
+else (owner snapshots with runtime diagnostics, social prediction / PE
+records, common-ground, group state, lift helpers) is runtime contract and
+stays private in this module.
+
 The first landed slice covers R16 scaffolding: multi-party identity scope,
 pre-action social predictions, and typed social prediction error records.
 Runtime owners and propagation wiring are added in later phases.
@@ -14,6 +22,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
+
+from companion_standard.social_cognition import (  # noqa: F401
+    OtherMindRecord,
+    OtherMindRecordKind,
+    OtherMindRecordStatus,
+)
 
 if TYPE_CHECKING:
     from volvence_zero.llm_proposal_diagnostics import LLMProposalAttemptCounters
@@ -55,23 +69,6 @@ class SocialPredictionOutcome(str, Enum):
     DISCONFIRMED = "disconfirmed"
     STALE = "stale"
     UNKNOWN = "unknown"
-
-
-class OtherMindRecordKind(str, Enum):
-    """Four distinct Theory-of-Mind state kinds (R17)."""
-
-    BELIEF = "belief"
-    INTENT = "intent"
-    FEELING = "feeling"
-    PREFERENCE = "preference"
-
-
-class OtherMindRecordStatus(str, Enum):
-    """Lifecycle state for an inferred other-mind record."""
-
-    ACTIVE = "active"
-    CONTESTED = "contested"
-    RETIRED = "retired"
 
 
 @dataclass(frozen=True)
@@ -324,31 +321,6 @@ def social_prediction_error_from_memory_signal(
         scope_id=signal.scope_id,
         evidence=signal.evidence,
     )
-
-
-@dataclass(frozen=True)
-class OtherMindRecord:
-    record_id: str
-    interlocutor_id: str
-    kind: OtherMindRecordKind
-    summary: str
-    detail: str
-    confidence: float
-    status: OtherMindRecordStatus
-    source_turn: int
-    prediction_error_refs: tuple[str, ...]
-    evidence: str
-
-    def __post_init__(self) -> None:
-        _require_non_empty("record_id", self.record_id)
-        _require_non_empty("interlocutor_id", self.interlocutor_id)
-        _require_non_empty("summary", self.summary)
-        _require_non_empty("detail", self.detail)
-        _require_confidence("confidence", self.confidence)
-        if self.source_turn < 0:
-            raise ValueError(f"source_turn must be >= 0, got {self.source_turn!r}")
-        _require_unique_non_empty("prediction_error_refs", self.prediction_error_refs)
-        _require_non_empty("evidence", self.evidence)
 
 
 @dataclass(frozen=True)

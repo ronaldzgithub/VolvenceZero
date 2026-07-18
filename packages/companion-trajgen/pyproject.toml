@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "companion-trajgen"
+version = "0.1.0a0"
+description = "Synthetic trajectory generation pipeline for the Relationship Representation Standard: runs Companion Bench public scenarios (deterministic FSM mode or LLM simulator mode) and exports companion-standard canonical trajectories with FSM-ground-truth relationship-state labels. Training-data tooling for the open-weights relationship encoder (see docs/external/relationship-representation-rfc-v0.md)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Companion Standard Contributors" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["synthetic-data", "trajectory", "companion-ai", "relationship", "companion-trajgen"]
+dependencies = [
+    "companion-standard==0.1.*",
+    "companion-bench==1.0.*",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+companion-trajgen = "companion_trajgen.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["companion_trajgen*"]

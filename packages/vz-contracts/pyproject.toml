@@ -9,7 +9,14 @@ description = "Volvence Zero contracts: snapshot/owner/propagator + learned-upda
 requires-python = ">=3.11"
 authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
-dependencies = []
+# Phase A1 (oss-relationship-representation-standard.md): the shared
+# representation types (semantic snapshots / ToM records / prediction
+# signal / embedding seam / Snapshot container) moved to the public
+# companion-standard wheel; vz-contracts re-exports them. This is the
+# ONLY dependency — vz-contracts still has zero volvence_zero upstream.
+dependencies = [
+    "companion-standard==0.1.*",
+]
 
 # Optional real-autograd backend (volvence_zero.tensor_backend). Pure-Python
 # tuple math is the zero-dependency default / rollback baseline; torch is only

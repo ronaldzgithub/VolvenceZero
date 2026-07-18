@@ -12,6 +12,11 @@ from types import MappingProxyType
 from typing import Any, ClassVar, Generic, Mapping, MutableMapping, TypeVar
 from uuid import uuid4
 
+# SSOT split (oss-relationship-representation-standard.md, Phase A1): the
+# immutable Snapshot container is representation and lives in the public
+# standard; the propagation mechanism below (guards, wiring levels,
+# RuntimeModule, placeholders) stays private in this module.
+from companion_standard.kernel import Snapshot  # noqa: F401
 
 ValueT = TypeVar("ValueT")
 UpstreamDict = dict[str, "Snapshot[Any]"]
@@ -59,15 +64,6 @@ class RuntimePlaceholderValue:
     expected_slot: str
     produced_by: str
     detail: str
-
-
-@dataclass(frozen=True)
-class Snapshot(Generic[ValueT]):
-    slot_name: str
-    owner: str
-    version: int
-    timestamp_ms: int
-    value: ValueT
 
 
 @dataclass(frozen=True)

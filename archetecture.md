@@ -36,7 +36,8 @@ boundary is not the module boundary; wheel boundary is.
 
 | Wheel | Owns | Boundary rule |
 |---|---|---|
-| `vz-contracts` | `Snapshot`, `RuntimeModule`, `WiringLevel`, shared guards | Foundation; no upstream `volvence_zero.*` imports |
+| `companion-standard` | Relationship Representation Standard (public, Phase A1): nine semantic snapshot value types + slot registry, `OtherMindRecord`, `OwnerPredictionSignal`, `SemanticEmbeddingBackend` seam + stub, `Snapshot` container, canonical trajectory schema | Zero-dependency stdlib wheel; SSOT for shared representation types; must not import `volvence_zero.*` / `lifeform_*`; kernel consumes via re-export sites only (see `docs/specs/oss-relationship-representation-standard.md`) |
+| `vz-contracts` | `RuntimeModule`, `WiringLevel`, `propagate`, shared guards; re-exports the shared representation types from `companion-standard` | Internal foundation; no upstream `volvence_zero.*` imports; sits on `companion-standard` only |
 | `vz-substrate` | frozen LLM substrate, residual capture, bounded adapter-delta entry | No policy ownership |
 | `vz-memory` | continuum memory, CMS state, reflection-backed memory readouts | Publishes memory summaries and stable memory readouts |
 | `vz-cognition` | PE, credit, dual-track, regime, semantic owners, evaluation, social cognition types | Current home for PE / credit / self-model capabilities |

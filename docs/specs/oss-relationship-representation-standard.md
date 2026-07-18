@@ -48,7 +48,10 @@
 
 ### MUST NOT include（护城河边界，一票否决）
 
-- `learned_update.py` / `tensor_backend.py` / `owner_prediction.py` / `owner_hydration.py`（学习与持久化工艺）
+- `learned_update.py` / `tensor_backend.py` / `owner_hydration.py`（学习与持久化工艺）；
+  `owner_prediction.py` 的**机制半边**（`settle_owner_prediction` / `OwnerPredictionSettlement`）
+  ——注意其**表示半边**（`OwnerPredictionKind` / `OwnerPredictionSignal`）因被 9 类 snapshot
+  内嵌而随行标准（SSOT 强制，实施时确认）
 - `vz-cognition` 的任何 owner 实现（`owners.py` / `store.py` / `llm_runtime.py` / `proposal_runtime.py`）
 - `vz-temporal` 全部（metacontroller / internal RL / joint loop）
 - 任何 `.snap` / `.bs` / PEFT checkpoint（`data/`、`packages/lifeform-domain-emogpt/bootstraps/`、`.local/peft-checkpoints/`）
@@ -140,17 +143,43 @@
 - 与既有客户口径一致："核心内核不开源"（`docs/scenarios/sea/haiyang_first_meeting_qa.md`）
   ——本方案开的是接口层，不与该承诺冲突，对外 FAQ 需主动说明这一点。
 
-## Open Decisions（发布前必须拍板）
+## Open Decisions（已全部拍板，见实施记录）
 
-| # | 决策 | 建议 |
+| # | 决策 | 结果 |
 |---|---|---|
-| 1 | 包名 / 标准名（`relationship-standard` 为工作名；候选需查 PyPI / npm / 商标占用） | 与 Companion Bench 同一命名族，便于三件套整体传播 |
-| 2 | 最小快照内核是否纳入 v0（§SHOULD） | 纳入（可执行标准 > 纯文档标准），但砍到 `Snapshot` + `propagate` |
-| 3 | license 终版（Apache-2.0 vs MIT） | Apache-2.0，与 companion-bench 一致，含专利条款 |
-| 4 | 公开时点：随 BP 融资节奏还是随 Companion Bench launch packet 一起 | 与 Companion Bench 公开发布合并为一次 announcement，叙事互相放大 |
-| 5 | 是否同步发布 JSON Schema（非 Python 消费者） | v0 就发；canonical JSON 已是 MUST，成本极低 |
+| 1 | 包名 / 标准名 | **`companion-standard`**（与 Companion Bench 同族，用户确认）；对外名 Relationship Representation Standard |
+| 2 | 最小快照内核是否纳入 v0（§SHOULD） | 纳入 `Snapshot` 容器；**`propagate` 不随行**（实施时评估：它与 guards / RuntimeModule / wiring / placeholder 机制不可分割，属 MUST-NOT 工艺面；标准以规范性文字定义传播语义，`volvence_zero.runtime.kernel.propagate` 是其中一个实现） |
+| 3 | license 终版 | Apache-2.0，与 companion-bench 一致 |
+| 4 | 公开时点 | 与 Companion Bench 合并 announcement（见 launch packet §4） |
+| 5 | JSON Schema | v0 已发：`docs/external/relationship-representation-trajectory.schema.json`，由 `companion_standard.jsonschema` 生成，drift 守门在 `test_companion_standard_conformance.py` |
+
+## 实施记录（2026-07-18，Phase A1 + A2 in-repo 完成）
+
+实际落地与本 spec 草稿的差异（代码优先原则，以此为准）：
+
+- **包名**：`packages/companion-standard/`（模块 `companion_standard`），非工作名 `relationship-standard`。
+- **模块布局**：`canonical.py`（canonical JSON + stable hash）/ `trajectory.py`（轨迹 schema，
+  含 `LabelSource` 枚举——judge 刻意不可表示，R12 类型级强制）/ `semantic_state.py` /
+  `owner_prediction.py`（仅表示半边）/ `social_cognition.py`（仅 `OtherMindRecord` + 枚举；
+  owner snapshot 因内嵌 runtime 诊断字段留内部）/ `embedding.py`（Protocol + stub；
+  backend 注册机制留 `vz-contracts`）/ `kernel.py`（仅 `Snapshot`）/ `conformance.py` / `jsonschema.py`。
+- **import 边界实现**：新增 `COMPANION_STANDARD_IMPORTERS`（`tests/contracts/test_import_boundaries.py`）
+  ——内核 wheel 中仅 `vz-contracts` / `vz-cognition` 两个 re-export 站点可直接 import
+  `companion_standard`，其余 wheel 走 `volvence_zero.*` 稳定面（单一 choke point）。
+  反向守门：`tests/contracts/test_companion_standard_no_internal_imports.py`
+  （含纯 stdlib 守门）。SSOT 身份守门（re-export 必须是同一对象）：
+  `tests/contracts/test_companion_standard_conformance.py`。
+- **A1 验收**：`pytest tests/contracts` 3154 passed；4 个失败经 stash 复跑确认为既有失败
+  （lscb 品牌守门 / feeling-about-other drift / predictive-heads shadow / dlaas dispatch），与本次无关。
+- **A2 in-repo 完成件**：license 翻转 + header + 守门扩展；公开 RFC
+  `docs/external/relationship-representation-rfc-v0.md`；JSON Schema 导出；mirror 脚本
+  `scripts/companion_standard/publish_public_standard.sh`；launch packet
+  `docs/moving forward/companion-standard-public-launch-packet.md`（含清洗 checklist 执行记录，
+  全部零命中）。外部动作（PyPI / mirror repo / announcement）留手动，见 launch packet §6。
+- **B-M1 同步完成**：`packages/companion-trajgen/`（见 `oss-relationship-encoder.md` 实施记录）。
 
 ## 变更日志
 
 - 2026-07-18 v0 草稿。来源：DINQ BP 启发（`docs/business/dinq-bp-inspiration-2026-07.md`）+
   仓库勘查（vz-contracts 零依赖 / companion-bench Apache 先例 / SPLIT.md licensing 未决项）。
+- 2026-07-18 Phase A1 + A2 in-repo 实施完成，Open Decisions 全部拍板，新增实施记录一节。

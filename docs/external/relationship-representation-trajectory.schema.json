@@ -1,0 +1,185 @@
+{
+  "$defs": {
+    "label": {
+      "additionalProperties": false,
+      "properties": {
+        "continuity_level": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "establishing",
+            "established",
+            "ruptured",
+            "repair_window",
+            "repaired",
+            "re_engaged",
+            "dormant",
+            "boundary_tested"
+          ]
+        },
+        "repair_pressure": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "session_index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "fsm_ground_truth",
+            "human_annotation",
+            "model_prediction"
+          ]
+        },
+        "trust_level": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "turn_index": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_index",
+        "turn_index",
+        "phase",
+        "trust_level",
+        "continuity_level",
+        "repair_pressure",
+        "source",
+        "evidence"
+      ],
+      "type": "object"
+    },
+    "session": {
+      "additionalProperties": false,
+      "properties": {
+        "gap_days_before": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "session_index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/turn"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "session_index",
+        "gap_days_before",
+        "turns"
+      ],
+      "type": "object"
+    },
+    "turn": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "enum": [
+            "user",
+            "assistant"
+          ]
+        },
+        "text": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "turn_index": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "turn_index",
+        "role",
+        "text"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://companionbench.com/schemas/relationship-representation-trajectory.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical multi-session human-AI interaction trajectory with per-segment relationship-state labels (Relationship Representation Standard, schema_version 1).",
+  "properties": {
+    "family": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "labels": {
+      "items": {
+        "$ref": "#/$defs/label"
+      },
+      "type": "array"
+    },
+    "metadata": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "scenario_ref": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "sessions": {
+      "items": {
+        "$ref": "#/$defs/session"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "source": {
+      "enum": [
+        "synthetic_fsm",
+        "synthetic_llm",
+        "consented_first_party"
+      ]
+    },
+    "trajectory_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "trajectory_id",
+    "schema_version",
+    "source",
+    "family",
+    "scenario_ref",
+    "sessions",
+    "labels",
+    "metadata"
+  ],
+  "title": "InteractionTrajectory",
+  "type": "object"
+}

@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
+    "companion-standard==0.1.*",
     "vz-contracts==0.1.*",
     "vz-substrate==0.1.*",
     "vz-memory==0.1.*",

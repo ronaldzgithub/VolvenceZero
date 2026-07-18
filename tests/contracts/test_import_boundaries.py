@@ -8,8 +8,15 @@ This is the single most important enforcement of the architecture:
 2. Each kernel wheel must only import from wheels declared lower in the
    dependency tier (see ``packages/<wheel>/pyproject.toml``).
 
-3. ``vz-contracts`` is the foundation: zero dependencies on any other
-   ``volvence_zero.*`` sub-package.
+3. ``vz-contracts`` is the internal foundation: zero dependencies on any
+   other ``volvence_zero.*`` sub-package. Since Phase A1 of the
+   Relationship Representation Standard split
+   (``docs/specs/oss-relationship-representation-standard.md``) it sits on
+   exactly one lower layer: the public ``companion-standard`` wheel, from
+   which it re-exports the shared representation types. Direct
+   ``companion_standard`` imports inside kernel wheels are restricted to
+   the declared re-export sites (``COMPANION_STANDARD_IMPORTERS``); every
+   other wheel keeps consuming the stable ``volvence_zero.*`` surface.
 
 These checks are AST-only — no module imports, no torch, no transformers,
 runs on a stock Python install in a few seconds. CI runs this *before*
@@ -41,8 +48,19 @@ PACKAGES_ROOT = REPO_ROOT / "packages"
 # upstream sub-package roots (under ``volvence_zero.``).
 # ---------------------------------------------------------------------------
 
+# Kernel wheels allowed to import the public ``companion_standard`` wheel
+# DIRECTLY. These are the re-export sites of the Relationship
+# Representation Standard (Phase A1): vz-contracts re-exports
+# owner_prediction / social_cognition / embedding / kernel.Snapshot;
+# vz-cognition re-exports the nine semantic snapshot types. Everyone else
+# must import via the stable ``volvence_zero.*`` re-export surface so the
+# internal import graph keeps a single choke point per shared type.
+COMPANION_STANDARD_IMPORTERS: frozenset[str] = frozenset(
+    {"vz-contracts", "vz-cognition"}
+)
+
 ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
-    "vz-contracts": frozenset(),  # foundation: zero upstream
+    "vz-contracts": frozenset(),  # internal foundation: zero volvence_zero upstream (sits on companion-standard only)
     "vz-substrate": frozenset(
         {
             "runtime", "learned_update",
@@ -481,6 +499,37 @@ def test_kernel_only_imports_declared_tier(wheel: str, py_file: pathlib.Path) ->
             f"If this is intentional, update both ALLOWED_VZ_UPSTREAM and "
             f"packages/{wheel}/pyproject.toml."
         )
+
+
+@pytest.mark.parametrize(
+    ("wheel", "py_file"),
+    _all_kernel_files(),
+    ids=lambda v: v.name if isinstance(v, pathlib.Path) else str(v),
+)
+def test_kernel_companion_standard_imports_only_at_reexport_sites(
+    wheel: str, py_file: pathlib.Path,
+) -> None:
+    """Direct ``companion_standard`` imports stay at the re-export sites.
+
+    The public standard wheel is the SSOT for shared representation types,
+    but internal code consumes them through the stable ``volvence_zero.*``
+    re-export surface. Allowing arbitrary wheels to import
+    ``companion_standard`` directly would fork the internal import graph
+    and make an eventual standard-surface change a multi-wheel migration
+    instead of a re-export-site-only change.
+    """
+    if wheel in COMPANION_STANDARD_IMPORTERS:
+        return
+    for module in _module_level_imports(py_file):
+        if module == "companion_standard" or module.startswith("companion_standard."):
+            pytest.fail(
+                f"{py_file.relative_to(REPO_ROOT)} imports '{module}': "
+                f"wheel '{wheel}' is not a declared re-export site for the "
+                f"Relationship Representation Standard. Import the type via "
+                f"its volvence_zero.* re-export instead, or (for a genuinely "
+                f"new standard surface) extend COMPANION_STANDARD_IMPORTERS "
+                f"and the wheel's pyproject together."
+            )
 
 
 @pytest.mark.parametrize(

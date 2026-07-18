@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "companion-standard"
+version = "0.1.0a0"
+description = "Relationship Representation Standard: typed, immutable, zero-dependency schema for long-horizon human-AI relationship state (semantic owner snapshots, theory-of-mind records, canonical interaction trajectories) plus canonical JSON serialisation, stable hashing, and a conformance kit. See docs/external/relationship-representation-rfc-v0.md."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Companion Standard Contributors" }]
+keywords = ["relationship", "representation", "schema", "companion-ai", "companion-standard"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["companion_standard*"]
+
+[tool.setuptools.package-data]
+companion_standard = ["py.typed"]
