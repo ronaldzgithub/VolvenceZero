@@ -166,8 +166,50 @@ M0（标准 SSOT 就位）与 M1 数据管线 v0 已落地为 `packages/companio
 - **M3 live-through 公版语料分支**：未启动（非 M1 范围）。M2（encoder 训练）未启动，
   G1-G4 gate 全部未过——不发布任何权重，对外口径不变。
 
+## 实施记录（2026-07-18，M2 骨架落地）
+
+训练/评测骨架落地为 `packages/companion-encoder/`（模块 `companion_encoder`，
+Apache-2.0，核心依赖仅 `companion-standard`；torch 走 `[train]` extra，
+transformers 走 `[hf]` extra）。代码开源，权重不随包发布（G1-G4 过审前无权重产物）。
+
+- **数据接口只有轨迹 JSON**：`dataset.py` 读 companion-trajgen 输出布局
+  （`<data_dir>/train|val/*.trajectory.json`），装载时重新过标准校验并
+  强制整族 train/val 无交叠（交叠 fail-loud）。encoder 禁止 import
+  `companion_bench` / `companion_trajgen` / 内核 wheel（AST 守门
+  `tests/contracts/test_companion_encoder_boundaries.py`），也禁止引用
+  `LabelSource`——它消费标签、绝不制造或洗白 provenance。
+- **确定性序列化**（`serialization.py`）：anchor 前缀渲染，session 边界与
+  gap 天数是一级文本（`[session k | gap Nd]`），因为 dormant/re_engaged
+  等 phase 定义在多 session 结构上。
+- **双头模型**（`model.py`）：backbone → phase 8 分类 + trust/continuity/repair
+  回归（sigmoid）+ L2 归一 embedding 头。backbone 两档：`tiny`（自建
+  byte-level transformer，CPU/MPS dry-run 用，明确非发布候选）与
+  `hf:<model_id>`（Open Decision #1 的 fine-tune 路径，接缝已就位）。
+  超长输入左截断保最近上下文。
+- **G2 harness**（`evaluate.py` + `baselines.py`）：同一套纯 Python 指标函数
+  给 encoder 与所有 baseline 打分——phase accuracy/macro-F1、逐项 MAE、
+  ECE 校准、轨迹级 leave-one-out 检索（family top-1，对照标准 stub
+  embedding 地板）。baseline 两列：majority/global-mean + LLM zero-shot
+  （OpenAI-compatible 端点，prompt 集中在 `prompts/zero_shot_labeler.md`，
+  不可解析输出记 `valid=False` 按中性值计分，不缩分母）。
+- **接缝兑现**：`backend.py` 的 `EncoderEmbeddingBackend` 把训练 checkpoint
+  包成标准 `SemanticEmbeddingBackend`（维度截断/补零 + 重归一，空文本
+  委托 stub），`isinstance` 协议测试通过。
+- **CLI**：`companion-encoder train / evaluate / baseline`；baseline 子命令
+  torch-free（模块级禁 import torch，AST 守门）。
+- **dry-run 验收**（90 条 FSM 轨迹，327 train / 183 val anchor 样本）：
+  tiny backbone MPS 训练 3 epoch ≈ 3.7 分钟，全链路出 G2 报告。结果符合
+  预期且诚实记录：phase 上 tiny 尚不敌 majority baseline（acc 0.45 vs
+  0.75——FSM 模式表面文本是合成填充、90 条轨迹本就不含足够信号），
+  检索已胜 stub 地板（0.67 vs 0.43）。G2 的真实较量在 M1 LLM 模式
+  数据 + hf backbone 之后；止损逻辑不变。
+- Apache header 守门（`test_apache_license_header_present.py`）已扩展覆盖
+  本包。mirror 同步脚本**未**收编 encoder——公开发布是 M5/G4 之后的动作。
+
 ## 变更日志
 
 - 2026-07-18 v0 草稿。与 Option A spec 同批产出；训练部分为规划性内容，
   代码落地时以代码为准并回改本 spec。
 - 2026-07-18 M0 + M1-v0 落地（companion-trajgen），新增实施记录一节。
+- 2026-07-18 M2 骨架落地（companion-encoder：数据装载 + 双头模型 + 训练循环 +
+  G2 harness + baseline + backend 接缝 + CLI），dry-run 全链路验证，新增实施记录一节。

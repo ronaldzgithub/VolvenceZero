@@ -3,7 +3,7 @@
 
 """Every source file under the Apache-licensed wheels must carry a header.
 
-Four wheels in this monorepo are explicitly Apache 2.0 (the rest of the
+Five wheels in this monorepo are explicitly Apache 2.0 (the rest of the
 repo is Proprietary):
 
 * ``packages/companion-bench``
@@ -11,6 +11,9 @@ repo is Proprietary):
 * ``packages/companion-standard`` (Relationship Representation Standard,
   A2 license flip — oss-relationship-representation-standard.md)
 * ``packages/companion-trajgen`` (standard-family data pipeline, same flip)
+* ``packages/companion-encoder`` (open-weights encoder training/eval
+  scaffold — oss-relationship-encoder.md M2; code is Apache even though
+  weights only ship after the release gates)
 
 These wheels ship as independent benchmark / standard / reference
 artifacts and their license must be obvious from every source file (no
@@ -41,6 +44,7 @@ _APACHE_DIR_COPYRIGHT: dict[pathlib.Path, str] = {
     REPO_ROOT / "packages" / "companion-ref-harness" / "src": _BENCH_COPYRIGHT,
     REPO_ROOT / "packages" / "companion-standard" / "src": _STANDARD_COPYRIGHT,
     REPO_ROOT / "packages" / "companion-trajgen" / "src": _STANDARD_COPYRIGHT,
+    REPO_ROOT / "packages" / "companion-encoder" / "src": _STANDARD_COPYRIGHT,
 }
 _APACHE_DIRS: tuple[pathlib.Path, ...] = tuple(_APACHE_DIR_COPYRIGHT)
 
