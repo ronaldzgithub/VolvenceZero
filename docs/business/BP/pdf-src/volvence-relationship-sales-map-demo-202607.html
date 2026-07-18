@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Relationship Sales Map — 演示样稿 2026.07</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", sans-serif;
+    color: #14181f; font-size: 9pt; line-height: 1.6;
+    -webkit-print-color-adjust: exact;
+  }
+  .page { width: 210mm; height: 296mm; padding: 14mm 16mm 16mm; position: relative; page-break-after: always; overflow: hidden; }
+  .page:last-child { page-break-after: avoid; }
+  .kicker {
+    font-family: "Helvetica Neue", Arial, sans-serif; font-size: 6.8pt; letter-spacing: 0.3em;
+    color: #1b4d3e; text-transform: uppercase; margin-bottom: 2mm;
+  }
+  h1 { font-size: 20pt; font-weight: 700; line-height: 1.3; }
+  h2 { font-size: 14.5pt; font-weight: 700; line-height: 1.35; margin-bottom: 4mm; }
+  h3 { font-size: 10pt; font-weight: 700; margin-bottom: 1.4mm; color: #1b4d3e; }
+  .footer {
+    position: absolute; bottom: 8mm; left: 16mm; right: 16mm; display: flex;
+    justify-content: space-between; font-size: 6.8pt; color: #8a919c;
+    border-top: 0.4pt solid #d7dbe1; padding-top: 1.8mm;
+  }
+  .demo-banner {
+    position: absolute; top: 5mm; right: 16mm; font-size: 6.8pt; font-weight: 700;
+    color: #b4540a; border: 0.6pt solid #b4540a; border-radius: 1mm; padding: 0.6mm 2.4mm;
+    letter-spacing: 0.12em;
+  }
+  .muted { color: #6b7280; }
+  .small { font-size: 8pt; }
+  .accent { color: #1b4d3e; }
+  .danger { color: #a03232; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .card { border: 0.4pt solid #d7dbe1; border-radius: 1.6mm; padding: 3mm 3.6mm; }
+  .card .tag { font-family: "Helvetica Neue", Arial; font-size: 6pt; letter-spacing: 0.22em; color: #8a919c; text-transform: uppercase; display: block; margin-bottom: 1mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 8.2pt; }
+  th { text-align: left; font-weight: 600; color: #6b7280; border-bottom: 0.6pt solid #c7ccd4; padding: 1.4mm 1.8mm; }
+  td { border-bottom: 0.3pt solid #e4e7ec; padding: 1.6mm 1.8mm; vertical-align: top; }
+  .stat { text-align: left; }
+  .stat .v { font-size: 19pt; font-weight: 700; color: #1b4d3e; line-height: 1.15; }
+  .stat .l { font-size: 7.6pt; color: #6b7280; }
+  .punch { border-left: 1mm solid #1b4d3e; background: #f2f6f4; padding: 2.8mm 4mm; font-weight: 600; margin-top: 4mm; }
+  .oath { font-size: 7.4pt; color: #6b7280; margin-top: 2mm; }
+  ul { list-style: none; }
+  ul li { padding-left: 4mm; position: relative; margin-bottom: 1.2mm; }
+  ul li::before { content: "—"; position: absolute; left: 0; color: #9aa1ab; }
+  .pill { display: inline-block; border-radius: 4mm; padding: 0.3mm 2.6mm; font-size: 7.2pt; font-weight: 600; }
+  .pill.a { background: #e3efe9; color: #1b4d3e; }
+  .pill.b { background: #eef1f5; color: #3d4654; }
+  .pill.r { background: #f7e9e6; color: #a03232; }
+  .pill.s { background: #f1f1f1; color: #5a6270; }
+  .kv { font-size: 8pt; }
+  .kv b { display: inline-block; min-width: 22mm; color: #6b7280; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- P1 Cover -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Volvence Relationship Intelligence</div>
+  <h1>私域关系地图<br><span style="font-size: 13pt; color: #1b4d3e;">母婴品牌私域池 · 关系分层与行动研判</span></h1>
+  <p class="muted" style="margin-top: 2mm;">Relationship Sales Map — Demo Edition（示例品牌「京氏优选·母婴」）</p>
+  <table style="margin-top: 6mm; max-width: 130mm;">
+    <tr><td class="muted" style="width: 34mm;">研判窗口</td><td>2026 Q3（滚动更新，月度复核）</td></tr>
+    <tr><td class="muted">用户池</td><td>4,820 位私域用户（企微 + 社群）</td></tr>
+    <tr><td class="muted">覆盖周期</td><td>D1–D180 关系轨迹，含 12 周以上连续互动样本 1,140 人</td></tr>
+    <tr><td class="muted">生成方式</td><td>Volvence 人类表征模型体系管道自动产出 + 运营复核</td></tr>
+  </table>
+  <div style="margin-top: 9mm;">
+    <div class="kicker">关键前置信号</div>
+    <div class="grid2" style="grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4mm;">
+      <div class="stat"><div class="v">217</div><div class="l">立即推进层用户（信任就绪 + 需求共振）</div></div>
+      <div class="stat"><div class="v">1,364</div><div class="l">培育层用户（需求成立、信任未到位）</div></div>
+      <div class="stat"><div class="v">386</div><div class="l">修复层用户（有未修复反感 / rupture 记录）</div></div>
+      <div class="stat"><div class="v">0.31%</div><div class="l">当前池月转化基线（SCRM 口径）</div></div>
+    </div>
+  </div>
+  <div class="punch">本地图的核心不是「该卖给谁」，而是同时给出「现在不能卖给谁、为什么、修复之后什么信号出现才解锁」——这是关系智能与销售工具的分界线。</div>
+  <p class="oath">声明：本样稿所有用户、品牌、数字均为合成演示数据，用于展示交付物形态与研判颗粒度；真实交付基于客户私域池 consented 数据在租户内生成，绝不跨租户共享。</p>
+  <div class="footer"><span>Volvence Relationship Intelligence | 封面</span><span>01 / 10</span></div>
+</div>
+
+<!-- P2 Framework -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Relationship Signal Model</div>
+  <h2>研判框架：五维关系信号模型</h2>
+  <table>
+    <tr><th style="width: 8mm;">#</th><th style="width: 30mm;">维度</th><th>看什么</th></tr>
+    <tr><td>01</td><td><b>信任状态</b></td><td>信任累计与最近走向：正向互动密度、主动分享深度、对建议的采纳率。信任是推进的第一前提。</td></tr>
+    <tr><td>02</td><td><b>需求信号</b></td><td>生活阶段与显性/隐性需求：宝宝月龄推进、主动询价、场景抱怨（睡眠 / 辅食 / 转奶）。需求决定推进方向。</td></tr>
+    <tr><td>03</td><td><b>边界与反感</b></td><td>用户明示或隐含的边界：「别老给我推东西」、已读不回模式变化、对促销信息的负反馈。边界决定分寸。</td></tr>
+    <tr><td>04</td><td><b>承诺与未闭环</b></td><td>AI 或运营对用户的承诺是否兑现、用户的问题是否已答复闭环。未闭环事项在推进前必须清零。</td></tr>
+    <tr><td>05</td><td><b>约束因素（负向）</b></td><td>未修复的 rupture、合规敏感话题（医疗建议边界）、近期投诉、需人工判断的高价值决策。约束项直接锁死推进。</td></tr>
+  </table>
+  <div style="margin-top: 5mm;">
+    <div class="kicker">输出分层定义</div>
+    <table>
+      <tr><th style="width: 34mm;">层</th><th>定义</th><th style="width: 52mm;">行动节奏</th></tr>
+      <tr><td><span class="pill a">立即推进层</span></td><td>信任就绪 + 需求信号共振</td><td>本周内推进，附推荐分寸与话题入口</td></tr>
+      <tr><td><span class="pill b">培育层</span></td><td>结构性需求成立，信任未到位</td><td>4–6 周关系动作复核，明确观察信号</td></tr>
+      <tr><td><span class="pill r">修复层</span></td><td>有未修复的 rupture / 反感记录</td><td><b>禁止推销</b>，只做修复动作，确认修复前不解锁</td></tr>
+      <tr><td><span class="pill s">停止层</span></td><td>边界明确 / 合规敏感 / 需人工</td><td>AI 停止商业推进，标注人工接管原因</td></tr>
+    </table>
+  </div>
+  <p class="small muted" style="margin-top: 4mm;">口径说明：每项判断显式标注四种口径之一——<b>定性研判 / 模型分数 / 校准概率 / 已验证结果</b>。
+    没有历史基准率与回测支撑的判断，不以精确概率示人；本样稿全部为「定性研判（演示）」口径。</p>
+  <div class="footer"><span>Volvence Relationship Intelligence | 研判框架</span><span>02 / 10</span></div>
+</div>
+
+<!-- P3 Pool overview -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Pool Overview and Tier Distribution</div>
+  <h2>用户池全景：4,820 人分层结果</h2>
+  <table>
+    <tr><th style="width: 34mm;">层</th><th style="width: 20mm;">人数</th><th>特征与备注</th></tr>
+    <tr><td><span class="pill a">立即推进层</span></td><td><b>217</b></td><td>多维信号共振；其中 64 人有本周内明确需求事件（转奶 / 换段 / 囤货询价）</td></tr>
+    <tr><td><span class="pill b">培育层</span></td><td><b>1,364</b></td><td>需求结构成立（宝宝 0–18 月龄），信任仍在建立期；每 4–6 周滚动复核</td></tr>
+    <tr><td><span class="pill r">修复层</span></td><td><b>386</b></td><td>有未修复反感 / 硬推记录 / 承诺违约；其中 92 人曾为高复购用户——修复价值最高的一组</td></tr>
+    <tr><td><span class="pill s">停止层</span></td><td><b>241</b></td><td>明确拒绝、涉合规敏感（医疗建议诉求）、或已交人工处理</td></tr>
+    <tr><td>已转化 / 维护层</td><td>1,988</td><td>近 90 天有成交；维护节奏由复购周期驱动，不在本次推进名单内</td></tr>
+    <tr><td>沉默 / 数据不足</td><td>624</td><td>轨迹长度不足以支撑研判，低频扫描</td></tr>
+  </table>
+  <div class="grid2" style="margin-top: 5mm;">
+    <div class="card">
+      <span class="tag">结构性洞察</span>
+      <p class="small">预测价值高度集中：<b>立即推进层 217 人贡献了本月绝大部分可操作机会</b>；
+        而修复层中 92 位「曾高复购」用户是被所有 SCRM 工具忽略的最大隐藏价值——
+        工具只看沉默，看不见「为什么沉默」。建议监测资源按 推进:培育:修复 = 5:3:2 分配。</p>
+    </div>
+    <div class="card">
+      <span class="tag">与 SCRM 口径的差异</span>
+      <p class="small">SCRM 按活跃度分层，本地图按<b>关系状态</b>分层：38% 的「SCRM 高活跃」用户
+        实际处于修复层或停止层（高活跃 ≠ 可推进）；反之 41 位「低活跃」用户因需求事件
+        进入立即推进层。<b>按活跃度推销，正是 0.3% 基线的成因。</b></p>
+    </div>
+  </div>
+  <div class="footer"><span>Volvence Relationship Intelligence | 全景概览</span><span>03 / 10</span></div>
+</div>
+
+<!-- P4 Spotlight -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Tier Spotlight — Highest-Conviction Action</div>
+  <h2>立即推进层焦点：用户 U-0217「王女士」<span class="pill a" style="margin-left: 3mm;">本周推进</span></h2>
+  <div class="kv" style="margin-bottom: 3mm;">
+    <p><b>关系时长</b>D142 · 企微 + 社群双触点 · 累计 87 轮有效对话</p>
+    <p><b>生活阶段</b>二宝 5 月龄（即将转 2 段）· 大宝 3 岁 · 预算敏感度中等</p>
+    <p><b>信任状态</b>高（定性研判-演示）：近 30 天 3 次主动分享育儿近况，2 次采纳非商业建议</p>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <span class="tag">三点研判依据</span>
+      <ul class="small">
+        <li><b>需求事件（硬信号）</b>：D138 主动询问「2 段和 1 段到底差在哪」，并提到「快要换了」——典型转段窗口，7–14 天内决策概率高。</li>
+        <li><b>信任就绪</b>：D97 曾因连续推送表达反感，D98–D120 修复完成（只关心不推销），此后主动互动频率回升 2.4 倍——修复后的信任比未受损的更稳。</li>
+        <li><b>边界已知</b>：反感「一天多条促销」，接受「按需一对一建议」。推进方式必须是答疑式，不是推送式。</li>
+      </ul>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom: 3mm;">
+        <span class="tag">推荐动作</span>
+        <p class="small">以她 D138 的转段问题为入口，先给<b>不含商品链接</b>的转段科普 +
+          针对二宝的过渡建议；她追问品牌时再给 2 个价位选项（她的预算带 + 上一档），
+          明确说明差异。<b>一次对话内不发第二条商品信息。</b></p>
+      </div>
+      <div class="card" style="margin-bottom: 3mm;">
+        <span class="tag">禁止动作</span>
+        <p class="small danger">不发促销群链接（D97 反感来源）· 不提大宝相关商品（本次需求无关，易触发「又在推」）·
+          不用「最后 X 天」话术（边界记录：反感制造紧迫感）</p>
+      </div>
+      <div class="card">
+        <span class="tag">复核触发 / 回填</span>
+        <p class="small">若 D+7 未回复 → 降回培育层，2 周后以育儿话题重启；
+          成交 / 拒绝 / 无响应结果回填后更新信任模型。</p>
+      </div>
+    </div>
+  </div>
+  <p class="oath">证据链（演示）：以上每条研判在真实交付中可展开为具体对话证据（日期 + 轮次 + 原文摘录），支持运营逐条复核。</p>
+  <div class="footer"><span>Volvence Relationship Intelligence | 焦点用户</span><span>04 / 10</span></div>
+</div>
+
+<!-- P5 Tier A profiles -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Immediate-Action Profiles</div>
+  <h2>立即推进层画像（节选 2 / 217）</h2>
+  <div class="card" style="margin-bottom: 4mm;">
+    <span class="tag">U-0389「李女士」 · D76 · 一宝 11 月龄 <span class="pill a">本周推进</span></span>
+    <div class="grid2" style="margin-top: 1.6mm;">
+      <ul class="small">
+        <li><b>需求</b>：D71 抱怨夜奶频繁 + 主动问「什么时候可以开始喝 3 段」——需求前置期，宜先内容后商品。</li>
+        <li><b>信任</b>：中高（定性研判-演示）。对辅食建议采纳 3 次，从未有反感记录。</li>
+        <li><b>未闭环</b>：D69 问的「补铁米粉牌子」尚未答复——<b>推进前必须先闭环此事</b>。</li>
+      </ul>
+      <div>
+        <p class="small"><b>推荐动作</b>：先补答 D69 米粉问题（迟到要致歉），再顺自然过渡到 3 段时间表；
+          本周不发商品链接，下周视回应给选项。</p>
+        <p class="small danger"><b>禁止</b>：跳过未闭环事项直接推 3 段（承诺违约叠加推销 = 直接掉修复层）。</p>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <span class="tag">U-1042「陈先生」 · D204 · 二宝家庭 · 高客单历史 <span class="pill a">本周推进</span></span>
+    <div class="grid2" style="margin-top: 1.6mm;">
+      <ul class="small">
+        <li><b>需求</b>：历史囤货周期 45±6 天，上次成交 D163——进入补货窗口（模型分数口径-演示）。</li>
+        <li><b>信任</b>：高。全程零反感记录，偏好「直接给结论」的沟通风格。</li>
+        <li><b>风格边界</b>：不喜寒暄铺垫；上次因客套开场三轮未回。</li>
+      </ul>
+      <div>
+        <p class="small"><b>推荐动作</b>：直接一句话——「按您的节奏差不多该补货了，这次要不要顺带看下新到的 XX」；
+          附直达链接，一条消息完成。</p>
+        <p class="small danger"><b>禁止</b>：多轮寒暄 / 问候式开场（风格边界记录明确）。</p>
+      </div>
+    </div>
+  </div>
+  <p class="small muted" style="margin-top: 4mm;">完整交付含全部 217 人画像，每人一页，附证据链与回填入口；本样稿节选 2 人示意颗粒度。</p>
+  <div class="footer"><span>Volvence Relationship Intelligence | 推进层画像</span><span>05 / 10</span></div>
+</div>
+
+<!-- P6 Nurture roster -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Nurture Watch Roster</div>
+  <h2>培育层：结构性需求成立，待信任信号触发（节选）</h2>
+  <table>
+    <tr><th style="width: 20mm;">用户</th><th style="width: 26mm;">阶段</th><th style="width: 30mm;">需求结构</th><th>观察要点（什么信号出现 → 升层）</th><th style="width: 24mm;">复核节奏</th></tr>
+    <tr><td>U-0455</td><td>D34 · 孕 36 周</td><td>待产包 → 新生儿</td><td>出生事件；首次主动求助（喂养/睡眠）即为信任窗口</td><td>每周</td></tr>
+    <tr><td>U-0871</td><td>D58 · 3 月龄</td><td>1 段稳定期</td><td>转段前置询问；对科普内容的追问深度上升</td><td>4 周</td></tr>
+    <tr><td>U-1203</td><td>D91 · 8 月龄</td><td>辅食深水区</td><td>连续 2 次采纳辅食建议 → 可开始软性商品关联</td><td>4 周</td></tr>
+    <tr><td>U-1577</td><td>D22 · 6 月龄</td><td>新迁入用户</td><td>关系太浅（D22）；先建立非商业互动基线，勿早推</td><td>6 周</td></tr>
+    <tr><td>U-2019</td><td>D147 · 14 月龄</td><td>幼儿奶粉 + 零辅食</td><td>价格敏感（2 次询价未成交）；等大促窗口或组合方案</td><td>6 周</td></tr>
+    <tr><td>U-2688</td><td>D63 · 双胞胎 4 月龄</td><td>高客单潜力</td><td>疲惫叙事密集——先做情绪支持，商业动作全部延后</td><td>每周</td></tr>
+  </table>
+  <div class="punch">培育层的纪律只有一条：<b>升层由信号触发，不由日历触发。</b>到点就推，是把培育层变成修复层的最快方式。</div>
+  <p class="small muted" style="margin-top: 3mm;">完整交付含 1,364 人分组名册与观察信号清单，按复核节奏自动生成待办；样稿节选 6 人。</p>
+  <div class="footer"><span>Volvence Relationship Intelligence | 培育层</span><span>06 / 10</span></div>
+</div>
+
+<!-- P7 Repair tier -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Repair Tier — Do Not Sell</div>
+  <h2>修复层：价值最高、也最容易被工具毁掉的一组 <span class="pill r" style="margin-left: 2mm;">禁止推销</span></h2>
+  <div class="card" style="margin-bottom: 4mm;">
+    <span class="tag">U-0664「赵女士」 · D189 · 曾月均复购 · rupture 未修复</span>
+    <div class="grid2" style="margin-top: 1.6mm;">
+      <ul class="small">
+        <li><b>损伤事件</b>：D171 咨询宝宝湿疹时收到促销推送——「孩子不舒服你们还在卖货」（原文级证据）。此后已读不回 18 天。</li>
+        <li><b>修复价值</b>：损伤前 LTV 位列池内 Top 8%；且损伤原因明确、可针对性修复。</li>
+      </ul>
+      <div>
+        <p class="small"><b>修复动作</b>：一条不含任何商业内容的关心（湿疹后续如何），并明确致歉当时的打扰；
+          之后 30 天该用户静默屏蔽一切推送。</p>
+        <p class="small"><b>解锁条件</b>：她重新主动发起互动 ≥2 次，且对关心类消息回复正常化——届时升回培育层，仍不直接推进。</p>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <span class="tag">U-1930「孙女士」 · D96 · 承诺违约型损伤</span>
+    <div class="grid2" style="margin-top: 1.6mm;">
+      <ul class="small">
+        <li><b>损伤事件</b>：D80 承诺「到货第一时间通知」，实际 D87 才通知且已售罄。信任分数断崖（模型分数口径-演示）。</li>
+        <li><b>当前状态</b>:回复变为单字，互动温度显著下降但未拉黑——修复窗口仍在。</li>
+      </ul>
+      <div>
+        <p class="small"><b>修复动作</b>：正面承认失误（不找借口），给出下批到货的<b>可验证</b>优先权（说到必须做到——这次承诺是修复的全部）。</p>
+        <p class="small danger"><b>禁止</b>：用优惠券道歉（把关系问题降格为价格问题，历史数据中最失败的修复模式）。</p>
+      </div>
+    </div>
+  </div>
+  <div class="punch">每个 SCRM 都会把这 386 人标成「沉默用户」群发唤醒——那等于在伤口上撒盐。
+    修复层的存在，就是这份地图与所有销售工具的分界线。</div>
+  <div class="footer"><span>Volvence Relationship Intelligence | 修复层</span><span>07 / 10</span></div>
+</div>
+
+<!-- P8 Stop tier -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Stop Tier and Handoff</div>
+  <h2>停止层与人工接管：AI 主动退出的 241 人</h2>
+  <table>
+    <tr><th style="width: 40mm;">类型</th><th style="width: 18mm;">人数</th><th>处理方式</th></tr>
+    <tr><td>明确拒绝商业接触</td><td>117</td><td>永久停止推进；仅保留用户主动发起的服务响应；边界写入长期记忆，不随活动重置</td></tr>
+    <tr><td>合规敏感（医疗诉求）</td><td>68</td><td>宝宝健康异常相关咨询一律「建议就医 + 转人工」，AI 不给任何医疗判断；对话全程审计留痕</td></tr>
+    <tr><td>高价值决策需人工</td><td>34</td><td>大额囤货 / 团购组织者 / 潜在分销意向——超出 AI 授权边界，附上下文包移交运营</td></tr>
+    <tr><td>投诉处理中</td><td>22</td><td>投诉闭环前冻结一切商业动作；处理结果回填后重新研判分层</td></tr>
+  </table>
+  <div class="grid2" style="margin-top: 5mm;">
+    <div class="card">
+      <span class="tag">为什么「主动退出」是卖点</span>
+      <p class="small">停止层是企业敢把私域交给 AI 的原因：AI 知道自己的边界在哪、什么时候必须交给人，
+        且每次退出都有<b>可审计的原因标注</b>。没有停止层的 AI 销售工具，法务不会放行。</p>
+    </div>
+    <div class="card">
+      <span class="tag">接管交接质量</span>
+      <p class="small">每次转人工附「上下文包」：关系阶段 · 关键历史 · 敏感点 · 未闭环事项——
+        运营接手不需要翻聊天记录。演示口径：上下文包完整率 100%（系统强制生成）。</p>
+    </div>
+  </div>
+  <div class="footer"><span>Volvence Relationship Intelligence | 停止层</span><span>08 / 10</span></div>
+</div>
+
+<!-- P9 Methodology -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Data Governance and Confidence</div>
+  <h2>判断口径与证据追溯</h2>
+  <div class="kicker" style="margin-top: 2mm;">四种判断口径（每项判断显式标注，绝不混用）</div>
+  <table>
+    <tr><th style="width: 30mm;">口径</th><th>含义</th><th style="width: 58mm;">本样稿使用情况</th></tr>
+    <tr><td><b>定性研判</b></td><td>基于关系信号的结构化判断，无统计校准</td><td>信任状态、推进建议（标注「演示」）</td></tr>
+    <tr><td><b>模型分数</b></td><td>体系输出的可比分数，未经外部校准</td><td>补货窗口、信任断崖（标注「演示」）</td></tr>
+    <tr><td><b>校准概率</b></td><td>有历史基准率与回测支撑的概率</td><td><b>本样稿不使用</b>——演示数据无回测基础</td></tr>
+    <tr><td><b>已验证结果</b></td><td>outcome 回填后确认的事实</td><td>真实交付中随月报滚动累积</td></tr>
+  </table>
+  <div class="grid2" style="margin-top: 5mm;">
+    <div class="card">
+      <span class="tag">证据链结构（真实交付）</span>
+      <p class="small">每条研判 → 对话证据（日期 + 轮次 + 原文摘录）→ 关系状态快照 → 判断规则版本。
+        运营可逐条复核、逐条推翻；被推翻的判断作为纠错信号回流体系。<b>可被证伪，是这份地图与「黑盒评分」的根本区别。</b></p>
+    </div>
+    <div class="card">
+      <span class="tag">数据边界</span>
+      <p class="small">全部研判基于该品牌租户内 consented 数据生成；不使用任何跨租户数据；
+        用户可查看 / 纠正 / 删除 AI 对自己的理解（Relationship Passport）；删除有证据、可验证。</p>
+    </div>
+  </div>
+  <div class="footer"><span>Volvence Relationship Intelligence | 数据治理</span><span>09 / 10</span></div>
+</div>
+
+<!-- P10 Actions -->
+<div class="page">
+  <div class="demo-banner">演示样稿 · 全部为合成数据</div>
+  <div class="kicker">Monitoring Cadence and Next Actions</div>
+  <h2>追踪机制与行动建议</h2>
+  <div class="kicker" style="margin-top: 2mm;">四类触发信号（体系自动监测）</div>
+  <table>
+    <tr><th style="width: 8mm;">#</th><th style="width: 34mm;">信号</th><th>含义与响应</th></tr>
+    <tr><td>1</td><td>需求事件</td><td>转段 / 补货周期 / 生活阶段推进 → 候选升层，进入当周推进名单</td></tr>
+    <tr><td>2</td><td>信任拐点</td><td>主动互动频率显著变化、建议采纳 / 拒绝模式切换 → 触发重新研判</td></tr>
+    <tr><td>3</td><td>反感与边界</td><td>负反馈、已读不回模式化、明示边界 → 立即降层，商业动作冻结</td></tr>
+    <tr><td>4</td><td>修复确认</td><td>修复层用户主动重启互动且温度正常化 → 解锁评估（不直接推进）</td></tr>
+  </table>
+  <div class="kicker" style="margin-top: 5mm;">行动建议（按优先级）</div>
+  <table>
+    <tr><th style="width: 30mm;">立即（本周）</th><td>推进层 217 人按画像逐一执行；重点 64 人有时效性需求事件，48 小时内完成首触</td></tr>
+    <tr><th>本月内</th><td>修复层 Top 92（曾高复购）启动修复动作——这一组的挽回价值超过推进层的即期成交</td></tr>
+    <tr><th>滚动节奏</th><td>培育层 4–6 周信号复核（体系自动生成待办）；月报回填 outcome，更新全池分层</td></tr>
+    <tr><th>90 天验证</th><td>对照命题：本池月转化基线 0.31% → 目标 0.6–1.0%；反感触发率与人工接管率同步监测，不以体验换转化</td></tr>
+  </table>
+  <div class="punch">这份地图每月随真实 outcome 滚动更新——它不是一次性报告，而是一份持续加深的关系资产的月度快照。</div>
+  <p class="oath">本报告由 Volvence 人类表征模型体系管道生成（演示样稿，合成数据，2026.07）。真实交付：客户租户内生成 · 判断可逐条复核 · 结果可回填证伪 · 随月报滚动修正。</p>
+  <div class="footer"><span>Volvence Relationship Intelligence | 行动建议</span><span>10 / 10</span></div>
+</div>
+
+</body>
+</html>

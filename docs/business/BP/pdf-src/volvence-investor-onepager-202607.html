@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Volvence Investor One-Pager 2026.07</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 210mm; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", sans-serif;
+    color: #14181f; font-size: 8.4pt; line-height: 1.42;
+    -webkit-print-color-adjust: exact;
+  }
+  .page { width: 210mm; height: 296mm; padding: 10mm 13mm 9mm; position: relative; overflow: hidden; }
+  .label {
+    font-family: "Helvetica Neue", Arial, sans-serif; font-size: 6.4pt; letter-spacing: 0.28em;
+    color: #8a919c; text-transform: uppercase; margin-bottom: 1.4mm;
+  }
+  h1 { font-size: 21pt; font-weight: 700; letter-spacing: 0.01em; line-height: 1.2; }
+  h2 { font-size: 10.5pt; font-weight: 700; margin-bottom: 1.6mm; }
+  .rule { border-top: 0.4pt solid #d7dbe1; margin: 2.4mm 0; }
+  .accent { color: #1b4d3e; }
+  .muted { color: #6b7280; }
+  .small { font-size: 7.6pt; }
+  .topbar { display: flex; justify-content: space-between; align-items: flex-start; }
+  .code {
+    font-family: "SF Mono", Menlo, monospace; font-size: 7.4pt; background: #0f1319; color: #d6e4dd;
+    border-radius: 2mm; padding: 2.6mm 3.4mm; line-height: 1.6; margin-top: 2.4mm;
+  }
+  .code .g { color: #8fc7ac; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.2mm; }
+  .card { border: 0.4pt solid #d7dbe1; border-radius: 1.6mm; padding: 2.6mm 3mm; }
+  .card h3 { font-size: 8.6pt; font-weight: 700; margin-bottom: 1mm; }
+  .card .tag { font-family: "Helvetica Neue", Arial; font-size: 6pt; letter-spacing: 0.22em; color: #8a919c; text-transform: uppercase; }
+  table { width: 100%; border-collapse: collapse; font-size: 7.8pt; }
+  th { text-align: left; font-weight: 600; color: #6b7280; border-bottom: 0.6pt solid #c7ccd4; padding: 1mm 1.6mm; }
+  td { border-bottom: 0.3pt solid #e4e7ec; padding: 1.2mm 1.6mm; vertical-align: top; }
+  .footer {
+    position: absolute; bottom: 6mm; left: 13mm; right: 13mm;
+    display: flex; justify-content: space-between; font-size: 6.6pt; color: #8a919c;
+    border-top: 0.4pt solid #d7dbe1; padding-top: 1.6mm;
+  }
+  .badge { display: inline-block; background: #eef3f0; color: #1b4d3e; border-radius: 1mm; padding: 0.4mm 1.6mm; font-size: 6.8pt; font-weight: 600; margin-right: 1.2mm; }
+  ul { list-style: none; }
+  ul li { padding-left: 3.4mm; position: relative; margin-bottom: 0.8mm; }
+  ul li::before { content: "—"; position: absolute; left: 0; color: #9aa1ab; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="topbar">
+    <div style="width: 118mm;">
+      <div class="label">Volvence · Investor One-Pager · 2026.07</div>
+      <h1>人类表征模型体系</h1>
+      <div style="font-size: 10pt; font-weight: 600; color: #1b4d3e; margin-top: 1mm;">
+        The Relationship Runtime for the Agent Era</div>
+      <p style="margin-top: 2mm;">
+        世界上有两种「人类表征」：一种从<b>公开痕迹</b>表征「社会中的人」——他是谁、做过什么、
+        值不值得联系，已有公司在做；一种从<b>长期共同经历</b>表征「关系中的人」——他此刻需要什么、
+        边界在哪、信任走到哪里、下一步该做什么。<b>Volvence 做的是第二种，全球没有第二家在系统性地做。</b></p>
+    </div>
+    <div style="width: 62mm;">
+      <div class="label">合作与 JV（部分）</div>
+      <p class="small">Mobi 私域 <span class="muted">28M followers</span><br>
+        高盖伦母婴 <span class="muted">11M channel</span><br>
+        6 条 JV / 合作路径 <span class="muted">≈45M 分发 + 50K 企业触达</span><br>
+        Closed-alpha API <span class="muted">已服务真实用户</span></p>
+      <div class="code">POST api.volvence.ai/v1/relationship/next-action
+user = <span class="g">"私域池中的某个具体用户"</span>
+→ 200 OK · 关系阶段 · 信任状态 · 未闭环承诺
+  · 推荐动作 / <span class="g">禁止动作</span> / 停止并转人工</div>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="grid2">
+    <div>
+      <div class="label">Product · 核心产品</div>
+      <h2>表征「关系中的人」，而非「痕迹中的人」</h2>
+      <p>支撑这一体系的，是一套完整的<b>数字生命承载结构</b>：长期记忆、关系状态、心智理解、
+        内部决策、持续身份、审计治理六个模块在运行时同时在场——没有这套结构，
+        「带结构的关系轨迹」这种数据根本不会存在，chatbot 日志只是文本。
+        表征以 consented、first-party 方式由用户共同生成，随关系深入而加深。</p>
+      <table style="margin-top: 2mm;">
+        <tr><th style="width: 22mm;">顶层</th><td><b>语义认知层</b> —— 关系阶段 · 分寸判断 · 推进/停止/转人工</td></tr>
+        <tr><th>中层</th><td><b>关系动力学层</b> —— 信任演化 · 修复窗口 · 承诺兑现 · 升降层信号</td></tr>
+        <tr><th>底层</th><td><b>生命体系承载层</b> —— 长期记忆 · 持续身份 · 治理与可回滚</td></tr>
+      </table>
+      <p class="small muted" style="margin-top: 1.6mm;">
+        真实长程互动 + typed outcome，构成表征体系的接地证据——数据量 ↑ = 表征深度 ↑，应用收入直接驱动体系加深。</p>
+    </div>
+    <div>
+      <div class="label">Why Now</div>
+      <h2>Agent 栈里没有「关系」这一层</h2>
+      <ul class="small">
+        <li>Agent 成为软件新形态，已有公司补「谁」这一层（People API）；<b>没有人补「这段关系走到哪、现在该做什么」这一层</b>——而「谁」查一次就够，「关系」每天都在变。</li>
+        <li>大模型 IQ 商品化、一次性对话免费化；跨月跨年的关系状态（谁被承诺过什么、信任在哪损伤）今天没有 owner。</li>
+        <li>私域销售人力模式到顶：SCRM 池基线转化 ~0.3%，工具再多也不产生关系；每 1 个百分点的转化提升直接可计价。</li>
+      </ul>
+      <div class="rule" style="margin: 2.4mm 0;"></div>
+      <div class="label">Science · 科学基础</div>
+      <p class="small"><b>关系轨迹因人而异，关系动力学跨人共享</b>——如同每个抛出的球轨迹不同、
+        但服从同一组方程。通用动力学提供先验与冷启动，个体适应吃掉剩下的方差：
+        <b>竞品即使复制通用层，也拿不走任何一段经营中的关系</b>——护城河随在网时长复利。</p>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="label">Use Cases · 调用场景</div>
+  <div class="grid3">
+    <div class="card">
+      <div class="tag">Sales · Now（唯一 GTM）</div>
+      <h3>销售与转化</h3>
+      <p class="small">私域 AI 销售员工：关系分层、next-action、分寸判断、禁止推销与转人工。
+        首个证明场 Mobi：<b>SCRM 0.3% 基线 → 0.6–1.0%</b>，30 天可观测。</p>
+    </div>
+    <div class="card">
+      <div class="tag">Success · Phase 3</div>
+      <h3>客户成功与留存</h3>
+      <p class="small">信任流失预警：哪次互动损伤了关系、如何修复、何时复核——
+        经 Relationship API 按调用开放给客户自己的 agent。</p>
+    </div>
+    <div class="card">
+      <div class="tag">Companion · 证明场</div>
+      <h3>陪伴与养成</h3>
+      <p class="small">母婴场景（11M channel）承担关系资产证明：长期轨迹是否形成真实
+        switching cost。是证据资产，不做独立 GTM。</p>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="grid2">
+    <div>
+      <div class="label">Business Model &amp; Roadmap</div>
+      <h2>NOW · 现有收入引擎</h2>
+      <ul class="small">
+        <li><b>Relationship Sales Map 交付</b> —— 私域关系地图成品，高客单敲门砖（对标猎企级人才地图）</li>
+        <li><b>AI 销售员工订阅</b> —— 领养 → 手册 → 自学 → 考证 → 上岗；按实例/用户/对话计费，可私有化</li>
+        <li><b>运营月报</b> —— 把关系资产变成客户报表上看得见的东西，续费锚</li>
+      </ul>
+      <h2 style="margin-top: 2mm;">NEXT · 更大的收入曲线</h2>
+      <p class="small"><b>Relationship API / MCP</b> —— 把关系状态与 next-action 判断按调用开放给客户自己的
+        sales / success / service agent。同一套体系，从雇佣制变成<b>「关系」维度的默认结算层</b>：
+        凡是需要回答「这段关系走到哪、现在该做什么」的机器决策，都要经过这一层。</p>
+    </div>
+    <div>
+      <div class="label">Flywheel · 飞轮与治理</div>
+      <p class="small"><span class="badge">合法性</span>数据第一天起 consented · first-party · 用户共同生成——PIPL/GDPR 下是估值逻辑，不是合规成本。<br>
+        <span class="badge">鲜度</span>关系状态由持续互动实时维护，任何离线画像追不上每天在关系里的运行时。<br>
+        <span class="badge">动机闭环</span>转化提升 → 续费 → 数据回路更厚 → AI 更准。<b>客户在付钱帮我们训练体系。</b></p>
+      <p class="small" style="margin-top: 1.6mm;"><b>三条硬约束（卖点，不是免责声明）</b>：per-tenant scope 不跨客户共享 ·
+        不做未经同意的跨用户学习 · 可删除可撤回且删除有证据——这三条正是企业敢采购的原因。</p>
+      <div class="rule" style="margin: 2mm 0;"></div>
+      <div class="label">Evidence · 可尽调</div>
+      <p class="small">4,400+ 测试覆盖记忆/关系状态/治理/垂直交付 · 8 套内部 benchmark 全部 PASS（含
+        matched-control 与置信区间）· 与同基底裸 LLM 的 same-substrate 盲评对照 ·
+        5 个垂直生命体同进程共载 · 开源三件套（关系表征标准 + Companion Bench + 动力学 encoder）在建：
+        <b>开放通用先验，闭源个体资产</b>。</p>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div style="display: flex; gap: 4mm; align-items: flex-start;">
+    <div style="width: 118mm;">
+      <div class="label">Team · 团队（北京 / 纽约 / 匹兹堡 · 18 人）</div>
+      <div class="grid2" style="gap: 2.4mm;">
+        <div>
+          <p class="small"><b>赵江波 · CEO</b> —— 商业战略与价值掌舵人：连续创业者，有成功退出经验，
+            连接前沿 AI 技术与商业场景。</p>
+          <p class="small" style="margin-top: 1mm;"><b>马志刚 · 研究院院长</b> —— 前字节跳动技术元老，
+            深耕超大规模分布式 AI 系统，主导地图 / 推荐等高并发场景架构落地。</p>
+        </div>
+        <div>
+          <p class="small"><b>杨柳 · 首席科学家</b> —— CMU 机器学习博士（师从图灵奖得主），全球主动学习领域
+            奠基者之一，40+ 篇 ML 论文（18 篇 NeurIPS / ICML / AAAI / CVPR 等 CCF-A），
+            原创 Active Apprenticeship Learning。</p>
+          <p class="small" style="margin-top: 1mm;"><b>张驰 · CTO</b> —— 产品与技术体系总架构师，
+            主导认知闭环的端到端工程化落地与规模化部署。</p>
+        </div>
+      </div>
+      <p class="small muted" style="margin-top: 1.2mm;">团队成员来自 CMU、北大、清华、纽约大学等院校，
+        具备字节跳动、阿里、腾讯、IBM 等公司经验——顶尖科研 × 全栈工程 × 成功商业的完整组合。</p>
+    </div>
+    <div style="width: 60mm;">
+      <div class="label">The Ask · 本轮融资</div>
+      <p class="small"><b>融资规模 RMB 6,000 万 · 投前估值 RMB 5 亿</b></p>
+      <p class="small" style="margin-top: 0.8mm;">
+        50% 核心研发与团队（3,000 万）<br>
+        33% 数据与算力基础设施（2,000 万）<br>
+        17% 合规、安全与运营（1,000 万）</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Volvence（北京进化涌现科技有限公司） · 人类表征模型体系 —— the relationship layer for the agent economy</span>
+    <span>2026.07 · CONFIDENTIAL</span>
+  </div>
+</div>
+</body>
+</html>

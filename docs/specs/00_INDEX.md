@@ -628,6 +628,26 @@
 
 ---
 
+### 23. OSS 发布：关系表征标准 + 开源关系编码器
+
+**对应需求**：R2（稳定基底 + 自适应控制器）、R8（快照优先 / 契约优先）、R11（内部状态可发布）、R12（评估只读）、R15（可回滚 + 证据先行）
+
+| Spec | 内容 |
+|------|------|
+| [oss-relationship-representation-standard.md](./oss-relationship-representation-standard.md) | **Option A**：开源「关系表征标准」三件套（标准 wheel + companion-bench 基准挂接 + ref-harness 参考实现）。从 `vz-cognition/semantic_state/contracts.py` 与 `vz-contracts/social_cognition.py` 抽取 9 类 owner snapshot value 类型 + ToM 记录为零依赖公开 wheel（内部 re-export 保持 SSOT）；MUST-NOT 清单守护工艺边界（owner 实现 / vz-temporal / 权重 / prompt 不外流）；Phase A1 内部重构（可 revert）→ A2 license 翻转 + 公开 RFC + PyPI/mirror；清洗 checklist + anti-claims 口径 |
+| [oss-relationship-encoder.md](./oss-relationship-encoder.md) | **Option B**：开放权重小型关系编码器（轨迹 → 关系状态结构化预测 + trajectory embedding），实现标准的 `SemanticEmbeddingBackend` 接缝。训练数据 100% 合成（扩建 companion-bench 生成器 + 公版语料 live-through），标签来自 FSM ground-truth 而非 judge（评估只读）；G1-G4 release gates（数据审计 / 效果下限 vs LLM zero-shot / 工艺泄漏审计 / 口径审计）；encoder 是离线无状态 readout，不成为运行时第二 owner |
+
+**核心不变量**：
+- 标准 wheel 是 9 类 snapshot value 类型的唯一 SSOT，内部经 re-export 消费，禁止双份 schema
+- 开源物只含接口与 readout，不含生成工艺（owner 实现 / metacontroller / 学习机制 / 权重 bootstrap）
+- encoder 训练集 100% 合成或授权；held-out 永不入训练；Companion Bench 是评测面不是训练源
+- 商业运行时消费 encoder 输出只走 typed proposal → owner 审核，不直写 semantic owner
+- 对外不称 "human world model"（受 evidence gate 约束）；准确率数字必须带校准与对照
+
+来源：DINQ BP 启发（`docs/business/dinq-bp-inspiration-2026-07.md`）+ 销售楔子 BP P5 结算层终局（2026-07-18）。发布决策未拍板前两份 spec 均为 draft。
+
+---
+
 ## 设计源头与支撑文档
 
 | 文档 | 内容 | 何时读 |
