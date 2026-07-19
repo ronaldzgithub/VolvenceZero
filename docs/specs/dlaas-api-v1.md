@@ -1223,7 +1223,7 @@ Auth: operator/service credentials only (`X-Control-Plane-Secret` or
 
 Environment:
 
-- `THIRD_PARTY_LLM_PROVIDER` (`openai`, `qwen`, `dashscope`, `vllm`, or custom)
+- `THIRD_PARTY_LLM_PROVIDER` (`openrouter`, `openai`, `qwen`, `dashscope`, `vllm`, or custom; default `openrouter`)
 - `THIRD_PARTY_LLM_API_KEY`
 - `THIRD_PARTY_LLM_BASE_URL` (optional for known providers)
 - `THIRD_PARTY_LLM_MODEL`
@@ -1380,8 +1380,10 @@ Exam-run scoring goes through the `RubricGrader` seam
   coverage validation, and scores clamped to `[0, max_score]`. Each
   breakdown entry carries a `grader_label` (`"llm:<model>"`).
 - Env vars (each `EVAL_LLM_*` overrides its `PROTOCOL_LLM_*` sibling
-  individually; no provider presets — `base_url` and `model` must be
-  explicit): `EVAL_LLM_BASE_URL` / `EVAL_LLM_API_KEY` /
+  individually; eval reads explicit `base_url` and `model`, so shared
+  startup scripts materialize the OpenRouter defaults into
+  `PROTOCOL_LLM_BASE_URL=https://openrouter.ai/api/v1` and
+  `PROTOCOL_LLM_MODEL=openai/gpt-4o-mini`): `EVAL_LLM_BASE_URL` / `EVAL_LLM_API_KEY` /
   `EVAL_LLM_MODEL` / `EVAL_LLM_TIMEOUT_S` (default 60), falling back
   to `PROTOCOL_LLM_BASE_URL` / `PROTOCOL_LLM_API_KEY` /
   `PROTOCOL_LLM_MODEL` / `PROTOCOL_LLM_TIMEOUT_SECONDS`.

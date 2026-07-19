@@ -160,7 +160,7 @@ def build_utterance_client_from_env() -> OpenAiUtteranceClient | None:
 
     Reuses the same provider preset table used by
     :func:`lifeform_service.openai_compat_client.build_client_from_env`
-    (qwen / dashscope / openai / vllm / lifeform-openai-compat), so the
+    (openrouter / openai / qwen / dashscope / vllm / lifeform-openai-compat), so the
     operator only sets ``PROTOCOL_LLM_API_KEY`` (+ optional
     ``PROTOCOL_LLM_PROVIDER``) and both the JSON-mode and the
     plain-text clients pick up the same credentials.
@@ -183,12 +183,8 @@ def build_utterance_client_from_env() -> OpenAiUtteranceClient | None:
         return None
 
     # Default provider must match the JSON-mode client
-    # (lifeform_service.openai_compat_client). Both modules hard-code
-    # "openai" because PROVIDER_PRESETS is the only thing the demo
-    # surface needs to share, and re-exporting a sentinel constant for
-    # the default just for this one call site adds more brittleness
-    # than it removes.
-    provider = _env("PROTOCOL_LLM_PROVIDER", "openai").lower()
+    # (lifeform_service.openai_compat_client).
+    provider = _env("PROTOCOL_LLM_PROVIDER", "openrouter").lower()
     preset = PROVIDER_PRESETS.get(provider)
 
     base_url = _env("PROTOCOL_LLM_BASE_URL")

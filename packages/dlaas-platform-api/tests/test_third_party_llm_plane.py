@@ -11,6 +11,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from dlaas_platform_api.third_party_llm import (
     ThirdPartyLlmConfig,
     attach_third_party_llm_routes,
+    build_third_party_llm_config_from_env,
 )
 from dlaas_platform_registry import (
     ApplicationStore,
@@ -23,6 +24,27 @@ from dlaas_platform_registry import (
 
 _SECRET = "test-control-plane-secret"
 _HEADERS = {"X-Control-Plane-Secret": _SECRET}
+
+
+def test_third_party_llm_default_provider_is_openrouter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key in (
+        "THIRD_PARTY_LLM_PROVIDER",
+        "THIRD_PARTY_LLM_BASE_URL",
+        "THIRD_PARTY_LLM_API_KEY",
+        "THIRD_PARTY_LLM_MODEL",
+        "THIRD_PARTY_LLM_TIMEOUT_SECONDS",
+        "THIRD_PARTY_LLM_ALLOW_PROTOCOL_FALLBACK",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("THIRD_PARTY_LLM_API_KEY", "sk-test")
+
+    config = build_third_party_llm_config_from_env()
+
+    assert config.provider == "openrouter"
+    assert config.base_url == "https://openrouter.ai/api/v1"
+    assert config.model == "openai/gpt-4o-mini"
 
 
 async def _fake_chat(request: web.Request) -> web.Response:

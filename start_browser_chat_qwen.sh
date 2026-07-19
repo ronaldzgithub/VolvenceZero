@@ -145,9 +145,9 @@
 #                                            # UI lets you multi-select which
 #                                            # persisted protocols to activate
 #                                            # across restarts (no LLM re-call).
-#   PROTOCOL_LLM_PROVIDER=qwen               # provider preset for the uptake
-#                                            # LLM. Known: openai / qwen /
-#                                            # dashscope / vllm /
+#   PROTOCOL_LLM_PROVIDER=openrouter         # provider preset for the uptake
+#                                            # LLM. Known: openrouter /
+#                                            # openai / qwen / dashscope / vllm /
 #                                            # lifeform-openai-compat / custom.
 #                                            # Sets sensible default base_url
 #                                            # + model.
@@ -159,7 +159,8 @@
 #                                            # return 503)
 #   PROTOCOL_LLM_MODEL=                      # explicit model override
 #                                            # (default: provider's default,
-#                                            # e.g. qwen-plus for qwen)
+#                                            # e.g. openai/gpt-4o-mini for
+#                                            # openrouter)
 #   PROTOCOL_LLM_TIMEOUT_SECONDS=60
 #   HF_HOME=$ROOT_DIR/.local/hf-cache        # where HuggingFace caches model
 #                                            # weights / tokenizers / datasets.
@@ -323,10 +324,10 @@ export PROTOCOL_AUTOLOAD_FORCE_APPROVE="${PROTOCOL_AUTOLOAD_FORCE_APPROVE:-0}"
 # so approved PDFs/MDs survive restart and the chat UI's library multi-select
 # shows them. Set to "" to disable (approved protocols evaporate on restart).
 export PROTOCOL_APPROVED_DIR="${PROTOCOL_APPROVED_DIR-${ROOT_DIR}/.local/protocol_library}"
-export PROTOCOL_LLM_PROVIDER="${PROTOCOL_LLM_PROVIDER:-qwen}"
-export PROTOCOL_LLM_BASE_URL="${PROTOCOL_LLM_BASE_URL:-}"
+export PROTOCOL_LLM_PROVIDER="${PROTOCOL_LLM_PROVIDER:-openrouter}"
+export PROTOCOL_LLM_BASE_URL="${PROTOCOL_LLM_BASE_URL:-https://openrouter.ai/api/v1}"
 export PROTOCOL_LLM_API_KEY="${PROTOCOL_LLM_API_KEY:-}"
-export PROTOCOL_LLM_MODEL="${PROTOCOL_LLM_MODEL:-}"
+export PROTOCOL_LLM_MODEL="${PROTOCOL_LLM_MODEL:-openai/gpt-4o-mini}"
 export PROTOCOL_LLM_TIMEOUT_SECONDS="${PROTOCOL_LLM_TIMEOUT_SECONDS:-60}"
 
 if has_nvidia_gpu; then
@@ -339,7 +340,7 @@ fi
 # operators don't have to paste the API key every shell. .local/
 # is gitignored. Format:
 #   PROTOCOL_LLM_API_KEY=sk-...
-#   PROTOCOL_LLM_PROVIDER=qwen
+#   PROTOCOL_LLM_PROVIDER=openrouter
 if [[ -f "${ROOT_DIR}/.local/llm.env" ]]; then
   set -a
   # shellcheck disable=SC1091

@@ -39,6 +39,11 @@ class _ProviderPreset:
 
 
 PROVIDER_PRESETS: Mapping[str, _ProviderPreset] = {
+    "openrouter": _ProviderPreset(
+        base_url="https://openrouter.ai/api/v1",
+        default_model="openai/gpt-4o-mini",
+        notes="OpenRouter OpenAI-compatible mode",
+    ),
     "openai": _ProviderPreset(
         base_url="https://api.openai.com/v1",
         default_model="gpt-4o-mini",
@@ -114,7 +119,7 @@ def build_third_party_llm_config_from_env() -> ThirdPartyLlmConfig:
     if allow_protocol_fallback and not _env("THIRD_PARTY_LLM_API_KEY"):
         prefix = "PROTOCOL_LLM"
 
-    provider = _env(f"{prefix}_PROVIDER", "openai").lower()
+    provider = _env(f"{prefix}_PROVIDER", "openrouter").lower()
     preset = PROVIDER_PRESETS.get(provider)
     base_url = _env(f"{prefix}_BASE_URL")
     if not base_url and preset is not None:

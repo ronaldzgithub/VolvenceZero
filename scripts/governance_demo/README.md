@@ -11,18 +11,20 @@ button is for live investor demos.
 
 ## Quick start
 
-1. Start the chat service with a real Qwen substrate (any `userId` works):
+1. Start the chat service with a real local substrate (any `userId` works):
 
    ```powershell
    .\start_browser_chat_qwen.ps1
    ```
 
-   For a realistic synthetic user, also set the same DashScope key the
+   For a realistic synthetic user, also set the same OpenRouter key the
    protocol-uptake routes use:
 
    ```powershell
-   $env:PROTOCOL_LLM_API_KEY = "sk-..."
-   $env:PROTOCOL_LLM_PROVIDER = "qwen"        # default
+   $env:PROTOCOL_LLM_API_KEY = "sk-or-..."
+   $env:PROTOCOL_LLM_PROVIDER = "openrouter"        # default
+   $env:PROTOCOL_LLM_BASE_URL = "https://openrouter.ai/api/v1"
+   $env:PROTOCOL_LLM_MODEL = "openai/gpt-4o-mini"
    ```
 
 2. From another terminal, drive an arc:
@@ -33,7 +35,7 @@ button is for live investor demos.
      --user-id alice `
      --scenario F2-repair-002 `
      --paraphrase-seed 0 `
-     --backend qwen
+     --backend openrouter
    ```
 
 3. Open `http://127.0.0.1:8765/chat`, type `alice` in the userId field,
@@ -80,9 +82,10 @@ the runtime materialisation of Slide 7's "non-transferable scope".
 
 | `--backend` | Behaviour |
 | --- | --- |
-| `qwen` (default) | Reads `PROTOCOL_LLM_*` env vars, talks to Qwen DashScope (or whatever provider preset is set). Hard-fail when no key. |
+| `openrouter` (default) | Reads `PROTOCOL_LLM_*` env vars, talks to OpenRouter by default. Hard-fail when no key. |
 | `fake` | `companion_bench.user_simulator.DeterministicFakeUtteranceClient` — hash-derived utterances. Stable, free, looks like a robot. Use for CI / smoke tests. |
-| `auto` | qwen when keys are present, fake otherwise. Convenient but silent. |
+| `auto` | OpenRouter when keys are present, fake otherwise. Convenient but silent. |
+| `qwen` | Compatibility alias for older commands; still reads `PROTOCOL_LLM_*`, so it can also route to OpenRouter when the provider env says so. |
 
 ## Recommended scenarios
 

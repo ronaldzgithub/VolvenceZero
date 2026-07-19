@@ -130,9 +130,9 @@
                                                # lets you multi-select which
                                                # persisted protocols to load
                                                # across restarts (no LLM re-run).
-      PROTOCOL_LLM_PROVIDER=qwen               # provider preset for the uptake
-                                               # LLM. Known: openai / qwen /
-                                               # dashscope / vllm /
+      PROTOCOL_LLM_PROVIDER=openrouter         # provider preset for the uptake
+                                               # LLM. Known: openrouter /
+                                               # openai / qwen / dashscope / vllm /
                                                # lifeform-openai-compat / custom.
                                                # Sets a sane default base_url +
                                                # model. Override with
@@ -147,7 +147,8 @@
                                                # 503)
       PROTOCOL_LLM_MODEL=                      # explicit model override
                                                # (default: provider's default,
-                                               # e.g. qwen-plus for qwen)
+                                               # e.g. openai/gpt-4o-mini for
+                                               # openrouter)
       PROTOCOL_LLM_TIMEOUT_SECONDS=60
       HF_HOME=<repo>\.local\hf-cache           # where HuggingFace caches model
                                                # weights (15+ GB per 7B Qwen).
@@ -342,10 +343,10 @@ Set-DefaultEnv 'MODEL_ID_ALLOWLIST'    ''
 Set-DefaultEnv 'PROTOCOL_AUTOLOAD_DIR'        ''
 Set-DefaultEnv 'PROTOCOL_AUTOLOAD_FORCE_APPROVE' '0'
 Set-DefaultEnv 'PROTOCOL_APPROVED_DIR'        (Join-Path $RootDir '.local\protocol_library')
-Set-DefaultEnv 'PROTOCOL_LLM_PROVIDER'        'qwen'
-Set-DefaultEnv 'PROTOCOL_LLM_BASE_URL'        ''
+Set-DefaultEnv 'PROTOCOL_LLM_PROVIDER'        'openrouter'
+Set-DefaultEnv 'PROTOCOL_LLM_BASE_URL'        'https://openrouter.ai/api/v1'
 Set-DefaultEnv 'PROTOCOL_LLM_API_KEY'         ''
-Set-DefaultEnv 'PROTOCOL_LLM_MODEL'           ''
+Set-DefaultEnv 'PROTOCOL_LLM_MODEL'           'openai/gpt-4o-mini'
 Set-DefaultEnv 'PROTOCOL_LLM_TIMEOUT_SECONDS' '60'
 
 # GPU machines: treat inherited DEVICE=auto as cuda unless explicitly overridden.
@@ -426,12 +427,47 @@ Or rerun:
     }
 }
 
-# Optional: source secrets from a non-committed .local/llm.env.ps1
+# Optional: source secrets from non-committed .local LLM env files
 # so operators don't have to paste the API key every shell. The
-# .local/ tree is gitignored. The script only reads it; it never
-# writes secrets back. Format inside the file:
+# .local/ tree is gitignored. The script only reads them; it never
+# writes secrets back. Supported formats:
+#   .local\llm.env      -> PROTOCOL_LLM_API_KEY=sk-or-...
+#   .local\llm.env.ps1  -> $env:PROTOCOL_LLM_API_KEY = 'sk-or-...'
 #   $env:PROTOCOL_LLM_API_KEY = 'sk-...'
-#   $env:PROTOCOL_LLM_PROVIDER = 'qwen'   # optional override
+#   $env:PROTOCOL_LLM_PROVIDER = 'openrouter'   # optional override
+function Import-DotEnvFile {
+    param([Parameter(Mandatory)] [string] $Path)
+
+    foreach ($line in Get-Content -Path $Path -Encoding UTF8) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith('#')) {
+            continue
+        }
+        $equals = $trimmed.IndexOf('=')
+        if ($equals -le 0) {
+            throw "Invalid dotenv line in ${Path}: $line"
+        }
+        $name = $trimmed.Substring(0, $equals).Trim()
+        if ($name.StartsWith('export ')) {
+            $name = $name.Substring(7).Trim()
+        }
+        if (-not ($name -match '^[A-Za-z_][A-Za-z0-9_]*$')) {
+            throw "Invalid dotenv variable name in ${Path}: $name"
+        }
+        $value = $trimmed.Substring($equals + 1).Trim()
+        if (
+            ($value.StartsWith("'") -and $value.EndsWith("'")) -or
+            ($value.StartsWith('"') -and $value.EndsWith('"'))
+        ) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        Set-Item -Path "Env:$name" -Value $value
+    }
+}
+$llmDotEnvFile = Join-Path $RootDir '.local\llm.env'
+if (Test-Path $llmDotEnvFile) {
+    Import-DotEnvFile -Path $llmDotEnvFile
+}
 $llmEnvFile = Join-Path $RootDir '.local\llm.env.ps1'
 if (Test-Path $llmEnvFile) {
     . $llmEnvFile

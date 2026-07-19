@@ -6,9 +6,9 @@ The actual HTTP implementation lives in
 
 * Reads env vars (``PROTOCOL_LLM_*``) and translates them into an
   :class:`OpenAiCompatConfig`.
-* Knows about a small table of **provider presets** (OpenAI,
-  Qwen DashScope, vLLM-localhost, lifeform-openai-compat) so the
-  operator only sets ``PROTOCOL_LLM_PROVIDER=qwen`` +
+* Knows about a small table of **provider presets** (OpenRouter,
+  OpenAI, Qwen DashScope, vLLM-localhost, lifeform-openai-compat) so the
+  operator only sets ``PROTOCOL_LLM_PROVIDER=openrouter`` +
   ``PROTOCOL_LLM_API_KEY=...`` and gets the right base URL +
   default model automatically.
 
@@ -54,6 +54,14 @@ class _ProviderPreset:
 # explicit PROTOCOL_LLM_BASE_URL / PROTOCOL_LLM_MODEL still
 # override.
 PROVIDER_PRESETS: Mapping[str, _ProviderPreset] = {
+    "openrouter": _ProviderPreset(
+        base_url="https://openrouter.ai/api/v1",
+        default_model="openai/gpt-4o-mini",
+        notes=(
+            "OpenRouter OpenAI-compatible Chat Completions. "
+            "Override PROTOCOL_LLM_MODEL for provider-specific routing."
+        ),
+    ),
     "openai": _ProviderPreset(
         base_url="https://api.openai.com/v1",
         default_model="gpt-4o-mini",
@@ -89,7 +97,7 @@ PROVIDER_PRESETS: Mapping[str, _ProviderPreset] = {
 }
 
 
-_DEFAULT_PROVIDER = "openai"
+_DEFAULT_PROVIDER = "openrouter"
 
 
 def _env(name: str, default: str = "") -> str:

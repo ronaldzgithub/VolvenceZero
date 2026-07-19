@@ -33,9 +33,9 @@ Usage::
         --user-id alice \
         --scenario F2-repair-002 \
         --paraphrase-seed 0 \
-        --backend qwen        # qwen | fake
+        --backend openrouter  # openrouter | fake
 
-The default ``--backend qwen`` reads ``PROTOCOL_LLM_*`` env vars the
+The default ``--backend openrouter`` reads ``PROTOCOL_LLM_*`` env vars the
 same way the JSON-mode protocol-uptake client does (see
 ``packages/lifeform-service/src/lifeform_service/openai_utterance_client.py``).
 """
@@ -252,21 +252,23 @@ def _build_schedule(
 def _resolve_backend(name: str) -> UtteranceClient:
     if name == "fake":
         return DeterministicFakeUtteranceClient()
-    if name in {"qwen", "auto"}:
+    if name in {"openrouter", "qwen", "auto"}:
         client = build_utterance_client_from_env()
         if client is not None:
             return client
-        if name == "qwen":
+        if name in {"openrouter", "qwen"}:
             raise RuntimeError(
-                "--backend qwen requires PROTOCOL_LLM_API_KEY to be set "
-                "(qwen DashScope key by default). Either export the env "
+                f"--backend {name} requires PROTOCOL_LLM_API_KEY to be set "
+                "(OpenRouter by default). Either export the env "
                 "var or pass --backend fake."
             )
         # ``auto`` falls back silently to the deterministic fake when
         # no credentials are present; callers that need to detect this
-        # should pass --backend qwen explicitly.
+        # should pass --backend openrouter explicitly.
         return DeterministicFakeUtteranceClient()
-    raise ValueError(f"unknown --backend {name!r}; expected qwen|fake|auto")
+    raise ValueError(
+        f"unknown --backend {name!r}; expected openrouter|fake|auto"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -631,12 +633,13 @@ def _build_argparser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--backend",
-        choices=("qwen", "fake", "auto"),
-        default="qwen",
+        choices=("openrouter", "qwen", "fake", "auto"),
+        default="openrouter",
         help=(
-            "User-utterance backend. ``qwen`` reads PROTOCOL_LLM_*; "
+            "User-utterance backend. ``openrouter`` reads PROTOCOL_LLM_*; "
             "``fake`` is the deterministic hash-based stub; ``auto`` "
-            "uses qwen when keys are set, fake otherwise."
+            "uses OpenRouter when keys are set, fake otherwise. ``qwen`` "
+            "is a compatibility alias that still reads PROTOCOL_LLM_*."
         ),
     )
     parser.add_argument(

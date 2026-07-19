@@ -84,14 +84,15 @@ def test_unknown_provider_without_base_url_raises(
         build_client_from_env()
 
 
-def test_default_provider_is_openai(
+def test_default_provider_is_openrouter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clear_llm_env(monkeypatch)
     monkeypatch.setenv("PROTOCOL_LLM_API_KEY", "test-key")
     client = build_client_from_env()
     assert client is not None
-    assert "api.openai.com" in client.base_url
+    assert "openrouter.ai" in client.base_url
+    assert client.model == "openai/gpt-4o-mini"
 
 
 def test_describe_active_provider_does_not_leak_api_key(
@@ -109,6 +110,7 @@ def test_describe_active_provider_does_not_leak_api_key(
 
 def test_known_presets_are_complete() -> None:
     """Lock the canonical preset set."""
+    assert "openrouter" in PROVIDER_PRESETS
     assert "openai" in PROVIDER_PRESETS
     assert "qwen" in PROVIDER_PRESETS
     assert "dashscope" in PROVIDER_PRESETS
