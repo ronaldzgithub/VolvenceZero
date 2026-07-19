@@ -53,7 +53,7 @@ def _floats_close(a: Any, b: Any, eps: float = EPSILON) -> bool:
     if isinstance(a, list) and isinstance(b, list):
         if len(a) != len(b):
             return False
-        return all(_floats_close(x, y, eps) for x, y in zip(a, b))
+        return all(_floats_close(x, y, eps) for x, y in zip(a, b, strict=True))
     if isinstance(a, dict) and isinstance(b, dict):
         if set(a.keys()) != set(b.keys()):
             return False
@@ -66,7 +66,9 @@ def _count_float_diffs(a: Any, b: Any, eps: float = EPSILON) -> int:
     if isinstance(a, float) and isinstance(b, float):
         return 0 if abs(a - b) < eps else 1
     if isinstance(a, list) and isinstance(b, list):
-        return sum(_count_float_diffs(x, y, eps) for x, y in zip(a, b))
+        # Lenient by design: this is a diagnostic counter, so a length
+        # mismatch just means the overlapping prefix is compared.
+        return sum(_count_float_diffs(x, y, eps) for x, y in zip(a, b, strict=False))
     if isinstance(a, dict) and isinstance(b, dict):
         return sum(_count_float_diffs(a[k], b[k], eps) for k in a if k in b)
     return 0
@@ -238,7 +240,13 @@ class R15RollbackV1Probe(BaseProbe):
 def _fail_v1(reason: str, error: str, ctx: ProbeContext, checks: dict) -> RunOutcome:
     return RunOutcome(
         readouts=ReadoutBundle(
-            metrics={"passed": 0.0, "n_checks": float(len(checks)), "n_failed": 1.0, "epsilon": EPSILON, "n_float_diffs": 0.0},
+            metrics={
+                "passed": 0.0,
+                "n_checks": float(len(checks)),
+                "n_failed": 1.0,
+                "epsilon": EPSILON,
+                "n_float_diffs": 0.0,
+            },
             artifacts={"checks": checks, "reason": reason, "error": error},
             tags={"cell": ctx.cell.value, "version": "v1"},
         ),

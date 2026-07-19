@@ -212,7 +212,11 @@ def _fail(
 ) -> RunOutcome:
     return RunOutcome(
         readouts=ReadoutBundle(
-            metrics={"passed": 0.0, "n_checks": float(len(checks)), "n_failed": float(sum(1 for v in checks.values() if not v))},
+            metrics={
+                "passed": 0.0,
+                "n_checks": float(len(checks)),
+                "n_failed": float(sum(1 for v in checks.values() if not v)),
+            },
             artifacts={"checks": checks, "reason": reason},
             tags={"cell": ctx.cell.value, **extra_tags},
         ),

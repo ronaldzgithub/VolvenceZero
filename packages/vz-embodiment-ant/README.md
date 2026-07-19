@@ -53,6 +53,10 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）这几条分层原理
 - `scripts/run_ant_colony.py` — Phase 1：信息素总线群体觅食。
 - `scripts/run_ant_caste.py` — Phase 2：离线角色重编程（`allow_offline=True`）。
 - `scripts/run_ant_demos.py` — G2/G3/G4：扰动对比 / 生物学叠图 / 安全反射一票否决。
+- `scripts/run_ant_theater.py` — 蚂蚁剧场：并排「启发式 FSM 殖民地」vs「数字生命殖民地」的
+  一群蚂蚁实时行为动画（自包含 HTML + Canvas，零依赖，浏览器直接打开）；中途食物搬迁，
+  直观呈现硬编码规则僵化 vs 学习控制器持续感知改道。输出
+  `research/ant/figures/digital_ant_theater.html`。
 
 推荐从统一入口运行：
 

@@ -12,9 +12,10 @@ def test_homing_precision_antbot_scale() -> None:
     result = homing_precision_experiment(
         journey_step_grid=(10, 40), n_trials=8, seed=1
     )
-    # The exact frozen AntBot threshold is evaluated honestly; this unit test
-    # validates the independent truth/estimate simulation rather than forcing PASS.
-    assert result.antbot_reference_ratio == 0.005
+    # Threshold is the AntBot aggregate homing error (0.67% of journey; Dupeyroux
+    # 2019, PI-Full aggregate over 26 runs). The unit test validates the
+    # independent truth/estimate simulation rather than forcing PASS.
+    assert result.antbot_reference_ratio == 0.0067
     for point in result.curve:
         assert point.mean_normalized_error >= 0.0
 

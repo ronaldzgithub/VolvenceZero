@@ -54,6 +54,11 @@ class AntSessionConfig:
     seed: int = 0
     heading_noise: float = 0.01
     step_noise: float = 0.01
+    # Sky-compass (absolute-heading) fusion — a body sensor shared by all
+    # navigation, matching AntBot's celestial compass. compass_gain=0 recovers
+    # pure dead reckoning.
+    compass_gain: float = 0.85
+    compass_noise: float = 0.007
     code_gain: float = 4.0
     rollout_config: FinalRolloutConfig | None = None
     # Learning knobs exposed on the vz-runtime facade (used by matched-control
@@ -121,6 +126,8 @@ class AntSession:
             step_size=world.config.step_size,
             heading_noise=self.config.heading_noise,
             step_noise=self.config.step_noise,
+            compass_gain=self.config.compass_gain,
+            compass_noise=self.config.compass_noise,
             seed=self.config.seed,
         )
         observation = world.observe(body_id)
@@ -193,13 +200,17 @@ class AntSession:
         result = await self.runner.run_turn(f"ant-tick-{self.world.tick}")
         code, switch_gate, abstract_action = self._read_code(result)
         command = self.actuator.plan(code, alarm=self.holder.observation.alarm)
-        nav_state = self.navigator.update(
-            turn_command=command.turn_command, step_command=command.step_command
-        )
         observation = self.world.act(
             turn_command=command.turn_command,
             step_command=command.step_command,
             body_id=self._body_id,
+        )
+        # The navigator integrates the efference copy and fuses the noisy
+        # sky-compass reading of the post-move absolute heading.
+        nav_state = self.navigator.update(
+            turn_command=command.turn_command,
+            step_command=command.step_command,
+            true_heading=observation.eval_true_heading,
         )
         transition = self.world.last_transition(self._body_id)
         prediction_id = (

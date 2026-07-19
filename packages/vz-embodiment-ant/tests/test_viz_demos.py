@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from volvence_ant.viz.bio_overlay import build_bio_overlays
+from volvence_ant.viz.colony_theater import run_colony_theater
 from volvence_ant.viz.dashboard import write_replay_dashboard
 from volvence_ant.viz.perturbation import run_perturbation_demo
 from volvence_ant.viz.safety_demo import run_safety_demo
@@ -71,6 +72,32 @@ def test_g4_safety_reflex_is_one_vote_veto() -> None:
     assert report.reflex_step > 0.0
     # and the chaotic controller really could produce non-trivial turns when calm
     assert report.max_calm_turn_magnitude > 0.0
+
+
+async def test_colony_theater_renders_both_arms_from_immutable_frames(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "theater.html"
+    report = await run_colony_theater(
+        n_ants=3, rounds=8, relocate_at=4, seed=0, out_path=out
+    )
+    # two arms: heuristic (hardcoded FSM) + digital-life (kernel controller)
+    kinds = {arm.kind for arm in report.arms}
+    assert kinds == {"heuristic", "digital-life"}
+    # every frame carries one pose per body plus the shared trail heatmap grid
+    for arm in report.arms:
+        assert len(arm.frames) == 8
+        first = arm.frames[0]
+        assert len(first.ants) == 3
+        assert len(first.trail) > 0 and len(first.trail[0]) > 0
+    # the food relocation is visible: sources differ before vs after the move
+    heuristic = next(arm for arm in report.arms if arm.kind == "heuristic")
+    assert heuristic.frames[3].food != heuristic.frames[7].food
+    # self-contained HTML embeds the data and the side-by-side canvas
+    html = out.read_text(encoding="utf-8")
+    assert "数字蚂蚁剧场" in html
+    assert "__THEATER_DATA__" not in html  # placeholder was substituted
+    assert "digital-life" in html
 
 
 async def test_dashboard_is_generated_from_immutable_step_records(

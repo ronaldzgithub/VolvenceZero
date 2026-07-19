@@ -266,6 +266,82 @@ ETA 主论文已经证明：抽象动作可以在 residual stream 中涌现，�
 - `research/papers/beyond-test-time-memory-state-space-optimal-control-llm-reasoning-2603.09221.pdf`
 - `research/papers/leto-modeling-multivariate-time-series-memorizing-test-time.pdf`
 
-## 7. 一句话更新
+## 7. Dreaming 阶段深读与算法提升（`2606.03979` §3.4）
 
-NL 的最新进展是从“记忆模块”升级为“持续学习生命周期”：wake 中在线压缩，sleep 中离线蒸馏和自改进。ETA 主作者线暂时没有新范式论文，但邻域正在把 latent temporal abstraction 推向 value-aware planning；VZ 现在最应该吸收的是 Sleep 的生命周期边界，而不是急着改 runtime。
+这一节专门拆 Sleep 论文里的 **Dreaming（REM 对应）** 阶段，并给出算法层面的改进方向。它是 VZ 想借鉴 Sleep 时风险最高、也最需要改造的部分。
+
+### 7.1 Dreaming 现在到底是什么
+
+Dreaming 本质是 SEAL 式自改写循环 + 三个补丁。给定采样任务 `(C, τ)`（`C` 是相关上下文，`τ(·)` 是下游评估度量）：
+
+1. **生成**：以 `C` 为上下文，从当前模型采样 `m` 个 dream。MoE 路由在采样时额外随机选一个专家，注入无关知识以制造新颖性。
+2. **选择**：对每个 dream 用 SFT 目标的梯度做重要性打分 `g = ∇L_SFT(dream, θ)`，取 Top-k，再加 `b` 个随机样本保多样性。
+3. **评估 + 更新**：每个 dream 用一个隔离的模型实例做 LoRA SFT，奖励是二值的（式 5：性能提升记 1，否则 0）。
+4. **优化**：用 ReST^EM 优化上述过程。
+
+论文自己的消融证明它脆：知识融合任务里去掉 Dreaming，准确率从 48.1 掉到 35.7；去掉梯度选择或随机专家也都下降。
+
+### 7.2 六个算法弱点
+
+1. **二值奖励（式 5）**：只区分“有没有变好”，丢掉幅度与方向，信号稀疏、方差高，且不做逐 dream 的信用分配。
+2. **依赖下游 verifier `τ(·)`**：奖励绑定任务成功率（数学 / ARC / SQuAD）。一是 reward hacking（dream 钻 verifier 漏洞），二是 VZ 的关系 / 主体性域根本没有干净的 `τ`。
+3. **梯度范数选梦混淆 epistemic 与 aleatoric**：高梯度既可能是可学习的惊奇，也可能是纯噪声 / 离群。当前打分会优先选到不可约噪声。
+4. **随机专家 = 无方向探索**：靠随机性造新颖 dream 是 undirected exploration，样本效率低，不受学习信号引导。
+5. **迭代自改的遗忘风险无硬门控**：靠“两阶段 + 隔离实例”缓解，但没有容量上限、验证边界、可回滚这类形式化保证。
+6. **模仿奖励 `r_abs`（式 4）用 Levenshtein 编辑距离**：token 表面相似度，成本高，且与“语义优先、不做表面匹配”原则相悖。
+
+### 7.3 改进方向（每条对应研究库已有论文）
+
+| # | 弱点 | 改进 | 参考论文 |
+|---|---|---|---|
+| ① | 二值 / 稀疏奖励 | 换成 PE 驱动的低方差奖励 + 逐 dream 反事实信用分配 | `curiosity-critic-2604.18701`、`cocoa-2306.16803` |
+| ② | 梯度范数选梦 | 改为“对留出集可约 PE 的降低量”+ 与 retention 集梯度的对齐度 | `curiosity-critic-2604.18701` |
+| ③ | 随机专家探索 | dream 探索放到 `z_t` 潜空间做 internal RL，并让 curiosity 定向降低世界模型 PE | `emergent-temporal-abstractions-2512.20605`、`worldllm-2506.06725` |
+| ④ | 自改无门控 | 每个 dream 更新变成 gate 候选 artifact，过门才 commit、可回滚 | `two-gate-guardrail-2510.04399`、`statistical-godel-machine-2510.10232` |
+| ⑤ | 遗忘风险 | 加 replay-based quiet-rest 保留检查，dream 更新须先过旧知识 replay | `wake-sleep-consolidated-learning-2401.08623`、`seslr-2507.02901`、`semi-parametric-memory-consolidation-2504.14727` |
+| ⑥ | Levenshtein 距离 | 换成 substrate feature 空间的嵌入距离 | 对齐 `no-keyword-matching-hacks` 规则 |
+
+关键点：③ 让 dreaming 的探索发生在潜空间而非 token 空间，正好守住 VZ “禁止 token 空间长期 RL” 的铁律。
+
+重要更正（2026-07-20）：①②所依赖的底层组件**在仓库里已经实现且在跑**，不是待办（详见 §7.6）。因此 dreaming 若要改奖励，是复用现有 infra，而不是从零造。
+
+### 7.4 对 VZ 最关键的改造：重定义 `τ`
+
+Sleep 的 Dreaming 奖励是 **IQ / 任务成功导向**；VZ 的产品是 **关系与主体性**。因此对我们最大的算法改动不是照搬 SEAL，而是重定义 dreaming 的 `τ`：
+
+- 奖励应是“对用户 / 关系的预测误差下降”，而不是任务通过率。
+- 该评估必须 **read-only**，经 `ModificationGate` 后才回写；绝不能让 evaluation 直接写回 credit / regime / memory（VZ 红线）。
+- 因双轨（R7），dreaming 必须有分开的 world-track 与 self-track 奖励，不能塌缩成单一任务目标。
+
+### 7.5 落点与优先级
+
+- 优先级：中高（在 Sleep 生命周期之后的第二步）。
+- 落点：`vz-cognition/prediction`（PE 奖励）、`vz-cognition/credit`（反事实信用）、`vz-cognition/modification`（gate）、`vz-temporal`（潜空间 dream 探索）、rare-heavy offline pipeline（隔离实例 + replay 复核）。
+- 现在不进代码：先把上述改造写成 dreaming 的 spec 草案，跑 shadow / report-only，再决定是否进 rare-heavy 主链。
+
+### 7.6 更正：Curiosity-Critic 与 COCOA 已落地（不是待办）
+
+早前讨论里我把 “先做 Curiosity-Critic 和 COCOA” 当成待办，这是**错的**。代码核查（2026-07-20）确认两者都已在生产库 `vz-cognition` 实现，且不只是 `research/labs` 的 probe：
+
+**Curiosity-Critic（PE epistemic / aleatoric 分解）** — `packages/vz-cognition/src/volvence_zero/prediction/error.py`：
+
+- `PEDecomposition`（`aleatoric_magnitude` / `epistemic_magnitude`）+ owner-internal running-stats critic。
+- 已推进到 Phase 1.B → Phase 2.B：epistemic = improvement-PE 分量（`epistemic = value - learned_prediction`）。
+- 通过 `PredictionErrorSnapshot.pe_decomposition` 发布；在 `evaluation/backbone.py` 作为 `pe_aleatoric_magnitude` / `pe_epistemic_magnitude` 读出。
+- 状态：**report-only，不被任何 acceptance gate 消费**。
+
+**COCOA（反事实贡献信用）** — `packages/vz-cognition/src/volvence_zero/credit/gate.py`：
+
+- `derive_counterfactual_contribution_records`（Phase 1.A 历史基线）+ `CreditLedger.derive_learned_counterfactual_contribution_records`（Phase 2.A owner-internal learned baseline / rewarding-state head，带 gate decision）。
+- 有 N-step ledger、`CounterfactualContributionReadout`、least-control 读出。
+- 在 `evaluation/mid_layer.py` 聚合消费。
+
+据此修正结论：
+
+1. 当前**没有**“必须先做的高收益前置项”在等待——Curiosity-Critic / COCOA 已完成（Phase 1 全做完，Phase 2 部分做完），处于 shadow / report-only。
+2. 真正剩下的独立小决策是：要不要让这两块从 report-only 升级到被 gate 消费。这与 Sleep 无关。
+3. Sleep / Dreaming 更**不必要也不划算**：VZ 现有 PE-first + 反事实信用主链已经把 Sleep 想借鉴的最有价值部分落地了，Sleep 只是在上层补了“生命周期”叙事。
+
+## 8. 一句话更新
+
+NL 的最新进展是从“记忆模块”升级为“持续学习生命周期”：wake 中在线压缩，sleep 中离线蒸馏和自改进。ETA 主作者线暂时没有新范式论文，但邻域正在把 latent temporal abstraction 推向 value-aware planning。VZ 现在最应该吸收的是 Sleep 的生命周期叙事，而不是急着改 runtime——因为 Sleep 想借鉴的最有价值部分（PE 一级信号、反事实信用）已经由 `vz-cognition` 的 Curiosity-Critic 与 COCOA 落地（report-only）；真正剩下的只是要不要把它们从 shadow 升级到被 gate 消费，这与 Sleep 无关。

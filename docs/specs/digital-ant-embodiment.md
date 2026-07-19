@@ -38,7 +38,16 @@ controller 自由学习「感知特征 → egocentric 动作」的映射；`moto
 `AntNavigator`（body 侧，冻结）维护环形吸引子朝向估计 ĥ 与路径积分回巢向量（对应中央复合体）。
 正式证据必须让 world 真值运动噪声与 navigator estimate 独立，并只由真实 `world.act` 产生轨迹；
 历史上以 noisy estimate 推进真值或通过 `set_body_pose`/`sync_to` 构造的 lane 仅是 legacy smoke，
-不能用于 AntBot/Ardin claim。
+不能用于 AntBot/Ardin claim。navigator **从不读世界真值位置**——路径积分误差因此是真实测量。
+
+**天空罗盘通道（绝对航向传感器，对应偏振光罗盘）**：`AntNavigator` 融合一个带噪声的绝对航向
+观测 `compass = true_heading + N(0, σ_compass)`，用互补滤波修正积分航向
+`ĥ ← ĥ + k·wrap(compass − ĥ)`（`compass_gain=k`，`compass_gain=0` 退回纯 dead reckoning）。
+这是**航向参考，不是位置读出**，与 AntBot 的天空罗盘 + 光流测距配置对齐——纯 efference-copy 积分的
+航向误差按 √N 随机游走增长，物理上到不了 AntBot 量级；有 AntBot 级罗盘（σ≈0.4°）才能达标。
+罗盘是所有导航共用的 substrate 传感器（`AntSession` / `FixedRuleAnt` 默认开启，同一 frozen substrate
+在 matched-control 各臂间一致），不是只为 homing 实验选择性开启的调参。此通道引入的是一个**受控、
+只读的真值航向耦合**，其他真值位置隔离不变。
 
 ## 4. Outcome → PE 接缝（正式证据）
 
@@ -67,7 +76,7 @@ event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形�
 | 群体 bus 增益 | kernel-driven 独立 `AntSession` 的 bus-on/off + FixedRule bus-on/off；≥5 seeds | 共享 controller state，或 FixedRule 冒充 VZ 群体 |
 | rare-heavy 角色分化 | per-individual `RareHeavyArtifact`、neutral/no-RH/shuffled/rollback；held-out 行为聚类 | 预置角色标签/手工 bias，或全员退化为单一簇 |
 | 真实双 substrate | ant + 本地 HF，多 turn，fallback=DENY，hook fire rate≥0.75 | synthetic runtime、fallback>0 或声称共享 policy 权重 |
-| 生物学参照 | AntBot/Ardin 权威数据资产、来源/图号/单位/sha256，含误差说明 | 合成衰减曲线冒充论文数据 |
+| 生物学参照 | AntBot/Ardin 权威数据资产、来源/图号/单位/sha256，含误差说明；homing 对标 AntBot 聚合 0.67%（非单条 0.47% cherry-pick），navigator 须含天空罗盘通道 | 合成衰减曲线冒充论文数据；用纯 dead-reckoning 对标带罗盘的 AntBot；靠调小噪声而非显式建模罗盘传感器过阈值 |
 | 安全 veto | 完整 `AntSession`，learned/PE-off/chaotic checkpoint，固定延迟覆盖 | 只测 actuator 单元或任一 alarm 未 veto |
 
 正式统计默认 ≥5 seeds、bootstrap CI、pairwise effects、训练/held-out 分离。门槛预先冻结；结果允许
@@ -92,6 +101,14 @@ event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形�
   - **G4 正式**：alarm 通过完整 `AntSession` 闭环验证；直接调用 actuator 只作 unit smoke。
   - 统一脚本 `scripts/run_ant_demos.py` → `research/ant/results/g{2,3,4}_*.json` +
     `research/ant/figures/*.png`（matplotlib 为可选 `viz` extra；缺失时仅跳过图，仍产 JSON）。
+  - **蚂蚁剧场（`volvence_ant.viz.colony_theater`）**：面向直观演示的并排 colony 动画，
+    左臂启发式 `FixedRuleAnt` 硬编码 FSM，右臂数字生命 kernel `AntSession`，共享同一
+    `ColonyWorld` 信息素总线，中途食物搬迁。渲染为自包含 HTML+Canvas（零依赖，非
+    matplotlib）。它只消费已发布的不可变事实——body 几何来自 `AntWorld` 公开 getter、
+    信息素来自 bus 快照、行为标签来自各 controller 自己 record 上的 `mode`/`abstract_action`——
+    不重建任何内核 owner 私有状态，不成为第二 owner，也不作为学习源。脚本
+    `scripts/run_ant_theater.py` → `research/ant/figures/digital_ant_theater.html`；此
+    lane 仅供演示，不产出正式 verdict。
 
 ### 7.1 公平训练与 checkpoint
 

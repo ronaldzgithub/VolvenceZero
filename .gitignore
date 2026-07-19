@@ -97,4 +97,11 @@ artifacts/companion_bench_smoke/*
 /.venv
 /.venv.conda.bak
 /tests
+# Root tests are generally closed to accidental additions. This release-gate
+# teeth suite is an explicit contract artifact and must remain versioned.
+!/tests/
+/tests/*
+!/tests/contracts/
+/tests/contracts/*
+!/tests/contracts/test_gate_teeth_discipline.py
 *.pyc

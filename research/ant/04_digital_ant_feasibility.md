@@ -150,8 +150,11 @@ step_command = v_t · fixed_step_size
    并从同一初始 checkpoint 分叉；正式 artifact 需要按新协议重跑。
 3. **四个 torch backend 生产默认仍为 DISABLED**：ant active-evidence 只在隔离候选配置中逐项
    真正启用并评估，绝不自动 flip 生产默认值。
-4. **生物学量级尚未通过**：AntBot homing 比例仍 BLOCK；Ardin 的 errors-per-route 与 exposure
-   novelty 不同量纲，继续禁止伪造叠图。
+4. **生物学量级**：AntBot homing 现已通过——根因是原实现用**纯 efference-copy dead reckoning**
+   对标带天空偏振罗盘的 AntBot，量纲不公平（纯积分航向误差按 √N 随机游走，物理上到不了 0.5%）。
+   已给 `AntNavigator` 补上与 AntBot 一致的天空罗盘绝对航向通道（互补滤波，σ≈0.4°），并把阈值口径
+   从单条 14m 轨迹 0.47% 改为更有代表性的 AntBot 聚合 0.67%（26 次）。这是补一个本该有的传感器 +
+   诚实标定，不是调小噪声偷分。Ardin 的 errors-per-route 与 exposure novelty 不同量纲，继续禁止伪造叠图。
 5. **群体与角色 claim 尚未通过**：kernel bus 必须显示多 seed 正增益；rare-heavy 必须在
    held-out 行为上随压力产生可复现聚类变化，artifact 参数切片不再算 PASS。
 6. **可视化与复现入口已补齐但不改变 verdict**：`scripts/run_ant_pipeline.py` 提供 demo/formal

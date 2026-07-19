@@ -8,7 +8,7 @@ import numpy as np
 
 from volvence_ant.env.ant_world import WorldObservation
 from volvence_ant.substrate.motor_decode import motor_decode
-from volvence_ant.substrate.navigator import AntNavigator, wrap_angle
+from volvence_ant.substrate.navigator import TWO_PI, AntNavigator, wrap_angle
 from volvence_ant.substrate.sense_encode import (
     SENSE_CHANNELS,
     sense_encode,
@@ -87,6 +87,49 @@ def test_navigator_path_integration_roundtrip() -> None:
     assert state.home_dx < -4.5
     assert abs(state.home_dy) < 1e-6
     assert math.isclose(state.home_distance, 5.0, rel_tol=1e-6)
+
+
+def test_compass_fusion_reduces_heading_drift() -> None:
+    """The sky-compass channel must curb the sqrt(N) heading random walk.
+
+    With identical proprioceptive noise and RNG seed, fusing a noisy absolute
+    heading reading keeps the estimate closer to truth than pure dead reckoning.
+    """
+
+    import numpy as np
+
+    def final_heading_error(*, compass_gain: float) -> float:
+        nav = AntNavigator(
+            step_size=0.4,
+            heading_noise=0.05,
+            step_noise=0.0,
+            compass_gain=compass_gain,
+            compass_noise=0.007,
+            seed=7,
+        )
+        nav.reset(initial_heading=0.0)
+        rng = np.random.default_rng(7 + 10_000)
+        true_heading = 0.0
+        for _ in range(200):
+            turn = float(np.clip(rng.normal(0.0, 0.4), -0.6, 0.6))
+            true_heading = (true_heading + turn + float(rng.normal(0.0, 0.05))) % TWO_PI
+            nav.update(turn_command=turn, step_command=0.4, true_heading=true_heading)
+        return abs(wrap_angle(nav.state.h_hat - true_heading))
+
+    drift_pure = final_heading_error(compass_gain=0.0)
+    drift_compass = final_heading_error(compass_gain=0.85)
+    assert drift_compass < drift_pure
+    # An AntBot-class compass pins heading to roughly its own noise scale.
+    assert drift_compass < 0.05
+
+
+def test_compass_gain_bounds_are_validated() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        AntNavigator(step_size=0.4, compass_gain=1.5)
+    with pytest.raises(ValueError):
+        AntNavigator(step_size=0.4, compass_noise=-0.1)
 
 
 def test_wrap_angle_range() -> None:

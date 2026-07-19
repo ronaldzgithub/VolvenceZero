@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 from volvence_ant.viz.bio_overlay import BioOverlayReport, build_bio_overlays
+from volvence_ant.viz.colony_theater import (
+    ColonyTheaterReport,
+    TheaterAntFrame,
+    TheaterArmReplay,
+    TheaterRoundFrame,
+    run_colony_theater,
+    write_colony_theater_html,
+)
 from volvence_ant.viz.dashboard import LiveAntDashboard, write_replay_dashboard
 from volvence_ant.viz.dual_substrate import (
     DualSubstrateReport,
@@ -27,6 +35,12 @@ from volvence_ant.viz.safety_demo import (
 )
 
 __all__ = [
+    "ColonyTheaterReport",
+    "TheaterAntFrame",
+    "TheaterArmReplay",
+    "TheaterRoundFrame",
+    "run_colony_theater",
+    "write_colony_theater_html",
     "DualSubstrateReport",
     "LiveAntDashboard",
     "write_replay_dashboard",

@@ -135,6 +135,43 @@ class FramingAwarenessCheck:
 - 低风险或已有显式 inoculation 声明时，本检查不覆盖 Two-Gate / audit owner 的其它阻断理由；它只收紧，不放宽。
 - `risk_score` 必须在 `[0, 1]`，构造时 fail-loudly。
 
+### 可证伪发布门纪律（R15 / Release-Gate Teeth）
+
+来源：Soni, “Falsifiable Release Gates for Self-Improving Systems”
+（`arXiv:2607.13070`）；仓库深读见
+`research/falsifiable-release-gates-deep-read-2607.13070.md`。
+
+该纪律约束的是**自适应能力如何发布**，不是新的学习信号，也不改变
+PE-first / credit / evaluation 的所有权边界：
+
+1. **Gate before code**：任何新自适应层在实现 ACTIVE 写回前，必须先有
+   可证伪、机器可检的 acceptance gate。验收目标不得由被验收的学习层自行选择或修改。
+2. **阈值预注册**：promotion / soak 的 acceptance threshold 必须在观察窗口开始前冻结；
+   窗口开始后不得为了通过而调阈值。新阈值只能开启新的、带新版本号的观察窗口。
+3. **Preservative gate**：新增 gate 通过时，所有既有 gate 必须继续通过；不能以新能力
+   取代或绕过旧不变量。
+4. **Teeth discipline**：每条机器检查的不变量必须同时携带 deliberately-broken fixture，
+   CI 必须证明 checker 会拒绝该 fixture，并尽可能报告最小、可定位的反例。
+   只证明“好样本通过”不构成发布证据。
+5. **构造性写面遏制**：自修改 proposal 只能表达 owner 明确开放的 target；
+   判断 proposal 的机器本身不可成为 proposal target。`PROTECTED_WRITE_SURFACES`
+   当前保护 `audit`、`credit.gate`、`evaluation`、`gate`、`modification_gate`
+   命名空间；命中时 `ModificationProposal` 构造即 fail-loudly，而非进入可绕过的运行时回退。
+   增删保护命名空间必须同步本 spec 与 teeth 契约测试。
+
+当前证据落点：
+
+- `tests/contracts/test_gate_teeth_discipline.py`：合规基线必须通过；每个单不变量破坏
+  必须因其自己的精确理由被拒；保护写面在构造期不可表达。
+- `research/labs/.../frontier_5_r15_formalization/r15_rollback_teeth.py`：
+  对 CAS 重建产物注入最小篡改，要求 bit-exact / content-hash checker 必须拒绝并定位。
+- 既有 `r15_rollback.py` / `r15_rollback_v1.py` 继续承担正向 rollback 证据；
+  正向 probe 与 teeth probe 缺一不可。
+
+后续 R15 formalization（本轮不实现）：把“任何 owner 状态写入都必须经 owner apply surface
+与 ModificationGate”建成小 scope 有限状态机，穷举可达状态验证 single-path 无旁路，
+再用真实 trace conformance 绑定规格与代码。该证明只覆盖协调骨架，不宣称验证学习组件本身。
+
 ## 接口契约
 
 **消费的输入**：
@@ -184,6 +221,10 @@ class FramingAwarenessCheck:
 
 ## 变更日志
 
+- 2026-07-20: 引入 `arXiv:2607.13070` 的可证伪发布门纪律：新增 gate-before-code、
+  阈值预注册、preservative gate、teeth fixture 与保护写面约束；代码侧
+  `ModificationProposal` 禁止指向评判机器命名空间，新增 gate 单不变量破坏矩阵和
+  R15 rollback 篡改必拒 probe。认知主链与 PE-first 所有权不变。
 - 2026-07-17: G1 session-held credit owner + `credit_heads` hydration。`CreditModule` 由 `AgentSessionRunner` 持有单实例（`final_wiring` 未注入时保留历史 per-turn 构造作为回滚路径），`set_pending_proposals` 每 turn 只刷新 proposal buffer——COCOA `_RewardingStateHead` 与 `GateRiskLearner`（新增 `GateRiskLearnerState` export/restore）从此跨 turn 累积。`CreditModule` 实现 `HydratableOwnerProtocol`（owner name `credit_heads`，schema v1，float-only payload；owner/version/payload 三类 mismatch 抛典型 `HydrationError` 子类），进入 `OWNER_HYDRATION_MATRIX` 并随 `persist_owners()` 跨 session 续接。规则 gate 级联不变（R9/R10 安全底线）；learned heads 仍不进入 gate 决策。契约测试：`tests/contracts/test_owner_hydration_{protocol,failures_loud}.py` credit 段。
 - 2026-06-20: 登记关联设计 spec [`relational-soft-verifier.md`](./relational-soft-verifier.md)（design / SHADOW-only）：拟在 `credit` owner 引入"可组合验证器 + 逐源漂移监控"与新 gate `VZ_RELATIONAL_SOFT_VERIFIER`（三阶升级，复用本 spec Wave E3 的 readout-only→acceptance-gate 协议 + rollback drill）；组内归一化 advantage 作用在 z_rel 控制器空间而非 token；外部人审锚只读不回灌。未改动本 owner，待 SHADOW 证据通过后再落地。
 - 2026-05-09: Wave E3 (debt #6 闭合候选) 增补 promotion criteria 表格，明确 `readout-only` -> `readout-with-acceptance` -> `acceptance gate` 的三阶升级标准 + rollback drill 准入要求；不修改任何运行时 owner，仅是路线图侧的契约增强。

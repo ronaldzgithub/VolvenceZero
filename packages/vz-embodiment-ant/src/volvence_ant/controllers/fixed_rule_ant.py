@@ -34,6 +34,10 @@ class FixedRuleConfig:
     seed: int = 0
     heading_noise: float = 0.01
     step_noise: float = 0.01
+    # Same sky-compass sensor as the kernel arm — the frozen substrate is shared
+    # across matched-control arms, so path-integration precision must not differ.
+    compass_gain: float = 0.85
+    compass_noise: float = 0.007
     explore_jitter: float = 0.35  # random turn when nothing to sense
     gradient_gain: float = 6.0
     food_sense_threshold: float = 0.05  # only ascend when food is genuinely near
@@ -79,6 +83,8 @@ class FixedRuleAnt:
             step_size=world.config.step_size,
             heading_noise=self.config.heading_noise,
             step_noise=self.config.step_noise,
+            compass_gain=self.config.compass_gain,
+            compass_noise=self.config.compass_noise,
             seed=self.config.seed,
         )
         obs = world.observe(body_id)
@@ -131,9 +137,13 @@ class FixedRuleAnt:
         obs = self._last_obs
         nav_state = self.navigator.state
         turn, step_cmd, mode = self._decide(obs, nav_state)
-        nav_state = self.navigator.update(turn_command=turn, step_command=step_cmd)
         obs = self.world.act(
             turn_command=turn, step_command=step_cmd, body_id=self._body_id
+        )
+        nav_state = self.navigator.update(
+            turn_command=turn,
+            step_command=step_cmd,
+            true_heading=obs.eval_true_heading,
         )
         self._last_obs = obs
         body = self.world.body(self._body_id)

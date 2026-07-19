@@ -203,6 +203,22 @@ class _CounterfactualContext:
     features: tuple[float, ...]
 
 
+PROTECTED_WRITE_SURFACES: tuple[str, ...] = (
+    "audit",
+    "credit.gate",
+    "evaluation",
+    "gate",
+    "modification_gate",
+)
+
+
+def _is_protected_write_target(target: str) -> bool:
+    return any(
+        target == protected or target.startswith(f"{protected}.")
+        for protected in PROTECTED_WRITE_SURFACES
+    )
+
+
 @dataclass(frozen=True)
 class ModificationProposal:
     target: str
@@ -215,6 +231,13 @@ class ModificationProposal:
     capacity_cost: float = 0.0
     rollback_evidence: str = ""
     framing_check: FramingAwarenessCheck | None = None
+
+    def __post_init__(self) -> None:
+        if _is_protected_write_target(self.target):
+            raise ValueError(
+                "ModificationProposal.target cannot address a protected "
+                f"judgment surface: {self.target!r}"
+            )
 
 
 @dataclass(frozen=True)
@@ -2096,7 +2119,9 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
             evaluation_snapshot.value if isinstance(evaluation_snapshot.value, EvaluationSnapshot) else None
         )
         prediction_error_value = (
-            prediction_error_snapshot.value if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot) else None
+            prediction_error_snapshot.value
+            if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
+            else None
         )
         temporal_value = (
             temporal_snapshot.value
@@ -2137,9 +2162,17 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
             credits = derive_credit_records_from_prediction_error_first(
                 dual_track_snapshot=dual_track_snapshot,
                 evaluation_snapshot=evaluation_snapshot,
-                prediction_error_snapshot=prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None,
+                prediction_error_snapshot=(
+                    prediction_error_snapshot
+                    if isinstance(prediction_error_snapshot, PredictionErrorSnapshot)
+                    else None
+                ),
                 timestamp_ms=int(kwargs.get("timestamp_ms", 1)),
-                temporal_snapshot=temporal_snapshot if isinstance(temporal_snapshot, TemporalAbstractionSnapshot) else None,
+                temporal_snapshot=(
+                    temporal_snapshot
+                    if isinstance(temporal_snapshot, TemporalAbstractionSnapshot)
+                    else None
+                ),
             )
             self._ledger.record_credits(credits)
             self._record_proposals(
