@@ -2,12 +2,23 @@ param(
     [string]$ArtifactDir = "",
     [switch]$DryRun,
     [switch]$Resume,
-    [switch]$KeepServices
+    [switch]$KeepServices,
+    [switch]$FullMode
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 Set-Location $RepoRoot
+
+$PackageSrcs = Get-ChildItem -Path (Join-Path $RepoRoot "packages") -Directory -ErrorAction Stop |
+    ForEach-Object { Join-Path $_.FullName "src" } |
+    Where-Object { Test-Path $_ }
+$PackagePaths = ($PackageSrcs -join ";")
+if ($env:PYTHONPATH) {
+    $env:PYTHONPATH = "$PackagePaths;$env:PYTHONPATH"
+} else {
+    $env:PYTHONPATH = $PackagePaths
+}
 
 $EnvFile = Join-Path $RepoRoot ".local/llm.env"
 if (Test-Path $EnvFile) {
@@ -62,6 +73,111 @@ function Set-P1CrossFamilyExtractorEnv {
 }
 
 Set-P1CrossFamilyExtractorEnv
+
+function Stop-P1RunProcesses {
+    param([string]$RunDir)
+    if (-not $RunDir) {
+        return
+    }
+    $pidFile = Join-Path $RunDir "serve.pids"
+    $watchdogPidFile = Join-Path $RunDir "watchdog.pid"
+    if (Test-Path $pidFile) {
+        Get-Content $pidFile | Where-Object { $_ } | ForEach-Object {
+            Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "[p1] stopped stale services from $pidFile"
+    }
+    if (Test-Path $watchdogPidFile) {
+        Get-Content $watchdogPidFile | Where-Object { $_ } | ForEach-Object {
+            Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "[p1] stopped stale watchdog from $watchdogPidFile"
+    }
+}
+
+function Get-OccupiedP1Ports {
+    $occupied = @()
+    foreach ($port in 8000, 8500, 8501, 8502, 8600) {
+        try {
+            $listener = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction Stop |
+                Select-Object -First 1
+            if ($listener) {
+                $occupied += $port
+            }
+        } catch [Microsoft.PowerShell.Commands.Internal.Common.ErrorRecord] {
+            if ($_.FullyQualifiedErrorId -ne "CmdletizationQuery_NotFound,Get-NetTCPConnection") {
+                throw
+            }
+        }
+    }
+    return $occupied
+}
+
+function Clear-OccupiedP1Ports {
+    $freed = @()
+    foreach ($port in (Get-OccupiedP1Ports)) {
+        $pids = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty OwningProcess -Unique
+        foreach ($pid in $pids) {
+            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+            $freed += $pid
+        }
+    }
+    if ($freed.Count -gt 0) {
+        Write-Host "[p1] freed P1 ports by stopping pid(s): $($freed -join ', ')"
+        Start-Sleep -Seconds 2
+    }
+}
+
+function Set-EnvDefault {
+    param(
+        [string]$Name,
+        [string]$Value
+    )
+    if (-not [Environment]::GetEnvironmentVariable($Name, "Process")) {
+        [Environment]::SetEnvironmentVariable($Name, $Value, "Process")
+    }
+}
+
+function Clear-SafeModeDefault {
+    param(
+        [string]$Name,
+        [string]$Value
+    )
+    if ([Environment]::GetEnvironmentVariable($Name, "Process") -eq $Value) {
+        [Environment]::SetEnvironmentVariable($Name, $null, "Process")
+    }
+}
+
+$SafeMode = -not $FullMode
+if ($SafeMode) {
+    Set-EnvDefault "REFH_EMBEDDER" "hashing"
+    Set-EnvDefault "OMP_NUM_THREADS" "2"
+    Set-EnvDefault "MKL_NUM_THREADS" "2"
+    Set-EnvDefault "NUMEXPR_NUM_THREADS" "2"
+    Set-EnvDefault "TOKENIZERS_PARALLELISM" "false"
+    Set-EnvDefault "VZ_P1_PROCESS_PRIORITY" "BelowNormal"
+    Set-EnvDefault "VZ_P1_WATCHDOG" "1"
+    Set-EnvDefault "VZ_P1_WATCHDOG_INTERVAL_SECONDS" "15"
+    Set-EnvDefault "VZ_P1_MIN_AVAILABLE_MEMORY_GB" "4"
+    Set-EnvDefault "VZ_P1_MAX_GPU_MEMORY_USED_PCT" "94"
+    Set-EnvDefault "VZ_P1_WATCHDOG_SUSTAINED_BREACHES" "3"
+    Write-Host "[p1] SafeMode: REFH_EMBEDDER=$($env:REFH_EMBEDDER), priority=$($env:VZ_P1_PROCESS_PRIORITY), watchdog=$($env:VZ_P1_WATCHDOG)"
+} else {
+    Clear-SafeModeDefault "REFH_EMBEDDER" "hashing"
+    Clear-SafeModeDefault "OMP_NUM_THREADS" "2"
+    Clear-SafeModeDefault "MKL_NUM_THREADS" "2"
+    Clear-SafeModeDefault "NUMEXPR_NUM_THREADS" "2"
+    Clear-SafeModeDefault "TOKENIZERS_PARALLELISM" "false"
+    Clear-SafeModeDefault "VZ_P1_PROCESS_PRIORITY" "BelowNormal"
+    Clear-SafeModeDefault "VZ_P1_WATCHDOG" "1"
+    Clear-SafeModeDefault "VZ_P1_WATCHDOG_INTERVAL_SECONDS" "15"
+    Clear-SafeModeDefault "VZ_P1_MIN_AVAILABLE_MEMORY_GB" "4"
+    Clear-SafeModeDefault "VZ_P1_MAX_GPU_MEMORY_USED_PCT" "94"
+    Clear-SafeModeDefault "VZ_P1_WATCHDOG_SUSTAINED_BREACHES" "3"
+    $env:VZ_P1_FULL_MODE = "1"
+    Write-Host "[p1] FullMode: default SafeMode resource limits disabled"
+}
 
 if (-not $env:VZ_SUBSTRATE_MODEL_ID) {
     $env:VZ_SUBSTRATE_MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
@@ -128,6 +244,13 @@ if ($env:VZ_SUBSTRATE_WEIGHTS_PATH) {
 }
 
 $PidFile = Join-Path $ArtifactDir "serve.pids"
+$WatchdogPidFile = Join-Path $ArtifactDir "watchdog.pid"
+if ($Resume -or (Test-Path $PidFile)) {
+    Stop-P1RunProcesses -RunDir $ArtifactDir
+}
+if ((Get-OccupiedP1Ports).Count -gt 0) {
+    Clear-OccupiedP1Ports
+}
 try {
     python @PreflightArgs
     if ($LASTEXITCODE -ne 0) {
@@ -149,5 +272,11 @@ try {
             Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
         }
         Write-Host "[p1] stopped services from $PidFile"
+    }
+    if (-not $KeepServices -and (Test-Path $WatchdogPidFile)) {
+        Get-Content $WatchdogPidFile | Where-Object { $_ } | ForEach-Object {
+            Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "[p1] stopped watchdog from $WatchdogPidFile"
     }
 }

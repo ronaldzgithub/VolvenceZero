@@ -28,6 +28,9 @@
 .PARAMETER KeepServices
     跑分结束后保留 8000/8001/8500/8600 上的服务进程。
 
+.PARAMETER FullMode
+    关闭默认 SafeMode，使用完整 P1 资源配置运行。
+
 .PARAMETER Stop
     停止指定（或最近）run 的 serve.pids 进程后退出，不启动新跑分。
 
@@ -54,12 +57,77 @@ param(
     [switch]$DryRun,
     [switch]$Resume,
     [switch]$KeepServices,
+    [switch]$FullMode,
     [switch]$Stop
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = $PSScriptRoot
 Set-Location $RepoRoot
+
+function Convert-P1UnixCliToken {
+    param([string]$Token)
+    if (-not $Token) {
+        return $null
+    }
+    switch ($Token.ToLowerInvariant()) {
+        { $_ -in @("--resume", "-resume", "/resume") } { return "Resume" }
+        { $_ -in @("--dry-run", "--dryrun", "-dry-run", "/dryrun") } { return "DryRun" }
+        { $_ -in @("--full-mode", "--fullmode", "-full-mode", "/fullmode") } { return "FullMode" }
+        { $_ -in @("--keep-services", "--keepservices", "-keep-services") } { return "KeepServices" }
+        { $_ -in @("--stop", "-stop", "/stop") } { return "Stop" }
+    }
+    return $null
+}
+
+function Apply-P1CliAliases {
+    param(
+        [ref]$ArtifactDirRef,
+        [ref]$DryRunRef,
+        [ref]$ResumeRef,
+        [ref]$KeepServicesRef,
+        [ref]$FullModeRef,
+        [ref]$StopRef,
+        [string[]]$ExtraArgs
+    )
+
+    $positional = @()
+    if ($ArtifactDirRef.Value) {
+        $positional += $ArtifactDirRef.Value
+    }
+    if ($ExtraArgs) {
+        $positional += $ExtraArgs
+    }
+
+    $resolvedArtifactDir = ""
+    foreach ($token in $positional) {
+        $switchName = Convert-P1UnixCliToken $token
+        if ($switchName) {
+            switch ($switchName) {
+                "DryRun" { $DryRunRef.Value = $true }
+                "Resume" { $ResumeRef.Value = $true }
+                "KeepServices" { $KeepServicesRef.Value = $true }
+                "FullMode" { $FullModeRef.Value = $true }
+                "Stop" { $StopRef.Value = $true }
+            }
+            continue
+        }
+        if ($resolvedArtifactDir) {
+            throw "unexpected extra positional argument: $token (use -ArtifactDir <path>)"
+        }
+        $resolvedArtifactDir = $token
+    }
+    $ArtifactDirRef.Value = $resolvedArtifactDir
+}
+
+Apply-P1CliAliases `
+    -ArtifactDirRef ([ref]$ArtifactDir) `
+    -DryRunRef ([ref]$DryRun) `
+    -ResumeRef ([ref]$Resume) `
+    -KeepServicesRef ([ref]$KeepServices) `
+    -FullModeRef ([ref]$FullMode) `
+    -StopRef ([ref]$Stop) `
+    -ExtraArgs $args
 
 $Runner = Join-Path $RepoRoot "scripts/companion_bench/run_p1_windows.ps1"
 if (-not (Test-Path $Runner)) {
@@ -79,14 +147,21 @@ function Get-LatestAblationRunDir {
 function Stop-AblationRun {
     param([string]$RunDir)
     $pidFile = Join-Path $RunDir "serve.pids"
+    $watchdogPidFile = Join-Path $RunDir "watchdog.pid"
     if (-not (Test-Path $pidFile)) {
         Write-Host "[p1] no serve.pids under $RunDir"
-        return
+    } else {
+        Get-Content $pidFile | Where-Object { $_ } | ForEach-Object {
+            Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "[p1] stopped services from $pidFile"
     }
-    Get-Content $pidFile | Where-Object { $_ } | ForEach-Object {
-        Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
+    if (Test-Path $watchdogPidFile) {
+        Get-Content $watchdogPidFile | Where-Object { $_ } | ForEach-Object {
+            Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "[p1] stopped watchdog from $watchdogPidFile"
     }
-    Write-Host "[p1] stopped services from $pidFile"
 }
 
 if ($Stop) {
@@ -121,9 +196,13 @@ if ($ArtifactDir) {
 if ($DryRun) { $invokeArgs["DryRun"] = $true }
 if ($Resume) { $invokeArgs["Resume"] = $true }
 if ($KeepServices) { $invokeArgs["KeepServices"] = $true }
+if ($FullMode) { $invokeArgs["FullMode"] = $true }
 
 Write-Host "[p1] repo=$RepoRoot"
 Write-Host "[p1] orchestrator=$Runner"
+if (-not $FullMode) {
+    Write-Host "[p1] SafeMode enabled by default; pass -FullMode for unrestricted resource settings"
+}
 if ($ArtifactDir) {
     Write-Host "[p1] artifact-dir=$ArtifactDir"
 }

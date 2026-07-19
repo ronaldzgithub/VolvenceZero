@@ -104,6 +104,43 @@ powershell -ExecutionPolicy Bypass -File .\run_affordance_learner_probe.ps1
 powershell -ExecutionPolicy Bypass -File .\run_longitudinal_continuity.ps1
 ```
 
+### CompanionBench P1 on Windows
+
+`run_learned_active_evidence.ps1` expects the CompanionBench P1 readiness
+manifest when it reaches the same-substrate ablation stage. Generate or resume
+that P1 run from PowerShell with:
+
+```powershell
+.\run_companion_bench_p1.ps1
+.\run_companion_bench_p1.ps1 -Resume
+```
+
+PowerShell switches use a single leading dash (`-Resume`). Unix-style
+`--resume` is also accepted for convenience.
+
+The Windows P1 launcher defaults to SafeMode to keep RDP and the desktop
+responsive on single-GPU machines. SafeMode uses the lightweight hashing
+retrieval embedder, limits common math-library thread pools, starts service
+processes at `BelowNormal` priority, and launches a watchdog for the current
+run's `serve.pids`.
+
+The watchdog writes logs under the run's `serve-logs/watchdog.log`. If available
+RAM stays below `4GB` or GPU memory usage stays at or above `94%` for three
+consecutive checks, it stops the P1 services for that run rather than letting
+the machine become unreachable.
+
+Use full-resource mode only when the host can tolerate it:
+
+```powershell
+.\run_companion_bench_p1.ps1 -FullMode
+```
+
+To stop a stuck or leftover P1 run, including its watchdog:
+
+```powershell
+.\run_companion_bench_p1.ps1 -Stop
+```
+
 ### Evidence Boundary
 
 `run_learned_active_evidence.sh` and `run_learned_active_evidence.ps1` invoke

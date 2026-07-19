@@ -76,6 +76,7 @@ if (-not $env:ARTIFACT_DIR) {
 $ArtifactDir = $env:ARTIFACT_DIR
 $LogDir = Join-Path $ArtifactDir "serve-logs"
 $PidFile = Join-Path $ArtifactDir "serve.pids"
+$WatchdogPidFile = Join-Path $ArtifactDir "watchdog.pid"
 $CamelBackend = if ($env:CAMEL_BACKEND) { $env:CAMEL_BACKEND } else { "camel" }
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
@@ -111,7 +112,47 @@ function Start-AblationService {
         -RedirectStandardOutput (Join-Path $LogDir "$Name.log") `
         -RedirectStandardError (Join-Path $LogDir "$Name.err.log") `
         -PassThru -WindowStyle Hidden
+    if ($env:VZ_P1_PROCESS_PRIORITY) {
+        try {
+            $proc.PriorityClass = $env:VZ_P1_PROCESS_PRIORITY
+        } catch {
+            Write-Warning "[serve] failed to set ${Name} priority to $($env:VZ_P1_PROCESS_PRIORITY): $_"
+        }
+    }
     Add-Content -Path $PidFile -Value $proc.Id
+}
+
+function Start-P1Watchdog {
+    if ($env:VZ_P1_WATCHDOG -ne "1") {
+        return
+    }
+    $watchdog = Join-Path $PSScriptRoot "watchdog_p1_windows.ps1"
+    if (-not (Test-Path $watchdog)) {
+        throw "[serve] watchdog script missing: $watchdog"
+    }
+    $interval = if ($env:VZ_P1_WATCHDOG_INTERVAL_SECONDS) { $env:VZ_P1_WATCHDOG_INTERVAL_SECONDS } else { "15" }
+    $minMemory = if ($env:VZ_P1_MIN_AVAILABLE_MEMORY_GB) { $env:VZ_P1_MIN_AVAILABLE_MEMORY_GB } else { "4" }
+    $maxGpu = if ($env:VZ_P1_MAX_GPU_MEMORY_USED_PCT) { $env:VZ_P1_MAX_GPU_MEMORY_USED_PCT } else { "94" }
+    $breaches = if ($env:VZ_P1_WATCHDOG_SUSTAINED_BREACHES) { $env:VZ_P1_WATCHDOG_SUSTAINED_BREACHES } else { "3" }
+    $watchdogLog = Join-Path $LogDir "watchdog.log"
+    $watchdogErr = Join-Path $LogDir "watchdog.err.log"
+    $args = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $watchdog,
+        "-PidFile", $PidFile,
+        "-LogPath", $watchdogLog,
+        "-IntervalSeconds", $interval,
+        "-MinAvailableMemoryGB", $minMemory,
+        "-MaxGpuMemoryUsedPct", $maxGpu,
+        "-SustainedBreaches", $breaches
+    )
+    $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $args `
+        -RedirectStandardOutput (Join-Path $LogDir "watchdog.out.log") `
+        -RedirectStandardError $watchdogErr `
+        -PassThru -WindowStyle Hidden
+    Set-Content -Path $WatchdogPidFile -Value $proc.Id
+    Write-Host "[serve] watchdog started pid=$($proc.Id) log=$watchdogLog"
 }
 
 function Stop-AblationServices {
@@ -238,6 +279,7 @@ if ($CamelBackend -eq "camel") {
     )
 }
 Start-AblationService "camel-baseline" $CamelArgs
+Start-P1Watchdog
 
 Wait-AblationEndpoint "lifeform-ablation-bundle" "http://127.0.0.1:8000/v1/health"
 Wait-AblationEndpoint "ref-harness" "http://127.0.0.1:8500/healthz"

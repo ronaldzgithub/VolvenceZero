@@ -30,6 +30,7 @@ function Invoke-PipInstall {
 
 # Order matters: dependencies must be installed before dependents.
 $Packages = @(
+    "packages\companion-standard",
     "packages\vz-contracts",
     "packages\vz-substrate",
     "packages\vz-memory",

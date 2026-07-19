@@ -1,0 +1,2451 @@
+{
+  "schema_version": "learned-shadow-soak.v1",
+  "artifact_kind": "learned_shadow_soak",
+  "evidence_tier": "real-trace-soak",
+  "temporal_latent_dim": 16,
+  "backend_wiring": {
+    "temporal_ssl_backend": "shadow",
+    "temporal_runtime_backend": "shadow",
+    "internal_rl_backend": "shadow",
+    "cms_torch_backend": "shadow"
+  },
+  "temporal_runtime": {
+    "world": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 2.7755575615628914e-17,
+      "max_abs_diff_z_tilde": 2.7755575615628914e-17,
+      "max_abs_diff_beta": 1.1102230246251565e-16,
+      "max_abs_diff_applied": 5.551115123125783e-17,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 2.7176000003237277,
+      "torch_latency_ms": 2.7111999988846947,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "switch_decision_match": true,
+      "family_selection_match": true,
+      "nearest_family_pure": "discovered_family_0",
+      "nearest_family_torch": "discovered_family_0",
+      "description": "runtime ndim SHADOW parity: mean=2.78e-17 z=2.78e-17 beta=1.11e-16 applied=5.55e-17 within=True latency_ok=True switch_match=True family_match=True"
+    },
+    "self": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 2.7755575615628914e-17,
+      "max_abs_diff_z_tilde": 2.7755575615628914e-17,
+      "max_abs_diff_beta": 1.1102230246251565e-16,
+      "max_abs_diff_applied": 1.1102230246251565e-16,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 3.200500003003981,
+      "torch_latency_ms": 2.715800001169555,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "switch_decision_match": true,
+      "family_selection_match": true,
+      "nearest_family_pure": "discovered_family_0",
+      "nearest_family_torch": "discovered_family_0",
+      "description": "runtime ndim SHADOW parity: mean=2.78e-17 z=2.78e-17 beta=1.11e-16 applied=1.11e-16 within=True latency_ok=True switch_match=True family_match=True"
+    }
+  },
+  "temporal_ssl": {
+    "torch_backend": "shadow",
+    "torch_prediction_loss": 0.16919929489048166,
+    "torch_kl_loss": 39.38522611215737,
+    "torch_switch_sparsity": 0.2865116692942963,
+    "torch_parameters_changed": 3247,
+    "torch_grad_norm": 1.890307384637245,
+    "torch_wrote_back": false,
+    "pure_prediction_loss": 0.39101348941386443,
+    "pure_kl_loss": 2.3096170345271037,
+    "trained_steps": 12,
+    "candidate_checkpoint": {
+      "trace_id": "agent-session:real:510",
+      "wrote_back": false,
+      "candidate_fingerprint": "71f7afc7b2e470ac8a554e4af703cd28def792857665d5ec8af8e4fd3d8c449f",
+      "parameters_changed": 3247
+    },
+    "forward_parity": {
+      "steps_compared": 1,
+      "max_abs_diff_posterior_mean": 1.2800477344754313e-10,
+      "max_abs_diff_z_tilde": 1.530703064300809e-10,
+      "max_abs_diff_beta": 8.533285189571416e-12,
+      "max_abs_diff_applied": 6.666567298196924e-11,
+      "within_tolerance": true,
+      "tolerance": 1e-07,
+      "pure_latency_ms": 0.7666999990760814,
+      "torch_latency_ms": 2.877700000681216,
+      "latency_ok": true,
+      "promotable": true,
+      "torch_available": true,
+      "switch_decision_match": true,
+      "family_selection_match": true,
+      "nearest_family_pure": "discovered_family_5",
+      "nearest_family_torch": "discovered_family_5",
+      "description": "runtime ndim SHADOW parity: mean=1.28e-10 z=1.53e-10 beta=8.53e-12 applied=6.67e-11 within=True latency_ok=True switch_match=True family_match=True"
+    }
+  },
+  "internal_rl": {
+    "kind": "single-track",
+    "task": {
+      "torch_backend": "shadow",
+      "torch_parameters_changed": 49,
+      "torch_policy_loss": 0.2523201934592714,
+      "torch_value_loss": 0.036657656417081394,
+      "torch_approx_kl": 32.18078049181494,
+      "torch_wrote_back": false,
+      "transition_count": 13,
+      "track": "world"
+    },
+    "reward_composition": {
+      "pe_derived_abs_fraction": 0.16723634140703203,
+      "reward_mode": "dense",
+      "component_names": [
+        "control_effect",
+        "control_energy_bonus",
+        "replacement_alignment",
+        "persistence_bonus",
+        "switch_bonus",
+        "staleness_penalty",
+        "primary_prediction_error",
+        "task_outcome_delta",
+        "relationship_outcome_delta",
+        "learning_outcome_delta",
+        "abstraction_outcome_delta",
+        "stability_outcome_delta",
+        "experience_mix_delta",
+        "experience_regime_delta",
+        "experience_action_delta",
+        "experience_sequence_delta",
+        "experience_control_prior",
+        "prediction_error_readout"
+      ]
+    }
+  },
+  "cms": {
+    "backend": "shadow",
+    "band_id": "session-medium",
+    "parameters_changed": 1024,
+    "parameter_change_rate": 1.0,
+    "grad_norm": 0.000301820267621931,
+    "loss": 0.0013184112756865168,
+    "wrote_back": false,
+    "new_knowledge_absorption": 0.025400716817181798,
+    "old_knowledge_retention": 0.9996929215208411,
+    "forward_parity_max_abs_diff_pure_torch": 0.0,
+    "forward_parity_max_abs_diff_legacy_torch": 0.0,
+    "forward_parity_within_tolerance": true,
+    "forward_parity_tolerance": 1e-09,
+    "forward_parity_pure_latency_ms": 0.207500001124572,
+    "forward_parity_torch_latency_ms": 0.09449999924981967,
+    "forward_parity_promotable": true
+  },
+  "capacity_arm": {
+    "temporal_latent_dim": 16,
+    "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+    "substrate_mode": "hf",
+    "substrate_model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "substrate_device": "cuda"
+  },
+  "turn_count": 510,
+  "real_trace_turns": 509,
+  "total_seconds": 2128.63,
+  "mean_turn_seconds": 4.1738,
+  "provenance": {
+    "git_sha": "d4876eb2ebcb0a41a479c65f9e9648c02ac36d92",
+    "git_branch": "main",
+    "working_tree_dirty": false,
+    "python_version": "3.12.3",
+    "platform": "Windows-11-10.0.26200-SP0"
+  },
+  "cp11_predictive_heads": {
+    "readout_series": [
+      {
+        "turn": 25,
+        "sample_count": 24,
+        "world_learned_mae": 0.0729,
+        "world_baseline_mae": 0.0411,
+        "self_learned_mae": 0.0256,
+        "self_baseline_mae": 0.0347,
+        "world_improvement": -0.0318,
+        "self_improvement": 0.0091,
+        "window_size": 200,
+        "window_sample_count": 24,
+        "window_world_improvement": -0.0318,
+        "window_self_improvement": 0.0091,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0555
+          ],
+          [
+            "regime_stability",
+            0.1066
+          ],
+          [
+            "action_payoff",
+            0.0567
+          ],
+          [
+            "relationship_delta",
+            0.0256
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0497
+          ],
+          [
+            "regime_stability",
+            0.0131
+          ],
+          [
+            "action_payoff",
+            0.0604
+          ],
+          [
+            "relationship_delta",
+            0.0347
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0522
+          ],
+          [
+            "regime_stability",
+            0.0092
+          ],
+          [
+            "action_payoff",
+            0.045
+          ],
+          [
+            "relationship_delta",
+            0.0275
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0596
+          ],
+          [
+            "regime_stability",
+            0.0126
+          ],
+          [
+            "action_payoff",
+            0.0544
+          ],
+          [
+            "relationship_delta",
+            0.0376
+          ]
+        ]
+      },
+      {
+        "turn": 50,
+        "sample_count": 49,
+        "world_learned_mae": 0.0528,
+        "world_baseline_mae": 0.0417,
+        "self_learned_mae": 0.0263,
+        "self_baseline_mae": 0.0378,
+        "world_improvement": -0.0111,
+        "self_improvement": 0.0115,
+        "window_size": 200,
+        "window_sample_count": 49,
+        "window_world_improvement": -0.0111,
+        "window_self_improvement": 0.0115,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0494
+          ],
+          [
+            "regime_stability",
+            0.0619
+          ],
+          [
+            "action_payoff",
+            0.0471
+          ],
+          [
+            "relationship_delta",
+            0.0263
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.053
+          ],
+          [
+            "regime_stability",
+            0.0118
+          ],
+          [
+            "action_payoff",
+            0.0604
+          ],
+          [
+            "relationship_delta",
+            0.0378
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0518
+          ],
+          [
+            "regime_stability",
+            0.0081
+          ],
+          [
+            "action_payoff",
+            0.0447
+          ],
+          [
+            "relationship_delta",
+            0.0289
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0605
+          ],
+          [
+            "regime_stability",
+            0.0115
+          ],
+          [
+            "action_payoff",
+            0.0548
+          ],
+          [
+            "relationship_delta",
+            0.0398
+          ]
+        ]
+      },
+      {
+        "turn": 75,
+        "sample_count": 74,
+        "world_learned_mae": 0.0471,
+        "world_baseline_mae": 0.042,
+        "self_learned_mae": 0.0259,
+        "self_baseline_mae": 0.0383,
+        "world_improvement": -0.005,
+        "self_improvement": 0.0124,
+        "window_size": 200,
+        "window_sample_count": 74,
+        "window_world_improvement": -0.005,
+        "window_self_improvement": 0.0124,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0491
+          ],
+          [
+            "regime_stability",
+            0.047
+          ],
+          [
+            "action_payoff",
+            0.0451
+          ],
+          [
+            "relationship_delta",
+            0.0259
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0545
+          ],
+          [
+            "regime_stability",
+            0.0113
+          ],
+          [
+            "action_payoff",
+            0.0603
+          ],
+          [
+            "relationship_delta",
+            0.0383
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0536
+          ],
+          [
+            "regime_stability",
+            0.0078
+          ],
+          [
+            "action_payoff",
+            0.0453
+          ],
+          [
+            "relationship_delta",
+            0.0288
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.061
+          ],
+          [
+            "regime_stability",
+            0.0111
+          ],
+          [
+            "action_payoff",
+            0.0547
+          ],
+          [
+            "relationship_delta",
+            0.0401
+          ]
+        ]
+      },
+      {
+        "turn": 100,
+        "sample_count": 99,
+        "world_learned_mae": 0.0437,
+        "world_baseline_mae": 0.0418,
+        "self_learned_mae": 0.0258,
+        "self_baseline_mae": 0.0384,
+        "world_improvement": -0.002,
+        "self_improvement": 0.0126,
+        "window_size": 200,
+        "window_sample_count": 99,
+        "window_world_improvement": -0.002,
+        "window_self_improvement": 0.0126,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0479
+          ],
+          [
+            "regime_stability",
+            0.0399
+          ],
+          [
+            "action_payoff",
+            0.0434
+          ],
+          [
+            "relationship_delta",
+            0.0258
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0541
+          ],
+          [
+            "regime_stability",
+            0.0111
+          ],
+          [
+            "action_payoff",
+            0.0601
+          ],
+          [
+            "relationship_delta",
+            0.0384
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0532
+          ],
+          [
+            "regime_stability",
+            0.0076
+          ],
+          [
+            "action_payoff",
+            0.0451
+          ],
+          [
+            "relationship_delta",
+            0.0288
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0611
+          ],
+          [
+            "regime_stability",
+            0.011
+          ],
+          [
+            "action_payoff",
+            0.055
+          ],
+          [
+            "relationship_delta",
+            0.04
+          ]
+        ]
+      },
+      {
+        "turn": 125,
+        "sample_count": 124,
+        "world_learned_mae": 0.0417,
+        "world_baseline_mae": 0.0415,
+        "self_learned_mae": 0.0259,
+        "self_baseline_mae": 0.0388,
+        "world_improvement": -0.0002,
+        "self_improvement": 0.0128,
+        "window_size": 200,
+        "window_sample_count": 124,
+        "window_world_improvement": -0.0002,
+        "window_self_improvement": 0.0128,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0472
+          ],
+          [
+            "regime_stability",
+            0.0354
+          ],
+          [
+            "action_payoff",
+            0.0424
+          ],
+          [
+            "relationship_delta",
+            0.0259
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.054
+          ],
+          [
+            "regime_stability",
+            0.011
+          ],
+          [
+            "action_payoff",
+            0.0596
+          ],
+          [
+            "relationship_delta",
+            0.0388
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0529
+          ],
+          [
+            "regime_stability",
+            0.0075
+          ],
+          [
+            "action_payoff",
+            0.0449
+          ],
+          [
+            "relationship_delta",
+            0.029
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.061
+          ],
+          [
+            "regime_stability",
+            0.0109
+          ],
+          [
+            "action_payoff",
+            0.0546
+          ],
+          [
+            "relationship_delta",
+            0.0403
+          ]
+        ]
+      },
+      {
+        "turn": 150,
+        "sample_count": 149,
+        "world_learned_mae": 0.0402,
+        "world_baseline_mae": 0.0413,
+        "self_learned_mae": 0.0258,
+        "self_baseline_mae": 0.0387,
+        "world_improvement": 0.0012,
+        "self_improvement": 0.0129,
+        "window_size": 200,
+        "window_sample_count": 149,
+        "window_world_improvement": 0.0012,
+        "window_self_improvement": 0.0129,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0465
+          ],
+          [
+            "regime_stability",
+            0.0323
+          ],
+          [
+            "action_payoff",
+            0.0418
+          ],
+          [
+            "relationship_delta",
+            0.0258
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0539
+          ],
+          [
+            "regime_stability",
+            0.0109
+          ],
+          [
+            "action_payoff",
+            0.0592
+          ],
+          [
+            "relationship_delta",
+            0.0387
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0526
+          ],
+          [
+            "regime_stability",
+            0.0074
+          ],
+          [
+            "action_payoff",
+            0.0449
+          ],
+          [
+            "relationship_delta",
+            0.029
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0608
+          ],
+          [
+            "regime_stability",
+            0.0108
+          ],
+          [
+            "action_payoff",
+            0.0542
+          ],
+          [
+            "relationship_delta",
+            0.0403
+          ]
+        ]
+      },
+      {
+        "turn": 175,
+        "sample_count": 174,
+        "world_learned_mae": 0.0391,
+        "world_baseline_mae": 0.0412,
+        "self_learned_mae": 0.0257,
+        "self_baseline_mae": 0.0387,
+        "world_improvement": 0.0021,
+        "self_improvement": 0.013,
+        "window_size": 200,
+        "window_sample_count": 174,
+        "window_world_improvement": 0.0021,
+        "window_self_improvement": 0.013,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0461
+          ],
+          [
+            "regime_stability",
+            0.03
+          ],
+          [
+            "action_payoff",
+            0.0412
+          ],
+          [
+            "relationship_delta",
+            0.0257
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0537
+          ],
+          [
+            "regime_stability",
+            0.0108
+          ],
+          [
+            "action_payoff",
+            0.0591
+          ],
+          [
+            "relationship_delta",
+            0.0387
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0525
+          ],
+          [
+            "regime_stability",
+            0.0073
+          ],
+          [
+            "action_payoff",
+            0.0448
+          ],
+          [
+            "relationship_delta",
+            0.0289
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0607
+          ],
+          [
+            "regime_stability",
+            0.0107
+          ],
+          [
+            "action_payoff",
+            0.0541
+          ],
+          [
+            "relationship_delta",
+            0.0402
+          ]
+        ]
+      },
+      {
+        "turn": 200,
+        "sample_count": 199,
+        "world_learned_mae": 0.0384,
+        "world_baseline_mae": 0.0411,
+        "self_learned_mae": 0.0256,
+        "self_baseline_mae": 0.0385,
+        "world_improvement": 0.0027,
+        "self_improvement": 0.013,
+        "window_size": 200,
+        "window_sample_count": 199,
+        "window_world_improvement": 0.0027,
+        "window_self_improvement": 0.013,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.046
+          ],
+          [
+            "regime_stability",
+            0.0282
+          ],
+          [
+            "action_payoff",
+            0.0411
+          ],
+          [
+            "relationship_delta",
+            0.0256
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0535
+          ],
+          [
+            "regime_stability",
+            0.0108
+          ],
+          [
+            "action_payoff",
+            0.059
+          ],
+          [
+            "relationship_delta",
+            0.0385
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0526
+          ],
+          [
+            "regime_stability",
+            0.0073
+          ],
+          [
+            "action_payoff",
+            0.0449
+          ],
+          [
+            "relationship_delta",
+            0.0288
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0605
+          ],
+          [
+            "regime_stability",
+            0.0107
+          ],
+          [
+            "action_payoff",
+            0.0542
+          ],
+          [
+            "relationship_delta",
+            0.04
+          ]
+        ]
+      },
+      {
+        "turn": 225,
+        "sample_count": 224,
+        "world_learned_mae": 0.0377,
+        "world_baseline_mae": 0.0412,
+        "self_learned_mae": 0.0255,
+        "self_baseline_mae": 0.0386,
+        "world_improvement": 0.0035,
+        "self_improvement": 0.0131,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0077,
+        "window_self_improvement": 0.0136,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0443
+          ],
+          [
+            "regime_stability",
+            0.0174
+          ],
+          [
+            "action_payoff",
+            0.0389
+          ],
+          [
+            "relationship_delta",
+            0.0255
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0542
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.059
+          ],
+          [
+            "relationship_delta",
+            0.0391
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0525
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.0448
+          ],
+          [
+            "relationship_delta",
+            0.029
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0606
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0543
+          ],
+          [
+            "relationship_delta",
+            0.0403
+          ]
+        ]
+      },
+      {
+        "turn": 250,
+        "sample_count": 249,
+        "world_learned_mae": 0.0372,
+        "world_baseline_mae": 0.0412,
+        "self_learned_mae": 0.0255,
+        "self_baseline_mae": 0.0388,
+        "world_improvement": 0.0039,
+        "self_improvement": 0.0132,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0076,
+        "window_self_improvement": 0.0137,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0443
+          ],
+          [
+            "regime_stability",
+            0.0169
+          ],
+          [
+            "action_payoff",
+            0.039
+          ],
+          [
+            "relationship_delta",
+            0.0253
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.054
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0586
+          ],
+          [
+            "relationship_delta",
+            0.039
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0525
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.0448
+          ],
+          [
+            "relationship_delta",
+            0.0289
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0604
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0539
+          ],
+          [
+            "relationship_delta",
+            0.0402
+          ]
+        ]
+      },
+      {
+        "turn": 275,
+        "sample_count": 274,
+        "world_learned_mae": 0.0368,
+        "world_baseline_mae": 0.0411,
+        "self_learned_mae": 0.0255,
+        "self_baseline_mae": 0.0387,
+        "world_improvement": 0.0043,
+        "self_improvement": 0.0132,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0077,
+        "window_self_improvement": 0.0134,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0435
+          ],
+          [
+            "regime_stability",
+            0.0165
+          ],
+          [
+            "action_payoff",
+            0.0391
+          ],
+          [
+            "relationship_delta",
+            0.0254
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0532
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0586
+          ],
+          [
+            "relationship_delta",
+            0.0388
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0518
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.045
+          ],
+          [
+            "relationship_delta",
+            0.029
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0601
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0539
+          ],
+          [
+            "relationship_delta",
+            0.04
+          ]
+        ]
+      },
+      {
+        "turn": 300,
+        "sample_count": 299,
+        "world_learned_mae": 0.0364,
+        "world_baseline_mae": 0.0411,
+        "self_learned_mae": 0.0254,
+        "self_baseline_mae": 0.0387,
+        "world_improvement": 0.0047,
+        "self_improvement": 0.0133,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0079,
+        "window_self_improvement": 0.0137,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0432
+          ],
+          [
+            "regime_stability",
+            0.0159
+          ],
+          [
+            "action_payoff",
+            0.0392
+          ],
+          [
+            "relationship_delta",
+            0.0252
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0531
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0587
+          ],
+          [
+            "relationship_delta",
+            0.0389
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0517
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.045
+          ],
+          [
+            "relationship_delta",
+            0.0289
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0597
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0541
+          ],
+          [
+            "relationship_delta",
+            0.0401
+          ]
+        ]
+      },
+      {
+        "turn": 325,
+        "sample_count": 324,
+        "world_learned_mae": 0.0361,
+        "world_baseline_mae": 0.041,
+        "self_learned_mae": 0.0254,
+        "self_baseline_mae": 0.0388,
+        "world_improvement": 0.0049,
+        "self_improvement": 0.0134,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.008,
+        "window_self_improvement": 0.0137,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0432
+          ],
+          [
+            "regime_stability",
+            0.0155
+          ],
+          [
+            "action_payoff",
+            0.0394
+          ],
+          [
+            "relationship_delta",
+            0.025
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0529
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0587
+          ],
+          [
+            "relationship_delta",
+            0.0387
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0519
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.0453
+          ],
+          [
+            "relationship_delta",
+            0.0289
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0596
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0541
+          ],
+          [
+            "relationship_delta",
+            0.0399
+          ]
+        ]
+      },
+      {
+        "turn": 350,
+        "sample_count": 349,
+        "world_learned_mae": 0.0358,
+        "world_baseline_mae": 0.0411,
+        "self_learned_mae": 0.0254,
+        "self_baseline_mae": 0.0389,
+        "world_improvement": 0.0053,
+        "self_improvement": 0.0135,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0084,
+        "window_self_improvement": 0.0139,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0431
+          ],
+          [
+            "regime_stability",
+            0.0153
+          ],
+          [
+            "action_payoff",
+            0.0393
+          ],
+          [
+            "relationship_delta",
+            0.0251
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0532
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0592
+          ],
+          [
+            "relationship_delta",
+            0.039
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0519
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.0453
+          ],
+          [
+            "relationship_delta",
+            0.029
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0598
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0544
+          ],
+          [
+            "relationship_delta",
+            0.0402
+          ]
+        ]
+      },
+      {
+        "turn": 375,
+        "sample_count": 374,
+        "world_learned_mae": 0.0357,
+        "world_baseline_mae": 0.0412,
+        "self_learned_mae": 0.0253,
+        "self_baseline_mae": 0.0389,
+        "world_improvement": 0.0056,
+        "self_improvement": 0.0136,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0086,
+        "window_self_improvement": 0.0142,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0434
+          ],
+          [
+            "regime_stability",
+            0.0149
+          ],
+          [
+            "action_payoff",
+            0.0397
+          ],
+          [
+            "relationship_delta",
+            0.025
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0538
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0594
+          ],
+          [
+            "relationship_delta",
+            0.0391
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0526
+          ],
+          [
+            "regime_stability",
+            0.0071
+          ],
+          [
+            "action_payoff",
+            0.0455
+          ],
+          [
+            "relationship_delta",
+            0.029
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.06
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0546
+          ],
+          [
+            "relationship_delta",
+            0.0403
+          ]
+        ]
+      },
+      {
+        "turn": 400,
+        "sample_count": 399,
+        "world_learned_mae": 0.0354,
+        "world_baseline_mae": 0.0412,
+        "self_learned_mae": 0.0252,
+        "self_baseline_mae": 0.0389,
+        "world_improvement": 0.0058,
+        "self_improvement": 0.0137,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0089,
+        "window_self_improvement": 0.0144,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.043
+          ],
+          [
+            "regime_stability",
+            0.0147
+          ],
+          [
+            "action_payoff",
+            0.0395
+          ],
+          [
+            "relationship_delta",
+            0.0249
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0539
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0595
+          ],
+          [
+            "relationship_delta",
+            0.0393
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0525
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.0454
+          ],
+          [
+            "relationship_delta",
+            0.0291
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0603
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0548
+          ],
+          [
+            "relationship_delta",
+            0.0405
+          ]
+        ]
+      },
+      {
+        "turn": 425,
+        "sample_count": 424,
+        "world_learned_mae": 0.0352,
+        "world_baseline_mae": 0.0412,
+        "self_learned_mae": 0.0252,
+        "self_baseline_mae": 0.039,
+        "world_improvement": 0.006,
+        "self_improvement": 0.0138,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0088,
+        "window_self_improvement": 0.0146,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.043
+          ],
+          [
+            "regime_stability",
+            0.0144
+          ],
+          [
+            "action_payoff",
+            0.0395
+          ],
+          [
+            "relationship_delta",
+            0.0248
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0537
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0592
+          ],
+          [
+            "relationship_delta",
+            0.0394
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0525
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.0454
+          ],
+          [
+            "relationship_delta",
+            0.0292
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0603
+          ],
+          [
+            "regime_stability",
+            0.0104
+          ],
+          [
+            "action_payoff",
+            0.0545
+          ],
+          [
+            "relationship_delta",
+            0.0406
+          ]
+        ]
+      },
+      {
+        "turn": 450,
+        "sample_count": 449,
+        "world_learned_mae": 0.0349,
+        "world_baseline_mae": 0.0411,
+        "self_learned_mae": 0.0251,
+        "self_baseline_mae": 0.039,
+        "world_improvement": 0.0062,
+        "self_improvement": 0.0138,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.009,
+        "window_self_improvement": 0.0146,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0427
+          ],
+          [
+            "regime_stability",
+            0.0141
+          ],
+          [
+            "action_payoff",
+            0.0394
+          ],
+          [
+            "relationship_delta",
+            0.0246
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0536
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0591
+          ],
+          [
+            "relationship_delta",
+            0.0392
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0525
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.0454
+          ],
+          [
+            "relationship_delta",
+            0.0291
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0604
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0545
+          ],
+          [
+            "relationship_delta",
+            0.0404
+          ]
+        ]
+      },
+      {
+        "turn": 475,
+        "sample_count": 474,
+        "world_learned_mae": 0.0347,
+        "world_baseline_mae": 0.0411,
+        "self_learned_mae": 0.0251,
+        "self_baseline_mae": 0.0389,
+        "world_improvement": 0.0064,
+        "self_improvement": 0.0139,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0093,
+        "window_self_improvement": 0.0149,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0427
+          ],
+          [
+            "regime_stability",
+            0.0138
+          ],
+          [
+            "action_payoff",
+            0.039
+          ],
+          [
+            "relationship_delta",
+            0.0244
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0537
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.059
+          ],
+          [
+            "relationship_delta",
+            0.0393
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0525
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.0449
+          ],
+          [
+            "relationship_delta",
+            0.029
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0604
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0543
+          ],
+          [
+            "relationship_delta",
+            0.0405
+          ]
+        ]
+      },
+      {
+        "turn": 500,
+        "sample_count": 499,
+        "world_learned_mae": 0.0345,
+        "world_baseline_mae": 0.0411,
+        "self_learned_mae": 0.025,
+        "self_baseline_mae": 0.0389,
+        "world_improvement": 0.0065,
+        "self_improvement": 0.0139,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0093,
+        "window_self_improvement": 0.0147,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0428
+          ],
+          [
+            "regime_stability",
+            0.0135
+          ],
+          [
+            "action_payoff",
+            0.039
+          ],
+          [
+            "relationship_delta",
+            0.0244
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0538
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0588
+          ],
+          [
+            "relationship_delta",
+            0.0391
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0527
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.045
+          ],
+          [
+            "relationship_delta",
+            0.029
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0605
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.054
+          ],
+          [
+            "relationship_delta",
+            0.0403
+          ]
+        ]
+      },
+      {
+        "turn": 510,
+        "sample_count": 509,
+        "world_learned_mae": 0.0345,
+        "world_baseline_mae": 0.0411,
+        "self_learned_mae": 0.025,
+        "self_baseline_mae": 0.039,
+        "world_improvement": 0.0066,
+        "self_improvement": 0.014,
+        "window_size": 200,
+        "window_sample_count": 200,
+        "window_world_improvement": 0.0094,
+        "window_self_improvement": 0.0148,
+        "window_axis_learned_maes": [
+          [
+            "task_progress",
+            0.0423
+          ],
+          [
+            "regime_stability",
+            0.0133
+          ],
+          [
+            "action_payoff",
+            0.0394
+          ],
+          [
+            "relationship_delta",
+            0.0244
+          ]
+        ],
+        "window_axis_baseline_maes": [
+          [
+            "task_progress",
+            0.0536
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0591
+          ],
+          [
+            "relationship_delta",
+            0.0392
+          ]
+        ],
+        "window_target_stds": [
+          [
+            "task_progress",
+            0.0525
+          ],
+          [
+            "regime_stability",
+            0.007
+          ],
+          [
+            "action_payoff",
+            0.0454
+          ],
+          [
+            "relationship_delta",
+            0.0291
+          ]
+        ],
+        "window_persistence_maes": [
+          [
+            "task_progress",
+            0.0604
+          ],
+          [
+            "regime_stability",
+            0.0105
+          ],
+          [
+            "action_payoff",
+            0.0545
+          ],
+          [
+            "relationship_delta",
+            0.0404
+          ]
+        ]
+      }
+    ],
+    "kill_criteria_series": [
+      {
+        "turn": 25,
+        "samples_in_window": 24,
+        "window_filled": false,
+        "prediction_self_autocorrelation": 0.9756,
+        "prediction_target_correlation": 0.1367,
+        "kill_triggered": false
+      },
+      {
+        "turn": 50,
+        "samples_in_window": 49,
+        "window_filled": false,
+        "prediction_self_autocorrelation": 0.9531,
+        "prediction_target_correlation": 0.0169,
+        "kill_triggered": false
+      },
+      {
+        "turn": 75,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": 0.3572,
+        "prediction_target_correlation": -0.2636,
+        "kill_triggered": false
+      },
+      {
+        "turn": 100,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.034,
+        "prediction_target_correlation": -0.2914,
+        "kill_triggered": false
+      },
+      {
+        "turn": 125,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0592,
+        "prediction_target_correlation": -0.3013,
+        "kill_triggered": false
+      },
+      {
+        "turn": 150,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0362,
+        "prediction_target_correlation": -0.3197,
+        "kill_triggered": false
+      },
+      {
+        "turn": 175,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0783,
+        "prediction_target_correlation": -0.29,
+        "kill_triggered": false
+      },
+      {
+        "turn": 200,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0288,
+        "prediction_target_correlation": -0.3172,
+        "kill_triggered": false
+      },
+      {
+        "turn": 225,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0108,
+        "prediction_target_correlation": -0.3154,
+        "kill_triggered": false
+      },
+      {
+        "turn": 250,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.018,
+        "prediction_target_correlation": -0.3211,
+        "kill_triggered": false
+      },
+      {
+        "turn": 275,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0349,
+        "prediction_target_correlation": -0.3189,
+        "kill_triggered": false
+      },
+      {
+        "turn": 300,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0489,
+        "prediction_target_correlation": -0.2938,
+        "kill_triggered": false
+      },
+      {
+        "turn": 325,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0324,
+        "prediction_target_correlation": -0.2983,
+        "kill_triggered": false
+      },
+      {
+        "turn": 350,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0298,
+        "prediction_target_correlation": -0.2843,
+        "kill_triggered": false
+      },
+      {
+        "turn": 375,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0471,
+        "prediction_target_correlation": -0.3254,
+        "kill_triggered": false
+      },
+      {
+        "turn": 400,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0107,
+        "prediction_target_correlation": -0.3322,
+        "kill_triggered": false
+      },
+      {
+        "turn": 425,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0354,
+        "prediction_target_correlation": -0.3418,
+        "kill_triggered": false
+      },
+      {
+        "turn": 450,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0124,
+        "prediction_target_correlation": -0.3591,
+        "kill_triggered": false
+      },
+      {
+        "turn": 475,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0511,
+        "prediction_target_correlation": -0.33,
+        "kill_triggered": false
+      },
+      {
+        "turn": 500,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.0005,
+        "prediction_target_correlation": -0.3563,
+        "kill_triggered": false
+      },
+      {
+        "turn": 510,
+        "samples_in_window": 64,
+        "window_filled": true,
+        "prediction_self_autocorrelation": -0.007,
+        "prediction_target_correlation": -0.3676,
+        "kill_triggered": false
+      }
+    ],
+    "final_kill_criteria": {
+      "samples_in_window": 64,
+      "window_filled": true,
+      "prediction_self_autocorrelation": -0.007,
+      "prediction_target_correlation": -0.3676,
+      "kill_triggered": false,
+      "description": "CP-11 kill check over 64/64 samples: self-autocorr=-0.007, target-corr=-0.368, kill_triggered=False. Report-only."
+    },
+    "final_checkpoint": {
+      "schema_version": "predictive-head-checkpoint.v1",
+      "checkpoint_id": "soak-final-510",
+      "feature_dim": 18,
+      "sample_count": 509,
+      "world_weights": [
+        {
+          "axis": "task_progress",
+          "weights": [
+            -0.0386880705344573,
+            -0.016299675480991517,
+            0.001818367026673499,
+            -0.005906349827885627,
+            -0.032597145330627596,
+            0.015729858100863577,
+            0.028441079885535042,
+            0.0,
+            -0.0013235660851801151,
+            -0.018028138591090936,
+            -0.012130952688927589,
+            -0.01516308264295368,
+            -0.013321646556612885,
+            0.01701307309968031,
+            -0.010715888078286797,
+            0.011307053638768452,
+            0.018553984617439633,
+            0.4331765407120901
+          ]
+        },
+        {
+          "axis": "regime_stability",
+          "weights": [
+            -0.08617539511109806,
+            -0.025764454342323728,
+            -0.011491559050821635,
+            -0.047505859297625165,
+            -0.03515849325962492,
+            -0.04079327373057525,
+            -0.05549301616765985,
+            0.0,
+            -0.0007158974333718617,
+            -0.04919999827359128,
+            -0.030876411869995353,
+            -0.045537086861646786,
+            -0.06998092683259897,
+            0.022437249613141544,
+            0.017945367875683193,
+            0.023191759377650358,
+            0.006993697921713309,
+            0.3446434869887229
+          ]
+        },
+        {
+          "axis": "action_payoff",
+          "weights": [
+            -0.026625696338814727,
+            -0.00486446772628225,
+            -0.0025368764215494893,
+            -0.010959829467798849,
+            -0.02102589978907545,
+            -0.009656659846414629,
+            -0.040661221155321774,
+            0.0,
+            -0.0005713424459590402,
+            -0.010736974487041667,
+            -0.008169842607777191,
+            -0.019377664026801546,
+            -0.014871913410676167,
+            0.01448865311277698,
+            0.0005425862280172085,
+            0.0023460490686016636,
+            0.005661351514057835,
+            0.45446407675934364
+          ]
+        }
+      ],
+      "self_weights": [
+        {
+          "axis": "relationship_delta",
+          "weights": [
+            0.010002380299590715,
+            -0.001737754919590088,
+            0.0031251220976216388,
+            0.011665385492664422,
+            0.0028070561680823888,
+            -0.024304944616915538,
+            -0.02503726583949168,
+            0.0,
+            0.00027727470275691217,
+            -0.00829630975689888,
+            0.006201195701052509,
+            -0.0061619370640995175,
+            0.001655669379115734,
+            -0.017099770401222212,
+            0.005040954165588087,
+            -0.013972466381226005,
+            -0.005896934640733239,
+            0.517556012034039
+          ]
+        }
+      ],
+      "abs_error_sums": {
+        "self_baseline": 19.840831864940167,
+        "self_learned": 12.727293667511429,
+        "world_baseline": 20.925022118783883,
+        "world_learned": 17.549324635183186
+      }
+    },
+    "checkpoint_round_trips_verified": 6
+  },
+  "dual_track_gate_learner": {
+    "update_count": 509,
+    "running_abs_error": 0.023786,
+    "last_prediction": 0.328461,
+    "last_target": 0.331101,
+    "description": "Session-held dual-track gate learner (bounded online-SGD); report-only SHADOW candidate."
+  },
+  "semantic_owner_forecasts": {
+    "plan_intent": {
+      "update_count": 509,
+      "running_abs_error": 0.0
+    },
+    "commitment": {
+      "update_count": 509,
+      "running_abs_error": 0.0
+    },
+    "open_loop": {
+      "update_count": 509,
+      "running_abs_error": 0.00065
+    },
+    "user_model": {
+      "update_count": 509,
+      "running_abs_error": 0.0
+    },
+    "execution_result": {
+      "update_count": 509,
+      "running_abs_error": 0.0
+    },
+    "belief_assumption": {
+      "update_count": 509,
+      "running_abs_error": 0.0
+    },
+    "relationship_state": {
+      "update_count": 509,
+      "running_abs_error": 0.0
+    },
+    "goal_value": {
+      "update_count": 509,
+      "running_abs_error": 0.0
+    },
+    "boundary_consent": {
+      "update_count": 509,
+      "running_abs_error": 0.000571
+    }
+  },
+  "social_settlement": {
+    "tom_records": {
+      "belief_about_other": 0,
+      "intent_about_other": 0,
+      "feeling_about_other": 0,
+      "preference_about_other": 0
+    },
+    "tom_pending": {
+      "belief_about_other": 0,
+      "intent_about_other": 0,
+      "feeling_about_other": 0,
+      "preference_about_other": 0
+    },
+    "common_ground_dyad_atoms": 0,
+    "common_ground_group_atoms": 0,
+    "common_ground_pending": 0
+  },
+  "strict_eta_gate": {
+    "evidence_kind": "strict_eta_gate",
+    "alphas": [
+      0.0,
+      0.3,
+      1.0
+    ],
+    "epochs": 25,
+    "n_z": 8,
+    "seed": 1234,
+    "sparsity_by_alpha": [
+      {
+        "alpha": 0.0,
+        "switch_sparsity": 0.3808110623365053
+      },
+      {
+        "alpha": 0.3,
+        "switch_sparsity": 0.5263752276206003
+      },
+      {
+        "alpha": 1.0,
+        "switch_sparsity": 0.5334627515195913
+      }
+    ],
+    "high_alpha_increases_sparsity": true,
+    "sparsity_monotone_nondecreasing": true,
+    "held_out_reuse_alpha0": 1.0,
+    "held_out_reuse_high_alpha": 1.0,
+    "held_out_reuse_improves_with_bottleneck": true,
+    "gate_passed": true,
+    "description": "strict ETA: sparsity [0.3808110623365053, 0.5263752276206003, 0.5334627515195913] high_increases=True monotone=True reuse a0=1.000 aH=1.000"
+  },
+  "internal_rl_no_optimize_proof": {
+    "evidence_kind": "internal_rl_no_optimize_proof",
+    "iterations": 40,
+    "full_mean_return_before": 3.809523191958343,
+    "full_mean_return_after": 5.359798416448338,
+    "full_return_improvement": 1.5502752244899947,
+    "no_optimize_mean_return_after": 3.809523191958343,
+    "no_optimize_return_improvement": 0.0,
+    "full_improves": true,
+    "control_does_not_improve": true,
+    "full_beats_control": true,
+    "description": "internal RL proof: full improves=True, control flat=True, full beats control=True"
+  },
+  "learned_active_gate": {
+    "note": "Soak lane evidence. ACTIVE promotion additionally requires component controls (PE-off / ETA-off) from the same-substrate ablation and rollback drill evidence. strict_eta_gate reflects the CP-09 suite executed this soak.",
+    "latency_slo_seconds": 5.0,
+    "latency_slo_ok": true,
+    "real_trace_turns": 509,
+    "validation_delta": 0.0148,
+    "validation_delta_basis": "trailing-window-200",
+    "verdicts": [
+      {
+        "component": "temporal_runtime_backend",
+        "real_trace_turns": 509,
+        "validation_delta": 0.0148,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "eligible": false,
+        "missing_gates": [
+          "validation_delta<0.02",
+          "pe_off_control",
+          "eta_off_control"
+        ],
+        "description": "temporal_runtime_backend ACTIVE candidate blocked; missing=('validation_delta<0.02', 'pe_off_control', 'eta_off_control')"
+      },
+      {
+        "component": "temporal_ssl_backend",
+        "real_trace_turns": 509,
+        "validation_delta": 0.0148,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "eligible": false,
+        "missing_gates": [
+          "validation_delta<0.02",
+          "pe_off_control",
+          "eta_off_control",
+          "runtime_active_first"
+        ],
+        "description": "temporal_ssl_backend ACTIVE candidate blocked; missing=('validation_delta<0.02', 'pe_off_control', 'eta_off_control', 'runtime_active_first')"
+      },
+      {
+        "component": "internal_rl_backend",
+        "real_trace_turns": 509,
+        "validation_delta": 0.0148,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "eligible": false,
+        "missing_gates": [
+          "validation_delta<0.02",
+          "pe_off_control",
+          "eta_off_control",
+          "runtime_active_first",
+          "ssl_active_first"
+        ],
+        "description": "internal_rl_backend ACTIVE candidate blocked; missing=('validation_delta<0.02', 'pe_off_control', 'eta_off_control', 'runtime_active_first', 'ssl_active_first')"
+      },
+      {
+        "component": "cms_torch_backend",
+        "real_trace_turns": 509,
+        "validation_delta": 0.0148,
+        "strict_eta_gate_passed": true,
+        "pe_off_control_direction_correct": false,
+        "eta_off_control_direction_correct": false,
+        "rollback_drill_passed": true,
+        "latency_slo_ok": true,
+        "safety_gate_ok": true,
+        "eligible": false,
+        "missing_gates": [
+          "validation_delta<0.02",
+          "pe_off_control",
+          "eta_off_control"
+        ],
+        "description": "cms_torch_backend ACTIVE candidate blocked; missing=('validation_delta<0.02', 'pe_off_control', 'eta_off_control')"
+      }
+    ]
+  }
+}
