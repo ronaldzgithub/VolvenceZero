@@ -1,0 +1,73 @@
+{
+  "artifact_kind": "phase0-physically-walked-route",
+  "description": "route familiarity: reducible novelty 0.0118 -> 0.0004 over 10 exposures (improved=True)",
+  "experiment": "phase0_route_learning",
+  "exposures": 10,
+  "familiarity_improved": true,
+  "first_exposure_novelty": 0.01184,
+  "last_exposure_novelty": 0.0004,
+  "memory_off_last_novelty": 0.011819999999999999,
+  "novel_route_novelty": 0.00054,
+  "novelty_by_exposure": [
+    0.01184,
+    0.00844,
+    0.00488,
+    0.00304,
+    0.00204,
+    0.00128,
+    0.0009000000000000001,
+    0.00056,
+    0.0006000000000000001,
+    0.0004
+  ],
+  "pe_by_exposure": [
+    0.03363941905408278,
+    0.047936326027518295,
+    0.047464524257543626,
+    0.04740663089119015,
+    0.0475837830729582,
+    0.0471665941329686,
+    0.047860467491342575,
+    0.04736656907601082,
+    0.04819421968238939,
+    0.04739971923036501
+  ],
+  "pe_off_last_novelty": 0.0004,
+  "provenance": {
+    "config_digest": "55e91bcf610102efc6d2300d79c9353719a3e9d376a06d391d2404b885c25eb0",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "route_length": 5,
+  "schema_version": "digital-ant-evidence.v2",
+  "shuffled_route_novelty": 0.00026000000000000003
+}

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from volvence_zero.environment import EnvironmentOutcome
 from volvence_zero.application.knowledge_channels import (
     domain_knowledge_prior_updates_from_reviewed,
 )
@@ -129,6 +130,9 @@ class SessionLifecycleMixin:
                     "affordance_name": action_context.affordance_name,
                     "environment_event_id": action_context.environment_event_id,
                     "environment_outcome_id": action_context.environment_outcome_id,
+                    "environment_task_progress": action_context.environment_task_progress,
+                    "environment_action_payoff": action_context.environment_action_payoff,
+                    "environment_outcome_terminal": action_context.environment_outcome_terminal,
                 }
                 if action_context is not None
                 else None
@@ -255,7 +259,25 @@ class SessionLifecycleMixin:
         return events
 
     def remember_environment_outcome(self, outcome_id: str) -> None:
+        """Compatibility path for producers that only have an outcome id."""
+
         self._pending_environment_outcome_id = outcome_id
+
+    def submit_environment_outcome(self, outcome: EnvironmentOutcome) -> None:
+        """Buffer one complete immutable outcome for next-turn PE settlement."""
+
+        if self._pending_environment_outcome is not None:
+            raise RuntimeError(
+                "pending EnvironmentOutcome must be consumed before submitting another"
+            )
+        self._pending_environment_outcome = outcome
+        self._pending_environment_outcome_id = ""
+        self._pending_environment_prediction_id = outcome.prediction_id or ""
+
+    def _consume_pending_environment_outcome(self) -> EnvironmentOutcome | None:
+        outcome = self._pending_environment_outcome
+        self._pending_environment_outcome = None
+        return outcome
 
     def _consume_pending_environment_outcome_id(self) -> str:
         outcome_id = self._pending_environment_outcome_id

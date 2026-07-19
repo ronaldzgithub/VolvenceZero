@@ -1,0 +1,55 @@
+{
+  "artifact": {
+    "path": "research/ant/results/phase0_homing.json",
+    "sha256": "2ddc9030a38c790adcf594324e338d37187bfeaca2b8a1441fd9f2bae4e988e7",
+    "size_bytes": 2166
+  },
+  "externally_retainable": false,
+  "inputs": [
+    {
+      "path": "research/ant/reference_data/antbot_homing_2019.csv",
+      "sha256": "87de5939b53798d7dba5da713d1d41ec94388a0186890d58e83f6d3abe280bc7",
+      "size_bytes": 174
+    },
+    {
+      "path": "research/ant/reference_data/REFERENCE_METADATA.json",
+      "sha256": "3e4b15507ad6663285085f1d1d7b52263713575d01fa5a8e01705a853595d0bb",
+      "size_bytes": 1817
+    }
+  ],
+  "provenance": {
+    "config_digest": "0e1f566a8302e44c2019e83a21be863b199147f30a151b2d3c9bd36aee198102",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}

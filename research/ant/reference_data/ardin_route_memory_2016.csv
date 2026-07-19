@@ -1,0 +1,5 @@
+algorithm,mean_errors_per_route,sd_errors_per_route,n_routes,route_length_m,training_images,image_spacing_cm
+random,18.7,3.6,15,8,0,NA
+perfect_memory,1.1,0.9,15,8,80,10
+mushroom_body,2.6,1.5,15,8,80,10
+infomax,1.5,0.8,15,8,80,10

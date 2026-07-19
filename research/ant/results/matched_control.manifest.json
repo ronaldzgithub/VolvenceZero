@@ -1,0 +1,48 @@
+{
+  "artifact": {
+    "path": "research/ant/results/matched_control.json",
+    "sha256": "3d41cc7b91fb80cc71512c90beca61c909d7cbc25339a5fd42d18115428cd748",
+    "size_bytes": 21197
+  },
+  "externally_retainable": false,
+  "inputs": [],
+  "provenance": {
+    "config_digest": "84bf462caa18a7213f995e3000906cf260ea4eaaa5628ffc5db225b70d3ee0d7",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}

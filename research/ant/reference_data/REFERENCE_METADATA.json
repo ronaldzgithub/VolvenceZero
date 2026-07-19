@@ -1,0 +1,26 @@
+{
+  "schema_version": "digital-ant-reference-data.v1",
+  "assets": [
+    {
+      "path": "research/ant/reference_data/antbot_homing_2019.csv",
+      "citation": "Dupeyroux J, Serres JR, Viollet S. AntBot: A six-legged walking robot able to home like desert ants in outdoor environments. Science Robotics 4(27), 2019.",
+      "doi": "10.1126/scirobotics.aau0307",
+      "url": "https://amu.hal.science/hal-02075700/file/Dupeyroux_et_al_2019.pdf",
+      "figure": "Figures 7 and 8B; aggregate values reported in Results text",
+      "extraction_method": "Manual transcription of author-reported mean, standard deviation, sample count and the 14 m trajectory point; no curve points were inferred from pixels.",
+      "units": "journey metres; endpoint error centimetres and percent",
+      "human_verified": true
+    },
+    {
+      "path": "research/ant/reference_data/ardin_route_memory_2016.csv",
+      "citation": "Ardin P, Peng F, Mangan M, Lagogiannis K, Webb B. Using an Insect Mushroom Body Circuit to Encode Route Memory in Complex Natural Environments. PLoS Computational Biology 12(2), 2016.",
+      "doi": "10.1371/journal.pcbi.1004683",
+      "url": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1004683",
+      "figure": "Figure 4D; exact summary values reported in Evaluating route following",
+      "extraction_method": "Manual transcription of author-reported means and standard deviations for 15 routes; route length, image count and spacing transcribed from Methods/Results.",
+      "units": "errors per approximately 8 m route",
+      "human_verified": true,
+      "scope_note": "Ardin 2016 uses one-shot storage of about 80 route images. It does not report an exposure-by-exposure exponential novelty decay; such a synthetic decay is not a valid paper overlay."
+    }
+  ]
+}

@@ -218,9 +218,17 @@ class EnvironmentOutcome:
     monetary_cost: float = 0.0
     reversibility: str = "reversible"
     environment_state_delta_kind: str = "none"
+    measurement: EnvironmentMeasurement | None = None
 ```
 
 The single-user compatibility path is `build_user_input_environment_event(...)`, which supplies the explicit `primary -> self` frame instead of leaving speaker / audience / subject scope for downstream inference.
+
+`EnvironmentMeasurement` 只承载环境可直接观察的任务事实：dimension、signed
+`observed_value`、可选 `expected_value`/unit，以及 terminal 标志。它不承载 trust、memory、
+自然语言评价或下游 reward。未提供 measurement 的旧 producer 保持兼容。runtime 只保存完整 frozen
+outcome 与 lineage，下一 turn 交给 Prediction Error owner 合并进 `ActualOutcome`；runtime/environment
+均不得成为第二 mismatch owner。数字蚂蚁 pickup 只作事件 lineage，delivery 默认是稀疏 terminal
+measurement。
 
 ## 与其他能力域的关系
 

@@ -110,6 +110,29 @@ class EnvironmentEvent:
 
 
 @dataclass(frozen=True)
+class EnvironmentMeasurement:
+    """Observable task facts attached to an environment outcome.
+
+    Values are normalized signed facts, not rewards.  Prediction Error remains
+    the sole owner that compares them with prior predictions.
+    """
+
+    task_progress: float | None = None
+    action_payoff: float | None = None
+    terminal: bool = False
+    unit: str = "normalized"
+
+    def __post_init__(self) -> None:
+        if self.task_progress is None and self.action_payoff is None:
+            raise ValueError("measurement must define task_progress or action_payoff")
+        if self.task_progress is not None:
+            _require_signed_unit_interval("task_progress", self.task_progress)
+        if self.action_payoff is not None:
+            _require_signed_unit_interval("action_payoff", self.action_payoff)
+        _require_non_empty("unit", self.unit)
+
+
+@dataclass(frozen=True)
 class EnvironmentOutcome:
     """Canonical evidence produced after an environment-facing action."""
 
@@ -127,6 +150,7 @@ class EnvironmentOutcome:
     monetary_cost: float = 0.0
     reversibility: str = "reversible"
     environment_state_delta_kind: str = "none"
+    measurement: EnvironmentMeasurement | None = None
 
     def __post_init__(self) -> None:
         _require_non_empty("outcome_id", self.outcome_id)
@@ -261,6 +285,11 @@ def _require_unit_interval(field_name: str, value: float) -> None:
         raise ValueError(f"{field_name} must be in [0, 1], got {value!r}")
 
 
+def _require_signed_unit_interval(field_name: str, value: float) -> None:
+    if value < -1.0 or value > 1.0:
+        raise ValueError(f"{field_name} must be in [-1, 1], got {value!r}")
+
+
 def _require_enum_value(
     field_name: str,
     value: str,
@@ -275,6 +304,7 @@ __all__ = [
     "EnvironmentEvent",
     "EnvironmentEventKind",
     "EnvironmentFrame",
+    "EnvironmentMeasurement",
     "EnvironmentOutcome",
     "build_environment_event",
     "build_primary_environment_frame",

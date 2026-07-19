@@ -1,0 +1,648 @@
+{
+  "artifact_kind": "digital-ant-fair-learning-matrix",
+  "behavioral": {
+    "aggregates": [
+      {
+        "arm": "learned",
+        "delivery_ci95": [
+          0.0,
+          0.0
+        ],
+        "held_out_success_rate": 0.0,
+        "mean_delivered": 0.0,
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "arm": "pe_off",
+        "delivery_ci95": [
+          0.0,
+          0.0
+        ],
+        "held_out_success_rate": 0.0,
+        "mean_delivered": 0.0,
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "arm": "no_optimize",
+        "delivery_ci95": [
+          0.0,
+          0.0
+        ],
+        "held_out_success_rate": 0.0,
+        "mean_delivered": 0.0,
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "arm": "eta_off",
+        "delivery_ci95": [
+          0.0,
+          0.0
+        ],
+        "held_out_success_rate": 0.0,
+        "mean_delivered": 0.0,
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "arm": "fixed_rule",
+        "delivery_ci95": [
+          0.4,
+          1.0
+        ],
+        "held_out_success_rate": 0.8,
+        "mean_delivered": 0.8,
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "arm": "e2e_rl",
+        "delivery_ci95": [
+          0.0,
+          0.0
+        ],
+        "held_out_success_rate": 0.0,
+        "mean_delivered": 0.0,
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "arm": "random",
+        "delivery_ci95": [
+          0.0,
+          0.0
+        ],
+        "held_out_success_rate": 0.0,
+        "mean_delivered": 0.0,
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    ],
+    "learned_minus_no_optimize": 0.0,
+    "per_seed": [
+      {
+        "arms": [
+          {
+            "arm": "learned",
+            "final_distance_from_nest": 7.999999999999995,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.999999999999995,
+            "max_food_experienced": 0.29211591140847115,
+            "mean_food_experienced": 0.1613237573949672,
+            "ticks": 40
+          },
+          {
+            "arm": "pe_off",
+            "final_distance_from_nest": 7.999999999999995,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.999999999999995,
+            "max_food_experienced": 0.29211591140847115,
+            "mean_food_experienced": 0.1613237573949672,
+            "ticks": 40
+          },
+          {
+            "arm": "no_optimize",
+            "final_distance_from_nest": 7.999999999999995,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.999999999999995,
+            "max_food_experienced": 0.29211591140847115,
+            "mean_food_experienced": 0.1613237573949672,
+            "ticks": 40
+          },
+          {
+            "arm": "eta_off",
+            "final_distance_from_nest": 0.09520185050855463,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 0.8591985920173725,
+            "max_food_experienced": 0.31639265976849607,
+            "mean_food_experienced": 0.288867181286376,
+            "ticks": 40
+          },
+          {
+            "arm": "fixed_rule",
+            "final_distance_from_nest": 1.896474789275176,
+            "food_delivered": 0,
+            "food_pickups": 1,
+            "held_out_success": false,
+            "max_distance_from_nest": 5.55883956115973,
+            "max_food_experienced": 0.8668321451199448,
+            "mean_food_experienced": 0.4412290236290743,
+            "ticks": 40
+          },
+          {
+            "arm": "e2e_rl",
+            "final_distance_from_nest": 6.889792476326224,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 6.889792476326224,
+            "max_food_experienced": 0.2925241272620973,
+            "mean_food_experienced": 0.17973191334346778,
+            "ticks": 40
+          },
+          {
+            "arm": "random",
+            "final_distance_from_nest": 9.617897770117121,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 9.878606711017623,
+            "max_food_experienced": 0.2805615579167409,
+            "mean_food_experienced": 0.1278177194332484,
+            "ticks": 40
+          }
+        ],
+        "description": "behavioural matched-control (learned:deliver=0,food=0.161, pe_off:deliver=0,food=0.161, no_optimize:deliver=0,food=0.161, eta_off:deliver=0,food=0.289, fixed_rule:deliver=0,food=0.441, e2e_rl:deliver=0,food=0.180, random:deliver=0,food=0.128)",
+        "learned_beats_random_food": true,
+        "seed": 0,
+        "ticks": 40
+      },
+      {
+        "arms": [
+          {
+            "arm": "learned",
+            "final_distance_from_nest": 8.000000000000004,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 8.000000000000004,
+            "max_food_experienced": 0.3001029955421361,
+            "mean_food_experienced": 0.21988186178448657,
+            "ticks": 40
+          },
+          {
+            "arm": "pe_off",
+            "final_distance_from_nest": 8.000000000000004,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 8.000000000000004,
+            "max_food_experienced": 0.3001029955421361,
+            "mean_food_experienced": 0.21988186178448657,
+            "ticks": 40
+          },
+          {
+            "arm": "no_optimize",
+            "final_distance_from_nest": 8.000000000000004,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 8.000000000000004,
+            "max_food_experienced": 0.3001029955421361,
+            "mean_food_experienced": 0.21988186178448657,
+            "ticks": 40
+          },
+          {
+            "arm": "eta_off",
+            "final_distance_from_nest": 0.0958355966107131,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 0.8591439931356916,
+            "max_food_experienced": 0.30312236963755423,
+            "mean_food_experienced": 0.27801233127100955,
+            "ticks": 40
+          },
+          {
+            "arm": "fixed_rule",
+            "final_distance_from_nest": 3.6960238327725636,
+            "food_delivered": 1,
+            "food_pickups": 1,
+            "held_out_success": true,
+            "max_distance_from_nest": 5.258679379752867,
+            "max_food_experienced": 0.861308728977068,
+            "mean_food_experienced": 0.44666928156607827,
+            "ticks": 40
+          },
+          {
+            "arm": "e2e_rl",
+            "final_distance_from_nest": 1.8364483343309788,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 2.1551089849444027,
+            "max_food_experienced": 0.45764048836824117,
+            "mean_food_experienced": 0.3812253694998252,
+            "ticks": 40
+          },
+          {
+            "arm": "random",
+            "final_distance_from_nest": 13.261781330462464,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 13.261781330462464,
+            "max_food_experienced": 0.29818483587817346,
+            "mean_food_experienced": 0.12721288121839913,
+            "ticks": 40
+          }
+        ],
+        "description": "behavioural matched-control (learned:deliver=0,food=0.220, pe_off:deliver=0,food=0.220, no_optimize:deliver=0,food=0.220, eta_off:deliver=0,food=0.278, fixed_rule:deliver=1,food=0.447, e2e_rl:deliver=0,food=0.381, random:deliver=0,food=0.127)",
+        "learned_beats_random_food": true,
+        "seed": 1,
+        "ticks": 40
+      },
+      {
+        "arms": [
+          {
+            "arm": "learned",
+            "final_distance_from_nest": 7.999024366869053,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.999024366869053,
+            "max_food_experienced": 0.5866991335261086,
+            "mean_food_experienced": 0.491745517459094,
+            "ticks": 40
+          },
+          {
+            "arm": "pe_off",
+            "final_distance_from_nest": 7.999025413118254,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.999025413118254,
+            "max_food_experienced": 0.5867230769759195,
+            "mean_food_experienced": 0.49175930394809575,
+            "ticks": 40
+          },
+          {
+            "arm": "no_optimize",
+            "final_distance_from_nest": 7.999024366869053,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.999024366869053,
+            "max_food_experienced": 0.5866991335261086,
+            "mean_food_experienced": 0.491745517459094,
+            "ticks": 40
+          },
+          {
+            "arm": "eta_off",
+            "final_distance_from_nest": 0.09632110448492494,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 0.8583710206093271,
+            "max_food_experienced": 0.3316064113237097,
+            "mean_food_experienced": 0.3036322971572398,
+            "ticks": 40
+          },
+          {
+            "arm": "fixed_rule",
+            "final_distance_from_nest": 4.311265937052985,
+            "food_delivered": 1,
+            "food_pickups": 1,
+            "held_out_success": true,
+            "max_distance_from_nest": 5.512165772545794,
+            "max_food_experienced": 0.8885798548074388,
+            "mean_food_experienced": 0.4608635380894198,
+            "ticks": 40
+          },
+          {
+            "arm": "e2e_rl",
+            "final_distance_from_nest": 0.6350560236641243,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 1.028336707018536,
+            "max_food_experienced": 0.33206577189557956,
+            "mean_food_experienced": 0.29563974699243145,
+            "ticks": 40
+          },
+          {
+            "arm": "random",
+            "final_distance_from_nest": 12.21882928550971,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 12.21882928550971,
+            "max_food_experienced": 0.46632682107896417,
+            "mean_food_experienced": 0.268278931109256,
+            "ticks": 40
+          }
+        ],
+        "description": "behavioural matched-control (learned:deliver=0,food=0.492, pe_off:deliver=0,food=0.492, no_optimize:deliver=0,food=0.492, eta_off:deliver=0,food=0.304, fixed_rule:deliver=1,food=0.461, e2e_rl:deliver=0,food=0.296, random:deliver=0,food=0.268)",
+        "learned_beats_random_food": true,
+        "seed": 2,
+        "ticks": 40
+      },
+      {
+        "arms": [
+          {
+            "arm": "learned",
+            "final_distance_from_nest": 7.954541964512693,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.954541964512693,
+            "max_food_experienced": 0.6085257392938542,
+            "mean_food_experienced": 0.5050062993898747,
+            "ticks": 40
+          },
+          {
+            "arm": "pe_off",
+            "final_distance_from_nest": 7.954617708152625,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.954617708152625,
+            "max_food_experienced": 0.6087877943444913,
+            "mean_food_experienced": 0.5051545971568324,
+            "ticks": 40
+          },
+          {
+            "arm": "no_optimize",
+            "final_distance_from_nest": 7.954541964512693,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.954541964512693,
+            "max_food_experienced": 0.6085257392938542,
+            "mean_food_experienced": 0.5050062993898747,
+            "ticks": 40
+          },
+          {
+            "arm": "eta_off",
+            "final_distance_from_nest": 0.0958514385769186,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 0.858941123941219,
+            "max_food_experienced": 0.34806726580785424,
+            "mean_food_experienced": 0.3178568976116872,
+            "ticks": 40
+          },
+          {
+            "arm": "fixed_rule",
+            "final_distance_from_nest": 4.91668721139573,
+            "food_delivered": 1,
+            "food_pickups": 1,
+            "held_out_success": true,
+            "max_distance_from_nest": 5.075453618952429,
+            "max_food_experienced": 0.8309465006730257,
+            "mean_food_experienced": 0.4227777712548284,
+            "ticks": 40
+          },
+          {
+            "arm": "e2e_rl",
+            "final_distance_from_nest": 2.1693386101265575,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 2.1693386101265575,
+            "max_food_experienced": 0.38808736778754643,
+            "mean_food_experienced": 0.2887743952995007,
+            "ticks": 40
+          },
+          {
+            "arm": "random",
+            "final_distance_from_nest": 14.413304735455878,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 14.413304735455878,
+            "max_food_experienced": 0.29771806400173967,
+            "mean_food_experienced": 0.11577160757495011,
+            "ticks": 40
+          }
+        ],
+        "description": "behavioural matched-control (learned:deliver=0,food=0.505, pe_off:deliver=0,food=0.505, no_optimize:deliver=0,food=0.505, eta_off:deliver=0,food=0.318, fixed_rule:deliver=1,food=0.423, e2e_rl:deliver=0,food=0.289, random:deliver=0,food=0.116)",
+        "learned_beats_random_food": true,
+        "seed": 3,
+        "ticks": 40
+      },
+      {
+        "arms": [
+          {
+            "arm": "learned",
+            "final_distance_from_nest": 7.913191852076723,
+            "food_delivered": 0,
+            "food_pickups": 1,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.913191852076723,
+            "max_food_experienced": 0.8094200942083627,
+            "mean_food_experienced": 0.5961258054801967,
+            "ticks": 40
+          },
+          {
+            "arm": "pe_off",
+            "final_distance_from_nest": 7.913370566681333,
+            "food_delivered": 0,
+            "food_pickups": 1,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.913370566681333,
+            "max_food_experienced": 0.8087341445093277,
+            "mean_food_experienced": 0.595865807693752,
+            "ticks": 40
+          },
+          {
+            "arm": "no_optimize",
+            "final_distance_from_nest": 7.913191852076723,
+            "food_delivered": 0,
+            "food_pickups": 1,
+            "held_out_success": false,
+            "max_distance_from_nest": 7.913191852076723,
+            "max_food_experienced": 0.8094200942083627,
+            "mean_food_experienced": 0.5961258054801967,
+            "ticks": 40
+          },
+          {
+            "arm": "eta_off",
+            "final_distance_from_nest": 0.09552680882645465,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 0.8589858345919469,
+            "max_food_experienced": 0.3574962323734666,
+            "mean_food_experienced": 0.32669799008708356,
+            "ticks": 40
+          },
+          {
+            "arm": "fixed_rule",
+            "final_distance_from_nest": 3.137675166119418,
+            "food_delivered": 1,
+            "food_pickups": 1,
+            "held_out_success": true,
+            "max_distance_from_nest": 5.10958963291881,
+            "max_food_experienced": 0.8256951530917123,
+            "mean_food_experienced": 0.4356757086183074,
+            "ticks": 40
+          },
+          {
+            "arm": "e2e_rl",
+            "final_distance_from_nest": 0.6046099728016945,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 1.1760987956639224,
+            "max_food_experienced": 0.3200809808054932,
+            "mean_food_experienced": 0.2765197466236184,
+            "ticks": 40
+          },
+          {
+            "arm": "random",
+            "final_distance_from_nest": 3.4355346099910236,
+            "food_delivered": 0,
+            "food_pickups": 0,
+            "held_out_success": false,
+            "max_distance_from_nest": 4.817785360118886,
+            "max_food_experienced": 0.6153269311924358,
+            "mean_food_experienced": 0.380999491952124,
+            "ticks": 40
+          }
+        ],
+        "description": "behavioural matched-control (learned:deliver=0,food=0.596, pe_off:deliver=0,food=0.596, no_optimize:deliver=0,food=0.596, eta_off:deliver=0,food=0.327, fixed_rule:deliver=1,food=0.436, e2e_rl:deliver=0,food=0.277, random:deliver=0,food=0.381)",
+        "learned_beats_random_food": true,
+        "seed": 4,
+        "ticks": 40
+      }
+    ],
+    "verdict": "BLOCK"
+  },
+  "experiment": "workstream_e_matched_control",
+  "include_e2e_rl": true,
+  "latent_proofs": {
+    "description": "latent proofs: learning_is_real=True (full_improves=True, control_flat=True, full_beats_control=True); eta_bottleneck_holds=True",
+    "eta_bottleneck_holds": true,
+    "internal_rl_no_optimize_proof": {
+      "control_does_not_improve": true,
+      "description": "internal RL proof: full improves=True, control flat=True, full beats control=True",
+      "evidence_kind": "internal_rl_no_optimize_proof",
+      "full_beats_control": true,
+      "full_improves": true,
+      "full_mean_return_after": 5.3597984164474,
+      "full_mean_return_before": 3.809523191958343,
+      "full_return_improvement": 1.5502752244890567,
+      "iterations": 40,
+      "no_optimize_mean_return_after": 3.809523191958343,
+      "no_optimize_return_improvement": 0.0
+    },
+    "learning_is_real": true,
+    "strict_eta_gate": {
+      "alphas": [
+        0.0,
+        0.3,
+        1.0
+      ],
+      "description": "strict ETA: sparsity [0.380811062336506, 0.5263752276206003, 0.5334627515195913] high_increases=True monotone=True reuse a0=1.000 aH=1.000",
+      "epochs": 25,
+      "evidence_kind": "strict_eta_gate",
+      "gate_passed": true,
+      "held_out_reuse_alpha0": 1.0,
+      "held_out_reuse_high_alpha": 1.0,
+      "held_out_reuse_improves_with_bottleneck": true,
+      "high_alpha_increases_sparsity": true,
+      "n_z": 8,
+      "seed": 1234,
+      "sparsity_by_alpha": [
+        {
+          "alpha": 0.0,
+          "switch_sparsity": 0.380811062336506
+        },
+        {
+          "alpha": 0.3,
+          "switch_sparsity": 0.5263752276206003
+        },
+        {
+          "alpha": 1.0,
+          "switch_sparsity": 0.5334627515195913
+        }
+      ],
+      "sparsity_monotone_nondecreasing": true
+    }
+  },
+  "n_z": 16,
+  "provenance": {
+    "config_digest": "84bf462caa18a7213f995e3000906cf260ea4eaaa5628ffc5db225b70d3ee0d7",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-evidence.v2",
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "ticks": 40
+}

@@ -11,6 +11,7 @@ from volvence_zero.environment import (
     EnvironmentEvent,
     EnvironmentEventKind,
     EnvironmentFrame,
+    EnvironmentMeasurement,
     EnvironmentOutcome,
     build_environment_event,
     build_primary_environment_frame,
@@ -187,12 +188,19 @@ def test_environment_outcome_observable_fields_are_minimal_and_validated() -> No
         monetary_cost=0.2,
         reversibility="costly",
         environment_state_delta_kind="filesystem_read",
+        measurement=EnvironmentMeasurement(
+            task_progress=0.5,
+            action_payoff=0.25,
+            terminal=False,
+        ),
     )
 
     assert outcome.latency_ms == 42
     assert outcome.monetary_cost == 0.2
     assert outcome.reversibility == "costly"
     assert outcome.environment_state_delta_kind == "filesystem_read"
+    assert outcome.measurement is not None
+    assert outcome.measurement.task_progress == 0.5
 
     with pytest.raises(ValueError, match="latency_ms"):
         EnvironmentOutcome(
@@ -217,3 +225,9 @@ def test_environment_outcome_observable_fields_are_minimal_and_validated() -> No
             detail="detail",
             reversibility="unsafe",
         )
+
+    with pytest.raises(ValueError, match="must define"):
+        EnvironmentMeasurement()
+
+    with pytest.raises(ValueError, match=r"\[-1, 1\]"):
+        EnvironmentMeasurement(task_progress=1.1)

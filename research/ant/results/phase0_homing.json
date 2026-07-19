@@ -1,0 +1,79 @@
+{
+  "antbot_reference_ratio": 0.005,
+  "artifact_kind": "phase0-physical-homing",
+  "curve": [
+    {
+      "journey_length": 3.9898978626166723,
+      "mean_direction_error": 0.05288384495230284,
+      "mean_endpoint_error": 0.199555131333739,
+      "mean_normalized_error": 0.05001328445069301,
+      "n_trials": 24
+    },
+    {
+      "journey_length": 7.994906356942074,
+      "mean_direction_error": 0.07114169375386366,
+      "mean_endpoint_error": 0.4868022343748417,
+      "mean_normalized_error": 0.06091075882481132,
+      "n_trials": 24
+    },
+    {
+      "journey_length": 16.005054240654655,
+      "mean_direction_error": 0.0707928699838144,
+      "mean_endpoint_error": 0.8521752323343718,
+      "mean_normalized_error": 0.0532250990495668,
+      "n_trials": 24
+    },
+    {
+      "journey_length": 31.96825923299673,
+      "mean_direction_error": 0.1413443106186043,
+      "mean_endpoint_error": 2.3424366077980516,
+      "mean_normalized_error": 0.07325258306165715,
+      "n_trials": 24
+    },
+    {
+      "journey_length": 63.96660282008387,
+      "mean_direction_error": 0.2632815542730321,
+      "mean_endpoint_error": 4.088930437812018,
+      "mean_normalized_error": 0.06391771217008062,
+      "n_trials": 24
+    }
+  ],
+  "description": "path-integration homing: worst normalized error=0.0733 (AntBot ref=0.0050); passes_scale=False",
+  "experiment": "phase0_homing_precision",
+  "passes_antbot_scale": false,
+  "provenance": {
+    "config_digest": "0e1f566a8302e44c2019e83a21be863b199147f30a151b2d3c9bd36aee198102",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-evidence.v2"
+}

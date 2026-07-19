@@ -1,0 +1,3 @@
+condition,journey_m,mean_error_cm,sd_error_cm,mean_error_percent,sd_error_percent,n
+PI-Full aggregate,NA,6.67,2.70,0.67,0.27,26
+PI-Full 14m trajectory,14.0,6.47,NA,0.47,NA,1

@@ -76,7 +76,7 @@ from volvence_zero.evaluation import (
     JudgementCategory,
     MidLayerModule,
 )
-from volvence_zero.environment import EnvironmentEvent
+from volvence_zero.environment import EnvironmentEvent, EnvironmentOutcome
 from volvence_zero.memory import MemoryModule, MemoryStore, Track, build_default_memory_store
 from volvence_zero.prediction.error import (
     PredictedOutcome,
@@ -1345,6 +1345,7 @@ def _prediction_action_context_from_upstream(
     environment_event: EnvironmentEvent | None,
     environment_outcome_id: str = "",
     environment_prediction_id: str = "",
+    environment_outcome: EnvironmentOutcome | None = None,
 ) -> PredictionActionContext:
     temporal_snapshot = (
         upstream_snapshots.get("temporal_abstraction")
@@ -1373,6 +1374,7 @@ def _prediction_action_context_from_upstream(
         if regime_value is not None and regime_value.active_regime is not None
         else ""
     )
+    measurement = environment_outcome.measurement if environment_outcome is not None else None
     return PredictionActionContext(
         segment_id=segment.segment_id if segment is not None else "",
         abstract_action_id=(
@@ -1385,6 +1387,15 @@ def _prediction_action_context_from_upstream(
         affordance_name=(segment.affordance_name or "") if segment is not None else "",
         environment_event_id=environment_event.event_id if environment_event is not None else "",
         environment_outcome_id=environment_outcome_id,
+        environment_task_progress=(
+            measurement.task_progress if measurement is not None else None
+        ),
+        environment_action_payoff=(
+            measurement.action_payoff if measurement is not None else None
+        ),
+        environment_outcome_terminal=(
+            measurement.terminal if measurement is not None else False
+        ),
         prediction_id=environment_prediction_id,
     )
 
@@ -1969,6 +1980,7 @@ async def run_final_wiring_turn(
     environment_event: EnvironmentEvent | None = None,
     environment_outcome_id: str = "",
     environment_prediction_id: str = "",
+    environment_outcome: EnvironmentOutcome | None = None,
     common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
     common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
     group_identities: tuple[GroupIdentity, ...] = (),
@@ -1982,6 +1994,7 @@ async def run_final_wiring_turn(
         environment_event=environment_event,
         environment_outcome_id=environment_outcome_id,
         environment_prediction_id=environment_prediction_id,
+        environment_outcome=environment_outcome,
     )
     modules = build_final_runtime_modules(
         config=config,

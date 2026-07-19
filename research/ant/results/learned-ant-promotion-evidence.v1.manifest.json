@@ -1,0 +1,11 @@
+{
+  "artifact_name": "learned-ant-promotion-evidence.v1.json",
+  "sha256": "4dcec9a5c444a397ce62fbddac84ffde4489fd5217a93f9b8f5bf05efba3f667",
+  "size_bytes": 1359,
+  "eligible": false,
+  "missing_gates": [
+    "real_trace_turns<500",
+    "strict_eta_gate",
+    "pe_off_control"
+  ]
+}

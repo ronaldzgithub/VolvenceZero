@@ -229,6 +229,22 @@
 
 ---
 
+### 9B. Digital-Ant 非语言具身证据
+
+**对应需求**：R2、R3/R4、R5/R6、R-PE、R8、R12、R15
+
+| Spec | 内容 |
+|------|------|
+| [digital-ant-embodiment.md](./digital-ant-embodiment.md) | 非语言感觉运动 substrate、环境 outcome→PE→credit→Internal-RL 闭环、信息素 SSOT、rare-heavy 个体初始化与 claim-to-evidence 门槛 |
+
+**核心不变量**：
+- `vz-embodiment-ant` 只经 `vz-runtime` facade 消费内核；个体间只经不可变信息素快照通信
+- 正式行为 claim 必须由 kernel-driven `AntSession` 产生；`FixedRuleAnt` / teleport / synthetic reference 只能是 baseline 或 legacy demo
+- 环境只发布可观察 outcome；PE 是唯一 mismatch owner，evaluation 不回灌学习
+- full evidence 必须多 seed、held-out、带 provenance/manifest，并诚实输出 PASS/BLOCK
+
+---
+
 ### 10. 认知 Regime
 
 **对应需求**：R14（社交与认知 Regime 的持久身份）

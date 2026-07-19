@@ -255,6 +255,11 @@ class BrainSession:
     def submit_semantic_events(self, events: ExternalSemanticEventBatch) -> tuple[str, ...]:
         return self._runner.enqueue_semantic_events(events)
 
+    def submit_environment_outcome(self, outcome: EnvironmentOutcome) -> None:
+        """Submit one canonical outcome to next-turn Prediction Error settlement."""
+
+        self._runner.submit_environment_outcome(outcome)
+
     def submit_tool_result(
         self,
         *,
@@ -294,12 +299,7 @@ class BrainSession:
         )
         if tool_evidence:
             self._runner.attach_dialogue_outcome_evidence(tool_evidence)
-        self._runner.remember_environment_outcome(outcome.outcome_id)
-        # Packet A (long-horizon-closure): when caller threaded a
-        # plan_ref, propagate it to the next-turn PE action context so
-        # downstream credit / replay can attribute the outcome to a
-        # specific prior prediction id. Empty string clears any prior.
-        self._runner.remember_environment_prediction_id(plan_ref or "")
+        self.submit_environment_outcome(outcome)
         return self.submit_semantic_events(
             semantic_events_from_tool_result(
                 event_id=event_id,

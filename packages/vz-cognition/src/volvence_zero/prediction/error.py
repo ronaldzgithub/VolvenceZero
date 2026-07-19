@@ -128,6 +128,9 @@ class PredictionActionContext:
     affordance_name: str = ""
     environment_event_id: str = ""
     environment_outcome_id: str = ""
+    environment_task_progress: float | None = None
+    environment_action_payoff: float | None = None
+    environment_outcome_terminal: bool = False
     # Packet A (long-horizon-closure): plan_ref / prediction_id lineage
     # threaded through from AffordanceInvoker.invoke(plan_ref=...) -> 
     # BrainSession.submit_tool_result -> EnvironmentOutcome.prediction_id
@@ -689,6 +692,10 @@ class _PredictionErrorHead:
         relationship_delta = self._axis_value("relationship", evidence=evidence, calibrations=self._actual_axes)
         regime_stability = self._axis_value("regime", evidence=evidence, calibrations=self._actual_axes)
         action_payoff = self._axis_value("action", evidence=evidence, calibrations=self._actual_axes)
+        if action_context.environment_task_progress is not None:
+            task_progress = _clamp_signed(action_context.environment_task_progress)
+        if action_context.environment_action_payoff is not None:
+            action_payoff = _clamp_signed(action_context.environment_action_payoff)
         return ActualOutcome(
             observed_turn_index=observed_turn_index,
             task_progress=task_progress,
@@ -699,7 +706,9 @@ class _PredictionErrorHead:
                 f"Observed outcome turn={observed_turn_index} task={task_progress:.2f} "
                 f"relationship={relationship_delta:.2f} regime={regime_stability:.2f} action={action_payoff:.2f} "
                 f"task_shift={evidence.substrate_delta['task_shift']:.2f} support_shift={evidence.substrate_delta['support_shift']:.2f} "
-                f"residual_shift={evidence.substrate_delta['residual_shift']:.2f}."
+                f"residual_shift={evidence.substrate_delta['residual_shift']:.2f} "
+                f"environment_outcome_id={action_context.environment_outcome_id or 'none'} "
+                f"terminal={action_context.environment_outcome_terminal}."
             ),
             action_context=action_context,
         )

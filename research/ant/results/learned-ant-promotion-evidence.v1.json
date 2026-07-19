@@ -1,0 +1,41 @@
+{
+  "artifact": "learned-ant-promotion-evidence.v1",
+  "component": "temporal_runtime_backend",
+  "eligible": false,
+  "evidence": {
+    "cms_absorption_improved": true,
+    "cms_retention_non_degrading": true,
+    "component": "temporal_runtime_backend",
+    "eta_off_control_direction_correct": true,
+    "internal_rl_no_reward_leakage": true,
+    "latency_slo_ok": true,
+    "pe_off_control_direction_correct": false,
+    "prior_runtime_active": false,
+    "prior_ssl_active": false,
+    "real_trace_turns": 8,
+    "rollback_drill_passed": true,
+    "safety_gate_ok": true,
+    "strict_eta_gate_passed": false,
+    "validation_delta": 0.13331468360262488
+  },
+  "metrics": {
+    "latent_desc": "skipped",
+    "learned_food": 0.3181758979191472,
+    "mean_latency_s": 0.06836730212671682,
+    "pe_off_food": 0.31820221937330584,
+    "random_food": 0.1848612143165223,
+    "substrate": "digital-ant-v0",
+    "trace_tag": ":ant:real:",
+    "trace_turns_requested": 8,
+    "validation_delta": 0.13331468360262488
+  },
+  "missing_gates": [
+    "real_trace_turns<500",
+    "strict_eta_gate",
+    "pe_off_control"
+  ],
+  "required_turns": 500,
+  "required_validation_delta": 0.02,
+  "substrate": "digital-ant-v0",
+  "verdict_description": "temporal_runtime_backend ACTIVE candidate blocked; missing=('real_trace_turns<500', 'strict_eta_gate', 'pe_off_control')"
+}

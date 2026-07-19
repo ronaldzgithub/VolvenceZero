@@ -1,0 +1,48 @@
+{
+  "artifact": {
+    "path": "research/ant/results/phase1_colony.json",
+    "sha256": "1fd69f1d2d8190a331516ad94f5deb88727b1fa042824465888d6f43f7a1d642",
+    "size_bytes": 11662
+  },
+  "externally_retainable": false,
+  "inputs": [],
+  "provenance": {
+    "config_digest": "f375bbad38e5f2e16a332242bab7b058c8fdc652cc478510d344441f0a0a6077",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}

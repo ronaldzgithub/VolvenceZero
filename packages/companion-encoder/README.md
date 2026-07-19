@@ -50,6 +50,17 @@ audit) → G4 (claims audit) all pass.
 G2 passes only if structured prediction significantly beats both the
 majority-class and LLM zero-shot columns on the val split.
 
+Why an encoder trained on LLM-rendered data can beat an LLM zero-shot:
+the labels never come from an LLM (they are FSM ground truth — see the
+"not distillation" section of the `companion-trajgen` README), and the
+task forms differ. The zero-shot baseline must re-read the entire
+multi-session trajectory and reason over weeks of relationship structure
+in-context on every call; the encoder is a compressed single-forward
+readout of that structure. The G2 gate exists precisely because this
+advantage must be demonstrated, not assumed — and fsm-mode filler text
+will not show it (no linguistic signal to learn); the real comparison
+requires llm-mode data.
+
 ## Usage
 
 ```bash

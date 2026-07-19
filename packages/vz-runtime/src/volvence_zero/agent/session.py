@@ -98,6 +98,7 @@ from volvence_zero.evaluation import (
 )
 from volvence_zero.environment import (
     EnvironmentEvent,
+    EnvironmentOutcome,
     build_user_input_environment_event,
 )
 from volvence_zero.integration import (
@@ -477,6 +478,7 @@ class AgentSessionRunner(
         allow_live_substrate_mutation: bool = False,
         joint_loop: ETANLJointLoop | None = None,
         joint_schedule: JointLoopSchedule | None = None,
+        joint_apply_writeback: bool = False,
         temporal_bootstrap: MetacontrollerParameterSnapshot | DualTrackRareHeavySnapshot | None = None,
         rare_heavy_enabled: bool = True,
         rare_heavy_trace_window: int = 5,
@@ -693,6 +695,7 @@ class AgentSessionRunner(
             )
         self._pending_semantic_events: list[ExternalSemanticEvent] = []
         self._pending_environment_outcome_id: str = ""
+        self._pending_environment_outcome: EnvironmentOutcome | None = None
         # Packet A (long-horizon-closure): mirror of
         # ``_pending_environment_outcome_id`` for the prediction_id /
         # plan_ref lineage. Populated by ``remember_environment_prediction_id``
@@ -798,6 +801,7 @@ class AgentSessionRunner(
         )
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         self._joint_schedule = joint_schedule or JointLoopSchedule()
+        self._joint_apply_writeback = joint_apply_writeback
         self._rare_heavy_enabled = rare_heavy_enabled
         self._rare_heavy_trace_window = max(1, rare_heavy_trace_window)
         self._rare_heavy_min_traces = max(1, min(rare_heavy_min_traces, self._rare_heavy_trace_window))
@@ -1092,10 +1096,15 @@ class AgentSessionRunner(
                 wave_id=wave_id,
                 prior_session_reports=self.completed_session_reports,
                 schedule=self._joint_schedule,
-                apply_writeback=False,
+                apply_writeback=self._joint_apply_writeback,
             )
             pending_semantic_events = self._drain_pending_semantic_events()
-            environment_outcome_id = self._consume_pending_environment_outcome_id()
+            environment_outcome = self._consume_pending_environment_outcome()
+            environment_outcome_id = (
+                environment_outcome.outcome_id
+                if environment_outcome is not None
+                else self._consume_pending_environment_outcome_id()
+            )
             # Packet A: drain plan_ref / prediction_id buffer in the same
             # spot so it lands on this turn's PE action context together
             # with environment_outcome_id (both produced by the same
@@ -1129,6 +1138,7 @@ class AgentSessionRunner(
                 joint_loop_result=joint_result,
                 environment_event=environment_event,
                 environment_outcome_id=environment_outcome_id,
+                environment_outcome=environment_outcome,
                 environment_prediction_id=environment_prediction_id,
                 apprenticeship_turn=apprenticeship_turn,
                 apprenticeship_feedback_policy=self._apprenticeship_feedback_policy,

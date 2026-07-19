@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vz-embodiment-ant"
+version = "0.1.0"
+description = "Digital-ant embodiment: a non-language 2D sensorimotor substrate that plugs the frozen VZ layered kernel (temporal / memory / cognition) into an insect-scale foraging body via the public SubstrateAdapter contract. Research testbed for R2/R3-R4/R5-R6/R-PE/SSOT independent of any LLM."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    # Snapshot / RuntimeModule / WiringLevel contracts.
+    "vz-contracts==0.1.*",
+    # SubstrateAdapter ABC + SubstrateSnapshot / FeatureSignal types.
+    "vz-substrate==0.1.*",
+    # Thin orchestration facade (AgentSessionRunner / Brain). The
+    # embodiment package enters the brain core ONLY through this
+    # facade + the contracts wheel; it never imports vz-temporal /
+    # vz-memory / vz-cognition internals directly (enforced by
+    # tests/test_import_boundaries.py).
+    "vz-runtime==0.1.*",
+    "numpy",
+]
+
+[project.optional-dependencies]
+# Optional evidence lane: reuses the substrate-agnostic torch proofs
+# (run_internal_rl_proof / run_strict_eta_evidence).
+torch = ["vz-runtime[torch]==0.1.*"]
+# Optional visualization dependency for trajectory replay demos.
+viz = ["matplotlib"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["volvence_ant*"]

@@ -1,0 +1,44 @@
+{
+  "artifact": {
+    "path": "research/ant/results/dual_substrate.json",
+    "sha256": "6fd6d4c86def4b966eaf468c773e4bfdb0154db4fe6e65cd287be569c408b0bf",
+    "size_bytes": 2796
+  },
+  "externally_retainable": false,
+  "inputs": [],
+  "provenance": {
+    "config_digest": "4e2ce62cb51145374dce22e34ccc258c89e2e010ffc54fd76678aaff8e77d243",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": "sshleifer/tiny-gpt2:hf-local",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}

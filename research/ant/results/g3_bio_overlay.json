@@ -1,0 +1,51 @@
+{
+  "antbot_reference_ratio": 0.004699999999999999,
+  "ardin_metric_comparable": false,
+  "artifact_kind": "digital-ant-formal-g3",
+  "description": "homing passes_antbot_scale=False (14m AntBot ratio 0.0047); Ardin reference uses route errors after one-shot image storage, so exposure-novelty RMSE/correlation are intentionally not computed.",
+  "experiment": "g3_bio_overlay",
+  "familiarity_figure": "research/ant/figures/g3_familiarity_overlay.png",
+  "familiarity_improved": true,
+  "first_exposure_novelty": 0.01184,
+  "homing_figure": "research/ant/figures/g3_homing_overlay.png",
+  "last_exposure_novelty": 0.0004,
+  "passes_antbot_scale": false,
+  "provenance": {
+    "config_digest": "ed091bdffb26daa2b6890cd70e3e38f417eb2b7e6c44a89ee2e7646252844d07",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "reference_data_real": true,
+  "rmse": null,
+  "schema_version": "digital-ant-evidence.v2",
+  "shape_correlation": null
+}

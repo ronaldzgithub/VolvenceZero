@@ -805,6 +805,46 @@ B2B 数字员工产品的两个 persona 形态由该 vertical 唯一拥有 (R8)�
 
 ---
 
+### 2.19 Digital-Ant Embodiment（数字蚂蚁非语言 substrate，研究测试床）
+
+**所在 wheel**：`vz-embodiment-ant`（独立 owner，**不**新增 kernel runtime slot）
+
+数字蚂蚁是一个非语言的 2D 感觉运动 embodiment，用于在**完全不涉及 LLM/token** 的情况下独立检验
+R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapter` 契约接入内核，
+**复用**现有 `substrate` slot（§3.1），不引入新的 kernel owner。
+
+| 构件 | 归属 | 说明 |
+|---|---|---|
+| `AntSubstrateAdapter` | `vz-embodiment-ant` | 发布标准 `SubstrateSnapshot`：`residual_activations`（layer 0 = 冻结感知向量）+ `residual_sequence` + `feature_surface` |
+| `sense_encode` / `motor_decode` | 同上 | 两个**冻结**向量函数（纯 numpy，无可学习参数），对应遗传固定的受体映射与运动 plant |
+| `AntNavigator` | 同上 | body 侧环形吸引子朝向 + 路径积分（对应中央复合体，冻结、不学习） |
+| `AntSession` | 同上 | 经 `vz-runtime` 的 `AgentSessionRunner` facade 复用内核，每 tick 一个闭环 |
+| 信息素快照总线（Phase 1） | 同上 | embodiment 内部 colony 总线，多写者只追加带衰减；**不**进入 §3/§6 kernel 注册表 |
+| typed task measurement | `vz-contracts` / PE owner | `EnvironmentOutcome.measurement` 仅含环境可观察事实；runtime 保留 lineage，PE 是唯一 mismatch owner |
+| `ColonyRareHeavyBundle` | `vz-embodiment-ant` | per-individual artifact digest/provenance/gate verdict；不含 temporal state、不新增 slot |
+| evidence manifest | `vz-embodiment-ant` | `digital-ant-manifest.v2` sidecar 绑定 artifact/input digest 与运行 provenance |
+
+**关键不变量**：
+
+- `semantic_*_pull` 由 embodiment 发布为感觉/动机预测通道，但不能作为 task outcome 的代理。
+  正式闭环只通过公共 `EnvironmentOutcome.measurement` 进入 PE owner；Internal RL 只消费 PE/credit，
+  禁止 AntWorld 直送 reward、runtime 重算 mismatch 或 evaluation 回灌。
+- **import 边界**：`vz-embodiment-ant` 只依赖 `vz-contracts` / `vz-substrate` / `vz-runtime`；
+  **禁止**直接 import `volvence_zero.temporal` / `volvence_zero.memory` / `volvence_zero.prediction`
+  等内核内部实现。经 `tests/test_import_boundaries.py` 强制。
+- **三层生物学对齐**：`sense_encode`/`motor_decode`/`AntNavigator` = frozen substrate（基因组层）；
+  rare-heavy 角色重编程 = 中间的基因表达程序层（离线、运行时不可触发）；
+  `z_t`/`β_t` + CMS 在线学习 = controller 层（突触可塑性）。
+- 信息素总线：每个个体的写入是**独立不可变事件**，读取时聚合；禁止多 writer 互相覆盖同一字段。
+- rare-heavy artifact 只能在离线 pipeline 产生，经现有 ModificationGate 审查并在 session 初始化导入；
+  runtime 不训练 artifact，角色标签只允许作为 held-out 行为 readout。
+- 正式 evidence artifact 必须带 schema version、git SHA/dirty、依赖/seed/config/model fingerprints 和
+  输入 sha256/size；dirty tree 的 manifest 必须声明 `externally_retainable=false`。
+
+详见 `docs/specs/digital-ant-embodiment.md` 与 `research/ant/04_digital_ant_feasibility.md`。
+
+---
+
 ## 3. 模块快照契约
 
 ### 3.1 稳定基底层 (Substrate)

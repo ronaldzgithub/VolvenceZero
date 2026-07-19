@@ -1,0 +1,104 @@
+{
+  "ant": {
+    "abstract_action": "discovered_family_0",
+    "body": "digital-ant",
+    "code": [
+      0.05060186209687285,
+      0.0,
+      0.0,
+      0.08541471022305162,
+      0.05080277982891158,
+      0.0012311801198763791,
+      0.0,
+      0.009784299288974584,
+      0.04475980327282959,
+      0.05290004119838715,
+      0.0003857511390626909,
+      0.007676863132447127,
+      0.014645018698702904,
+      0.0,
+      0.031179570133941212,
+      5.6895771726771456e-06
+    ],
+    "code_dim": 16,
+    "output_kind": "motor-command",
+    "output_summary": "turn=0.000 rad, step=0.200",
+    "substrate_model_id": "digital-ant-v0",
+    "surface_kind": "residual-stream",
+    "switch_gate": 0.5018694116132456
+  },
+  "artifact_kind": "digital-ant-formal-real-hf-dual-substrate",
+  "companion": {
+    "abstract_action": "discovered_family_3",
+    "body": "language-companion",
+    "code": [
+      0.11034942637435602,
+      0.11069183653125131,
+      0.0448271594013748,
+      0.17106870062137358,
+      0.0843393516189791,
+      0.12601212491938793,
+      0.15355563559082014,
+      0.06720199195210345,
+      0.1427541059272451,
+      0.1037093562854646,
+      0.14367074857773676,
+      0.11324795474562264,
+      0.10516737900517303,
+      0.20431533162489143,
+      0.1355808733704229,
+      0.13288202873836477
+    ],
+    "code_dim": 16,
+    "output_kind": "text",
+    "output_summary": "There is emotional weight here that has not been acknowledged yet. You need to feel heard before any narrowing or solvin",
+    "substrate_model_id": "sshleifer/tiny-gpt2",
+    "surface_kind": "residual-stream",
+    "switch_gate": 0.6023165288513477
+  },
+  "description": "formal real-HF dual substrate: model=sshleifer/tiny-gpt2, origin=hf-local, turns=4, hook_fire_rate=1.00, fallback_rate=0.00",
+  "experiment": "g1_dual_substrate",
+  "fallback_rate": 0.0,
+  "hf_runtime_origin": "hf-local",
+  "hook_fire_rate": 1.0,
+  "provenance": {
+    "config_digest": "4e2ce62cb51145374dce22e34ccc258c89e2e010ffc54fd76678aaff8e77d243",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": "sshleifer/tiny-gpt2:hf-local",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "same_code_dim": true,
+  "same_kernel_class": true,
+  "schema_version": "digital-ant-evidence.v2",
+  "temporal_latent_dim": 16,
+  "turns": 4,
+  "verdict": "PASS"
+}

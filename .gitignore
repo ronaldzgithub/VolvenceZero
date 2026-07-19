@@ -60,6 +60,11 @@ data/figure_audit/
 # packages/lifeform-domain-figure/data/seeds/ which IS in git.
 data/figure_corpus/
 
+# Relationship-encoder pipeline artefacts (train_relationship_encoder.sh):
+# generated trajectory datasets + training runs (checkpoints, reports).
+data/encoder/
+runs/encoder/
+
 # External benchmark harnesses + their run artefacts (debt #29).
 # The eqbench3 / empathybench harnesses are cloned (or git-submoduled
 # in a future packet) into external/<harness>/ so we keep our

@@ -29,6 +29,7 @@ dependencies = [
     "vz-application==0.1.*",
     "vz-temporal==0.1.*",
     "vz-runtime==0.1.*",
+    "vz-embodiment-ant==0.1.*",
     "lifeform-core==0.1.*",
     "lifeform-thinking==0.1.*",
     "lifeform-ingestion==0.1.*",
@@ -78,6 +79,7 @@ vz-cognition        = { workspace = true }
 vz-application      = { workspace = true }
 vz-temporal         = { workspace = true }
 vz-runtime          = { workspace = true }
+vz-embodiment-ant   = { workspace = true }
 lifeform-core       = { workspace = true }
 lifeform-thinking   = { workspace = true }
 lifeform-ingestion  = { workspace = true }

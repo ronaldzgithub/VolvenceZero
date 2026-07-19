@@ -1,0 +1,323 @@
+{
+  "artifact_kind": "digital-ant-rare-heavy-roles",
+  "experiment": "phase2_caste_reprogramming",
+  "formal_rare_heavy": {
+    "abundant": {
+      "bundle": {
+        "individuals": [
+          {
+            "artifact_digest": "ce38eedbefedc5cf408413bf3cf37329e2362ff2c34fd1be5413c3e0c40ef259",
+            "artifact_id": "ant:abundant:individual:0",
+            "gate_verdict": "reviewed-and-experimentally-applied",
+            "individual_id": 0,
+            "provenance": "ant:abundant:real:0"
+          },
+          {
+            "artifact_digest": "6cab3146247040ae23b137fb49cb4b47057ff56b52ed3095d0db5061c222185d",
+            "artifact_id": "ant:abundant:individual:1",
+            "gate_verdict": "reviewed-and-experimentally-applied",
+            "individual_id": 1,
+            "provenance": "ant:abundant:real:1"
+          }
+        ],
+        "pressure_label": "abundant",
+        "rollback_verified": true,
+        "schema_version": "digital-ant-colony-rare-heavy.v1"
+      },
+      "clustering_error": null,
+      "non_degenerate": true,
+      "probes": [
+        {
+          "discovery_contribution": 0.12791007800887408,
+          "individual_id": 0,
+          "patrol_contribution": 0.11085575948640645,
+          "trail_reliance": 0.2414667491756558,
+          "trajectory_radius": 0.2408231105342967
+        },
+        {
+          "discovery_contribution": 0.11470225944318674,
+          "individual_id": 1,
+          "patrol_contribution": 0.10777502511257037,
+          "trail_reliance": 0.23111327844630264,
+          "trajectory_radius": 0.22149733748537515
+        }
+      ],
+      "role_counts": {
+        "explorer": 1,
+        "patroller": 1
+      },
+      "roles": [
+        {
+          "cluster_id": 0,
+          "individual_id": 0,
+          "role_label": "explorer"
+        },
+        {
+          "cluster_id": 1,
+          "individual_id": 1,
+          "role_label": "patroller"
+        }
+      ]
+    },
+    "predator": {
+      "bundle": {
+        "individuals": [
+          {
+            "artifact_digest": "7fc31a9d336a737bacbcf98c86b4bf011cbe86f567fd8819e96dd3d13120a5a3",
+            "artifact_id": "ant:predator:individual:0",
+            "gate_verdict": "reviewed-and-experimentally-applied",
+            "individual_id": 0,
+            "provenance": "ant:predator:real:0"
+          },
+          {
+            "artifact_digest": "706603d15c4f7c0a9631fcb91ed2ef9b78023b1192ff9575ee927d289ef830a0",
+            "artifact_id": "ant:predator:individual:1",
+            "gate_verdict": "reviewed-and-experimentally-applied",
+            "individual_id": 1,
+            "provenance": "ant:predator:real:1"
+          }
+        ],
+        "pressure_label": "predator",
+        "rollback_verified": true,
+        "schema_version": "digital-ant-colony-rare-heavy.v1"
+      },
+      "clustering_error": null,
+      "non_degenerate": true,
+      "probes": [
+        {
+          "discovery_contribution": 0.12791007800887408,
+          "individual_id": 0,
+          "patrol_contribution": 0.11085575948640645,
+          "trail_reliance": 0.2414667491756558,
+          "trajectory_radius": 0.2408231105342967
+        },
+        {
+          "discovery_contribution": 0.11470225944318674,
+          "individual_id": 1,
+          "patrol_contribution": 0.10777502511257037,
+          "trail_reliance": 0.23111327844630264,
+          "trajectory_radius": 0.22149733748537515
+        }
+      ],
+      "role_counts": {
+        "explorer": 1,
+        "patroller": 1
+      },
+      "roles": [
+        {
+          "cluster_id": 0,
+          "individual_id": 0,
+          "role_label": "explorer"
+        },
+        {
+          "cluster_id": 1,
+          "individual_id": 1,
+          "role_label": "patroller"
+        }
+      ]
+    },
+    "scarce": {
+      "bundle": {
+        "individuals": [
+          {
+            "artifact_digest": "090fc557445ebe66bfd2fd5f9dc55e5a453423dc9d45887d09fe0fdf339d0259",
+            "artifact_id": "ant:scarce:individual:0",
+            "gate_verdict": "reviewed-and-experimentally-applied",
+            "individual_id": 0,
+            "provenance": "ant:scarce:real:0"
+          },
+          {
+            "artifact_digest": "665ca1dacc80a354c4878d361741f29fcb90b80f7c6dcbab709a3221c799c52d",
+            "artifact_id": "ant:scarce:individual:1",
+            "gate_verdict": "reviewed-and-experimentally-applied",
+            "individual_id": 1,
+            "provenance": "ant:scarce:real:1"
+          }
+        ],
+        "pressure_label": "scarce",
+        "rollback_verified": true,
+        "schema_version": "digital-ant-colony-rare-heavy.v1"
+      },
+      "clustering_error": null,
+      "non_degenerate": true,
+      "probes": [
+        {
+          "discovery_contribution": 0.08222229808106168,
+          "individual_id": 0,
+          "patrol_contribution": 0.06931867879045507,
+          "trail_reliance": 0.18077080928408307,
+          "trajectory_radius": 0.21971892207150032
+        },
+        {
+          "discovery_contribution": 0.08220072613943884,
+          "individual_id": 1,
+          "patrol_contribution": 0.06928360049973162,
+          "trail_reliance": 0.18093246448847955,
+          "trajectory_radius": 0.21987475496682252
+        }
+      ],
+      "role_counts": {
+        "explorer": 1,
+        "patroller": 1
+      },
+      "roles": [
+        {
+          "cluster_id": 0,
+          "individual_id": 0,
+          "role_label": "patroller"
+        },
+        {
+          "cluster_id": 1,
+          "individual_id": 1,
+          "role_label": "explorer"
+        }
+      ]
+    }
+  },
+  "legacy_fixed_rule_grid": {
+    "description": "caste reprogramming explorer_fraction by pressure: abundant=0.00(yield=0.0), scarce=0.00(yield=0.0), predator=0.00(yield=0.0)",
+    "profiles": [
+      {
+        "expected_yield": 0.0,
+        "exploration_bias_by_individual": [
+          0.15,
+          0.15
+        ],
+        "explorer_fraction": 0.0,
+        "n_individuals": 2,
+        "pressure_label": "abundant",
+        "provenance": "offline-caste-reprogramming",
+        "schema_version": 1
+      },
+      {
+        "expected_yield": 0.0,
+        "exploration_bias_by_individual": [
+          0.15,
+          0.15
+        ],
+        "explorer_fraction": 0.0,
+        "n_individuals": 2,
+        "pressure_label": "scarce",
+        "provenance": "offline-caste-reprogramming",
+        "schema_version": 1
+      },
+      {
+        "expected_yield": 0.0,
+        "exploration_bias_by_individual": [
+          0.15,
+          0.15
+        ],
+        "explorer_fraction": 0.0,
+        "n_individuals": 2,
+        "pressure_label": "predator",
+        "provenance": "offline-caste-reprogramming",
+        "schema_version": 1
+      }
+    ],
+    "role_shift_monotone": true,
+    "yield_grid": {
+      "abundant": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.25,
+          0.0
+        ],
+        [
+          0.5,
+          0.0
+        ],
+        [
+          0.75,
+          0.0
+        ],
+        [
+          1.0,
+          0.0
+        ]
+      ],
+      "predator": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.25,
+          0.0
+        ],
+        [
+          0.5,
+          0.0
+        ],
+        [
+          0.75,
+          0.0
+        ],
+        [
+          1.0,
+          0.0
+        ]
+      ],
+      "scarce": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.25,
+          0.0
+        ],
+        [
+          0.5,
+          0.0
+        ],
+        [
+          0.75,
+          0.0
+        ],
+        [
+          1.0,
+          0.0
+        ]
+      ]
+    }
+  },
+  "provenance": {
+    "config_digest": "2eb079e1dad7fad9a30a4e0bff69037687c1d32fb9fee51ee7a9a4ad03840d75",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-evidence.v2",
+  "verdict": "PASS"
+}
