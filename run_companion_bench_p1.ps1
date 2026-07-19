@@ -65,69 +65,41 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = $PSScriptRoot
 Set-Location $RepoRoot
 
-function Convert-P1UnixCliToken {
-    param([string]$Token)
-    if (-not $Token) {
-        return $null
-    }
-    switch ($Token.ToLowerInvariant()) {
-        { $_ -in @("--resume", "-resume", "/resume") } { return "Resume" }
-        { $_ -in @("--dry-run", "--dryrun", "-dry-run", "/dryrun") } { return "DryRun" }
-        { $_ -in @("--full-mode", "--fullmode", "-full-mode", "/fullmode") } { return "FullMode" }
-        { $_ -in @("--keep-services", "--keepservices", "-keep-services") } { return "KeepServices" }
-        { $_ -in @("--stop", "-stop", "/stop") } { return "Stop" }
-    }
-    return $null
-}
-
-function Apply-P1CliAliases {
-    param(
-        [ref]$ArtifactDirRef,
-        [ref]$DryRunRef,
-        [ref]$ResumeRef,
-        [ref]$KeepServicesRef,
-        [ref]$FullModeRef,
-        [ref]$StopRef,
-        [string[]]$ExtraArgs
-    )
-
-    $positional = @()
-    if ($ArtifactDirRef.Value) {
-        $positional += $ArtifactDirRef.Value
-    }
-    if ($ExtraArgs) {
-        $positional += $ExtraArgs
-    }
-
-    $resolvedArtifactDir = ""
-    foreach ($token in $positional) {
-        $switchName = Convert-P1UnixCliToken $token
-        if ($switchName) {
-            switch ($switchName) {
-                "DryRun" { $DryRunRef.Value = $true }
-                "Resume" { $ResumeRef.Value = $true }
-                "KeepServices" { $KeepServicesRef.Value = $true }
-                "FullMode" { $FullModeRef.Value = $true }
-                "Stop" { $StopRef.Value = $true }
-            }
-            continue
+if ($ArtifactDir -like "--*") {
+    switch ($ArtifactDir.ToLowerInvariant()) {
+        "--resume" {
+            $Resume = $true
+            $ArtifactDir = ""
         }
-        if ($resolvedArtifactDir) {
-            throw "unexpected extra positional argument: $token (use -ArtifactDir <path>)"
+        "--dry-run" {
+            $DryRun = $true
+            $ArtifactDir = ""
         }
-        $resolvedArtifactDir = $token
+        "--dryrun" {
+            $DryRun = $true
+            $ArtifactDir = ""
+        }
+        "--keep-services" {
+            $KeepServices = $true
+            $ArtifactDir = ""
+        }
+        "--full-mode" {
+            $FullMode = $true
+            $ArtifactDir = ""
+        }
+        "--fullmode" {
+            $FullMode = $true
+            $ArtifactDir = ""
+        }
+        "--stop" {
+            $Stop = $true
+            $ArtifactDir = ""
+        }
+        default {
+            throw "unknown option '$ArtifactDir'. In PowerShell use -Resume/-Stop/-DryRun/-FullMode, or one of the supported --resume/--stop/--dry-run/--full-mode aliases."
+        }
     }
-    $ArtifactDirRef.Value = $resolvedArtifactDir
 }
-
-Apply-P1CliAliases `
-    -ArtifactDirRef ([ref]$ArtifactDir) `
-    -DryRunRef ([ref]$DryRun) `
-    -ResumeRef ([ref]$Resume) `
-    -KeepServicesRef ([ref]$KeepServices) `
-    -FullModeRef ([ref]$FullMode) `
-    -StopRef ([ref]$Stop) `
-    -ExtraArgs $args
 
 $Runner = Join-Path $RepoRoot "scripts/companion_bench/run_p1_windows.ps1"
 if (-not (Test-Path $Runner)) {

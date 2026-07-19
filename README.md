@@ -112,11 +112,7 @@ that P1 run from PowerShell with:
 
 ```powershell
 .\run_companion_bench_p1.ps1
-.\run_companion_bench_p1.ps1 -Resume
 ```
-
-PowerShell switches use a single leading dash (`-Resume`). Unix-style
-`--resume` is also accepted for convenience.
 
 The Windows P1 launcher defaults to SafeMode to keep RDP and the desktop
 responsive on single-GPU machines. SafeMode uses the lightweight hashing

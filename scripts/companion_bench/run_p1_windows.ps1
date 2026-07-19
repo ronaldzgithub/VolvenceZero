@@ -74,61 +74,6 @@ function Set-P1CrossFamilyExtractorEnv {
 
 Set-P1CrossFamilyExtractorEnv
 
-function Stop-P1RunProcesses {
-    param([string]$RunDir)
-    if (-not $RunDir) {
-        return
-    }
-    $pidFile = Join-Path $RunDir "serve.pids"
-    $watchdogPidFile = Join-Path $RunDir "watchdog.pid"
-    if (Test-Path $pidFile) {
-        Get-Content $pidFile | Where-Object { $_ } | ForEach-Object {
-            Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
-        }
-        Write-Host "[p1] stopped stale services from $pidFile"
-    }
-    if (Test-Path $watchdogPidFile) {
-        Get-Content $watchdogPidFile | Where-Object { $_ } | ForEach-Object {
-            Stop-Process -Id ([int]$_) -Force -ErrorAction SilentlyContinue
-        }
-        Write-Host "[p1] stopped stale watchdog from $watchdogPidFile"
-    }
-}
-
-function Get-OccupiedP1Ports {
-    $occupied = @()
-    foreach ($port in 8000, 8500, 8501, 8502, 8600) {
-        try {
-            $listener = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction Stop |
-                Select-Object -First 1
-            if ($listener) {
-                $occupied += $port
-            }
-        } catch [Microsoft.PowerShell.Commands.Internal.Common.ErrorRecord] {
-            if ($_.FullyQualifiedErrorId -ne "CmdletizationQuery_NotFound,Get-NetTCPConnection") {
-                throw
-            }
-        }
-    }
-    return $occupied
-}
-
-function Clear-OccupiedP1Ports {
-    $freed = @()
-    foreach ($port in (Get-OccupiedP1Ports)) {
-        $pids = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty OwningProcess -Unique
-        foreach ($pid in $pids) {
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
-            $freed += $pid
-        }
-    }
-    if ($freed.Count -gt 0) {
-        Write-Host "[p1] freed P1 ports by stopping pid(s): $($freed -join ', ')"
-        Start-Sleep -Seconds 2
-    }
-}
-
 function Set-EnvDefault {
     param(
         [string]$Name,
@@ -245,12 +190,6 @@ if ($env:VZ_SUBSTRATE_WEIGHTS_PATH) {
 
 $PidFile = Join-Path $ArtifactDir "serve.pids"
 $WatchdogPidFile = Join-Path $ArtifactDir "watchdog.pid"
-if ($Resume -or (Test-Path $PidFile)) {
-    Stop-P1RunProcesses -RunDir $ArtifactDir
-}
-if ((Get-OccupiedP1Ports).Count -gt 0) {
-    Clear-OccupiedP1Ports
-}
 try {
     python @PreflightArgs
     if ($LASTEXITCODE -ne 0) {
