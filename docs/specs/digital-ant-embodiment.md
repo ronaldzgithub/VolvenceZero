@@ -97,6 +97,9 @@ event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形�
 
 - kernel arms 必须在训练地图上从同一个 owner-exported 初始 checkpoint 分叉，再把各臂训练后的
   checkpoint 导入 held-out 地图评估；禁止在 held-out 地图冷启动后称为 validation。
+- formal matched-control 允许以 **seed 为唯一并行单元**使用 `spawn` 多进程；同一 seed 内各 arm
+  仍顺序消费同一个初始 checkpoint。父进程必须按冻结 seed schedule 重新排序后聚合，worker 完成顺序
+  不得改变 artifact、bootstrap CI 或 verdict。并行度是执行参数，不属于实验语义配置。
 - checkpoint 由 `AgentSessionRunner.export_learning_checkpoint` 聚合各 owner 自己发布的
   temporal/Internal-RL、memory、PE heads、credit heads、regime、dual-track gate 与 reflection
   immutable state；embodiment 将其视为 opaque value，不遍历或重建 owner 私有状态。
@@ -112,6 +115,11 @@ event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形�
 - `--profile demo --dashboard`：短预算实时 localhost Dashboard，并导出 replay HTML、GIF/MP4、
   JSON 与 manifest；允许 BLOCK。
 - `--profile formal`：≥5 seeds、train/held-out、完整消融和 ≥500 real turns。
+- formal 默认最多 5 个 matched-control seed worker；`--workers 1` 提供串行等价基线。
+- `--resume` 只接受配置指纹一致、manifest 完整性验证通过的 stage。matched-control 每完成一个
+  seed，就在 `.partials/matched_control/<fingerprint>/` 原子提交完整 report；partial 不保存 owner
+  checkpoint 或私有可变状态。中断后只补跑缺失 seed，再由同一个纯聚合函数生成正式 artifact。
+- stage verdict 为 `BLOCK` 不妨碍 resume：恢复只表示该计算完整可信，不代表 claim 通过。
 - 可视化只消费不可变 `AntStepRecord` replay；位置、`z_t`、`β_t`、PE、credit、writeback 与
   backend wiring 均来自正式 turn 结果，不成为新的 runtime owner 或学习源。
 
@@ -126,3 +134,7 @@ event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形�
 git SHA/branch/dirty、Python/依赖版本、seed schedule、config digest、model fingerprint，以及所有输入和
 输出文件的 sha256/size。校验失败必须 fail loudly。dirty tree 可产生内部证据，但
 `externally_retainable=false`，不得对外声称 retain。
+
+artifact 与 manifest 均通过临时文件 + `os.replace` 原子提交，且 manifest 最后落盘，是正式 bundle 的
+完成标志。pipeline stage 还需原子 marker 绑定语义命令指纹与全部 output manifest；仅存在 JSON 文件
+不足以跳过计算。旧 runner 启动的进程不会追溯生成 partial/marker，新恢复协议只对升级后启动的 run 生效。

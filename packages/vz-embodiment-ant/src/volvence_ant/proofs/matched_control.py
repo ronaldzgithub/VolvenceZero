@@ -317,6 +317,31 @@ async def run_behavioral_matched_control(
     )
 
 
+async def run_single_seed_matched_control(
+    *,
+    seed: int,
+    ticks: int,
+    training_ticks: int = 0,
+    temporal_latent_dim: int,
+    kernel_arms: dict[str, AntSessionConfig],
+    learned_config: AntSessionConfig | None = None,
+    pe_off_config: AntSessionConfig | None = None,
+    include_e2e_rl: bool = True,
+) -> MatchedControlReport:
+    """Run one isolated seed unit suitable for process-level scheduling."""
+
+    return await run_behavioral_matched_control(
+        ticks=ticks,
+        training_ticks=training_ticks,
+        seed=seed,
+        temporal_latent_dim=temporal_latent_dim,
+        learned_config=learned_config,
+        pe_off_config=pe_off_config,
+        extra_kernel_arms=kernel_arms,
+        include_e2e_rl=include_e2e_rl,
+    )
+
+
 def _bootstrap_ci(values: tuple[float, ...], *, seed: int) -> tuple[float, float]:
     if not values:
         raise ValueError("bootstrap values must be non-empty")
@@ -331,6 +356,67 @@ def _bootstrap_ci(values: tuple[float, ...], *, seed: int) -> tuple[float, float
         ]
     )
     return float(np.quantile(means, 0.025)), float(np.quantile(means, 0.975))
+
+
+def aggregate_matched_control_reports(
+    reports: tuple[MatchedControlReport, ...],
+    *,
+    seed_order: tuple[int, ...],
+) -> MultiSeedMatchedControlReport:
+    """Aggregate complete per-seed reports in a deterministic requested order."""
+
+    if not seed_order:
+        raise ValueError("seed_order must be non-empty")
+    by_seed = {report.seed: report for report in reports}
+    if len(by_seed) != len(reports):
+        raise ValueError("matched-control reports contain duplicate seeds")
+    if set(by_seed) != set(seed_order):
+        raise ValueError(
+            "matched-control report seeds do not match requested seed order: "
+            f"reports={tuple(sorted(by_seed))}, requested={seed_order}"
+        )
+    ordered_reports = tuple(by_seed[seed] for seed in seed_order)
+    arm_names = tuple(arm.arm for arm in ordered_reports[0].arms)
+    expected_arms = set(arm_names)
+    for report in ordered_reports[1:]:
+        actual_arms = {arm.arm for arm in report.arms}
+        if actual_arms != expected_arms:
+            raise ValueError(
+                f"seed {report.seed} arm set mismatch: "
+                f"actual={tuple(sorted(actual_arms))}, "
+                f"expected={tuple(sorted(expected_arms))}"
+            )
+
+    aggregates: list[ArmAggregate] = []
+    for arm_name in arm_names:
+        per_seed = tuple(
+            next(arm for arm in report.arms if arm.arm == arm_name)
+            for report in ordered_reports
+        )
+        deliveries = tuple(float(arm.food_delivered) for arm in per_seed)
+        aggregates.append(
+            ArmAggregate(
+                arm=arm_name,
+                seeds=seed_order,
+                mean_delivered=float(np.mean(deliveries)),
+                delivery_ci95=_bootstrap_ci(deliveries, seed=seed_order[0]),
+                held_out_success_rate=float(
+                    np.mean([arm.held_out_success for arm in per_seed])
+                ),
+            )
+        )
+    by_name = {aggregate.arm: aggregate for aggregate in aggregates}
+    effect = None
+    if "no_optimize" in by_name:
+        effect = (
+            by_name["learned"].mean_delivered
+            - by_name["no_optimize"].mean_delivered
+        )
+    return MultiSeedMatchedControlReport(
+        reports=ordered_reports,
+        aggregates=tuple(aggregates),
+        learned_minus_no_optimize=effect,
+    )
 
 
 async def run_multiseed_matched_control(
@@ -351,7 +437,7 @@ async def run_multiseed_matched_control(
     reports: list[MatchedControlReport] = []
     for seed in seeds:
         reports.append(
-            await run_behavioral_matched_control(
+            await run_single_seed_matched_control(
                 ticks=ticks,
                 training_ticks=training_ticks,
                 seed=seed,
@@ -366,38 +452,11 @@ async def run_multiseed_matched_control(
                     if pe_off_config_factory is not None
                     else None
                 ),
-                extra_kernel_arms=kernel_arm_factory(seed, temporal_latent_dim),
+                kernel_arms=kernel_arm_factory(seed, temporal_latent_dim),
                 include_e2e_rl=include_e2e_rl,
             )
         )
-    arm_names = tuple(arm.arm for arm in reports[0].arms)
-    aggregates: list[ArmAggregate] = []
-    for arm_name in arm_names:
-        per_seed = tuple(
-            next(arm for arm in report.arms if arm.arm == arm_name)
-            for report in reports
-        )
-        deliveries = tuple(float(arm.food_delivered) for arm in per_seed)
-        aggregates.append(
-            ArmAggregate(
-                arm=arm_name,
-                seeds=seeds,
-                mean_delivered=float(np.mean(deliveries)),
-                delivery_ci95=_bootstrap_ci(deliveries, seed=seeds[0]),
-                held_out_success_rate=float(
-                    np.mean([arm.held_out_success for arm in per_seed])
-                ),
-            )
-        )
-    by_name = {aggregate.arm: aggregate for aggregate in aggregates}
-    effect = None
-    if "no_optimize" in by_name:
-        effect = (
-            by_name["learned"].mean_delivered
-            - by_name["no_optimize"].mean_delivered
-        )
-    return MultiSeedMatchedControlReport(
-        reports=tuple(reports),
-        aggregates=tuple(aggregates),
-        learned_minus_no_optimize=effect,
+    return aggregate_matched_control_reports(
+        tuple(reports),
+        seed_order=seeds,
     )

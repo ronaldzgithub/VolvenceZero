@@ -18,8 +18,10 @@ from volvence_ant.proofs.matched_control import (
     ArmMetrics,
     MatchedControlReport,
     MultiSeedMatchedControlReport,
+    aggregate_matched_control_reports,
     run_behavioral_matched_control,
     run_multiseed_matched_control,
+    run_single_seed_matched_control,
 )
 
 __all__ = [
@@ -28,7 +30,9 @@ __all__ = [
     "ArmMetrics",
     "MatchedControlReport",
     "MultiSeedMatchedControlReport",
+    "aggregate_matched_control_reports",
     "run_ant_latent_proofs",
     "run_behavioral_matched_control",
     "run_multiseed_matched_control",
+    "run_single_seed_matched_control",
 ]

@@ -17,17 +17,29 @@ from volvence_ant.evidence.ant_active_evidence import (
 from volvence_ant.evidence.provenance import (
     AntArtifactIntegrityError,
     AntRunProvenance,
+    atomic_write_json,
     collect_ant_provenance,
+    stable_json_digest,
     verify_ant_artifact_manifest,
     write_ant_artifact_bundle,
+)
+from volvence_ant.evidence.resume import (
+    AntResumeStateError,
+    SeedPartialStore,
+    ant_stage_fingerprint,
 )
 
 __all__ = [
     "AntActiveEvidenceBundle",
     "AntArtifactIntegrityError",
+    "AntResumeStateError",
     "AntRunProvenance",
+    "SeedPartialStore",
+    "ant_stage_fingerprint",
+    "atomic_write_json",
     "collect_ant_provenance",
     "collect_ant_active_evidence",
+    "stable_json_digest",
     "verify_ant_artifact_manifest",
     "write_ant_artifact_bundle",
 ]

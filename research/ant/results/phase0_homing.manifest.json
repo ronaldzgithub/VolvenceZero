@@ -1,7 +1,7 @@
 {
   "artifact": {
     "path": "research/ant/results/phase0_homing.json",
-    "sha256": "ef2df77b7cf816c66a6a77226a8ac74f69f1da4ad5ca190a7af35a0841290bb1",
+    "sha256": "ce05607dbeb0638823a24d74ee44eb642ee931e3cdc0814b8b265baf9c670cd8",
     "size_bytes": 2166
   },
   "externally_retainable": false,
@@ -42,7 +42,7 @@
       ]
     ],
     "git_branch": "main",
-    "git_sha": "cd332de8e83a67197239ace58efc6f28090df20d",
+    "git_sha": "0ba4fdb881553dd7ee3e803009cd09103140f576",
     "model_fingerprint": null,
     "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
     "python_version": "3.13.5",

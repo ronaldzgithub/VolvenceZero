@@ -5,13 +5,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import webbrowser
 
 from volvence_ant.evidence import (
+    atomic_write_json,
     collect_ant_provenance,
+    stable_json_digest,
     verify_ant_artifact_manifest,
     write_ant_artifact_bundle,
 )
@@ -23,6 +26,8 @@ from volvence_ant.viz.render import save_trajectory_animation
 _ROOT = Path(__file__).resolve().parents[1]
 _RESULTS = _ROOT / "research/ant/results"
 _FIGURES = _ROOT / "research/ant/figures"
+_RUNNER_STATE = _RESULTS / ".runner"
+_RUNNER_SCHEMA = "digital-ant-pipeline-stage.v1"
 
 _OUTPUTS = {
     "phase0": ("phase0_homing.json", "phase0_route_learning.json"),
@@ -40,7 +45,11 @@ _OUTPUTS = {
 
 
 def _commands(
-    *, profile: str, model_id: str | None, model_source: str | None
+    *,
+    profile: str,
+    model_id: str | None,
+    model_source: str | None,
+    workers: int | None,
 ) -> dict[str, list[str] | None]:
     py = sys.executable
     if profile == "demo":
@@ -53,6 +62,11 @@ def _commands(
         phase0 = ["--exposures", "10", "--route-length", "5", "--n-trials", "24"]
         colony = ["--n-ants", "20", "--rounds", "700", "--seeds", seeds]
         caste = ["--n-individuals", "16", "--rounds", "500"]
+    matched_workers = (
+        workers
+        if workers is not None
+        else (1 if profile == "demo" else min(5, os.cpu_count() or 1))
+    )
     g1 = None
     if model_id:
         g1 = [
@@ -77,6 +91,8 @@ def _commands(
             "--seeds",
             seeds,
             "--with-latent",
+            "--workers",
+            str(matched_workers),
         ],
         "colony": [py, "scripts/run_ant_colony.py", *colony],
         "caste": [py, "scripts/run_ant_caste.py", *caste],
@@ -95,6 +111,89 @@ def _commands(
             seeds,
         ],
     }
+
+
+def _semantic_command(command: list[str] | None) -> list[str] | None:
+    if command is None:
+        return None
+    semantic: list[str] = []
+    skip_next = False
+    for token in command[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--resume":
+            continue
+        if token == "--workers":
+            skip_next = True
+            continue
+        semantic.append(token)
+    return semantic
+
+
+def _stage_fingerprint(
+    *,
+    profile: str,
+    stage: str,
+    command: list[str] | None,
+    outputs: tuple[Path, ...],
+) -> str:
+    return stable_json_digest(
+        {
+            "schema_version": _RUNNER_SCHEMA,
+            "profile": profile,
+            "stage": stage,
+            "command": _semantic_command(command),
+            "outputs": [str(path.relative_to(_ROOT)) for path in outputs],
+        }
+    )
+
+
+def _stage_manifests(outputs: tuple[Path, ...]) -> tuple[Path, ...]:
+    return tuple(path.with_suffix(".manifest.json") for path in outputs)
+
+
+def _resume_stage(
+    *,
+    stage: str,
+    fingerprint: str,
+    outputs: tuple[Path, ...],
+) -> bool:
+    marker_path = _RUNNER_STATE / f"{stage}.json"
+    if not marker_path.is_file():
+        return False
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    if marker.get("schema_version") != _RUNNER_SCHEMA:
+        raise ValueError(f"unsupported pipeline stage marker: {marker_path}")
+    if marker.get("stage") != stage or marker.get("fingerprint") != fingerprint:
+        raise ValueError(f"pipeline stage marker configuration mismatch: {marker_path}")
+    manifests = _stage_manifests(outputs)
+    expected = [str(path.relative_to(_ROOT)) for path in manifests]
+    if marker.get("manifests") != expected:
+        raise ValueError(f"pipeline stage marker manifest mismatch: {marker_path}")
+    for manifest in manifests:
+        verify_ant_artifact_manifest(manifest_path=manifest, repo_root=_ROOT)
+    return True
+
+
+def _commit_stage(
+    *,
+    stage: str,
+    fingerprint: str,
+    outputs: tuple[Path, ...],
+) -> None:
+    manifests = _stage_manifests(outputs)
+    for manifest in manifests:
+        verify_ant_artifact_manifest(manifest_path=manifest, repo_root=_ROOT)
+    atomic_write_json(
+        _RUNNER_STATE / f"{stage}.json",
+        {
+            "schema_version": _RUNNER_SCHEMA,
+            "stage": stage,
+            "fingerprint": fingerprint,
+            "manifests": [str(path.relative_to(_ROOT)) for path in manifests],
+        },
+    )
 
 
 def _artifact_verdict(path: Path) -> str:
@@ -164,13 +263,24 @@ async def main(args: argparse.Namespace) -> int:
         profile=args.profile,
         model_id=args.model_id,
         model_source=args.model_source,
+        workers=args.workers,
     )
     selected = tuple(commands) if args.stage == "all" else (args.stage,)
     stages: list[dict] = []
     for stage in selected:
         outputs = tuple(_RESULTS / name for name in _OUTPUTS[stage])
         command = commands[stage]
-        if args.resume and outputs and all(path.is_file() for path in outputs):
+        fingerprint = _stage_fingerprint(
+            profile=args.profile,
+            stage=stage,
+            command=command,
+            outputs=outputs,
+        )
+        if args.resume and _resume_stage(
+            stage=stage,
+            fingerprint=fingerprint,
+            outputs=outputs,
+        ):
             status = (
                 "PASS"
                 if all(_artifact_verdict(path) == "PASS" for path in outputs)
@@ -184,7 +294,15 @@ async def main(args: argparse.Namespace) -> int:
             resumed = False
         else:
             print(f"[pipeline] stage={stage}")
-            subprocess.run(command, cwd=_ROOT, check=True)
+            run_command = list(command)
+            if args.resume and stage == "matched":
+                run_command.append("--resume")
+            subprocess.run(run_command, cwd=_ROOT, check=True)
+            _commit_stage(
+                stage=stage,
+                fingerprint=fingerprint,
+                outputs=outputs,
+            )
             executed = True
             resumed = False
             status = (
@@ -284,6 +402,11 @@ if __name__ == "__main__":
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--model-id")
     parser.add_argument("--model-source")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        help="matched-control seed workers; formal defaults to min(5, CPU count)",
+    )
     parser.add_argument("--dashboard", action="store_true")
     parser.add_argument("--no-open", action="store_true")
     raise SystemExit(asyncio.run(main(parser.parse_args())))

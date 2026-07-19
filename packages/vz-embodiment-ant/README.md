@@ -62,12 +62,24 @@ python scripts/run_ant_pipeline.py --profile demo --dashboard
 
 # 正式多 seed 证据；G1 需要显式提供本地 HF 模型
 python scripts/run_ant_pipeline.py --profile formal --model-id /path/to/local/model
+
+# 中断后恢复：验证 stage marker/manifest，并补跑 matched-control 缺失 seed
+python scripts/run_ant_pipeline.py --profile formal --model-id /path/to/local/model --resume
+
+# 串行可复现基线；formal 默认使用 min(5, CPU 数) 个 seed worker
+python scripts/run_ant_pipeline.py --profile formal --workers 1 --model-id /path/to/local/model
 ```
 
 `demo` 与 `formal` 都会诚实保留 `PASS/BLOCK`；脚本不会自动修改生产
 `FinalRolloutConfig`。正式 learned 对照采用训练地图 → owner checkpoint →
 held-out 地图，所有消融臂从同一初始 checkpoint 分叉。实时 Dashboard 和录制
 只消费不可变 `AntStepRecord` replay，不读取内核 owner 私有状态。
+
+matched-control 只按 seed 使用 `spawn` 多进程；同 seed 的 arms 仍共享同一初始
+checkpoint 并保持顺序执行。每个完整 seed report 原子写入
+`research/ant/results/.partials/matched_control/<fingerprint>/`，不保存 owner 私有状态。
+最终 manifest 是 artifact 的提交点，pipeline 只有在配置指纹一致且 manifest 校验通过时才跳过 stage；
+因此 `BLOCK` 结果也能安全 resume。升级前已经启动的旧进程无法追溯生成 partial 或 stage marker。
 
 可视化图需可选 extra：`pip install -e packages/vz-embodiment-ant[viz]`（缺失时仍产 JSON，仅跳过 PNG）。
 

@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
+import tempfile
 from dataclasses import asdict, dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -82,6 +84,37 @@ def stable_json_digest(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def atomic_write_json(path: Path, value: Any) -> None:
+    """Atomically replace a JSON file after its complete bytes reach disk."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    encoded = json.dumps(
+        value,
+        indent=2,
+        sort_keys=True,
+        ensure_ascii=False,
+        default=str,
+    )
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+            temporary = Path(handle.name)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
 def collect_ant_provenance(
     *,
     repo_root: Path,
@@ -137,10 +170,7 @@ def write_ant_artifact_bundle(
         **dict(payload),
         "provenance": asdict(provenance),
     }
-    artifact_path.write_text(
-        json.dumps(enriched, indent=2, sort_keys=True, default=str),
-        encoding="utf-8",
-    )
+    atomic_write_json(artifact_path, enriched)
     artifact = file_digest(artifact_path, relative_to=repo_root)
     inputs = tuple(file_digest(path, relative_to=repo_root) for path in input_paths)
     manifest_path = artifact_path.with_suffix(".manifest.json")
@@ -151,10 +181,7 @@ def write_ant_artifact_bundle(
         "provenance": asdict(provenance),
         "externally_retainable": provenance.externally_retainable,
     }
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    atomic_write_json(manifest_path, manifest)
     return manifest_path
 
 
@@ -180,6 +207,7 @@ __all__ = [
     "AntArtifactIntegrityError",
     "AntRunProvenance",
     "ArtifactFileDigest",
+    "atomic_write_json",
     "collect_ant_provenance",
     "file_digest",
     "stable_json_digest",

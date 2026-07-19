@@ -1,0 +1,9 @@
+{
+  "fingerprint": "80618e6af41b4d78b8ea0a59e6b8b2c64ae1c0c57a9ecf1037f3890140b63929",
+  "manifests": [
+    "research/ant/results/phase0_homing.manifest.json",
+    "research/ant/results/phase0_route_learning.manifest.json"
+  ],
+  "schema_version": "digital-ant-pipeline-stage.v1",
+  "stage": "phase0"
+}

@@ -42,6 +42,8 @@ def test_bundle_records_digest_and_dirty_retain_boundary(tmp_path: Path) -> None
     manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
     assert payload["schema_version"] == ANT_ARTIFACT_SCHEMA_VERSION
     assert manifest_payload["externally_retainable"] is False
+    assert not tuple(tmp_path.glob("*.tmp"))
+    assert not tuple(tmp_path.glob(".*.tmp"))
     verify_ant_artifact_manifest(manifest_path=manifest, repo_root=tmp_path)
 
 

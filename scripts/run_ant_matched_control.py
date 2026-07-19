@@ -17,11 +17,27 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict
+import json
+import multiprocessing
+import os
 from pathlib import Path
 
-from volvence_ant.evidence import collect_ant_provenance, write_ant_artifact_bundle
-from volvence_ant.proofs import run_multiseed_matched_control
+from volvence_ant.evidence import (
+    SeedPartialStore,
+    ant_stage_fingerprint,
+    collect_ant_provenance,
+    stable_json_digest,
+    verify_ant_artifact_manifest,
+    write_ant_artifact_bundle,
+)
+from volvence_ant.proofs import (
+    ArmMetrics,
+    MatchedControlReport,
+    aggregate_matched_control_reports,
+    run_single_seed_matched_control,
+)
 from volvence_ant.runtime.ant_session import AntSessionConfig
 
 _RESULTS_DIR = Path("research/ant/results")
@@ -87,6 +103,73 @@ def _pe_off_config(seed: int, n_z: int) -> AntSessionConfig:
     )
 
 
+def _report_from_dict(payload: dict) -> MatchedControlReport:
+    arms = payload.get("arms")
+    if not isinstance(arms, list):
+        raise ValueError("matched-control partial arms must be a list")
+    return MatchedControlReport(
+        ticks=int(payload["ticks"]),
+        seed=int(payload["seed"]),
+        arms=tuple(ArmMetrics(**arm) for arm in arms),
+        learned_beats_random_food=bool(payload["learned_beats_random_food"]),
+        description=str(payload["description"]),
+    )
+
+
+def _configure_worker_threads() -> None:
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    try:
+        import torch
+
+        torch.set_num_threads(1)
+    except ImportError:
+        return
+
+
+def _run_seed_worker(
+    seed: int,
+    ticks: int,
+    train_ticks: int,
+    n_z: int,
+    include_e2e_rl: bool,
+) -> MatchedControlReport:
+    _configure_worker_threads()
+    return asyncio.run(
+        run_single_seed_matched_control(
+            seed=seed,
+            ticks=ticks,
+            training_ticks=train_ticks,
+            temporal_latent_dim=n_z,
+            kernel_arms=_schedule_gated_arms(seed=seed, n_z=n_z),
+            learned_config=_learned_config(seed, n_z),
+            pe_off_config=_pe_off_config(seed, n_z),
+            include_e2e_rl=include_e2e_rl,
+        )
+    )
+
+
+def _final_artifact_matches(*, config: dict) -> bool:
+    artifact_path = _RESULTS_DIR / "matched_control.json"
+    manifest_path = artifact_path.with_suffix(".manifest.json")
+    if not manifest_path.is_file():
+        return False
+    verify_ant_artifact_manifest(
+        manifest_path=manifest_path,
+        repo_root=_REPO_ROOT,
+    )
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    actual = payload.get("provenance", {}).get("config_digest")
+    expected = stable_json_digest(config)
+    if actual != expected:
+        print(
+            "[matched-control] ignoring stale final artifact; "
+            f"config actual={actual!r}, expected={expected!r}"
+        )
+        return False
+    return True
+
+
 async def main(
     *,
     ticks: int,
@@ -95,6 +178,8 @@ async def main(
     n_z: int,
     with_latent: bool,
     include_e2e_rl: bool,
+    workers: int,
+    resume: bool,
 ) -> int:
     _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     config = {
@@ -102,8 +187,32 @@ async def main(
         "train_ticks": train_ticks,
         "seeds": seeds,
         "n_z": n_z,
+        "with_latent": with_latent,
         "include_e2e_rl": include_e2e_rl,
     }
+    if resume and _final_artifact_matches(config=config):
+        print("[matched-control] resumed complete final artifact")
+        return 0
+
+    fingerprint = ant_stage_fingerprint(stage="matched_control", config=config)
+    partials = SeedPartialStore(
+        results_root=_RESULTS_DIR,
+        stage="matched_control",
+        fingerprint=fingerprint,
+        requested_seeds=seeds,
+    )
+    completed_payloads = partials.load() if resume else {}
+    reports_by_seed = {
+        seed: _report_from_dict(dict(report))
+        for seed, report in completed_payloads.items()
+    }
+    remaining = tuple(seed for seed in seeds if seed not in reports_by_seed)
+    if reports_by_seed:
+        print(
+            "[matched-control] resumed seeds="
+            + ",".join(str(seed) for seed in sorted(reports_by_seed))
+        )
+
     payload: dict = {
         "artifact_kind": "digital-ant-fair-learning-matrix",
         "experiment": "workstream_e_matched_control",
@@ -127,17 +236,56 @@ async def main(
             payload["latent_proofs"] = {"skipped": f"torch unavailable: {exc}"}
             print(f"[matched-control] latent proofs skipped: {exc}")
 
-    report = await run_multiseed_matched_control(
-        seeds=seeds,
-        ticks=ticks,
-        training_ticks=train_ticks,
-        temporal_latent_dim=n_z,
-        kernel_arm_factory=lambda seed, dim: _schedule_gated_arms(
-            seed=seed, n_z=dim
-        ),
-        learned_config_factory=_learned_config,
-        pe_off_config_factory=_pe_off_config,
-        include_e2e_rl=include_e2e_rl,
+    if workers < 1:
+        raise ValueError("workers must be >= 1")
+    if workers == 1:
+        for seed in remaining:
+            report = await run_single_seed_matched_control(
+                seed=seed,
+                ticks=ticks,
+                training_ticks=train_ticks,
+                temporal_latent_dim=n_z,
+                kernel_arms=_schedule_gated_arms(seed=seed, n_z=n_z),
+                learned_config=_learned_config(seed, n_z),
+                pe_off_config=_pe_off_config(seed, n_z),
+                include_e2e_rl=include_e2e_rl,
+            )
+            partials.commit(seed=seed, report=asdict(report))
+            reports_by_seed[seed] = report
+            print(f"[matched-control] completed seed={seed}")
+    elif remaining:
+        os.environ["OMP_NUM_THREADS"] = "1"
+        os.environ["MKL_NUM_THREADS"] = "1"
+        context = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(
+            max_workers=min(workers, len(remaining)),
+            mp_context=context,
+        ) as executor:
+            future_seeds = {
+                executor.submit(
+                    _run_seed_worker,
+                    seed,
+                    ticks,
+                    train_ticks,
+                    n_z,
+                    include_e2e_rl,
+                ): seed
+                for seed in remaining
+            }
+            for future in as_completed(future_seeds):
+                seed = future_seeds[future]
+                report = future.result()
+                if report.seed != seed:
+                    raise ValueError(
+                        f"worker seed mismatch: expected={seed}, actual={report.seed}"
+                    )
+                partials.commit(seed=seed, report=asdict(report))
+                reports_by_seed[seed] = report
+                print(f"[matched-control] completed seed={seed}")
+
+    report = aggregate_matched_control_reports(
+        tuple(reports_by_seed.values()),
+        seed_order=seeds,
     )
     payload["behavioral"] = {
         "per_seed": [asdict(seed_report) for seed_report in report.reports],
@@ -177,6 +325,8 @@ if __name__ == "__main__":
     parser.add_argument("--n-z", type=int, default=16)
     parser.add_argument("--with-latent", action="store_true")
     parser.add_argument("--no-e2e-rl", action="store_true")
+    parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     raise SystemExit(
         asyncio.run(
@@ -187,6 +337,8 @@ if __name__ == "__main__":
                 n_z=args.n_z,
                 with_latent=args.with_latent,
                 include_e2e_rl=not args.no_e2e_rl,
+                workers=args.workers,
+                resume=args.resume,
             )
         )
     )

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor
 import importlib.util
+import multiprocessing
 
 import pytest
 
 from volvence_ant.controllers.e2e_rl_ant import E2ERLAnt, PPOConfig
 from volvence_ant.proofs import (
+    aggregate_matched_control_reports,
     run_behavioral_matched_control,
     run_multiseed_matched_control,
 )
@@ -68,6 +71,36 @@ async def test_multiseed_matrix_reports_real_no_optimize_effect() -> None:
         "no_optimize",
         "pe_off",
     }
+
+
+def test_spawn_seed_workers_match_serial_and_preserve_seed_order() -> None:
+    from scripts.run_ant_matched_control import _run_seed_worker
+
+    seeds = (1, 0)
+    serial = tuple(
+        _run_seed_worker(seed, 2, 0, 16, False)
+        for seed in seeds
+    )
+    with ProcessPoolExecutor(
+        max_workers=2,
+        mp_context=multiprocessing.get_context("spawn"),
+    ) as executor:
+        futures = [
+            executor.submit(_run_seed_worker, seed, 2, 0, 16, False)
+            for seed in seeds
+        ]
+        parallel = tuple(future.result() for future in reversed(futures))
+
+    serial_aggregate = aggregate_matched_control_reports(
+        serial,
+        seed_order=seeds,
+    )
+    parallel_aggregate = aggregate_matched_control_reports(
+        parallel,
+        seed_order=seeds,
+    )
+    assert parallel_aggregate == serial_aggregate
+    assert tuple(report.seed for report in parallel_aggregate.reports) == seeds
 
 
 @pytest.mark.skipif(not _HAS_TORCH, reason="E2E PPO baseline requires torch")
