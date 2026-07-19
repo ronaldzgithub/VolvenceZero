@@ -1,0 +1,44 @@
+# Modal GPU Runner Configuration
+# https://modal.com/docs
+#
+# Prerequisites:
+#   pip install modal
+#   modal token new
+#
+# This config is a template. Copy to configs/cloud/modal.local.yaml
+# and fill in your secrets.
+
+app_name: volvence-labs-runner
+
+gpu:
+  # Options: T4, L4, A10G, A100-40GB, A100-80GB, H100
+  type: T4
+  count: 1
+
+image:
+  python_version: "3.11"
+  pip_packages:
+    - torch>=2.2
+    - transformers>=4.40
+    - numpy>=1.26
+    - safetensors
+    - huggingface_hub[hf_transfer]
+
+timeout_seconds: 3600
+max_retries: 2
+concurrency_limit: 4
+
+# Secrets (set via `modal secret create volvence-hf HF_TOKEN=hf_xxx`)
+secrets:
+  - volvence-hf
+
+# Volume for model cache (persistent across runs)
+volumes:
+  model_cache:
+    mount_path: /root/.cache/huggingface
+    persist: true
+
+# Environment variables
+env:
+  HF_HUB_ENABLE_HF_TRANSFER: "1"
+  TOKENIZERS_PARALLELISM: "false"

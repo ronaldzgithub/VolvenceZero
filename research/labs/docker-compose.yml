@@ -1,0 +1,44 @@
+# Volvence Labs — Local Observability Stack
+# Usage: docker compose up -d
+# Then:
+#   1. Start metrics exporter: volvence-labs metrics-server --port 9090
+#   2. Open Grafana: http://localhost:3001 (admin/admin)
+#   3. Dashboard auto-provisioned: "Volvence Labs — Probe Dashboard"
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: volvence-prometheus
+    ports:
+      - "9191:9090"
+    volumes:
+      - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: volvence-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./configs/grafana/datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+      - ./configs/grafana/dashboard_provider.yaml:/etc/grafana/provisioning/dashboards/provider.yaml:ro
+      - ./configs/grafana/dashboard.json:/var/lib/grafana/dashboards/volvence-labs.json:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:

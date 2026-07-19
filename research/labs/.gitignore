@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Labs runtime
+.labs/
+experiments/
+
+# Model weights / HF cache (large, not tracked)
+.labs/models/
+.labs/hf_cache/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Build
+build/
+dist/
+
+# Dashboard output (regenerated)
+docs/dash/

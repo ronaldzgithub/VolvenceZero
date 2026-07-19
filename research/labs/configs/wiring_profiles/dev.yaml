@@ -1,0 +1,6 @@
+# dev profile: minimal smoke testing (1 seed, 2 cells)
+name: dev
+default_level: shadow
+seeds: [0]
+cells: [baseline, probe_on]
+probe_overrides: {}

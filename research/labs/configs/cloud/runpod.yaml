@@ -1,0 +1,45 @@
+# RunPod Serverless Configuration
+# https://docs.runpod.io/serverless
+#
+# Prerequisites:
+#   pip install runpod
+#   export RUNPOD_API_KEY=xxx
+#
+# This config is a template. Copy to configs/cloud/runpod.local.yaml
+# and fill in your secrets.
+
+endpoint_name: volvence-labs-runner
+
+gpu:
+  # Options: NVIDIA RTX 4090, NVIDIA A100 80GB, NVIDIA H100 80GB
+  type: "NVIDIA RTX 4090"
+  # Min/max workers for autoscaling
+  min_workers: 0
+  max_workers: 3
+
+docker:
+  image: runpod/pytorch:2.2.0-py3.11-cuda12.1.1-devel-ubuntu22.04
+  # Additional packages installed at container start
+  pip_packages:
+    - transformers>=4.40
+    - safetensors
+    - huggingface_hub[hf_transfer]
+    - numpy>=1.26
+
+timeout_seconds: 600
+max_retries: 2
+
+# Network volume for model cache
+network_volume:
+  name: volvence-models
+  mount_path: /workspace/models
+
+# Environment variables
+env:
+  HF_HUB_ENABLE_HF_TRANSFER: "1"
+  HF_HOME: /workspace/models
+  TOKENIZERS_PARALLELISM: "false"
+
+# Secrets (set via RunPod dashboard or CLI)
+secrets:
+  HF_TOKEN: "${RUNPOD_SECRET_HF_TOKEN}"

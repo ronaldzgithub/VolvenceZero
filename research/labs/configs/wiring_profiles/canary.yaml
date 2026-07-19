@@ -1,0 +1,9 @@
+# canary profile: per-probe ACTIVE upgrade testing (4 seeds, 2 cells)
+name: canary
+default_level: shadow
+seeds: [0, 1, 2, 3]
+cells: [baseline, probe_on]
+probe_overrides: {}
+# To upgrade a specific probe to ACTIVE:
+#   probe_overrides:
+#     pe-baseline-v0: active

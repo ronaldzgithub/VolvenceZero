@@ -1,0 +1,6 @@
+# shadow profile: full SHADOW long-run (8 seeds, 4 cells)
+name: shadow
+default_level: shadow
+seeds: [0, 1, 2, 3, 4, 5, 6, 7]
+cells: [baseline, probe_on, probe_off, counterfactual]
+probe_overrides: {}

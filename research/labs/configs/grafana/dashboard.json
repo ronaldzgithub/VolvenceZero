@@ -1,0 +1,123 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Probes Registered",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "volvence_probes_registered",
+          "legendFormat": "probes"
+        }
+      ]
+    },
+    {
+      "title": "Total Runs by Probe",
+      "type": "bargauge",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [
+        {
+          "expr": "volvence_runs_total",
+          "legendFormat": "{{probe_id}}"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "title": "Failed Runs by Probe",
+      "type": "bargauge",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {
+          "expr": "volvence_runs_failed_total",
+          "legendFormat": "{{probe_id}}"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "red"}
+        }
+      }
+    },
+    {
+      "title": "Metric Values — Accuracy (probe_on)",
+      "type": "timeseries",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 12},
+      "targets": [
+        {
+          "expr": "volvence_metric_value{cell=\"probe_on\",metric_name=~\"accuracy|detection_accuracy|mean_correlation|linear_separability\"}",
+          "legendFormat": "{{probe_id}} / {{metric_name}}"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "right"}
+      }
+    },
+    {
+      "title": "Metric Values — BPC / PE",
+      "type": "timeseries",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 22},
+      "targets": [
+        {
+          "expr": "volvence_metric_value{metric_name=~\"mean_bpc|mean_epistemic_bpc|epistemic_ratio|mean_pe\"}",
+          "legendFormat": "{{probe_id}} / {{cell}} / {{metric_name}}"
+        }
+      ]
+    },
+    {
+      "title": "Run Duration (p50 / p95)",
+      "type": "heatmap",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32},
+      "targets": [
+        {
+          "expr": "rate(volvence_run_duration_seconds_bucket[5m])",
+          "legendFormat": "{{probe_id}} / {{le}}"
+        }
+      ]
+    },
+    {
+      "title": "Probe Pass/Fail Heatmap",
+      "type": "state-timeline",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40},
+      "targets": [
+        {
+          "expr": "volvence_gate_decision",
+          "legendFormat": "{{probe_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"1": {"text": "APPROVE", "color": "green"}}},
+            {"type": "value", "options": {"0": {"text": "HOLD", "color": "yellow"}}},
+            {"type": "value", "options": {"-1": {"text": "REJECT", "color": "red"}}}
+          ]
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["volvence-labs", "probes"],
+  "templating": {"list": []},
+  "time": {"from": "now-24h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Volvence Labs — Probe Dashboard",
+  "uid": "volvence-labs-probes",
+  "version": 1
+}

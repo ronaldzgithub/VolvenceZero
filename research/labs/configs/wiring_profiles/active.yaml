@@ -1,0 +1,6 @@
+# active profile: production ACTIVE (4 seeds, probe_on only)
+name: active
+default_level: active
+seeds: [0, 1, 2, 3]
+cells: [probe_on]
+probe_overrides: {}
