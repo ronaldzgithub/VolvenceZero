@@ -78,7 +78,9 @@ event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形�
 - **Matched-control（Workstream E）**：正式矩阵为全学习 / no-optimize / PE-off / ETA-off /
   FixedRule / end-to-end RL，random 仅作 floor。所有 arm 共享地图、seed、episode budget 与初始 checkpoint。
 - **ant-active-evidence lane（Workstream F）**：复用 `evaluate_learned_active_candidate` gate 形态；
-  替换 HF 绑定为 `:ant:` real-trace 定义与蚂蚁对照臂；产出 `learned-ant-promotion-evidence.v1` + manifest。
+  替换 HF 绑定为 `:ant:` real-trace 定义与蚂蚁对照臂；产出
+  `digital-ant-evidence-bundle.v2.json` + manifest。旧
+  `learned-ant-promotion-evidence.v1` 只作历史输入，不再参与正式 verdict。
   gate 阈值本身 substrate-agnostic（`real_trace_turns>=500`、`validation_delta>=0.02`、
   `strict_eta`/`pe_off`/`eta_off`/`rollback`/`latency`/`safety`）。
 - **可视化（Workstream G，`volvence_ant.viz`）**：
@@ -90,6 +92,28 @@ event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形�
   - **G4 正式**：alarm 通过完整 `AntSession` 闭环验证；直接调用 actuator 只作 unit smoke。
   - 统一脚本 `scripts/run_ant_demos.py` → `research/ant/results/g{2,3,4}_*.json` +
     `research/ant/figures/*.png`（matplotlib 为可选 `viz` extra；缺失时仅跳过图，仍产 JSON）。
+
+### 7.1 公平训练与 checkpoint
+
+- kernel arms 必须在训练地图上从同一个 owner-exported 初始 checkpoint 分叉，再把各臂训练后的
+  checkpoint 导入 held-out 地图评估；禁止在 held-out 地图冷启动后称为 validation。
+- checkpoint 由 `AgentSessionRunner.export_learning_checkpoint` 聚合各 owner 自己发布的
+  temporal/Internal-RL、memory、PE heads、credit heads、regime、dual-track gate 与 reflection
+  immutable state；embodiment 将其视为 opaque value，不遍历或重建 owner 私有状态。
+- rollback drill 必须执行 `export → mutate → restore → fingerprint equality`，同 seed 重跑相同轨迹
+  只能作为 determinism smoke，不能替代 rollback。
+- ACTIVE evidence 必须记录实际 backend wiring。每一候选组件在隔离实验配置中真实
+  `ACTIVE`，后继组件保持 `DISABLED`；证据脚本只给 candidate verdict，不改变生产默认配置。
+
+### 7.2 一键演示与 replay
+
+`scripts/run_ant_pipeline.py` 是统一 DAG 入口：
+
+- `--profile demo --dashboard`：短预算实时 localhost Dashboard，并导出 replay HTML、GIF/MP4、
+  JSON 与 manifest；允许 BLOCK。
+- `--profile formal`：≥5 seeds、train/held-out、完整消融和 ≥500 real turns。
+- 可视化只消费不可变 `AntStepRecord` replay；位置、`z_t`、`β_t`、PE、credit、writeback 与
+  backend wiring 均来自正式 turn 结果，不成为新的 runtime owner 或学习源。
 
 ## 8. 回滚
 

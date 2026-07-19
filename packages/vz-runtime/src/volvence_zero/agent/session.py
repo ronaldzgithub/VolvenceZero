@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 import asyncio
 from dataclasses import dataclass, replace
+import hashlib
 import os
 from typing import Any, TYPE_CHECKING
 
@@ -207,6 +208,22 @@ from volvence_zero.agent.session_lifecycle import SessionLifecycleMixin
 from volvence_zero.agent.session_observation import SessionObservationMixin
 from volvence_zero.agent.session_training_phase import SessionTrainingPhaseMixin
 from volvence_zero.agent.session_writeback_phase import SessionWritebackPhaseMixin
+
+
+@dataclass(frozen=True)
+class AgentLearningCheckpoint:
+    """Opaque aggregate of owner-exported adaptive state for fair evaluation."""
+
+    checkpoint_id: str
+    joint_loop_state: object
+    prediction_state: object
+    credit_state: object
+    regime_state: object
+    dual_track_gate_state: object
+    reflection_state: object
+    temporal_fingerprint: str
+    memory_fingerprint: str
+    fingerprint: str
 
 
 @dataclass(frozen=True)
@@ -847,6 +864,93 @@ class AgentSessionRunner(
         self._publish_session_post_snapshot()
         self._publish_experience_consolidation_snapshot()
         self._publish_experience_fast_prior_snapshot()
+
+    def export_learning_checkpoint(
+        self, *, checkpoint_id: str
+    ) -> AgentLearningCheckpoint:
+        """Aggregate owner-exported state without exposing owner internals."""
+
+        components = (
+            self._joint_loop.create_learning_checkpoint(
+                checkpoint_id="agent-learning"
+            ),
+            self._prediction_module.export_predictive_head_checkpoint(
+                checkpoint_id="agent-learning:prediction"
+            ),
+            self._credit_module.export_persistence_snapshot(),
+            self._regime_module.create_checkpoint(
+                checkpoint_id="agent-learning:regime"
+            ),
+            self._dual_track_gate_learner.export_state(),
+            self._reflection_consolidation_learner.export_state(),
+        )
+        joint_state = components[0]
+        temporal_fingerprint = hashlib.sha256(
+            repr(
+                (
+                    joint_state.world_policy_checkpoint,
+                    joint_state.self_policy_checkpoint,
+                    joint_state.world_temporal_snapshot,
+                    joint_state.self_temporal_snapshot,
+                )
+            ).encode("utf-8")
+        ).hexdigest()
+        memory_fingerprint = hashlib.sha256(
+            repr(joint_state.memory_checkpoint).encode("utf-8")
+        ).hexdigest()
+        fingerprint = hashlib.sha256(repr(components).encode("utf-8")).hexdigest()
+        return AgentLearningCheckpoint(
+            checkpoint_id=checkpoint_id,
+            joint_loop_state=components[0],
+            prediction_state=components[1],
+            credit_state=components[2],
+            regime_state=components[3],
+            dual_track_gate_state=components[4],
+            reflection_state=components[5],
+            temporal_fingerprint=temporal_fingerprint,
+            memory_fingerprint=memory_fingerprint,
+            fingerprint=fingerprint,
+        )
+
+    def restore_learning_checkpoint(
+        self, checkpoint: AgentLearningCheckpoint
+    ) -> tuple[str, ...]:
+        """Restore each adaptive owner through its public owner API."""
+
+        operations = list(
+            self._joint_loop.restore_learning_checkpoint(
+                checkpoint.joint_loop_state
+            )
+        )
+        self._prediction_module.restore_predictive_head_checkpoint(
+            checkpoint.prediction_state
+        )
+        self._credit_module.hydrate_from_persistence(checkpoint.credit_state)
+        self._regime_module.restore_checkpoint(checkpoint.regime_state)
+        self._dual_track_gate_learner.restore_state(
+            checkpoint.dual_track_gate_state
+        )
+        self._reflection_consolidation_learner.restore_state(
+            checkpoint.reflection_state
+        )
+        operations.extend(
+            (
+                "learning-checkpoint:prediction-restored",
+                "learning-checkpoint:credit-restored",
+                "learning-checkpoint:regime-restored",
+                "learning-checkpoint:dual-track-restored",
+                "learning-checkpoint:reflection-restored",
+            )
+        )
+        restored = self.export_learning_checkpoint(
+            checkpoint_id=checkpoint.checkpoint_id
+        )
+        if restored.fingerprint != checkpoint.fingerprint:
+            raise RuntimeError(
+                "learning checkpoint restore fingerprint mismatch: "
+                f"expected={checkpoint.fingerprint}, actual={restored.fingerprint}"
+            )
+        return tuple(operations)
 
     @property
     def session_id(self) -> str:

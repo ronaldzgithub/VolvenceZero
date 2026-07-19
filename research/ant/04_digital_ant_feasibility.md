@@ -138,18 +138,24 @@ step_command = v_t · fixed_step_size
 
 **关于实现方式的补充说明**：这两个函数目前 VZ 里完全不存在,需要新写。且它们**不需要是神经网络**——这不是简化偷懒,而是对应生物学现实：真实蚂蚁的嗅觉受体-小球映射本身也是遗传固定、个体一生不"学习"的（论文 4/5）。这部分代码建议独立于 `vz-substrate` 存放（它是一个不同 embodiment 的 substrate,不该塞进语言模型专用的包里），等 Phase 0/1 验证出结果后再决定是否要往主线迁移或保留为独立研究沙箱。
 
-## 4. 当前差距清单（诚实版,不是营销版）
+## 4. 当前差距清单（2026-07 实现后复核）
 
-1. **VZ 目前没有非 LLM 的 substrate/controller 参考实现**。`vz-temporal` 的 metacontroller 设计目前是围绕 LLM 残差流/latent 空间写的,数字蚂蚁需要一个新的、轻量的、专门针对低维感觉运动向量的 controller 实现——这不是"重用现有代码",是"验证同一套设计原则在一个新的、更简单的 substrate 上是否依然成立"的独立实现。
-2. **缺具身仿真环境**。VZ 当前没有物理/网格仿真环境。需要接入一个轻量环境（2D grid world + 信息素扩散/衰减规则是最便宜的起点,不需要 MuJoCo 级别的物理仿真就能验证核心假设）。
-3. **群体级快照总线是一个新 slot 类型,需要写入 `docs/DATA_CONTRACT.md`**。信息素场是"多写者、只追加、带衰减"的快照,这和现有大部分"单一 owner 发布、多消费者只读"的快照模式不完全一样（这里是多个体都是 writer）,需要显式设计好并发写入语义（比如"每个个体的写入是独立的、不可变的事件,读取时聚合",而不是"多个 writer 互相覆盖同一个字段"）,否则会违反不可变快照的铁律。
-4. **rare-heavy 角色重编程通道目前只存在于"artifact training"的抽象层面,没有针对"个体倾向性初始化"这个具体用例的实现**。需要设计一个简化的、可离线跑的训练循环,产出个体初始化参数,并明确它和 online-fast/session-medium 的边界（不能被运行时误当作可随时调用的旋钮）。
-5. **缺少验证 ground truth**。好消息是这方面昆虫行为学已经提供了几十年的、干净的、可复现的实验范式,可以直接借用作为评估基准,不需要自己发明：
-  - path integration homing 精度（对标 AntBot 论文的定量指标：7cm 误差 / 14m 行程）
-  - 路线学习速度（对标 Ardin 2016：几十次曝光内学会稳定路线识别）
-  - 集体觅食效率随蚁群规模的变化（对标 Bayesian superorganism 论文的选巢址实验范式）
-  - 分工涌现（是否在没有硬编码角色分配的前提下,群体统计上涌现出稳定的角色分布）
-6. **VZ 目前没有把"神经调质式全局基线调制"设计成一等公民**（见反证 4）。数字蚂蚁如果要包含"觅食 vs 警戒"这类全局状态漂移,需要先把这条设计补上,否则会退化成每个模块各自读一个隐式全局变量,违反 SSOT。
+早期版本所列的非 LLM substrate、2D 环境、信息素快照总线和 rare-heavy 离线通道均已实现；
+`AntWorld → AntSession → EnvironmentOutcome → PE/credit` 机制闭环也已打通。当前差距已经从
+“有没有代码”转为“正式行为证据是否成立”：
+
+1. **learned foraging 仍是 BLOCK**：现有多 seed 结果里 learned 与 no-optimize 都没有 held-out
+   delivery 增益，不能把 latent synthetic proof 当作蚂蚁行为 proof。
+2. **公平实验协议刚闭合**：kernel arms 现在按训练地图 → owner checkpoint → held-out 地图运行，
+   并从同一初始 checkpoint 分叉；正式 artifact 需要按新协议重跑。
+3. **四个 torch backend 生产默认仍为 DISABLED**：ant active-evidence 只在隔离候选配置中逐项
+   真正启用并评估，绝不自动 flip 生产默认值。
+4. **生物学量级尚未通过**：AntBot homing 比例仍 BLOCK；Ardin 的 errors-per-route 与 exposure
+   novelty 不同量纲，继续禁止伪造叠图。
+5. **群体与角色 claim 尚未通过**：kernel bus 必须显示多 seed 正增益；rare-heavy 必须在
+   held-out 行为上随压力产生可复现聚类变化，artifact 参数切片不再算 PASS。
+6. **可视化与复现入口已补齐但不改变 verdict**：`scripts/run_ant_pipeline.py` 提供 demo/formal
+   profile；实时 Dashboard、HTML replay、GIF/MP4 和 manifest 全部读取同一不可变 turn replay。
 
 ## 5. 分阶段路线图
 

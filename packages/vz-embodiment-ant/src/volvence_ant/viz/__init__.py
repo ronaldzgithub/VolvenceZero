@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from volvence_ant.viz.bio_overlay import BioOverlayReport, build_bio_overlays
+from volvence_ant.viz.dashboard import LiveAntDashboard, write_replay_dashboard
 from volvence_ant.viz.dual_substrate import (
     DualSubstrateReport,
     SubstrateProbe,
@@ -27,6 +28,8 @@ from volvence_ant.viz.safety_demo import (
 
 __all__ = [
     "DualSubstrateReport",
+    "LiveAntDashboard",
+    "write_replay_dashboard",
     "SubstrateProbe",
     "run_dual_substrate_demo",
     "run_formal_dual_substrate_demo",

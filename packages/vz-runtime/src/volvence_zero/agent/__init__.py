@@ -170,6 +170,7 @@ from volvence_zero.agent.eta_proof_benchmark import (
 )
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseSynthesizer
 from volvence_zero.agent.session import (
+    AgentLearningCheckpoint,
     AgentSessionRunner,
     AgentTurnResult,
     MultiPathBenchmarkReport,
@@ -190,6 +191,7 @@ from volvence_zero.agent.trial import (
 
 __all__ = [
     "AgentResponse",
+    "AgentLearningCheckpoint",
     "AgentSessionRunner",
     "LLMResponseSynthesizer",
     "AgentTurnResult",

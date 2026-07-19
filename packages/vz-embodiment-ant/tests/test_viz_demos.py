@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 
 from volvence_ant.viz.bio_overlay import build_bio_overlays
+from volvence_ant.viz.dashboard import write_replay_dashboard
 from volvence_ant.viz.perturbation import run_perturbation_demo
 from volvence_ant.viz.safety_demo import run_safety_demo
+from volvence_ant.env import AntWorld, AntWorldConfig
+from volvence_ant.runtime import AntSession, AntSessionConfig
 
 
 def test_g2_hardcoded_collapses_and_adaptive_recovers() -> None:
@@ -68,3 +71,21 @@ def test_g4_safety_reflex_is_one_vote_veto() -> None:
     assert report.reflex_step > 0.0
     # and the chaotic controller really could produce non-trivial turns when calm
     assert report.max_calm_turn_magnitude > 0.0
+
+
+async def test_dashboard_is_generated_from_immutable_step_records(
+    tmp_path: Path,
+) -> None:
+    session = AntSession(
+        AntWorld(config=AntWorldConfig(seed=0)),
+        config=AntSessionConfig(seed=0),
+    )
+    records = await session.run(2)
+    path = write_replay_dashboard(
+        tracks={"learned": records},
+        out_path=tmp_path / "dashboard.html",
+    )
+    html = path.read_text(encoding="utf-8")
+    assert "snapshot-driven live evidence" in html
+    assert '"pe_magnitude"' in html
+    assert '"backend_wiring"' in html

@@ -90,6 +90,7 @@ def _pe_off_config(seed: int, n_z: int) -> AntSessionConfig:
 async def main(
     *,
     ticks: int,
+    train_ticks: int,
     seeds: tuple[int, ...],
     n_z: int,
     with_latent: bool,
@@ -98,6 +99,7 @@ async def main(
     _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     config = {
         "ticks": ticks,
+        "train_ticks": train_ticks,
         "seeds": seeds,
         "n_z": n_z,
         "include_e2e_rl": include_e2e_rl,
@@ -128,6 +130,7 @@ async def main(
     report = await run_multiseed_matched_control(
         seeds=seeds,
         ticks=ticks,
+        training_ticks=train_ticks,
         temporal_latent_dim=n_z,
         kernel_arm_factory=lambda seed, dim: _schedule_gated_arms(
             seed=seed, n_z=dim
@@ -169,6 +172,7 @@ async def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ticks", type=int, default=60)
+    parser.add_argument("--train-ticks", type=int, default=200)
     parser.add_argument("--seeds", default="0,1,2,3,4")
     parser.add_argument("--n-z", type=int, default=16)
     parser.add_argument("--with-latent", action="store_true")
@@ -178,6 +182,7 @@ if __name__ == "__main__":
         asyncio.run(
             main(
                 ticks=args.ticks,
+                train_ticks=args.train_ticks,
                 seeds=tuple(int(value) for value in args.seeds.split(",")),
                 n_z=args.n_z,
                 with_latent=args.with_latent,

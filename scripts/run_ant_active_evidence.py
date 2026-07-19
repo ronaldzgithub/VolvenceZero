@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
+from volvence_zero.integration import FinalRolloutConfig
+from volvence_zero.runtime import WiringLevel
 
 from volvence_ant.evidence import (
     collect_ant_active_evidence,
@@ -22,7 +24,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ARTIFACT_NAME = "digital-ant-evidence-bundle.v2.json"
 
 
-def _arm_configs(seed: int, n_z: int) -> dict[str, AntSessionConfig]:
+def _arm_configs(
+    seed: int,
+    n_z: int,
+    component: LearnedBackendComponent,
+) -> dict[str, AntSessionConfig]:
     from volvence_zero.joint_loop import JointLoopSchedule
     from volvence_zero.temporal import (
         LearnedLiteTemporalPolicy,
@@ -31,22 +37,45 @@ def _arm_configs(seed: int, n_z: int) -> dict[str, AntSessionConfig]:
 
     active = JointLoopSchedule(ssl_interval=1, rl_interval=3)
     frozen = JointLoopSchedule(ssl_interval=0, rl_interval=0)
+    order = (
+        LearnedBackendComponent.TEMPORAL_RUNTIME,
+        LearnedBackendComponent.TEMPORAL_SSL,
+        LearnedBackendComponent.INTERNAL_RL,
+        LearnedBackendComponent.CMS_TORCH,
+    )
+    candidate_index = order.index(component)
+    rollout = FinalRolloutConfig()
+    backend_fields = tuple(item.value for item in order)
+    rollout = replace(
+        rollout,
+        **{
+            field_name: (
+                WiringLevel.ACTIVE
+                if index <= candidate_index
+                else WiringLevel.DISABLED
+            )
+            for index, field_name in enumerate(backend_fields)
+        },
+    )
     return {
         "learned": AntSessionConfig(
             temporal_latent_dim=n_z,
             seed=seed,
+            rollout_config=rollout,
             joint_schedule=active,
             joint_apply_writeback=True,
         ),
         "no_optimize": AntSessionConfig(
             temporal_latent_dim=n_z,
             seed=seed,
+            rollout_config=rollout,
             joint_schedule=active,
             joint_apply_writeback=False,
         ),
         "pe_off": AntSessionConfig(
             temporal_latent_dim=n_z,
             seed=seed,
+            rollout_config=rollout,
             joint_schedule=active,
             joint_apply_writeback=True,
             external_prediction_error_drive=False,
@@ -54,6 +83,7 @@ def _arm_configs(seed: int, n_z: int) -> dict[str, AntSessionConfig]:
         "eta_off": AntSessionConfig(
             temporal_latent_dim=n_z,
             seed=seed,
+            rollout_config=rollout,
             joint_schedule=frozen,
             joint_apply_writeback=False,
             temporal_policy=LearnedLiteTemporalPolicy(
@@ -77,6 +107,7 @@ def _rollback_verified() -> bool:
 async def main(
     *,
     trace_turns: int,
+    train_ticks: int,
     ticks: int,
     seeds: tuple[int, ...],
     n_z: int,
@@ -115,9 +146,10 @@ async def main(
             continue
         seed_results = []
         for seed in seeds:
-            configs = _arm_configs(seed, n_z)
+            configs = _arm_configs(seed, n_z, component)
             bundle = await collect_ant_active_evidence(
                 trace_turns=trace_turns,
+                training_ticks=train_ticks,
                 behavioral_ticks=ticks,
                 seed=seed,
                 n_z=n_z,
@@ -198,6 +230,7 @@ async def main(
             seeds=seeds,
             config={
                 "trace_turns": trace_turns,
+                "train_ticks": train_ticks,
                 "ticks": ticks,
                 "n_z": n_z,
                 "with_latent": with_latent,
@@ -216,6 +249,7 @@ async def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--trace-turns", type=int, default=500)
+    parser.add_argument("--train-ticks", type=int, default=200)
     parser.add_argument("--ticks", type=int, default=200)
     parser.add_argument("--seeds", default="0,1,2,3,4")
     parser.add_argument("--n-z", type=int, default=16)
@@ -225,6 +259,7 @@ if __name__ == "__main__":
         asyncio.run(
             main(
                 trace_turns=args.trace_turns,
+                train_ticks=args.train_ticks,
                 ticks=args.ticks,
                 seeds=tuple(int(value) for value in args.seeds.split(",")),
                 n_z=args.n_z,

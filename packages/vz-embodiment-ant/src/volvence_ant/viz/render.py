@@ -97,3 +97,61 @@ def save_trajectory_plot(
     fig.savefig(out_path, dpi=120)
     plt.close(fig)
     return out_path
+
+
+def save_trajectory_animation(
+    *,
+    tracks: list[dict],
+    nest: tuple[float, float],
+    out_path: Path,
+    fps: int = 20,
+) -> Path | None:
+    """Render an immutable trajectory replay to GIF or MP4 when available."""
+
+    plt = _pyplot()
+    if plt is None:
+        return None
+    from matplotlib import animation
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(7.0, 7.0))
+    all_x = [value for track in tracks for value in track["xs"]] or [0.0]
+    all_y = [value for track in tracks for value in track["ys"]] or [0.0]
+    margin = 1.0
+    ax.set_xlim(min(all_x) - margin, max(all_x) + margin)
+    ax.set_ylim(min(all_y) - margin, max(all_y) + margin)
+    ax.set_aspect("equal")
+    ax.set_xlabel("world x")
+    ax.set_ylabel("world y")
+    ax.set_title("Digital-ant immutable trajectory replay")
+    ax.scatter([nest[0]], [nest[1]], marker="s", color="black", label="nest")
+    lines = [
+        ax.plot([], [], label=track["label"], color=track.get("color"))[0]
+        for track in tracks
+    ]
+    ax.legend(loc="best")
+    frame_count = max((len(track["xs"]) for track in tracks), default=0)
+
+    def update(frame_index: int):
+        for line, track in zip(lines, tracks, strict=True):
+            line.set_data(
+                track["xs"][: frame_index + 1],
+                track["ys"][: frame_index + 1],
+            )
+        return tuple(lines)
+
+    replay = animation.FuncAnimation(
+        fig,
+        update,
+        frames=frame_count,
+        interval=1000 / max(fps, 1),
+        blit=True,
+    )
+    if out_path.suffix.lower() == ".mp4" and animation.FFMpegWriter.isAvailable():
+        replay.save(out_path, writer=animation.FFMpegWriter(fps=fps))
+    else:
+        if out_path.suffix.lower() != ".gif":
+            out_path = out_path.with_suffix(".gif")
+        replay.save(out_path, writer=animation.PillowWriter(fps=fps))
+    plt.close(fig)
+    return out_path

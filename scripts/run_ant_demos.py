@@ -25,7 +25,12 @@ from volvence_ant.evidence import collect_ant_provenance, write_ant_artifact_bun
 from volvence_ant.runtime import AntSessionConfig
 from volvence_ant.viz.bio_overlay import build_bio_overlays
 from volvence_ant.viz.perturbation import run_formal_perturbation_demo
-from volvence_ant.viz.render import matplotlib_available
+from volvence_ant.viz.render import (
+    matplotlib_available,
+    save_line_overlay,
+    save_trajectory_animation,
+    save_trajectory_plot,
+)
 from volvence_ant.viz.safety_demo import run_e2e_safety_demo, run_safety_demo
 
 _RESULTS_DIR = Path("research/ant/results")
@@ -72,6 +77,34 @@ async def main() -> int:
         session_config=learned_config,
         figure_path=(_FIGURES_DIR / "g2_perturbation.png") if have_mpl else None
     )
+    g2_tracks = [
+        {
+            "xs": [position[0] for track in arm.tracks for position in track],
+            "ys": [position[1] for track in arm.tracks for position in track],
+            "label": arm.label,
+        }
+        for arm in g2.arms
+    ]
+    g2_trajectory = (
+        save_trajectory_plot(
+            tracks=g2_tracks,
+            food_markers=[],
+            nest=(0.0, 0.0),
+            title="Formal G2 trajectories after food relocation",
+            out_path=_FIGURES_DIR / "g2_trajectories.png",
+        )
+        if have_mpl
+        else None
+    )
+    g2_animation = (
+        save_trajectory_animation(
+            tracks=g2_tracks,
+            nest=(0.0, 0.0),
+            out_path=_FIGURES_DIR / "g2_replay.mp4",
+        )
+        if have_mpl
+        else None
+    )
     _write(
         "g2_perturbation.json",
         {
@@ -89,8 +122,19 @@ async def main() -> int:
                 for arm in g2.arms
             },
             "figure_path": g2.figure_path,
+            "trajectory_figure_path": str(g2_trajectory) if g2_trajectory else None,
+            "animation_path": str(g2_animation) if g2_animation else None,
             "verdict": "PASS" if g2.learned_recovered else "BLOCK",
         },
+        inputs=tuple(
+            path
+            for path in (
+                _FIGURES_DIR / "g2_perturbation.png",
+                g2_trajectory,
+                g2_animation,
+            )
+            if path is not None and path.is_file()
+        ),
     )
     print(f"[G2] learned_recovered={g2.learned_recovered}")
 
@@ -108,9 +152,19 @@ async def main() -> int:
             **asdict(g3),
         },
         inputs=(
+            _RESULTS_DIR / "phase0_homing.json",
+            _RESULTS_DIR / "phase0_route_learning.json",
             _REFERENCE_DIR / "antbot_homing_2019.csv",
             _REFERENCE_DIR / "ardin_route_memory_2016.csv",
             _REFERENCE_DIR / "REFERENCE_METADATA.json",
+            *tuple(
+                path
+                for path in (
+                    Path(g3.homing_figure) if g3.homing_figure else None,
+                    Path(g3.familiarity_figure) if g3.familiarity_figure else None,
+                )
+                if path is not None and path.is_file()
+            ),
         ),
     )
     print(f"[G3] {g3.description}")
@@ -140,6 +194,30 @@ async def main() -> int:
             ),
         )
     )
+    g4_figure = (
+        save_line_overlay(
+            series=[
+                {
+                    "x": [tick.tick for tick in g4.ticks],
+                    "y": [tick.turn_command for tick in g4.ticks],
+                    "label": "turn command",
+                    "style": "-",
+                },
+                {
+                    "x": [tick.tick for tick in g4.ticks],
+                    "y": [tick.alarm for tick in g4.ticks],
+                    "label": "alarm",
+                    "style": ".",
+                },
+            ],
+            x_label="tick",
+            y_label="command / alarm",
+            title="G4 safety veto under chaotic controller code",
+            out_path=_FIGURES_DIR / "g4_safety_veto.png",
+        )
+        if have_mpl
+        else None
+    )
     _write(
         "g4_safety_reflex.json",
         {
@@ -155,12 +233,14 @@ async def main() -> int:
             "reflex_ignores_code": g4.reflex_ignores_code,
             "max_calm_turn_magnitude": g4.max_calm_turn_magnitude,
             "e2e": asdict(g4_e2e),
+            "figure_path": str(g4_figure) if g4_figure else None,
             "verdict": (
                 "PASS"
                 if g4_e2e.all_states_vetoed and g4.reflex_ignores_code
                 else "BLOCK"
             ),
         },
+        inputs=(g4_figure,) if g4_figure is not None else (),
     )
     print(f"[G4] {g4.description}")
 

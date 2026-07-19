@@ -163,6 +163,15 @@ Environment Interface 是运行时外侧的边界协议，不是新的 kernel ow
 
 **详细 schema**：见 `docs/DATA_CONTRACT.md`
 
+### 公平评估 checkpoint（out-of-turn）
+
+`AgentSessionRunner.export_learning_checkpoint()` / `restore_learning_checkpoint()` 是 runtime
+编排 facade 的 out-of-turn bounded transfer：runner 只聚合各 owner 自己导出的
+temporal/Internal-RL、memory、PE、credit、regime、dual-track gate 与 reflection frozen state，
+消费者将 aggregate checkpoint 视为 opaque value。它不是 runtime slot，不进入 turn dependency DAG，
+也不允许消费者从 replay snapshot 反建 owner 状态。用途仅限 matched-control 分叉、held-out replay
+与 rollback drill。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
@@ -172,6 +181,7 @@ Environment Interface 是运行时外侧的边界协议，不是新的 kernel ow
 
 ## 变更日志
 
+- 2026-07-19: 新增 session aggregate learning checkpoint facade，用于共享初始状态的公平 held-out 分叉；所有状态仍由原 owner export/restore。
 - 2026-04-25: 同步当前 runtime kernel 口径：模块基类为 `RuntimeModule`，`propagate(auto_sort=True)` 默认拓扑排序且 cycle 时回退输入顺序；补充 adaptive owners 默认 `SHADOW` 接线
 - 2026-04-25: 补充 `response_assembly.expression_intent` 口径：表达层由 owner 发布是否需要 judgment-process 式回答，prompt 只消费该公共约束。
 - 2026-04-25: 升级 `response_assembly.speech_plan`：由 assembly owner 发布 cue / inferred_need / response_adjustment / question_budget，`GenerationConstraints` 在 question_budget 为 0 时裁掉中英文尾问。

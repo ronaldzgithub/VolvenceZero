@@ -27,6 +27,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 async def main(*, n_ants: int, rounds: int, seeds: tuple[int, ...]) -> int:
+    from volvence_zero.joint_loop import JointLoopSchedule
+
     _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     reports = []
     fixed_baselines = []
@@ -40,6 +42,11 @@ async def main(*, n_ants: int, rounds: int, seeds: tuple[int, ...]) -> int:
                     temporal_latent_dim=16,
                     session_id=f"formal-kernel-colony:{seed}",
                     seed=seed,
+                    joint_schedule=JointLoopSchedule(
+                        ssl_interval=1,
+                        rl_interval=3,
+                    ),
+                    joint_apply_writeback=True,
                 ),
             )
         )

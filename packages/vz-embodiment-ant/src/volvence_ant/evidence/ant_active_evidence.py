@@ -29,6 +29,7 @@ from volvence_zero.agent.learned_active_gate import (
 )
 
 from volvence_ant.env.ant_world import AntWorld, AntWorldConfig, FoodSource
+from volvence_ant.proofs.matched_control import run_behavioral_matched_control
 from volvence_ant.runtime.ant_session import AntSession, AntSessionConfig
 
 _LATENCY_SLO_S = 5.0
@@ -52,31 +53,6 @@ def _world(seed: int) -> AntWorld:
     )
 
 
-@dataclass(frozen=True)
-class _ArmOutcome:
-    delivered: int
-    pickups: int
-    delivery_rate: float
-    switch_count: int
-
-
-async def _run_arm(
-    *,
-    seed: int,
-    ticks: int,
-    config: AntSessionConfig,
-) -> _ArmOutcome:
-    world = _world(seed)
-    session = AntSession(world, config=config)
-    records = await session.run(ticks)
-    return _ArmOutcome(
-        delivered=world.food_delivered,
-        pickups=world.food_pickups,
-        delivery_rate=world.food_delivered / max(ticks, 1),
-        switch_count=sum(record.switch_gate >= 0.5 for record in records),
-    )
-
-
 async def _real_trace_lane(
     *,
     seed: int,
@@ -97,18 +73,21 @@ async def _real_trace_lane(
 
 
 async def _rollback_drill(*, seed: int, ticks: int, n_z: int) -> bool:
-    """Two fresh same-seed sessions must reproduce identically (roll-back baseline)."""
+    """Mutate owner state, restore it, and verify the exported fingerprint."""
 
-    def _codes(records) -> list[tuple[float, ...]]:
-        return [tuple(round(c, 6) for c in r.code) for r in records]
-
-    world_a = _world(seed)
-    session_a = AntSession(world_a, config=AntSessionConfig(temporal_latent_dim=n_z, seed=seed))
-    records_a = await session_a.run(ticks)
-    world_b = _world(seed)
-    session_b = AntSession(world_b, config=AntSessionConfig(temporal_latent_dim=n_z, seed=seed))
-    records_b = await session_b.run(ticks)
-    return _codes(records_a) == _codes(records_b)
+    session = AntSession(
+        _world(seed),
+        config=AntSessionConfig(
+            temporal_latent_dim=n_z,
+            seed=seed,
+            joint_apply_writeback=True,
+        ),
+    )
+    initial = session.export_learning_checkpoint(checkpoint_id="rollback-drill")
+    await session.run(ticks)
+    session.restore_learning_checkpoint(initial)
+    restored = session.export_learning_checkpoint(checkpoint_id="rollback-drill")
+    return restored.fingerprint == initial.fingerprint
 
 
 async def _safety_drill(*, seed: int, config: AntSessionConfig) -> bool:
@@ -131,6 +110,7 @@ async def _safety_drill(*, seed: int, config: AntSessionConfig) -> bool:
 async def collect_ant_active_evidence(
     *,
     trace_turns: int = 30,
+    training_ticks: int = 0,
     behavioral_ticks: int = 40,
     seed: int = 0,
     n_z: int = 4,
@@ -166,40 +146,43 @@ async def collect_ant_active_evidence(
     )
     latency_slo_ok = mean_latency <= _LATENCY_SLO_S
 
-    # --- behavioural arms for validation delta + directional controls ---
-    learned = await _run_arm(
-        seed=seed,
+    # --- fair train -> owner checkpoint -> held-out behavioural arms ---
+    extra_arms = {"no_optimize": no_optimize_cfg}
+    if eta_off_config is not None:
+        extra_arms["eta_off"] = eta_off_config
+    report = await run_behavioral_matched_control(
         ticks=behavioral_ticks,
-        config=learned_cfg,
-    )
-    no_optimize = await _run_arm(
+        training_ticks=training_ticks,
         seed=seed,
-        ticks=behavioral_ticks,
-        config=no_optimize_cfg,
+        temporal_latent_dim=n_z,
+        learned_config=learned_cfg,
+        pe_off_config=pe_off_cfg,
+        extra_kernel_arms=extra_arms,
     )
-    pe_off = await _run_arm(
-        seed=seed,
-        ticks=behavioral_ticks,
-        config=pe_off_cfg,
-    )
-    eta_off = (
-        await _run_arm(
-            seed=seed,
-            ticks=behavioral_ticks,
-            config=eta_off_config,
-        )
-        if eta_off_config is not None
-        else None
-    )
-    validation_delta = learned.delivery_rate - no_optimize.delivery_rate
+    by_arm = {arm.arm: arm for arm in report.arms}
+    learned = by_arm["learned"]
+    no_optimize = by_arm["no_optimize"]
+    pe_off = by_arm["pe_off"]
+    eta_off = by_arm.get("eta_off")
+    validation_delta = (
+        learned.food_delivered - no_optimize.food_delivered
+    ) / max(behavioral_ticks, 1)
     pe_off_direction_correct = (
-        learned.delivery_rate >= pe_off.delivery_rate
-        and learned.pickups >= pe_off.pickups
+        learned.food_delivered >= pe_off.food_delivered
+        and learned.food_pickups >= pe_off.food_pickups
+        and (
+            learned.food_delivered > pe_off.food_delivered
+            or learned.food_pickups > pe_off.food_pickups
+        )
     )
     eta_off_direction_correct = bool(
         eta_off is not None
-        and learned.delivery_rate >= eta_off.delivery_rate
-        and learned.pickups >= eta_off.pickups
+        and learned.food_delivered >= eta_off.food_delivered
+        and learned.food_pickups >= eta_off.food_pickups
+        and (
+            learned.food_delivered > eta_off.food_delivered
+            or learned.food_pickups > eta_off.food_pickups
+        )
     )
 
     # --- strict-ETA proof (reused, torch) ---
@@ -207,6 +190,8 @@ async def collect_ant_active_evidence(
         eta_off is not None
         and learned.switch_count > eta_off.switch_count
         and eta_off_direction_correct
+        and learned.temporal_parameters_changed
+        and not no_optimize.temporal_parameters_changed
     )
     latent_desc = "skipped"
     if with_latent:
@@ -233,7 +218,7 @@ async def collect_ant_active_evidence(
         strict_eta_gate_passed=strict_eta_passed,
         pe_off_control_direction_correct=pe_off_direction_correct,
         eta_off_control_direction_correct=eta_off_direction_correct,
-        rollback_drill_passed=rollback_drill_passed,
+        rollback_drill_passed=reproducible_baseline,
         latency_slo_ok=latency_slo_ok,
         safety_gate_ok=safety_ok,
         prior_runtime_active=prior_runtime_active,
@@ -247,6 +232,22 @@ async def collect_ant_active_evidence(
         "pe_off": asdict(pe_off),
         "eta_off": asdict(eta_off) if eta_off is not None else None,
         "validation_delta": validation_delta,
+        "training_ticks": training_ticks,
+        "held_out_ticks": behavioral_ticks,
+        "train_eval_isolated": True,
+        "backend_wiring": {
+            "temporal_runtime_backend": learned_cfg.rollout_config.temporal_runtime_backend.value,
+            "temporal_ssl_backend": learned_cfg.rollout_config.temporal_ssl_backend.value,
+            "internal_rl_backend": learned_cfg.rollout_config.internal_rl_backend.value,
+            "cms_torch_backend": learned_cfg.rollout_config.cms_torch_backend.value,
+        }
+        if learned_cfg.rollout_config is not None
+        else {
+            "temporal_runtime_backend": "disabled",
+            "temporal_ssl_backend": "disabled",
+            "internal_rl_backend": "disabled",
+            "cms_torch_backend": "disabled",
+        },
         "latent_desc": latent_desc,
         "trace_turns_requested": trace_turns,
         "substrate": "digital-ant-v0",
@@ -254,5 +255,6 @@ async def collect_ant_active_evidence(
         "strict_eta_source": "ant-task-arms",
         "generic_latent_proof_reference_only": latent_desc,
         "reproducible_baseline": reproducible_baseline,
+        "legacy_external_rollback_claim": rollback_drill_passed,
     }
     return AntActiveEvidenceBundle(evidence=evidence, verdict=verdict, metrics=metrics)

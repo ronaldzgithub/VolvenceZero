@@ -54,6 +54,21 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）这几条分层原理
 - `scripts/run_ant_caste.py` — Phase 2：离线角色重编程（`allow_offline=True`）。
 - `scripts/run_ant_demos.py` — G2/G3/G4：扰动对比 / 生物学叠图 / 安全反射一票否决。
 
+推荐从统一入口运行：
+
+```bash
+# 快速现场演示：打开本地 Dashboard，并导出 HTML/GIF 或 MP4/JSON/manifest
+python scripts/run_ant_pipeline.py --profile demo --dashboard
+
+# 正式多 seed 证据；G1 需要显式提供本地 HF 模型
+python scripts/run_ant_pipeline.py --profile formal --model-id /path/to/local/model
+```
+
+`demo` 与 `formal` 都会诚实保留 `PASS/BLOCK`；脚本不会自动修改生产
+`FinalRolloutConfig`。正式 learned 对照采用训练地图 → owner checkpoint →
+held-out 地图，所有消融臂从同一初始 checkpoint 分叉。实时 Dashboard 和录制
+只消费不可变 `AntStepRecord` replay，不读取内核 owner 私有状态。
+
 可视化图需可选 extra：`pip install -e packages/vz-embodiment-ant[viz]`（缺失时仍产 JSON，仅跳过 PNG）。
 
 详见 `docs/specs/digital-ant-embodiment.md` 与 `research/ant/04_digital_ant_feasibility.md`。

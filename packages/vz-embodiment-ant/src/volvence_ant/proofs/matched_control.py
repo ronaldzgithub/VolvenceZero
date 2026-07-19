@@ -30,7 +30,11 @@ from volvence_ant.controllers.e2e_rl_ant import E2ERLAnt, PPOConfig
 from volvence_ant.controllers.fixed_rule_ant import FixedRuleAnt, FixedRuleConfig
 from volvence_ant.controllers.random_ant import RandomAnt
 from volvence_ant.env.ant_world import AntWorld, AntWorldConfig, FoodSource
-from volvence_ant.runtime.ant_session import AntSession, AntSessionConfig
+from volvence_ant.runtime.ant_session import (
+    AntLearningCheckpoint,
+    AntSession,
+    AntSessionConfig,
+)
 
 
 @dataclass(frozen=True)
@@ -44,6 +48,12 @@ class ArmMetrics:
     max_distance_from_nest: float
     final_distance_from_nest: float
     held_out_success: bool
+    switch_count: int = 0
+    initial_checkpoint_fingerprint: str | None = None
+    trained_checkpoint_fingerprint: str | None = None
+    parameters_changed: bool = False
+    temporal_parameters_changed: bool = False
+    memory_state_changed: bool = False
 
 
 @dataclass(frozen=True)
@@ -88,7 +98,14 @@ def _training_world(seed: int) -> AntWorld:
 
 
 def _metrics_from_positions(
-    *, arm: str, world: AntWorld, positions: list[tuple[float, float]], ticks: int
+    *,
+    arm: str,
+    world: AntWorld,
+    positions: list[tuple[float, float]],
+    ticks: int,
+    initial_checkpoint: AntLearningCheckpoint | None = None,
+    trained_checkpoint: AntLearningCheckpoint | None = None,
+    switch_count: int = 0,
 ) -> ArmMetrics:
     nest = world.nest
     foods = [world.food_intensity(x, y) for (x, y) in positions] or [0.0]
@@ -104,17 +121,64 @@ def _metrics_from_positions(
         max_distance_from_nest=float(max(distances)),
         final_distance_from_nest=float(final),
         held_out_success=world.food_delivered > 0,
+        switch_count=switch_count,
+        initial_checkpoint_fingerprint=(
+            initial_checkpoint.fingerprint if initial_checkpoint is not None else None
+        ),
+        trained_checkpoint_fingerprint=(
+            trained_checkpoint.fingerprint if trained_checkpoint is not None else None
+        ),
+        parameters_changed=bool(
+            initial_checkpoint is not None
+            and trained_checkpoint is not None
+            and initial_checkpoint.fingerprint != trained_checkpoint.fingerprint
+        ),
+        temporal_parameters_changed=bool(
+            initial_checkpoint is not None
+            and trained_checkpoint is not None
+            and initial_checkpoint.temporal_fingerprint
+            != trained_checkpoint.temporal_fingerprint
+        ),
+        memory_state_changed=bool(
+            initial_checkpoint is not None
+            and trained_checkpoint is not None
+            and initial_checkpoint.memory_fingerprint
+            != trained_checkpoint.memory_fingerprint
+        ),
     )
 
 
 async def _run_kernel_arm(
-    *, arm: str, seed: int, ticks: int, session_config: AntSessionConfig
+    *,
+    arm: str,
+    seed: int,
+    ticks: int,
+    training_ticks: int,
+    session_config: AntSessionConfig,
+    initial_checkpoint: AntLearningCheckpoint,
 ) -> ArmMetrics:
+    training_session = AntSession(_training_world(seed), config=session_config)
+    training_session.restore_learning_checkpoint(initial_checkpoint)
+    if training_ticks > 0:
+        await training_session.run(training_ticks)
+    trained_checkpoint = training_session.export_learning_checkpoint(
+        checkpoint_id=f"{arm}:{seed}:trained"
+    )
+
     world = _default_world(seed)
     session = AntSession(world, config=session_config)
+    session.restore_learning_checkpoint(trained_checkpoint)
     records = await session.run(ticks)
     positions = [(r.x, r.y) for r in records]
-    return _metrics_from_positions(arm=arm, world=world, positions=positions, ticks=ticks)
+    return _metrics_from_positions(
+        arm=arm,
+        world=world,
+        positions=positions,
+        ticks=ticks,
+        initial_checkpoint=initial_checkpoint,
+        trained_checkpoint=trained_checkpoint,
+        switch_count=sum(record.switch_gate >= 0.5 for record in records),
+    )
 
 
 def _run_fixed_rule_arm(*, seed: int, ticks: int) -> ArmMetrics:
@@ -161,6 +225,7 @@ def _run_e2e_arm(
 async def run_behavioral_matched_control(
     *,
     ticks: int = 60,
+    training_ticks: int = 0,
     seed: int = 0,
     temporal_latent_dim: int = 4,
     learned_config: AntSessionConfig | None = None,
@@ -178,19 +243,50 @@ async def run_behavioral_matched_control(
         temporal_latent_dim=temporal_latent_dim,
         seed=seed,
         external_prediction_error_drive=True,
+        joint_apply_writeback=True,
     )
-    arms.append(await _run_kernel_arm(arm="learned", seed=seed, ticks=ticks, session_config=learned_cfg))
+    bootstrap = AntSession(_training_world(seed), config=learned_cfg)
+    initial_checkpoint = bootstrap.export_learning_checkpoint(
+        checkpoint_id=f"shared-initial:{seed}"
+    )
+    arms.append(
+        await _run_kernel_arm(
+            arm="learned",
+            seed=seed,
+            ticks=ticks,
+            training_ticks=training_ticks,
+            session_config=learned_cfg,
+            initial_checkpoint=initial_checkpoint,
+        )
+    )
 
     pe_off_cfg = pe_off_config or AntSessionConfig(
         temporal_latent_dim=temporal_latent_dim,
         seed=seed,
         external_prediction_error_drive=False,
+        joint_apply_writeback=True,
     )
-    arms.append(await _run_kernel_arm(arm="pe_off", seed=seed, ticks=ticks, session_config=pe_off_cfg))
+    arms.append(
+        await _run_kernel_arm(
+            arm="pe_off",
+            seed=seed,
+            ticks=ticks,
+            training_ticks=training_ticks,
+            session_config=pe_off_cfg,
+            initial_checkpoint=initial_checkpoint,
+        )
+    )
 
     for arm_name, cfg in (extra_kernel_arms or {}).items():
         arms.append(
-            await _run_kernel_arm(arm=arm_name, seed=seed, ticks=ticks, session_config=cfg)
+            await _run_kernel_arm(
+                arm=arm_name,
+                seed=seed,
+                ticks=ticks,
+                training_ticks=training_ticks,
+                session_config=cfg,
+                initial_checkpoint=initial_checkpoint,
+            )
         )
 
     arms.append(_run_fixed_rule_arm(seed=seed, ticks=ticks))
@@ -241,6 +337,7 @@ async def run_multiseed_matched_control(
     *,
     seeds: tuple[int, ...],
     ticks: int,
+    training_ticks: int = 0,
     temporal_latent_dim: int,
     kernel_arm_factory: Callable[[int, int], dict[str, AntSessionConfig]],
     learned_config_factory: Callable[[int, int], AntSessionConfig] | None = None,
@@ -256,6 +353,7 @@ async def run_multiseed_matched_control(
         reports.append(
             await run_behavioral_matched_control(
                 ticks=ticks,
+                training_ticks=training_ticks,
                 seed=seed,
                 temporal_latent_dim=temporal_latent_dim,
                 learned_config=(

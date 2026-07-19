@@ -20,14 +20,17 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult
+from volvence_zero.agent.session import (
+    AgentLearningCheckpoint,
+    AgentSessionRunner,
+    AgentTurnResult,
+)
 from volvence_zero.environment import (
     EnvironmentEventKind,
     EnvironmentMeasurement,
     EnvironmentOutcome,
 )
 from volvence_zero.integration import FinalRolloutConfig
-from volvence_zero.runtime import stable_value_hash
 from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
 from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
@@ -41,18 +44,7 @@ class AntSessionError(RuntimeError):
     """The kernel turn did not expose the state the embodiment requires."""
 
 
-@dataclass(frozen=True)
-class AntLearningCheckpoint:
-    """Opaque owner-exported state used for fair ant train/eval branches.
-
-    The embodiment never reconstructs kernel state.  Each owner exports and
-    restores its own immutable checkpoint through the runtime facade.
-    """
-
-    checkpoint_id: str
-    temporal_state: object
-    memory_state: object
-    fingerprint: str
+AntLearningCheckpoint = AgentLearningCheckpoint
 
 
 @dataclass
@@ -90,11 +82,26 @@ class AntStepRecord:
     command: AntMotorCommand
     code: tuple[float, ...]
     switch_gate: float
+    is_switching: bool
+    steps_since_switch: int
+    closed_segment_count: int
     abstract_action: str
     homing_direction_error: float
     homing_distance_error: float
     environment_outcome_id: str
     prediction_id: str
+    pe_magnitude: float
+    pe_bootstrap: bool
+    signed_reward: float
+    cumulative_credit: float
+    memory_entries_total: int
+    memory_pending_promotions: int
+    memory_pending_decays: int
+    cms_total_observations: int
+    bounded_writeback_applied: bool
+    joint_schedule_action: str
+    writeback_operations: tuple[str, ...]
+    backend_wiring: tuple[tuple[str, str], ...]
 
 
 class AntSession:
@@ -152,36 +159,15 @@ class AntSession:
         self.runner = AgentSessionRunner(**runner_kwargs)
         self.trajectory: list[AntStepRecord] = []
 
-    def export_learning_checkpoint(self, *, checkpoint_id: str) -> AntLearningCheckpoint:
-        temporal_state = (
-            self.runner.world_temporal_policy.parameter_store.export_parameter_snapshot()
-        )
-        memory_state = self.runner.memory_store.create_checkpoint(
-            checkpoint_id=f"{checkpoint_id}:memory"
-        )
-        fingerprint = stable_value_hash((temporal_state, memory_state))
-        return AntLearningCheckpoint(
-            checkpoint_id=checkpoint_id,
-            temporal_state=temporal_state,
-            memory_state=memory_state,
-            fingerprint=fingerprint,
-        )
+    def export_learning_checkpoint(
+        self, *, checkpoint_id: str
+    ) -> AgentLearningCheckpoint:
+        return self.runner.export_learning_checkpoint(checkpoint_id=checkpoint_id)
 
-    def restore_learning_checkpoint(self, checkpoint: AntLearningCheckpoint) -> None:
-        world_store = self.runner.world_temporal_policy.parameter_store
-        world_store.restore_parameter_snapshot(checkpoint.temporal_state)
-        self_store = self.runner.self_temporal_policy.parameter_store
-        if self_store is not world_store:
-            self_store.restore_parameter_snapshot(checkpoint.temporal_state)
-        self.runner.memory_store.restore_checkpoint(checkpoint.memory_state)
-        restored = self.export_learning_checkpoint(
-            checkpoint_id=checkpoint.checkpoint_id
-        )
-        if restored.fingerprint != checkpoint.fingerprint:
-            raise AntSessionError(
-                "learning checkpoint restore changed owner-exported state: "
-                f"expected={checkpoint.fingerprint}, actual={restored.fingerprint}"
-            )
+    def restore_learning_checkpoint(
+        self, checkpoint: AgentLearningCheckpoint
+    ) -> None:
+        self.runner.restore_learning_checkpoint(checkpoint)
 
     def _adapter_factory(self, user_input: str, turn_index: int) -> AntSubstrateAdapter:
         return AntSubstrateAdapter(self.holder)
@@ -228,6 +214,28 @@ class AntSession:
             prediction_id=prediction_id,
         )
         self.runner.submit_environment_outcome(environment_outcome)
+        prediction_error = result.prediction_error
+        temporal_snapshot = result.active_snapshots["temporal_abstraction"].value
+        prediction_error_snapshot = result.active_snapshots.get("prediction_error")
+        credit_snapshot = result.active_snapshots.get("credit")
+        memory_snapshot = result.active_snapshots.get("memory")
+        cumulative_credit = (
+            sum(value for _, value in credit_snapshot.value.cumulative_credit_by_level)
+            if credit_snapshot is not None
+            else 0.0
+        )
+        memory_value = memory_snapshot.value if memory_snapshot is not None else None
+        memory_entries_total = (
+            sum(value for _, value in memory_value.total_entries_by_stratum)
+            if memory_value is not None
+            else 0
+        )
+        cms_total_observations = (
+            memory_value.cms_state.total_observations
+            if memory_value is not None and memory_value.cms_state is not None
+            else 0
+        )
+        rollout = self.runner.rollout_config
         body = self.world.body(self._body_id)
         record = AntStepRecord(
             tick=self.world.tick,
@@ -241,11 +249,41 @@ class AntSession:
             command=command,
             code=code,
             switch_gate=switch_gate,
+            is_switching=temporal_snapshot.controller_state.is_switching,
+            steps_since_switch=temporal_snapshot.controller_state.steps_since_switch,
+            closed_segment_count=len(temporal_snapshot.closed_segments),
             abstract_action=abstract_action,
             homing_direction_error=self._homing_direction_error(observation, nav_state),
             homing_distance_error=abs(nav_state.home_distance - observation.eval_home_distance),
             environment_outcome_id=environment_outcome.outcome_id,
             prediction_id=prediction_id,
+            pe_magnitude=prediction_error.magnitude if prediction_error is not None else 0.0,
+            pe_bootstrap=(
+                prediction_error_snapshot.value.bootstrap
+                if prediction_error_snapshot is not None
+                else True
+            ),
+            signed_reward=(
+                prediction_error.signed_reward if prediction_error is not None else 0.0
+            ),
+            cumulative_credit=float(cumulative_credit),
+            memory_entries_total=memory_entries_total,
+            memory_pending_promotions=(
+                memory_value.pending_promotions if memory_value is not None else 0
+            ),
+            memory_pending_decays=(
+                memory_value.pending_decays if memory_value is not None else 0
+            ),
+            cms_total_observations=cms_total_observations,
+            bounded_writeback_applied=result.bounded_writeback_applied,
+            joint_schedule_action=result.joint_schedule_action,
+            writeback_operations=result.writeback_operations,
+            backend_wiring=(
+                ("temporal_runtime_backend", rollout.temporal_runtime_backend.value),
+                ("temporal_ssl_backend", rollout.temporal_ssl_backend.value),
+                ("internal_rl_backend", rollout.internal_rl_backend.value),
+                ("cms_torch_backend", rollout.cms_torch_backend.value),
+            ),
         )
         self.holder.update(
             observation=observation, navigator_state=nav_state, step=self.world.tick

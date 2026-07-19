@@ -327,6 +327,33 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     def residual_runtime(self) -> OpenWeightResidualRuntime | None:
         return self._residual_runtime
 
+    def create_learning_checkpoint(
+        self, *, checkpoint_id: str
+    ) -> RareHeavyImportCheckpoint:
+        """Export owner-held online learning state for fair held-out branches."""
+
+        return RareHeavyImportCheckpoint(
+            artifact_id=checkpoint_id,
+            world_policy_checkpoint=self._world_sandbox.create_checkpoint(
+                checkpoint_id=f"{checkpoint_id}:world-policy"
+            ),
+            self_policy_checkpoint=self._self_sandbox.create_checkpoint(
+                checkpoint_id=f"{checkpoint_id}:self-policy"
+            ),
+            world_temporal_snapshot=self._world_policy.export_rare_heavy_snapshot(),
+            self_temporal_snapshot=self._self_policy.export_rare_heavy_snapshot(),
+            memory_checkpoint=self._memory_store.create_checkpoint(
+                checkpoint_id=f"{checkpoint_id}:memory"
+            ),
+        )
+
+    def restore_learning_checkpoint(
+        self, checkpoint: RareHeavyImportCheckpoint
+    ) -> tuple[str, ...]:
+        """Restore a checkpoint created by :meth:`create_learning_checkpoint`."""
+
+        return self.rollback_rare_heavy_import(checkpoint)
+
     @property
     def ssl_backend(self):
         """Deploy-wiring readout: the SSL trainer's torch backend level."""

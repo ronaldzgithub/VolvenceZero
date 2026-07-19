@@ -108,6 +108,7 @@ async def _formal_rare_heavy(
 
     refs = []
     artifacts = []
+    probes: list[RoleProbe] = []
     rollback_verified = True
     for individual_id in range(n_individuals):
         trace = await _trace_for_pressure(
@@ -130,8 +131,14 @@ async def _formal_rare_heavy(
             artifact_id=f"ant:{pressure.label}:individual:{individual_id}",
             include_substrate=False,
         )
+        held_out_world = AntWorld(
+            config=AntWorldConfig(seed=10_000 + seed + individual_id),
+            food_sources=(
+                FoodSource(x=5.0, y=0.0, strength=1.0, decay=4.0),
+            ),
+        )
         session = AntSession(
-            AntWorld(config=AntWorldConfig(seed=seed + individual_id)),
+            held_out_world,
             config=AntSessionConfig(
                 temporal_latent_dim=16,
                 session_id=f"rare-heavy-review:{individual_id}",
@@ -141,6 +148,19 @@ async def _formal_rare_heavy(
         )
         review = session.runner.review_rare_heavy_artifact(artifact)
         applied = session.runner.apply_rare_heavy_artifact(artifact)
+        records = await session.run(40)
+        distances = tuple(float(np.hypot(record.x, record.y)) for record in records)
+        probes.append(
+            RoleProbe(
+                individual_id=individual_id,
+                trajectory_radius=max(distances, default=0.0),
+                trail_reliance=sum(record.switch_gate for record in records)
+                / max(len(records), 1),
+                discovery_contribution=held_out_world.food_pickups
+                / max(len(records), 1),
+                patrol_contribution=float(np.std(distances)) if distances else 0.0,
+            )
+        )
         rollback = session.runner.rollback_rare_heavy_import(applied.checkpoint)
         rollback_verified = rollback_verified and bool(rollback)
         refs.append(
@@ -157,32 +177,6 @@ async def _formal_rare_heavy(
             )
         )
         artifacts.append(artifact)
-    # Held-out behavioral probes are computed from artifact parameters only as
-    # readouts; labels are never passed into training or runtime initialization.
-    probes = []
-    for individual_id, artifact in enumerate(artifacts):
-        snapshot = artifact.temporal_snapshot
-        vector = np.asarray(
-            (
-                *snapshot.latent_mean,
-                *snapshot.latent_scale,
-                *snapshot.decoder_control,
-            ),
-            dtype=float,
-        )
-        radius = float(np.linalg.norm(vector[:4]))
-        trail = float(abs(vector[4 % len(vector)]))
-        discovery = float(abs(vector[5 % len(vector)]))
-        patrol = float(abs(vector[6 % len(vector)]))
-        probes.append(
-            RoleProbe(
-                individual_id=individual_id,
-                trajectory_radius=radius,
-                trail_reliance=trail,
-                discovery_contribution=discovery,
-                patrol_contribution=patrol,
-            )
-        )
     return (
         ColonyRareHeavyBundle(
             schema_version="digital-ant-colony-rare-heavy.v1",
@@ -229,10 +223,22 @@ async def main(*, n_individuals: int, rounds: int, seed: int) -> int:
             "non_degenerate": all(value > 0 for value in counts.values()),
             "clustering_error": clustering_error,
         }
+    role_signatures = {
+        tuple(sorted(lane["role_counts"].items())) for lane in formal.values()
+    }
+    radius_means = [
+        float(np.mean([probe["trajectory_radius"] for probe in lane["probes"]]))
+        for lane in formal.values()
+    ]
+    pressure_sensitive = (
+        len(role_signatures) > 1
+        and max(radius_means, default=0.0) - min(radius_means, default=0.0) > 1e-6
+    )
     payload = {
         "artifact_kind": "digital-ant-rare-heavy-roles",
         "experiment": "phase2_caste_reprogramming",
         "formal_rare_heavy": formal,
+        "pressure_sensitive_held_out_behavior": pressure_sensitive,
         "legacy_fixed_rule_grid": {
             "description": result.description,
             "role_shift_monotone": result.role_shift_monotone,
@@ -248,6 +254,7 @@ async def main(*, n_individuals: int, rounds: int, seed: int) -> int:
                 lane["non_degenerate"] and lane["bundle"]["rollback_verified"]
                 for lane in formal.values()
             )
+            and pressure_sensitive
             else "BLOCK"
         ),
     }
