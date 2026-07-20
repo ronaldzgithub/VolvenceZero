@@ -48,20 +48,15 @@ class KernelColonyRunner:
                     compass_noise=base_config.compass_noise,
                     code_gain=base_config.code_gain,
                     rollout_config=base_config.rollout_config,
-                    external_prediction_error_drive=(
-                        base_config.external_prediction_error_drive
-                    ),
+                    external_prediction_error_drive=(base_config.external_prediction_error_drive),
                     rare_heavy_enabled=base_config.rare_heavy_enabled,
                     joint_schedule=base_config.joint_schedule,
                     joint_apply_writeback=base_config.joint_apply_writeback,
-                    joint_apply_policy_optimization=(
-                        base_config.joint_apply_policy_optimization
-                    ),
+                    joint_apply_policy_optimization=(base_config.joint_apply_policy_optimization),
                     temporal_policy=base_config.temporal_policy,
-                    allow_live_substrate_mutation=(
-                        base_config.allow_live_substrate_mutation
-                    ),
+                    allow_live_substrate_mutation=(base_config.allow_live_substrate_mutation),
                     objective=base_config.objective,
+                    sense_schema=base_config.sense_schema,
                 ),
                 body_id=body_id,
             )
@@ -69,23 +64,16 @@ class KernelColonyRunner:
         )
         self.rounds: list[ColonyRoundRecord] = []
 
-    def export_learning_checkpoints(
-        self, *, checkpoint_prefix: str
-    ) -> tuple[AntLearningCheckpoint, ...]:
+    def export_learning_checkpoints(self, *, checkpoint_prefix: str) -> tuple[AntLearningCheckpoint, ...]:
         return tuple(
-            session.export_learning_checkpoint(
-                checkpoint_id=f"{checkpoint_prefix}:body:{body_id}"
-            )
+            session.export_learning_checkpoint(checkpoint_id=f"{checkpoint_prefix}:body:{body_id}")
             for body_id, session in enumerate(self.sessions)
         )
 
-    def restore_learning_checkpoints(
-        self, checkpoints: tuple[AntLearningCheckpoint, ...]
-    ) -> None:
+    def restore_learning_checkpoints(self, checkpoints: tuple[AntLearningCheckpoint, ...]) -> None:
         if len(checkpoints) != len(self.sessions):
             raise ValueError(
-                "colony checkpoint count mismatch: "
-                f"expected={len(self.sessions)}, actual={len(checkpoints)}"
+                f"colony checkpoint count mismatch: expected={len(self.sessions)}, actual={len(checkpoints)}"
             )
         for session, checkpoint in zip(self.sessions, checkpoints, strict=True):
             session.restore_learning_checkpoint(checkpoint)

@@ -19,16 +19,21 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from enum import Enum
 
 import numpy as np
 
 from volvence_ant.env.ant_world import WorldObservation
 from volvence_ant.substrate.navigator import NavigatorState, wrap_angle
 
-#: Ordered, frozen sensory channel names. Index positions are a contract for
-#: this prototype (motor/metrics rely on them); changing order is a breaking
-#: change documented in the spec.
-SENSE_CHANNELS: tuple[str, ...] = (
+
+class AntSenseSchema(str, Enum):
+    V1 = "ant-sense.v1"
+    ECOLOGY_V2 = "ant-sense.ecology-v2"
+
+
+#: Ordered v1 sensory channels.  Existing evidence lanes remain pinned here.
+SENSE_CHANNELS_V1: tuple[str, ...] = (
     "food_left",
     "food_right",
     "food_diff",
@@ -44,6 +49,19 @@ SENSE_CHANNELS: tuple[str, ...] = (
     "obstacle_right",
     "obstacle_contact",
 )
+
+#: Ecology adds local thermal receptors without changing the v1 vector.
+SENSE_CHANNELS_ECOLOGY_V2: tuple[str, ...] = (
+    *SENSE_CHANNELS_V1,
+    "heat_left",
+    "heat_right",
+    "heat_diff",
+    "heat_center",
+    "heat_harmful",
+)
+
+# Compatibility name used by existing v1 tests and consumers.
+SENSE_CHANNELS = SENSE_CHANNELS_V1
 
 _HOME_DISTANCE_SCALE = 10.0
 
@@ -69,36 +87,53 @@ def sense_encode(
     navigator_state: NavigatorState,
     *,
     turn_command_scale: float,
+    schema: AntSenseSchema = AntSenseSchema.V1,
 ) -> np.ndarray:
-    """Return the frozen sensory vector (len == ``len(SENSE_CHANNELS)``)."""
+    """Return one versioned, frozen sensory vector."""
 
     rel_home = wrap_angle(navigator_state.home_bearing - navigator_state.h_hat)
     home_ego_cos = math.cos(rel_home)
     home_ego_sin = math.sin(rel_home)
     home_distance_norm = math.tanh(navigator_state.home_distance / _HOME_DISTANCE_SCALE)
-    last_turn_norm = (
-        observation.last_turn_command / turn_command_scale if turn_command_scale > 0 else 0.0
-    )
-    vector = np.array(
-        [
-            observation.food_left,
-            observation.food_right,
-            observation.food_left - observation.food_right,
-            home_ego_cos,
-            home_ego_sin,
-            home_distance_norm,
-            1.0 if observation.carrying_food else 0.0,
-            observation.home_pher_left - observation.home_pher_right,
-            observation.trail_pher_left - observation.trail_pher_right,
-            float(np.clip(last_turn_norm, -1.0, 1.0)),
-            _clamp_unit(observation.alarm),
-            _clamp_unit(observation.obstacle_left),
-            _clamp_unit(observation.obstacle_right),
-            1.0 if observation.obstacle_contact else 0.0,
-        ],
-        dtype=float,
-    )
+    last_turn_norm = observation.last_turn_command / turn_command_scale if turn_command_scale > 0 else 0.0
+    values = [
+        observation.food_left,
+        observation.food_right,
+        observation.food_left - observation.food_right,
+        home_ego_cos,
+        home_ego_sin,
+        home_distance_norm,
+        1.0 if observation.carrying_food else 0.0,
+        observation.home_pher_left - observation.home_pher_right,
+        observation.trail_pher_left - observation.trail_pher_right,
+        float(np.clip(last_turn_norm, -1.0, 1.0)),
+        _clamp_unit(observation.alarm),
+        _clamp_unit(observation.obstacle_left),
+        _clamp_unit(observation.obstacle_right),
+        1.0 if observation.obstacle_contact else 0.0,
+    ]
+    if schema is AntSenseSchema.ECOLOGY_V2:
+        values.extend(
+            (
+                observation.heat_left,
+                observation.heat_right,
+                observation.heat_left - observation.heat_right,
+                observation.heat_center,
+                1.0 if observation.heat_harmful else 0.0,
+            )
+        )
+    elif schema is not AntSenseSchema.V1:
+        raise ValueError(f"unsupported ant sense schema: {schema!r}")
+    vector = np.array(values, dtype=float)
     return vector
+
+
+def sense_channels(schema: AntSenseSchema) -> tuple[str, ...]:
+    if schema is AntSenseSchema.V1:
+        return SENSE_CHANNELS_V1
+    if schema is AntSenseSchema.ECOLOGY_V2:
+        return SENSE_CHANNELS_ECOLOGY_V2
+    raise ValueError(f"unsupported ant sense schema: {schema!r}")
 
 
 def sense_to_drives(observation: WorldObservation, navigator_state: NavigatorState) -> AntDrives:
@@ -114,10 +149,9 @@ def sense_to_drives(observation: WorldObservation, navigator_state: NavigatorSta
     forage_pull = _clamp_unit(food_center)
     # homing urgency rises when carrying food and far from the nest
     homing_pull = _clamp_unit(
-        (1.0 if observation.carrying_food else 0.2)
-        * math.tanh(navigator_state.home_distance / _HOME_DISTANCE_SCALE)
+        (1.0 if observation.carrying_food else 0.2) * math.tanh(navigator_state.home_distance / _HOME_DISTANCE_SCALE)
     )
-    alarm_pull = _clamp_unit(observation.alarm)
+    alarm_pull = _clamp_unit(max(observation.alarm, observation.heat_center))
     # exploration drive is high when there is little to sense
     explore_pull = _clamp_unit(1.0 - food_center)
     # commit drive: how sharp the local food gradient is (worth committing to)

@@ -27,7 +27,8 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）这几条分层原理
 
 ## 目录
 
-- `env/` — 2D 世界：食物场 `ant_world.py`、信息素场 `pheromone_field.py`（Phase 1）。
+- `env/` — 2D 世界：环境 owner `ant_world.py`、三物体 `world_objects.py`、信息素场
+  `pheromone_field.py`（Phase 1）。
 - `substrate/` — 两个冻结函数 + `AntSubstrateAdapter` + `AntActuator`。
 - `runtime/` — `AntSession`：复用 `AgentSessionRunner` 的每-tick 闭环。
 - `controllers/` — `FixedRuleAnt` 硬编码 FSM 基线（matched-control + 可视化对照用）。
@@ -63,6 +64,9 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）这几条分层原理
   左臂完整路径积分（含天空罗盘）信念始终指向真巢、精准回家，右臂删掉罗盘的纯死走信念漂移、迷路。
   可选第三面板用**真内核**跑路线熟悉度：固定路线反复走，可下降新奇度（认知型 PE）随曝光下降，
   记忆关闭对照不下降。输出 `research/ant/figures/digital_ant_homing_theater.html`。
+- `scripts/train_ant_ecology.py` — 用真实 `AntSession` / `KernelColonyRunner` 训练黄油→木棍→火柴→
+  组合场景，写出 opaque checkpoint、held-out gate report 和 manifest。只有 PASS artifact
+  可由 realtime app 加载；BLOCK 会保留具体断点，不回退 FixedRule。
 
 推荐从统一入口运行：
 

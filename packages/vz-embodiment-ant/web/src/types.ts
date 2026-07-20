@@ -1,6 +1,7 @@
 export type AppMode = "solo" | "colony";
 export type AppArm = "learned" | "no_optimize" | "fixed_rule";
-export type AppObjective = "foraging" | "heading_stability";
+export type AppObjective = "foraging" | "heading_stability" | "ecology";
+export type WorldObjectKind = "butter" | "wood_stick" | "burning_match";
 export type AppRunState =
   | "idle"
   | "running"
@@ -45,6 +46,8 @@ export interface AntFrame {
   cumulative_credit: number;
   heading_stability_error: number;
   motor_execution_error: number;
+  heat_center: number;
+  heat_harmful: boolean;
 }
 
 export interface EvidenceProjection {
@@ -56,6 +59,22 @@ export interface EvidenceProjection {
   runtime_replay_drop_reasons: string[];
   verdict: "PASS" | "BLOCK";
   verdict_reason: string;
+  checkpoint_loaded: boolean;
+  checkpoint_fingerprint: string;
+  checkpoint_verdict: "PASS" | "BLOCK" | "UNAVAILABLE";
+}
+
+export interface WorldObjectSnapshot {
+  object_id: string;
+  kind: WorldObjectKind;
+  center: [number, number];
+  segment_start: [number, number] | null;
+  segment_end: [number, number] | null;
+  physical_radius: number;
+  effect_radius: number;
+  remaining: number | null;
+  active: boolean;
+  description: string;
 }
 
 export interface AppFrame {
@@ -74,6 +93,7 @@ export interface AppFrame {
   ants: AntFrame[];
   trail: number[][];
   evidence: EvidenceProjection;
+  objects: WorldObjectSnapshot[];
 }
 
 export interface RunStatus {
@@ -97,7 +117,15 @@ export interface RunStatus {
 export interface DisturbanceRecord {
   disturbance: {
     event_id: string;
-    kind: "relocate_food" | "trigger_alarm" | "motor_distortion";
+    kind:
+      | "relocate_food"
+      | "trigger_alarm"
+      | "motor_distortion"
+      | "upsert_world_object"
+      | "move_world_object"
+      | "remove_world_object";
+    object_id?: string;
+    object_kind?: WorldObjectKind;
   };
   status: "queued" | "applied" | "rejected";
   applied_tick: number | null;
@@ -113,11 +141,11 @@ export interface StreamState {
 }
 
 export const defaultConfig: ExperimentConfig = {
-  mode: "solo",
+  mode: "colony",
   arm: "learned",
-  objective: "heading_stability",
+  objective: "ecology",
   seed: 0,
-  n_ants: 1,
+  n_ants: 8,
   temporal_latent_dim: 16,
   tick_interval_ms: 150,
   max_ticks: 1000,

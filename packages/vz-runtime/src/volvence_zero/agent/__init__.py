@@ -1,3 +1,11 @@
+from volvence_zero.agent.checkpoint_archive import (
+    AGENT_LEARNING_ARCHIVE_SCHEMA_VERSION,
+    AgentLearningArchiveError,
+    AgentLearningArchiveMetadata,
+    AgentLearningCheckpointArchive,
+    decode_agent_learning_checkpoint_archive,
+    encode_agent_learning_checkpoint_archive,
+)
 from volvence_zero.agent.cli import build_arg_parser, main, render_turn_result, run_repl
 from volvence_zero.agent.dialogue import (
     DEFAULT_DIALOGUE_CASE_VARIANTS,
@@ -190,6 +198,10 @@ from volvence_zero.agent.trial import (
 )
 
 __all__ = [
+    "AGENT_LEARNING_ARCHIVE_SCHEMA_VERSION",
+    "AgentLearningArchiveError",
+    "AgentLearningArchiveMetadata",
+    "AgentLearningCheckpointArchive",
     "AgentResponse",
     "AgentLearningCheckpoint",
     "AgentSessionRunner",
@@ -199,6 +211,8 @@ __all__ = [
     "DialogueArtifactAcceptanceDecision",
     "DialogueArtifactAcceptanceGateConfig",
     "DialogueArtifactAcceptanceReport",
+    "DialogueArtifactCandidateReport",
+    "DialogueArtifactComparisonReport",
     "DialogueComprehensiveStage",
     "DialogueLongitudinalBenchmarkReport",
     "LongitudinalDialoguePersonaReport",
@@ -369,6 +383,8 @@ __all__ = [
     "export_dialogue_human_rating_template",
     "export_dialogue_paper_suite_artifact_bundle",
     "run_substrate_path_benchmark",
+    "decode_agent_learning_checkpoint_archive",
+    "encode_agent_learning_checkpoint_archive",
     "main",
     "render_trial_turn_result",
     "render_turn_result",

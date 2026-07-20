@@ -18,6 +18,7 @@ from volvence_ant.env.ant_world import (
     FoodSource,
 )
 from volvence_ant.env.pheromone_field import PheromoneBus, PheromoneField
+from volvence_ant.env.world_objects import WorldObject
 
 
 class ColonyWorld(AntWorld):
@@ -27,6 +28,7 @@ class ColonyWorld(AntWorld):
         config: AntWorldConfig | None = None,
         food_sources: tuple[FoodSource, ...] = (),
         obstacles: tuple[AxisAlignedObstacle, ...] = (),
+        world_objects: tuple[WorldObject, ...] = (),
         n_bodies: int = 8,
         bus: PheromoneBus | None = None,
     ) -> None:
@@ -35,6 +37,7 @@ class ColonyWorld(AntWorld):
             config=config,
             food_sources=food_sources,
             obstacles=obstacles,
+            world_objects=world_objects,
             n_bodies=n_bodies,
         )
 

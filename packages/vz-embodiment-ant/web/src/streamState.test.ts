@@ -6,7 +6,7 @@ import {
 import type { AppFrame, RunStatus } from "./types";
 
 const status: RunStatus = {
-  schema_version: "digital-ant-app.v1",
+  schema_version: "digital-ant-app.v2",
   run_id: "r1",
   state: "running",
   tick: 0,
@@ -24,7 +24,7 @@ const status: RunStatus = {
 };
 
 const frame: AppFrame = {
-  schema_version: "digital-ant-app.v1",
+  schema_version: "digital-ant-app.v2",
   run_id: "r1",
   sequence: 2,
   tick: 1,
@@ -38,6 +38,7 @@ const frame: AppFrame = {
   pickups: 0,
   ants: [],
   trail: [],
+  objects: [],
   evidence: {
     backend_wiring: [],
     runtime_replay_captured: 0,
@@ -47,6 +48,9 @@ const frame: AppFrame = {
     runtime_replay_drop_reasons: [],
     verdict: "BLOCK",
     verdict_reason: "not passed",
+    checkpoint_loaded: false,
+    checkpoint_fingerprint: "",
+    checkpoint_verdict: "UNAVAILABLE",
   },
 };
 

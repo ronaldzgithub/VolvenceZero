@@ -35,10 +35,15 @@ from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
 from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
-from volvence_ant.env.ant_world import AntWorld, WorldObservation
+from volvence_ant.env.ant_world import (
+    AntWorld,
+    WorldObservation,
+    WorldTransitionEvidence,
+)
 from volvence_ant.substrate.ant_actuator import AntActuator, AntMotorCommand
 from volvence_ant.substrate.ant_adapter import AntSenseHolder, AntSubstrateAdapter
 from volvence_ant.substrate.navigator import AntNavigator, NavigatorState
+from volvence_ant.substrate.sense_encode import AntSenseSchema
 
 
 class AntSessionError(RuntimeError):
@@ -51,6 +56,7 @@ AntLearningCheckpoint = AgentLearningCheckpoint
 class AntObjectiveKind(str, Enum):
     FORAGING = "foraging"
     HEADING_STABILITY = "heading_stability"
+    ECOLOGY = "ecology"
 
 
 @dataclass
@@ -83,6 +89,7 @@ class AntSessionConfig:
     temporal_policy: object | None = None
     allow_live_substrate_mutation: bool = False
     objective: AntObjectiveKind = AntObjectiveKind.FORAGING
+    sense_schema: AntSenseSchema = AntSenseSchema.V1
 
 
 @dataclass(frozen=True)
@@ -128,6 +135,10 @@ class AntStepRecord:
     runtime_replay_transitions: int
     runtime_replay_lineage_matches: int
     runtime_replay_drop_reasons: tuple[str, ...]
+    heat_center: float
+    heat_harmful: bool
+    entered_harmful_heat: bool
+    escaped_harmful_heat: bool
 
 
 class AntSession:
@@ -159,6 +170,7 @@ class AntSession:
             observation=observation,
             navigator_state=self.navigator.state,
             turn_command_scale=world.config.max_turn_rate,
+            sense_schema=self.config.sense_schema,
             step=world.tick,
         )
         self.actuator = AntActuator(
@@ -173,16 +185,12 @@ class AntSession:
             substrate_adapter_factory=self._adapter_factory,
             default_residual_runtime=SyntheticOpenWeightResidualRuntime(
                 model_id="digital-ant-fallback-runtime",
-                allow_live_substrate_mutation=(
-                    self.config.allow_live_substrate_mutation
-                ),
+                allow_live_substrate_mutation=(self.config.allow_live_substrate_mutation),
             ),
             rare_heavy_enabled=self.config.rare_heavy_enabled,
             external_prediction_error_drive=self.config.external_prediction_error_drive,
             joint_apply_writeback=self.config.joint_apply_writeback,
-            joint_apply_policy_optimization=(
-                self.config.joint_apply_policy_optimization
-            ),
+            joint_apply_policy_optimization=(self.config.joint_apply_policy_optimization),
             allow_live_substrate_mutation=self.config.allow_live_substrate_mutation,
         )
         if self.config.joint_schedule is not None:
@@ -192,14 +200,10 @@ class AntSession:
         self.runner = AgentSessionRunner(**runner_kwargs)
         self.trajectory: list[AntStepRecord] = []
 
-    def export_learning_checkpoint(
-        self, *, checkpoint_id: str
-    ) -> AgentLearningCheckpoint:
+    def export_learning_checkpoint(self, *, checkpoint_id: str) -> AgentLearningCheckpoint:
         return self.runner.export_learning_checkpoint(checkpoint_id=checkpoint_id)
 
-    def restore_learning_checkpoint(
-        self, checkpoint: AgentLearningCheckpoint
-    ) -> None:
+    def restore_learning_checkpoint(self, checkpoint: AgentLearningCheckpoint) -> None:
         self.runner.restore_learning_checkpoint(checkpoint)
 
     def _adapter_factory(self, user_input: str, turn_index: int) -> AntSubstrateAdapter:
@@ -216,8 +220,7 @@ class AntSession:
         value = snapshot.value
         if not isinstance(value, TemporalAbstractionSnapshot):
             raise AntSessionError(
-                f"temporal_abstraction slot carried {type(value)!r}, expected "
-                "TemporalAbstractionSnapshot."
+                f"temporal_abstraction slot carried {type(value)!r}, expected TemporalAbstractionSnapshot."
             )
         controller = value.controller_state
         return tuple(controller.code), float(controller.switch_gate), value.active_abstract_action
@@ -247,18 +250,10 @@ class AntSession:
             true_heading=observation.eval_true_heading,
         )
         transition = self.world.last_transition(self._body_id)
-        prediction_id = (
-            result.next_prediction.prediction_id
-            if result.next_prediction is not None
-            else ""
-        )
+        prediction_id = result.next_prediction.prediction_id if result.next_prediction is not None else ""
         environment_outcome = self._environment_outcome(
-            transition_id=transition.transition_id,
-            delivered=transition.delivered,
-            picked_up=transition.picked_up,
+            transition=transition,
             observation=observation,
-            commanded_turn=transition.commanded_turn,
-            applied_turn=transition.applied_turn,
             prediction_id=prediction_id,
         )
         self.runner.submit_environment_outcome(environment_outcome)
@@ -274,9 +269,7 @@ class AntSession:
         )
         memory_value = memory_snapshot.value if memory_snapshot is not None else None
         memory_entries_total = (
-            sum(value for _, value in memory_value.total_entries_by_stratum)
-            if memory_value is not None
-            else 0
+            sum(value for _, value in memory_value.total_entries_by_stratum) if memory_value is not None else 0
         )
         cms_total_observations = (
             memory_value.cms_state.total_observations
@@ -308,28 +301,16 @@ class AntSession:
             homing_direction_error=self._homing_direction_error(observation, nav_state),
             homing_distance_error=abs(nav_state.home_distance - observation.eval_home_distance),
             heading_stability_error=self._heading_stability_error(observation),
-            motor_execution_error=abs(
-                transition.applied_turn - transition.commanded_turn
-            ),
+            motor_execution_error=abs(transition.applied_turn - transition.commanded_turn),
             environment_outcome_id=environment_outcome.outcome_id,
             prediction_id=prediction_id,
             pe_magnitude=prediction_error.magnitude if prediction_error is not None else 0.0,
-            pe_bootstrap=(
-                prediction_error_snapshot.value.bootstrap
-                if prediction_error_snapshot is not None
-                else True
-            ),
-            signed_reward=(
-                prediction_error.signed_reward if prediction_error is not None else 0.0
-            ),
+            pe_bootstrap=(prediction_error_snapshot.value.bootstrap if prediction_error_snapshot is not None else True),
+            signed_reward=(prediction_error.signed_reward if prediction_error is not None else 0.0),
             cumulative_credit=float(cumulative_credit),
             memory_entries_total=memory_entries_total,
-            memory_pending_promotions=(
-                memory_value.pending_promotions if memory_value is not None else 0
-            ),
-            memory_pending_decays=(
-                memory_value.pending_decays if memory_value is not None else 0
-            ),
+            memory_pending_promotions=(memory_value.pending_promotions if memory_value is not None else 0),
+            memory_pending_decays=(memory_value.pending_decays if memory_value is not None else 0),
             cms_total_observations=cms_total_observations,
             bounded_writeback_applied=result.bounded_writeback_applied,
             joint_schedule_action=result.joint_schedule_action,
@@ -348,37 +329,25 @@ class AntSession:
                 ),
                 ("cms_torch_backend", rollout.cms_torch_backend.value),
             ),
-            runtime_replay_captured=(
-                replay.captured_count if replay is not None else 0
-            ),
-            runtime_replay_settled=(
-                replay.settled_count if replay is not None else 0
-            ),
-            runtime_replay_transitions=(
-                replay.transition_count if replay is not None else 0
-            ),
-            runtime_replay_lineage_matches=(
-                replay.lineage_match_count if replay is not None else 0
-            ),
-            runtime_replay_drop_reasons=(
-                replay.drop_reasons if replay is not None else ()
-            ),
+            runtime_replay_captured=(replay.captured_count if replay is not None else 0),
+            runtime_replay_settled=(replay.settled_count if replay is not None else 0),
+            runtime_replay_transitions=(replay.transition_count if replay is not None else 0),
+            runtime_replay_lineage_matches=(replay.lineage_match_count if replay is not None else 0),
+            runtime_replay_drop_reasons=(replay.drop_reasons if replay is not None else ()),
+            heat_center=observation.heat_center,
+            heat_harmful=observation.heat_harmful,
+            entered_harmful_heat=transition.entered_harmful_heat,
+            escaped_harmful_heat=transition.escaped_harmful_heat,
         )
-        self.holder.update(
-            observation=observation, navigator_state=nav_state, step=self.world.tick
-        )
+        self.holder.update(observation=observation, navigator_state=nav_state, step=self.world.tick)
         self.trajectory.append(record)
         return record
 
     def _environment_outcome(
         self,
         *,
-        transition_id: str,
-        delivered: bool,
-        picked_up: bool,
+        transition: WorldTransitionEvidence,
         observation: WorldObservation,
-        commanded_turn: float,
-        applied_turn: float,
         prediction_id: str,
     ) -> EnvironmentOutcome:
         if self.config.objective is AntObjectiveKind.HEADING_STABILITY:
@@ -390,21 +359,27 @@ class AntSession:
             )
             self._previous_heading_stability_error = heading_error
             return EnvironmentOutcome(
-                outcome_id=f"{transition_id}:outcome",
-                event_id=transition_id,
+                outcome_id=f"{transition.transition_id}:outcome",
+                event_id=transition.transition_id,
                 outcome_kind=EnvironmentEventKind.SCENE_EVENT,
-                action_id=transition_id,
+                action_id=transition.transition_id,
                 status="heading_stability_observed",
                 summary="digital-ant heading stability transition",
                 detail="observable sky-compass heading deviation",
                 prediction_id=prediction_id or None,
-                evidence=(f"ant_transition:{transition_id}",),
+                evidence=(f"ant_transition:{transition.transition_id}",),
                 environment_state_delta_kind="heading_stability",
                 measurement=EnvironmentMeasurement(
                     task_progress=task_progress,
                     action_payoff=payoff,
                     terminal=False,
                 ),
+            )
+
+        if self.config.objective is AntObjectiveKind.ECOLOGY:
+            return self._ecology_environment_outcome(
+                transition=transition,
+                prediction_id=prediction_id,
             )
 
         # Observable task facts (NOT rewards; the PE owner compares them with
@@ -415,47 +390,95 @@ class AntSession:
         # distance-to-food shaping: a continuous "closer = better" signal would
         # hand the controller the gradient-following answer the FSM hardcodes,
         # which is exactly the skill the controller is supposed to LEARN.
-        status = "delivered" if delivered else ("picked_up" if picked_up else "moved")
-        if delivered:
-            measurement = EnvironmentMeasurement(
-                task_progress=1.0, action_payoff=1.0, terminal=True
-            )
-        elif picked_up:
-            measurement = EnvironmentMeasurement(
-                task_progress=0.5, action_payoff=0.5, terminal=False
-            )
+        status = "delivered" if transition.delivered else ("picked_up" if transition.picked_up else "moved")
+        if transition.delivered:
+            measurement = EnvironmentMeasurement(task_progress=1.0, action_payoff=1.0, terminal=True)
+        elif transition.picked_up:
+            measurement = EnvironmentMeasurement(task_progress=0.5, action_payoff=0.5, terminal=False)
         else:
             measurement = None
         return EnvironmentOutcome(
-            outcome_id=f"{transition_id}:outcome",
-            event_id=transition_id,
+            outcome_id=f"{transition.transition_id}:outcome",
+            event_id=transition.transition_id,
             outcome_kind=EnvironmentEventKind.SCENE_EVENT,
-            action_id=transition_id,
+            action_id=transition.transition_id,
             status=status,
             summary=f"digital-ant transition {status}",
             detail="observable AntWorld pickup/delivery milestone",
             prediction_id=prediction_id or None,
-            evidence=(f"ant_transition:{transition_id}",),
+            evidence=(f"ant_transition:{transition.transition_id}",),
+            environment_state_delta_kind=status,
+            measurement=measurement,
+        )
+
+    @staticmethod
+    def _ecology_environment_outcome(
+        *,
+        transition: WorldTransitionEvidence,
+        prediction_id: str,
+    ) -> EnvironmentOutcome:
+        """Publish sparse, observable ecology facts without direction shaping."""
+
+        facts: list[str] = []
+        task_progress: float | None = None
+        payoff = 0.0
+        terminal = False
+        if transition.delivered:
+            facts.append("delivered")
+            task_progress = 1.0
+            payoff += 1.0
+            terminal = True
+        elif transition.picked_up:
+            facts.append("picked_up")
+            task_progress = 0.5
+            payoff += 0.5
+        if transition.blocked_by_obstacle:
+            facts.append("obstacle_contact")
+            payoff -= 0.25
+        if transition.entered_harmful_heat:
+            facts.append("heat_exposure_started")
+            payoff -= 1.0
+        elif transition.heat_harmful_after:
+            facts.append("heat_exposure_continued")
+            payoff -= 0.4
+        elif transition.escaped_harmful_heat:
+            facts.append("heat_exposure_ended")
+            payoff += 0.35
+        status = "+".join(facts) if facts else "moved"
+        measurement = (
+            EnvironmentMeasurement(
+                task_progress=task_progress,
+                action_payoff=max(-1.0, min(1.0, payoff)),
+                terminal=terminal,
+            )
+            if facts
+            else None
+        )
+        return EnvironmentOutcome(
+            outcome_id=f"{transition.transition_id}:outcome",
+            event_id=transition.transition_id,
+            outcome_kind=EnvironmentEventKind.SCENE_EVENT,
+            action_id=transition.transition_id,
+            status=status,
+            summary=f"digital-ant ecology transition {status}",
+            detail=(
+                "observable pickup/delivery, obstacle contact and thresholded "
+                "thermal exposure facts; no distance or steering shaping"
+            ),
+            prediction_id=prediction_id or None,
+            evidence=(f"ant_transition:{transition.transition_id}",),
             environment_state_delta_kind=status,
             measurement=measurement,
         )
 
     def _heading_stability_error(self, observation: WorldObservation) -> float:
         error = abs(
-            (
-                observation.eval_true_heading
-                - self._heading_stability_target
-                + math.pi
-            )
-            % (2.0 * math.pi)
-            - math.pi
+            (observation.eval_true_heading - self._heading_stability_target + math.pi) % (2.0 * math.pi) - math.pi
         )
         return error / math.pi
 
     @staticmethod
-    def _homing_direction_error(
-        observation: WorldObservation, nav_state: NavigatorState
-    ) -> float:
+    def _homing_direction_error(observation: WorldObservation, nav_state: NavigatorState) -> float:
         estimated = nav_state.home_bearing
         true_bearing = observation.eval_home_bearing
         diff = (estimated - true_bearing + math.pi) % (2.0 * math.pi) - math.pi

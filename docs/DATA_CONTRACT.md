@@ -821,10 +821,13 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 | `AntSession` | 同上 | 经 `vz-runtime` 的 `AgentSessionRunner` facade 复用内核，每 tick 一个闭环 |
 | 信息素快照总线（Phase 1） | 同上 | embodiment 内部 colony 总线，多写者只追加带衰减；`PheromoneField` 自己发布 home/trail mass + normalized entropy；**不**进入 §3/§6 kernel 注册表 |
 | 障碍几何与碰撞证据 | 同上 | `AxisAlignedObstacle` 由 environment owner 持有；substrate 只见局部左右触角/contact，`WorldTransitionEvidence` 发布 blocked/applied-step 审计事实；**不**新增 kernel slot |
+| ecology-v2 对象快照 | 同上 | frozen `ButterSource / WoodStick / BurningMatch` 由 `AntWorld` 唯一持有；仅发布 `WorldObjectSnapshot`（几何、owner 计算的 effect radius、description）给 App |
+| `ant-sense.ecology-v2` | 同上 | 保留 `ant-sense.v1` 14 维前缀并追加 5 个局部热感通道；对象坐标、木棍方向和推荐动作不进入 controller |
 | typed task measurement | `vz-contracts` / PE owner | `EnvironmentOutcome.measurement` 仅含环境可观察事实；runtime 保留 lineage，PE 是唯一 mismatch owner |
+| opaque learning archive | `vz-runtime` facade | `agent-learning-checkpoint.v1` 绑定 payload sha256、owner fingerprint 与 sense schema / latent dim / ant count；embodiment 只存取 bytes |
 | `ColonyRareHeavyBundle` | `vz-embodiment-ant` | per-individual artifact digest/provenance/gate verdict；不含 temporal state、不新增 slot |
 | evidence manifest | `vz-embodiment-ant` | `digital-ant-manifest.v2` sidecar 绑定 artifact/input digest 与运行 provenance |
-| realtime app DTO | `vz-embodiment-ant` | `digital-ant-app.v1` 的 frozen config/frame/status/command/disturbance；SSE+POST 外部控制面，**不**进入 §3/§6 slot 注册表 |
+| realtime app DTO | `vz-embodiment-ant` | `digital-ant-app.v2` 的 frozen config/frame/status/command/disturbance；新增 typed object upsert/move/remove、`AppFrame.objects` 和 checkpoint provenance；**不**进入 §3/§6 slot 注册表 |
 
 **关键不变量**：
 
@@ -840,6 +843,9 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 - 信息素总线：每个个体的写入是**独立不可变事件**，读取时聚合；禁止多 writer 互相覆盖同一字段。
 - 动态障碍只允许在 round 边界通过 environment owner API 原子替换；agent 不得读取全局几何或未来
   扰动。群体评估直接消费 `PheromoneField` 已发布的 mass/entropy，不在 consumer 重建 bus 内部状态。
+- 三物体对象的增删改只走 `AntWorld` owner API；任意方向木棍使用连续 capsule 碰撞，燃烧火柴只通过
+  `WorldObservation` 局部 heat channel 和 `WorldTransitionEvidence` 的阈值暴露/脱离事实进入闭环。
+  `FORAGING` v1 的 pickup/delivery 契约不变，只有显式 `ECOLOGY + ecology-v2` 才启用新事实。
 - `WorldObservation.last_turn_command` 是 efference copy，只发布 commanded turn；隐藏 plant 的
   applied turn/step 只存在于只读 transition evidence，不能进入 substrate/optimizer。信息素 ndarray
   使用不可重新开启写权限的 backing buffer；field 外 deposit/sample 返回空，不得夹到边缘格形成伪通信。
@@ -849,7 +855,9 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
   输入 sha256/size；dirty tree 的 manifest 必须声明 `externally_retainable=false`。
 - realtime app 只在完整 tick/round 边界排队调用环境 owner 的公开扰动 API；浏览器不得提交
   `turn_command` / `step_command`。视觉帧只投影 `AntStepRecord`、`ColonyRoundRecord`、公开 body/food/
-  信息素快照；App verdict 只读正式 artifact，绝不回灌 PE/credit/Internal-RL。
+  对象/信息素快照；App verdict 只读正式 artifact，绝不回灌 PE/credit/Internal-RL。只有
+  held-out gate 为 PASS 且 archive compatibility/fingerprint 完整匹配的 checkpoint 可标记并加载为
+  demo checkpoint；BLOCK candidate 仍可留作诊断 artifact，但 loader 必须拒绝。
 
 详见 `docs/specs/digital-ant-embodiment.md` 与 `research/ant/04_digital_ant_feasibility.md`。
 

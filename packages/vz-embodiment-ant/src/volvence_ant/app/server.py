@@ -19,26 +19,22 @@ from volvence_ant.app.contracts import (
     AppExperimentConfig,
     AppMode,
     AppObjective,
+    WorldObjectKind,
 )
 from volvence_ant.app.runner import AntAppManager
-
-
-_MANAGER_KEY: web.AppKey[AntAppManager] = web.AppKey(
-    "digital-ant-manager", AntAppManager
-)
-_WEB_ROOT_KEY: web.AppKey[Path | None] = web.AppKey(
-    "digital-ant-web-root", Path | None
+from volvence_ant.evidence.ecology_checkpoint import (
+    load_promoted_ecology_checkpoint,
 )
 
 
-def _reject_unknown_fields(
-    payload: dict[str, object], *, allowed: frozenset[str]
-) -> None:
+_MANAGER_KEY: web.AppKey[AntAppManager] = web.AppKey("digital-ant-manager", AntAppManager)
+_WEB_ROOT_KEY: web.AppKey[Path | None] = web.AppKey("digital-ant-web-root", Path | None)
+
+
+def _reject_unknown_fields(payload: dict[str, object], *, allowed: frozenset[str]) -> None:
     unknown = set(payload) - allowed
     if unknown:
-        raise ValueError(
-            "unsupported request fields: " + ", ".join(sorted(unknown))
-        )
+        raise ValueError("unsupported request fields: " + ", ".join(sorted(unknown)))
 
 
 def _config_from_json(payload: dict[str, object]) -> AppExperimentConfig:
@@ -68,41 +64,25 @@ def _config_from_json(payload: dict[str, object]) -> AppExperimentConfig:
     return AppExperimentConfig(
         mode=AppMode(str(payload.get("mode", AppMode.SOLO.value))),
         arm=AppArm(str(payload.get("arm", AppArm.LEARNED.value))),
-        objective=AppObjective(
-            str(payload.get("objective", AppObjective.FORAGING.value))
-        ),
+        objective=AppObjective(str(payload.get("objective", AppObjective.FORAGING.value))),
         seed=int(payload.get("seed", 0)),
         n_ants=int(payload.get("n_ants", 1)),
         temporal_latent_dim=int(payload.get("temporal_latent_dim", 16)),
         tick_interval_ms=int(payload.get("tick_interval_ms", 150)),
-        max_ticks=(
-            None
-            if payload.get("max_ticks", 1000) is None
-            else int(payload.get("max_ticks", 1000))
-        ),
+        max_ticks=(None if payload.get("max_ticks", 1000) is None else int(payload.get("max_ticks", 1000))),
         autostart=bool(payload.get("autostart", True)),
         food_x=float(payload.get("food_x", 6.0)),
         food_y=float(payload.get("food_y", 0.0)),
         motor_turn_gain=float(payload.get("motor_turn_gain", 1.0)),
         motor_turn_bias=float(payload.get("motor_turn_bias", 0.0)),
-        motor_switch_tick=(
-            None
-            if payload.get("motor_switch_tick") is None
-            else int(payload["motor_switch_tick"])
-        ),
-        motor_switched_turn_gain=float(
-            payload.get("motor_switched_turn_gain", 1.0)
-        ),
-        motor_switched_turn_bias=float(
-            payload.get("motor_switched_turn_bias", 0.0)
-        ),
+        motor_switch_tick=(None if payload.get("motor_switch_tick") is None else int(payload["motor_switch_tick"])),
+        motor_switched_turn_gain=float(payload.get("motor_switched_turn_gain", 1.0)),
+        motor_switched_turn_bias=float(payload.get("motor_switched_turn_bias", 0.0)),
     )
 
 
 def _command_from_json(payload: dict[str, object]) -> AppCommand:
-    _reject_unknown_fields(
-        payload, allowed=frozenset({"command_id", "kind", "value"})
-    )
+    _reject_unknown_fields(payload, allowed=frozenset({"command_id", "kind", "value"}))
     raw_value = payload.get("value")
     return AppCommand(
         command_id=str(payload.get("command_id") or uuid4().hex),
@@ -126,6 +106,21 @@ def _disturbance_from_json(payload: dict[str, object]) -> AppDisturbance:
                 "magnitude",
                 "turn_gain",
                 "turn_bias",
+                "object_id",
+                "object_kind",
+                "start_x",
+                "start_y",
+                "end_x",
+                "end_y",
+                "radius",
+                "strength",
+                "decay",
+                "remaining",
+                "angle",
+                "length",
+                "harm_threshold",
+                "delta_x",
+                "delta_y",
             }
         ),
     )
@@ -149,6 +144,21 @@ def _disturbance_from_json(payload: dict[str, object]) -> AppDisturbance:
         magnitude=optional_float("magnitude"),
         turn_gain=optional_float("turn_gain"),
         turn_bias=optional_float("turn_bias"),
+        object_id=(None if payload.get("object_id") is None else str(payload["object_id"])),
+        object_kind=(None if payload.get("object_kind") is None else WorldObjectKind(str(payload["object_kind"]))),
+        start_x=optional_float("start_x"),
+        start_y=optional_float("start_y"),
+        end_x=optional_float("end_x"),
+        end_y=optional_float("end_y"),
+        radius=optional_float("radius"),
+        strength=optional_float("strength"),
+        decay=optional_float("decay"),
+        remaining=optional_float("remaining"),
+        angle=optional_float("angle"),
+        length=optional_float("length"),
+        harm_threshold=optional_float("harm_threshold"),
+        delta_x=optional_float("delta_x"),
+        delta_y=optional_float("delta_y"),
     )
 
 
@@ -178,9 +188,7 @@ async def create_run(request: web.Request) -> web.Response:
         run = await _manager(request).create_run(config)
     except (KeyError, TypeError, ValueError) as exc:
         raise web.HTTPBadRequest(text=str(exc)) from exc
-    return web.json_response(
-        {"run_id": run.run_id, "status": asdict(run.status())}, status=201
-    )
+    return web.json_response({"run_id": run.run_id, "status": asdict(run.status())}, status=201)
 
 
 async def get_status(request: web.Request) -> web.Response:
@@ -199,9 +207,7 @@ async def apply_command(request: web.Request) -> web.Response:
 async def queue_disturbance(request: web.Request) -> web.Response:
     payload = await _json_body(request)
     try:
-        record = await _run(request).queue_disturbance(
-            _disturbance_from_json(payload)
-        )
+        record = await _run(request).queue_disturbance(_disturbance_from_json(payload))
     except (KeyError, TypeError, ValueError, RuntimeError) as exc:
         raise web.HTTPBadRequest(text=str(exc)) from exc
     return web.json_response(asdict(record), status=202)
@@ -239,11 +245,9 @@ async def stream_events(request: web.Request) -> web.StreamResponse:
                 await response.write(b": keepalive\n\n")
                 continue
             for event in events:
-                body = (
-                    f"id: {event.sequence}\n"
-                    f"event: {event.kind.value}\n"
-                    f"data: {event.payload_json}\n\n"
-                ).encode("utf-8")
+                body = (f"id: {event.sequence}\nevent: {event.kind.value}\ndata: {event.payload_json}\n\n").encode(
+                    "utf-8"
+                )
                 await response.write(body)
                 last_sequence = event.sequence
             if run.terminal and last_sequence >= run.latest_sequence:
@@ -294,9 +298,7 @@ def create_app(
     app.router.add_get("/api/v1/runs/{run_id}/status", get_status)
     app.router.add_get("/api/v1/runs/{run_id}/events", stream_events)
     app.router.add_post("/api/v1/runs/{run_id}/commands", apply_command)
-    app.router.add_post(
-        "/api/v1/runs/{run_id}/disturbances", queue_disturbance
-    )
+    app.router.add_post("/api/v1/runs/{run_id}/disturbances", queue_disturbance)
     app.router.add_get("/api/v1/runs/{run_id}/replay", get_replay)
     app.router.add_get("/{path:.*}", static_app)
     return app
@@ -312,11 +314,31 @@ def main() -> None:
         type=Path,
         help="read-only formal evidence artifact used only for PASS/BLOCK display",
     )
+    parser.add_argument(
+        "--ecology-checkpoint-report",
+        type=Path,
+        help=(
+            "trusted local PASS ecology checkpoint report; the bound archive "
+            "is restored only through owner checkpoint APIs"
+        ),
+    )
     args = parser.parse_args()
+    repo_root = Path(__file__).resolve().parents[5]
+    ecology_checkpoint = (
+        load_promoted_ecology_checkpoint(
+            report_path=args.ecology_checkpoint_report.resolve(),
+            repo_root=repo_root,
+        )
+        if args.ecology_checkpoint_report is not None
+        else None
+    )
     manager = (
-        AntAppManager.from_evidence_artifact(str(args.evidence_artifact))
+        AntAppManager.from_evidence_artifact(
+            str(args.evidence_artifact),
+            ecology_checkpoint=ecology_checkpoint,
+        )
         if args.evidence_artifact is not None
-        else AntAppManager()
+        else AntAppManager(ecology_checkpoint=ecology_checkpoint)
     )
     web.run_app(
         create_app(manager=manager, web_root=args.web_root),

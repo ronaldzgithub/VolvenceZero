@@ -21,6 +21,16 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 
+from volvence_ant.env.world_objects import (
+    AxisAlignedObstacle,
+    BurningMatch,
+    ButterSource,
+    WoodStick,
+    WorldObject,
+    WorldObjectSnapshot,
+    WorldObstacle,
+)
+
 TWO_PI = 2.0 * math.pi
 
 
@@ -32,44 +42,6 @@ class FoodSource:
     decay: float = 6.0
     radius: float = 1.5
     remaining: float = float("inf")
-
-
-@dataclass(frozen=True)
-class AxisAlignedObstacle:
-    """Immutable environment-owned rectangular obstacle."""
-
-    obstacle_id: str
-    min_x: float
-    max_x: float
-    min_y: float
-    max_y: float
-
-    def __post_init__(self) -> None:
-        bounds = (self.min_x, self.max_x, self.min_y, self.max_y)
-        if not self.obstacle_id:
-            raise ValueError("obstacle_id must be non-empty")
-        if not all(math.isfinite(value) for value in bounds):
-            raise ValueError("obstacle bounds must be finite")
-        if self.min_x >= self.max_x or self.min_y >= self.max_y:
-            raise ValueError(
-                "obstacle bounds must satisfy min_x < max_x and min_y < max_y"
-            )
-
-    def contains(self, x: float, y: float) -> bool:
-        return self.min_x <= x <= self.max_x and self.min_y <= y <= self.max_y
-
-    def strictly_contains(self, x: float, y: float) -> bool:
-        return self.min_x < x < self.max_x and self.min_y < y < self.max_y
-
-    def penetration_depth(self, x: float, y: float) -> float:
-        if not self.strictly_contains(x, y):
-            return 0.0
-        return min(
-            x - self.min_x,
-            self.max_x - x,
-            y - self.min_y,
-            self.max_y - y,
-        )
 
 
 @dataclass(frozen=True)
@@ -123,6 +95,11 @@ class WorldObservation:
     eval_home_bearing: float
     eval_home_distance: float
     eval_true_heading: float
+    # --- ecology-v2 local heat channels (v1 encoders ignore these) ---
+    heat_left: float = 0.0
+    heat_right: float = 0.0
+    heat_center: float = 0.0
+    heat_harmful: bool = False
 
 
 @dataclass(frozen=True)
@@ -143,6 +120,12 @@ class WorldTransitionEvidence:
     applied_step: float
     blocked_by_obstacle: bool
     obstacle_id: str | None
+    heat_load_before: float = 0.0
+    heat_load_after: float = 0.0
+    heat_harmful_before: bool = False
+    heat_harmful_after: bool = False
+    entered_harmful_heat: bool = False
+    escaped_harmful_heat: bool = False
 
 
 @dataclass
@@ -175,27 +158,23 @@ class AntWorld:
         config: AntWorldConfig | None = None,
         food_sources: tuple[FoodSource, ...] = (),
         obstacles: tuple[AxisAlignedObstacle, ...] = (),
+        world_objects: tuple[WorldObject, ...] = (),
         n_bodies: int = 1,
     ) -> None:
         self.config = config or AntWorldConfig()
-        self._validate_motor_distortions(
-            self.config.motor_distortions, n_bodies=max(1, n_bodies)
-        )
+        self._validate_motor_distortions(self.config.motor_distortions, n_bodies=max(1, n_bodies))
         self._motor_distortions = tuple(self.config.motor_distortions)
         self._rng = np.random.default_rng(self.config.seed)
-        self._food: list[FoodSource] = list(food_sources) or [
-            FoodSource(x=8.0, y=0.0, strength=1.0, decay=6.0)
-        ]
+        self._food: list[FoodSource] = list(food_sources)
+        if not self._food and not any(isinstance(item, ButterSource) for item in world_objects):
+            self._food = [FoodSource(x=8.0, y=0.0, strength=1.0, decay=6.0)]
         self._obstacles = self._validated_obstacles(obstacles)
-        self._bodies: list[AntBody] = [
-            self._spawn_body() for _ in range(max(1, n_bodies))
-        ]
+        self._world_objects = self._validated_world_objects(world_objects)
+        self._bodies: list[AntBody] = [self._spawn_body() for _ in range(max(1, n_bodies))]
         self._last_turn: list[float] = [0.0 for _ in self._bodies]
         self._last_obstacle_contact: list[bool] = [False for _ in self._bodies]
         self._alarm: list[float] = [0.0 for _ in self._bodies]
-        self._last_transition: list[WorldTransitionEvidence | None] = [
-            None for _ in self._bodies
-        ]
+        self._last_transition: list[WorldTransitionEvidence | None] = [None for _ in self._bodies]
         self._action_sequence = 0
         self.tick: int = 0
         # metrics
@@ -226,8 +205,15 @@ class AntWorld:
     def food_sources(self) -> tuple[FoodSource, ...]:
         return tuple(self._food)
 
-    def obstacles(self) -> tuple[AxisAlignedObstacle, ...]:
-        return self._obstacles
+    def obstacles(self) -> tuple[WorldObstacle, ...]:
+        sticks = tuple(item for item in self._world_objects.values() if isinstance(item, WoodStick))
+        return (*self._obstacles, *sticks)
+
+    def world_objects(self) -> tuple[WorldObject, ...]:
+        return tuple(self._world_objects.values())
+
+    def world_object_snapshots(self) -> tuple[WorldObjectSnapshot, ...]:
+        return tuple(item.snapshot() for item in self._world_objects.values())
 
     def last_transition(self, body_id: int = 0) -> WorldTransitionEvidence:
         transition = self._last_transition[body_id]
@@ -243,7 +229,16 @@ class AntWorld:
                 continue
             dist = math.hypot(x - src.x, y - src.y)
             total += src.strength * math.exp(-dist / max(src.decay, 1e-6))
+        for item in self._world_objects.values():
+            if isinstance(item, ButterSource):
+                total += item.intensity(x, y)
         return total
+
+    def heat_intensity(self, x: float, y: float) -> float:
+        return sum(item.intensity(x, y) for item in self._world_objects.values() if isinstance(item, BurningMatch))
+
+    def heat_harmful(self, x: float, y: float) -> bool:
+        return any(item.is_harmful(x, y) for item in self._world_objects.values() if isinstance(item, BurningMatch))
 
     # -- observation ----------------------------------------------------------
     def observe(self, body_id: int = 0) -> WorldObservation:
@@ -266,6 +261,7 @@ class AntWorld:
 
         pher_l = self._pheromone_samples(lx, ly)
         pher_r = self._pheromone_samples(rx, ry)
+        heat_center = self.heat_intensity(body.x, body.y)
 
         return WorldObservation(
             food_left=self.food_intensity(lx, ly),
@@ -286,6 +282,10 @@ class AntWorld:
             eval_home_bearing=home_bearing,
             eval_home_distance=home_distance,
             eval_true_heading=body.heading,
+            heat_left=self.heat_intensity(lx, ly),
+            heat_right=self.heat_intensity(rx, ry),
+            heat_center=heat_center,
+            heat_harmful=self.heat_harmful(body.x, body.y),
         )
 
     def _food_contact(self, body: AntBody) -> tuple[bool, float]:
@@ -295,6 +295,11 @@ class AntWorld:
             if src.remaining <= 0.0:
                 continue
             if math.hypot(body.x - src.x, body.y - src.y) <= cfg.food_pickup_radius:
+                return True, center
+        for item in self._world_objects.values():
+            if not isinstance(item, ButterSource) or item.remaining <= 0.0:
+                continue
+            if math.hypot(body.x - item.x, body.y - item.y) <= item.radius:
                 return True, center
         return False, center
 
@@ -309,7 +314,7 @@ class AntWorld:
         return 0.0, None
 
     def _obstacle_sample(self, x: float, y: float) -> float:
-        return 1.0 if any(obstacle.contains(x, y) for obstacle in self._obstacles) else 0.0
+        return 1.0 if any(obstacle.contains(x, y) for obstacle in self.obstacles()) else 0.0
 
     # -- action ---------------------------------------------------------------
     def act(
@@ -323,9 +328,9 @@ class AntWorld:
 
         cfg = self.config
         body = self._bodies[body_id]
-        commanded_turn = float(
-            np.clip(turn_command, -cfg.max_turn_rate, cfg.max_turn_rate)
-        )
+        heat_load_before = self.heat_intensity(body.x, body.y)
+        heat_harmful_before = self.heat_harmful(body.x, body.y)
+        commanded_turn = float(np.clip(turn_command, -cfg.max_turn_rate, cfg.max_turn_rate))
         gain, bias = self._motor_distortion(body_id).at_tick(self.tick)
         applied_turn = float(
             np.clip(
@@ -349,6 +354,8 @@ class AntWorld:
         new_body = replace(body, x=new_x, y=new_y, heading=new_heading)
 
         new_body = self._resolve_contacts(new_body, body_id)
+        heat_load_after = self.heat_intensity(new_body.x, new_body.y)
+        heat_harmful_after = self.heat_harmful(new_body.x, new_body.y)
         self._action_sequence += 1
         self._last_transition[body_id] = WorldTransitionEvidence(
             transition_id=f"ant:{body_id}:action:{self._action_sequence}",
@@ -365,6 +372,12 @@ class AntWorld:
             applied_step=applied_step,
             blocked_by_obstacle=blocked_by_obstacle,
             obstacle_id=obstacle_id,
+            heat_load_before=heat_load_before,
+            heat_load_after=heat_load_after,
+            heat_harmful_before=heat_harmful_before,
+            heat_harmful_after=heat_harmful_after,
+            entered_harmful_heat=(not heat_harmful_before and heat_harmful_after),
+            escaped_harmful_heat=(heat_harmful_before and not heat_harmful_after),
         )
         self._bodies[body_id] = new_body
         # Efference copy only: the controller knows what it commanded, not the
@@ -394,15 +407,13 @@ class AntWorld:
     ) -> tuple[float, float, str | None]:
         earliest_fraction = 1.0
         obstacle_id: str | None = None
-        for obstacle in self._obstacles:
+        for obstacle in self.obstacles():
             # A newly activated obstacle never teleports a body that is already
             # inside it. The body may leave, but cannot re-enter afterwards.
             if obstacle.strictly_contains(start_x, start_y):
-                if (
-                    obstacle.strictly_contains(target_x, target_y)
-                    and obstacle.penetration_depth(target_x, target_y)
-                    >= obstacle.penetration_depth(start_x, start_y)
-                ):
+                if obstacle.strictly_contains(target_x, target_y) and obstacle.penetration_depth(
+                    target_x, target_y
+                ) >= obstacle.penetration_depth(start_x, start_y):
                     return start_x, start_y, obstacle.obstacle_id
                 continue
             if obstacle.contains(start_x, start_y):
@@ -411,12 +422,11 @@ class AntWorld:
                 probe_y = start_y + (target_y - start_y) * probe_fraction
                 if not obstacle.strictly_contains(probe_x, probe_y):
                     continue
-            fraction = self._segment_obstacle_entry_fraction(
+            fraction = obstacle.entry_fraction(
                 start_x=start_x,
                 start_y=start_y,
                 target_x=target_x,
                 target_y=target_y,
-                obstacle=obstacle,
             )
             if fraction is not None and fraction < earliest_fraction:
                 earliest_fraction = fraction
@@ -431,42 +441,7 @@ class AntWorld:
         )
 
     @staticmethod
-    def _segment_obstacle_entry_fraction(
-        *,
-        start_x: float,
-        start_y: float,
-        target_x: float,
-        target_y: float,
-        obstacle: AxisAlignedObstacle,
-    ) -> float | None:
-        """Return the first segment fraction entering an axis-aligned box."""
-
-        entry = 0.0
-        exit_ = 1.0
-        for origin, delta, lower, upper in (
-            (start_x, target_x - start_x, obstacle.min_x, obstacle.max_x),
-            (start_y, target_y - start_y, obstacle.min_y, obstacle.max_y),
-        ):
-            if abs(delta) <= 1e-15:
-                if origin < lower or origin > upper:
-                    return None
-                continue
-            first = (lower - origin) / delta
-            second = (upper - origin) / delta
-            if first > second:
-                first, second = second, first
-            entry = max(entry, first)
-            exit_ = min(exit_, second)
-            if entry > exit_:
-                return None
-        if exit_ < 0.0 or entry > 1.0:
-            return None
-        return max(0.0, entry)
-
-    @staticmethod
-    def _validate_motor_distortions(
-        profiles: tuple[MotorDistortionProfile, ...], *, n_bodies: int
-    ) -> None:
+    def _validate_motor_distortions(profiles: tuple[MotorDistortionProfile, ...], *, n_bodies: int) -> None:
         if profiles and len(profiles) not in {1, n_bodies}:
             raise ValueError(
                 "motor_distortions must be empty, a single broadcast profile, "
@@ -513,6 +488,14 @@ class AntWorld:
                 if src.remaining != float("inf"):
                     self._food[index] = replace(src, remaining=src.remaining - 1.0)
                 return replace(body, carrying_food=True)
+        for object_id, item in self._world_objects.items():
+            if not isinstance(item, ButterSource) or item.remaining <= 0.0:
+                continue
+            if math.hypot(body.x - item.x, body.y - item.y) <= item.radius:
+                self.food_pickups += 1
+                if item.remaining != float("inf"):
+                    self._world_objects[object_id] = replace(item, remaining=max(0.0, item.remaining - 1.0))
+                return replace(body, carrying_food=True)
         return body
 
     def _on_body_moved(self, body_id: int, body: AntBody) -> None:
@@ -531,7 +514,59 @@ class AntWorld:
     def set_obstacles(self, obstacles: tuple[AxisAlignedObstacle, ...]) -> None:
         """Atomically replace the environment-owned obstacle geometry."""
 
-        self._obstacles = self._validated_obstacles(obstacles)
+        validated = self._validated_obstacles(obstacles)
+        object_ids = set(self._world_objects)
+        conflicts = object_ids.intersection(obstacle.obstacle_id for obstacle in validated)
+        if conflicts:
+            raise ValueError("obstacle ids conflict with world object ids: " + ", ".join(sorted(conflicts)))
+        self._obstacles = validated
+
+    def upsert_world_object(self, world_object: WorldObject) -> None:
+        """Add or replace one typed ecology object at an environment boundary."""
+
+        next_objects = dict(self._world_objects)
+        next_objects[world_object.object_id] = world_object
+        self._world_objects = self._validated_world_objects(tuple(next_objects.values()))
+
+    def remove_world_object(self, object_id: str) -> None:
+        if object_id not in self._world_objects:
+            raise KeyError(f"unknown world object: {object_id}")
+        next_objects = dict(self._world_objects)
+        del next_objects[object_id]
+        self._world_objects = next_objects
+
+    def move_world_object(
+        self,
+        object_id: str,
+        *,
+        delta_x: float,
+        delta_y: float,
+    ) -> None:
+        """Translate an object while preserving all owner-held parameters."""
+
+        if not math.isfinite(delta_x) or not math.isfinite(delta_y):
+            raise ValueError("world object delta must be finite")
+        try:
+            item = self._world_objects[object_id]
+        except KeyError as exc:
+            raise KeyError(f"unknown world object: {object_id}") from exc
+        if isinstance(item, ButterSource | BurningMatch):
+            moved: WorldObject = replace(
+                item,
+                x=item.x + delta_x,
+                y=item.y + delta_y,
+            )
+        elif isinstance(item, WoodStick):
+            moved = replace(
+                item,
+                start_x=item.start_x + delta_x,
+                start_y=item.start_y + delta_y,
+                end_x=item.end_x + delta_x,
+                end_y=item.end_y + delta_y,
+            )
+        else:
+            raise TypeError(f"unsupported world object type: {type(item)!r}")
+        self._world_objects[object_id] = moved
 
     @staticmethod
     def _validated_obstacles(
@@ -541,6 +576,19 @@ class AntWorld:
         if len(set(obstacle_ids)) != len(obstacle_ids):
             raise ValueError("obstacle_id values must be unique")
         return tuple(obstacles)
+
+    def _validated_world_objects(
+        self,
+        world_objects: tuple[WorldObject, ...],
+    ) -> dict[str, WorldObject]:
+        object_ids = tuple(item.object_id for item in world_objects)
+        if len(set(object_ids)) != len(object_ids):
+            raise ValueError("world object_id values must be unique")
+        obstacle_ids = {obstacle.obstacle_id for obstacle in self._obstacles}
+        conflicts = obstacle_ids.intersection(object_ids)
+        if conflicts:
+            raise ValueError("world object ids conflict with obstacle ids: " + ", ".join(sorted(conflicts)))
+        return {item.object_id: item for item in world_objects}
 
     def trigger_alarm(self, *, body_id: int | None = None, magnitude: float = 1.0) -> None:
         if body_id is None:

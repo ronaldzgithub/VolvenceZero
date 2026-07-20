@@ -12,8 +12,12 @@ import json
 import math
 from typing import Any
 
+from volvence_ant.env.world_objects import (
+    WorldObjectKind,
+    WorldObjectSnapshot,
+)
 
-APP_SCHEMA_VERSION = "digital-ant-app.v1"
+APP_SCHEMA_VERSION = "digital-ant-app.v2"
 
 
 class AppMode(str, Enum):
@@ -30,6 +34,7 @@ class AppArm(str, Enum):
 class AppObjective(str, Enum):
     FORAGING = "foraging"
     HEADING_STABILITY = "heading_stability"
+    ECOLOGY = "ecology"
 
 
 class AppRunState(str, Enum):
@@ -53,6 +58,9 @@ class AppDisturbanceKind(str, Enum):
     RELOCATE_FOOD = "relocate_food"
     TRIGGER_ALARM = "trigger_alarm"
     MOTOR_DISTORTION = "motor_distortion"
+    UPSERT_WORLD_OBJECT = "upsert_world_object"
+    MOVE_WORLD_OBJECT = "move_world_object"
+    REMOVE_WORLD_OBJECT = "remove_world_object"
 
 
 class AppEventKind(str, Enum):
@@ -126,6 +134,8 @@ class AppAntFrame:
     cumulative_credit: float = 0.0
     heading_stability_error: float = 0.0
     motor_execution_error: float = 0.0
+    heat_center: float = 0.0
+    heat_harmful: bool = False
 
 
 @dataclass(frozen=True)
@@ -140,6 +150,9 @@ class AppEvidenceProjection:
     runtime_replay_drop_reasons: tuple[str, ...] = ()
     verdict: str = "BLOCK"
     verdict_reason: str = "formal evidence has not passed"
+    checkpoint_loaded: bool = False
+    checkpoint_fingerprint: str = ""
+    checkpoint_verdict: str = "UNAVAILABLE"
 
 
 @dataclass(frozen=True)
@@ -159,6 +172,7 @@ class AppFrame:
     ants: tuple[AppAntFrame, ...]
     trail: tuple[tuple[float, ...], ...] = ()
     evidence: AppEvidenceProjection = AppEvidenceProjection()
+    objects: tuple[WorldObjectSnapshot, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -208,6 +222,21 @@ class AppDisturbance:
     magnitude: float | None = None
     turn_gain: float | None = None
     turn_bias: float | None = None
+    object_id: str | None = None
+    object_kind: WorldObjectKind | None = None
+    start_x: float | None = None
+    start_y: float | None = None
+    end_x: float | None = None
+    end_y: float | None = None
+    radius: float | None = None
+    strength: float | None = None
+    decay: float | None = None
+    remaining: float | None = None
+    angle: float | None = None
+    length: float | None = None
+    harm_threshold: float | None = None
+    delta_x: float | None = None
+    delta_y: float | None = None
 
     def __post_init__(self) -> None:
         if not self.event_id:
@@ -227,6 +256,49 @@ class AppDisturbance:
                 raise ValueError("motor_distortion requires turn_gain and turn_bias")
             if not math.isfinite(self.turn_gain) or not math.isfinite(self.turn_bias):
                 raise ValueError("motor distortion values must be finite")
+        elif self.kind is AppDisturbanceKind.UPSERT_WORLD_OBJECT:
+            self._validate_world_object_upsert()
+        elif self.kind is AppDisturbanceKind.MOVE_WORLD_OBJECT:
+            if (
+                not self.object_id
+                or self.delta_x is None
+                or self.delta_y is None
+                or not math.isfinite(self.delta_x)
+                or not math.isfinite(self.delta_y)
+            ):
+                raise ValueError("move_world_object requires object_id and finite deltas")
+        elif self.kind is AppDisturbanceKind.REMOVE_WORLD_OBJECT:
+            if not self.object_id:
+                raise ValueError("remove_world_object requires object_id")
+
+    def _validate_world_object_upsert(self) -> None:
+        if not self.object_id or self.object_kind is None:
+            raise ValueError("upsert_world_object requires object_id and object_kind")
+        if self.object_kind is WorldObjectKind.WOOD_STICK:
+            coordinates = (
+                self.start_x,
+                self.start_y,
+                self.end_x,
+                self.end_y,
+            )
+            if any(value is None for value in coordinates):
+                raise ValueError("wood_stick requires start_x, start_y, end_x and end_y")
+            values = tuple(float(value) for value in coordinates if value is not None)
+        else:
+            if self.x is None or self.y is None:
+                raise ValueError(f"{self.object_kind.value} requires x and y")
+            values = (self.x, self.y)
+        optional_values = (
+            self.radius,
+            self.strength,
+            self.decay,
+            self.remaining,
+            self.angle,
+            self.length,
+            self.harm_threshold,
+        )
+        if not all(math.isfinite(value) for value in (*values, *(v for v in optional_values if v is not None))):
+            raise ValueError("world object values must be finite")
 
 
 @dataclass(frozen=True)
@@ -271,5 +343,7 @@ __all__ = [
     "AppRunState",
     "AppRunStatus",
     "AppStreamEvent",
+    "WorldObjectKind",
+    "WorldObjectSnapshot",
     "json_dict",
 ]

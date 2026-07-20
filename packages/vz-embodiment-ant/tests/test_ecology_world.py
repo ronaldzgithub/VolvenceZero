@@ -1,0 +1,185 @@
+"""Ecology-v2 object, sensing and outcome contract tests."""
+
+from __future__ import annotations
+
+import math
+from dataclasses import FrozenInstanceError
+
+import pytest
+
+from volvence_ant.env import (
+    AntWorld,
+    AntWorldConfig,
+    BurningMatch,
+    ButterSource,
+    WoodStick,
+    WorldObjectKind,
+)
+from volvence_ant.runtime.ant_session import AntSession
+from volvence_ant.substrate.navigator import AntNavigator
+from volvence_ant.substrate.sense_encode import (
+    SENSE_CHANNELS_ECOLOGY_V2,
+    SENSE_CHANNELS_V1,
+    AntSenseSchema,
+    sense_encode,
+)
+
+
+def test_world_object_snapshots_are_owner_authored_and_frozen() -> None:
+    world = AntWorld(
+        world_objects=(
+            ButterSource(object_id="butter-1", x=2.0, y=1.0),
+            WoodStick(
+                object_id="stick-1",
+                start_x=-1.0,
+                start_y=2.0,
+                end_x=2.0,
+                end_y=3.0,
+            ),
+            BurningMatch(object_id="match-1", x=-2.0, y=-1.0),
+        )
+    )
+    snapshots = world.world_object_snapshots()
+
+    assert tuple(item.kind for item in snapshots) == (
+        WorldObjectKind.BUTTER,
+        WorldObjectKind.WOOD_STICK,
+        WorldObjectKind.BURNING_MATCH,
+    )
+    assert snapshots[2].effect_radius > 0.0
+    with pytest.raises(FrozenInstanceError):
+        snapshots[0].active = False  # type: ignore[misc]
+
+
+def test_butter_is_the_only_food_when_explicitly_placed() -> None:
+    world = AntWorld(
+        config=AntWorldConfig(step_size=0.0),
+        world_objects=(
+            ButterSource(
+                object_id="butter",
+                x=0.0,
+                y=0.0,
+                remaining=1.0,
+            ),
+        ),
+    )
+
+    assert world.food_sources() == ()
+    world.act(turn_command=0.0, step_command=0.0)
+    assert world.body().carrying_food
+    assert world.food_pickups == 1
+    snapshot = world.world_object_snapshots()[0]
+    assert snapshot.remaining == 0.0
+    assert not snapshot.active
+
+
+def test_directional_wood_stick_blocks_without_diagonal_tunnelling() -> None:
+    world = AntWorld(
+        config=AntWorldConfig(
+            seed=0,
+            step_size=4.0,
+            max_turn_rate=math.pi,
+        ),
+        world_objects=(
+            WoodStick(
+                object_id="diagonal-stick",
+                start_x=1.0,
+                start_y=-1.0,
+                end_x=3.0,
+                end_y=1.0,
+                radius=0.2,
+            ),
+        ),
+    )
+    world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    world.act(turn_command=0.0, step_command=4.0)
+
+    transition = world.last_transition()
+    assert transition.blocked_by_obstacle
+    assert transition.obstacle_id == "diagonal-stick"
+    assert world.body().x < 2.0
+
+
+def test_match_heat_is_local_directional_and_does_not_trigger_global_alarm() -> None:
+    world = AntWorld(
+        config=AntWorldConfig(
+            seed=0,
+            antenna_offset_deg=30.0,
+            antenna_reach=0.6,
+            step_size=0.5,
+        ),
+        world_objects=(
+            BurningMatch(
+                object_id="match",
+                x=0.5,
+                y=0.3,
+                heat_decay=0.8,
+                harm_threshold=0.6,
+            ),
+        ),
+    )
+    world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    observation = world.observe()
+
+    assert observation.heat_left > observation.heat_right
+    assert observation.alarm == 0.0
+    world.act(turn_command=0.0, step_command=0.5)
+    transition = world.last_transition()
+    assert transition.heat_load_after > transition.heat_load_before
+    assert transition.entered_harmful_heat
+    world.set_body_pose(x=0.5, y=0.0, heading=math.pi)
+    world.act(turn_command=0.0, step_command=0.5)
+    assert world.last_transition().escaped_harmful_heat
+
+
+def test_ecology_sense_schema_appends_heat_without_changing_v1() -> None:
+    world = AntWorld(world_objects=(BurningMatch(object_id="match", x=0.5, y=0.3),))
+    navigator = AntNavigator(step_size=world.config.step_size)
+    navigator.reset(initial_heading=world.body().heading)
+    observation = world.observe()
+    v1 = sense_encode(
+        observation,
+        navigator.state,
+        turn_command_scale=world.config.max_turn_rate,
+        schema=AntSenseSchema.V1,
+    )
+    v2 = sense_encode(
+        observation,
+        navigator.state,
+        turn_command_scale=world.config.max_turn_rate,
+        schema=AntSenseSchema.ECOLOGY_V2,
+    )
+
+    assert v1.shape == (len(SENSE_CHANNELS_V1),)
+    assert v2.shape == (len(SENSE_CHANNELS_ECOLOGY_V2),)
+    assert tuple(v2[: len(v1)]) == pytest.approx(tuple(v1))
+    heat_diff = SENSE_CHANNELS_ECOLOGY_V2.index("heat_diff")
+    assert v2[heat_diff] == pytest.approx(observation.heat_left - observation.heat_right)
+
+
+def test_ecology_outcome_uses_contacts_not_distance_or_steering() -> None:
+    world = AntWorld(
+        config=AntWorldConfig(seed=0, step_size=0.5),
+        world_objects=(
+            WoodStick(
+                object_id="stick",
+                start_x=0.35,
+                start_y=-1.0,
+                end_x=0.35,
+                end_y=1.0,
+            ),
+        ),
+    )
+    world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    world.act(turn_command=0.0, step_command=0.5)
+    transition = world.last_transition()
+    outcome = AntSession._ecology_environment_outcome(
+        transition=transition,
+        prediction_id="prediction-1",
+    )
+
+    assert outcome.status == "obstacle_contact"
+    assert outcome.measurement is not None
+    assert outcome.measurement.action_payoff == -0.25
+    assert "distance" in outcome.detail
+    assert "turn" not in outcome.evidence[0]

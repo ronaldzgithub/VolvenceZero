@@ -12,5 +12,11 @@ describe("truthful evidence surface", () => {
     expect(
       screen.getByRole("button", { name: "创建真实闭环" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "黄油" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "燃烧火柴" }),
+    ).toBeDisabled();
   });
 });

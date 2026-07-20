@@ -29,7 +29,7 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）是否**独立于语�
 
 | 函数 | 输入 | 输出 | 性质 |
 |---|---|---|---|
-| `sense_encode` | `WorldObservation` + `NavigatorState` | 固定维感知向量（`SENSE_CHANNELS`） | 纯 numpy，无可学习参数 |
+| `sense_encode` | `WorldObservation` + `NavigatorState` + 显式 schema | `ant-sense.v1` 固定 14 维；`ant-sense.ecology-v2` 在尾部追加 5 个局部热感通道 | 纯 numpy，无可学习参数；v1 默认不变 |
 | `motor_decode` | `z_t`（`ControllerState.code`, len n_z） | `(turn_command, step_command)` | 纯 numpy，无可学习参数 |
 
 `z_t` 契约（egocentric 抽象动作）：ndim controller 的 code 被界在 `[0,1]`，因此 `z[0],z[1]`
@@ -53,6 +53,10 @@ controller 自由学习「感知特征 → egocentric 动作」的映射；`moto
 在 matched-control 各臂间一致），不是只为 homing 实验选择性开启的调参。此通道引入的是一个**受控、
 只读的真值航向耦合**，其他真值位置隔离不变。
 
+`ant-sense.ecology-v2` 只追加 `heat_left / heat_right / heat_diff / heat_center /
+heat_harmful`。热值来自触角和身体位置的局部采样；对象坐标、火柴方位、逃离方向和木棍几何均不进入
+substrate。`ant-sense.v1` 继续绑定原 14 维 `SENSE_CHANNELS_V1`，历史 evidence 不得静默升级。
+
 ## 4. Outcome → PE 接缝（正式证据）
 
 `semantic_*_pull` 只表示 substrate 发布的感觉/动机预测通道，不能冒充环境任务结果。正式行为学习链路为：
@@ -60,7 +64,8 @@ controller 自由学习「感知特征 → egocentric 动作」的映射；`moto
 event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形成 signed mismatch，credit 再将其
 归因给 β segment，Internal RL 只读 PE/credit。
 
-觅食有且只有两个真实、离散、可观察的里程碑：**pickup**（`carrying_food` False→True）与 **delivery**
+`AntObjectiveKind.FORAGING` 有且只有两个真实、离散、可观察的里程碑：**pickup**
+（`carrying_food` False→True）与 **delivery**
 （终局回巢投递）。`AntSession._environment_outcome` 只在这两个事件上发布 measurement——pickup 给部分
 `task_progress=0.5`（非终局），delivery 给 `task_progress=1.0`（终局）。**明确禁止**发布任何"到食物距离
 越近奖励越高"的连续势能塑形（potential-based / distance shaping）：连续的 `closer=better` 信号等于把
@@ -68,6 +73,10 @@ FSM 手写的梯度跟随答案直接喂给控制器，而"如何朝食物走"�
 引入过基于 `food_center` / `eval_home_distance` 的连续势能塑形，已移除（既有泄露方向策略的风险，且经点火
 探针验证：即便 credit 变密，运行时 z_t 仍零变化，塑形无助于点火——断点在内核"学习→运行时控制输出"应用
 路径，不在此接缝的信号密度）。
+
+`AntObjectiveKind.ECOLOGY` 在同一 lineage 上增加三个稀疏环境事实：木棍真实碰撞、超过火柴有害阈值、
+以及从有害热区脱离；它们分别产生负 payoff / 恢复 payoff。该 objective 仍只消费动作后的物理事实，
+不消费对象距离、热源方位、推荐转向或 evaluation readout；黄油 pickup/delivery 继续使用上述里程碑。
 
 禁止 `AntWorld` 直接传 reward 给 temporal/Internal RL，禁止 evaluation 反灌 reward，禁止 runtime
 另建 mismatch slot。历史上只依赖 drive PE 的结果可以保留为机制 smoke，但不是 learned foraging 证据。
@@ -213,6 +222,20 @@ promotion gate：
 完整 Python 依赖闭包的内容摘要，使 dirty-tree 期间的代码变化不能静默复用旧 seed partial。
 三个扰动必须各出现一次；单场景 smoke 即使自身门槛通过，suite verdict 仍必须 BLOCK。
 
+### 5.3 三物体 ecology-v2（experimental / promotion-gated）
+
+- `AntWorld` 是黄油、木棍和燃烧火柴的唯一 owner。`ButterSource`、`WoodStick`、
+  `BurningMatch` 及其 `WorldObjectSnapshot` 均为 frozen value；增删、平移和替换只在完整
+  tick/round 边界原子应用。
+- 木棍是任意方向 capsule，碰撞用连续 segment/capsule entry 求交，禁止高速穿透；火柴发布指数衰减
+  热场和 owner 计算的有害半径，控制器只看局部热样本。环境 owner 自己生成渲染 description，
+  App 不遍历或重建对象内部参数。
+- `ecology_curriculum` 按黄油 → 木棍 → 火柴 → 组合场景重建随机世界，跨 episode 仅携带
+  owner-exported checkpoint；learned 与 no-optimize 从同一初始 checkpoint 分叉。
+- held-out 地图使用未见位置、木棍方向和 seed，并分别冻结 policy change、黄油 pickup/delivery、
+  木棍碰撞降低、火柴有害暴露降低且真实脱离、runtime replay settled/lineage ≥ 0.99 等 gate。
+  任一失败即 `BLOCK`；不得加载为 demo checkpoint，也不得用 `FixedRuleAnt` 或 Canvas 脚本伪装通过。
+
 ## 6. 冻结 claims 与 kill conditions
 
 | 正式 claim | required arms / 最低证据 | kill condition |
@@ -294,6 +317,10 @@ promotion gate：
 - checkpoint 由 `AgentSessionRunner.export_learning_checkpoint` 聚合各 owner 自己发布的
   temporal/Internal-RL、memory、PE heads、credit heads、regime、dual-track gate 与 reflection
   immutable state；embodiment 将其视为 opaque value，不遍历或重建 owner 私有状态。
+- 持久化使用 `agent-learning-checkpoint.v1` opaque archive：runtime facade 序列化 owner value，
+  header 绑定 payload sha256、逐 ant fingerprint 和有序 compatibility（sense schema / latent dim /
+  ant count）。pickle 解码只允许操作者显式指定的可信本地 artifact，HTTP 不提供上传入口；恢复后仍由
+  每个 owner 校验 fingerprint，任何 schema、数量或 digest 不匹配都 fail loudly。
 - rollback drill 必须执行 `export → mutate → restore → fingerprint equality`，同 seed 重跑相同轨迹
   只能作为 determinism smoke，不能替代 rollback。
 - ACTIVE evidence 必须记录实际 backend wiring。每一候选组件在隔离实验配置中真实
@@ -314,7 +341,7 @@ promotion gate：
 - 可视化只消费不可变 `AntStepRecord` replay；位置、`z_t`、`β_t`、PE、credit、writeback 与
   backend wiring 均来自正式 turn 结果，不成为新的 runtime owner 或学习源。
 
-### 7.2.1 实时实验场（`digital-ant-app.v1`）
+### 7.2.1 实时实验场（`digital-ant-app.v2`）
 
 `volvence_ant.app` 是 `vz-embodiment-ant` 内的外部实验控制面，前端位于同 wheel 的 `web/`
 React/Vite 工程。它不新增 kernel slot：
@@ -323,12 +350,16 @@ React/Vite 工程。它不新增 kernel slot：
   tick/round 完成后才发布 immutable frame，禁止预烘焙 replay 冒充 live。
 - 下行是 SSE frame/status/disturbance event，上行是 POST config/command/disturbance。pause/resume/
   single-step/speed 只控制编排节奏；schema 明确不含 `turn_command` / `step_command` 写入口。
-- 食物搬迁、alarm 与电机 transfer 替换只在环境 owner 的 tick/round 边界应用。操作者可配置隐藏
-  gain/bias，但这些参数不进入 substrate/frame；agent 仍只看到真实物理后果。
-- Canvas 只投影 `AntStepRecord`、`ColonyRoundRecord`、公开 body/food getter 与不可变信息素快照；
+- 食物搬迁、alarm、电机 transfer 及 typed `upsert/move/remove_world_object` 只在环境 owner 的
+  tick/round 边界应用。操作者可配置隐藏 gain/bias，但这些参数不进入 substrate/frame；agent 仍只
+  看到真实物理后果。
+- 黄油和火柴点击放置，木棍拖拽定义方向/长度；选择后可平移或删除。浏览器只发送 typed 环境扰动，
+  `AppFrame.objects` 直接携带 owner 发布的不可变 `WorldObjectSnapshot`，不允许提交电机动作。
+- Canvas 只投影 `AntStepRecord`、`ColonyRoundRecord`、公开 body/food getter、对象/信息素快照；
   慢客户端可以丢旧视觉帧，命令、扰动审计和 replay 不丢。
 - PASS/BLOCK 只读正式 evidence artifact，永不作为学习输入。没有通过冻结门槛时默认明确显示
-  `BLOCK`，即使真实闭环正在运行。
+  `BLOCK`，即使真实闭环正在运行；formal evidence verdict 与 ecology checkpoint 的
+  loaded/fingerprint/promotion verdict 分栏显示，动画流畅不构成科学 PASS。
 
 ### 7.3 NE-Dreamer next-embedding rare-heavy 对照（2026-07-20）
 

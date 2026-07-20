@@ -10,12 +10,14 @@ from volvence_ant.runtime.ant_session import (
     AntStepRecord,
 )
 from volvence_ant.runtime.colony_runner import ColonyRoundRecord, KernelColonyRunner
+from volvence_ant.substrate.sense_encode import AntSenseSchema
 
 __all__ = [
     "AntLearningCheckpoint",
     "AntObjectiveKind",
     "AntSession",
     "AntSessionConfig",
+    "AntSenseSchema",
     "AntStepRecord",
     "ColonyRoundRecord",
     "KernelColonyRunner",

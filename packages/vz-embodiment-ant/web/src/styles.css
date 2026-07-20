@@ -229,6 +229,28 @@ h2 {
   grid-column: auto;
 }
 
+.object-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.object-tools button {
+  font-size: 11px;
+}
+
+.object-tools .selected {
+  color: #071611;
+  border-color: #68dab7;
+  background: #68dab7;
+}
+
+.delete-object {
+  width: 100%;
+  margin-top: 8px;
+  color: #ffb2a6;
+}
+
 .truth-boundary {
   position: relative;
   overflow: hidden;
@@ -277,6 +299,8 @@ h2 {
   border: 1px solid rgba(191, 222, 229, 0.14);
   border-radius: 16px;
   box-shadow: 0 22px 70px rgba(0, 0, 0, 0.25);
+  touch-action: none;
+  user-select: none;
 }
 
 .metrics-strip {

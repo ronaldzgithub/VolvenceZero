@@ -15,8 +15,10 @@ import {
   type AppMode,
   type AppObjective,
   type ExperimentConfig,
+  type WorldObjectKind,
+  type WorldObjectSnapshot,
 } from "./types";
-import { WorldCanvas } from "./WorldCanvas";
+import { type CanvasTool, WorldCanvas } from "./WorldCanvas";
 
 function numberValue(value: string): number {
   const parsed = Number(value);
@@ -37,6 +39,10 @@ export default function App() {
   const [alarm, setAlarm] = useState(1);
   const [motorGain, setMotorGain] = useState(1);
   const [motorBias, setMotorBias] = useState(-0.18);
+  const [canvasTool, setCanvasTool] = useState<CanvasTool>("butter");
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(
+    null,
+  );
   const sourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -70,6 +76,7 @@ export default function App() {
     await withRequest(async () => {
       sourceRef.current?.close();
       dispatch({ type: "reset" });
+      setSelectedObjectId(null);
       const created = await createRun(config);
       setRunId(created.run_id);
       dispatch({
@@ -111,13 +118,86 @@ export default function App() {
     });
   }
 
+  function placeObject(
+    kind: WorldObjectKind,
+    start: [number, number],
+    end?: [number, number],
+  ) {
+    if (!runId) return;
+    const objectId = `${kind}-${crypto.randomUUID()}`;
+    void withRequest(async () => {
+      if (kind === "wood_stick") {
+        if (!end) throw new Error("木棍需要拖出方向和长度");
+        await sendDisturbance(runId, {
+          kind: "upsert_world_object",
+          object_id: objectId,
+          object_kind: kind,
+          start_x: start[0],
+          start_y: start[1],
+          end_x: end[0],
+          end_y: end[1],
+          radius: 0.22,
+        });
+      } else if (kind === "butter") {
+        await sendDisturbance(runId, {
+          kind: "upsert_world_object",
+          object_id: objectId,
+          object_kind: kind,
+          x: start[0],
+          y: start[1],
+          strength: 1.6,
+          decay: 4,
+          radius: 1.2,
+        });
+      } else {
+        await sendDisturbance(runId, {
+          kind: "upsert_world_object",
+          object_id: objectId,
+          object_kind: kind,
+          x: start[0],
+          y: start[1],
+          strength: 1,
+          decay: 1.8,
+          harm_threshold: 0.55,
+        });
+      }
+      setSelectedObjectId(objectId);
+    });
+  }
+
+  function moveObject(
+    object: WorldObjectSnapshot,
+    delta: [number, number],
+  ) {
+    if (!runId) return;
+    void withRequest(async () => {
+      await sendDisturbance(runId, {
+        kind: "move_world_object",
+        object_id: object.object_id,
+        delta_x: delta[0],
+        delta_y: delta[1],
+      });
+    });
+  }
+
+  function removeSelectedObject() {
+    if (!runId || !selectedObjectId) return;
+    void withRequest(async () => {
+      await sendDisturbance(runId, {
+        kind: "remove_world_object",
+        object_id: selectedObjectId,
+      });
+      setSelectedObjectId(null);
+    });
+  }
+
   function setMode(mode: AppMode) {
     setConfig((current) => ({
       ...current,
       mode,
       n_ants: mode === "solo" ? 1 : Math.max(3, current.n_ants),
       objective:
-        mode === "colony" ? "foraging" : current.objective,
+        mode === "colony" ? "ecology" : current.objective,
     }));
   }
 
@@ -186,6 +266,7 @@ export default function App() {
               >
                 <option value="heading_stability">航向稳定</option>
                 <option value="foraging">觅食</option>
+                <option value="ecology">三物体生态</option>
               </select>
             </label>
             <div className="form-grid">
@@ -277,6 +358,39 @@ export default function App() {
           </section>
 
           <section>
+            <h2>生态物体</h2>
+            <p className="section-note">
+              选择黄油或火柴后点击画布；木棍用拖拽定义方向；选择工具可移动或删除对象。
+            </p>
+            <div className="object-tools">
+              {(
+                [
+                  ["butter", "黄油"],
+                  ["wood_stick", "木棍"],
+                  ["burning_match", "燃烧火柴"],
+                  ["select", "选择 / 移动"],
+                ] as [CanvasTool, string][]
+              ).map(([tool, label]) => (
+                <button
+                  key={tool}
+                  className={canvasTool === tool ? "selected" : ""}
+                  onClick={() => setCanvasTool(tool)}
+                  disabled={!runId || config.objective !== "ecology"}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              className="delete-object"
+              onClick={removeSelectedObject}
+              disabled={!runId || !selectedObjectId}
+            >
+              删除选中物体
+            </button>
+          </section>
+
+          <section>
             <h2>环境扰动</h2>
             <p className="section-note">
               只在 tick / round 边界进入环境 owner，不直接写控制器。
@@ -285,17 +399,19 @@ export default function App() {
               <input
                 aria-label="食物 X"
                 type="number"
+                disabled={config.objective === "ecology"}
                 value={foodX}
                 onChange={(event) => setFoodX(numberValue(event.target.value))}
               />
               <input
                 aria-label="食物 Y"
                 type="number"
+                disabled={config.objective === "ecology"}
                 value={foodY}
                 onChange={(event) => setFoodY(numberValue(event.target.value))}
               />
               <button
-                disabled={!runId}
+                disabled={!runId || config.objective === "ecology"}
                 onClick={() =>
                   withRequest(async () => {
                     await sendDisturbance(runId, {
@@ -376,6 +492,12 @@ export default function App() {
               {evidence?.verdict_reason ??
                 "尚无通过冻结门槛的正式 artifact；画面仍是真实内核行动。"}
             </p>
+            <p className="checkpoint-status">
+              learned checkpoint：
+              {evidence?.checkpoint_loaded
+                ? `${evidence.checkpoint_verdict} · ${evidence.checkpoint_fingerprint.slice(0, 12)}`
+                : "未加载（冷启动）"}
+            </p>
             {runId && (
               <a
                 href={`/api/v1/runs/${runId}/replay`}
@@ -389,7 +511,14 @@ export default function App() {
         </aside>
 
         <section className="stage">
-          <WorldCanvas frame={frame} />
+          <WorldCanvas
+            frame={frame}
+            tool={canvasTool}
+            selectedObjectId={selectedObjectId}
+            onPlaceObject={placeObject}
+            onMoveObject={moveObject}
+            onSelectObject={setSelectedObjectId}
+          />
           <div className="metrics-strip">
             <article>
               <span>pickup / delivery</span>

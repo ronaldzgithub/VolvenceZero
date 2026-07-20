@@ -27,8 +27,9 @@ from volvence_zero.substrate import (
 from volvence_ant.env.ant_world import WorldObservation
 from volvence_ant.substrate.navigator import NavigatorState
 from volvence_ant.substrate.sense_encode import (
-    SENSE_CHANNELS,
+    AntSenseSchema,
     sense_encode,
+    sense_channels,
     sense_to_drives,
 )
 
@@ -42,6 +43,7 @@ class AntSenseHolder:
     observation: WorldObservation
     navigator_state: NavigatorState
     turn_command_scale: float
+    sense_schema: AntSenseSchema = AntSenseSchema.V1
     step: int = 0
 
     def update(
@@ -71,9 +73,14 @@ class AntSubstrateAdapter(SubstrateAdapter):
             holder.observation,
             holder.navigator_state,
             turn_command_scale=holder.turn_command_scale,
+            schema=holder.sense_schema,
         )
         drives = sense_to_drives(holder.observation, holder.navigator_state)
-        feature_surface = self._build_feature_surface(vector, drives)
+        feature_surface = self._build_feature_surface(
+            vector,
+            drives,
+            channels=sense_channels(holder.sense_schema),
+        )
         activation = ResidualActivation(
             layer_index=0,
             activation=tuple(float(v) for v in vector),
@@ -99,6 +106,7 @@ class AntSubstrateAdapter(SubstrateAdapter):
             unavailable_fields=(),
             description=(
                 f"digital-ant substrate step={holder.step} "
+                f"sense_schema={holder.sense_schema.value} "
                 f"carrying={holder.observation.carrying_food} "
                 f"alarm={holder.observation.alarm:.2f}"
             ),
@@ -106,7 +114,10 @@ class AntSubstrateAdapter(SubstrateAdapter):
 
     @staticmethod
     def _build_feature_surface(
-        vector: np.ndarray, drives: "object"
+        vector: np.ndarray,
+        drives: "object",
+        *,
+        channels: tuple[str, ...],
     ) -> tuple[FeatureSignal, ...]:
         src = _MODEL_ID
         signals: list[FeatureSignal] = [
@@ -114,9 +125,7 @@ class AntSubstrateAdapter(SubstrateAdapter):
             FeatureSignal(name="semantic_task_pull", values=(drives.forage_pull,), source=src),
             FeatureSignal(name="semantic_support_pull", values=(drives.homing_pull,), source=src),
             FeatureSignal(name="semantic_repair_pull", values=(drives.alarm_pull,), source=src),
-            FeatureSignal(
-                name="semantic_exploration_pull", values=(drives.explore_pull,), source=src
-            ),
+            FeatureSignal(name="semantic_exploration_pull", values=(drives.explore_pull,), source=src),
             FeatureSignal(name="semantic_directive_pull", values=(drives.commit_pull,), source=src),
             # Markers the residual consumers expect.
             FeatureSignal(name="semantic_surface_active", values=(1.0,), source=src),
@@ -125,8 +134,6 @@ class AntSubstrateAdapter(SubstrateAdapter):
             FeatureSignal(name="semantic_residual_weight", values=(1.0,), source=src),
         ]
         # Embodiment-native channels (used by our own metrics / actuator).
-        for name, value in zip(SENSE_CHANNELS, vector, strict=True):
-            signals.append(
-                FeatureSignal(name=f"ant_{name}", values=(float(value),), source=src)
-            )
+        for name, value in zip(channels, vector, strict=True):
+            signals.append(FeatureSignal(name=f"ant_{name}", values=(float(value),), source=src))
         return tuple(signals)

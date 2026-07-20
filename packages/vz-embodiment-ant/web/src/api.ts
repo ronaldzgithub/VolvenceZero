@@ -3,6 +3,7 @@ import type {
   DisturbanceRecord,
   ExperimentConfig,
   RunStatus,
+  WorldObjectKind,
 } from "./types";
 
 async function requestJson<T>(
@@ -46,7 +47,7 @@ export async function sendCommand(
   });
 }
 
-type DisturbancePayload =
+export type DisturbancePayload =
   | { kind: "relocate_food"; x: number; y: number; food_index?: number }
   | { kind: "trigger_alarm"; magnitude: number; body_id?: number }
   | {
@@ -54,7 +55,32 @@ type DisturbancePayload =
       turn_gain: number;
       turn_bias: number;
       body_id?: number;
-    };
+    }
+  | {
+      kind: "upsert_world_object";
+      object_id: string;
+      object_kind: WorldObjectKind;
+      x?: number;
+      y?: number;
+      start_x?: number;
+      start_y?: number;
+      end_x?: number;
+      end_y?: number;
+      radius?: number;
+      strength?: number;
+      decay?: number;
+      remaining?: number;
+      angle?: number;
+      length?: number;
+      harm_threshold?: number;
+    }
+  | {
+      kind: "move_world_object";
+      object_id: string;
+      delta_x: number;
+      delta_y: number;
+    }
+  | { kind: "remove_world_object"; object_id: string };
 
 export async function sendDisturbance(
   runId: string,

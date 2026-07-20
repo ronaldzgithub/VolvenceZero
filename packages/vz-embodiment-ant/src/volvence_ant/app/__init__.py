@@ -18,6 +18,8 @@ from volvence_ant.app.contracts import (
     AppRunState,
     AppRunStatus,
     AppStreamEvent,
+    WorldObjectKind,
+    WorldObjectSnapshot,
 )
 from volvence_ant.app.runner import AntAppManager, AntAppRun, AntAppRunner
 
@@ -42,4 +44,6 @@ __all__ = [
     "AppRunState",
     "AppRunStatus",
     "AppStreamEvent",
+    "WorldObjectKind",
+    "WorldObjectSnapshot",
 ]

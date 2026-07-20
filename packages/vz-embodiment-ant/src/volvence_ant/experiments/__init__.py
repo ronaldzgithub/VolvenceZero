@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+from volvence_ant.experiments.ecology_curriculum import (
+    EcologyArmMetrics,
+    EcologyCheckpointCandidate,
+    EcologyCheckpointReport,
+    EcologyCurriculumConfig,
+    EcologyGate,
+    EcologyStage,
+    train_and_evaluate_ecology_checkpoint,
+)
 from volvence_ant.experiments.dynamic_colony import (
     DynamicColonyAggregateReport,
     DynamicColonyArm,
@@ -45,6 +54,12 @@ __all__ = [
     "DynamicColonyGate",
     "DynamicColonySeedReport",
     "DynamicPerturbationKind",
+    "EcologyArmMetrics",
+    "EcologyCheckpointCandidate",
+    "EcologyCheckpointReport",
+    "EcologyCurriculumConfig",
+    "EcologyGate",
+    "EcologyStage",
     "HomingCurvePoint",
     "HomingPrecisionResult",
     "KernelColonyArm",
@@ -60,4 +75,5 @@ __all__ = [
     "run_dynamic_colony_seed",
     "run_motor_calibration_experiment",
     "route_learning_experiment",
+    "train_and_evaluate_ecology_checkpoint",
 ]
