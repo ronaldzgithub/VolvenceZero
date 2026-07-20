@@ -9,6 +9,7 @@ from volvence_zero.runtime import WiringLevel
 ANT_RUNTIME_MODULATION_STRENGTH = 0.3
 ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
 ANT_RUNTIME_SEGMENT_MAX_STEPS = 24
+ANT_CAUSAL_ACTION_HEAD_STRENGTH = 0.35
 
 
 def ant_runtime_replay_rollout_config(
@@ -28,6 +29,10 @@ def ant_runtime_replay_rollout_config(
         internal_rl_runtime_segment_max_steps=(
             ANT_RUNTIME_SEGMENT_MAX_STEPS
         ),
+        internal_rl_causal_action_head=WiringLevel.ACTIVE,
+        internal_rl_causal_action_head_strength=(
+            ANT_CAUSAL_ACTION_HEAD_STRENGTH
+        ),
         internal_rl_runtime_modulation_strength=(
             ANT_RUNTIME_MODULATION_STRENGTH
         ),
@@ -40,6 +45,7 @@ def ant_runtime_replay_rollout_config(
 
 
 __all__ = [
+    "ANT_CAUSAL_ACTION_HEAD_STRENGTH",
     "ANT_RUNTIME_EXPLORATION_STRENGTH",
     "ANT_RUNTIME_MODULATION_STRENGTH",
     "ANT_RUNTIME_SEGMENT_MAX_STEPS",

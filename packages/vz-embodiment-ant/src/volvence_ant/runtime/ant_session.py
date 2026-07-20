@@ -371,6 +371,10 @@ class AntSession:
                     rollout.internal_rl_runtime_segment_credit.value,
                 ),
                 (
+                    "internal_rl_causal_action_head",
+                    rollout.internal_rl_causal_action_head.value,
+                ),
+                (
                     "internal_rl_runtime_exploration_strength",
                     f"{rollout.internal_rl_runtime_exploration_strength:.6f}",
                 ),

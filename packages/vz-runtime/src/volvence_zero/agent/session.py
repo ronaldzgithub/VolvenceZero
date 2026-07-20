@@ -617,17 +617,31 @@ class AgentSessionRunner(
         _runtime_backend = self._config.temporal_runtime_backend
         _track_modulation = self._config.internal_rl_runtime_modulation_strength
         _runtime_exploration = self._config.internal_rl_runtime_exploration_strength
+        _causal_head_wiring = self._config.internal_rl_causal_action_head
+        _causal_head_strength = (
+            self._config.internal_rl_causal_action_head_strength
+        )
         if isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
             self._world_temporal_policy.set_runtime_backend(_runtime_backend)
             self._world_temporal_policy.set_runtime_track_modulation(_track_modulation)
             self._world_temporal_policy.set_runtime_exploration(
                 _runtime_exploration
             )
+            self._world_temporal_policy.set_causal_action_head(
+                wiring_level=_causal_head_wiring,
+                track=Track.WORLD,
+                strength=_causal_head_strength,
+            )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy.set_runtime_backend(_runtime_backend)
             self._self_temporal_policy.set_runtime_track_modulation(_track_modulation)
             self._self_temporal_policy.set_runtime_exploration(
                 _runtime_exploration
+            )
+            self._self_temporal_policy.set_causal_action_head(
+                wiring_level=_causal_head_wiring,
+                track=Track.SELF,
+                strength=_causal_head_strength,
             )
         self._evaluation_backbone = EvaluationBackbone()
         self._application_rare_heavy_state = ApplicationRareHeavyState()

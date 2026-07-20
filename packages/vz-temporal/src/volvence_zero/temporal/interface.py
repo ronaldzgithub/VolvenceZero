@@ -2396,19 +2396,7 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
         return self._parameter_store
 
     def export_runtime_state(self) -> MetacontrollerRuntimeState:
-        action_head = self._parameter_store.causal_action_head_parameters(
-            track=self._causal_action_head_track
-        )
-        return replace(
-            self._parameter_store.export_runtime_state(mode=self.mode.value),
-            causal_action_head_residual=(
-                self._latest_causal_action_head_residual
-            ),
-            causal_action_head_wiring=(
-                self._causal_action_head_wiring.value
-            ),
-            causal_action_head_update_step=action_head.update_step,
-        )
+        return self._parameter_store.export_runtime_state(mode=self.mode.value)
 
     def export_parameters(self) -> TemporalControllerParameters:
         return self._parameter_store.export_temporal_parameters()
@@ -2797,7 +2785,19 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         return self._latest_runtime_shadow_report
 
     def export_runtime_state(self) -> MetacontrollerRuntimeState:
-        return self._parameter_store.export_runtime_state(mode=self.mode.value)
+        action_head = self._parameter_store.causal_action_head_parameters(
+            track=self._causal_action_head_track
+        )
+        return replace(
+            self._parameter_store.export_runtime_state(mode=self.mode.value),
+            causal_action_head_residual=(
+                self._latest_causal_action_head_residual
+            ),
+            causal_action_head_wiring=(
+                self._causal_action_head_wiring.value
+            ),
+            causal_action_head_update_step=action_head.update_step,
+        )
 
     def export_parameters(self) -> TemporalControllerParameters:
         return self._parameter_store.export_temporal_parameters()
@@ -4566,4 +4566,25 @@ class TemporalAggregateModule(RuntimeModule[TemporalAbstractionSnapshot]):
         self_value = self_snapshot.value
         if not isinstance(world_value, TemporalAbstractionSnapshot):
             raise TypeError("world_temporal must publish TemporalAbstractionSnapshot.")
-        if not isinstance(self_value
+        if not isinstance(self_value, TemporalAbstractionSnapshot):
+            raise TypeError("self_temporal must publish TemporalAbstractionSnapshot.")
+        return self.publish(
+            build_temporal_aggregate_snapshot(
+                world_snapshot=world_value,
+                self_snapshot=self_value,
+            )
+        )
+
+    async def process_standalone(self, **kwargs: Any) -> Snapshot[TemporalAbstractionSnapshot]:
+        world_snapshot = kwargs.get("world_snapshot")
+        self_snapshot = kwargs.get("self_snapshot")
+        if not isinstance(world_snapshot, TemporalAbstractionSnapshot):
+            raise TypeError("world_snapshot must be TemporalAbstractionSnapshot.")
+        if not isinstance(self_snapshot, TemporalAbstractionSnapshot):
+            raise TypeError("self_snapshot must be TemporalAbstractionSnapshot.")
+        return self.publish(
+            build_temporal_aggregate_snapshot(
+                world_snapshot=world_snapshot,
+                self_snapshot=self_snapshot,
+            )
+        )

@@ -79,6 +79,8 @@ def torch_causal_ppo_update(
     entropy_coef: float = 0.005,
     value_coef: float = 0.5,
     runtime_track_modulation_strength: float = 0.0,
+    causal_action_head_enabled: bool = False,
+    causal_action_head_strength: float = 0.0,
 ) -> TorchPPOReport:
     """One real-autograd PPO update over a live ZTransition batch.
 
@@ -111,6 +113,11 @@ def torch_causal_ppo_update(
             f"unsupported torch Internal-RL transition source {transition_source!r}"
         )
     runtime_replay = transition_source == "runtime-replay"
+    if not 0.0 <= causal_action_head_strength <= 1.0:
+        raise ValueError(
+            "causal_action_head_strength must be within [0, 1], "
+            f"got {causal_action_head_strength!r}"
+        )
 
     dtype = torch.float64
 
@@ -122,7 +129,11 @@ def torch_causal_ppo_update(
     actions = torch.stack([vec(t.policy_action, n_z) for t in usable])
     hidden = (
         torch.stack([vec(t.hidden_state, n_z) for t in usable])
-        if runtime_track_modulation_strength > 0.0 and not runtime_replay
+        if causal_action_head_enabled
+        or (
+            runtime_track_modulation_strength > 0.0
+            and not runtime_replay
+        )
         else None
     )
     runtime_base_mean = (
@@ -176,6 +187,62 @@ def torch_causal_ppo_update(
     cw_base += [0.0] * max(0, n_z - len(cw_base))
     cw = torch.tensor(cw_base, dtype=dtype, requires_grad=True)
     cb = torch.tensor([float(value_bias.get(track, 0.0))], dtype=dtype, requires_grad=True)
+    head_parameters = (
+        parameter_store.causal_action_head_parameters(track=track)
+        if causal_action_head_enabled
+        else None
+    )
+    head_input = (
+        torch.tensor(
+            head_parameters.input_factors,
+            dtype=dtype,
+            requires_grad=True,
+        )
+        if head_parameters is not None
+        else None
+    )
+    head_output = (
+        torch.tensor(
+            head_parameters.output_factors,
+            dtype=dtype,
+            requires_grad=True,
+        )
+        if head_parameters is not None
+        else None
+    )
+    head_bias = (
+        torch.tensor(
+            head_parameters.bias,
+            dtype=dtype,
+            requires_grad=True,
+        )
+        if head_parameters is not None
+        else None
+    )
+
+    def action_head_residual() -> Any:
+        if not causal_action_head_enabled:
+            return 0.0
+        if (
+            hidden is None
+            or head_input is None
+            or head_output is None
+            or head_bias is None
+        ):
+            raise RuntimeError(
+                "causal action head requires hidden state and parameters"
+            )
+        basis = torch.tanh(
+            torch.matmul(
+                hidden * 2.0 - 1.0,
+                head_input.transpose(0, 1),
+            )
+            / math.sqrt(max(n_z, 1))
+        )
+        return causal_action_head_strength * torch.tanh(
+            torch.matmul(basis, head_output.transpose(0, 1))
+            + head_bias.unsqueeze(0)
+        )
 
     def policy_mean(weights: Any) -> Any:
         if runtime_replay:
@@ -200,6 +267,12 @@ def torch_causal_ppo_update(
                 -1.0,
                 1.0,
             )
+            if causal_action_head_enabled:
+                modulated_mean = torch.clamp(
+                    modulated_mean + action_head_residual(),
+                    -1.0,
+                    1.0,
+                )
             return torch.clamp(
                 runtime_beta_t * modulated_mean
                 + (1.0 - runtime_beta_t) * runtime_previous_code,
@@ -208,7 +281,10 @@ def torch_causal_ppo_update(
             )
         if runtime_track_modulation_strength <= 0.0:
             # Byte-compatible historical rollback lane.
-            return torch.clamp(weights.unsqueeze(0) * obs, 0.0, 1.0)
+            candidate = weights.unsqueeze(0) * obs
+            if causal_action_head_enabled:
+                candidate = candidate + action_head_residual()
+            return torch.clamp(candidate, 0.0, 1.0)
 
         # Match CausalZPolicy._policy_mean and the live ndim forward:
         # construct an unmodulated causal candidate, then apply the exact same
@@ -242,7 +318,10 @@ def torch_causal_ppo_update(
             mean_weights * n_z - 1.0
         )
         gain = torch.clamp(gain, 0.5, 1.5)
-        return torch.clamp(base_candidate * gain.unsqueeze(0), 0.0, 1.0)
+        candidate = base_candidate * gain.unsqueeze(0)
+        if causal_action_head_enabled:
+            candidate = candidate + action_head_residual()
+        return torch.clamp(candidate, 0.0, 1.0)
 
     def policy_std(weights: Any, ls: Any) -> Any:
         if runtime_replay:
@@ -301,8 +380,20 @@ def torch_causal_ppo_update(
             else log_prob(old_mean, log_std, w)
         )
 
-    opt = torch.optim.Adam([w, log_std, cw, cb], lr=learning_rate)
-    before = [w.detach().clone(), log_std.detach().clone(), cw.detach().clone(), cb.detach().clone()]
+    optimizer_parameters = [w, log_std, cw, cb]
+    if (
+        head_input is not None
+        and head_output is not None
+        and head_bias is not None
+    ):
+        optimizer_parameters.extend(
+            [head_input, head_output, head_bias]
+        )
+    opt = torch.optim.Adam(optimizer_parameters, lr=learning_rate)
+    before = [
+        parameter.detach().clone()
+        for parameter in optimizer_parameters
+    ]
     last_policy_loss = last_value_loss = last_kl = last_clip = last_entropy = 0.0
     for _ in range(ppo_epochs):
         mean = policy_mean(w)
@@ -332,7 +423,7 @@ def torch_causal_ppo_update(
             last_clip = float(((ratio - 1.0).abs() > clip_epsilon).to(dtype).mean())
             last_entropy = float(entropy)
 
-    after = [w, log_std, cw, cb]
+    after = optimizer_parameters
     changed = 0
     total = 0
     for b, a in zip(before, after, strict=True):
@@ -352,6 +443,30 @@ def torch_causal_ppo_update(
         parameter_store.track_weights[track] = normalized
         value_weights[track] = tuple(float(v) for v in cw.detach().tolist())
         value_bias[track] = float(cb.detach()[0])
+        if (
+            head_parameters is not None
+            and head_input is not None
+            and head_output is not None
+            and head_bias is not None
+        ):
+            from dataclasses import replace
+
+            parameter_store.causal_action_heads[track] = replace(
+                head_parameters,
+                input_factors=tuple(
+                    tuple(float(value) for value in row)
+                    for row in head_input.detach().tolist()
+                ),
+                output_factors=tuple(
+                    tuple(float(value) for value in row)
+                    for row in head_output.detach().tolist()
+                ),
+                bias=tuple(
+                    float(value)
+                    for value in head_bias.detach().tolist()
+                ),
+                update_step=head_parameters.update_step + 1,
+            )
         parameter_store.align_temporal_from_tracks()
 
     return TorchPPOReport(

@@ -249,6 +249,11 @@ class FinalRolloutConfig:
     # DISABLED preserves one-step runtime replay exactly.
     internal_rl_runtime_segment_credit: WiringLevel = WiringLevel.DISABLED
     internal_rl_runtime_segment_max_steps: int = 24
+    # Generic low-rank state-conditioned residual over z_t. DISABLED is the
+    # exact rollback path; SHADOW learns/reports candidate parameters without
+    # changing live z_t; ACTIVE applies the bounded residual in latent space.
+    internal_rl_causal_action_head: WiringLevel = WiringLevel.DISABLED
+    internal_rl_causal_action_head_strength: float = 0.35
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
