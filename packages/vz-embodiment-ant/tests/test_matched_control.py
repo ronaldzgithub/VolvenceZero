@@ -26,6 +26,11 @@ async def test_behavioral_matched_control_arms_present() -> None:
     for arm in report.arms:
         assert arm.ticks == 20
         assert arm.mean_food_experienced >= 0.0
+        assert arm.minimum_food_distance >= 0.0
+        assert arm.diagnostic_breakpoint != "not-evaluated"
+    learned = next(arm for arm in report.arms if arm.arm == "learned")
+    assert learned.initial_policy_fingerprint is not None
+    assert learned.trained_policy_fingerprint is not None
 
 
 async def test_learned_arm_beats_random_floor() -> None:
@@ -106,6 +111,7 @@ def test_spawn_seed_workers_match_serial_and_preserve_seed_order() -> None:
 
 def test_formal_no_optimize_is_a_real_policy_update_ablation() -> None:
     from scripts.run_ant_matched_control import (
+        _ANT_RL_RUNTIME_EXPLORATION_STRENGTH,
         _ANT_RL_RUNTIME_MODULATION_STRENGTH,
         _learned_config,
         _schedule_gated_arms,
@@ -121,6 +127,11 @@ def test_formal_no_optimize_is_a_real_policy_update_ablation() -> None:
         learned.rollout_config.internal_rl_runtime_modulation_strength
         == no_optimize.rollout_config.internal_rl_runtime_modulation_strength
         == _ANT_RL_RUNTIME_MODULATION_STRENGTH
+    )
+    assert (
+        learned.rollout_config.internal_rl_runtime_exploration_strength
+        == no_optimize.rollout_config.internal_rl_runtime_exploration_strength
+        == _ANT_RL_RUNTIME_EXPLORATION_STRENGTH
     )
 
 

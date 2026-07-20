@@ -530,6 +530,7 @@ class SessionObservationMixin:
             joint_schedule_action=joint_result.schedule_action,
             joint_learning_summary=joint_result.description,
             joint_cycle_report=joint_result.cycle_report,
+            runtime_replay_report=joint_result.runtime_replay_report,
             default_continual_learning_surface=joint_result.default_continual_learning_surface,
             response=response,
             event_count=integration_result.event_count,

@@ -23,6 +23,7 @@ from volvence_zero.credit.gate import (
     has_blocking_writeback,
 )
 from volvence_zero.dual_track import DualTrackModule
+from volvence_zero.environment import EnvironmentOutcome
 from volvence_zero.evaluation import (
     CrossSessionBenchmarkSuite,
     EvaluationBackbone,
@@ -39,6 +40,7 @@ from volvence_zero.internal_rl import (
     InternalRLSandbox,
     OptimizationReport,
     PolicyOptimizationResult,
+    ZRollout,
     derive_abstract_action_credit,
 )
 from volvence_zero.joint_loop.artifact_imports import _JointLoopArtifactImportMixin
@@ -50,12 +52,14 @@ from volvence_zero.joint_loop.contracts import (
     OnlineFastImportResult,
     RareHeavyImportCheckpoint,
     RareHeavyImportResult,
+    RuntimeReplayReport,
     ScheduledJointLoopResult,
 )
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.joint_loop.scheduling import _JointLoopSchedulingMixin
 from volvence_zero.memory import MemoryModule
 from volvence_zero.memory import MemoryStore, Track, build_default_memory_store
+from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.regime import RegimeModule
 from volvence_zero.runtime import EventRecorder, SlotRegistry, Snapshot, WiringLevel, propagate
@@ -129,6 +133,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         rl_batch_accumulation_size: int = 1,
         ssl_backend: WiringLevel = WiringLevel.DISABLED,
         internal_rl_backend: WiringLevel = WiringLevel.DISABLED,
+        internal_rl_runtime_replay: WiringLevel = WiringLevel.DISABLED,
+        runtime_replay_prediction_error_enabled: bool = True,
     ) -> None:
         self._world_policy = world_policy or policy or FullLearnedTemporalPolicy()
         self._self_policy = self_policy or FullLearnedTemporalPolicy(
@@ -165,6 +171,15 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._rl_batch_accumulation_size = max(1, rl_batch_accumulation_size)
         self._pending_task_rollouts: list = []
         self._pending_relationship_rollouts: list = []
+        self._internal_rl_runtime_replay = internal_rl_runtime_replay
+        self._runtime_replay_prediction_error_enabled = bool(
+            runtime_replay_prediction_error_enabled
+        )
+        self._runtime_replay_captured_count = 0
+        self._runtime_replay_settled_count = 0
+        self._runtime_replay_transition_count = 0
+        self._runtime_replay_lineage_match_count = 0
+        self._runtime_replay_drop_reasons: list[str] = []
         # T3 (#88): learned SSL->RL schedule gate, report-only SHADOW.
         # The rule cascade stays the live writer; the learner's shadow
         # recommendation is published in schedule telemetry and settled
@@ -178,6 +193,132 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
 
     def set_external_learning_signals(self, signals: dict[str, float]) -> None:
         self._external_learning_signals = dict(signals)
+
+    @property
+    def internal_rl_runtime_replay(self) -> WiringLevel:
+        return self._internal_rl_runtime_replay
+
+    @property
+    def latest_runtime_replay_report(self) -> RuntimeReplayReport:
+        pending_capture_count = sum(
+            int(sandbox.runtime_replay_checkpoint.pending_capture is not None)
+            for sandbox in (self._world_sandbox, self._self_sandbox)
+        )
+        staged_rollout_count = (
+            len(self._pending_task_rollouts)
+            + len(self._pending_relationship_rollouts)
+            if self._internal_rl_runtime_replay is WiringLevel.ACTIVE
+            else 0
+        )
+        source = (
+            "synthetic"
+            if self._internal_rl_runtime_replay is WiringLevel.DISABLED
+            else "runtime-replay"
+        )
+        return RuntimeReplayReport(
+            wiring_level=self._internal_rl_runtime_replay.value,
+            transition_source=source,
+            captured_count=self._runtime_replay_captured_count,
+            settled_count=self._runtime_replay_settled_count,
+            transition_count=self._runtime_replay_transition_count,
+            lineage_match_count=self._runtime_replay_lineage_match_count,
+            pending_capture_count=pending_capture_count,
+            staged_rollout_count=staged_rollout_count,
+            drop_reasons=tuple(self._runtime_replay_drop_reasons[-20:]),
+            description=(
+                f"Internal-RL transition source={source} "
+                f"wiring={self._internal_rl_runtime_replay.value} "
+                f"captured={self._runtime_replay_captured_count} "
+                f"settled={self._runtime_replay_settled_count} "
+                f"lineage_matches={self._runtime_replay_lineage_match_count} "
+                f"drops={len(self._runtime_replay_drop_reasons)}."
+            ),
+        )
+
+    def observe_runtime_transition(
+        self,
+        *,
+        turn_index: int,
+        substrate_snapshot: SubstrateSnapshot,
+        world_temporal_snapshot: TemporalAbstractionSnapshot,
+        self_temporal_snapshot: TemporalAbstractionSnapshot,
+        world_runtime_state: MetacontrollerRuntimeState,
+        self_runtime_state: MetacontrollerRuntimeState,
+        environment_outcome: EnvironmentOutcome | None,
+        prediction_error_snapshot: PredictionErrorSnapshot,
+        credit_snapshot: CreditSnapshot,
+    ) -> RuntimeReplayReport:
+        """Owner entry point for post-environment runtime evidence."""
+
+        if self._internal_rl_runtime_replay is WiringLevel.DISABLED:
+            return self.latest_runtime_replay_report
+        prediction_id = prediction_error_snapshot.next_prediction.prediction_id
+        if not prediction_id:
+            raise RuntimeError(
+                "runtime replay requires prediction_error.next_prediction "
+                "to carry the PE-owner prediction_id"
+            )
+        world_settlement, _ = self._world_sandbox.observe_runtime_transition(
+            turn_index=turn_index,
+            track=Track.WORLD,
+            prediction_id=prediction_id,
+            substrate_snapshot=substrate_snapshot,
+            temporal_snapshot=world_temporal_snapshot,
+            runtime_state=world_runtime_state,
+            environment_outcome=environment_outcome,
+            prediction_error_snapshot=prediction_error_snapshot,
+            credit_snapshot=credit_snapshot,
+            prediction_error_reward_enabled=(
+                self._runtime_replay_prediction_error_enabled
+            ),
+        )
+        self_settlement, _ = self._self_sandbox.observe_runtime_transition(
+            turn_index=turn_index,
+            track=Track.SELF,
+            prediction_id=prediction_id,
+            substrate_snapshot=substrate_snapshot,
+            temporal_snapshot=self_temporal_snapshot,
+            runtime_state=self_runtime_state,
+            environment_outcome=environment_outcome,
+            prediction_error_snapshot=prediction_error_snapshot,
+            credit_snapshot=credit_snapshot,
+            prediction_error_reward_enabled=(
+                self._runtime_replay_prediction_error_enabled
+            ),
+        )
+        self._runtime_replay_captured_count += 2
+        for track_name, settlement in (
+            ("world", world_settlement),
+            ("self", self_settlement),
+        ):
+            if settlement.rollout is not None:
+                self._runtime_replay_settled_count += 1
+                self._runtime_replay_transition_count += len(
+                    settlement.rollout.transitions
+                )
+                self._runtime_replay_lineage_match_count += int(
+                    settlement.lineage_matched
+                )
+            elif settlement.drop_reason not in {"", "no-pending-capture"}:
+                self._runtime_replay_drop_reasons.append(
+                    f"{track_name}:{settlement.drop_reason}"
+                )
+                if len(self._runtime_replay_drop_reasons) > 20:
+                    del self._runtime_replay_drop_reasons[:-20]
+        if self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
+            if world_settlement.rollout is not None:
+                self._pending_task_rollouts.append(world_settlement.rollout)
+            if self_settlement.rollout is not None:
+                self._pending_relationship_rollouts.append(
+                    self_settlement.rollout
+                )
+            if len(self._pending_task_rollouts) != len(
+                self._pending_relationship_rollouts
+            ):
+                raise RuntimeError(
+                    "runtime replay staging diverged between world and self tracks"
+                )
+        return self.latest_runtime_replay_report
 
     @property
     def schedule_gate_learner(self):
@@ -335,16 +476,23 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         return RareHeavyImportCheckpoint(
             artifact_id=checkpoint_id,
             world_policy_checkpoint=self._world_sandbox.create_checkpoint(
-                checkpoint_id=f"{checkpoint_id}:world-policy"
+                checkpoint_id=f"{checkpoint_id}:world-policy",
+                include_runtime_replay=True,
             ),
             self_policy_checkpoint=self._self_sandbox.create_checkpoint(
-                checkpoint_id=f"{checkpoint_id}:self-policy"
+                checkpoint_id=f"{checkpoint_id}:self-policy",
+                include_runtime_replay=True,
             ),
             world_temporal_snapshot=self._world_policy.export_rare_heavy_snapshot(),
             self_temporal_snapshot=self._self_policy.export_rare_heavy_snapshot(),
             memory_checkpoint=self._memory_store.create_checkpoint(
                 checkpoint_id=f"{checkpoint_id}:memory"
             ),
+            pending_task_rollouts=tuple(self._pending_task_rollouts),
+            pending_relationship_rollouts=tuple(
+                self._pending_relationship_rollouts
+            ),
+            runtime_replay_report=self.latest_runtime_replay_report,
         )
 
     def restore_learning_checkpoint(
@@ -427,6 +575,67 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             self_state=self._self_policy.export_runtime_state(),
         )
 
+    @staticmethod
+    def _empty_runtime_rollout(
+        *,
+        rollout_id: str,
+        track: Track,
+        reason: str,
+    ) -> ZRollout:
+        return ZRollout(
+            rollout_id=rollout_id,
+            track=track,
+            transitions=(),
+            total_reward=0.0,
+            description=reason,
+            replacement_mode="runtime-replay",
+            reward_mode="runtime-replay",
+        )
+
+    @staticmethod
+    def _merge_runtime_rollouts(
+        *,
+        rollout_id: str,
+        track: Track,
+        rollouts: tuple[ZRollout, ...],
+    ) -> ZRollout:
+        if any(rollout.track is not track for rollout in rollouts):
+            raise ValueError(
+                f"cannot merge runtime replay rollouts across tracks for {track.value}"
+            )
+        transitions = tuple(
+            transition
+            for rollout in rollouts
+            for transition in rollout.transitions
+        )
+        return ZRollout(
+            rollout_id=rollout_id,
+            track=track,
+            transitions=transitions,
+            total_reward=sum(transition.reward for transition in transitions),
+            description=(
+                f"Merged {len(rollouts)} settled runtime replay rollouts "
+                f"for {track.value} with {len(transitions)} transitions."
+            ),
+            replacement_mode="runtime-replay",
+            reward_mode="runtime-replay",
+        )
+
+    @staticmethod
+    def _waiting_for_runtime_replay_report(*, track: Track, count: int) -> OptimizationReport:
+        return OptimizationReport(
+            track=track,
+            average_reward=0.0,
+            baseline_reward=0.0,
+            mean_advantage=0.0,
+            surrogate_objective=0.0,
+            clip_fraction=0.0,
+            kl_penalty=0.0,
+            parameter_summary="waiting-for-runtime-replay",
+            rollout_count=count,
+            transition_count=0,
+        )
+
     async def run_cycle(
         self,
         *,
@@ -461,28 +670,88 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self_pre_rl_checkpoint = self._self_sandbox.create_checkpoint(
             checkpoint_id=f"joint-cycle-{cycle_index}:self-pre-rl"
         )
-        self._world_sandbox.configure_runtime_backend(source_text=trace.source_text)
-        self._self_sandbox.configure_runtime_backend(source_text=trace.source_text)
-        eval_signals = dict(self._previous_family_signals)
-        eval_signals.update(self._external_learning_signals)
-        if self._previous_credit_snapshot is not None:
-            credit_bonus = extract_abstract_action_credit_bonus(self._previous_credit_snapshot)
-            eval_signals.update(credit_bonus)
-        if eval_signals:
-            self._world_sandbox._env.set_evaluation_signals(eval_signals)
-            self._self_sandbox._env.set_evaluation_signals(eval_signals)
-        task_rollout = self._world_sandbox.rollout(
-            rollout_id=f"joint-{cycle_index}:task",
-            substrate_steps=substrate_snapshots,
-            track=Track.WORLD,
-            replacement_mode="causal-binary",
-        )
-        relationship_rollout = self._self_sandbox.rollout(
-            rollout_id=f"joint-{cycle_index}:relationship",
-            substrate_steps=substrate_snapshots,
-            track=Track.SELF,
-            replacement_mode="causal-binary",
-        )
+        if self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
+            if len(self._pending_task_rollouts) != len(
+                self._pending_relationship_rollouts
+            ):
+                raise RuntimeError(
+                    "ACTIVE runtime replay staging diverged between tracks"
+                )
+            batch_due = (
+                len(self._pending_task_rollouts)
+                >= self._rl_batch_accumulation_size
+            )
+            if batch_due:
+                task_batch = tuple(self._pending_task_rollouts)
+                relationship_batch = tuple(
+                    self._pending_relationship_rollouts
+                )
+                task_rollout = self._merge_runtime_rollouts(
+                    rollout_id=f"joint-{cycle_index}:runtime-task",
+                    track=Track.WORLD,
+                    rollouts=task_batch,
+                )
+                relationship_rollout = self._merge_runtime_rollouts(
+                    rollout_id=f"joint-{cycle_index}:runtime-relationship",
+                    track=Track.SELF,
+                    rollouts=relationship_batch,
+                )
+            else:
+                task_batch = ()
+                relationship_batch = ()
+                task_rollout = self._empty_runtime_rollout(
+                    rollout_id=f"joint-{cycle_index}:runtime-task-wait",
+                    track=Track.WORLD,
+                    reason="waiting-for-runtime-replay",
+                )
+                relationship_rollout = self._empty_runtime_rollout(
+                    rollout_id=f"joint-{cycle_index}:runtime-relationship-wait",
+                    track=Track.SELF,
+                    reason="waiting-for-runtime-replay",
+                )
+        else:
+            self._world_sandbox.configure_runtime_backend(
+                source_text=trace.source_text
+            )
+            self._self_sandbox.configure_runtime_backend(
+                source_text=trace.source_text
+            )
+            eval_signals = dict(self._previous_family_signals)
+            eval_signals.update(self._external_learning_signals)
+            if self._previous_credit_snapshot is not None:
+                credit_bonus = extract_abstract_action_credit_bonus(
+                    self._previous_credit_snapshot
+                )
+                eval_signals.update(credit_bonus)
+            if eval_signals:
+                self._world_sandbox._env.set_evaluation_signals(eval_signals)
+                self._self_sandbox._env.set_evaluation_signals(eval_signals)
+            task_rollout = self._world_sandbox.rollout(
+                rollout_id=f"joint-{cycle_index}:task",
+                substrate_steps=substrate_snapshots,
+                track=Track.WORLD,
+                replacement_mode="causal-binary",
+            )
+            relationship_rollout = self._self_sandbox.rollout(
+                rollout_id=f"joint-{cycle_index}:relationship",
+                substrate_steps=substrate_snapshots,
+                track=Track.SELF,
+                replacement_mode="causal-binary",
+            )
+            self._pending_task_rollouts.append(task_rollout)
+            self._pending_relationship_rollouts.append(relationship_rollout)
+            batch_due = (
+                len(self._pending_task_rollouts)
+                >= self._rl_batch_accumulation_size
+            )
+            task_batch = (
+                tuple(self._pending_task_rollouts) if batch_due else ()
+            )
+            relationship_batch = (
+                tuple(self._pending_relationship_rollouts)
+                if batch_due
+                else ()
+            )
         dual_track_rollout = DualTrackRollout(
             task_rollout=task_rollout,
             relationship_rollout=relationship_rollout,
@@ -491,22 +760,33 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 f"relationship_reward={relationship_rollout.total_reward:.2f}."
             ),
         )
-        self._pending_task_rollouts.append(task_rollout)
-        self._pending_relationship_rollouts.append(relationship_rollout)
-        batch_due = len(self._pending_task_rollouts) >= self._rl_batch_accumulation_size
-        world_before_hash = stable_value_hash(self._world_sandbox.causal_policy.export_parameters())
-        self_before_hash = stable_value_hash(self._self_sandbox.causal_policy.export_parameters())
+        world_before_hash = stable_value_hash(
+            self._world_sandbox.causal_policy.export_parameters()
+        )
+        self_before_hash = stable_value_hash(
+            self._self_sandbox.causal_policy.export_parameters()
+        )
         if batch_due:
-            task_batch = tuple(self._pending_task_rollouts)
-            relationship_batch = tuple(self._pending_relationship_rollouts)
             task_report = self._world_sandbox.optimize(task_batch)
-            relationship_report = self._self_sandbox.optimize(relationship_batch)
+            relationship_report = self._self_sandbox.optimize(
+                relationship_batch
+            )
             if not apply_policy_optimization:
                 self._world_sandbox.restore_checkpoint(world_pre_rl_checkpoint)
                 self._self_sandbox.restore_checkpoint(self_pre_rl_checkpoint)
             self._pending_task_rollouts.clear()
             self._pending_relationship_rollouts.clear()
             rl_batch_rollout_count = len(task_batch)
+        elif self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
+            task_report = self._waiting_for_runtime_replay_report(
+                track=Track.WORLD,
+                count=len(self._pending_task_rollouts),
+            )
+            relationship_report = self._waiting_for_runtime_replay_report(
+                track=Track.SELF,
+                count=len(self._pending_relationship_rollouts),
+            )
+            rl_batch_rollout_count = len(self._pending_task_rollouts)
         else:
             task_report = OptimizationReport(
                 track=Track.WORLD,
@@ -518,7 +798,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 kl_penalty=0.0,
                 parameter_summary="waiting-for-batch",
                 rollout_count=len(self._pending_task_rollouts),
-                transition_count=sum(len(rollout.transitions) for rollout in self._pending_task_rollouts),
+                transition_count=sum(
+                    len(rollout.transitions)
+                    for rollout in self._pending_task_rollouts
+                ),
             )
             relationship_report = OptimizationReport(
                 track=Track.SELF,
@@ -530,7 +813,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 kl_penalty=0.0,
                 parameter_summary="waiting-for-batch",
                 rollout_count=len(self._pending_relationship_rollouts),
-                transition_count=sum(len(rollout.transitions) for rollout in self._pending_relationship_rollouts),
+                transition_count=sum(
+                    len(rollout.transitions)
+                    for rollout in self._pending_relationship_rollouts
+                ),
             )
             rl_batch_rollout_count = len(self._pending_task_rollouts)
         if not isinstance(task_report, OptimizationReport):
@@ -695,7 +981,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             else 0.0
         )
         backend_names = {transition.backend_name for transition in all_transitions}
-        backend_name = backend_names.pop() if len(backend_names) == 1 else "mixed"
+        if len(backend_names) == 1:
+            backend_name = backend_names.pop()
+        elif not backend_names and self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
+            backend_name = "waiting-for-runtime-replay"
+        else:
+            backend_name = "mixed"
         evaluation_snapshot = active_snapshots["evaluation"].value
         temporal_snapshot = active_snapshots.get("temporal_abstraction")
         temporal_value = (
@@ -723,6 +1014,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             evaluation_snapshot=evaluation_snapshot,
             optimization_report=optimization_report,
             metacontroller_state=pre_rollback_metacontroller_state,
+            optimization_evidence_available=not (
+                self._internal_rl_runtime_replay is WiringLevel.ACTIVE
+                and not batch_due
+            ),
         )
         rollback_required = bool(rollback_reasons)
         policy_rollback_applied = False
@@ -793,7 +1088,16 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             session_report=session_report,
             cross_session_report=cross_session_report,
         )
-        if not rollback_required and evolution_judgement.decision is EvolutionDecision.ROLLBACK:
+        # Runtime replay is trained from matched PE-first environment evidence.
+        # The generic evolution benchmark has no access to that transition
+        # lineage, so it remains a readout and cannot become a second reward/
+        # rollback owner for this lane. Typed safety, relationship, KL and drift
+        # gates in ``_rollback_reasons`` remain authoritative.
+        if (
+            not rollback_required
+            and evolution_judgement.decision is EvolutionDecision.ROLLBACK
+            and self._internal_rl_runtime_replay is not WiringLevel.ACTIVE
+        ):
             self._world_sandbox.restore_checkpoint(world_cycle_checkpoint)
             self._self_sandbox.restore_checkpoint(self_cycle_checkpoint)
             policy_rollback_applied = True
@@ -898,7 +1202,11 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         # signals cache / previous credit snapshot). It never mutates shared
         # owner instances.
         # ========================================================================
-        self._previous_total_reward = total_reward
+        if not (
+            self._internal_rl_runtime_replay is WiringLevel.ACTIVE
+            and not batch_due
+        ):
+            self._previous_total_reward = total_reward
         self._previous_metacontroller_state = metacontroller_state
         self._previous_family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
         self._previous_credit_snapshot = enriched_credit_snapshot
@@ -970,6 +1278,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 f"mean_reward={mean_transition_reward:.2f}, "
                 f"rollback={'on' if policy_rollback_applied else 'off'}, "
                 f"reasons={','.join(rollback_reasons) if rollback_reasons else 'none'}, "
+                f"transition_source={self.latest_runtime_replay_report.transition_source}, "
                 f"backend={backend_name}, fidelity={backend_fidelity:.2f}, "
                 f"controller={metacontroller_state.description if metacontroller_state is not None else 'unavailable'}, "
                 f"kernel_scores={len(kernel_scores)}, with {len(applied_operations)} bounded writeback operations."
@@ -980,6 +1289,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             rare_heavy_review_recommended=rare_heavy_review_recommended,
             rl_batch_rollout_count=rl_batch_rollout_count,
             default_continual_learning_surface=default_continual_learning_surface,
+            runtime_replay_report=self.latest_runtime_replay_report,
         )
 
     async def run_scheduled_step(
@@ -1083,6 +1393,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 apply_writeback=apply_writeback,
                 apply_policy_optimization=apply_policy_optimization,
             )
+            if cycle_report.backend_name == "waiting-for-runtime-replay":
+                schedule_action = "waiting-for-runtime-replay"
             self._record_schedule_outcome(
                 turn_index=turn_index,
                 schedule_action=schedule_action,
@@ -1104,6 +1416,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 substrate_online_fast_due=substrate_online_fast_due,
                 rare_heavy_review_recommended=rare_heavy_review_recommended or cycle_report.rare_heavy_review_recommended,
                 default_continual_learning_surface=cycle_report.default_continual_learning_surface,
+                runtime_replay_report=cycle_report.runtime_replay_report,
             )
         if batch_schedule_action in {
             "ssl-only-risk-hold",
@@ -1147,6 +1460,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                     ),
                     substrate_online_fast_due=substrate_online_fast_due,
                     rare_heavy_review_recommended=rare_heavy_review_recommended,
+                    runtime_replay_report=self.latest_runtime_replay_report,
                 )
             return ScheduledJointLoopResult(
                 turn_index=turn_index,
@@ -1165,6 +1479,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 ),
                 substrate_online_fast_due=substrate_online_fast_due,
                 rare_heavy_review_recommended=rare_heavy_review_recommended,
+                runtime_replay_report=self.latest_runtime_replay_report,
             )
         if (
             pe_ssl_due
@@ -1212,6 +1527,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 ),
                 substrate_online_fast_due=substrate_online_fast_due,
                 rare_heavy_review_recommended=rare_heavy_review_recommended,
+                runtime_replay_report=self.latest_runtime_replay_report,
             )
         metacontroller_state = self._aggregate_metacontroller_state()
         self._record_schedule_outcome(
@@ -1233,6 +1549,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             description=f"Scheduled joint loop owner={self.owner_path} collected evidence only at turn {turn_index}.",
             substrate_online_fast_due=substrate_online_fast_due,
             rare_heavy_review_recommended=rare_heavy_review_recommended,
+            runtime_replay_report=self.latest_runtime_replay_report,
         )
 
     def _enrich_credit_snapshot(
@@ -1265,6 +1582,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         evaluation_snapshot: EvaluationSnapshot,
         optimization_report: DualTrackOptimizationReport,
         metacontroller_state: MetacontrollerRuntimeState | None,
+        optimization_evidence_available: bool = True,
     ) -> tuple[str, ...]:
         reasons: list[str] = []
         family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
@@ -1281,12 +1599,20 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             for alert in evaluation_snapshot.structured_alerts
         ):
             reasons.append("evaluation-alert")
+        synthetic_surrogate_gate = (
+            self._internal_rl_runtime_replay is not WiringLevel.ACTIVE
+        )
         if (
-            optimization_report.task_report.surrogate_objective < -0.1
-            or optimization_report.relationship_report.surrogate_objective < -0.1
+            optimization_evidence_available
+            and synthetic_surrogate_gate
+            and (
+                optimization_report.task_report.surrogate_objective < -0.1
+                or optimization_report.relationship_report.surrogate_objective
+                < -0.1
+            )
         ):
             reasons.append("negative-surrogate")
-        if (
+        if optimization_evidence_available and (
             optimization_report.task_report.kl_penalty > 0.4
             or optimization_report.relationship_report.kl_penalty > 0.4
         ):
@@ -1301,11 +1627,16 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             + family_signals.get("learning", 0.5) * 0.2
             + family_signals.get("abstraction", 0.5) * 0.2
         )
-        if surrogate_total > 0.1 and outcome_alignment < 0.45:
+        if (
+            optimization_evidence_available
+            and synthetic_surrogate_gate
+            and surrogate_total > 0.1
+            and outcome_alignment < 0.45
+        ):
             reasons.append("surrogate-outcome-decoupling")
         if self._metacontroller_drift_exceeds_limit(metacontroller_state):
             reasons.append("metacontroller-drift")
-        if self._previous_total_reward is None:
+        if self._previous_total_reward is None or not optimization_evidence_available:
             return tuple(reasons)
         if total_reward + 0.30 < self._previous_total_reward:
             reasons.append("reward-regression")
@@ -1391,5 +1722,6 @@ __all__ = [
     "OnlineFastImportResult",
     "RareHeavyImportCheckpoint",
     "RareHeavyImportResult",
+    "RuntimeReplayReport",
     "ScheduledJointLoopResult",
 ]

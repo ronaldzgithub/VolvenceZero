@@ -97,6 +97,7 @@ async def test_learning_checkpoint_round_trip_restores_owner_state() -> None:
     session.restore_learning_checkpoint(checkpoint)
     restored = session.export_learning_checkpoint(checkpoint_id="shared-initial")
     assert restored.fingerprint == checkpoint.fingerprint
+    assert restored.policy_fingerprint == checkpoint.policy_fingerprint
 
 
 async def test_heading_stability_objective_publishes_dense_motor_facts() -> None:

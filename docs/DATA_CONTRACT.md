@@ -823,6 +823,7 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 | typed task measurement | `vz-contracts` / PE owner | `EnvironmentOutcome.measurement` 仅含环境可观察事实；runtime 保留 lineage，PE 是唯一 mismatch owner |
 | `ColonyRareHeavyBundle` | `vz-embodiment-ant` | per-individual artifact digest/provenance/gate verdict；不含 temporal state、不新增 slot |
 | evidence manifest | `vz-embodiment-ant` | `digital-ant-manifest.v2` sidecar 绑定 artifact/input digest 与运行 provenance |
+| realtime app DTO | `vz-embodiment-ant` | `digital-ant-app.v1` 的 frozen config/frame/status/command/disturbance；SSE+POST 外部控制面，**不**进入 §3/§6 slot 注册表 |
 
 **关键不变量**：
 
@@ -840,6 +841,9 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
   runtime 不训练 artifact，角色标签只允许作为 held-out 行为 readout。
 - 正式 evidence artifact 必须带 schema version、git SHA/dirty、依赖/seed/config/model fingerprints 和
   输入 sha256/size；dirty tree 的 manifest 必须声明 `externally_retainable=false`。
+- realtime app 只在完整 tick/round 边界排队调用环境 owner 的公开扰动 API；浏览器不得提交
+  `turn_command` / `step_command`。视觉帧只投影 `AntStepRecord`、`ColonyRoundRecord`、公开 body/food/
+  信息素快照；App verdict 只读正式 artifact，绝不回灌 PE/credit/Internal-RL。
 
 详见 `docs/specs/digital-ant-embodiment.md` 与 `research/ant/04_digital_ant_feasibility.md`。
 

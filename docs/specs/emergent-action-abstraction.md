@@ -1,7 +1,7 @@
 ﻿# Emergent Action Abstraction Spec
 
 > Status: draft
-> Last updated: 2026-05-02
+> Last updated: 2026-07-20
 > 对应需求: R-PE, R1, R3, R4, R8, R9, R10, R11, R13, R15
 
 ## 要解决的问题
@@ -24,7 +24,7 @@ Environment Interface 已经把聊天、工具结果、ingestion、tick / scene 
 - 不新增独立 Action/Outcome encoder owner；动作抽象仍由 metacontroller 在 `z_t` 空间学习。
 - `EnvironmentOutcome` 不承载 trust / common-ground / commitment / information-gain 等语义 delta；这些由对应 owner 的 pre/post snapshot delta 计算。
 - `prediction_error` snapshot 可以被丰富 action context，但 PE owner 仍是唯一 mismatch owner。
-- replay 是既有 snapshot 序列的 append-only export，不是新的 runtime schema。
+- out-of-turn snapshot replay 是既有 snapshot 序列的 append-only export；online runtime transition replay 是 Internal-RL owner 的有界训练状态。两者都不是新的 runtime slot，前者只供诊断，禁止反序列化后喂给 PPO。
 
 ## Architecture Shape
 
@@ -39,6 +39,8 @@ flowchart TD
     PE --> Credit["credit: PE aggregation"]
     PE --> TemporalUpdate["temporal owner SSL/RL update"]
     PE --> Replay["snapshot replay export"]
+    Credit --> RuntimeReplay["owner-internal runtime transition settlement"]
+    RuntimeReplay --> TemporalUpdate
 ```
 
 ## Layer 1. Minimal EnvironmentOutcome Observation Fields
@@ -140,6 +142,23 @@ Evidence bundle 根据这些既有 snapshot 生成 replay summary。导出层不
 
 当前 runtime `export_snapshot_replay_artifact()` 输出 `action_replay` section，内容来自既有 `prediction_error`、`temporal_abstraction`、`credit` snapshots；`dialogue_trace` 仍是并行 debug artifact，不是 replay 所依赖的 runtime schema。
 
+### Layer 6.1. Online Runtime Transition Replay
+
+Online Internal-RL 不从上节的导出 artifact 反序列化训练数据。`ETANLJointLoop` 复用自身既有 pending
+rollout staging，由 Internal-RL owner 在动作拍捕获真实 substrate、track runtime state、实际 `z_t`、
+posterior、`beta_t`、行为 likelihood 与 prediction lineage；下一拍只接受 lineage 匹配的既有
+`EnvironmentOutcome`、PE snapshot 与 PE 派生 credit，并用真实 next-substrate delta 结算
+`runtime-replay` transition。
+
+`internal_rl_runtime_replay` 与 pure/torch optimizer backend 是两个独立开关：
+
+- `DISABLED`：保持历史 synthetic rollout；
+- `SHADOW`：捕获、结算并报告 coverage/lineage/drop reason，但不进入训练 staging；
+- `ACTIVE`：只训练已结算 runtime replay；样本不足显式等待，不得回退 synthetic。
+
+该状态随 owner checkpoint 往返，但不扩 `EnvironmentOutcome`、`PredictionErrorSnapshot`、
+`CreditSnapshot` 或 public temporal snapshot shape，也不让 environment/evaluation 直接提供 reward。
+
 ## Acceptance Gates
 
 - `pe-owner-remains-single`: 仓库不存在 runtime slot `action_outcome_trace`；PE 仍是唯一 mismatch owner。
@@ -147,6 +166,9 @@ Evidence bundle 根据这些既有 snapshot 生成 replay summary。导出层不
 - `outcome-fields-observable-only`: `EnvironmentOutcome` 不包含 trust / common-ground / commitment / information-gain semantic delta。
 - `credit-from-pe-only`: segment/action credit records 只从 `PredictionErrorSnapshot` 派生。
 - `replay-from-snapshots`: replay artifact 可由现有 snapshots 生成，不依赖 trace-specific runtime schema。
+- `runtime-replay-owner-bounded`: online replay 只存在于 Internal-RL/joint-loop owner checkpoint，不新增 slot 或第二 trace owner。
+- `runtime-replay-lineage`: 真实 transition 只由匹配的 outcome→PE→credit lineage 结算，错配 fail loudly。
+- `active-replay-no-synthetic-fallback`: ACTIVE 无已结算样本时报告 waiting，不调用 synthetic rollout。
 - `affordance-selection-no-rules`: affordance selection 仍走 metacontroller state，无硬编码 action routing。
 - `segment-credit-attributes-to-tool` (Packet B — long-horizon-closure): closed segment 命中且对应 PE 携带非空 `affordance_name` 或 `prediction_id` 时，派生的 segment credit record 的 `context` 字段必须包含同样的 `affordance_name=...` 与 `prediction_id=...` 子串；mismatch 分支返回 empty tuple，不返回 `None`。acceptance: `tests/longitudinal/test_affordance_delayed_credit.py`。
 
@@ -168,8 +190,10 @@ Evidence bundle 根据这些既有 snapshot 生成 replay summary。导出层不
 - PE action context 可为空。
 - segment credit helper 可不接 final wiring。
 - replay export 是 out-of-turn artifact，可单独关闭。
+- online runtime replay 默认 `DISABLED`；回滚 transition source gate 即恢复 synthetic 路径，pending owner state 随 checkpoint 恢复。
 
 ## 变更日志
 
+- 2026-07-20: 增加 online runtime transition replay 边界。明确它是 joint-loop/Internal-RL owner 内的有界训练状态，与只读 snapshot replay export 不同；三态 gate 独立于 optimizer backend，ACTIVE 禁止 synthetic fallback，并保持公共 snapshot schema 不变。
 - 2026-05-12: Packet B (long-horizon-closure) — 修复 `derive_segment_closure_credit_records` 在 segment id 不匹配时误返回 `None` 的 bug（改为返回 empty tuple）；新增 `affordance_name` / `prediction_id` 到 segment credit record 的 context 字符串，对应 acceptance gate `segment-credit-attributes-to-tool`；测试见 `tests/longitudinal/test_affordance_delayed_credit.py`。
 - 2026-05-02: 重写 Phase 1 方案，移除 `action_outcome_trace` owner / delayed ledger / action-outcome encoder owner，改为 PE + temporal segment closure 的 ETA/NL 第一性实现。

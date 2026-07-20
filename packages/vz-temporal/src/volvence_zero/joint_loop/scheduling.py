@@ -113,6 +113,7 @@ class _JointLoopSchedulingMixin:
         )
         experience_credit = self._experience_credit_signal()
         control_prior_strength = self._experience_control_prior_signal()
+        runtime_replay = self.latest_runtime_replay_report
         return (
             ("turn_index", turn_index),
             ("ssl_interval", schedule.ssl_interval),
@@ -138,6 +139,23 @@ class _JointLoopSchedulingMixin:
             ("rare_heavy_pressure_x1000", int(rare_heavy_pressure * 1000)),
             ("experience_credit_x1000", int(experience_credit * 1000)),
             ("control_prior_strength_x1000", int(control_prior_strength * 1000)),
+            (
+                "runtime_replay_active",
+                int(runtime_replay.wiring_level == "active"),
+            ),
+            (
+                "runtime_replay_shadow",
+                int(runtime_replay.wiring_level == "shadow"),
+            ),
+            ("runtime_replay_settled", runtime_replay.settled_count),
+            (
+                "runtime_replay_lineage_matches",
+                runtime_replay.lineage_match_count,
+            ),
+            (
+                "runtime_replay_drop_count",
+                len(runtime_replay.drop_reasons),
+            ),
         )
 
     def _pe_full_cycle_due(self, *, schedule: JointLoopSchedule) -> bool:

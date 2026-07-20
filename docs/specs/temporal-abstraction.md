@@ -1,7 +1,7 @@
 # 时间抽象与内部控制 Spec
 
 > Status: draft
-> Last updated: 2026-04-25
+> Last updated: 2026-07-20
 > 对应需求: R3, R4
 
 ## 要解决的问题
@@ -120,6 +120,8 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 public runtime state 只发布 compact family competition summary（如 active-family competition score、monopoly pressure、turnover health、family version/count），不发布 raw internal competition ledger；这条 bridge 为下一阶段 delayed credit ledger 预留了显式版本锚点
 - 当前 `full-learned` 已把 `z_t` owner 更新规则收敛到显式 posterior + learned switch 路径：`z_t = beta_t * z_candidate + (1 - beta_t) * z_{t-1}`，其中 `z_candidate` 默认来自 posterior `z_tilde`，也可由 internal RL causal policy override
 - **reward→code 桥（runtime track modulation）**：此前 Internal-RL 只写 `track_weights`（+ `align_temporal_from_tracks` 投进 legacy 3-d `temporal_weights`/`switch_bias`），而 ndim `_step_impl_ndim` 产生 `code` 时不消费这些，导致奖励驱动学习与运行时 `z_t` **结构性脱钩**（只有 SSL 训练的 ndim encoder 能移动 `z_t`）。现新增 `MetacontrollerParameterStore.runtime_track_modulated_code`：以学习到的每-track 混合对 `z_candidate` 做**逐维、以 1.0 为中心、界于 [0.5,1.5]** 的增益调制（`gain_i = 1 + strength·(mean_i·n_z − 1)`）。由 `FinalRolloutConfig.internal_rl_runtime_modulation_strength`（默认 `0.0`）经 `FullLearnedTemporalPolicy.set_runtime_track_modulation` 注入。sandbox 的 `CausalZPolicy` 与 torch PPO 使用同一公式：先生成未调制 causal candidate，再以正在优化的 track 覆盖 store 中对应 track 后调用同一 aggregate gain；`step_with_causal_override` 接收的已是最终调制 candidate，因此 live forward 不再二次调制。这样 rollout reward、PPO surrogate 与真实 ndim 前向对 `track_weights` 的因果语义一致。`strength=0` 是**精确字节级 no-op（即时回滚基线）**，并保留历史 sandbox / torch PPO 方程；均匀混合在任意 strength 下亦为 no-op；`strength>0` 让 RL 学到的偏离-均匀方向真正进入 `code`。与 R2 不冲突（作用于控制器层，基底仍冻结），与 R8 不冲突（只读 owner 内部 `track_weights`，公共 snapshot schema 不变）。证据：`tests/test_temporal_contracts.py`（strength=0 时 mutate `track_weights` → `code` 不变；strength>0 时 skewed 混合 → `code` 变；sandbox mean 与 live helper 严格相等；causal override 不重复调制；torch PPO writeback 后真实 ndim `code` 改变；负 strength fail loudly）
+- **真实 runtime transition replay**：`FinalRolloutConfig.internal_rl_runtime_replay` 是独立于 pure/torch optimizer backend 的 transition-source gate，默认 `DISABLED`。Internal-RL owner 在动作拍保存真实 `SubstrateSnapshot`、world/self runtime state、实际 `z_t`、posterior、`beta_t`、行为 likelihood 与 PE `prediction_id`；下一拍只用匹配的既有 `EnvironmentOutcome`、`PredictionErrorSnapshot`、PE 派生 `CreditSnapshot` 和真实 next-substrate delta 结算 `runtime-replay` transition。`SHADOW` 只收集 lineage/coverage，不进入训练 staging；`ACTIVE` 只消费已结算真实 replay，样本不足显式报告 `waiting-for-runtime-replay`，禁止静默回退 synthetic。pure 与 torch PPO 均按保存的 ndim posterior/switch/modulation 上下文重建 old/new likelihood；旧 synthetic 公式保持兼容且同批禁止混源。pending capture 与已结算 staging 属于 joint-loop owner 的有界 checkpoint 状态，不新增 runtime slot、不扩公共 snapshot schema；cycle rollback/no-optimize 只回滚 policy/critic，不重复消费环境证据。
+- **有界 posterior 探索**：`FinalRolloutConfig.internal_rl_runtime_exploration_strength` 默认 `0.0`（精确回滚基线），`(0,1]` 时由 `FullLearnedTemporalPolicy` 在 posterior std 内把原 sample noise 与基于 substrate step + posterior mean 的可复现 low-discrepancy sample 混合。它不读取任务真值、不指定动作方向，只解决 sparse milestone 到达率；最终 sample noise 与 `z_tilde` 由 owner runtime state 发布，runtime replay likelihood 保持可重建。实验对照各臂必须共享该值，探索本身不算学习收益。
 - **真实 no-optimize 对照**：`apply_writeback` 只负责 reflection/memory/regime consolidation，不能冒充 Internal-RL 消融。此前 `no_optimize` 仅设 `joint_apply_writeback=False`，但 `run_cycle()` 已在该门之前直接执行 sandbox optimizer，因此 learned/no-optimize 都会更新 PPO，因果对照无效。现新增独立 `apply_policy_optimization` gate：两臂运行相同 SSL、substrate rollout、PE、optimizer 与报告；gate=False 时在 SSL 后/RL 前建立 owner checkpoint，并在 optimizer 后恢复 policy+critic，使 RL 更新不持久化，同时保留 SSL 更新与完整候选证据。默认 True 不改变生产行为。数字蚂蚁正式 no-optimize 令此 gate=False、reflection writeback 与 learned 保持一致，仅隔离 Internal-RL policy optimization。
 - 当前 decoder 已升级为 bounded FFN-like control generator；环境侧显式区分 `decoder_output`、`applied_control`、`downstream_effect`
 - 当前 SSL trainer 已改成更接近 Eq.3 的结构：prefix posterior inference + Gaussian-like prior regularization + action prediction + closed-form KL，并发布 posterior drift
@@ -175,6 +177,11 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-20: 有界 posterior 探索。新增默认 `0.0` 的
+  `internal_rl_runtime_exploration_strength`；ndim temporal owner 在 posterior std 内生成可复现
+  low-discrepancy sample，并把实际 noise / `z_tilde` 发布给 runtime replay。用于无 shaping 的稀疏
+  milestone 探索；不编码环境方向、所有 matched arms 同值、可即时回滚。
+- 2026-07-20: 真实 runtime transition replay。新增默认关闭、与 optimizer backend 分离的 `internal_rl_runtime_replay` 三态 gate；Internal-RL owner 以 prediction lineage 捕获真实 ndim 动作并在下一拍用 PE-first credit 与 next-substrate effect 结算。ACTIVE 无样本时显式等待且不回退 synthetic，SHADOW 仅记录 coverage；pure/torch likelihood 与 live modulation 对齐，checkpoint 覆盖 pending capture/staged rollout。公共 `EnvironmentOutcome` / PE / credit / temporal snapshot schema 均不变。证据：`tests/test_runtime_transition_replay.py`。
 - 2026-07-14: SHADOW 证据完整性补全（GAP-09 / CP-05/06/07）。
   (a) CP-05：`train_store_ssl` 的 `StoreSSLReport` 新增
   `candidate_encoder/switch/decoder_parameters` —— SHADOW 下 store 不动但

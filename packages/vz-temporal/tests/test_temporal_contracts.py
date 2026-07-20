@@ -249,6 +249,40 @@ def test_runtime_track_modulation_rejects_negative_strength() -> None:
         policy.set_runtime_track_modulation(-0.1)
 
 
+def test_runtime_posterior_exploration_is_opt_in_and_reproducible() -> None:
+    snapshot = _trace_step_snapshot(_trace())
+    baseline = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    baseline_code = _first_code(baseline, snapshot)
+
+    explored_a = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    explored_a.set_runtime_exploration(1.0)
+    explored_a_code = _first_code(explored_a, snapshot)
+    explored_b = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    explored_b.set_runtime_exploration(1.0)
+    explored_b_code = _first_code(explored_b, snapshot)
+
+    assert explored_a_code != baseline_code
+    assert explored_a_code == explored_b_code
+    assert (
+        explored_a.export_runtime_state().posterior_sample_noise
+        == explored_b.export_runtime_state().posterior_sample_noise
+    )
+
+
+def test_runtime_posterior_exploration_rejects_out_of_range_strength() -> None:
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    with pytest.raises(ValueError, match=r"within \[0, 1\]"):
+        policy.set_runtime_exploration(1.01)
+
+
 def test_sandbox_policy_mean_uses_live_runtime_track_modulation() -> None:
     """Sandbox policy distribution and live code share one modulation rule."""
 

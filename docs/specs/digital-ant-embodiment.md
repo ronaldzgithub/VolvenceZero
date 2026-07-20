@@ -72,6 +72,24 @@ FSM 手写的梯度跟随答案直接喂给控制器，而"如何朝食物走"�
 禁止 `AntWorld` 直接传 reward 给 temporal/Internal RL，禁止 evaluation 反灌 reward，禁止 runtime
 另建 mismatch slot。历史上只依赖 drive PE 的结果可以保留为机制 smoke，但不是 learned foraging 证据。
 
+数字蚂蚁实验显式设置 `internal_rl_runtime_replay=ACTIVE`，把每拍真实 substrate、实际 `z_t`、下一拍
+substrate effect 与匹配的 outcome→PE→credit lineage 结算成 Internal-RL batch。该开关只选择 transition
+source，不选择 pure/torch optimizer；生产默认仍为 `DISABLED`。ACTIVE 样本不足时必须报告
+`waiting-for-runtime-replay`，禁止回退 synthetic。`commanded_turn/applied_turn` 仅保留在 embodiment
+审计记录中，不进入 optimizer 作为补偿方向提示。
+
+为打破“零 pickup → 零任务 PE → 零强化”的稀疏探索死锁，ant evidence profile 可显式设置
+`internal_rl_runtime_exploration_strength`。该 gate 默认 `0.0`（生产字节等价回滚），ant matched
+arms 当前统一为 `0.35`：temporal owner 只在 posterior std 内把原 sample noise 与可复现的
+low-discrepancy sample 混合，不读取食物位置、不编码补偿方向；实际 sample noise / `z_tilde` 进入
+runtime state，故 runtime replay 仍可重建 likelihood。learned/no-optimize/PE-off 共享同一探索，
+它不能单独构成 learning claim，只负责让真实稀疏里程碑有被采到的机会。
+
+诊断 evidence 还必须区分 owner checkpoint 的 `policy_fingerprint`、`temporal_fingerprint` 与
+`memory_fingerprint`，并发布训练/held-out pickup、delivery、首次接触、最小食物距离、turn/
+`z[0]-z[1]` 分布、switch rate、非零 reward 与 runtime replay lineage/settled coverage。消费者
+只读取这些 owner 导出的值，不遍历 joint-loop 私有状态。
+
 ## 5. 三层生物学 ↔ VZ 对齐
 
 | 生物学层 | VZ 对应 | 在数字蚂蚁中 |
@@ -80,7 +98,7 @@ FSM 手写的梯度跟随答案直接喂给控制器，而"如何朝食物走"�
 | 基因表达程序（窗口期，离线） | rare-heavy artifact refresh | Phase 2 角色重编程离线循环，产出个体倾向性初始化参数，运行时不可触发 |
 | 突触可塑性（在线） | online-fast controller | `z_t` / `β_t` + CMS 在线学习（内核承担） |
 
-### 5.1 隐藏电机扰动校准（experimental / BLOCK）
+### 5.1 隐藏电机扰动校准（experimental / frozen gate PASS）
 
 `MotorDistortionProfile` 是环境 owner 的不可变 actuator transfer：
 `applied_turn = clamp(gain·commanded_turn + bias)`，可在 `switch_tick` 一次性切到另一组
@@ -89,13 +107,17 @@ gain/bias；空 profile 是严格 identity，单 profile 可广播、多 profile
 
 `AntObjectiveKind.HEADING_STABILITY` 把初始天空罗盘航向作为 typed task target，每拍只发布归一化
 heading deviation 与前后误差改善形成的 `EnvironmentMeasurement`；它不告诉 controller 补偿方向，
-仍经 outcome→PE→credit→Internal-RL。matched learned/no-opt 共享 distortion、seed、SSL/PE/rollout、
-reflection writeback 与 reward→code bridge，只隔离 policy optimization 持久化。
+仍经 outcome→PE→credit→Internal-RL。matched learned/no-opt 共享 distortion、seed、SSL/PE、
+ACTIVE runtime replay、reflection writeback 与 reward→code bridge，只隔离 policy optimization
+持久化。
 
-预冻结 gate：`no_opt_late_error - learned_late_error >= 0.02` 且
-`learned_recovery - no_opt_recovery >= 0.01`。2026-07-20 首个短预算
-（18 ticks、tick 9 bias `+0.18→-0.18`）结果为 late advantage `0.0003`，两臂 recovery 均为负，
-故诚实 verdict = **BLOCK**。不得把正号噪声写成恢复成功；在 gate 通过前不做宣传型 dashboard。
+冻结 gate：`no_opt_late_error - learned_late_error >= 0.02` 且
+`learned_recovery - no_opt_recovery >= 0.01`。接入真实 runtime replay 后，2026-07-20 按预声明预算
+（60 ticks、tick 30 bias `+0.18→-0.18`、seed 0、`n_z=16`）得到 learned/no-opt late error
+`0.7410/0.7789`，late advantage `0.0379`；recovery `-0.4104/-0.4453`，recovery advantage
+`0.0349`，故冻结比较 gate verdict = **PASS**。必须同时保留限制：两臂 absolute recovery 仍为负，
+本结果证明的是 learned 相对退化更少，不是已经恢复初始航向；它还是单 seed experimental gate，
+不能替代 §6 要求的多 seed 正式 claim。
 
 ## 6. 冻结 claims 与 kill conditions
 
@@ -117,7 +139,7 @@ reflection writeback 与 reward→code bridge，只隔离 policy optimization �
 - **Matched-control（Workstream E）**：正式矩阵为全学习 / no-optimize / PE-off / ETA-off /
   FixedRule / end-to-end RL，random 仅作 floor。所有 arm 共享地图、seed、episode budget 与初始 checkpoint。
   `no-optimize` 必须是真实 Internal-RL 消融：与 learned 共享 PE/SSL schedule、rollout、reflection
-  writeback 与 `internal_rl_runtime_modulation_strength`，只把
+  writeback、`internal_rl_runtime_replay=ACTIVE` 与 `internal_rl_runtime_modulation_strength`，只把
   `joint_apply_policy_optimization=False`，由 joint loop 在 SSL 后/RL 前 checkpoint、optimizer 后
   restore policy+critic；禁止再用 `joint_apply_writeback=False` 冒充 no-optimize（该开关只控制
   reflection/memory/regime consolidation，历史实现因此让两个 arm 都实际跑了 PPO）。
@@ -186,6 +208,22 @@ reflection writeback 与 reward→code bridge，只隔离 policy optimization �
 - stage verdict 为 `BLOCK` 不妨碍 resume：恢复只表示该计算完整可信，不代表 claim 通过。
 - 可视化只消费不可变 `AntStepRecord` replay；位置、`z_t`、`β_t`、PE、credit、writeback 与
   backend wiring 均来自正式 turn 结果，不成为新的 runtime owner 或学习源。
+
+### 7.2.1 实时实验场（`digital-ant-app.v1`）
+
+`volvence_ant.app` 是 `vz-embodiment-ant` 内的外部实验控制面，前端位于同 wheel 的 `web/`
+React/Vite 工程。它不新增 kernel slot：
+
+- Python app runner 串行调用真实 `AntSession.step()` / `KernelColonyRunner.step_round()`；只有完整
+  tick/round 完成后才发布 immutable frame，禁止预烘焙 replay 冒充 live。
+- 下行是 SSE frame/status/disturbance event，上行是 POST config/command/disturbance。pause/resume/
+  single-step/speed 只控制编排节奏；schema 明确不含 `turn_command` / `step_command` 写入口。
+- 食物搬迁、alarm 与电机 transfer 替换只在环境 owner 的 tick/round 边界应用。操作者可配置隐藏
+  gain/bias，但这些参数不进入 substrate/frame；agent 仍只看到真实物理后果。
+- Canvas 只投影 `AntStepRecord`、`ColonyRoundRecord`、公开 body/food getter 与不可变信息素快照；
+  慢客户端可以丢旧视觉帧，命令、扰动审计和 replay 不丢。
+- PASS/BLOCK 只读正式 evidence artifact，永不作为学习输入。没有通过冻结门槛时默认明确显示
+  `BLOCK`，即使真实闭环正在运行。
 
 ### 7.3 NE-Dreamer next-embedding rare-heavy 对照（2026-07-20）
 

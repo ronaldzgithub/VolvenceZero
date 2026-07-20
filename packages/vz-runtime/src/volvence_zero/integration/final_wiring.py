@@ -238,6 +238,11 @@ class FinalRolloutConfig:
     temporal_ssl_backend: WiringLevel = WiringLevel.DISABLED
     temporal_runtime_backend: WiringLevel = WiringLevel.DISABLED
     internal_rl_backend: WiringLevel = WiringLevel.DISABLED
+    # Independent transition-source gate for Internal-RL. DISABLED preserves
+    # synthetic sandbox rollouts; SHADOW captures/settles real runtime
+    # transitions for evidence only; ACTIVE trains exclusively from settled
+    # runtime replay and never falls back to synthetic samples.
+    internal_rl_runtime_replay: WiringLevel = WiringLevel.DISABLED
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
@@ -246,6 +251,11 @@ class FinalRolloutConfig:
     # disconnected from runtime behaviour (only SSL moves z_t); a small positive
     # value (e.g. 0.3) opens the bridge. See docs/specs/temporal-abstraction.md.
     internal_rl_runtime_modulation_strength: float = 0.0
+    # Bounded posterior exploration in the temporal owner. 0.0 is an exact
+    # rollback baseline. A value in (0, 1] blends the posterior's deterministic
+    # sample noise with a reproducible low-discrepancy sample; it never encodes
+    # an environment-specific direction and remains inside posterior std.
+    internal_rl_runtime_exploration_strength: float = 0.0
     # Phase 2 W2.B of the EQ-owner uplift: session_post_slow_loop is
     # ACTIVE by default. The module's own ``default_wiring_level`` is
     # already ACTIVE; the previous SHADOW override was a treatment-mode

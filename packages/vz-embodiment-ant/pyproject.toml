@@ -29,6 +29,12 @@ dependencies = [
 torch = ["vz-runtime[torch]==0.1.*"]
 # Optional visualization dependency for trajectory replay demos.
 viz = ["matplotlib"]
+# Realtime React/Vite experiment host.  Kept optional so the non-language
+# substrate and formal evidence runners retain their minimal dependency set.
+app = ["aiohttp>=3.9"]
+
+[project.scripts]
+digital-ant-app = "volvence_ant.app.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

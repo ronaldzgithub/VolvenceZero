@@ -27,8 +27,10 @@ from volvence_zero.agent.learned_active_gate import (
     LearnedBackendComponent,
     evaluate_learned_active_candidate,
 )
-
 from volvence_ant.env.ant_world import AntWorld, AntWorldConfig, FoodSource
+from volvence_ant.evidence.runtime_profile import (
+    ant_runtime_replay_rollout_config,
+)
 from volvence_ant.proofs.matched_control import run_behavioral_matched_control
 from volvence_ant.runtime.ant_session import AntSession, AntSessionConfig
 
@@ -81,6 +83,7 @@ async def _rollback_drill(*, seed: int, ticks: int, n_z: int) -> bool:
             temporal_latent_dim=n_z,
             seed=seed,
             joint_apply_writeback=True,
+            rollout_config=ant_runtime_replay_rollout_config(),
         ),
     )
     initial = session.export_learning_checkpoint(checkpoint_id="rollback-drill")
@@ -128,17 +131,20 @@ async def collect_ant_active_evidence(
         temporal_latent_dim=n_z,
         seed=seed,
         external_prediction_error_drive=True,
+        rollout_config=ant_runtime_replay_rollout_config(),
     )
     no_optimize_cfg = no_optimize_config or AntSessionConfig(
         temporal_latent_dim=n_z,
         seed=seed,
         external_prediction_error_drive=True,
-        joint_apply_writeback=False,
+        joint_apply_policy_optimization=False,
+        rollout_config=ant_runtime_replay_rollout_config(),
     )
     pe_off_cfg = pe_off_config or AntSessionConfig(
         temporal_latent_dim=n_z,
         seed=seed,
         external_prediction_error_drive=False,
+        rollout_config=ant_runtime_replay_rollout_config(),
     )
     # --- real-trace lane (also yields latency) ---
     real_trace_turns, mean_latency = await _real_trace_lane(
@@ -191,7 +197,11 @@ async def collect_ant_active_evidence(
         and learned.switch_count > eta_off.switch_count
         and eta_off_direction_correct
         and learned.temporal_parameters_changed
-        and not no_optimize.temporal_parameters_changed
+        # no-optimize intentionally shares SSL with learned, so its temporal
+        # structure may change.  The causal isolation is that Internal-RL
+        # policy/critic parameters do not persist.
+        and no_optimize.temporal_parameters_changed
+        and not no_optimize.policy_parameters_changed
     )
     latent_desc = "skipped"
     if with_latent:
@@ -239,6 +249,12 @@ async def collect_ant_active_evidence(
             "temporal_runtime_backend": learned_cfg.rollout_config.temporal_runtime_backend.value,
             "temporal_ssl_backend": learned_cfg.rollout_config.temporal_ssl_backend.value,
             "internal_rl_backend": learned_cfg.rollout_config.internal_rl_backend.value,
+            "internal_rl_runtime_replay": (
+                learned_cfg.rollout_config.internal_rl_runtime_replay.value
+            ),
+            "internal_rl_runtime_exploration_strength": (
+                learned_cfg.rollout_config.internal_rl_runtime_exploration_strength
+            ),
             "cms_torch_backend": learned_cfg.rollout_config.cms_torch_backend.value,
         }
         if learned_cfg.rollout_config is not None
@@ -246,6 +262,8 @@ async def collect_ant_active_evidence(
             "temporal_runtime_backend": "disabled",
             "temporal_ssl_backend": "disabled",
             "internal_rl_backend": "disabled",
+            "internal_rl_runtime_replay": "disabled",
+            "internal_rl_runtime_exploration_strength": 0.0,
             "cms_torch_backend": "disabled",
         },
         "latent_desc": latent_desc,

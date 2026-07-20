@@ -28,10 +28,12 @@ class _JointLoopArtifactImportMixin:
         self._require_live_substrate_mutation_enabled(operation="apply_rare_heavy_artifact()")
         checkpoint_label = checkpoint_id or f"rare-heavy:{artifact.artifact_id}"
         world_policy_checkpoint = self._world_sandbox.create_checkpoint(
-            checkpoint_id=f"{checkpoint_label}:world-policy"
+            checkpoint_id=f"{checkpoint_label}:world-policy",
+            include_runtime_replay=True,
         )
         self_policy_checkpoint = self._self_sandbox.create_checkpoint(
-            checkpoint_id=f"{checkpoint_label}:self-policy"
+            checkpoint_id=f"{checkpoint_label}:self-policy",
+            include_runtime_replay=True,
         )
         world_temporal_snapshot = self._world_policy.export_rare_heavy_snapshot()
         self_temporal_snapshot = self._self_policy.export_rare_heavy_snapshot()
@@ -68,6 +70,11 @@ class _JointLoopArtifactImportMixin:
             self_temporal_snapshot=self_temporal_snapshot,
             memory_checkpoint=memory_checkpoint,
             substrate_checkpoint=substrate_checkpoint,
+            pending_task_rollouts=tuple(self._pending_task_rollouts),
+            pending_relationship_rollouts=tuple(
+                self._pending_relationship_rollouts
+            ),
+            runtime_replay_report=self.latest_runtime_replay_report,
         )
         return RareHeavyImportResult(
             artifact_id=artifact.artifact_id,
@@ -89,10 +96,12 @@ class _JointLoopArtifactImportMixin:
         checkpoint = RareHeavyImportCheckpoint(
             artifact_id=artifact.artifact_id,
             world_policy_checkpoint=self._world_sandbox.create_checkpoint(
-                checkpoint_id=f"{checkpoint_label}:world-policy"
+                checkpoint_id=f"{checkpoint_label}:world-policy",
+                include_runtime_replay=True,
             ),
             self_policy_checkpoint=self._self_sandbox.create_checkpoint(
-                checkpoint_id=f"{checkpoint_label}:self-policy"
+                checkpoint_id=f"{checkpoint_label}:self-policy",
+                include_runtime_replay=True,
             ),
             world_temporal_snapshot=self._world_policy.export_rare_heavy_snapshot(),
             self_temporal_snapshot=self._self_policy.export_rare_heavy_snapshot(),
@@ -100,6 +109,11 @@ class _JointLoopArtifactImportMixin:
                 checkpoint_id=f"{checkpoint_label}:memory"
             ),
             substrate_checkpoint=None,
+            pending_task_rollouts=tuple(self._pending_task_rollouts),
+            pending_relationship_rollouts=tuple(
+                self._pending_relationship_rollouts
+            ),
+            runtime_replay_report=self.latest_runtime_replay_report,
         )
         return RareHeavyImportResult(
             artifact_id=artifact.artifact_id,
@@ -118,6 +132,23 @@ class _JointLoopArtifactImportMixin:
         self._world_policy.apply_rare_heavy_snapshot(checkpoint.world_temporal_snapshot)
         self._self_policy.apply_rare_heavy_snapshot(checkpoint.self_temporal_snapshot)
         self._memory_store.restore_checkpoint(checkpoint.memory_checkpoint)
+        if checkpoint.pending_task_rollouts is not None:
+            self._pending_task_rollouts = list(checkpoint.pending_task_rollouts)
+        if checkpoint.pending_relationship_rollouts is not None:
+            self._pending_relationship_rollouts = list(
+                checkpoint.pending_relationship_rollouts
+            )
+        if checkpoint.runtime_replay_report is not None:
+            replay_report = checkpoint.runtime_replay_report
+            self._runtime_replay_captured_count = replay_report.captured_count
+            self._runtime_replay_settled_count = replay_report.settled_count
+            self._runtime_replay_transition_count = replay_report.transition_count
+            self._runtime_replay_lineage_match_count = (
+                replay_report.lineage_match_count
+            )
+            self._runtime_replay_drop_reasons = list(
+                replay_report.drop_reasons
+            )
         operations = [
             "rare-heavy:world-temporal-rollback",
             "rare-heavy:self-temporal-rollback",

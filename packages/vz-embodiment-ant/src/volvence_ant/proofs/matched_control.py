@@ -54,6 +54,26 @@ class ArmMetrics:
     parameters_changed: bool = False
     temporal_parameters_changed: bool = False
     memory_state_changed: bool = False
+    initial_policy_fingerprint: str | None = None
+    trained_policy_fingerprint: str | None = None
+    policy_parameters_changed: bool = False
+    training_food_delivered: int = 0
+    training_food_pickups: int = 0
+    first_training_pickup_tick: int | None = None
+    first_held_out_contact_tick: int | None = None
+    minimum_food_distance: float = float("inf")
+    mean_abs_turn_command: float = 0.0
+    mean_abs_applied_turn: float = 0.0
+    mean_turn_transmission_error: float = 0.0
+    steering_code_std: float = 0.0
+    switch_rate: float = 0.0
+    nonzero_reward_steps: int = 0
+    runtime_replay_captured: int = 0
+    runtime_replay_settled: int = 0
+    runtime_replay_transitions: int = 0
+    runtime_replay_lineage_matches: int = 0
+    runtime_replay_drop_count: int = 0
+    diagnostic_breakpoint: str = "not-evaluated"
 
 
 @dataclass(frozen=True)
@@ -106,11 +126,56 @@ def _metrics_from_positions(
     initial_checkpoint: AntLearningCheckpoint | None = None,
     trained_checkpoint: AntLearningCheckpoint | None = None,
     switch_count: int = 0,
+    training_food_delivered: int = 0,
+    training_food_pickups: int = 0,
+    first_training_pickup_tick: int | None = None,
+    first_held_out_contact_tick: int | None = None,
+    mean_abs_turn_command: float = 0.0,
+    mean_abs_applied_turn: float = 0.0,
+    mean_turn_transmission_error: float = 0.0,
+    steering_code_std: float = 0.0,
+    nonzero_reward_steps: int = 0,
+    runtime_replay_captured: int = 0,
+    runtime_replay_settled: int = 0,
+    runtime_replay_transitions: int = 0,
+    runtime_replay_lineage_matches: int = 0,
+    runtime_replay_drop_count: int = 0,
 ) -> ArmMetrics:
     nest = world.nest
     foods = [world.food_intensity(x, y) for (x, y) in positions] or [0.0]
     distances = [math.hypot(x - nest[0], y - nest[1]) for (x, y) in positions] or [0.0]
+    food_sources = world.food_sources()
+    food_distances = [
+        min(math.hypot(x - source.x, y - source.y) for source in food_sources)
+        for x, y in positions
+    ] if food_sources and positions else [float("inf")]
     final = distances[-1] if distances else 0.0
+    policy_parameters_changed = bool(
+        initial_checkpoint is not None
+        and trained_checkpoint is not None
+        and initial_checkpoint.policy_fingerprint
+        != trained_checkpoint.policy_fingerprint
+    )
+    if initial_checkpoint is None:
+        diagnostic_breakpoint = "baseline-no-kernel-diagnostics"
+    elif (
+        training_food_pickups == 0
+        and world.food_pickups == 0
+        and first_held_out_contact_tick is None
+    ):
+        diagnostic_breakpoint = "exploration-no-food-contact"
+    elif nonzero_reward_steps == 0:
+        diagnostic_breakpoint = "outcome-no-nonzero-reward"
+    elif runtime_replay_settled == 0 or runtime_replay_transitions == 0:
+        diagnostic_breakpoint = "runtime-replay-not-settled"
+    elif not policy_parameters_changed:
+        diagnostic_breakpoint = "policy-no-persistent-divergence"
+    elif steering_code_std <= 1e-12 or mean_abs_turn_command <= 1e-12:
+        diagnostic_breakpoint = "policy-no-real-action-effect"
+    elif world.food_pickups == 0 or world.food_delivered == 0:
+        diagnostic_breakpoint = "held-out-generalization"
+    else:
+        diagnostic_breakpoint = "observable-success"
     return ArmMetrics(
         arm=arm,
         ticks=ticks,
@@ -145,6 +210,34 @@ def _metrics_from_positions(
             and initial_checkpoint.memory_fingerprint
             != trained_checkpoint.memory_fingerprint
         ),
+        initial_policy_fingerprint=(
+            initial_checkpoint.policy_fingerprint
+            if initial_checkpoint is not None
+            else None
+        ),
+        trained_policy_fingerprint=(
+            trained_checkpoint.policy_fingerprint
+            if trained_checkpoint is not None
+            else None
+        ),
+        policy_parameters_changed=policy_parameters_changed,
+        training_food_delivered=training_food_delivered,
+        training_food_pickups=training_food_pickups,
+        first_training_pickup_tick=first_training_pickup_tick,
+        first_held_out_contact_tick=first_held_out_contact_tick,
+        minimum_food_distance=float(min(food_distances)),
+        mean_abs_turn_command=mean_abs_turn_command,
+        mean_abs_applied_turn=mean_abs_applied_turn,
+        mean_turn_transmission_error=mean_turn_transmission_error,
+        steering_code_std=steering_code_std,
+        switch_rate=(switch_count / ticks if ticks > 0 else 0.0),
+        nonzero_reward_steps=nonzero_reward_steps,
+        runtime_replay_captured=runtime_replay_captured,
+        runtime_replay_settled=runtime_replay_settled,
+        runtime_replay_transitions=runtime_replay_transitions,
+        runtime_replay_lineage_matches=runtime_replay_lineage_matches,
+        runtime_replay_drop_count=runtime_replay_drop_count,
+        diagnostic_breakpoint=diagnostic_breakpoint,
     )
 
 
@@ -157,10 +250,12 @@ async def _run_kernel_arm(
     session_config: AntSessionConfig,
     initial_checkpoint: AntLearningCheckpoint,
 ) -> ArmMetrics:
-    training_session = AntSession(_training_world(seed), config=session_config)
+    training_world = _training_world(seed)
+    training_session = AntSession(training_world, config=session_config)
     training_session.restore_learning_checkpoint(initial_checkpoint)
+    training_records = []
     if training_ticks > 0:
-        await training_session.run(training_ticks)
+        training_records = await training_session.run(training_ticks)
     trained_checkpoint = training_session.export_learning_checkpoint(
         checkpoint_id=f"{arm}:{seed}:trained"
     )
@@ -170,6 +265,34 @@ async def _run_kernel_arm(
     session.restore_learning_checkpoint(trained_checkpoint)
     records = await session.run(ticks)
     positions = [(r.x, r.y) for r in records]
+    turns = [abs(record.command.turn_command) for record in records]
+    applied_turns = [abs(record.applied_turn) for record in records]
+    turn_transmission_errors = [
+        abs(record.applied_turn - record.command.turn_command)
+        for record in records
+    ]
+    steering_codes = [
+        record.code[0] - record.code[1]
+        for record in records
+        if len(record.code) >= 2
+    ]
+    latest = records[-1] if records else None
+    first_training_pickup_tick = next(
+        (
+            record.tick
+            for record in training_records
+            if record.carrying_food or record.at_food
+        ),
+        None,
+    )
+    first_held_out_contact_tick = next(
+        (
+            record.tick
+            for record in records
+            if record.at_food or record.carrying_food
+        ),
+        None,
+    )
     return _metrics_from_positions(
         arm=arm,
         world=world,
@@ -178,6 +301,51 @@ async def _run_kernel_arm(
         initial_checkpoint=initial_checkpoint,
         trained_checkpoint=trained_checkpoint,
         switch_count=sum(record.switch_gate >= 0.5 for record in records),
+        training_food_delivered=training_world.food_delivered,
+        training_food_pickups=training_world.food_pickups,
+        first_training_pickup_tick=first_training_pickup_tick,
+        first_held_out_contact_tick=first_held_out_contact_tick,
+        mean_abs_turn_command=(
+            float(sum(turns) / len(turns)) if turns else 0.0
+        ),
+        mean_abs_applied_turn=(
+            float(sum(applied_turns) / len(applied_turns))
+            if applied_turns
+            else 0.0
+        ),
+        mean_turn_transmission_error=(
+            float(
+                sum(turn_transmission_errors)
+                / len(turn_transmission_errors)
+            )
+            if turn_transmission_errors
+            else 0.0
+        ),
+        steering_code_std=(
+            float(np.std(np.asarray(steering_codes, dtype=float)))
+            if steering_codes
+            else 0.0
+        ),
+        nonzero_reward_steps=sum(
+            abs(record.signed_reward) > 1e-12 for record in records
+        ),
+        runtime_replay_captured=(
+            latest.runtime_replay_captured if latest is not None else 0
+        ),
+        runtime_replay_settled=(
+            latest.runtime_replay_settled if latest is not None else 0
+        ),
+        runtime_replay_transitions=(
+            latest.runtime_replay_transitions if latest is not None else 0
+        ),
+        runtime_replay_lineage_matches=(
+            latest.runtime_replay_lineage_matches if latest is not None else 0
+        ),
+        runtime_replay_drop_count=(
+            len(latest.runtime_replay_drop_reasons)
+            if latest is not None
+            else 0
+        ),
     )
 
 

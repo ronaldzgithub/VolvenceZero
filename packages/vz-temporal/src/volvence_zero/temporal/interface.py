@@ -2216,6 +2216,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         # modulation that lets Internal-RL reach ``code``. 0.0 == byte-stable
         # rollback baseline (RL disconnected, historical behaviour).
         self._runtime_track_modulation = 0.0
+        # Generic posterior exploration, opt-in and owner-local.  The default
+        # is byte-equivalent to the historical deterministic posterior.
+        self._runtime_exploration_strength = 0.0
 
     @property
     def runtime_backend(self) -> WiringLevel:
@@ -2249,6 +2252,62 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         if strength < 0.0:
             raise ValueError(f"runtime_track_modulation must be >= 0, got {strength!r}")
         self._runtime_track_modulation = float(strength)
+
+    @property
+    def runtime_exploration_strength(self) -> float:
+        return self._runtime_exploration_strength
+
+    def set_runtime_exploration(self, strength: float) -> None:
+        """Blend reproducible low-discrepancy posterior exploration.
+
+        This is generic action-space exploration, not an environment-specific
+        rule: it uses only the owner posterior and substrate step. The sample
+        remains bounded by posterior std and is published in runtime state so
+        Internal-RL replay can reconstruct its likelihood.
+        """
+
+        if not 0.0 <= strength <= 1.0:
+            raise ValueError(
+                "runtime_exploration_strength must be within [0, 1], "
+                f"got {strength!r}"
+            )
+        self._runtime_exploration_strength = float(strength)
+
+    def _runtime_exploration_noise(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        posterior_mean: tuple[float, ...],
+        base_noise: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        strength = self._runtime_exploration_strength
+        if strength == 0.0:
+            return base_noise
+        step = (
+            substrate_snapshot.residual_sequence[-1].step
+            if substrate_snapshot.residual_sequence
+            else 0
+        )
+        sampled: list[float] = []
+        for index, (mean, original) in enumerate(
+            zip(posterior_mean, base_noise, strict=True)
+        ):
+            digest = sha256(
+                f"{step}:{index}:{mean:.12f}".encode("utf-8")
+            ).digest()
+            unit = int.from_bytes(digest[:8], "big") / float(2**64 - 1)
+            proposal = unit * 2.0 - 1.0
+            sampled.append(
+                max(
+                    -1.0,
+                    min(
+                        1.0,
+                        original * (1.0 - strength)
+                        + proposal * strength,
+                    ),
+                )
+            )
+        return tuple(sampled)
 
     def _resolve_backend_ndim_mc(self):
         """Return the ACTIVE torch ndim metacontroller, or None for pure path."""
@@ -2767,7 +2826,24 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             params=self._parameter_store.ndim_switch_parameters,
             beta_threshold=self._parameter_store.beta_threshold,
         )
-        z_candidate = latent_override or encoded.z_tilde
+        exploration_noise = encoded.posterior.sample_noise
+        if latent_override is None and self._runtime_exploration_strength > 0.0:
+            exploration_noise = self._runtime_exploration_noise(
+                substrate_snapshot=substrate_snapshot,
+                posterior_mean=encoded.posterior.posterior_mean,
+                base_noise=encoded.posterior.sample_noise,
+            )
+            z_candidate = tuple(
+                _clamp(
+                    encoded.posterior.posterior_mean[index]
+                    + encoded.posterior.posterior_std[index]
+                    * exploration_noise[index]
+                    * 0.5
+                )
+                for index in range(n_z)
+            )
+        else:
+            z_candidate = latent_override or encoded.z_tilde
         # autograd-owner-integration: let reward-driven track weights actually
         # reach the runtime latent. Previously Internal-RL only wrote
         # ``track_weights`` (+ ``align_temporal_from_tracks`` into the legacy 3-d
@@ -2825,7 +2901,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             prior_std=encoded.posterior.prior_std,
             posterior_mean=encoded.posterior.posterior_mean,
             posterior_std=encoded.posterior.posterior_std,
-            posterior_sample_noise=encoded.posterior.sample_noise,
+            posterior_sample_noise=exploration_noise,
             z_tilde=z_candidate,
             posterior_hidden_state=encoded.posterior.hidden_state,
             posterior_drift=encoded.posterior.posterior_drift,

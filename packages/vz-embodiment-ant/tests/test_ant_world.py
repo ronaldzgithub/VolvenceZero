@@ -110,3 +110,19 @@ def test_default_motor_transfer_is_identity() -> None:
     world.act(turn_command=0.3, step_command=0.0)
     transition = world.last_transition()
     assert transition.commanded_turn == transition.applied_turn == 0.3
+
+
+def test_runtime_motor_disturbance_changes_plant_not_observation_schema() -> None:
+    world = AntWorld(config=AntWorldConfig(seed=0, max_turn_rate=1.0))
+    before_fields = tuple(world.observe().__dataclass_fields__)
+    world.set_motor_distortion(
+        MotorDistortionProfile(turn_gain=0.5, turn_bias=-0.2)
+    )
+    world.act(turn_command=0.4, step_command=0.0)
+    transition = world.last_transition()
+
+    assert math.isclose(transition.commanded_turn, 0.4)
+    assert math.isclose(transition.applied_turn, 0.0)
+    assert tuple(world.observe().__dataclass_fields__) == before_fields
+    assert "turn_gain" not in before_fields
+    assert "turn_bias" not in before_fields
