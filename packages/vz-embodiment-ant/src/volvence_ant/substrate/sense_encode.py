@@ -40,6 +40,9 @@ SENSE_CHANNELS: tuple[str, ...] = (
     "trail_pher_diff",
     "last_turn_command",
     "alarm",
+    "obstacle_left",
+    "obstacle_right",
+    "obstacle_contact",
 )
 
 _HOME_DISTANCE_SCALE = 10.0
@@ -89,6 +92,9 @@ def sense_encode(
             observation.trail_pher_left - observation.trail_pher_right,
             float(np.clip(last_turn_norm, -1.0, 1.0)),
             _clamp_unit(observation.alarm),
+            _clamp_unit(observation.obstacle_left),
+            _clamp_unit(observation.obstacle_right),
+            1.0 if observation.obstacle_contact else 0.0,
         ],
         dtype=float,
     )

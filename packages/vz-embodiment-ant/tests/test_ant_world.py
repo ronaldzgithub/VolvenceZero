@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from volvence_ant.env.ant_world import (
     AntWorld,
     AntWorldConfig,
+    AxisAlignedObstacle,
     FoodSource,
     MotorDistortionProfile,
 )
@@ -102,7 +105,7 @@ def test_motor_distortion_is_hidden_inside_world_transition() -> None:
     assert first.commanded_turn == 0.0
     assert math.isclose(first.applied_turn, 0.2)
     assert math.isclose(second.applied_turn, -0.2)
-    assert math.isclose(world.observe().last_turn_command, -0.2)
+    assert math.isclose(world.observe().last_turn_command, 0.0)
 
 
 def test_default_motor_transfer_is_identity() -> None:
@@ -126,3 +129,113 @@ def test_runtime_motor_disturbance_changes_plant_not_observation_schema() -> Non
     assert tuple(world.observe().__dataclass_fields__) == before_fields
     assert "turn_gain" not in before_fields
     assert "turn_bias" not in before_fields
+
+
+def test_obstacle_blocks_segment_without_tunneling_and_publishes_evidence() -> None:
+    world = AntWorld(
+        config=AntWorldConfig(seed=0, step_size=1.0, max_turn_rate=math.pi),
+        obstacles=(
+            AxisAlignedObstacle(
+                obstacle_id="thin-wall",
+                min_x=0.4,
+                max_x=0.41,
+                min_y=-1.0,
+                max_y=1.0,
+            ),
+        ),
+    )
+    world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    world.act(turn_command=0.0, step_command=1.0)
+
+    body = world.body()
+    transition = world.last_transition()
+    assert body.x == pytest.approx(0.4, abs=1e-7)
+    assert body.y == pytest.approx(0.0)
+    assert transition.commanded_step == 1.0
+    assert transition.applied_step == pytest.approx(0.4, abs=1e-7)
+    assert transition.blocked_by_obstacle
+    assert transition.obstacle_id == "thin-wall"
+    assert world.observe().obstacle_contact
+
+
+def test_obstacle_antennae_are_local_and_directional() -> None:
+    world = AntWorld(
+        config=AntWorldConfig(
+            seed=0,
+            antenna_offset_deg=30.0,
+            antenna_reach=0.6,
+        ),
+        obstacles=(
+            AxisAlignedObstacle(
+                obstacle_id="left-receptor-target",
+                min_x=0.45,
+                max_x=0.60,
+                min_y=0.20,
+                max_y=0.40,
+            ),
+        ),
+    )
+    world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    observation = world.observe()
+
+    assert observation.obstacle_left == 1.0
+    assert observation.obstacle_right == 0.0
+    assert not observation.obstacle_contact
+
+
+def test_runtime_obstacle_replacement_is_atomic_and_validated() -> None:
+    world = AntWorld(config=AntWorldConfig(seed=0))
+    barrier = AxisAlignedObstacle(
+        obstacle_id="barrier",
+        min_x=2.0,
+        max_x=3.0,
+        min_y=-1.0,
+        max_y=1.0,
+    )
+    world.set_obstacles((barrier,))
+    assert world.obstacles() == (barrier,)
+
+    with pytest.raises(ValueError, match="unique"):
+        world.set_obstacles((barrier, barrier))
+
+
+def test_body_inside_new_obstacle_may_exit_but_not_reenter() -> None:
+    obstacle = AxisAlignedObstacle(
+        obstacle_id="activated-around-body",
+        min_x=0.0,
+        max_x=1.0,
+        min_y=-1.0,
+        max_y=1.0,
+    )
+    world = AntWorld(
+        config=AntWorldConfig(seed=0, step_size=1.0, max_turn_rate=math.pi),
+        obstacles=(obstacle,),
+    )
+    world.set_body_pose(x=0.5, y=0.0, heading=math.pi)
+    world.act(turn_command=0.0, step_command=1.0)
+    assert world.body().x == pytest.approx(-0.5)
+    assert not world.last_transition().blocked_by_obstacle
+
+    world.set_body_pose(x=-0.5, y=0.0, heading=0.0)
+    world.act(turn_command=0.0, step_command=1.0)
+    assert world.body().x == pytest.approx(0.0, abs=1e-7)
+    assert world.last_transition().blocked_by_obstacle
+
+
+def test_body_inside_new_obstacle_cannot_move_deeper() -> None:
+    obstacle = AxisAlignedObstacle(
+        obstacle_id="activated-around-body",
+        min_x=0.0,
+        max_x=1.0,
+        min_y=-1.0,
+        max_y=1.0,
+    )
+    world = AntWorld(
+        config=AntWorldConfig(seed=0, step_size=0.2, max_turn_rate=math.pi),
+        obstacles=(obstacle,),
+    )
+    world.set_body_pose(x=0.1, y=0.0, heading=0.0)
+    world.act(turn_command=0.0, step_command=0.2)
+
+    assert world.body().x == pytest.approx(0.1)
+    assert world.last_transition().blocked_by_obstacle

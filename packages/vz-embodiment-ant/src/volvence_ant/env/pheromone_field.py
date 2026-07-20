@@ -18,7 +18,7 @@ published snapshot; zero direct calls between individuals).
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -33,13 +33,37 @@ class PheromoneField:
     origin_x: float
     origin_y: float
     tick: int
+    home_mass: float = field(init=False)
+    trail_mass: float = field(init=False)
+    home_entropy: float | None = field(init=False)
+    trail_entropy: float | None = field(init=False)
 
     def __post_init__(self) -> None:
-        # enforce immutability of the published grids
-        object.__setattr__(self, "home", np.ascontiguousarray(self.home, dtype=float))
-        object.__setattr__(self, "trail", np.ascontiguousarray(self.trail, dtype=float))
-        self.home.setflags(write=False)
-        self.trail.setflags(write=False)
+        # Back arrays with immutable ``bytes``. Merely calling
+        # ``setflags(write=False)`` is reversible when an ndarray owns mutable
+        # memory, which would let a consumer corrupt snapshot summaries.
+        object.__setattr__(self, "home", self._immutable_grid(self.home))
+        object.__setattr__(self, "trail", self._immutable_grid(self.trail))
+        object.__setattr__(self, "home_mass", float(self.home.sum()))
+        object.__setattr__(self, "trail_mass", float(self.trail.sum()))
+        object.__setattr__(
+            self,
+            "home_entropy",
+            self._normalized_entropy(self.home),
+        )
+        object.__setattr__(
+            self,
+            "trail_entropy",
+            self._normalized_entropy(self.trail),
+        )
+
+    @staticmethod
+    def _immutable_grid(grid: np.ndarray) -> np.ndarray:
+        contiguous = np.ascontiguousarray(grid, dtype=float)
+        return np.frombuffer(
+            contiguous.tobytes(),
+            dtype=float,
+        ).reshape(contiguous.shape)
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -51,6 +75,13 @@ class PheromoneField:
         rows, cols = self.home.shape
         return max(0, min(rows - 1, cy)), max(0, min(cols - 1, cx))
 
+    def contains(self, x: float, y: float) -> bool:
+        rows, cols = self.home.shape
+        return (
+            self.origin_x <= x < self.origin_x + cols * self.cell_size
+            and self.origin_y <= y < self.origin_y + rows * self.cell_size
+        )
+
     def sample(self, x: float, y: float) -> tuple[float, float]:
         """Bilinearly interpolate both channels so the gradient is smooth.
 
@@ -59,7 +90,20 @@ class PheromoneField:
         actually climb.
         """
 
+        if not self.contains(x, y):
+            return 0.0, 0.0
         return (self._bilinear(self.home, x, y), self._bilinear(self.trail, x, y))
+
+    @staticmethod
+    def _normalized_entropy(grid: np.ndarray) -> float | None:
+        mass = float(grid.sum())
+        if mass <= 0.0:
+            return None
+        probabilities = grid.ravel() / mass
+        positive = probabilities[probabilities > 0.0]
+        if grid.size <= 1:
+            return 0.0
+        return -float(np.sum(positive * np.log(positive))) / math.log(grid.size)
 
     def _bilinear(self, grid: np.ndarray, x: float, y: float) -> float:
         rows, cols = grid.shape
@@ -138,6 +182,8 @@ class PheromoneBus:
     def deposit(self, *, x: float, y: float, home_amount: float = 0.0, trail_amount: float = 0.0) -> None:
         """Append an independent, additive deposit event (does not overwrite)."""
 
+        if not self._snapshot.contains(x, y):
+            return
         self._pending.append(
             _DepositEvent(
                 x=x,
@@ -162,4 +208,4 @@ class PheromoneBus:
         return self._snapshot
 
     def total_mass(self) -> tuple[float, float]:
-        return float(self._home.sum()), float(self._trail.sum())
+        return self._snapshot.home_mass, self._snapshot.trail_mass

@@ -819,7 +819,8 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 | `sense_encode` / `motor_decode` | 同上 | 两个**冻结**向量函数（纯 numpy，无可学习参数），对应遗传固定的受体映射与运动 plant |
 | `AntNavigator` | 同上 | body 侧环形吸引子朝向 + 路径积分（对应中央复合体，冻结、不学习） |
 | `AntSession` | 同上 | 经 `vz-runtime` 的 `AgentSessionRunner` facade 复用内核，每 tick 一个闭环 |
-| 信息素快照总线（Phase 1） | 同上 | embodiment 内部 colony 总线，多写者只追加带衰减；**不**进入 §3/§6 kernel 注册表 |
+| 信息素快照总线（Phase 1） | 同上 | embodiment 内部 colony 总线，多写者只追加带衰减；`PheromoneField` 自己发布 home/trail mass + normalized entropy；**不**进入 §3/§6 kernel 注册表 |
+| 障碍几何与碰撞证据 | 同上 | `AxisAlignedObstacle` 由 environment owner 持有；substrate 只见局部左右触角/contact，`WorldTransitionEvidence` 发布 blocked/applied-step 审计事实；**不**新增 kernel slot |
 | typed task measurement | `vz-contracts` / PE owner | `EnvironmentOutcome.measurement` 仅含环境可观察事实；runtime 保留 lineage，PE 是唯一 mismatch owner |
 | `ColonyRareHeavyBundle` | `vz-embodiment-ant` | per-individual artifact digest/provenance/gate verdict；不含 temporal state、不新增 slot |
 | evidence manifest | `vz-embodiment-ant` | `digital-ant-manifest.v2` sidecar 绑定 artifact/input digest 与运行 provenance |
@@ -837,6 +838,11 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
   rare-heavy 角色重编程 = 中间的基因表达程序层（离线、运行时不可触发）；
   `z_t`/`β_t` + CMS 在线学习 = controller 层（突触可塑性）。
 - 信息素总线：每个个体的写入是**独立不可变事件**，读取时聚合；禁止多 writer 互相覆盖同一字段。
+- 动态障碍只允许在 round 边界通过 environment owner API 原子替换；agent 不得读取全局几何或未来
+  扰动。群体评估直接消费 `PheromoneField` 已发布的 mass/entropy，不在 consumer 重建 bus 内部状态。
+- `WorldObservation.last_turn_command` 是 efference copy，只发布 commanded turn；隐藏 plant 的
+  applied turn/step 只存在于只读 transition evidence，不能进入 substrate/optimizer。信息素 ndarray
+  使用不可重新开启写权限的 backing buffer；field 外 deposit/sample 返回空，不得夹到边缘格形成伪通信。
 - rare-heavy artifact 只能在离线 pipeline 产生，经现有 ModificationGate 审查并在 session 初始化导入；
   runtime 不训练 artifact，角色标签只允许作为 held-out 行为 readout。
 - 正式 evidence artifact 必须带 schema version、git SHA/dirty、依赖/seed/config/model fingerprints 和

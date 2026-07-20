@@ -29,6 +29,9 @@ Thumbs.db
 # Project artefacts
 *.db-shm
 *.db-wal
+# Resumable digital-ant seed fragments are transient; completed evidence
+# bundles under research/ant/results remain reviewable/versioned.
+research/ant/results/.partials/
 
 # Transient agent / migration scripts (one-shot patches, commit messages, ...)
 .tmp_*

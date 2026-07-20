@@ -10,7 +10,13 @@ therefore pure stigmergy through the shared external memory.
 
 from __future__ import annotations
 
-from volvence_ant.env.ant_world import AntBody, AntWorld, AntWorldConfig, FoodSource
+from volvence_ant.env.ant_world import (
+    AntBody,
+    AntWorld,
+    AntWorldConfig,
+    AxisAlignedObstacle,
+    FoodSource,
+)
 from volvence_ant.env.pheromone_field import PheromoneBus, PheromoneField
 
 
@@ -20,11 +26,17 @@ class ColonyWorld(AntWorld):
         *,
         config: AntWorldConfig | None = None,
         food_sources: tuple[FoodSource, ...] = (),
+        obstacles: tuple[AxisAlignedObstacle, ...] = (),
         n_bodies: int = 8,
         bus: PheromoneBus | None = None,
     ) -> None:
         self._bus = bus or PheromoneBus()
-        super().__init__(config=config, food_sources=food_sources, n_bodies=n_bodies)
+        super().__init__(
+            config=config,
+            food_sources=food_sources,
+            obstacles=obstacles,
+            n_bodies=n_bodies,
+        )
 
     @property
     def pheromone(self) -> PheromoneField:
@@ -37,6 +49,10 @@ class ColonyWorld(AntWorld):
     def _pheromone_samples(self, x: float, y: float) -> tuple[float, float]:
         # read the CURRENT published immutable snapshot (SSOT read path)
         return self._bus.snapshot.sample(x, y)
+
+    def pheromone_metrics(self) -> tuple[float, float | None]:
+        snapshot = self._bus.snapshot
+        return snapshot.trail_mass, snapshot.trail_entropy
 
     def _on_body_moved(self, body_id: int, body: AntBody) -> None:
         # additive deposit event; outbound bodies mark the way home, carrying

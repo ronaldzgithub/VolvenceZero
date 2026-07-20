@@ -97,6 +97,8 @@ class AntStepRecord:
     at_nest: bool
     command: AntMotorCommand
     applied_turn: float
+    applied_step: float
+    obstacle_contact: bool
     code: tuple[float, ...]
     switch_gate: float
     is_switching: bool
@@ -221,6 +223,14 @@ class AntSession:
         return tuple(controller.code), float(controller.switch_gate), value.active_abstract_action
 
     async def step(self) -> AntStepRecord:
+        # Refresh at the action boundary so every colony member consumes the
+        # same currently published round snapshot. Keeping only the post-action
+        # observation would make the last body uniquely see the next bus tick.
+        self.holder.update(
+            observation=self.world.observe(self._body_id),
+            navigator_state=self.navigator.state,
+            step=self.world.tick,
+        )
         result = await self.runner.run_turn(f"ant-tick-{self.world.tick}")
         code, switch_gate, abstract_action = self._read_code(result)
         command = self.actuator.plan(code, alarm=self.holder.observation.alarm)
@@ -287,6 +297,8 @@ class AntSession:
             at_nest=observation.at_nest,
             command=command,
             applied_turn=transition.applied_turn,
+            applied_step=transition.applied_step,
+            obstacle_contact=transition.blocked_by_obstacle,
             code=code,
             switch_gate=switch_gate,
             is_switching=temporal_snapshot.controller_state.is_switching,
@@ -384,10 +396,7 @@ class AntSession:
                 action_id=transition_id,
                 status="heading_stability_observed",
                 summary="digital-ant heading stability transition",
-                detail=(
-                    "observable sky-compass heading deviation and actuator "
-                    f"execution delta={applied_turn - commanded_turn:.6f}"
-                ),
+                detail="observable sky-compass heading deviation",
                 prediction_id=prediction_id or None,
                 evidence=(f"ant_transition:{transition_id}",),
                 environment_state_delta_kind="heading_stability",

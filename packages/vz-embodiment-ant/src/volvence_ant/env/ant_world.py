@@ -35,6 +35,44 @@ class FoodSource:
 
 
 @dataclass(frozen=True)
+class AxisAlignedObstacle:
+    """Immutable environment-owned rectangular obstacle."""
+
+    obstacle_id: str
+    min_x: float
+    max_x: float
+    min_y: float
+    max_y: float
+
+    def __post_init__(self) -> None:
+        bounds = (self.min_x, self.max_x, self.min_y, self.max_y)
+        if not self.obstacle_id:
+            raise ValueError("obstacle_id must be non-empty")
+        if not all(math.isfinite(value) for value in bounds):
+            raise ValueError("obstacle bounds must be finite")
+        if self.min_x >= self.max_x or self.min_y >= self.max_y:
+            raise ValueError(
+                "obstacle bounds must satisfy min_x < max_x and min_y < max_y"
+            )
+
+    def contains(self, x: float, y: float) -> bool:
+        return self.min_x <= x <= self.max_x and self.min_y <= y <= self.max_y
+
+    def strictly_contains(self, x: float, y: float) -> bool:
+        return self.min_x < x < self.max_x and self.min_y < y < self.max_y
+
+    def penetration_depth(self, x: float, y: float) -> float:
+        if not self.strictly_contains(x, y):
+            return 0.0
+        return min(
+            x - self.min_x,
+            self.max_x - x,
+            y - self.min_y,
+            self.max_y - y,
+        )
+
+
+@dataclass(frozen=True)
 class MotorDistortionProfile:
     """Hidden actuator transfer function, optionally switching once at runtime."""
 
@@ -71,6 +109,9 @@ class WorldObservation:
     home_pher_right: float
     trail_pher_left: float
     trail_pher_right: float
+    obstacle_left: float
+    obstacle_right: float
+    obstacle_contact: bool
     last_turn_command: float
     # --- discrete contact / drive flags ---
     carrying_food: bool
@@ -98,6 +139,10 @@ class WorldTransitionEvidence:
     carrying_after: bool
     commanded_turn: float
     applied_turn: float
+    commanded_step: float
+    applied_step: float
+    blocked_by_obstacle: bool
+    obstacle_id: str | None
 
 
 @dataclass
@@ -129,6 +174,7 @@ class AntWorld:
         *,
         config: AntWorldConfig | None = None,
         food_sources: tuple[FoodSource, ...] = (),
+        obstacles: tuple[AxisAlignedObstacle, ...] = (),
         n_bodies: int = 1,
     ) -> None:
         self.config = config or AntWorldConfig()
@@ -140,10 +186,12 @@ class AntWorld:
         self._food: list[FoodSource] = list(food_sources) or [
             FoodSource(x=8.0, y=0.0, strength=1.0, decay=6.0)
         ]
+        self._obstacles = self._validated_obstacles(obstacles)
         self._bodies: list[AntBody] = [
             self._spawn_body() for _ in range(max(1, n_bodies))
         ]
         self._last_turn: list[float] = [0.0 for _ in self._bodies]
+        self._last_obstacle_contact: list[bool] = [False for _ in self._bodies]
         self._alarm: list[float] = [0.0 for _ in self._bodies]
         self._last_transition: list[WorldTransitionEvidence | None] = [
             None for _ in self._bodies
@@ -177,6 +225,9 @@ class AntWorld:
 
     def food_sources(self) -> tuple[FoodSource, ...]:
         return tuple(self._food)
+
+    def obstacles(self) -> tuple[AxisAlignedObstacle, ...]:
+        return self._obstacles
 
     def last_transition(self, body_id: int = 0) -> WorldTransitionEvidence:
         transition = self._last_transition[body_id]
@@ -223,6 +274,9 @@ class AntWorld:
             home_pher_right=pher_r[0],
             trail_pher_left=pher_l[1],
             trail_pher_right=pher_r[1],
+            obstacle_left=self._obstacle_sample(lx, ly),
+            obstacle_right=self._obstacle_sample(rx, ry),
+            obstacle_contact=self._last_obstacle_contact[body_id],
             last_turn_command=self._last_turn[body_id],
             carrying_food=body.carrying_food,
             at_nest=at_nest,
@@ -249,6 +303,14 @@ class AntWorld:
 
         return (0.0, 0.0)
 
+    def pheromone_metrics(self) -> tuple[float, float | None]:
+        """Published trail mass/entropy; a plain world has no shared bus."""
+
+        return 0.0, None
+
+    def _obstacle_sample(self, x: float, y: float) -> float:
+        return 1.0 if any(obstacle.contains(x, y) for obstacle in self._obstacles) else 0.0
+
     # -- action ---------------------------------------------------------------
     def act(
         self,
@@ -273,9 +335,17 @@ class AntWorld:
             )
         )
         new_heading = (body.heading + applied_turn) % TWO_PI
-        step = float(np.clip(step_command, 0.0, cfg.step_size))
-        new_x = body.x + step * math.cos(new_heading)
-        new_y = body.y + step * math.sin(new_heading)
+        commanded_step = float(np.clip(step_command, 0.0, cfg.step_size))
+        target_x = body.x + commanded_step * math.cos(new_heading)
+        target_y = body.y + commanded_step * math.sin(new_heading)
+        new_x, new_y, obstacle_id = self._resolve_obstacle_motion(
+            start_x=body.x,
+            start_y=body.y,
+            target_x=target_x,
+            target_y=target_y,
+        )
+        applied_step = math.hypot(new_x - body.x, new_y - body.y)
+        blocked_by_obstacle = obstacle_id is not None
         new_body = replace(body, x=new_x, y=new_y, heading=new_heading)
 
         new_body = self._resolve_contacts(new_body, body_id)
@@ -291,9 +361,16 @@ class AntWorld:
             carrying_after=new_body.carrying_food,
             commanded_turn=commanded_turn,
             applied_turn=applied_turn,
+            commanded_step=commanded_step,
+            applied_step=applied_step,
+            blocked_by_obstacle=blocked_by_obstacle,
+            obstacle_id=obstacle_id,
         )
         self._bodies[body_id] = new_body
-        self._last_turn[body_id] = applied_turn
+        # Efference copy only: the controller knows what it commanded, not the
+        # hidden actuator transfer. Applied turn remains audit-only evidence.
+        self._last_turn[body_id] = commanded_turn
+        self._last_obstacle_contact[body_id] = blocked_by_obstacle
         self._on_body_moved(body_id, new_body)
         if body_id == self.n_bodies - 1:
             self.tick += 1
@@ -306,6 +383,85 @@ class AntWorld:
         if not profiles:
             return MotorDistortionProfile()
         return profiles[0] if len(profiles) == 1 else profiles[body_id]
+
+    def _resolve_obstacle_motion(
+        self,
+        *,
+        start_x: float,
+        start_y: float,
+        target_x: float,
+        target_y: float,
+    ) -> tuple[float, float, str | None]:
+        earliest_fraction = 1.0
+        obstacle_id: str | None = None
+        for obstacle in self._obstacles:
+            # A newly activated obstacle never teleports a body that is already
+            # inside it. The body may leave, but cannot re-enter afterwards.
+            if obstacle.strictly_contains(start_x, start_y):
+                if (
+                    obstacle.strictly_contains(target_x, target_y)
+                    and obstacle.penetration_depth(target_x, target_y)
+                    >= obstacle.penetration_depth(start_x, start_y)
+                ):
+                    return start_x, start_y, obstacle.obstacle_id
+                continue
+            if obstacle.contains(start_x, start_y):
+                probe_fraction = 1e-9
+                probe_x = start_x + (target_x - start_x) * probe_fraction
+                probe_y = start_y + (target_y - start_y) * probe_fraction
+                if not obstacle.strictly_contains(probe_x, probe_y):
+                    continue
+            fraction = self._segment_obstacle_entry_fraction(
+                start_x=start_x,
+                start_y=start_y,
+                target_x=target_x,
+                target_y=target_y,
+                obstacle=obstacle,
+            )
+            if fraction is not None and fraction < earliest_fraction:
+                earliest_fraction = fraction
+                obstacle_id = obstacle.obstacle_id
+        if obstacle_id is None:
+            return target_x, target_y, None
+        safe_fraction = max(0.0, earliest_fraction - 1e-9)
+        return (
+            start_x + (target_x - start_x) * safe_fraction,
+            start_y + (target_y - start_y) * safe_fraction,
+            obstacle_id,
+        )
+
+    @staticmethod
+    def _segment_obstacle_entry_fraction(
+        *,
+        start_x: float,
+        start_y: float,
+        target_x: float,
+        target_y: float,
+        obstacle: AxisAlignedObstacle,
+    ) -> float | None:
+        """Return the first segment fraction entering an axis-aligned box."""
+
+        entry = 0.0
+        exit_ = 1.0
+        for origin, delta, lower, upper in (
+            (start_x, target_x - start_x, obstacle.min_x, obstacle.max_x),
+            (start_y, target_y - start_y, obstacle.min_y, obstacle.max_y),
+        ):
+            if abs(delta) <= 1e-15:
+                if origin < lower or origin > upper:
+                    return None
+                continue
+            first = (lower - origin) / delta
+            second = (upper - origin) / delta
+            if first > second:
+                first, second = second, first
+            entry = max(entry, first)
+            exit_ = min(exit_, second)
+            if entry > exit_:
+                return None
+        if exit_ < 0.0 or entry > 1.0:
+            return None
+        return max(0.0, entry)
 
     @staticmethod
     def _validate_motor_distortions(
@@ -372,6 +528,20 @@ class AntWorld:
     def set_food_sources(self, food_sources: tuple[FoodSource, ...]) -> None:
         self._food = list(food_sources)
 
+    def set_obstacles(self, obstacles: tuple[AxisAlignedObstacle, ...]) -> None:
+        """Atomically replace the environment-owned obstacle geometry."""
+
+        self._obstacles = self._validated_obstacles(obstacles)
+
+    @staticmethod
+    def _validated_obstacles(
+        obstacles: tuple[AxisAlignedObstacle, ...],
+    ) -> tuple[AxisAlignedObstacle, ...]:
+        obstacle_ids = tuple(obstacle.obstacle_id for obstacle in obstacles)
+        if len(set(obstacle_ids)) != len(obstacle_ids):
+            raise ValueError("obstacle_id values must be unique")
+        return tuple(obstacles)
+
     def trigger_alarm(self, *, body_id: int | None = None, magnitude: float = 1.0) -> None:
         if body_id is None:
             self._alarm = [magnitude for _ in self._alarm]
@@ -384,6 +554,7 @@ class AntWorld:
     def reset_body(self, body_id: int = 0) -> None:
         self._bodies[body_id] = self._spawn_body()
         self._last_turn[body_id] = 0.0
+        self._last_obstacle_contact[body_id] = False
         self._alarm[body_id] = 0.0
         self._last_transition[body_id] = None
 

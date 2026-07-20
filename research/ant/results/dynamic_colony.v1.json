@@ -1,0 +1,2172 @@
+{
+  "artifact_kind": "digital-ant-dynamic-colony",
+  "benchmark_version": "dynamic-stigmergy-regime-shift.v1",
+  "experiment": "dynamic_stigmergy_regime_shift_v1",
+  "implementation_digest": "8eec9defeb98f2e47be1326d3bbaa030b61f0eef1ed694f34791f672526f2234",
+  "n_ants": 1,
+  "perturbations": [
+    "obstacle_block",
+    "food_relocation",
+    "motor_bias"
+  ],
+  "post_shift_rounds": 1,
+  "pre_shift_rounds": 1,
+  "provenance": {
+    "config_digest": "fbcd451bbf212f378fff2e421aa0bccf916d45a4b680a26090cecc8c2a7d4db9",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "79d0b9dbc2f9869d27da98f95d5f1af93e90e4cd",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "recovery_window": 1,
+  "report_schema_version": "dynamic-colony-report.v3",
+  "runtime_exploration_strength": 1.0,
+  "runtime_modulation_strength": 0.3,
+  "runtime_replay": "active",
+  "scenario_reports": [
+    {
+      "description": "dynamic colony obstacle_block: verdict=BLOCK, static_ratio=0.0000, bus_effect=0.0000, post_shift_vs_fixed=0.0000",
+      "effects": [
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_bus_minus_learned_no_bus_post_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_minus_no_optimize_post_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_minus_no_optimize_pre_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_minus_pe_off_post_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_vs_fixed_post_throughput_relative_to_fixed_pre",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_vs_fixed_recovery_relative",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_vs_fixed_shortfall_relative",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        }
+      ],
+      "gates": [
+        {
+          "gate_name": "formal_seed_count",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=10"
+        },
+        {
+          "gate_name": "formal_colony_size",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=8"
+        },
+        {
+          "gate_name": "formal_training_budget",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": ">=200 rounds/ant"
+        },
+        {
+          "gate_name": "formal_pre_shift_budget",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=50 rounds"
+        },
+        {
+          "gate_name": "formal_post_shift_budget",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=100 rounds"
+        },
+        {
+          "gate_name": "formal_recovery_window",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=20 rounds"
+        },
+        {
+          "gate_name": "static_throughput_comparability",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "0.8<=learned/fixed<=1.2"
+        },
+        {
+          "gate_name": "static_pickup_seed_rate",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": ">=0.8"
+        },
+        {
+          "gate_name": "fixed_rule_pre_shift_competency",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "pickup in >=0.8 of seeds"
+        },
+        {
+          "gate_name": "learned_bus_causal_effect",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "mean>=0.02 and ci95.low>0"
+        },
+        {
+          "gate_name": "policy_optimization_causal_effect",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "mean>=0.02 and ci95.low>0"
+        },
+        {
+          "gate_name": "pre_shift_learned_no_optimize_alignment",
+          "observed": 0.0,
+          "passed": true,
+          "threshold": "abs(mean)<=0.100000 and ci95 spans 0"
+        },
+        {
+          "gate_name": "prediction_error_causal_effect",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "mean>=0.02 and ci95.low>0"
+        },
+        {
+          "gate_name": "post_shift_throughput_advantage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "relative>=0.10 and ci95.low>0"
+        },
+        {
+          "gate_name": "recovery_time_advantage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "relative>=0.20 and ci95.low>0"
+        },
+        {
+          "gate_name": "oracle_delivery_shortfall_advantage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "relative>=0.15 and ci95.low>0"
+        },
+        {
+          "gate_name": "runtime_replay_lineage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "every kernel arm ACTIVE with transitions>0 and 0<=matches<=settled<=captured and coverage>=0.99"
+        },
+        {
+          "gate_name": "checkpoint_cardinality",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "one owner checkpoint per ant"
+        },
+        {
+          "gate_name": "initial_checkpoint_alignment",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "learned_policy_diverged",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "no_optimize_policy_stable",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "learned_post_shift_policy_diverged",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "no_optimize_post_shift_policy_stable",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "shift_has_no_body_overlap",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        }
+      ],
+      "perturbation": "obstacle_block",
+      "seed_reports": [
+        {
+          "arms": [
+            {
+              "arm": "learned_bus",
+              "bus_enabled": true,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "learned_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "obstacle_block",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.4260424929418677,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "learned_no_bus",
+              "bus_enabled": false,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "learned_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "obstacle_block",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.4260424735576106,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "no_optimize_bus",
+              "bus_enabled": true,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "no_optimize_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "obstacle_block",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.4260424929418677,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "pe_off_bus",
+              "bus_enabled": true,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "pe_off_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "obstacle_block",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.4260424929418677,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "fixed_rule_bus",
+              "bus_enabled": true,
+              "controller_kind": "fixed_rule",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "fixed_rule_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [],
+              "initial_checkpoint_fingerprints": [],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "obstacle_block",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": false,
+              "runtime_replay_captured": 0,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [],
+              "total_applied_distance": 0.8,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "fixed_rule_no_bus",
+              "bus_enabled": false,
+              "controller_kind": "fixed_rule",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "fixed_rule_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [],
+              "initial_checkpoint_fingerprints": [],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "obstacle_block",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": false,
+              "runtime_replay_captured": 0,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [],
+              "total_applied_distance": 0.8,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "random_no_bus",
+              "bus_enabled": false,
+              "controller_kind": "random",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "random_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [],
+              "initial_checkpoint_fingerprints": [],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "obstacle_block",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": false,
+              "runtime_replay_captured": 0,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [],
+              "total_applied_distance": 0.8,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            }
+          ],
+          "config": {
+            "n_ants": 1,
+            "post_shift_rounds": 1,
+            "pre_shift_rounds": 1,
+            "recovery_window": 1,
+            "temporal_latent_dim": 4,
+            "training_rounds": 0
+          },
+          "evaluation_world_seed": 1000003,
+          "perturbation": "obstacle_block",
+          "seed": 0,
+          "training_world_seed": 17
+        }
+      ],
+      "seeds": [
+        0
+      ],
+      "verdict": "BLOCK"
+    },
+    {
+      "description": "dynamic colony food_relocation: verdict=BLOCK, static_ratio=0.0000, bus_effect=0.0000, post_shift_vs_fixed=0.0000",
+      "effects": [
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_bus_minus_learned_no_bus_post_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_minus_no_optimize_post_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_minus_no_optimize_pre_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_minus_pe_off_post_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_vs_fixed_post_throughput_relative_to_fixed_pre",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_vs_fixed_recovery_relative",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_vs_fixed_shortfall_relative",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        }
+      ],
+      "gates": [
+        {
+          "gate_name": "formal_seed_count",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=10"
+        },
+        {
+          "gate_name": "formal_colony_size",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=8"
+        },
+        {
+          "gate_name": "formal_training_budget",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": ">=200 rounds/ant"
+        },
+        {
+          "gate_name": "formal_pre_shift_budget",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=50 rounds"
+        },
+        {
+          "gate_name": "formal_post_shift_budget",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=100 rounds"
+        },
+        {
+          "gate_name": "formal_recovery_window",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=20 rounds"
+        },
+        {
+          "gate_name": "static_throughput_comparability",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "0.8<=learned/fixed<=1.2"
+        },
+        {
+          "gate_name": "static_pickup_seed_rate",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": ">=0.8"
+        },
+        {
+          "gate_name": "fixed_rule_pre_shift_competency",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "pickup in >=0.8 of seeds"
+        },
+        {
+          "gate_name": "learned_bus_causal_effect",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "mean>=0.02 and ci95.low>0"
+        },
+        {
+          "gate_name": "policy_optimization_causal_effect",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "mean>=0.02 and ci95.low>0"
+        },
+        {
+          "gate_name": "pre_shift_learned_no_optimize_alignment",
+          "observed": 0.0,
+          "passed": true,
+          "threshold": "abs(mean)<=0.100000 and ci95 spans 0"
+        },
+        {
+          "gate_name": "prediction_error_causal_effect",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "mean>=0.02 and ci95.low>0"
+        },
+        {
+          "gate_name": "post_shift_throughput_advantage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "relative>=0.10 and ci95.low>0"
+        },
+        {
+          "gate_name": "recovery_time_advantage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "relative>=0.20 and ci95.low>0"
+        },
+        {
+          "gate_name": "oracle_delivery_shortfall_advantage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "relative>=0.15 and ci95.low>0"
+        },
+        {
+          "gate_name": "runtime_replay_lineage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "every kernel arm ACTIVE with transitions>0 and 0<=matches<=settled<=captured and coverage>=0.99"
+        },
+        {
+          "gate_name": "checkpoint_cardinality",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "one owner checkpoint per ant"
+        },
+        {
+          "gate_name": "initial_checkpoint_alignment",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "learned_policy_diverged",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "no_optimize_policy_stable",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "learned_post_shift_policy_diverged",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "no_optimize_post_shift_policy_stable",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "shift_has_no_body_overlap",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        }
+      ],
+      "perturbation": "food_relocation",
+      "seed_reports": [
+        {
+          "arms": [
+            {
+              "arm": "learned_bus",
+              "bus_enabled": true,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "learned_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "food_relocation",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.426058706900553,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "learned_no_bus",
+              "bus_enabled": false,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "learned_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "food_relocation",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.42605868800382873,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "no_optimize_bus",
+              "bus_enabled": true,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "no_optimize_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "food_relocation",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.426058706900553,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "pe_off_bus",
+              "bus_enabled": true,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "pe_off_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "food_relocation",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.426058706900553,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "fixed_rule_bus",
+              "bus_enabled": true,
+              "controller_kind": "fixed_rule",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "fixed_rule_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [],
+              "initial_checkpoint_fingerprints": [],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "food_relocation",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": false,
+              "runtime_replay_captured": 0,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [],
+              "total_applied_distance": 0.8,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "fixed_rule_no_bus",
+              "bus_enabled": false,
+              "controller_kind": "fixed_rule",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "fixed_rule_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [],
+              "initial_checkpoint_fingerprints": [],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "food_relocation",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": false,
+              "runtime_replay_captured": 0,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [],
+              "total_applied_distance": 0.8,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "random_no_bus",
+              "bus_enabled": false,
+              "controller_kind": "random",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "random_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [],
+              "initial_checkpoint_fingerprints": [],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "food_relocation",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": false,
+              "runtime_replay_captured": 0,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [],
+              "total_applied_distance": 0.8,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            }
+          ],
+          "config": {
+            "n_ants": 1,
+            "post_shift_rounds": 1,
+            "pre_shift_rounds": 1,
+            "recovery_window": 1,
+            "temporal_latent_dim": 4,
+            "training_rounds": 0
+          },
+          "evaluation_world_seed": 1000003,
+          "perturbation": "food_relocation",
+          "seed": 0,
+          "training_world_seed": 17
+        }
+      ],
+      "seeds": [
+        0
+      ],
+      "verdict": "BLOCK"
+    },
+    {
+      "description": "dynamic colony motor_bias: verdict=BLOCK, static_ratio=0.0000, bus_effect=0.0000, post_shift_vs_fixed=0.0000",
+      "effects": [
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_bus_minus_learned_no_bus_post_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_minus_no_optimize_post_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_minus_no_optimize_pre_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_minus_pe_off_post_throughput",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_vs_fixed_post_throughput_relative_to_fixed_pre",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_vs_fixed_recovery_relative",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "effect_name": "learned_vs_fixed_shortfall_relative",
+          "mean": 0.0,
+          "values": [
+            0.0
+          ]
+        }
+      ],
+      "gates": [
+        {
+          "gate_name": "formal_seed_count",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=10"
+        },
+        {
+          "gate_name": "formal_colony_size",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=8"
+        },
+        {
+          "gate_name": "formal_training_budget",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": ">=200 rounds/ant"
+        },
+        {
+          "gate_name": "formal_pre_shift_budget",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=50 rounds"
+        },
+        {
+          "gate_name": "formal_post_shift_budget",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=100 rounds"
+        },
+        {
+          "gate_name": "formal_recovery_window",
+          "observed": 1.0,
+          "passed": false,
+          "threshold": ">=20 rounds"
+        },
+        {
+          "gate_name": "static_throughput_comparability",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "0.8<=learned/fixed<=1.2"
+        },
+        {
+          "gate_name": "static_pickup_seed_rate",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": ">=0.8"
+        },
+        {
+          "gate_name": "fixed_rule_pre_shift_competency",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "pickup in >=0.8 of seeds"
+        },
+        {
+          "gate_name": "learned_bus_causal_effect",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "mean>=0.02 and ci95.low>0"
+        },
+        {
+          "gate_name": "policy_optimization_causal_effect",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "mean>=0.02 and ci95.low>0"
+        },
+        {
+          "gate_name": "pre_shift_learned_no_optimize_alignment",
+          "observed": 0.0,
+          "passed": true,
+          "threshold": "abs(mean)<=0.100000 and ci95 spans 0"
+        },
+        {
+          "gate_name": "prediction_error_causal_effect",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "mean>=0.02 and ci95.low>0"
+        },
+        {
+          "gate_name": "post_shift_throughput_advantage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "relative>=0.10 and ci95.low>0"
+        },
+        {
+          "gate_name": "recovery_time_advantage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "relative>=0.20 and ci95.low>0"
+        },
+        {
+          "gate_name": "oracle_delivery_shortfall_advantage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "relative>=0.15 and ci95.low>0"
+        },
+        {
+          "gate_name": "runtime_replay_lineage",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "every kernel arm ACTIVE with transitions>0 and 0<=matches<=settled<=captured and coverage>=0.99"
+        },
+        {
+          "gate_name": "checkpoint_cardinality",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "one owner checkpoint per ant"
+        },
+        {
+          "gate_name": "initial_checkpoint_alignment",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "learned_policy_diverged",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "no_optimize_policy_stable",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "learned_post_shift_policy_diverged",
+          "observed": 0.0,
+          "passed": false,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "no_optimize_post_shift_policy_stable",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        },
+        {
+          "gate_name": "shift_has_no_body_overlap",
+          "observed": 1.0,
+          "passed": true,
+          "threshold": "==1"
+        }
+      ],
+      "perturbation": "motor_bias",
+      "seed_reports": [
+        {
+          "arms": [
+            {
+              "arm": "learned_bus",
+              "bus_enabled": true,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "learned_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "motor_bias",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.4260424929418677,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "learned_no_bus",
+              "bus_enabled": false,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "learned_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "motor_bias",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.4260424735576106,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "no_optimize_bus",
+              "bus_enabled": true,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "no_optimize_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "motor_bias",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.4260424929418677,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "pe_off_bus",
+              "bus_enabled": true,
+              "controller_kind": "kernel",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "pe_off_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "initial_checkpoint_fingerprints": [
+                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+              ],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "motor_bias",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": true,
+              "runtime_replay_captured": 2,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "total_applied_distance": 0.4260424929418677,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "fixed_rule_bus",
+              "bus_enabled": true,
+              "controller_kind": "fixed_rule",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "fixed_rule_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [],
+              "initial_checkpoint_fingerprints": [],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "motor_bias",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": false,
+              "runtime_replay_captured": 0,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [],
+              "total_applied_distance": 0.8,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "fixed_rule_no_bus",
+              "bus_enabled": false,
+              "controller_kind": "fixed_rule",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "fixed_rule_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [],
+              "initial_checkpoint_fingerprints": [],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "motor_bias",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": false,
+              "runtime_replay_captured": 0,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [],
+              "total_applied_distance": 0.8,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            },
+            {
+              "arm": "random_no_bus",
+              "bus_enabled": false,
+              "controller_kind": "random",
+              "delivered": 0,
+              "delivery_curve": [
+                0,
+                0
+              ],
+              "description": "random_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
+              "diagnostic_breakpoint": "static-qualification-no-food-contact",
+              "final_policy_fingerprints": [],
+              "initial_checkpoint_fingerprints": [],
+              "n_ants": 1,
+              "obstacle_contacts": 0,
+              "oracle_delivery_shortfall": 0.07142857142857142,
+              "perturbation": "motor_bias",
+              "pickup_curve": [
+                0,
+                0
+              ],
+              "pickups": 0,
+              "policy_parameters_changed": false,
+              "post_shift_delivered": 0,
+              "post_shift_delivery_auc": 0.0,
+              "post_shift_pickups": 0,
+              "post_shift_policy_parameters_changed": false,
+              "post_shift_rounds": 1,
+              "post_shift_throughput_per_1k_actions": 0.0,
+              "pre_shift_delivered": 0,
+              "pre_shift_pickups": 0,
+              "pre_shift_rounds": 1,
+              "pre_shift_throughput_per_1k_actions": 0.0,
+              "recovery_rounds": null,
+              "route_stretch": null,
+              "runtime_replay_active": false,
+              "runtime_replay_captured": 0,
+              "runtime_replay_lineage_coverage": 0.0,
+              "runtime_replay_lineage_matches": 0,
+              "runtime_replay_settled": 0,
+              "runtime_replay_transitions": 0,
+              "shift_overlap_count": 0,
+              "shift_policy_fingerprints": [],
+              "total_applied_distance": 0.8,
+              "trail_entropy": null,
+              "trail_entropy_curve": [
+                null,
+                null
+              ],
+              "trail_mass": 0.0,
+              "trail_mass_curve": [
+                0.0,
+                0.0
+              ],
+              "trail_sense_events": 0,
+              "trained_policy_fingerprints": [],
+              "training_delivered": 0,
+              "training_pickups": 0,
+              "training_rounds": 0
+            }
+          ],
+          "config": {
+            "n_ants": 1,
+            "post_shift_rounds": 1,
+            "pre_shift_rounds": 1,
+            "recovery_window": 1,
+            "temporal_latent_dim": 4,
+            "training_rounds": 0
+          },
+          "evaluation_world_seed": 1000003,
+          "perturbation": "motor_bias",
+          "seed": 0,
+          "training_world_seed": 17
+        }
+      ],
+      "seeds": [
+        0
+      ],
+      "verdict": "BLOCK"
+    }
+  ],
+  "schema_version": "digital-ant-evidence.v2",
+  "seeds": [
+    0
+  ],
+  "suite_complete": true,
+  "temporal_latent_dim": 4,
+  "training_rounds": 0,
+  "verdict": "BLOCK"
+}

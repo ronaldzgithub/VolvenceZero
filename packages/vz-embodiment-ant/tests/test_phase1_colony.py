@@ -20,6 +20,10 @@ def test_published_field_is_immutable() -> None:
         snapshot.trail[0, 0] = 1.0  # read-only published grid
     with pytest.raises(ValueError):
         snapshot.home[0, 0] = 1.0
+    with pytest.raises(ValueError):
+        snapshot.trail.setflags(write=True)
+    with pytest.raises(ValueError):
+        snapshot.home.setflags(write=True)
 
 
 def test_deposits_are_additive_not_overwriting() -> None:
@@ -47,6 +51,35 @@ def test_decay_reduces_mass() -> None:
     mass_after_deposit = bus.total_mass()[1]
     bus.advance()  # decay, no new deposits
     assert bus.total_mass()[1] == pytest.approx(mass_after_deposit * 0.5, rel=1e-6)
+
+
+def test_snapshot_owns_trail_mass_and_entropy_summary() -> None:
+    bus = PheromoneBus(decay=0.0, deposit_amount=1.0)
+    assert bus.snapshot.trail_mass == 0.0
+    assert bus.snapshot.trail_entropy is None
+
+    bus.deposit(x=0.0, y=0.0, trail_amount=1.0)
+    bus.deposit(x=4.0, y=0.0, trail_amount=1.0)
+    snapshot = bus.advance()
+
+    assert snapshot.trail_mass == pytest.approx(2.0)
+    assert snapshot.trail_entropy is not None
+    assert 0.0 <= snapshot.trail_entropy <= 1.0
+    assert bus.total_mass()[1] == snapshot.trail_mass
+
+
+def test_out_of_bounds_pheromone_does_not_alias_edge_cells() -> None:
+    bus = PheromoneBus(
+        width=4.0,
+        height=4.0,
+        cell_size=1.0,
+        decay=0.0,
+    )
+    bus.deposit(x=100.0, y=100.0, trail_amount=5.0)
+    snapshot = bus.advance()
+
+    assert snapshot.trail_mass == 0.0
+    assert snapshot.sample(100.0, 100.0) == (0.0, 0.0)
 
 
 def test_snapshot_advances_tick() -> None:

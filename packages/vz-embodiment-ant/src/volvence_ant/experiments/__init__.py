@@ -2,6 +2,18 @@
 
 from __future__ import annotations
 
+from volvence_ant.experiments.dynamic_colony import (
+    DynamicColonyAggregateReport,
+    DynamicColonyArm,
+    DynamicColonyArmKind,
+    DynamicColonyConfig,
+    DynamicColonyEffect,
+    DynamicColonyGate,
+    DynamicColonySeedReport,
+    DynamicPerturbationKind,
+    aggregate_dynamic_colony_reports,
+    run_dynamic_colony_seed,
+)
 from volvence_ant.experiments.motor_calibration import (
     MotorCalibrationArm,
     MotorCalibrationReport,
@@ -24,6 +36,14 @@ from volvence_ant.experiments.phase1 import (
 
 __all__ = [
     "ColonyForagingResult",
+    "DynamicColonyAggregateReport",
+    "DynamicColonyArm",
+    "DynamicColonyArmKind",
+    "DynamicColonyConfig",
+    "DynamicColonyEffect",
+    "DynamicColonyGate",
+    "DynamicColonySeedReport",
+    "DynamicPerturbationKind",
     "HomingCurvePoint",
     "HomingPrecisionResult",
     "KernelColonyArm",
@@ -31,9 +51,11 @@ __all__ = [
     "MotorCalibrationArm",
     "MotorCalibrationReport",
     "RouteLearningResult",
+    "aggregate_dynamic_colony_reports",
     "colony_foraging_experiment",
     "homing_precision_experiment",
     "kernel_colony_foraging_experiment",
+    "run_dynamic_colony_seed",
     "run_motor_calibration_experiment",
     "route_learning_experiment",
 ]

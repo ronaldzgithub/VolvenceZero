@@ -104,7 +104,7 @@ track-weight 变化误报成 RL 持久化。actor/结构的完整变化仍由 `t
 | 基因表达程序（窗口期，离线） | rare-heavy artifact refresh | Phase 2 角色重编程离线循环，产出个体倾向性初始化参数，运行时不可触发 |
 | 突触可塑性（在线） | online-fast controller | `z_t` / `β_t` + CMS 在线学习（内核承担） |
 
-### 5.1 隐藏电机扰动校准（experimental / frozen gate PASS）
+### 5.1 隐藏电机扰动校准（experimental / frozen gate rerun required）
 
 `MotorDistortionProfile` 是环境 owner 的不可变 actuator transfer：
 `applied_turn = clamp(gain·commanded_turn + bias)`，可在 `switch_tick` 一次性切到另一组
@@ -118,14 +118,85 @@ ACTIVE runtime replay、reflection writeback 与 reward→code bridge，只隔�
 持久化。
 
 冻结 gate：`no_opt_late_error - learned_late_error >= 0.02` 且
-`learned_recovery - no_opt_recovery >= 0.01`。接入真实 runtime replay 后，2026-07-20 按预声明预算
+`learned_recovery - no_opt_recovery >= 0.01`。接入真实 runtime replay 后，2026-07-20 曾按预声明预算
 （60 ticks、tick 30 bias `+0.18→-0.18`、seeds `0..4`、`n_z=16`）得到 mean late advantage
 `0.0628`（bootstrap 95% CI `[0.0082, 0.1255]`）、mean recovery advantage `0.0735`
-（95% CI `[0.0073, 0.1520]`），故冻结聚合 gate verdict = **PASS**。逐 seed 仍只有 3/5
+（95% CI `[0.0073, 0.1520]`），旧聚合 gate verdict = **PASS**。逐 seed 仍只有 3/5
 通过单次 effect-size 门（seed 1/2 为 BLOCK），所以结论限于“聚合上 learned 优于 matched
 no-optimize”，不能写成每个个体都稳定恢复。证据：
 `research/ant/results/motor_calibration.v1.json` + manifest；当前 dirty-tree provenance
-使其 `externally_retainable=false`，合并后需在 clean tree 重跑才能作为对外 artifact。
+使其 `externally_retainable=false`。动态群体 v1 审查又发现旧 `last_turn_command` 实际发布的是
+hidden applied turn，违反“plant transfer 只作审计”的冻结边界；现已改为只发布 commanded-turn
+efference copy，并移除 heading outcome detail 中的 signed actuator delta。因此上述 PASS 只能作为
+历史诊断，当前正式状态回退为 **RERUN REQUIRED / BLOCK**；必须在修正后按同一 5-seed 预算重跑，
+且 clean-tree artifact 通过，才可恢复该 claim。
+
+### 5.2 动态群体适应基准（experimental / v1 contract frozen）
+
+`Dynamic Stigmergy Regime-Shift Benchmark v1` 分开检验三件事：信息素是否产生群体协作、
+kernel controller 是否发生在线适应、环境规律变化后 learned 是否优于强 FSM。三种结论不得互相
+替代：FixedRule bus-on 胜 bus-off 只能证明 embodiment 的 stigmergy；learned 在隐藏电机偏置上
+恢复只能证明个体控制适应；只有 held-out regime shift 的 matched aggregate gate 通过，才允许声称
+Digital colony 比强 FSM 更能适应变化。
+
+环境 owner 新增不可变 `AxisAlignedObstacle`。障碍几何只由 `AntWorld` / `ColonyWorld` 持有，
+个体只能通过左右触角占用值与上一动作 contact bit 感知；碰撞采用连续线段/AABB entry 计算，薄墙
+不能被单步穿越。`WorldTransitionEvidence` 发布 commanded/applied step、blocked flag 与 obstacle id
+供只读审计；障碍参数和未来变化不进入 substrate。运行中激活障碍若覆盖现有 body，不瞬移 body：
+已在障碍内部的 body 只允许离开，离开后不得重新进入。`set_obstacles` 只在 round 边界使用。
+Pheromone owner 同时在不可变 `PheromoneField` 中发布 home/trail mass 与 normalized entropy；
+实验消费者不得遍历可变 bus 内部格网重建这些摘要。
+
+v1 每个 seed 从同一 owner-exported 初始 checkpoint 分叉，各 arm 使用同一对应地图、body 数、
+evaluation ant-action 预算、扰动时刻与 frozen substrate；所有 kernel learning arms 另共享相同
+training ant-action 预算，Frozen FSM/random 没有可训练参数，不把空跑冒充训练。正式 arms：
+
+- `learned_bus`、`learned_no_bus`
+- `no_optimize_bus`（保留 PE/SSL/replay/writeback，只关闭 policy optimization 持久化）
+- `pe_off_bus`
+- `fixed_rule_bus`、`fixed_rule_no_bus`
+- `random_no_bus` floor
+
+训练与评估不得重放同一随机世界：training food 固定在东侧，evaluation food 旋转到北侧，
+training/evaluation world seed 分别由公开的不同派生函数产生；controller seed 在各 arm 间仍按 body
+对齐。正式 artifact 必须同时记录两个派生 seed。learned/no-optimize 在 shift 前的 throughput CI
+必须对齐，learned 的 shift→final policy fingerprint 必须变化而 no-optimize 保持不变；否则 post-shift
+差异不能归因为在线适应。
+
+每个 regime shift 独立成 episode，禁止把多个变化混在主效应判断中。v1 包含：
+`obstacle_block`（新障碍阻断原路线）、`food_relocation`、`motor_bias`；动态 pheromone decay 与
+sensor drift 留给 v2 单独收敛包。信息素的“未携带铺 home / 携带铺 trail”仍是公共 frozen physiology，
+所以 v1 只声称路线协作涌现，不声称通信语义、角色或语言本身是学出来的。
+
+只读评估至少发布：pre/post-shift 每千 ant-action 投递、delivery curve/AUC、rolling window
+恢复到 pre-shift 全阶段吞吐 80% 的 round 数、碰撞数、route stretch、trail mass/normalized entropy curve、bus pairwise effect、
+learned-vs-no-optimize/PE-off/FSM pairwise effect、runtime replay lineage 与 policy fingerprint。
+evaluation 不回灌 reward。
+
+正式统计冻结为 ≥10 paired seeds、paired bootstrap 95% CI。2026-07-20 只使用 FixedRule 做
+horizon 校准（没有查看 learned 结果）：`n_ants=8` 时 50 pre-shift rounds 已有 9/10 seeds
+接触并完成投递。因此正式最低预算冻结为 8 ants、每蚁 200 training rounds、50 pre-shift rounds、
+100 post-shift rounds、20-round recovery window；低于任一预算只能是 smoke，必须 BLOCK。
+promotion gate：
+
+1. **运行预算**：满足上述 colony size / training / pre / post / recovery window 与 seed 数；
+2. **静态资格**：learned pre-shift throughput ≥ fixed-rule 的 80%，且至少 80% seeds 发生 pickup；
+3. **群体因果**：`learned_bus - learned_no_bus` 的 post-shift throughput effect ≥ 0.02/千
+   ant-action，CI 下界 > 0；
+4. **在线学习因果**：learned 相对 no-optimize 和 PE-off 的 post-shift throughput effect 均
+   ≥ 0.02/千 ant-action，CI 下界 > 0；
+5. **适应优势**：learned 相对 fixed-rule 的 recovery time 至少缩短 20%、相对考虑
+   nest/pickup contact radius 的 optimistic oracle delivery shortfall 至少降低 15%、
+   post-shift throughput 至少提高 10%，三个 paired CI 均排除 0；
+6. **完整性**：runtime replay settled/lineage coverage ≥ 0.99，arms 的初始 checkpoint
+   fingerprint 数量等于 ant 数且逐 body 对齐；每个 kernel arm 满足
+   `0 ≤ lineage_matches ≤ settled ≤ captured`、存在真实 transition、wiring=ACTIVE；learned 的
+   shift→final policy fingerprint 分叉、no-optimize 不分叉。
+
+任一静态资格失败，整体直接 **BLOCK**，不得用后续偶然效果宣称“优于 FSM”。v1 的 dashboard/theater
+只消费 artifact/replay；在正式 gate 通过前必须显示 BLOCK。resume fingerprint 还必须折入 benchmark
+完整 Python 依赖闭包的内容摘要，使 dirty-tree 期间的代码变化不能静默复用旧 seed partial。
+三个扰动必须各出现一次；单场景 smoke 即使自身门槛通过，suite verdict 仍必须 BLOCK。
 
 ## 6. 冻结 claims 与 kill conditions
 

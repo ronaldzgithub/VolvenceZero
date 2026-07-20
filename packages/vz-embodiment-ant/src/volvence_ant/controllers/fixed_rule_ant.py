@@ -102,20 +102,34 @@ class FixedRuleAnt:
         if obs.alarm > 0.5:
             return 0.0, step * cfg.panic_flee_speed, "panic-flee"
 
-        # 2) carrying food -> steer toward the path-integration home vector.
+        # 2) local obstacle receptor: turn away from the blocked antenna.
+        #    This is deliberately explicit in the strong-FSM baseline; the
+        #    learned arm receives the same frozen channels without this rule.
+        obstacle_left = obs.obstacle_left
+        obstacle_right = obs.obstacle_right
+        if obs.obstacle_contact or obstacle_left > 0.0 or obstacle_right > 0.0:
+            if obstacle_left > obstacle_right:
+                turn = -max_turn
+            elif obstacle_right > obstacle_left:
+                turn = max_turn
+            else:
+                turn = max_turn if self._rng.random() >= 0.5 else -max_turn
+            return turn, step, "obstacle-avoid"
+
+        # 3) carrying food -> steer toward the path-integration home vector.
         if obs.carrying_food:
             rel = wrap_angle(nav.home_bearing - nav.h_hat)
             turn = float(np.clip(rel, -max_turn, max_turn))
             return turn, step, "homebound"
 
-        # 3) strong local food gradient -> ascend it (differential steering).
+        # 4) strong local food gradient -> ascend it (differential steering).
         #    Only when food is genuinely near; otherwise the trail must guide.
         grad = obs.food_left - obs.food_right
         if obs.food_center > cfg.food_sense_threshold:
             turn = float(np.clip(grad * cfg.gradient_gain, -max_turn, max_turn))
             return turn, step, "gradient-ascent"
 
-        # 3b) stigmergy: no food sensed -> follow the trail pheromone gradient
+        # 4b) stigmergy: no food sensed -> follow the trail pheromone gradient
         #     from the shared bus (this is what makes the colony converge).
         #     Explorers (high bias) probabilistically ignore the trail to roam.
         trail_sum = obs.trail_pher_left + obs.trail_pher_right
@@ -127,14 +141,17 @@ class FixedRuleAnt:
             turn = float(np.clip(trail_grad * cfg.trail_gain, -max_turn, max_turn))
             return turn, step, "trail-follow"
 
-        # 4) nothing to sense -> random-walk exploration (wider for explorers).
+        # 5) nothing to sense -> random-walk exploration (wider for explorers).
         jitter = cfg.explore_jitter * (0.6 + 0.8 * cfg.exploration_bias)
         turn = float(self._rng.uniform(-jitter, jitter))
         turn = float(np.clip(turn, -max_turn, max_turn))
         return turn, step, "explore"
 
     def step(self) -> FixedRuleStep:
-        obs = self._last_obs
+        # Re-read the currently published world/bus snapshot at the action
+        # boundary. In a colony, pending deposits are published only once per
+        # round, so this removes body-order staleness.
+        obs = self.world.observe(self._body_id)
         nav_state = self.navigator.state
         turn, step_cmd, mode = self._decide(obs, nav_state)
         obs = self.world.act(
