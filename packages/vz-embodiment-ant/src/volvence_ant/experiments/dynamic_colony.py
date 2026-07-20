@@ -124,6 +124,7 @@ class DynamicColonyArm:
     initial_checkpoint_fingerprints: tuple[str, ...]
     trained_policy_fingerprints: tuple[str, ...]
     shift_policy_fingerprints: tuple[str, ...]
+    adaptation_start_policy_fingerprints: tuple[str, ...]
     final_policy_fingerprints: tuple[str, ...]
     policy_parameters_changed: bool
     post_shift_policy_parameters_changed: bool
@@ -198,6 +199,7 @@ _BLOCKING_OBSTACLE = AxisAlignedObstacle(
     min_y=2.7,
     max_y=2.9,
 )
+_RUNTIME_REPLAY_TRACK_COUNT = 2
 
 
 def _world_config(seed: int) -> AntWorldConfig:
@@ -403,6 +405,7 @@ def _build_arm(
     initial_checkpoints: tuple[AntLearningCheckpoint, ...] = (),
     trained_checkpoints: tuple[AntLearningCheckpoint, ...] = (),
     shift_checkpoints: tuple[AntLearningCheckpoint, ...] = (),
+    adaptation_start_checkpoints: tuple[AntLearningCheckpoint, ...] = (),
     final_checkpoints: tuple[AntLearningCheckpoint, ...] = (),
     runtime_replay_captured: int = 0,
     runtime_replay_settled: int = 0,
@@ -431,6 +434,10 @@ def _build_arm(
     shift_policy_fingerprints = tuple(
         checkpoint.policy_fingerprint for checkpoint in shift_checkpoints
     )
+    adaptation_start_policy_fingerprints = tuple(
+        checkpoint.policy_fingerprint
+        for checkpoint in adaptation_start_checkpoints
+    )
     final_policy_fingerprints = tuple(
         checkpoint.policy_fingerprint for checkpoint in final_checkpoints
     )
@@ -445,12 +452,14 @@ def _build_arm(
         )
     )
     post_shift_policy_changed = bool(
-        shift_checkpoints
+        adaptation_start_checkpoints
         and final_checkpoints
         and any(
-            shift.policy_fingerprint != final.policy_fingerprint
-            for shift, final in zip(
-                shift_checkpoints, final_checkpoints, strict=True
+            start.policy_fingerprint != final.policy_fingerprint
+            for start, final in zip(
+                adaptation_start_checkpoints,
+                final_checkpoints,
+                strict=True,
             )
         )
     )
@@ -564,6 +573,9 @@ def _build_arm(
         initial_checkpoint_fingerprints=initial_fingerprints,
         trained_policy_fingerprints=trained_policy_fingerprints,
         shift_policy_fingerprints=shift_policy_fingerprints,
+        adaptation_start_policy_fingerprints=(
+            adaptation_start_policy_fingerprints
+        ),
         final_policy_fingerprints=final_policy_fingerprints,
         policy_parameters_changed=policy_changed,
         post_shift_policy_parameters_changed=post_shift_policy_changed,
@@ -614,7 +626,8 @@ async def _run_kernel_arm(
     if config.training_rounds:
         await training_runner.run(config.training_rounds)
     trained_checkpoints = training_runner.export_learning_checkpoints(
-        checkpoint_prefix=f"dynamic-colony:{arm.value}:{seed}:trained"
+        checkpoint_prefix=f"dynamic-colony:{arm.value}:{seed}:trained",
+        include_runtime_replay=False,
     )
 
     world = _make_world(
@@ -640,14 +653,26 @@ async def _run_kernel_arm(
         world,
         perturbation=perturbation,
     )
-    await runner.run(config.post_shift_rounds)
+    # Runtime replay settles action t on turn t+1. The first post-shift turn
+    # therefore acts as an explicit latency boundary: it settles the final
+    # pre-shift outcome, executes post action 1, then exposes a policy
+    # checkpoint uncontaminated by any post outcome. Adaptation evidence starts
+    # from this checkpoint and covers post outcomes 1..N-1.
+    await runner.run(1)
+    adaptation_start_checkpoints = runner.export_learning_checkpoints(
+        checkpoint_prefix=(
+            f"dynamic-colony:{arm.value}:{seed}:adaptation-start"
+        )
+    )
+    if config.post_shift_rounds > 1:
+        await runner.run(config.post_shift_rounds - 1)
     final_checkpoints = runner.export_learning_checkpoints(
         checkpoint_prefix=f"dynamic-colony:{arm.value}:{seed}:final"
     )
     rounds = tuple(runner.rounds)
     latest_records = rounds[-1].ant_steps if rounds else ()
-    shift_records = (
-        rounds[config.pre_shift_rounds - 1].ant_steps if rounds else ()
+    adaptation_start_records = (
+        rounds[config.pre_shift_rounds].ant_steps if rounds else ()
     )
     return _build_arm(
         arm=arm,
@@ -673,6 +698,7 @@ async def _run_kernel_arm(
         initial_checkpoints=initial_checkpoints,
         trained_checkpoints=trained_checkpoints,
         shift_checkpoints=shift_checkpoints,
+        adaptation_start_checkpoints=adaptation_start_checkpoints,
         final_checkpoints=final_checkpoints,
         runtime_replay_captured=sum(
             record.runtime_replay_captured for record in latest_records
@@ -697,10 +723,10 @@ async def _run_kernel_arm(
             for record in latest_records
         ),
         post_shift_runtime_replay_per_ant=tuple(
-            _runtime_replay_coverage(record, previous=shift_record)
-            for record, shift_record in zip(
+            _runtime_replay_coverage(record, previous=start_record)
+            for record, start_record in zip(
                 latest_records,
-                shift_records,
+                adaptation_start_records,
                 strict=True,
             )
         ),
@@ -880,7 +906,8 @@ async def run_dynamic_colony_seed(
         ),
     )
     initial_checkpoints = bootstrap_runner.export_learning_checkpoints(
-        checkpoint_prefix=f"dynamic-colony:{seed}:shared-initial"
+        checkpoint_prefix=f"dynamic-colony:{seed}:shared-initial",
+        include_runtime_replay=False,
     )
 
     arms = [
@@ -1239,9 +1266,20 @@ def aggregate_dynamic_colony_reports(
         default=0.0,
     )
 
-    def replay_slice_valid(coverage: RuntimeReplayCoverage) -> bool:
+    def replay_slice_valid(
+        coverage: RuntimeReplayCoverage,
+        *,
+        expected_captured: int,
+        expected_settled: int,
+        expected_transitions: int,
+    ) -> bool:
         return bool(
-            coverage.transitions > 0
+            expected_transitions > 0
+            and coverage.captured == expected_captured
+            and coverage.settled == expected_settled
+            and coverage.transitions == expected_transitions
+            and coverage.lineage_matches == expected_transitions
+            and coverage.transitions == coverage.settled
             and 0
             <= coverage.lineage_matches
             <= coverage.settled
@@ -1250,6 +1288,20 @@ def aggregate_dynamic_colony_reports(
             and coverage.lineage_coverage >= 0.99
             and not coverage.drop_reasons
         )
+
+    expected_full_captured = _RUNTIME_REPLAY_TRACK_COUNT * (
+        benchmark_config.pre_shift_rounds
+        + benchmark_config.post_shift_rounds
+        - 1
+    )
+    expected_full_settled = _RUNTIME_REPLAY_TRACK_COUNT * (
+        benchmark_config.pre_shift_rounds
+        + benchmark_config.post_shift_rounds
+        - 2
+    )
+    expected_post_transitions = _RUNTIME_REPLAY_TRACK_COUNT * (
+        benchmark_config.post_shift_rounds - 1
+    )
 
     replay_integrity = float(
         bool(kernel_arms)
@@ -1260,11 +1312,21 @@ def aggregate_dynamic_colony_reports(
             and len(arm.post_shift_runtime_replay_per_ant)
             == benchmark_config.n_ants
             and all(
-                replay_slice_valid(coverage)
+                replay_slice_valid(
+                    coverage,
+                    expected_captured=expected_full_captured,
+                    expected_settled=expected_full_settled,
+                    expected_transitions=expected_full_settled,
+                )
                 for coverage in arm.runtime_replay_per_ant
             )
             and all(
-                replay_slice_valid(coverage)
+                replay_slice_valid(
+                    coverage,
+                    expected_captured=expected_post_transitions,
+                    expected_settled=expected_post_transitions,
+                    expected_transitions=expected_post_transitions,
+                )
                 for coverage in arm.post_shift_runtime_replay_per_ant
             )
             for arm in kernel_arms
@@ -1277,6 +1339,8 @@ def aggregate_dynamic_colony_reports(
             and len(arm.trained_policy_fingerprints)
             == benchmark_config.n_ants
             and len(arm.shift_policy_fingerprints)
+            == benchmark_config.n_ants
+            and len(arm.adaptation_start_policy_fingerprints)
             == benchmark_config.n_ants
             and len(arm.final_policy_fingerprints)
             == benchmark_config.n_ants

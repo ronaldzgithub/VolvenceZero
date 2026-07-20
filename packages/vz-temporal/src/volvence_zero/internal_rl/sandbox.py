@@ -1427,6 +1427,22 @@ class InternalRLSandbox:
         self._runtime_dropped_count = checkpoint.dropped_count
         self._runtime_last_drop_reason = checkpoint.last_drop_reason
 
+    def reset_runtime_replay_for_episode_transfer(self) -> None:
+        """Clear episode-local replay while preserving learned policy state."""
+
+        self.restore_runtime_replay_checkpoint(
+            RuntimeReplayCheckpoint(
+                pending_capture=None,
+                previous_code=tuple(
+                    0.0 for _ in range(self._causal_policy.n_z)
+                ),
+                captured_count=0,
+                settled_count=0,
+                dropped_count=0,
+                last_drop_reason="",
+            )
+        )
+
     def capture_runtime_action(
         self,
         *,

@@ -469,7 +469,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         return self._residual_runtime
 
     def create_learning_checkpoint(
-        self, *, checkpoint_id: str
+        self,
+        *,
+        checkpoint_id: str,
+        include_runtime_replay: bool = True,
     ) -> RareHeavyImportCheckpoint:
         """Export owner-held online learning state for fair held-out branches."""
 
@@ -477,22 +480,32 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             artifact_id=checkpoint_id,
             world_policy_checkpoint=self._world_sandbox.create_checkpoint(
                 checkpoint_id=f"{checkpoint_id}:world-policy",
-                include_runtime_replay=True,
+                include_runtime_replay=include_runtime_replay,
             ),
             self_policy_checkpoint=self._self_sandbox.create_checkpoint(
                 checkpoint_id=f"{checkpoint_id}:self-policy",
-                include_runtime_replay=True,
+                include_runtime_replay=include_runtime_replay,
             ),
             world_temporal_snapshot=self._world_policy.export_rare_heavy_snapshot(),
             self_temporal_snapshot=self._self_policy.export_rare_heavy_snapshot(),
             memory_checkpoint=self._memory_store.create_checkpoint(
                 checkpoint_id=f"{checkpoint_id}:memory"
             ),
-            pending_task_rollouts=tuple(self._pending_task_rollouts),
+            pending_task_rollouts=(
+                tuple(self._pending_task_rollouts)
+                if include_runtime_replay
+                else ()
+            ),
             pending_relationship_rollouts=tuple(
                 self._pending_relationship_rollouts
+            )
+            if include_runtime_replay
+            else (),
+            runtime_replay_report=(
+                self.latest_runtime_replay_report
+                if include_runtime_replay
+                else None
             ),
-            runtime_replay_report=self.latest_runtime_replay_report,
         )
 
     def restore_learning_checkpoint(
@@ -500,7 +513,19 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     ) -> tuple[str, ...]:
         """Restore a checkpoint created by :meth:`create_learning_checkpoint`."""
 
-        return self.rollback_rare_heavy_import(checkpoint)
+        operations = self.rollback_rare_heavy_import(checkpoint)
+        if checkpoint.runtime_replay_report is None:
+            self._world_sandbox.reset_runtime_replay_for_episode_transfer()
+            self._self_sandbox.reset_runtime_replay_for_episode_transfer()
+            self._pending_task_rollouts = []
+            self._pending_relationship_rollouts = []
+            self._runtime_replay_captured_count = 0
+            self._runtime_replay_settled_count = 0
+            self._runtime_replay_transition_count = 0
+            self._runtime_replay_lineage_match_count = 0
+            self._runtime_replay_drop_reasons = []
+            return operations + ("runtime-replay:episode-transfer-reset",)
+        return operations
 
     @property
     def ssl_backend(self):

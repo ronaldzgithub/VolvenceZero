@@ -193,9 +193,15 @@ class AntSession:
         self.trajectory: list[AntStepRecord] = []
 
     def export_learning_checkpoint(
-        self, *, checkpoint_id: str
+        self,
+        *,
+        checkpoint_id: str,
+        include_runtime_replay: bool = True,
     ) -> AgentLearningCheckpoint:
-        return self.runner.export_learning_checkpoint(checkpoint_id=checkpoint_id)
+        return self.runner.export_learning_checkpoint(
+            checkpoint_id=checkpoint_id,
+            include_runtime_replay=include_runtime_replay,
+        )
 
     def restore_learning_checkpoint(
         self, checkpoint: AgentLearningCheckpoint

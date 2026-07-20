@@ -166,12 +166,16 @@ training ant-action 预算，Frozen FSM/random 没有可训练参数，不把空
 训练与评估不得重放同一随机世界：training food 固定在东侧，evaluation food 旋转到北侧，
 training/evaluation world seed 分别由公开的不同派生函数产生；controller seed 在各 arm 间仍按 body
 对齐。正式 artifact 必须同时记录两个派生 seed。learned/no-optimize 在 shift 前的 throughput CI
-必须对齐，learned 的 shift→final policy fingerprint 必须变化而 no-optimize 保持不变；否则 post-shift
-差异不能归因为在线适应。
+必须对齐。runtime replay 存在一 turn settlement 延迟，因此 shift 后第一个 turn 是显式 latency
+boundary：它结算最后一个 pre-shift outcome 并执行第一个 post-shift action；此后导出的
+`adaptation_start` policy checkpoint 尚未消费任何 post-shift outcome。learned 的
+`adaptation_start→final` policy fingerprint 必须变化而 no-optimize 保持不变；否则 post-shift
+差异不能归因为在线适应。最后一个 post-shift action 的 outcome 尚未结算，不进入该 fingerprint
+因果窗口。
 
 当前 `no_optimize` 从 training 起即关闭 policy optimization，因此它严格支持的是
 **learning-lifecycle contribution**，不是“在同一个 shift 世界状态处分叉”的单点因果结论。
-pre-shift performance alignment + shift→final fingerprint 只负责排除最明显混淆；若要声称
+pre-shift performance alignment + `adaptation_start→final` fingerprint 只负责排除最明显混淆；若要声称
 “post-shift update 本身导致恢复”，必须另加 environment/bus/navigator/runtime 全状态
 checkpoint 后的 frozen-at-shift arm，未落地前不得扩大口径。
 
@@ -204,8 +208,11 @@ promotion gate：
    fingerprint 数量等于 ant 数且逐 body 对齐；每个 kernel arm 满足
    `0 ≤ lineage_matches ≤ settled ≤ captured`、`settled/captured ≥ 0.99`、
    `lineage_matches/settled ≥ 0.99`，且 full episode 与 post-shift slice 都逐 ant 检查、
-   drop reasons 为空、存在真实 transition、wiring=ACTIVE；learned 的
-   shift→final policy fingerprint 分叉、no-optimize 不分叉；障碍激活区域或食物迁移后的 pickup
+   drop reasons 为空、存在真实 transition、wiring=ACTIVE。双轨回放的绝对预算也必须精确匹配：
+   full evaluation 每 ant 的 `captured=2×(pre+post−1)`、
+   `settled=transitions=lineage_matches=2×(pre+post−2)`；以第一个 post-shift latency-boundary
+   record 为基线的 post slice 四项均为 `2×(post−1)`。learned 的
+   `adaptation_start→final` policy fingerprint 分叉、no-optimize 不分叉；障碍激活区域或食物迁移后的 pickup
    radius 不得与任何 arm 的 body 重叠。
 
 任一静态资格失败，整体直接 **BLOCK**，不得用后续偶然效果宣称“优于 FSM”。v1 的 dashboard/theater
@@ -294,6 +301,9 @@ promotion gate：
 - checkpoint 由 `AgentSessionRunner.export_learning_checkpoint` 聚合各 owner 自己发布的
   temporal/Internal-RL、memory、PE heads、credit heads、regime、dual-track gate 与 reflection
   immutable state；embodiment 将其视为 opaque value，不遍历或重建 owner 私有状态。
+- training→held-out transfer 使用 owner 的 `include_runtime_replay=False` 导出模式：保留已学习参数，
+  但不迁移未结算 capture、staged rollout 或 episode-local replay 计数，避免把 training action 与
+  held-out outcome 错配；同一 episode 内的 shift/adaptation/final audit checkpoint 仍包含 replay。
 - rollback drill 必须执行 `export → mutate → restore → fingerprint equality`，同 seed 重跑相同轨迹
   只能作为 determinism smoke，不能替代 rollback。
 - ACTIVE evidence 必须记录实际 backend wiring。每一候选组件在隔离实验配置中真实
