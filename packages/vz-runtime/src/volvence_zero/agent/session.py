@@ -895,13 +895,17 @@ class AgentSessionRunner(
         self._publish_experience_fast_prior_snapshot()
 
     def export_learning_checkpoint(
-        self, *, checkpoint_id: str
+        self,
+        *,
+        checkpoint_id: str,
+        include_runtime_replay: bool = True,
     ) -> AgentLearningCheckpoint:
         """Aggregate owner-exported state without exposing owner internals."""
 
         components = (
             self._joint_loop.create_learning_checkpoint(
-                checkpoint_id="agent-learning"
+                checkpoint_id="agent-learning",
+                include_runtime_replay=include_runtime_replay,
             ),
             self._prediction_module.export_predictive_head_checkpoint(
                 checkpoint_id="agent-learning:prediction"
@@ -1004,7 +1008,10 @@ class AgentSessionRunner(
             )
         )
         restored = self.export_learning_checkpoint(
-            checkpoint_id=checkpoint.checkpoint_id
+            checkpoint_id=checkpoint.checkpoint_id,
+            include_runtime_replay=(
+                checkpoint.joint_loop_state.runtime_replay_report is not None
+            ),
         )
         if restored.fingerprint != checkpoint.fingerprint:
             raise RuntimeError(

@@ -444,6 +444,56 @@ def test_joint_checkpoint_round_trips_staged_and_pending_runtime_replay() -> Non
     assert restored.staged_rollout_count == 2
 
 
+def test_joint_transfer_checkpoint_omits_episode_local_runtime_replay() -> None:
+    world_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4)
+    )
+    self_policy = clone_full_learned_temporal_policy(world_policy)
+    loop = ETANLJointLoop(
+        world_policy=world_policy,
+        self_policy=self_policy,
+        internal_rl_runtime_replay=WiringLevel.ACTIVE,
+    )
+    substrate = _substrate("transfer checkpoint observation")
+    world_temporal, world_state = _runtime_action(world_policy, substrate)
+    self_temporal, self_state = _runtime_action(self_policy, substrate)
+    loop.observe_runtime_transition(
+        turn_index=1,
+        substrate_snapshot=substrate,
+        world_temporal_snapshot=world_temporal,
+        self_temporal_snapshot=self_temporal,
+        world_runtime_state=world_state,
+        self_runtime_state=self_state,
+        environment_outcome=_outcome(prediction_id="bootstrap"),
+        prediction_error_snapshot=_prediction_error(
+            prediction_id="bootstrap",
+            next_prediction_id="prediction-1",
+        ),
+        credit_snapshot=_credit(),
+    )
+
+    checkpoint = loop.create_learning_checkpoint(
+        checkpoint_id="cross-episode-transfer",
+        include_runtime_replay=False,
+    )
+
+    assert checkpoint.pending_task_rollouts == ()
+    assert checkpoint.pending_relationship_rollouts == ()
+    assert checkpoint.runtime_replay_report is None
+    assert checkpoint.world_policy_checkpoint.runtime_replay is None
+    assert checkpoint.self_policy_checkpoint.runtime_replay is None
+
+    operations = loop.restore_learning_checkpoint(checkpoint)
+    restored = loop.latest_runtime_replay_report
+    assert "runtime-replay:episode-transfer-reset" in operations
+    assert restored.captured_count == 0
+    assert restored.settled_count == 0
+    assert restored.transition_count == 0
+    assert restored.pending_capture_count == 0
+    assert restored.staged_rollout_count == 0
+    assert restored.drop_reasons == ()
+
+
 def test_runtime_replay_distribution_matches_captured_likelihood() -> None:
     sandbox, store, capture = _sandbox_capture()
     track_weights = store.track_weights[Track.WORLD]

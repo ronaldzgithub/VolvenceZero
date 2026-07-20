@@ -64,9 +64,17 @@ class KernelColonyRunner:
         )
         self.rounds: list[ColonyRoundRecord] = []
 
-    def export_learning_checkpoints(self, *, checkpoint_prefix: str) -> tuple[AntLearningCheckpoint, ...]:
+    def export_learning_checkpoints(
+        self,
+        *,
+        checkpoint_prefix: str,
+        include_runtime_replay: bool = True,
+    ) -> tuple[AntLearningCheckpoint, ...]:
         return tuple(
-            session.export_learning_checkpoint(checkpoint_id=f"{checkpoint_prefix}:body:{body_id}")
+            session.export_learning_checkpoint(
+                checkpoint_id=f"{checkpoint_prefix}:body:{body_id}",
+                include_runtime_replay=include_runtime_replay,
+            )
             for body_id, session in enumerate(self.sessions)
         )
 

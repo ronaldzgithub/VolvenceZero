@@ -17,30 +17,47 @@ from volvence_ant.experiments.dynamic_colony import (
 )
 from volvence_ant.env import AntWorld
 from volvence_ant.runtime import AntSessionConfig
+from volvence_zero.integration import FinalRolloutConfig
+from volvence_zero.joint_loop import JointLoopSchedule
+from volvence_zero.runtime import WiringLevel
 
 
 async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
     config = DynamicColonyConfig(
         n_ants=1,
         training_rounds=0,
-        pre_shift_rounds=1,
-        post_shift_rounds=1,
+        pre_shift_rounds=2,
+        post_shift_rounds=3,
         recovery_window=1,
         temporal_latent_dim=4,
     )
+    rollout_config = FinalRolloutConfig(
+        internal_rl_runtime_replay=WiringLevel.ACTIVE,
+        internal_rl_runtime_modulation_strength=0.3,
+    )
+    schedule = JointLoopSchedule(ssl_interval=0, rl_interval=1)
     report = await run_dynamic_colony_seed(
         seed=0,
         perturbation=DynamicPerturbationKind.OBSTACLE_BLOCK,
         config=config,
-        learned_config=AntSessionConfig(temporal_latent_dim=4, seed=0),
+        learned_config=AntSessionConfig(
+            temporal_latent_dim=4,
+            seed=0,
+            rollout_config=rollout_config,
+            joint_schedule=schedule,
+        ),
         no_optimize_config=AntSessionConfig(
             temporal_latent_dim=4,
             seed=0,
+            rollout_config=rollout_config,
+            joint_schedule=schedule,
             joint_apply_policy_optimization=False,
         ),
         pe_off_config=AntSessionConfig(
             temporal_latent_dim=4,
             seed=0,
+            rollout_config=rollout_config,
+            joint_schedule=schedule,
             external_prediction_error_drive=False,
         ),
     )
@@ -58,6 +75,25 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
         len(arm.delivery_curve)
         == config.pre_shift_rounds + config.post_shift_rounds
         for arm in report.arms
+    )
+    kernel_arms = tuple(
+        arm for arm in report.arms if arm.controller_kind == "kernel"
+    )
+    assert all(
+        coverage.captured == 8
+        and coverage.settled == 6
+        and coverage.transitions == 6
+        and coverage.lineage_matches == 6
+        for arm in kernel_arms
+        for coverage in arm.runtime_replay_per_ant
+    )
+    assert all(
+        coverage.captured == 4
+        and coverage.settled == 4
+        and coverage.transitions == 4
+        and coverage.lineage_matches == 4
+        for arm in kernel_arms
+        for coverage in arm.post_shift_runtime_replay_per_ant
     )
 
     # Freeze all promotion thresholds independently of current ant quality.
@@ -85,12 +121,24 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
         shared_fingerprints = tuple(
             f"shared:{seed}:body:{body_id}" for body_id in range(8)
         )
-        replay_coverage = tuple(
+        full_replay_coverage = tuple(
             RuntimeReplayCoverage(
-                captured=100,
-                settled=100,
-                transitions=100,
-                lineage_matches=100,
+                captured=298,
+                settled=296,
+                transitions=296,
+                lineage_matches=296,
+                settlement_coverage=296 / 298,
+                lineage_coverage=1.0,
+                drop_reasons=(),
+            )
+            for _ in range(8)
+        )
+        post_replay_coverage = tuple(
+            RuntimeReplayCoverage(
+                captured=198,
+                settled=198,
+                transitions=198,
+                lineage_matches=198,
                 settlement_coverage=1.0,
                 lineage_coverage=1.0,
                 drop_reasons=(),
@@ -113,6 +161,9 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             shift_policy_fingerprints=tuple(
                 f"shift:{seed}:body:{body_id}" for body_id in range(8)
             ),
+            adaptation_start_policy_fingerprints=tuple(
+                f"adapt-start:{seed}:body:{body_id}" for body_id in range(8)
+            ),
             final_policy_fingerprints=tuple(
                 f"final:{seed}:body:{body_id}" for body_id in range(8)
             ),
@@ -124,8 +175,8 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             runtime_replay_lineage_matches=100,
             runtime_replay_lineage_coverage=1.0,
             runtime_replay_active=True,
-            runtime_replay_per_ant=replay_coverage,
-            post_shift_runtime_replay_per_ant=replay_coverage,
+            runtime_replay_per_ant=full_replay_coverage,
+            post_shift_runtime_replay_per_ant=post_replay_coverage,
         )
         learned_no_bus = replace(
             formalize(
@@ -141,6 +192,10 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
                 f"shift-no-bus:{seed}:body:{body_id}"
                 for body_id in range(8)
             ),
+            adaptation_start_policy_fingerprints=tuple(
+                f"adapt-start-no-bus:{seed}:body:{body_id}"
+                for body_id in range(8)
+            ),
             final_policy_fingerprints=tuple(
                 f"final-no-bus:{seed}:body:{body_id}"
                 for body_id in range(8)
@@ -151,8 +206,8 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             runtime_replay_lineage_matches=100,
             runtime_replay_lineage_coverage=1.0,
             runtime_replay_active=True,
-            runtime_replay_per_ant=replay_coverage,
-            post_shift_runtime_replay_per_ant=replay_coverage,
+            runtime_replay_per_ant=full_replay_coverage,
+            post_shift_runtime_replay_per_ant=post_replay_coverage,
         )
         no_optimize = replace(
             formalize(
@@ -168,6 +223,9 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             shift_policy_fingerprints=tuple(
                 f"stable:{seed}:body:{body_id}" for body_id in range(8)
             ),
+            adaptation_start_policy_fingerprints=tuple(
+                f"stable:{seed}:body:{body_id}" for body_id in range(8)
+            ),
             final_policy_fingerprints=tuple(
                 f"stable:{seed}:body:{body_id}" for body_id in range(8)
             ),
@@ -179,8 +237,8 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             runtime_replay_lineage_matches=100,
             runtime_replay_lineage_coverage=1.0,
             runtime_replay_active=True,
-            runtime_replay_per_ant=replay_coverage,
-            post_shift_runtime_replay_per_ant=replay_coverage,
+            runtime_replay_per_ant=full_replay_coverage,
+            post_shift_runtime_replay_per_ant=post_replay_coverage,
         )
         pe_off = replace(
             formalize(template_by_arm[DynamicColonyArmKind.PE_OFF_BUS.value]),
@@ -193,6 +251,10 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             shift_policy_fingerprints=tuple(
                 f"pe-shift:{seed}:body:{body_id}" for body_id in range(8)
             ),
+            adaptation_start_policy_fingerprints=tuple(
+                f"pe-adapt-start:{seed}:body:{body_id}"
+                for body_id in range(8)
+            ),
             final_policy_fingerprints=tuple(
                 f"pe-final:{seed}:body:{body_id}" for body_id in range(8)
             ),
@@ -202,8 +264,8 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             runtime_replay_lineage_matches=100,
             runtime_replay_lineage_coverage=1.0,
             runtime_replay_active=True,
-            runtime_replay_per_ant=replay_coverage,
-            post_shift_runtime_replay_per_ant=replay_coverage,
+            runtime_replay_per_ant=full_replay_coverage,
+            post_shift_runtime_replay_per_ant=post_replay_coverage,
         )
         fixed = replace(
             formalize(
