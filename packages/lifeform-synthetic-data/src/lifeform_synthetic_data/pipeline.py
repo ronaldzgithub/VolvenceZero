@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import os
 import threading
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -51,6 +53,15 @@ from .storage import (
     write_run_config,
 )
 from .world import GENERATOR_VERSION, compile_structural_trajectory
+
+
+def _run_default_live_worker(
+    trajectory: ExperienceTrajectory,
+) -> ExperienceTrajectory:
+    return live_through_trajectory(
+        trajectory,
+        lifeform_factory=default_lifeform_factory,
+    )
 
 
 @dataclass(frozen=True)
@@ -143,6 +154,7 @@ class CorpusGenerationPipeline:
         scenario_package_hash: str | None = None,
         lifeform_factory: LifeformFactory | None = None,
         source_trajectories: tuple[ExperienceTrajectory, ...] = (),
+        structural_enricher: (Callable[[ExperienceTrajectory], ExperienceTrajectory] | None) = None,
     ) -> None:
         if not blueprints:
             raise ValueError("blueprints must be non-empty")
@@ -153,6 +165,8 @@ class CorpusGenerationPipeline:
                 raise ValueError("rendered generation requires an explicit rate card")
         elif clients:
             raise ValueError("LLM clients are only valid for rendered generation")
+        if structural_enricher is not None and config.generation_tier is not GenerationTier.RENDERED:
+            raise ValueError("structural enrichment is only valid for rendered generation")
         if source_trajectories and config.generation_tier is not GenerationTier.LIVE_THROUGH:
             raise ValueError("source trajectories are only valid for live-through generation")
         if any(trajectory.generation_tier is not GenerationTier.RENDERED for trajectory in source_trajectories):
@@ -160,8 +174,10 @@ class CorpusGenerationPipeline:
         self._config = config
         self._blueprints = tuple(sorted(blueprints, key=lambda item: item.scenario_id))
         self._source_trajectories = tuple(sorted(source_trajectories, key=lambda item: item.trajectory_id))
+        self._structural_enricher = structural_enricher
         self._clients = clients
         self._rate_card = rate_card
+        self._uses_default_lifeform_factory = lifeform_factory is None
         self._lifeform_factory = lifeform_factory or default_lifeform_factory
         self._scenario_package_hash = (
             scenario_package_hash if scenario_package_hash is not None else validate_unified_v1_package().package_hash
@@ -193,12 +209,7 @@ class CorpusGenerationPipeline:
                     GenerationJob(
                         ordinal=ordinal,
                         blueprint=blueprint,
-                        replicate_index=int(
-                            {
-                                item.key: item.value
-                                for item in trajectory.metadata
-                            }["replicate_index"]
-                        ),
+                        replicate_index=int({item.key: item.value for item in trajectory.metadata}["replicate_index"]),
                         seed=trajectory.provenance.seed,
                         trajectory_id=trajectory.trajectory_id,
                         source_trajectory=trajectory,
@@ -239,6 +250,13 @@ class CorpusGenerationPipeline:
             )
         if self._rate_card is None:
             raise ValueError("rendered cost estimation requires a rate card")
+        if self._rate_card.input_usd_per_million == 0.0 and self._rate_card.output_usd_per_million == 0.0:
+            return CostEstimate(
+                pending_calls=len(jobs),
+                conservative_upper_bound_usd=0.0,
+                max_cost_usd=self._config.max_cost_usd,
+                within_budget=True,
+            )
         total = 0.0
         for job in jobs:
             structural = self._compile(job)
@@ -326,6 +344,8 @@ class CorpusGenerationPipeline:
     ) -> tuple[tuple[CompletedRecord, ...], int]:
         if not jobs:
             return (), 0
+        if self._config.generation_tier is GenerationTier.LIVE_THROUGH and self._uses_default_lifeform_factory:
+            return self._run_pending_live_processes(jobs), 0
         completed: list[CompletedRecord] = []
         quarantined_count = 0
         iterator = iter(jobs)
@@ -361,6 +381,61 @@ class CorpusGenerationPipeline:
                         continue
                     active[executor.submit(self._run_job, next_job)] = next_job
         return tuple(completed), quarantined_count
+
+    def _run_pending_live_processes(
+        self,
+        jobs: tuple[GenerationJob, ...],
+    ) -> tuple[CompletedRecord, ...]:
+        completed: list[CompletedRecord] = []
+        iterator = iter(jobs)
+        worker_count = min(
+            self._config.concurrency,
+            os.cpu_count() or 1,
+            len(jobs),
+        )
+        active: dict[
+            concurrent.futures.Future[ExperienceTrajectory],
+            GenerationJob,
+        ] = {}
+        with concurrent.futures.ProcessPoolExecutor(max_workers=worker_count) as executor:
+            for _ in range(worker_count):
+                job = next(iterator)
+                active[
+                    executor.submit(
+                        _run_default_live_worker,
+                        self._compile(job),
+                    )
+                ] = job
+            while active:
+                done, _ = concurrent.futures.wait(
+                    active,
+                    return_when=concurrent.futures.FIRST_COMPLETED,
+                )
+                for future in done:
+                    active.pop(future)
+                    try:
+                        trajectory = future.result()
+                    except BaseException:
+                        for pending_future in active:
+                            pending_future.cancel()
+                        raise
+                    record = self._store.put_trajectory(trajectory)
+                    self._journal.append_completed(
+                        record,
+                        timestamp=self._config.created_at,
+                    )
+                    completed.append(record)
+                    try:
+                        next_job = next(iterator)
+                    except StopIteration:
+                        continue
+                    active[
+                        executor.submit(
+                            _run_default_live_worker,
+                            self._compile(next_job),
+                        )
+                    ] = next_job
+        return tuple(completed)
 
     def _run_job(self, job: GenerationJob) -> CompletedRecord | None:
         structural = self._compile(job)
@@ -429,7 +504,7 @@ class CorpusGenerationPipeline:
                     git_sha=self._config.git_sha,
                 ),
             )
-        return compile_structural_trajectory(
+        trajectory = compile_structural_trajectory(
             job.blueprint,
             replicate_index=job.replicate_index,
             seed=job.seed,
@@ -437,6 +512,11 @@ class CorpusGenerationPipeline:
             created_at=self._config.created_at,
             git_sha=self._config.git_sha,
         )
+        if self._structural_enricher is not None:
+            trajectory = self._structural_enricher(trajectory)
+            if trajectory.generation_tier is not GenerationTier.STRUCTURAL:
+                raise ValueError("structural enricher must preserve the structural tier")
+        return trajectory
 
     def _quarantine(self, job: GenerationJob, error: LLMRenderError) -> None:
         message = str(error)

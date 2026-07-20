@@ -60,6 +60,27 @@ def build_render_prompt(trajectory: ExperienceTrajectory) -> RenderPrompt:
     )
 
 
+def parse_render_request(user_prompt: str) -> dict[str, object]:
+    """Recover the read-only request from the centralized user template."""
+
+    root = Path(__file__).parent
+    user_template = _read_non_empty(root / "prompts" / "render_slots.user.md")
+    if user_template.count(_REQUEST_MARKER) != 1:
+        raise ValueError("render_slots.user.md must contain exactly one {{REQUEST_JSON}} marker")
+    prefix, suffix = user_template.split(_REQUEST_MARKER)
+    if not user_prompt.startswith(prefix) or not user_prompt.endswith(suffix):
+        raise ValueError("render user prompt does not match the centralized template")
+    end = len(user_prompt) - len(suffix) if suffix else len(user_prompt)
+    request_json = user_prompt[len(prefix) : end]
+    try:
+        decoded = json.loads(request_json)
+    except json.JSONDecodeError as error:
+        raise ValueError("render user prompt contains invalid request JSON") from error
+    if not isinstance(decoded, dict):
+        raise TypeError("render request root must be an object")
+    return decoded
+
+
 def _read_non_empty(path: Path) -> str:
     text = path.read_text(encoding="utf-8").strip()
     if not text:
@@ -77,4 +98,4 @@ def _load_json_object(path: Path) -> dict[str, object]:
     return decoded
 
 
-__all__ = ["RenderPrompt", "build_render_prompt"]
+__all__ = ["RenderPrompt", "build_render_prompt", "parse_render_request"]

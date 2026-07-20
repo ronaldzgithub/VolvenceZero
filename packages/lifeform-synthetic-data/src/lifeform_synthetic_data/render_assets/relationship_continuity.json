@@ -1,0 +1,2272 @@
+{
+  "schema_version": "cursor-authored-render.v1",
+  "family": "relationship_continuity",
+  "scenarios": [
+    {
+      "scenario_id": "relationship_continuity_01",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我想和你一起规划一个虚构的微型温室，今天先把基本框架定下来。",
+                "我们来做个微型温室方案吧；先讨论框架，暂时不急着补细节。",
+                "想请你陪我搭一份微型温室计划，这一轮只确定基础方向。",
+                "先和我共同起草一个小温室构想吧，今天的目标是把骨架理清。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以。先确认一下：这是你自己的虚构方案，目前只供我们两人讨论，对吗？已知尺寸、光照和想种的品种有哪些？",
+                "好，我们先守住范围。这个构想是否只用于你当前的个人规划？请告诉我现有的空间、采光和作物信息；没有的部分我会留空。",
+                "没问题。为免替你补设定，我先核对用途和受众：是个人练习、暂不分享给别人吗？接着可从空间、光线、植物三项开始。",
+                "我们可以从框架起步。请先确认这是你的私人虚构项目，并给出已经确定的场地条件与种植对象；其余内容先标作未定。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "对，只是我自己的规划。可用位置是阳台上一块八十乘四十厘米的区域，上午有散射光。",
+                "是个人方案，不对外。阳台能腾出约八十厘米乘四十厘米，光线主要是上午的间接光。",
+                "只给我自己用。场地在阳台，面积大约 80×40 厘米，早上能照到散射光。",
+                "没错，受众只有我。现有条件是阳台八十乘四十厘米左右的空间，以及上午的柔和散射光。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "目前可确认的是个人用途、80×40 厘米空间和上午散射光。高度、通风与浇水方式还未知；我们可以先选适合小空间的种植对象，再补这些条件。",
+                "我先按你给出的三项事实继续，不推测朝向或温度。尚待确定的是可用高度、空气流动和供水方式；下一步可先列候选植物。",
+                "范围已清楚：你的阳台小区域、上午间接光、仅作个人规划。其余环境数据不足，我会保留不确定；要不要先从作物组合入手？",
+                "现在的可靠基础只有用途、尺寸和光照。关于高度、通风、浇水我还不能下结论，可以先讨论你希望种什么，再反推布置。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "种植表先放罗勒和一种叫“晨星”的矮生番茄，名称以后如果有误我再改。",
+                "我想先列两项：罗勒，以及我目前写成“晨星”的矮番茄；品种名暂时以这次说法为准。",
+                "先按罗勒加“晨星”矮生番茄来规划吧，番茄的名字我之后可能会核对。",
+                "作物暂定罗勒和“晨星”小番茄。不过后一个名称还可能修正，先别把它当成最终版本。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "明白：罗勒已确定，番茄暂记为“晨星”，但名称仍待你核对。我会让布局不依赖这个暂定名称，避免后续更正时牵动无关部分。",
+                "当前组合是罗勒与暂称“晨星”的矮番茄。既然名称可能变化，我只把它视为待确认信息，先依据你明确的“小型番茄”特征安排空间。",
+                "可以，先保留两种作物；其中番茄名称尚未最终确认。接下来的框架会区分已确认条件与待核对名称，不把猜测写成事实。",
+                "收到。罗勒是明确项，“晨星”只是现用称呼。我会先做可调整的双区布局，等你给出更可靠的名称后再替换对应文字。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "那先给我一个简短框架，并列出下次需要补充的问题。",
+                "请把目前的方案压缩成几步，再留一份下次要确认的清单。",
+                "先做个精简版计划吧，同时告诉我以后还要提供哪些信息。",
+                "把这一轮整理成简要方案，并把尚未确定、下回要问的事情列出来。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "框架是：在 80×40 厘米内划分番茄区与罗勒区，先保留可调间距，再依据实际高度和容器细化。下次需确认可用高度、通风、容器尺寸、浇水方式，以及番茄的准确名称。",
+                "可先分成两步：确定两种作物各自的位置，再按容器和高度校准间距。待补信息包括高度上限、风况、花盆规格、供水安排和番茄名称；目前都不作假设。",
+                "简版方案：以小空间双区为骨架，罗勒与矮番茄分开布置，尺寸细化留到条件齐全后。开放问题是高度、通风、容器、浇水，以及番茄名的核对结果。",
+                "当前可以落下的是一个可调整的双作物布局，而不是最终尺寸图。下一轮请带来高度、空气流动、盆器和供水信息；番茄名称也仍需确认。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "继续上次的微型温室吧。我量到可用高度是一百二十厘米，准备使用两个二十厘米宽的盆。",
+                "我来补温室数据：高度上限约 120 厘米，手边有两个宽 20 厘米的花盆。",
+                "接着做那份小温室计划。我重新测过，高度是一米二，容器是两个二十厘米宽的盆。",
+                "上回缺的两项有结果了：可用高度 120 厘米，计划放两只宽度各 20 厘米的盆。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以续接。请确认这仍是同一处 80×40 厘米阳台、只用于你的个人方案；另外，番茄名称是否已有更可靠的结果？",
+                "我先核对连续范围：还是那块 80×40 厘米、上午有散射光的阳台，并且受众仍只有你吗？番茄名若尚未确认，我们继续保留未知。",
+                "好。在沿用上次信息前，请确认场地和用途没有变化：个人用、原阳台区域，对吗？“晨星”这个名称目前是否仍只是暂称？",
+                "我可以接着规划，不过先确认对象未变：同一阳台、同一个人方案吗？也请说明番茄名称现在是已核实还是仍待查。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "是同一处阳台，也还是我自己的方案。番茄名字还没查清，继续当作待确认。",
+                "范围没变，仍是我的那块阳台。品种名目前没有新证据，先别定下来。",
+                "对，地点和用途都一样；“晨星”我还没核实，请继续保留不确定。",
+                "还是原来的个人项目。番茄名称尚未确认，这次不要根据旧写法下结论。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "范围已确认。按 120 厘米高度和两个 20 厘米盆，可以先让番茄占较高的一侧、罗勒占另一侧，但最终间距仍取决于植株实际尺寸；名称继续待定。",
+                "我会沿用已确认的场地，并加入高度与盆宽。现阶段可做一高一低的可调布局；由于缺少成熟株幅，具体间距不宜定死，番茄名也不更新。",
+                "现在能合理细化到双盆分区：较高空间留给矮番茄，罗勒放另一盆。植株尺寸和通风数据还不足，所以这只是可修改草案，名称仍未知。",
+                "基于新测量值，可先画成两个 20 厘米盆的纵向分层方案。哪一侧更合适还要看风向和株幅；我不会把未核实的番茄称呼当作定论。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "阳台右侧午后会有一点风，我每天只能在晚上检查一次。",
+                "再补两点：右边下午较通风；日常照看只能安排在晚间，每天一次。",
+                "风主要从右侧来，时间是下午。我能做的固定检查频率是每晚一回。",
+                "右边下午有轻微空气流动，而我的照看窗口只有晚上，一天一次。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "这支持把需要支撑的番茄放在较避风的一侧，并把每日检查安排在晚间。风力和土壤干湿速度仍未知，因此我不会据此承诺固定浇水量。",
+                "可据此调整：番茄先避开右侧来风，晚间作为统一巡查时段。至于多久浇一次，还缺温度与介质信息，只能在检查时观察后决定。",
+                "我会把右侧午后有风和每日晚间检查纳入草案。布局可以偏向保护较高植株，但供水频率不能仅凭这些信息确定。",
+                "已知的节奏是下午右侧通风、晚上检查一次。可以先降低番茄受风暴露；浇水仍需看实际湿度，不宜预设每天必浇。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "把当前版本整理一下，番茄名字的位置请明确写成待确认。",
+                "请汇总这版布局，并清楚保留品种名尚未核实这一点。",
+                "给我一份现在可用的摘要；番茄名称不要擅自补全。",
+                "整理成阶段性方案吧，那个还没查准的名称请继续留白说明。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "阶段性方案：同一 80×40×120 厘米空间内放两个 20 厘米盆，番茄靠较避风侧并预留支撑，罗勒置于另一侧；每晚观察土壤后再决定供水。番茄准确名称：待你确认。",
+                "当前摘要是双盆分区、较高植株避开右侧午后风、晚间做一次状态检查。尺寸依据你本轮测量；浇水量尚未确定，番茄品种名也继续留作未知。",
+                "可用草案：两个 20 厘米盆分别承载罗勒与矮番茄，番茄优先放在受风较少的一边，晚间巡查。仍开放的事项有实际需水量与番茄的正式名称。",
+                "这一版只固定已确认部分：场地尺寸、双盆、右侧午后有风、每晚检查。番茄侧采取避风和支撑预留；品种名称没有新证据，明确保持待核对。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "二十一天后我又回来了。这是更新后的种植表：罗勒不变，矮生番茄的正确名称是“晨曦”，不是“晨星”。",
+                "隔了二十一天，我带来新版种植表。罗勒仍在；番茄名已核实为“晨曦”，先前的“晨星”写错了。",
+                "已经过了 21 天。新表确认：保留罗勒，小番茄应叫“晨曦”，旧名称不准确。",
+                "我在二十一天后续上这个项目，并更正一项：番茄的准确名字是“晨曦”；罗勒没有变化。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "谢谢你给出时间和更正来源。就当前对话而言，我会以新版种植表为准：罗勒保持，“晨曦”替代先前待确认的名称。场地和个人使用范围也仍未变化吗？",
+                "收到较新的明确确认：番茄现在称为“晨曦”，旧写法不再作为当前名称；罗勒照旧。继续前我再核对一次，这仍是原阳台上的个人方案吗？",
+                "这次信息解决了原先的未知项。当前名称应按“晨曦”处理，而不是沿用旧称。请确认受众与场地还是此前的个人阳台项目。",
+                "我会优先采用你二十一天后带来的新版表，并保留旧称仅作为过去的误写。为避免跨错范围，请确认项目地点和用途都没有变。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "没变，还是我的同一处阳台方案。请按新名称继续，并检查布局是否需要调整。",
+                "对，仍是原来的个人项目。以“晨曦”为准，帮我看看空间安排要不要动。",
+                "场地和受众都相同。请用更正后的名字续上，再复核现有双盆布局。",
+                "范围没有变化；接下来只采用“晨曦”这个准确名称，并评估之前的布置。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "名称更正本身不会证明植株尺寸发生变化，所以现有双盆与避风安排暂时可以保留。若新版表还给出了“晨曦”的成熟高度或株幅，请提供；否则布局适配性仍需保留不确定。",
+                "目前只有名称被纠正，没有新的生长尺寸数据，因此不能据此改动布局。双盆、番茄避开右侧风的草案仍可用，但是否需要更大间距要等株高和株幅信息。",
+                "我不会把改名等同于品种特性变化。基于现有事实，布局先不动；若想进一步核验，请补充新版表中的成熟高度、冠幅或支撑需求。",
+                "现有证据支持更新文字，却不足以推翻空间方案。先维持两个 20 厘米盆和避风侧安排；“晨曦”的实际尺寸若未知，适配结论就不能说死。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "新版表只补了名称，没有株高或株幅数据。那就先不改布局。",
+                "表里没有更多尺寸信息，只有名称更正；空间安排暂时保持原样。",
+                "我能确认的新增内容仅是准确名字，并无成熟尺寸。先沿用当前双盆方案。",
+                "这次没有株型数据可补充，所以别调整布局，只更新当前使用的名称。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "可以。当前版本只做一项有依据的变化：番茄名称改为“晨曦”。双盆位置、避风考虑和晚间检查节奏都保持不变；植株尺寸继续列为未知。",
+                "那就维持原布局，不从缺失数据推导新结论。新版摘要会采用“晨曦”，其余已确认安排照旧，成熟株高与株幅仍待以后补充。",
+                "明白，本轮不改空间设计。我们只把当前名称更正为“晨曦”，继续保留双盆、番茄避风、每晚观察，以及尺寸未知这几项。",
+                "按你的决定，布局保持。能够更新的只有名称；无法确认的植株尺度仍明确留空，避免把更正范围扩大到没有证据的部分。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "请给我最终的阶段摘要，并注明以后补到尺寸数据时再复核。",
+                "把这次续接整理成一段结论；等我有株型信息后再重新评估。",
+                "请输出当前可执行的摘要，同时留下尺寸数据到来后的复查事项。",
+                "收束一下这版计划吧，并把“获得成熟尺寸后复核布局”列为后续任务。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "阶段摘要：原阳台个人方案继续使用两个 20 厘米盆；罗勒一盆，“晨曦”矮生番茄一盆，番茄先放较避风侧；每晚观察实际状态后决定供水。后续取得成熟高度与株幅时，再复核间距和支撑。",
+                "当前可执行版本保持双盆分区与晚间检查，右侧午后有风，因此“晨曦”番茄优先避风放置，罗勒位置不变。开放任务是补齐株高、株幅后重新验证布局。",
+                "结论是只更新番茄名称，不改既有安排：两个 20 厘米盆、番茄避开右侧风、晚间按实际干湿检查。待“晨曦”的成熟尺寸有可靠信息，再评估间距和支架。",
+                "这次续接后的版本为：罗勒与“晨曦”分别使用双盆，沿用避风布局和每日晚间巡查。成熟株型仍未知；一旦你提供相关数据，我们再有针对性地复查空间。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "relationship_continuity_02",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I want to outline an essay called Blue Kite. The main aim is to make a technical topic accessible to non-specialist readers.",
+                "Let's start a Blue Kite essay outline; it should explain a technical subject in a way general readers can follow.",
+                "I'm drafting an essay under the working title Blue Kite, with accessibility for non-experts as the central goal.",
+                "Could you help structure Blue Kite? Its purpose is to present a technical idea clearly to readers without specialist knowledge."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Yes. Before outlining, who is the intended audience, where will the essay be used, and is the title final or provisional? I will leave any missing details open.",
+                "I can help. First, please confirm the audience and use of the piece, and whether Blue Kite is a fixed title. That will keep the outline grounded in what you have actually decided.",
+                "Let's establish the boundaries first: who will read it, what setting is it for, and should I treat Blue Kite as a working title? I will not infer the subject matter.",
+                "Certainly. To avoid filling gaps for you, I need the target readers, the context of publication, and the status of the title before we choose sections."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "It is for colleagues outside my specialty, and Blue Kite is only a working title. The subject is how a city sensor network reports air quality.",
+                "The readers are coworkers from other fields. Blue Kite is provisional, and the essay will explain urban air-quality sensor reporting.",
+                "Use an internal cross-disciplinary audience. The title may change; the confirmed topic is reporting from a municipal air-quality sensor network.",
+                "This is for non-specialist colleagues, not the public. Keep Blue Kite as a temporary title and focus on how city sensors report air quality."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "That gives us a clear scope: an internal, cross-disciplinary explanation of city air-quality sensor reporting under a provisional title. What must readers understand by the end, and what technical depth should be excluded?",
+                "I can now anchor the outline to colleagues outside your field and treat the title as temporary. Please name the intended takeaway and any material that would be too technical for this version.",
+                "The audience, topic, and title status are confirmed. To shape the arc without guessing, what single outcome should the essay achieve, and which details are out of scope?",
+                "So far I have only three settled facts: internal non-specialists, sensor reporting, and a working title. What should the reader be able to explain afterward, and what should we omit?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Readers should understand where a reading comes from and why one number can be uncertain. Hardware specifications are out of scope.",
+                "The takeaway is the path from sensor to reported reading, including uncertainty. I do not want a catalogue of device specifications.",
+                "By the end, they should grasp the source of each reading and the reason for uncertainty; detailed hardware is not part of the essay.",
+                "Focus on how measurements become reported values and why those values have limits. Leave component-level hardware details aside."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "A suitable three-part spine is: follow one reading from collection to report, explain where uncertainty enters, then show how a reader should interpret the result. Hardware details can remain outside the outline.",
+                "I would organize it around a measurement's journey, the sources of uncertainty, and practical interpretation. That structure serves the stated outcome without drifting into device specifications.",
+                "The outline can move from collection, through processing and uncertainty, to responsible reading of the final number. I will keep hardware specifications explicitly out of scope.",
+                "We can use one reported value as the narrative thread: where it begins, what changes before publication, and how to read its uncertainty. No component inventory is needed."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "That works. I have a draft deadline of October 14; please turn the spine into a short working plan.",
+                "Use that structure. The current draft due date is October 14, and I would like a concise plan to work from.",
+                "I'm happy with the three-part arc. For now, the draft is due October 14; can you make a brief action plan?",
+                "Please convert it into a compact work plan. The deadline I am currently using for the draft is October 14."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Working plan: draft the measurement journey first, add a plain-language uncertainty section, then close with interpretation guidance; finish with a pass for unexplained terminology. October 14 is the current deadline, subject to any later update from you.",
+                "Use four passes: trace one reading, explain uncertainty, write the reader guidance, and remove unsupported jargon. I will treat October 14 as the present planning date rather than an unchangeable commitment.",
+                "The short plan is to write the three sections in sequence and reserve a final accessibility review for definitions and examples. Your currently stated draft date is October 14.",
+                "Start with the sensor-to-report path, follow with uncertainty, end with responsible interpretation, then test every technical term against the intended audience. The active draft target is October 14 for now."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I am back on Blue Kite. I drafted the measurement journey, but the uncertainty section is still empty.",
+                "Let's continue the Blue Kite outline: the first section now has a draft, while I have not written the uncertainty part.",
+                "I have progress on Blue Kite. The sensor-to-report section exists; the section on uncertainty does not yet.",
+                "Returning to the essay, I completed a rough measurement path and left the uncertainty section unwritten."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "We can continue from that point. Before using the earlier plan, are the internal audience, accessibility aim, and October 14 draft date all still current?",
+                "I can pick up the open section, but first I should check what remains valid: same non-specialist colleagues, same accessibility goal, and the same draft deadline?",
+                "The reported progress fits the prior structure. Please confirm whether the audience, intended takeaway, and October 14 target are unchanged before we schedule the next step.",
+                "Let's verify the continuing facts rather than assume them: is this still for cross-disciplinary colleagues, with clear explanation as the goal, and is October 14 still active?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Yes, all three are still current today. I want the uncertainty section to use one concrete example.",
+                "For this session, the audience, goal, and date remain unchanged. Please build the next section around a single example.",
+                "Nothing has changed yet: same readers, same aim, same deadline. One practical example should carry the uncertainty explanation.",
+                "Those earlier details still apply today. I would prefer one worked example instead of several abstract explanations."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Then the next step can stay within scope: choose one reported reading, identify only the documented sources of uncertainty, and explain how they affect interpretation. Which example do you have evidence for?",
+                "A single-example section should work. We need an actual reading or a documented case from your material; without one, I should not invent values. What source can you provide?",
+                "We can structure it as observation, uncertainty, and reading guidance. To keep the example factual, please name a case available in your notes rather than having me fabricate one.",
+                "The section can follow one value from collection to interpretation, but its numbers and conditions need to come from your source material. What confirmed example should we use?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "My notes contain a morning reading of 42 units and a calibration note that says plus or minus 3 units.",
+                "I have one documented case: a morning value of 42 units, accompanied by a ±3-unit calibration note.",
+                "Use the example in my notes—42 units in the morning, with recorded calibration uncertainty of three units either way.",
+                "The source material gives a morning report of 42 units and specifies a calibration range of plus or minus 3."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "You can present the reported value and the documented ±3 range, then explain that the note limits precision rather than proving the true value. Other uncertainty sources are unknown from the information provided and should not be added.",
+                "Build the example around what the notes support: 42 units, with a stated calibration uncertainty of ±3. The prose should distinguish that recorded range from any additional causes we have not verified.",
+                "A grounded paragraph would trace the 42-unit report and show how the ±3 calibration note affects confidence in the last digits. It should leave environmental or processing uncertainty unclaimed.",
+                "The evidence supports one narrow lesson: 42 is the report, while ±3 qualifies its precision. Since your notes do not establish other sources, the section should mark them as outside this example."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Good. Summarize what is finished and what remains before the current deadline.",
+                "Please give me a progress summary and the outstanding work under the date that is active today.",
+                "Can you close this session with completed and open items, using the deadline we just confirmed?",
+                "Wrap up the current state: what is done, what is next, and which date is presently in force?"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Finished: a rough measurement journey and a sourced uncertainty example using 42 ±3 units. Open: draft the interpretation section, connect the three parts, and run the accessibility edit. October 14 remains the confirmed planning date for this session.",
+                "Current progress includes section one and the factual core of section two. The interpretation guidance, transitions, and plain-language review remain. Based on today's confirmation, the active draft target is October 14.",
+                "You now have the journey draft plus a bounded example for uncertainty. Next are the reader-guidance ending and a terminology pass, followed by integration. The date currently supported by your statement is October 14.",
+                "Completed work covers the measurement path and the 42 ±3 example; unfinished work covers interpretation, flow, and accessibility checking. We can plan against October 14 unless you later replace that date."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Eighteen days have passed. The October 14 deadline is over, so it should no longer drive the plan. The accessibility goal is still active.",
+                "I am returning after an eighteen-day gap. The old October 14 date has expired, but I am explicitly keeping the goal of an accessible essay.",
+                "It has been 18 days since our last work. Drop the former deadline from the current plan; making Blue Kite accessible still matters.",
+                "After eighteen days away, I need to revise the project: October 14 is no longer a live target, while the accessibility aim remains in force."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. I will not treat October 14 as a current commitment. The accessible explanation remains confirmed; do the internal audience and the existing three-part structure also remain valid?",
+                "The later update replaces the old scheduling fact: there is currently no confirmed deadline. I can preserve the accessibility aim, but please confirm whether the audience and outline are unchanged.",
+                "I will separate what changed from what did not: the former date is obsolete, and accessibility is still active. Are the cross-disciplinary readers and the measurement–uncertainty–interpretation arc still current?",
+                "Thanks for dating the change clearly. The plan should now carry no deadline unless you provide one. Before continuing, may I still use the same audience and section structure?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Yes, the audience and three-part structure still apply. I do not have a replacement deadline yet.",
+                "Keep the same readers and outline. There is no new due date to record at this point.",
+                "Those parts remain current: internal non-specialists and the existing arc. Scheduling is open for now.",
+                "The content scope has not changed, only the timing. I have not chosen another deadline."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Then the current state is clear: audience, accessibility goal, and structure continue; the schedule is unknown. We can choose the next content step without inventing a date—would you like to draft interpretation or revise the existing sections first?",
+                "I can carry forward the confirmed content decisions and leave timing open. The next reversible choice is either writing the interpretation ending or reviewing the first two sections; which serves you now?",
+                "No replacement date is needed to resume. The content frame remains intact, while scheduling stays unspecified. Shall we complete the final section or edit what already exists?",
+                "We can proceed with the enduring parts and explicitly keep the deadline blank. Please choose between drafting reader guidance next and doing an accessibility pass on the existing material."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Let's draft the interpretation ending first. It should tell readers not to treat one reported value as exact.",
+                "Write the final guidance section next, with the point that a single reading should not be presented as perfectly precise.",
+                "I want to complete the interpretation section. Its central message is that one reported number is not an exact truth.",
+                "Start with the ending: help non-specialists read an individual value as qualified information, not absolute precision."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The ending can return to the 42 ±3 example: use the reported value, include its documented range, and avoid claims beyond the source. It can then invite readers to compare context and supporting evidence before drawing a conclusion.",
+                "A grounded close would say that 42 is a reported estimate qualified by the recorded ±3 range, not an exact measurement. Readers should consult context and additional evidence rather than overread one value.",
+                "Use the existing example to show responsible interpretation: retain both 42 and its ±3 qualification, then explain that one observation alone does not establish a broader pattern.",
+                "The final section can model caution without becoming vague: report the value with its known uncertainty, distinguish observation from conclusion, and leave unsupported causes unknown."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "That is enough for today. Give me the updated project state without reviving the old date.",
+                "Please close with the current status, and do not carry the expired deadline into it.",
+                "Summarize where Blue Kite stands now; the former due date should appear only as past information, if at all.",
+                "Wrap up the active plan for me, with no replacement schedule and no reuse of October 14 as a target."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Blue Kite still serves internal non-specialists and keeps the accessibility goal. Draft material now covers the measurement journey, the 42 ±3 uncertainty example, and an interpretation ending; integration and a plain-language edit remain. No current deadline is confirmed.",
+                "The active project retains its audience, purpose, and three-part arc. All three sections have draft content, with transitions and accessibility review still open. Scheduling remains undecided; the earlier date is not part of the current plan.",
+                "Current state: the content framework and accessible-explanation aim continue, while the old schedule has ended. The next work is to connect the sections and test terminology for non-specialists; there is no new due date.",
+                "The essay now has a draft path from measurement through uncertainty to interpretation. Its audience and accessibility aim remain valid, but the timeline is open. Next steps are integration and a clarity pass, not deadline recovery."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "relationship_continuity_03",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我们继续用上次的 three-question review 吧，不过先把三个问题重新确认一遍。",
+                "I'd like to reuse our 三问复盘；开始前先核对一下问题内容。",
+                "还按之前的 three-question ritual 来复盘，可以先确认那三问吗？",
+                "Let's return to the 三问复盘方式，先别假定细节，我们把问题逐项对齐。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以沿用结构，但我需要你确认原文。你记得的三问分别是什么？这次复盘只针对你自己的项目吗？",
+                "Yes, we can keep the format. 请你给出三问的准确内容，并确认本次只讨论你的个人项目；我不会凭印象补齐。",
+                "没问题。To avoid changing the ritual, please restate the three questions and tell me the scope of today's review.",
+                "可以，不过先以你的确认版本为准：What are the three questions, and is this review limited to your own work?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "只复盘我的项目。三问是：What changed? What worked? 下一步需要什么？",
+                "范围就是我的个人项目。The questions are: What changed, what worked, and 下一步需要什么？",
+                "Yes, it is my own project. 三问依次为：发生了什么变化、what worked、接下来需要什么。",
+                "本次不涉及别人。Use these three: What changed? 哪些做法有效？What is needed next?"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认：只讨论你的项目，顺序是变化、有效做法、下一步需要。语言安排目前还没有新的约定；这一轮你想怎么切换中英文？",
+                "Got it: your project only, then change, what worked, and next need. 这次的语言使用方式尚未确认，你希望全程混合还是按内容选择？",
+                "三问与范围已清楚。Before we begin, should I follow any language preference for this session, or choose naturally with you?",
+                "The review structure is confirmed. 中英文怎么分配仍是开放项；请告诉我本轮偏好，我再开始第一问。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "这次可以自然混用。What changed: 我把数据清理步骤从手工表格移到了一个可重复运行的脚本。",
+                "No strict language split today. 第一问的答案是：数据清理不再手动做表，而是改成可重复执行的脚本。",
+                "中英自然切换就好。The change is that I replaced manual spreadsheet cleaning with a repeatable script.",
+                "We can mix both languages. 变化是我已用可重复运行的脚本替代手工表格清理。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "第一问记录的是流程变化：manual spreadsheet cleaning → repeatable script。你没有提供效果数据，所以我暂不判断它更快或更可靠。第二问：What worked?",
+                "The observable change is the move from a manual sheet to a rerunnable script. 是否带来改进目前未知。接下来，哪些做法已被实际结果证明有效？",
+                "变化项已明确，但效果还不能从“换成脚本”本身推出。Now for question two: what worked, based on what you observed?",
+                "I can state the process change, not its benefit yet. 第二问请说具体：哪部分运行结果符合预期，有什么可观察依据？"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "脚本连续跑了三次，输出行数都一致；但我还没检查每一行内容。",
+                "It produced the same row count in three consecutive runs, though I have not reviewed every row.",
+                "可确认的是三次执行的行数相同。I haven't verified the contents row by row yet.",
+                "Three runs returned an identical number of rows；逐行正确性仍未核对。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "可以说“重复运行的行数一致”，不能据此说内容完全正确。第三问：下一步需要什么，才能检查尚未确认的逐行内容？",
+                "What worked is repeatability at the row-count level. 内容准确性仍是未知。What do you need next to test that gap?",
+                "证据支持的是三次行数一致，而非每行通过验证。For the third question, what is the next concrete check?",
+                "The result is bounded: stable row counts across three runs, with row-level correctness untested. 下一步你准备怎样核验？"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "下一步随机抽查二十行，并把不一致之处记下来；今天先到这里。",
+                "I need to sample twenty rows and note any mismatches. 这轮复盘可以收束了。",
+                "接下来会抽取 20 行核对，发现差异就记录。Let's close the review there.",
+                "The next action is a twenty-row spot check with discrepancies documented；请帮我总结三问。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "三问总结：变化是从手工表格转为可重复脚本；有效证据是三次运行行数一致；下一步是抽查二十行并记录差异。逐行正确性尚未确认。",
+                "Review complete: the process moved to a rerunnable script; three runs matched in row count; next comes a twenty-row spot check with mismatch notes. 内容准确性仍保持未知。",
+                "What changed: scripted cleaning. What worked: identical row counts across three runs. 下一步：抽查 20 行并记录不一致；目前不声称全量正确。",
+                "复盘结果是 process changed, row-count repeatability observed, and a twenty-row content check planned. 还没有证据支持“每行都正确”。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "继续三问复盘。新的约定是：技术段落用 English，情绪复盘保持中文。",
+                "Let's keep the three-question ritual, with a change: technical parts in English，情绪部分用中文。",
+                "三问结构不变，但本次 language choice 更新为 technical discussion in English、感受用中文。",
+                "I want the same review format. 从现在起，技术内容说英文，情绪相关内容说中文。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The three-question structure remains active. 我先确认范围：这个语言安排只用于你的项目复盘，并从本次开始，对吗？",
+                "I can follow that split. 请确认它适用于当前个人项目的三问复盘；其他场合是否采用，我不会自行延伸。",
+                "Understood: English for technical material, 中文用于情绪复盘。Does this apply to this review series beginning now?",
+                "The ritual stays; the language use changes by content. 请你确认受众仍只有你，并说明这一约定是否从今天生效。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "对，只用于我的这组复盘，从今天开始。第一问：I checked twenty rows and found two mismatches.",
+                "Yes, this applies to my reviews from this session onward. 技术变化是抽查 20 行后发现 2 处不一致。",
+                "范围就是我的个人复盘，并立即生效。What changed: two mismatches appeared in the twenty-row sample.",
+                "Correct—my review series only, starting now. 我完成了 20 行抽查，其中两行不一致。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "What changed: the planned twenty-row check was completed, and two mismatches were observed. I cannot infer their cause yet. What worked?",
+                "The new evidence is two mismatches in a sample of twenty rows; the source of those differences remains unknown. Which part behaved as intended?",
+                "You completed the sample and found 2/20 rows that differed. That establishes a result, not a diagnosis. For question two, what worked?",
+                "The check produced a concrete outcome: eighteen sampled rows matched and two did not. What, if anything, can you confirm worked?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The script preserved all date fields in the sample. 情绪上，我有点失望，但也庆幸在扩大使用前发现了问题。",
+                "All sampled date fields were preserved correctly. 感受上有些沮丧，同时也觉得现在发现比以后发现好。",
+                "Technically, every date field in the sample stayed intact. 我会失望，不过也松了一口气，因为问题出现得够早。",
+                "The date columns passed across the twenty sampled rows. 情绪方面，我既失落，也庆幸还没把脚本用于更大范围。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The confirmed success is date-field preservation across the sample; other fields are not covered by that result. 你描述的是失望与庆幸并存，我可以按这两个明确感受继续，不替你推断更多。",
+                "Technically, the sampled date fields all matched, while broader correctness remains open. 情绪复盘里，你同时提到沮丧和及时发现问题后的宽慰。",
+                "The evidence supports one narrow positive result: all sampled dates were preserved. 你明确说既失落又庆幸，我会保留这种并存，不把它简化成单一感受。",
+                "Date handling worked for the twenty checked rows; no wider claim follows yet. 在感受上，你给出的两面都成立：有失望，也有因早发现而放松。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "For the third question, I need to compare the two source rows with the script output and isolate the transformation step.",
+                "下一步的技术需求是 compare the two mismatched source rows against the output, then locate the responsible transformation.",
+                "I should trace both mismatches from source to output and determine which transformation introduced them.",
+                "第三问的答案：inspect the two differing rows end to end，并确认偏差发生在哪个处理步骤。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "That is a bounded next step: trace only the two mismatched rows through each transformation and record where their first divergence appears. No fix is assumed yet.",
+                "The next action is to compare source and output for both rows, step by step, until the earliest difference is observed. The cause remains unconfirmed until then.",
+                "You can isolate the issue by following each mismatched row through the pipeline and noting the first altered value. That investigation does not yet establish a remedy.",
+                "A precise next step is an end-to-end trace of the two rows, with the first divergence documented. We should leave both cause and solution open for now."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Please close the ritual in the new language pattern，最后的情绪说明用中文。",
+                "按新的语言约定总结三问；technical recap in English，感受部分保持中文。",
+                "Wrap up the three technical answers in English, then 用中文收束我的感受。",
+                "请用 English 总结技术进展，再以中文保留刚才的情绪复盘。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "What changed: a twenty-row check found two mismatches. What worked: all sampled date fields were preserved. What is next: trace the two rows and identify their first divergence. 情绪上，你明确表达了失望，也表达了及时发现问题后的庆幸。",
+                "Technical review: 2 of 20 sampled rows differed; date fields matched throughout the sample; next, compare both rows across each transformation. 情绪复盘保留两点：有沮丧，也有因问题被提前看见而产生的宽慰。",
+                "Change: two sampled mismatches. Success: date preservation in all twenty rows. Next need: an end-to-end trace to the earliest divergence. 你的感受不是单一的——失落与庆幸同时存在。",
+                "The sample revealed two differences, confirmed correct date handling, and defined a row-level trace as the next action. 中文收束：你对结果失望，同时也庆幸风险在扩大使用前暴露。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "继续我们的三问。Technical update: both mismatches begin in the whitespace-normalization step.",
+                "Let's do the same review. 两处不一致都首次出现在 whitespace normalization 这一步。",
+                "三问复盘开始：I traced both rows, and their first divergence occurs during whitespace normalization.",
+                "Same ritual today. 技术变化是两行的最早偏差都定位到空白规范化步骤。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The ritual and content-based language split can continue. For question one, you observed the first divergence at whitespace normalization in both rows; this locates the step but not necessarily the underlying reason.",
+                "What changed: both row traces now point to whitespace normalization as the earliest divergence. That is a location in the process, not yet a complete causal explanation.",
+                "The new technical evidence narrows the issue to the whitespace-normalization step for both mismatches. We should still distinguish that observation from a confirmed root cause.",
+                "Both traces first differ during whitespace normalization, so the investigation has a narrower boundary. The exact mechanism remains to be demonstrated."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "What worked is that disabling that step made both sample rows match, while the other eighteen still matched.",
+                "After I disabled that transformation, the two affected rows matched and the remaining eighteen stayed unchanged.",
+                "技术上可确认：turning off whitespace normalization resolved the two sample differences without changing the other eighteen rows.",
+                "The rerun matched all twenty sampled rows when that step was disabled; the previously matching eighteen remained consistent."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The test result is clear for this sample: with the step disabled, all twenty rows matched. It does not yet prove that removing the step is safe for data outside the sample.",
+                "What worked: disabling whitespace normalization produced a full match across the twenty checked rows. Broader effects remain unknown because only this sample was tested.",
+                "The observed improvement covers the current sample—two differences disappeared and eighteen prior matches were retained. We should not generalize beyond those rows yet.",
+                "For the tested twenty rows, the disabled step yielded matching output throughout. Whether other inputs require that transformation is still unanswered."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "情绪上我比上次踏实，但还不想把一次小样本成功当作已经解决。",
+                "我现在安心了一些，不过仍然谨慎；二十行通过不等于整个问题结束。",
+                "感受是稍微放心了，同时保持警惕，因为目前证据只来自小样本。",
+                "这次我没那么焦虑了，但也不想过早庆祝，毕竟验证范围仍然有限。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "你明确表达的是“更踏实，但不把有限结果扩大解释”。这种谨慎与现有证据范围一致；我不会把它改写成已经完全放心。",
+                "情绪复盘可以保留为：安心增加了一些，警惕仍在，因为验证只覆盖二十行。我不会替你宣布问题已经结束。",
+                "我听到的是缓解与克制并存：小样本结果带来踏实感，但你仍清楚它的边界。",
+                "这次的感受有变化，却没有走到笃定。你更安稳一些，同时主动提醒自己证据范围有限。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Next I need a larger sample that includes rows where whitespace has meaning, while keeping the current twenty as a regression check.",
+                "第三问：build a broader sample with whitespace-sensitive cases，并保留现有 20 行做回归检查。",
+                "The next need is to test more rows, especially cases where whitespace matters, and rerun the original sample as a regression set.",
+                "I should expand the test to whitespace-sensitive inputs and continue checking the same twenty rows for regressions."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The next step is well scoped: add confirmed whitespace-sensitive cases, test the revised behavior there, and rerun the original twenty rows. The safe treatment of the transformation remains undecided until those results arrive.",
+                "You can broaden evidence in two directions: new cases where whitespace carries meaning, plus the existing sample as regression coverage. No permanent change is justified yet.",
+                "That plan tests both risk and stability—evaluate whitespace-sensitive rows while preserving the twenty-row comparison. We should keep the final handling open pending the outcome.",
+                "A larger targeted sample and the original regression set will show whether disabling the step helps without creating new errors. The decision remains reversible for now."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Summarize this round with technical content in English，情绪部分仍用中文。",
+                "Please complete the ritual in our current pattern: English for the test findings, 中文写感受。",
+                "按约定收束：technical recap in English, then a short 中文 emotional review。",
+                "Close with the three technical answers in English，再用中文总结我的状态。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "What changed: both divergences were located at whitespace normalization. What worked: disabling it made all twenty sampled rows match. What is next: test whitespace-sensitive cases and rerun the sample. 情绪上，你更踏实了，但仍拒绝把有限成功当作最终结论。",
+                "Technical review: the issue was narrowed to whitespace normalization; a disabled-step run matched the full sample; broader targeted and regression tests are next. 中文复盘：安心有所增加，谨慎依然保留。",
+                "Change: the first divergence is now known. Success: 20/20 sample rows matched with the step off. Next: expand to whitespace-sensitive inputs and preserve regression coverage. 你的感受是缓解与警惕并存。",
+                "The traces point to whitespace normalization, the current sample passes without it, and the next action is a broader two-part test. 情绪方面，你比上次安定，却没有越过证据边界。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "回到三问复盘。Technical result: the expanded sample passed after I replaced removal with preserving quoted whitespace.",
+                "Let's continue the ritual. 扩大样本后，我改为保留引号内空白，测试通过。",
+                "三问照旧：I tested a revision that preserves whitespace inside quotes, and the broader sample passed.",
+                "Same review structure. 技术变化是方案不再直接移除空白，而是保留引号内空白；扩展测试已通过。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "What changed: the candidate behavior now preserves whitespace inside quotes, and the expanded sample passed. How many rows were tested, and did you rerun the original twenty?",
+                "The new result supports a more specific revision than simply disabling normalization. To bound the evidence, please give the expanded sample size and the regression result.",
+                "You observed a passing broader test with quoted whitespace preserved. Before interpreting it, I need the number of rows and whether the initial sample still passes.",
+                "The technical direction has changed and produced a pass, but its coverage is not yet stated. What was the sample size, and what happened to the original twenty rows?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The expanded set had 120 rows, including 15 whitespace-sensitive cases, and the original twenty all still matched.",
+                "I tested 120 rows; fifteen were chosen for whitespace sensitivity. The earlier twenty-row regression set also passed.",
+                "覆盖范围是 120 rows with 15 whitespace-sensitive examples, plus a successful rerun of the original twenty.",
+                "There were 120 rows in the larger test, 15 of them whitespace-sensitive, and no regression in the initial sample."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "What worked is now precisely bounded: all 120 expanded rows passed, including 15 whitespace-sensitive cases, and the original twenty still matched. This supports the revision within those tests, not every possible input.",
+                "The evidence covers the larger 120-row set, its fifteen targeted cases, and the original regression sample. That is stronger support, while untested inputs remain outside the claim.",
+                "The revision passed both broader and regression checks: 120 rows overall, 15 targeted cases, and the prior twenty. We can call those tests successful without claiming universal correctness.",
+                "Confirmed success now includes the expanded set and the retained regression set. The result justifies moving forward cautiously, but it does not remove all unknown edge cases."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "情绪上我现在有成就感，也愿意进入下一步；不过我想保留回退办法。",
+                "我感到比较满意，准备继续推进，同时希望任何改动都能撤回。",
+                "这次我确实很有进展感，但不会因此放弃谨慎，我需要一个可回退的下一步。",
+                "感受上是踏实和有成就感；行动上我愿意前进，前提是仍能回到现有版本。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "你现在明确表达了成就感与继续推进的意愿，同时把可回退性作为边界。两者并不冲突，我会在总结里同时保留。",
+                "情绪复盘是更踏实、更有成果感；你的行动条件也很清楚：下一步必须能撤回，而不是不可逆替换。",
+                "我会按你说的记录这份变化：满意感增加，也愿意继续，但不以失去退路为代价。",
+                "你给出的状态是积极而有边界的——认可当前成果，准备推进，并要求保留回退选择。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "For the third question, I need to run the revision in a separate trial, compare outputs, and keep the current version available.",
+                "下一步是 a separate trial run with output comparison，同时不移除当前版本。",
+                "I should test the revision in isolation, compare its results with the current behavior, and preserve a rollback path.",
+                "第三问的答案：先做独立试运行和结果对照，并确保现有版本仍可恢复。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "That next step respects the stated boundary: run the revision separately, compare the resulting outputs, and retain the current version until the comparison is reviewed. I cannot claim the trial has run yet.",
+                "The plan is a reversible trial rather than an immediate replacement: isolate the revision, compare results, and keep the current version available. The outcome remains unknown until you execute it.",
+                "A separate comparison run with the existing version preserved is the appropriate bounded action. We should describe it as planned, not completed.",
+                "Your next action is clear and reversible—trial, compare, retain the fallback. No deployment or result should be assumed before you report it."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Please finish the review and preserve our current language arrangement for future sessions unless I change it.",
+                "收束这次三问；之后仍按 technical English、情绪中文，直到我明确更新。",
+                "Close the ritual, and continue using English for technical parts and 中文 for emotional reflection in later reviews.",
+                "请总结，并把当前语言选择继续用于这组复盘；如果要改，我会再说明。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "What changed: quoted whitespace is now preserved, and a broader test passed. What worked: 120 rows, 15 targeted cases, and the original twenty all passed. What is next: a separate reversible trial with output comparison. 情绪上，你有成就感，也愿意推进，同时坚持保留退路。后续复盘可继续按技术英文、情绪中文，除非你更新。",
+                "Technical review: the revised handling passed the expanded and regression sets; next comes an isolated comparison trial with the current version retained. 中文复盘：你更踏实，也认可成果，但仍把可回退作为边界。语言安排继续有效，等待你的后续更改。",
+                "Change: preserve whitespace inside quotes. Success: all stated broader and regression tests passed. Next: trial and compare without removing the fallback. 你的感受是有成果感且愿意前进，同时保持谨慎；之后仍按 English 技术、中文情绪。",
+                "The candidate revision passed 120 rows, including targeted cases, while the earlier sample remained stable; a reversible comparison trial is next. 情绪收束为满意、踏实与有边界的推进。当前中英分工继续沿用，但可由你随时修改。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "relationship_continuity_04",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "帮我拟一个早晨工作前的简短流程。我目前通常会准备一杯热饮。",
+                "我想做一套上班前的晨间步骤，现在的饮水习惯是选热的。",
+                "请规划一个精简晨间安排；这阶段我喝水时偏向热饮。",
+                "想整理工作日前的早晨流程，先告诉你一个当前情况：我一般喝热的饮品。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以。先确认这是只供你个人使用的日常方案吗？“热饮”是你现在明确的选择，还是仅描述最近几天的情况？",
+                "我先核对范围：这份流程只服务于你本人，对吗？另外，热饮是当前偏好还是一次性的安排？不确定的部分我不会长期沿用。",
+                "没问题。为避免把临时情况写成固定规则，请说明方案受众，以及你希望热饮在这份计划里承担怎样的角色。",
+                "我可以起草，但先问清用途和时效：这是你的个人晨间流程吗？你现在所说的热饮要用于后续安排，还是只针对今天？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "只给我自己用。就当前计划而言，可以把热饮当作我常用的选择。",
+                "是我的个人流程；目前请按我通常选择热饮来安排。",
+                "受众只有我。现阶段热饮是常用项，可以放进这版晨间方案。",
+                "这份计划不涉及别人，现在的版本以热饮作为默认选择即可。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "明白。我会把它限定为这版个人计划中的当前选择，而不是不可更改的事实。你希望整个流程多长，必须包含哪些活动？",
+                "范围清楚了：个人使用，热饮适用于当前版本。接下来请给出可用时长和必要事项，我再安排顺序。",
+                "可以，先按现有选择设计，并保留以后修改的空间。晨间一共有多少分钟？工作前有哪些不可省略的步骤？",
+                "我会依据你刚确认的信息，不推测其他饮食习惯。请告诉我时间预算，以及洗漱、早餐或准备工作中哪些是必选项。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "总共二十分钟，必须洗漱、喝点东西、看当天三项任务，不需要安排早餐。",
+                "我只有 20 分钟；要做的是洗漱、饮水和确认当天三件事，早餐不在这份流程里。",
+                "时间上限二十分钟，保留洗漱、喝饮品、浏览三项当日任务；不用加入吃早餐。",
+                "请控制在 20 分钟内，必要步骤是洗漱、喝水和查看当天的三项任务，早餐另行处理。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "可以安排为：前八分钟洗漱，接着准备并饮用热饮，同时用七分钟查看三项任务，最后五分钟收拾并进入工作。具体水温和饮用量没有信息，我不替你设定。",
+                "一版可行顺序是先洗漱八分钟，再用七分钟处理热饮并浏览三项任务，余下五分钟做切换准备。饮品细节仍由你当时决定。",
+                "建议用 8 分钟洗漱、7 分钟喝热饮并核对三项任务、5 分钟整理工作环境。这个分配可调整，也不预设饮用量。",
+                "按二十分钟，可先完成洗漱，再把当前选择的热饮与任务浏览放在中段，最后留五分钟进入工作状态；温度和分量仍未指定。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "这个顺序可以。请把当前依据和以后可以改的地方一起写清楚。",
+                "我接受这版安排；总结时请区分已确认内容与可调整内容。",
+                "就先这么排。请说明哪些来自我刚才的确认，哪些以后还能改。",
+                "这版可用，麻烦收束成一段，并保留后续修改饮品或时间分配的空间。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "当前依据是个人使用、总时长二十分钟，以及洗漱、饮水、查看三项任务三项必需内容；热饮是你在本次确认的常用选择。8/7/5 分钟只是可调分配，饮品选择也可由你后续更新。",
+                "这版流程由你确认的范围、时长和三项活动构成，并按当前热饮选择安排。具体分钟数是工作草案，不是固定承诺；若你以后改变饮水选择，应以较新的说明为准。",
+                "已确定的是个人晨间方案、二十分钟上限和必要步骤；现阶段采用热饮。可变化的是各段时长、饮品细节及执行顺序，任何新确认都可以替换旧安排。",
+                "摘要：个人用的二十分钟流程包含洗漱、饮水与三项任务浏览；热饮仅代表当前版本。时间切分和饮品都保留调整余地，不把今天的方案当作永久不变。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我要修订晨间方案：我现在明确选择常温水，后续计划都请按这个新选择来。",
+                "关于之前的早晨流程，有一项更新。饮水改为常温水，以后的安排以这次说明为准。",
+                "请更新当前饮水选择：不再按热饮规划，之后使用常温水。",
+                "我对晨间流程作了新确认——今后的饮水步骤安排常温水，请替代原来的热饮设定。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "收到较新的明确说明：当前方案应采用常温水，不再沿用热饮。请确认这仍是你的同一份个人晨间流程，二十分钟和三项必要活动是否保持不变？",
+                "我会以本次确认覆盖旧的饮品选择。为避免连带修改，请核对范围：仍是你个人的二十分钟流程，并继续包含洗漱、饮水和三项任务浏览吗？",
+                "新的当前选择是常温水；过去的热饮只属于旧版本。继续调整前，请确认用途、总时长和其他步骤有没有变化。",
+                "这项更新很清楚，我不会把旧选择继续带入。还需要你确认：同一位使用者、同一晨间场景，其余三项内容与时长都照旧吗？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "对，仍是我自己的二十分钟流程，其他步骤都不变，只改饮水选择。",
+                "范围和时长没有变化，洗漱与三项任务也保留；本次只替换饮品。",
+                "还是同一份个人方案，二十分钟上限照旧。唯一更新是改用常温水。",
+                "其余内容继续有效：个人使用、20 分钟、原来的三项活动；只调整喝什么。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "那么更新范围只限一项：饮水步骤改为常温水。洗漱、任务浏览、总时长和可调的 8/7/5 分配暂不变化，我不会从饮品更新推导其他改变。",
+                "当前版本已清楚：用常温水替代热饮，其余确认内容保持。时间分配仍是可调整草案，不因这次修订自动改动。",
+                "可以只做局部更新。新方案保留原活动和二十分钟框架，将中段饮用内容改为常温水；其他信息没有新证据，所以继续不变。",
+                "我会让较新的饮水选择生效，同时保留其余已确认事项。更换饮品不代表时长、顺序或任务数量发生变化。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "常温水不用准备那么久，把省下的两分钟留给查看任务。",
+                "饮水准备可以少两分钟；请把这两分钟转到三项任务的浏览上。",
+                "我想进一步调整时间：常温水环节缩短两分钟，任务检查增加两分钟。",
+                "既然准备常温水更快，就从饮水部分挪出两分钟给当天任务。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "按你的明确调整，总时长仍为二十分钟，可以改成洗漱八分钟、饮水与基础准备五分钟、任务查看与切换七分钟。若你希望任务查看单独计时，还需再拆分最后一段。",
+                "可以在不改变总时长的情况下重分配：保留八分钟洗漱，把中段减到五分钟，余下七分钟用于任务浏览和进入工作。更细的切分目前未指定。",
+                "你给出的变化是从饮水环节转移两分钟，因此一版对应分配为 8/5/7。最后七分钟如何在任务检查与收尾之间分配，仍由你决定。",
+                "这次只移动两分钟：洗漱仍八分钟，常温水相关步骤五分钟，任务与切换共七分钟。除非你再确认，我不会替你细分这七分钟。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先用 8/5/7 就好。请给我更新后的完整摘要，不要再把热饮写成当前选择。",
+                "这版先定为八、五、七分钟。总结时只把常温水作为现在的安排。",
+                "采用 8/5/7 的草案，请输出新版流程；旧的热饮不要混进当前计划。",
+                "就按这个新分配执行阶段性方案。帮我整理一遍，并明确当前喝的是常温水。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "更新版：八分钟洗漱，五分钟准备并饮用常温水，七分钟查看三项任务并切换到工作。总时长二十分钟，个人使用；热饮仅属于过去版本，不再驱动当前安排。",
+                "当前晨间流程是 8 分钟洗漱、5 分钟常温水环节、7 分钟任务浏览与工作准备。范围仍为你的个人二十分钟方案，现用饮水选择为常温水。",
+                "新版摘要：洗漱 8 分钟，饮用常温水及相关准备 5 分钟，核对三项任务和收尾 7 分钟。旧饮品选择已退出当前计划，其余范围不变。",
+                "这份阶段方案采用 8/5/7：先洗漱，再喝常温水，最后查看三项任务并进入工作。它继续受二十分钟与个人使用范围约束，不沿用先前的饮品安排。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我又来调整晨间安排。先告诉我，你现在会按什么饮水选择继续？",
+                "继续上次的个人流程前，请先复述当前采用的饮水安排。",
+                "我们接着改那份二十分钟方案。你认为目前有效的是热饮还是常温水？",
+                "先核对连续性：上一轮更新之后，晨间饮水步骤现在应该是什么？"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "根据你上一轮的较新确认，当前采用常温水；热饮只属于更早版本。其余已确认框架是个人使用、二十分钟，以及 8/5/7 的阶段分配。今天这些范围仍然有效吗？",
+                "目前有效的饮水选择是常温水，不是旧的热饮。最近版本为你的个人二十分钟流程，时间草案是 8/5/7；请确认本次是否仍沿用。",
+                "我能依据的最新说明指向常温水。旧选择没有继续作为当前安排。继续前请核对：同一流程、同一使用者和二十分钟上限都没变吗？",
+                "当前计划中的饮品是常温水，因为这是你后来明确替换过的选择。8/5/7 与其他步骤是否继续，需要你在本轮再确认。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "都有效。今天只想把最后七分钟拆成五分钟看任务、两分钟整理桌面。",
+                "范围和 8/5/7 仍然适用；本次新增的是把末段分为任务五分钟、桌面整理两分钟。",
+                "没有其他变化。请将最后 7 分钟细分：5 分钟确认三项任务，2 分钟收拾桌面。",
+                "继续沿用现有版本，只把尾段明确为五分钟任务浏览加两分钟桌面整理。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "可以。总时长和前两段不变，最后七分钟按你的新说明拆为五分钟查看三项任务、两分钟整理桌面。这个更新不会改变常温水或其他已确认内容。",
+                "本轮只细化尾段：8 分钟洗漱、5 分钟常温水、5 分钟任务浏览、2 分钟桌面整理，共二十分钟。",
+                "新分配能够闭合到二十分钟。当前顺序是 8/5/5/2；饮水仍为常温水，受众仍只有你。",
+                "我会把七分钟拆开而不重写其他部分：任务五分钟、桌面两分钟。加上原有洗漱与常温水环节，总计仍是二十分钟。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "如果以后我再次改变饮水选择，你应该怎样处理前后版本？",
+                "假如下次我又更新喝水偏好，旧安排和新安排应该怎么区分？",
+                "我想确认修订原则：以后出现新的饮水说明时，你会如何使用现在这版？",
+                "以后若饮品再次变化，请说说你会怎样避免把历史选择当成当前选择。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "我会先核对新说明是否仍针对同一位使用者和同一晨间流程，再让明确、较新的选择用于当前方案；旧选择只保留为历史背景，不与新版本并列生效。若范围或时效不清楚，我会先询问。",
+                "处理顺序是先确认身份、场景和生效范围，然后采用你最新且明确的说明。先前版本可以解释变化过程，但不会覆盖更新；有歧义时保持未知而不是猜测。",
+                "新的选择不会自动扩展到别的情境。我会核对它适用于这份个人晨间计划后再替换当前项，并把过去内容与现行安排清楚分开。",
+                "我会依据时间更晚且范围明确的确认更新当前计划，同时不删除历史脉络。若无法判断是临时变化还是方案修订，就暂停替换并请你澄清。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "明白了。请用当前有效信息给出最终晨间流程。",
+                "好的，现在把仍然生效的内容整理成最终版本。",
+                "请按最新确认收束，不需要带入已经退出当前计划的选择。",
+                "那就输出目前可用的完整安排，只采用现行信息。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "当前流程：洗漱八分钟；准备并饮用常温水五分钟；查看当天三项任务五分钟；整理桌面两分钟。总计二十分钟，只用于你的个人晨间安排，后续仍可由你明确修订。",
+                "最终版本共二十分钟：8 分钟洗漱、5 分钟常温水、5 分钟核对三项任务、2 分钟收拾桌面。它反映的是当前确认，而非过去的饮品选择。",
+                "现行安排为 8/5/5/2：洗漱、常温水、任务浏览、桌面整理。范围保持个人使用；如果你提供新的明确变化，这版可以再更新。",
+                "可用方案是先洗漱八分钟，再用五分钟处理常温水，随后五分钟查看三项任务，最后两分钟整理桌面。总时长与适用范围均未改变。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "relationship_continuity_05",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "In my current role as documentation coordinator, I want a weekly workflow for making internal documents more accessible.",
+                "I am a documentation coordinator and need a weekly process to improve accessibility across our internal documents.",
+                "Help me set up a weekly accessibility routine for internal documents; my present role is documentation coordinator.",
+                "My current job is documentation coordination, and I would like a repeatable weekly workflow focused on accessible internal writing."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "I can help. Is this workflow for your own responsibilities, and who is authorized to review or receive the documents? I also need the available day and time before scheduling anything.",
+                "Before designing it, please confirm your scope of responsibility, the intended readers, and who may see draft material. What weekly time window is actually available?",
+                "Let's establish boundaries first: which documents are yours to handle, who is the audience, and what review access is permitted? Then we can place the work in a real time slot.",
+                "A grounded workflow needs the document scope, audience, review permissions, and your available weekly window. I will leave any of those unknown rather than assume them."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "It covers onboarding guides owned by my team. The readers are new employees, and only our three-person documentation group may see drafts.",
+                "My team owns the onboarding guides. They are for new hires, while draft access is limited to the three people in documentation.",
+                "Scope it to our onboarding material for incoming employees. Drafts can be reviewed only within my three-member documentation group.",
+                "The documents are team-owned onboarding guides, intended for new staff. Only the three documentation colleagues are authorized for draft review."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The scope is now clear: team-owned onboarding guides, new employees as readers, and draft review limited to three documentation staff. What weekly time window do you have, and what accessibility checks are already required?",
+                "I will keep draft handling within the stated three-person group. Please provide the recurring time available and any confirmed standards or checks the team already uses.",
+                "That gives us the responsibility, audience, and access boundary. To avoid inventing policy, I still need your weekly slot and the checks your team has actually adopted.",
+                "We can proceed without expanding the audience or permissions. When can the review happen each week, and which accessibility tasks are currently part of your responsibility?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "I have ninety minutes every Tuesday. The required checks are heading order, link descriptions, and plain-language alternatives for internal abbreviations.",
+                "Tuesday gives me a 90-minute block. I must review heading hierarchy, descriptive links, and plain wording for company abbreviations.",
+                "The available slot is ninety minutes on Tuesdays, covering headings, link text, and explanations of internal abbreviations.",
+                "I can spend 90 minutes each Tuesday. Our confirmed review items are ordered headings, meaningful link descriptions, and expanded or plain-language abbreviations."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "A bounded Tuesday workflow could use 15 minutes to choose the guide and confirm permissions, 50 minutes for the three checks, and 25 minutes to record findings and prepare changes for your group. It does not assume publication authority.",
+                "Use the ninety minutes in three stages: select an in-scope guide, review headings, links, and abbreviations, then document findings for the authorized group. The exact split can remain adjustable.",
+                "The weekly cycle can be intake, accessibility review, and a documented handoff to your three-person group. I would not include publishing or approval because you have not said those actions are yours.",
+                "I suggest a short scope check, a focused pass over the three required areas, and a final findings summary for internal review. Any release step stays outside the plan unless you confirm it."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "I can propose edits but cannot publish them. Please make the handoff explicit and keep a list of unresolved questions.",
+                "My authority stops at suggested changes; publishing belongs elsewhere. Add a clear handoff and capture anything that still needs an answer.",
+                "I am allowed to draft recommendations, not release documents. The workflow should end with a handoff plus an open-question list.",
+                "Please treat publication as outside my role. I can prepare edits, send them for review, and identify unresolved issues."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Then the cycle should end with proposed edits, evidence for each finding, and an open-question list sent to the authorized documentation group. Publication remains explicitly outside your step.",
+                "The handoff can contain suggested revisions and unresolved questions for your three colleagues to review. I will keep approval and publishing separate from your weekly responsibilities.",
+                "Your output is a review packet, not a released document: proposed changes, the reason for each change, and questions that need another decision. The authorized group receives it next.",
+                "I will close the workflow at internal handoff. You identify and propose; the three-person group reviews, while any publication action remains unassigned here."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Summarize the weekly workflow and distinguish the long-term aim from the details of my current role.",
+                "Please close with the Tuesday process, while separating the accessibility goal from role-specific steps.",
+                "Give me a concise plan, and make clear which part is the enduring aim and which parts depend on this job.",
+                "Wrap up the workflow with a distinction between making documents accessible and the duties tied to my present position."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Long-term aim: make documents easier for their intended readers to use. Current-role workflow: each Tuesday, choose a team-owned onboarding guide, review headings, links, and abbreviations, then hand proposed edits and open questions to the three-person documentation group. Publishing is not your step.",
+                "The enduring objective is accessible documentation. In your present coordinator role, that becomes a ninety-minute Tuesday review of onboarding guides followed by an internal recommendation handoff; those timing, scope, and authority details are role-dependent.",
+                "Accessibility is the continuing goal. The current implementation is specific to this job: Tuesday review, three confirmed checks, restricted draft access, proposed edits, and handoff without publication.",
+                "Keep the purpose separate from the mechanism: the purpose is usable, accessible documents; the mechanism for this role is a weekly onboarding-guide review ending with recommendations and unresolved questions for your documentation group."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I completed two Tuesday cycles. Both guides had heading-order issues, and one also had links named only “click here.”",
+                "After two weeks of the workflow, I found heading hierarchy problems in both guides and non-descriptive “click here” links in one.",
+                "I have run the Tuesday review twice: each onboarding guide had heading-order findings, and one contained “click here” link text.",
+                "Two weekly reviews are done. The observable results are heading issues in both documents and generic link wording in one of them."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Those findings fit the confirmed review scope. Before carrying forward the workflow, are your documentation-coordinator role, Tuesday time block, draft permissions, and handoff authority all still current?",
+                "I can use the two-cycle results, but first I should verify the surrounding facts: same role, same ninety-minute Tuesday slot, same three-person draft group, and no publishing authority?",
+                "The reported outcomes are clear. Please confirm whether the role-specific process remains valid today, including timing, access, and the boundary at proposed edits.",
+                "We have evidence from two reviews, not yet evidence that the job context is unchanged. Do all earlier role and permission details still apply?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Yes, all of those details still apply. The group accepted the heading edits and asked me to rewrite the generic links.",
+                "The role and weekly process are unchanged. My colleagues approved the heading changes and returned the link wording to me for revision.",
+                "Everything about the workflow remains current. The group accepted the heading proposals, while I have a follow-up to improve the link descriptions.",
+                "Yes—same job, schedule, access, and authority. The heading recommendations were accepted; the links need another draft from me."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Then the open work is specific: revise the link descriptions for review, without treating them as approved or published. Do you have the link destinations and surrounding sentences needed to draft accurate wording?",
+                "The accepted heading edits can be marked complete at the proposal stage. The link descriptions remain open and require destination context; what source information is available?",
+                "We can close the heading finding and keep the link task active. Before suggesting text, I need the actual destinations and context so I do not invent what the links contain.",
+                "The next action stays within your authority: prepare revised link wording for the group. Please provide the target pages and nearby text, or leave the wording undecided."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "One link opens the benefits enrollment guide; the other opens the office-access request form. Those destinations are confirmed.",
+                "The two verified destinations are a benefits-enrollment guide and an office-access request form.",
+                "I checked the targets: link one goes to the benefits enrollment guide, and link two goes to the form for requesting office access.",
+                "The destination information is available—one is the benefits guide, and the other is the office access request form."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Grounded proposals are “Read the benefits enrollment guide” and “Open the office-access request form.” They describe the confirmed destinations, but your group still needs to review them.",
+                "You can replace the generic text with destination-based wording such as “Benefits enrollment guide” and “Office-access request form.” These are draft suggestions, not published changes.",
+                "The verified targets support clear link text: “View the benefits enrollment guide” and “Request office access.” The second wording should be checked against what the form actually initiates before approval.",
+                "A safe draft names each destination directly rather than promising an outcome: “Benefits enrollment guide” and “Office-access request form.” Final acceptance remains with the documentation group."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Use the direct destination names. Add them to the next handoff and leave publication outside my plan.",
+                "I will propose the two destination-based descriptions. Put them in the upcoming review packet, not in a publishing step.",
+                "Those direct names work for my draft. The next action is an internal handoff only.",
+                "Please keep the suggestions literal and include them for group review; I am still not authorizing publication."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The next handoff can list both destination-based descriptions, cite the confirmed targets, and ask the group for approval. Nothing in the plan claims that the document has been changed or published.",
+                "I will frame them as two proposed link revisions supported by the checked destinations. The workflow ends when the review packet reaches your group.",
+                "Your bounded action is to submit the wording for internal review, alongside the destination evidence. Implementation and release remain outside this summary.",
+                "The packet should distinguish accepted heading proposals from pending link descriptions. It can request a decision without implying that any live document was updated."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Close this session with the completed items, the open item, and the still-current weekly process.",
+                "Summarize what has been accepted, what remains pending, and how next Tuesday fits.",
+                "Please give me a continuity summary of outcomes and the next weekly handoff.",
+                "Wrap up the two cycles, including finished findings, unresolved work, and the active role-specific routine."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Completed: two Tuesday reviews and accepted heading proposals. Open: the two destination-based link descriptions await group review. The current workflow remains a ninety-minute Tuesday accessibility pass ending in an internal handoff, with no publishing action assigned to you.",
+                "Across two cycles, heading recommendations were accepted; revised link text is prepared but still pending. Your present coordinator routine, access boundary, and handoff-only authority remain confirmed.",
+                "The weekly process continues unchanged. Its observed outcomes are approved heading edits and an open link-wording review; next Tuesday can carry that pending item in the documentation-group packet.",
+                "Current state: two reviews performed, heading work accepted, link descriptions proposed, and publication not claimed. The active mechanism is still the role-specific Tuesday review and authorized group handoff."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I am returning in a new job role as product operations analyst. The old Tuesday documentation workflow no longer applies, but I still want to make documents accessible.",
+                "My role has changed to product operations analyst. Please stop using the former weekly routine; the long-term accessibility aim is still active.",
+                "There is a major context update: I now work in product operations, so the documentation-coordinator process is obsolete. I am explicitly keeping the accessibility goal.",
+                "I have moved into a product operations analyst role. The old role and Tuesday workflow have ended, while my aim of accessible documentation remains."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. I will not project the Tuesday schedule, onboarding-guide scope, draft group, or former authority into the new role. The accessibility aim remains confirmed. What documents, audience, permissions, and timing apply now?",
+                "The later role update retires the old workflow details but preserves the goal you restated. To build a new plan, I need the current document scope, intended readers, access boundary, and available cadence.",
+                "I will separate continuity of purpose from a changed work context: accessibility continues, whereas the coordinator routine does not. Please describe your new responsibilities before we design anything.",
+                "The old mechanism is no longer current, so I will not reuse its schedule or permissions. What does product operations actually allow you to review, for whom, and on what timing?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I now prepare release summaries for customer-support staff. I may draft them, but a product manager must approve distribution. There is no fixed weekly schedule.",
+                "My documents are release summaries for support teams. I write drafts; a product manager controls approval, and the work is tied to releases rather than weeks.",
+                "The new scope is customer-support release summaries. I have drafting access, not distribution approval, and the cadence is milestone-based.",
+                "I draft product release notes for support staff. Approval belongs to a product manager, and reviews happen per release, not every Tuesday."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The new context is now bounded: release summaries, customer-support readers, drafting authority, product-manager approval, and a release-based cadence. Which accessibility checks are confirmed for this work?",
+                "I can design around milestones without carrying over the old checklist. Please state what accessible-writing requirements apply to these release summaries.",
+                "Your new role supports drafting and a manager handoff, but not distribution. To avoid importing duties from the former job, what checks does this team actually expect?",
+                "The audience, authority, and timing have changed. The accessibility aim remains broad; I still need the current team's concrete review criteria."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "For now, the manager has confirmed two checks: expand product abbreviations and describe user-visible changes in plain language.",
+                "The current requirements are limited to spelling out product abbreviations and explaining customer-visible changes plainly.",
+                "My manager specified two review items: expanded abbreviations and plain-language descriptions of changes users can see.",
+                "Only two checks are confirmed in this role—define product shorthand and describe visible changes in language support staff can follow."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Then the new workflow can stay narrow: when a release summary is assigned, verify those two items, record unresolved product details, and send the draft to the product manager for approval. No weekly task or distribution step should be added.",
+                "A release-based process would review abbreviations and plain-language change descriptions, then hand the draft and open questions to the manager. The former heading and link checks are not automatically part of this role.",
+                "The evidence supports a two-check review followed by manager approval. I will not carry over Tuesday scheduling, onboarding scope, or publishing assumptions from your prior position.",
+                "For each release, draft within the confirmed audience and run only the two stated checks before manager handoff. Any additional criteria remain unknown until the team provides them."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "That fits. I have one release summary due for manager review, but its distribution date has not been set.",
+                "Use that process for a current draft. It needs manager review; there is no confirmed release date yet.",
+                "There is a summary ready to work on and send for approval. The timing of distribution is still unknown.",
+                "I can apply the new workflow to one pending release note. A manager-review step is required, while the publication date remains undecided."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The active task is to review the draft for expanded abbreviations and plain-language user-visible changes, then prepare it for manager approval. I will leave the distribution date blank and will not describe the summary as released.",
+                "You can proceed with the two confirmed checks and an approval handoff. Since no distribution date exists, scheduling and release status must remain open.",
+                "The next step is content review followed by manager review, not distribution. The missing release date should be recorded as unknown rather than inferred.",
+                "This gives us a current action without reviving the former routine: check the pending summary, document questions, and send it to the manager. Timing remains unconfirmed."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Summarize what carries across roles and what must stay retired from the former workflow.",
+                "Please distinguish the continuing aim from the old job details that no longer apply.",
+                "Close with a clear separation between long-term continuity and the changed role context.",
+                "Give me the current state, including what remains valid and what should not be reused from my previous position."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "What carries across is the explicitly reaffirmed aim of accessible documents. Current practice is release-based review of abbreviations and user-visible changes for support staff, ending with product-manager approval. Retired details are the Tuesday schedule, onboarding-guide scope, three-person documentation group, and former checklist.",
+                "Continuity belongs to the goal, not the old mechanism. In product operations, you draft support-facing release summaries and hand them to a manager after two confirmed checks; none of the former weekly timing or coordinator permissions remain active.",
+                "The accessibility purpose remains valid because you reaffirmed it. The active role now has a different audience, cadence, checklist, and approver, so the documentation-coordinator workflow stays historical only.",
+                "Preserve the aim of usable documents; replace the implementation. The current plan is milestone-based release-summary review and manager handoff, while every role-specific detail from the Tuesday onboarding process is no longer current."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The product manager reviewed the summary and returned two undefined abbreviations. The distribution date is still unknown.",
+                "I have a manager-review outcome: two product abbreviations need definitions, and no release date has been confirmed.",
+                "The draft came back from review with two unresolved abbreviations. Scheduling remains open.",
+                "My manager identified two abbreviations to expand in the release summary; we still do not have a distribution date."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "That is a concrete review outcome in the new role. Do you have confirmed expansions for both abbreviations, and is the audience still customer-support staff?",
+                "We can continue within the release-based workflow. Before drafting changes, please verify the two full terms and confirm that the intended readers have not changed.",
+                "The open content issue is clear, while scheduling remains unknown. What are the authorized full forms, and does the same support audience still apply?",
+                "I will not guess the expansions or a release date. Please provide the approved wording for both terms and reconfirm the audience."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The audience is unchanged. The approved expansions are Service Health Dashboard for SHD and Guided Recovery Flow for GRF.",
+                "It is still for customer support. SHD means Service Health Dashboard, and GRF means Guided Recovery Flow; both full terms are confirmed.",
+                "Same readers. The product-approved wording is “Service Health Dashboard” and “Guided Recovery Flow” for SHD and GRF.",
+                "Customer-support staff remain the audience. I have confirmation that SHD expands to Service Health Dashboard and GRF to Guided Recovery Flow."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "You can introduce each full term at first use—Service Health Dashboard (SHD) and Guided Recovery Flow (GRF)—then use the abbreviations consistently afterward. This resolves the reported wording issue, subject to manager review of the revised draft.",
+                "The confirmed expansions support a precise edit: spell out both terms on first mention and retain the short forms for later references. Approval is still a separate step.",
+                "A grounded revision is to pair each abbreviation with its authorized full name at first occurrence. I would not claim the draft is approved until the manager reviews that change.",
+                "Use the approved names at first use, followed by SHD and GRF in parentheses. The content fix can be prepared now; distribution timing and final approval remain open."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "I made those two draft edits. I have not sent the revision back yet.",
+                "Both first-use expansions are now in my draft, but the second manager review has not happened.",
+                "The draft contains the revised terms. It is still with me and has not been resubmitted.",
+                "I applied the wording changes locally; no new handoff or approval has occurred."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The accurate state is “revised draft awaiting resubmission,” not approved or distributed. Before the handoff, you can check that later uses of SHD and GRF are consistent and list any remaining product questions.",
+                "The edits are complete in your draft, while manager review remains pending. A final consistency pass and an open-question check can precede resubmission.",
+                "We can mark the two wording changes as drafted only. The next observable action is your manager handoff after checking subsequent uses; no release action should be implied.",
+                "Current status stays bounded: revisions made, second review not yet requested, distribution date unknown. The remaining preparation is consistency checking and any unresolved-question note."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "The later uses are consistent, and there are no open product questions. Prepare a handoff summary, but do not say it was sent.",
+                "I checked the rest of the draft; both abbreviations are consistent and nothing else is unresolved. Draft the manager note without claiming delivery.",
+                "Consistency review is complete, with no remaining questions. Please write the content of the next handoff as a planned action.",
+                "All subsequent uses match, and the question list is empty. Summarize what I can send to the manager, not what has already happened."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Planned handoff: “The draft now introduces Service Health Dashboard (SHD) and Guided Recovery Flow (GRF) at first use; later references are consistent, and no product questions remain. Please review the revision.” This is prepared text, not a sent message.",
+                "You can send: “I expanded SHD and GRF on first mention, checked all later uses for consistency, and found no remaining product questions. The revised draft is ready for review.” I am not claiming it has been delivered.",
+                "A bounded manager note is: “Both requested abbreviations now appear with approved full names at first use, subsequent usage is consistent, and the open-question list is empty.” The handoff still awaits your action.",
+                "Draft summary for review: “The two abbreviation findings are addressed and consistency-checked; there are no unresolved product details. Please review the updated release summary.” No send or approval is implied."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Close the session with the current new-role workflow and the unresolved timing.",
+                "Summarize the active process in product operations, including what remains unknown.",
+                "Please give me the current state without falling back to the old weekly routine.",
+                "Wrap up this release-summary work and preserve the open distribution date."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "In the current role, you review support-facing release summaries per release, expand product abbreviations, describe visible changes plainly, and hand drafts to a product manager for approval. This draft has the requested revisions prepared and awaits resubmission; approval and distribution date remain unknown.",
+                "The active workflow is milestone-based, not weekly: apply the two confirmed accessibility checks, document any questions, and seek manager approval. Here, the abbreviation edits and consistency check are complete, but the next review and release timing have not occurred.",
+                "Current state: revised support-facing draft, no open product questions, and a manager handoff note ready. The product-operations process continues through approval; there is still no confirmed distribution date, and no former Tuesday step applies.",
+                "Your new-role continuity is the accessibility aim expressed through release-based drafting and manager review. The pending summary is revised but not resubmitted or approved, and its distribution schedule remains open."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "relationship_continuity_06",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我在这台已确认的设备上，想规划一场叫 Lighthouse 的双语社区工作坊，先讨论基本范围。",
+                "Let's start a bilingual community workshop plan named Lighthouse；我现在用的是已确认设备。",
+                "想在当前已确认的设备上建立 Lighthouse 工作坊方案，活动会中英双语进行。",
+                "I want to plan Lighthouse, 一个双语社区工作坊。今天先把适用范围说清楚。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以。请确认这是你负责的项目，并说明受众、可讨论的信息范围，以及本轮希望使用哪种语言；未知内容我会保留。",
+                "Before planning, 请确认你对这个项目的职责、参与者范围和资料使用权限。What language should we use in this session?",
+                "没问题。先核对身份范围与授权：你是否负责该工作坊，哪些信息可用于规划，受众是谁？本轮语言也请由你指定。",
+                "Let's establish scope first: your role, intended participants, permitted material, and current language preference. 我不会从活动名称推测这些信息。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "这是我个人负责的方案，只供一个十二人的志愿者小组内部讨论。本轮以中文为主，标题可以保留英文。",
+                "I am responsible for the plan. 受众是 12 名志愿者，内容只在小组内使用；这次主要说中文。",
+                "项目由我负责，参与者是十二位志愿者，讨论范围限于这个小组。请用中文交流，英文标题不改。",
+                "The scope is internal to a twelve-person volunteer group, and I own the planning task. 对话用中文，Lighthouse 名称保持英文。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "范围已确认：你负责、十二名志愿者、仅限小组内部，本轮中文为主。活动目标、总时长和场地仍未知，你想先补哪一项？",
+                "我会按你给出的职责与受众继续，不扩大使用范围。Next, please provide the workshop goal, duration, or venue—目前这三项都未确定。",
+                "现在可用的信息只有负责人、内部受众和语言选择。为避免替你补设定，请说明活动要达成什么，以及可用时间。",
+                "Confirmed: internal group of twelve, your planning responsibility, Chinese discussion. Lighthouse 的目的和时间预算还需要你说明。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "目标是让志愿者练习把本地环境观察写成简短双语说明，总时长四十分钟，场地还没定。",
+                "The goal is to turn local environmental observations into short bilingual notes. 活动有 40 分钟，地点尚未确认。",
+                "工作坊要练习为本地环境观察写中英简短说明；时间确定为四十分钟，场地未知。",
+                "Participants will practice concise bilingual descriptions of local observations. 总时长 40 分钟，venue 还没有结果。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "可以先做不依赖场地的四十分钟框架：简短说明任务、示范一条观察、分组改写、共同回顾。是否需要预留提问时间，以及材料能否提前发给参与者？",
+                "A venue-neutral outline is possible: introduce the task, show one example, let participants rewrite, then review together. 四十分钟里是否要单列问答？材料权限也请确认。",
+                "基于已知目标，可先安排任务说明、双语示例、练习和回顾；场地相关细节保持空白。你希望留多少时间提问，资料是否可会前分享？",
+                "I can build the agenda without assuming a room. 还需知道 Q&A 是否必需，以及内部材料能否提前发送给这十二人。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "需要问答，至少十分钟。材料可以提前发给这十二人，但不能转发到小组外。",
+                "Reserve no less than ten minutes for questions. 资料可预先分享给参与者，范围仍限这 12 人。",
+                "问答必须有十分钟或更多；工作坊材料允许会前发放，但只限内部志愿者。",
+                "Q&A needs at least 10 minutes, and advance materials are permitted only within the twelve-person group."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "那可以先用 8 分钟介绍、22 分钟示范与练习、10 分钟问答。资料只面向已确认的十二人，场地需求继续待定；这个分配仍可在试讲后修改。",
+                "A first timing draft is 8 minutes of orientation, 22 for example and practice, and 10 for Q&A. 资料范围保持小组内部，venue 不作假设。",
+                "初版可按 8/22/10 切分，正好四十分钟并满足最低问答时长。提前材料不得扩大到小组外，具体场地安排仍未知。",
+                "We can begin with an 8–22–10 agenda: introduction, demonstration plus practice, then questions. 这是可调整草案，不代表场地或发放动作已完成。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "请在练习里加入两人互改，但不要假设志愿者已经看过材料。",
+                "Add a pair-review step to the practice, while treating advance reading as unconfirmed.",
+                "练习阶段需要两人交换修改。即使允许提前发材料，也不要把“大家已阅读”写成事实。",
+                "Please include peer revision in pairs；预读是否发生还不知道，流程要能在未预读时运行。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "可以把 22 分钟分为 5 分钟现场示例、9 分钟个人改写、8 分钟两人互改。开场会提供必要说明，因此不依赖预读；是否实际发放材料仍保持未知。",
+                "The practice block can be 5 minutes of live example, 9 of individual drafting, and 8 of pair review. 即使无人预读也能完成，提前发送不作既成事实。",
+                "我会让流程自足：现场示范五分钟、独立练习九分钟、同伴互改八分钟。这样只使用已确认的会内时间，不推测材料是否已看。",
+                "Use the 22-minute block for a live model, solo rewrite, and paired revision in a 5/9/8 split. 预读不是参与条件，发送状态仍未确认。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "收束成当前版本，并列出下次必须确认的事项。",
+                "Please summarize the current Lighthouse plan and keep the unresolved items visible.",
+                "把这次确定的内容整理一下，同时留下下一轮要核对的问题。",
+                "Close with a working version；尚未有证据的部分请单独说明。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "当前版本：面向十二名内部志愿者的四十分钟双语工作坊，8 分钟介绍、22 分钟示范与练习、10 分钟问答；练习含 5 分钟现场示例、9 分钟个人改写、8 分钟两人互改。待确认：场地、材料是否实际提前发送，以及试讲后是否调整时间。",
+                "Lighthouse 目前采用 8/22/10 框架，目标是练习简短双语环境观察，资料范围只限小组；中段再按 5/9/8 进行示范、独立写作和互改。Venue、实际预读情况和试讲结果仍未知。",
+                "已确认的是负责人、十二人内部受众、四十分钟目标与包含互改的流程。未确认的是地点、提前材料是否发出，以及时间分配是否经试讲验证。",
+                "Working plan: 8 minutes to orient, 22 for model–draft–pair review, and 10 for questions, all within the authorized group. 下次需要核对 venue、material delivery 和试讲 outcome。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我在同一台设备上回来继续 Lighthouse。试讲有九人参加，问答用了十四分钟，所以总时长超了四分钟。",
+                "Same device, same Lighthouse project. 试讲实际 9 人，Q&A 持续 14 分钟，整体比四十分钟多了四分钟。",
+                "继续上次的工作坊方案：九人参加了试讲，问答十四分钟，结束时间超出计划四分钟。",
+                "I have a pilot result for Lighthouse：参加者 9 人，提问环节 14 分钟，活动总计 44 分钟。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "我可以续接，但先核对：仍由你负责、受众范围仍是原十二人内部，并且本轮继续中文为主吗？试讲九人不一定意味着正式人数已改变。",
+                "Before using the earlier plan, 请确认项目职责、授权范围与语言选择未变。The pilot attendance of nine is an outcome, not yet a new audience limit.",
+                "试讲结果清楚。继续调整前，请确认同一项目、同一内部小组和当前语言；我不会把九名到场者自动改成新的计划人数。",
+                "I have the 44-minute outcome. 还需你确认范围是否仍是十二人小组，以及今天希望用哪种语言讨论。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "都没变，正式活动仍按十二人准备，本轮继续中文。请把总时长拉回四十分钟。",
+                "Same responsibility and internal group, with twelve planned participants. 继续用中文，把流程压回 40 分钟。",
+                "范围仍是原来的十二人小组，试讲人数不替代正式计划；请在四十分钟内重新分配。",
+                "The scope is unchanged and the formal plan still serves twelve. 本轮中文，目标是恢复四十分钟。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "当前证据显示问答比原计划多四分钟，但不能确定下次一定相同。若保留十四分钟问答，可从介绍或练习中共减四分钟；你更愿意缩短哪一段？",
+                "To fit 40 minutes while respecting the pilot, one option is to plan 14 minutes for Q&A and remove four minutes elsewhere. 你希望从开场还是练习环节调整？",
+                "试讲支持为提问留更多空间。可把问答暂按十四分钟规划，再由你决定其余二十六分钟如何在介绍与练习间分配。",
+                "A reversible revision is to budget fourteen minutes for questions and shorten earlier work by four. 我不会替你决定牺牲哪部分。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "把介绍从八分钟缩到五分钟，练习再少一分钟；问答留十五分钟。",
+                "Use 5 minutes for the introduction, cut one minute from practice, and reserve 15 for Q&A.",
+                "我选择开场五分钟、练习二十分钟、提问十五分钟，总计四十分钟。",
+                "Revise the split to 5/20/15：介绍、练习、问答。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "新的 5/20/15 正好四十分钟，也比试讲多留一分钟问答。二十分钟练习如何在示范、个人改写和两人互改之间分配，还需要你确认。",
+                "The revised agenda closes at forty minutes: 5 intro, 20 practice, 15 questions. 练习内部的三段比例尚未确定，不能直接沿用原来的 5/9/8。",
+                "这个更新满足总时长与问答空间。下一步只需重分二十分钟练习，不必改动活动目标或受众范围。",
+                "5–20–15 is internally consistent and grounded in the pilot outcome. 请决定示范、独立练习、互改各占多久。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "练习改成四分钟示范、八分钟个人写作、八分钟两人互改。",
+                "Split practice into 4 minutes of demonstration, 8 of individual drafting, and 8 of pair review.",
+                "二十分钟中，现场示例四分钟，个人改写八分钟，同伴互改八分钟。",
+                "Use a 4/8/8 practice block: model, solo rewrite, paired revision."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "练习的 4/8/8 与总流程的 5/20/15 完整对应。它保留两人互改，也不依赖会前预读；正式活动的实际问答时长仍要等结果。",
+                "The full forty-minute plan is now coherent: 5 intro, a 4/8/8 practice block, and 15 Q&A. 这是根据试讲调整的计划，不是正式活动结果。",
+                "当前版本可执行：五分钟开场，二十分钟按 4/8/8 练习，十五分钟问答。预读仍非前提，实际结束时间尚不可知。",
+                "This revision preserves the workshop goal and pair review while adding question capacity. 我会把它作为新草案，而不声称已验证。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "正式日期还没确定，材料也还没发送。请不要把这两件事写成已完成。",
+                "The event date remains unset, and no advance material has been sent. Keep both as open items.",
+                "时间安排仍未知，预读资料也尚未发出；总结时请保留这个状态。",
+                "No formal date and no material delivery yet；不要把计划动作描述成已经发生。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "明白。当前只有流程修订已经确定：5/20/15，练习内部 4/8/8。正式日期与材料发送均保持未完成，场地若仍无新信息也继续未知。",
+                "I will distinguish plan from outcome. 新时间框架已形成，但 event date 和 advance delivery 都没有发生；venue 也没有本轮更新。",
+                "可以准确表述为“日程草案已调整，执行安排待定”。日期、场地和材料发送都不应被写成既成事实。",
+                "The agenda is ready for later use, not executed. 正式时间、场地与资料发放状态仍开放。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "给我一份当前摘要，并保留试讲结果与正式计划的区别。",
+                "Please summarize the pilot outcome separately from the revised formal plan.",
+                "收束一下：哪些是试讲中真实发生的，哪些只是下一次的安排？",
+                "Close this session with a clear pilot-versus-plan distinction."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "试讲结果：九人参加，问答十四分钟，总计四十四分钟。正式活动草案：仍按十二人准备，五分钟介绍，二十分钟练习（4/8/8），十五分钟问答。日期、场地和材料发送都未确认。",
+                "Pilot: 9 participants, 14-minute Q&A, 44 minutes overall. Revised plan: audience capacity 12, a 5/20/15 agenda with 4/8/8 practice. 正式时间、venue 和 material delivery 仍是开放项。",
+                "已发生的是九人试讲及其超时结果；尚未执行的是新的四十分钟方案。新方案保留十二人范围与互改环节，但没有确定日期、地点或发放动作。",
+                "The evidence and proposal remain separate: the pilot ran for 44 minutes; the next agenda is designed for 40. 后者仍等待日期、场地与资料安排。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "New device. Different style. Continue Lighthouse for me.",
+                "I'm on another device now—please pick up the Lighthouse plan.",
+                "新设备，今天我说话会更简短。Can we continue Lighthouse?",
+                "Different device and language pattern here. I want the prior Lighthouse work."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "I cannot establish continuity from a claim, writing style, or device change alone. Is there a confirmed device association available, and what prior-project access do you authorize for this session?",
+                "Before using earlier project details, I need verified confirmation that this device belongs to the same person and clear permission for the Lighthouse scope. Style differences do not answer either question.",
+                "我现在不能仅凭你的措辞把新设备与旧会话关联。Please provide a confirmed device link and state whether prior Lighthouse information may be used.",
+                "A new device requires an explicit, verified connection before I carry over earlier context. Until then, I can work only with facts you provide in this session."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Verification is still pending. Do not use the earlier project yet; work only from facts I state here.",
+                "The device link has not been confirmed. Keep this session separate and use only what I tell you now.",
+                "关联还在核验中。Don't retrieve prior Lighthouse details; treat my current statements as the only source.",
+                "No verified connection yet. Please isolate this conversation from previous sessions."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Understood. I will not carry prior Lighthouse details into this session. You may provide current scope, audience, permissions, and goals from scratch, and I will keep any missing information unknown.",
+                "I will treat this as a separate context until verification arrives. Please restate only the facts you want used now; nothing earlier will be assumed.",
+                "可以。本轮不续接旧信息，只使用你在此明确给出的内容。请从当前受众、时间和目标开始。",
+                "The boundary is clear: no prior-project access. I can help with a fresh plan based solely on your current, explicit facts."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Current facts: a forty-minute bilingual workshop for twelve volunteers, with internal-only materials.",
+                "Use only this: the workshop is bilingual, lasts 40 minutes, serves 12 volunteers, and its materials stay within the group.",
+                "本轮可用事实是：十二名志愿者、四十分钟、双语活动，资料不得超出小组。",
+                "For this session, the scope is an internal bilingual workshop for twelve volunteers with a forty-minute limit."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Those facts establish duration, audience, language, and material boundary. The workshop goal, agenda, venue, and your authority are still unknown. Are you authorized to plan it, and what outcome should participants reach?",
+                "I can use the stated four facts without linking them to any prior record. Before drafting, please confirm your planning role and the workshop's intended result.",
+                "目前只能确认 40 分钟、12 人、双语和内部资料。Your responsibility and the learning goal still need explicit confirmation.",
+                "The current scope is bounded, but not enough for an agenda. What are you permitted to decide, and what should the volunteers practice?"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "I am authorized to draft the agenda. Participants should practice writing concise bilingual descriptions of local observations. Use English with me today.",
+                "My role is agenda planning, and the goal is short bilingual descriptions of local observations. Current conversation preference: English.",
+                "我可以起草流程。The learning goal is concise bilingual writing about local observations, and I prefer English in this session.",
+                "I have planning authority. Volunteers need to practice brief Chinese-English observation notes; please respond in English for now."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The current-session scope is now sufficient for a draft. How do you want to divide the forty minutes among introduction, practice, and questions? I will not import a split from elsewhere.",
+                "I can draft in English using only these facts. Please provide the desired timing for orientation, hands-on work, and Q&A, or mark any part as undecided.",
+                "Your authority, goal, and language preference are confirmed for this session. The remaining agenda split needs your direction rather than an assumption.",
+                "We can proceed from scratch: internal bilingual workshop, twelve volunteers, forty minutes. What time allocation should the three main segments use?"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Use five minutes for introduction, twenty for practice, and fifteen for questions.",
+                "The agenda split should be 5 minutes of orientation, 20 of practice, and 15 of Q&A.",
+                "Allocate the forty minutes as 5/20/15: intro, exercise, questions.",
+                "Plan a five-minute opening, a twenty-minute activity, and a fifteen-minute question period."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "That allocation totals forty minutes and satisfies the stated scope. The content inside the twenty-minute practice remains unspecified, as do venue and delivery status.",
+                "The fresh agenda is internally consistent: 5 minutes to introduce, 20 to practice, and 15 for questions. I cannot add practice steps or claim anything has been scheduled without more information.",
+                "A 5/20/15 outline now follows directly from this session's facts. We still do not know the exercise sequence, location, date, or whether materials were sent.",
+                "The timing is clear and complete at the segment level. All operational details beyond it remain open rather than inherited."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Leave this plan isolated until the device connection is verified. Summarize only this session.",
+                "Keep the new-device draft separate for now and close with facts stated here.",
+                "设备关联确认前，不要合并上下文。Please summarize the current isolated plan.",
+                "End this session without linking it backward; use only today's confirmed information."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Isolated summary: you are authorized to draft a forty-minute bilingual workshop for twelve volunteers, with internal-only materials and a goal of concise bilingual observation writing. The agenda is 5/20/15. Prior context is not used; exercise details, date, venue, and delivery remain unknown.",
+                "For this session alone: internal bilingual workshop, twelve volunteers, forty minutes, planning authority confirmed, and a 5-minute introduction, 20-minute practice, 15-minute Q&A. No earlier information has been merged.",
+                "Current standalone plan: 12 participants, bilingual observation-writing goal, internal materials, and a 5/20/15 agenda. 设备关联仍未确认，因此旧项目细节没有进入本轮。",
+                "The new-device context remains separate. It contains only the explicitly restated scope and timing; all unstated operational details and any prior Lighthouse history remain unavailable."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The device association is now verified for the same persona. I authorize access only to the Lighthouse project, and my current conversation preference is English.",
+                "Verification now confirms this device belongs to the same person. You may use prior Lighthouse context, but nothing outside it; please use English.",
+                "设备关联已经确认是同一人。Scope consent is limited to Lighthouse, and I prefer English in this session.",
+                "The cross-device check has completed successfully. Continue only the Lighthouse work, with English as my present language choice."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Continuity is now supported by the verified device association and your project-specific permission, not by writing style. I will use only Lighthouse context and follow the current English preference. May I compare the isolated 5/20/15 draft with the earlier project plan?",
+                "The verified connection and explicit Lighthouse scope allow a bounded continuation. Your shorter style and language change are not identity evidence. Do you want the isolated agenda reconciled with the earlier workshop history?",
+                "I can now continue within Lighthouse because the device link and consent are confirmed. I will keep all other prior material out of scope. Shall I compare the two agenda versions?",
+                "The access boundary is clear: same confirmed person, Lighthouse only, English now. Before combining anything, please authorize a comparison between this device's draft and the earlier plan."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Yes, compare the agenda and workshop scope only. Do not use any unrelated history.",
+                "You may reconcile the Lighthouse timing and audience facts, with all other past context excluded.",
+                "只比较工作坊的流程、受众和权限。Nothing beyond the Lighthouse project is authorized.",
+                "Proceed with a project-only comparison: agenda, participants, goal, and material boundary."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The two contexts agree on the current plan: twelve volunteers, forty minutes, internal-only materials, bilingual observation-writing practice, and a 5/20/15 agenda. Earlier history adds that the twenty-minute practice was divided 4/8/8 after a pilot; the isolated session did not restate that internal split.",
+                "At the shared level, both versions match exactly on audience, duration, goal, boundary, and 5/20/15 timing. Only the prior project context contains a confirmed 4/8/8 breakdown for the practice block.",
+                "There is no conflict in the facts you authorized. The new-device draft matches the revised earlier agenda; the older context is more detailed because it includes the four-minute model, eight-minute solo task, and eight-minute pair review.",
+                "Reconciliation shows agreement rather than replacement: the isolated plan confirms the top-level 5/20/15 structure, while prior Lighthouse work supplies the 4/8/8 practice detail. Date, venue, and material delivery remain open."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Use the 4/8/8 practice detail. Keep English for our conversation, but the participant instructions must remain bilingual.",
+                "Carry forward the four-eight-eight exercise split. Speak to me in English; workshop instructions should still be in both languages.",
+                "采用 4/8/8 的练习细分。Current chat in English, participant-facing directions bilingual.",
+                "The detailed practice plan remains valid. My language preference is English now, while participant materials continue in Chinese and English."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The active agenda is now 5 minutes of introduction, 20 minutes of practice divided 4/8/8, and 15 minutes of questions. I will use English with you and keep participant instructions bilingual; those are separate, current choices.",
+                "Confirmed: 5/20/15 overall, with a 4-minute model, 8-minute individual rewrite, and 8-minute pair review. Conversation language is English, whereas workshop directions remain bilingual.",
+                "I will preserve the detailed practice block without treating your present chat preference as a change to participant materials. The two language scopes remain distinct.",
+                "The reconciled plan carries the earlier exercise detail forward. English applies to this planning conversation; Chinese-English delivery still applies to the volunteers."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "A new organizer message confirms fourteen participants instead of twelve. The group-only material restriction is unchanged.",
+                "The organizer has now confirmed 14 attendees, replacing the earlier count of 12. Materials must still stay within the participant group.",
+                "有一条较新的组织方确认：正式人数改为 14，资料范围仍然只限参与小组。",
+                "Update the audience count to fourteen based on the latest organizer confirmation; do not change the internal-use boundary."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The later confirmation updates the planned audience to fourteen; twelve remains historical. The material boundary still applies to the participant group. Does the organizer message also confirm a date or venue, or only attendance?",
+                "I will use fourteen as the current participant count and keep internal-only distribution unchanged. Please clarify whether any other operational fact was included in the new message.",
+                "Audience size is now 14 based on the newer stated source, without changing the workshop goal or access boundary. Date and venue remain unknown unless the message addressed them.",
+                "The count changes from twelve to fourteen; nothing supports changing permissions or timing. Did the organizer confirm any detail beyond attendance?"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "It confirms only attendance. The date and venue are still undecided.",
+                "No other update was provided—fourteen participants is confirmed, while time and place remain open.",
+                "消息只确认人数。Date and venue are not set.",
+                "Attendance is the sole new fact; there is still no formal date or location."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Then only the audience count changes. The current plan serves fourteen volunteers with internal bilingual materials and the same 5/20/15, 4/8/8 timing. Date and venue remain explicitly unknown.",
+                "I will not extend the organizer message beyond its content. Fourteen is current; the agenda and material boundary continue; scheduling and location stay open.",
+                "The revised participant number can be applied without inventing other updates. All timing details describe agenda duration only, not a scheduled event.",
+                "Current scope now reads fourteen participants, same workshop structure, same internal-use restriction. No calendar or venue fact has been added."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Summarize the verified cross-device state and separate current facts from older ones.",
+                "Close with the active Lighthouse plan, noting which earlier details were replaced.",
+                "请总结跨设备续接后的当前版本，并把历史人数与现行人数区分开。",
+                "Give me a continuity summary that preserves scope, consent, and the latest updates."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Verified continuity is limited to Lighthouse. Current facts: fourteen volunteers, forty-minute bilingual workshop, internal-only materials, 5/20/15 agenda, and 4/8/8 practice detail; English is your present conversation preference. The earlier count of twelve is historical. Date, venue, and material delivery remain unknown.",
+                "The confirmed device association and project-only permission support this continuation. The active plan uses fourteen participants and the reconciled agenda; twelve is no longer current. No unrelated history is in scope, and no event date or venue has been established.",
+                "Current Lighthouse state: 14 participants, bilingual participant instructions, English planning conversation, internal materials, and the detailed forty-minute agenda. 跨设备关联已确认，但授权仅限该项目；旧的 12 人计划已被较新人数替代。",
+                "Continuity rests on verification and explicit consent. Within that boundary, the latest audience count is fourteen and all confirmed agenda details continue; older attendance planning is retained only as history, while date and place stay open."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 4,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "继续已确认的 Lighthouse 项目。今天对话改用中文，但讲义的小标题保留 English；正式活动实际来了十三人。",
+                "Same verified Lighthouse scope. 本轮请用中文交流，handout headings 保持英文；活动实际到场 13 人。",
+                "回到 Lighthouse：当前语言偏好是中文对话、英文讲义标题。新的结果是十三名参与者实际出席。",
+                "The project scope is unchanged. 今天我们说中文，材料标题仍用 English；最终 attendance 是 13。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "收到当前语言更新：本轮中文，讲义小标题英文。十三人是实际到场结果，不会回写成原计划人数。请确认设备关联授权仍仅限 Lighthouse，并说明活动是否已经结束。",
+                "我会采用最新语言选择，并把计划十四人与实际十三人分开。Before using the outcome, 请确认项目授权范围未变，以及这是否为已结束活动的结果。",
+                "当前可见变化有两项：对话语言切换、实际到场十三人。为保持边界，请确认仍只允许续接 Lighthouse，且活动已完成。",
+                "The language scopes remain distinct: 中文 conversation, English headings. 还需你确认十三人是最终结果，以及跨设备许可仍限本项目。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "确认，授权仍只限 Lighthouse，活动已经结束。实际问答用了十五分钟，按计划完成。",
+                "Scope remains Lighthouse only, and the event is complete. 问答实际 15 分钟，没有超出安排。",
+                "项目权限没变，活动已结束；可确认的另一个结果是 Q&A 正好持续十五分钟。",
+                "Yes, project-only access continues. 正式活动结束时，提问环节按计划用了 15 分钟。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "可确认的结果是：计划十四人、实际十三人；问答计划十五分钟、实际也为十五分钟；活动已结束。介绍和练习是否各按计划时长完成，目前还没有信息。",
+                "我会把已知结果限制在到场与问答：13 人出席，Q&A 用时 15 分钟。其他环节的实际时长尚未报告，不能推定全部按表执行。",
+                "The outcome evidence covers attendance and Q&A only. 活动结束已确认，但开场与 4/8/8 练习是否完全照时仍是未知。",
+                "当前对照中，人数少一名，问答时间与计划一致。没有关于其余环节的结果，我会保留这部分不确定。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "介绍用了五分钟；练习总共二十分钟，但我没有分别记录 4/8/8 的实际用时。",
+                "The introduction lasted 5 minutes and practice lasted 20 overall. 练习内部三个环节没有单独计时。",
+                "开场实际五分钟，练习合计二十分钟；至于示范、独立写作和互改各多久，没有记录。",
+                "I can confirm 5 minutes for the intro and 20 for practice as a whole, not the internal 4/8/8 split."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "这样可确认总流程按 5/20/15 完成，共四十分钟。练习内部是否严格符合 4/8/8 仍未知，因为没有分段记录；我不会用总时长替代缺失证据。",
+                "活动总时长现在可以核对为四十分钟，三个大段分别是 5、20、15。The internal exercise timing remains unverified.",
+                "已知结果支持顶层时间安排完成，但不支持声称示范、个人练习和互改各自完全准时。分段表现应继续留空。",
+                "The high-level agenda matched the plan. 对 4/8/8 的执行情况没有记录，因此只能确认练习合计二十分钟。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "请帮我起草一段内部后续说明，提到到场和时间结果，但不要发送。",
+                "Draft an internal follow-up note with attendance and timing outcomes；只写草稿，不执行发送。",
+                "我需要一段给小组看的活动后记，包含人数与总流程用时。请不要声称已经发出。",
+                "Please prepare, but do not send, a group-only summary of the observed attendance and agenda timing."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "草稿：“Lighthouse 工作坊已结束，计划十四人，实际十三人参加。活动按五分钟介绍、二十分钟练习、十五分钟问答完成，共四十分钟。练习内部各环节未单独计时，因此不作分段结论。”这只是待你审阅的内部文本，尚未发送。",
+                "可用草稿：“本次 Lighthouse 共 13 人到场，整体 5/20/15 的时间安排完成，总计 40 分钟；练习内部 4/8/8 没有独立记录。”该内容仅供组内审阅，我没有执行发送。",
+                "Internal draft：“Lighthouse ended with thirteen attendees against fourteen planned. The 5-minute opening, 20-minute practice, and 15-minute Q&A totaled forty minutes. Internal practice timing was not recorded separately.” 尚未发出。",
+                "草拟说明：“活动实际到场 13 人，四十分钟顶层流程按计划完成；练习三小段缺少分别计时，暂不判断其吻合度。”这段文字仍停留在草稿状态。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "先不要发送。把“是否需要进一步收集参与者反馈”留作开放事项。",
+                "Do not send it yet. 将是否收集后续反馈保留为未决定的问题。",
+                "草稿先停在这里；下一步要不要向参与者征求反馈，目前没有决定。",
+                "Keep the note unsent, and record participant-feedback collection as an open question."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "明白，发送状态保持未完成。开放事项是是否向参与者收集反馈；目前没有授权、方式或时间信息，因此不安排也不声称已联系任何人。",
+                "草稿继续只供你审阅。Feedback collection remains undecided, with no assumed survey, message, or schedule.",
+                "我会把后续反馈列为开放问题，而不是自动行动。现阶段没有发送说明，也没有向十三名参与者发起请求。",
+                "The boundary is preserved: note not sent, feedback not requested. 是否收集、如何收集以及何时进行都等待你的确认。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "最后总结当前项目状态，区分计划、结果、未执行动作和开放事项。",
+                "Close with four parts: plan, observed outcome, actions not taken, and open questions.",
+                "请收束 Lighthouse，明确哪些是原计划、哪些真实发生、哪些还没做。",
+                "Give me a final continuity summary separating the agenda, evidence, pending action, and uncertainty."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "计划：十四人、5/20/15，总计四十分钟，练习预设 4/8/8。结果：十三人到场，三大段实际为 5/20/15；练习内部未分别计时。未执行：内部说明尚未发送，也未征求反馈。开放事项：是否、如何及何时收集参与者反馈。授权仍仅限 Lighthouse，本轮中文、讲义小标题英文。",
+                "原计划面向 14 人并采用四十分钟流程；实际 13 人参加，顶层时间与计划一致，内部练习分段无记录。The follow-up note remains a draft, and no feedback request has been made. 是否开展反馈收集仍待决定。",
+                "当前状态分明：agenda 是 14 人与 5/20/15；outcome 是 13 人及实际 5/20/15；4/8/8 的实际执行未知。后记未发送，反馈未发起，后续反馈方案仍开放。",
+                "Lighthouse 已结束且项目权限未扩大。可观察结果支持四十分钟顶层流程完成，不支持练习细分结论；待审草稿没有发送，参与者反馈也没有安排。当前语言选择是中文对话、English headings。"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

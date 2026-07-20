@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import gzip
 import hashlib
-import io
 import json
 from collections import Counter
+from contextlib import ExitStack
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
 
 from companion_standard.trajectory import (
@@ -68,6 +69,7 @@ SOCIAL_OWNER_NAMES = frozenset(
 
 _RELATIONSHIP_VAL_FAMILIES = frozenset({"absence_reengagement", "belief_uncertainty_verification"})
 _RELATIONSHIP_TEST_FAMILIES = frozenset({"rupture_repair", "multi_party_identity_privacy"})
+_PRECOMPUTED_TRAJECTORY_HASHES: dict[str, str] = {}
 
 
 class ProjectionView(str, Enum):
@@ -193,7 +195,7 @@ def project_relationship_encoder(
         sessions=sessions,
         labels=tuple(labels),
         metadata=(
-            ("master_trajectory_hash", stable_hash(trajectory)),
+            ("master_trajectory_hash", _trajectory_hash(trajectory)),
             ("master_split", trajectory.split.value),
             ("projection_split", _relationship_split(trajectory.family).value),
             ("label_provenance", "generator_truth_only"),
@@ -290,9 +292,19 @@ def project_memory_retrieval(
         for item in frame.observable_facts
         if item.key == "fact"
     )
+    negative_candidates = tuple(
+        (frame.frame_id, item.value)
+        for frame in trajectory.truth_frames
+        for item in frame.observable_facts
+        if item.key in {"fact", "context_constraint"}
+    )
     records: list[ProjectionRecord] = []
     for index, (frame_id, positive) in enumerate(facts):
-        negatives = tuple(fact for candidate_id, fact in facts if candidate_id != frame_id and fact != positive)[:3]
+        negatives = tuple(
+            dict.fromkeys(
+                fact for candidate_id, fact in negative_candidates if candidate_id != frame_id and fact != positive
+            )
+        )[:3]
         if not negatives:
             continue
         records.append(
@@ -466,11 +478,15 @@ def write_projection_view(
     ordered = tuple(sorted(records, key=lambda item: item.record_id))
     output_dir.mkdir(parents=True, exist_ok=True)
     records_path = output_dir / f"{view.value}.jsonl.gz"
-    buffer = io.BytesIO()
-    with gzip.GzipFile(filename="", mode="wb", fileobj=buffer, mtime=0) as sink:
-        for record in ordered:
-            sink.write(f"{canonical_json(record)}\n".encode("utf-8"))
-    records_path.write_bytes(buffer.getvalue())
+    with records_path.open("wb") as raw_sink:
+        with gzip.GzipFile(
+            filename="",
+            mode="wb",
+            fileobj=raw_sink,
+            mtime=0,
+        ) as sink:
+            for record in ordered:
+                sink.write(f"{canonical_json(record)}\n".encode("utf-8"))
     split_counts = Counter(record.split.value for record in ordered)
     manifest = ProjectionManifest(
         schema_version=PROJECTION_SCHEMA_VERSION,
@@ -512,38 +528,174 @@ def project_master_run(
     output_root: Path | None = None,
     human_review_sample_rate: float = 0.05,
 ) -> tuple[ProjectionManifest, ...]:
-    trajectories = load_master_run(run_root)
     destination = output_root or run_root / "projections"
-    records_by_view: dict[ProjectionView, list[ProjectionRecord]] = {view: [] for view in ProjectionView}
-    for trajectory in trajectories:
-        records_by_view[ProjectionView.RELATIONSHIP_ENCODER].append(project_relationship_record(trajectory))
-        if trajectory.generation_tier is GenerationTier.RENDERED:
-            records_by_view[ProjectionView.EXPRESSION_SFT].extend(project_expression_sft(trajectory))
-        records_by_view[ProjectionView.SEMANTIC_OWNER].extend(project_semantic_owner(trajectory))
-        records_by_view[ProjectionView.SOCIAL_COGNITION].extend(project_social_cognition(trajectory))
-        records_by_view[ProjectionView.MEMORY_RETRIEVAL].extend(project_memory_retrieval(trajectory))
-        if trajectory.generation_tier is GenerationTier.LIVE_THROUGH:
-            records_by_view[ProjectionView.TEMPORAL_SSL].extend(project_temporal_ssl(trajectory))
-            records_by_view[ProjectionView.INTERNAL_RL].extend(project_internal_rl(trajectory))
-        records_by_view[ProjectionView.EVALUATION_ONLY].extend(project_evaluation_only(trajectory))
-        records_by_view[ProjectionView.HUMAN_REVIEW_QUEUE].extend(
-            project_human_review_queue(
-                trajectory,
-                sample_rate=human_review_sample_rate,
-            )
-        )
-    from .audit import audit_projection_records
-
-    projection_audits = {view.value: audit_projection_records(tuple(records_by_view[view])) for view in ProjectionView}
-    hard_failures = tuple(
-        f"{view}:{check.check_id}"
-        for view, checks in projection_audits.items()
-        for check in checks
-        if check.hard_gate and not check.passed
+    return _project_master_run_streaming(
+        run_root,
+        destination=destination,
+        human_review_sample_rate=human_review_sample_rate,
     )
-    if hard_failures:
-        raise ValueError("projection hard gates failed: " + ", ".join(hard_failures))
+
+
+def _project_master_run_streaming(
+    run_root: Path,
+    *,
+    destination: Path,
+    human_review_sample_rate: float,
+) -> tuple[ProjectionManifest, ...]:
+    from .audit import AuditCheck
+
     destination.mkdir(parents=True, exist_ok=True)
+    relationship_root = destination / "relationship_encoder_dataset"
+    for stale in relationship_root.rglob("*.trajectory.json"):
+        stale.unlink()
+
+    record_counts = {view: 0 for view in ProjectionView}
+    split_counts = {view: Counter() for view in ProjectionView}
+    master_hashes = {view: set() for view in ProjectionView}
+    leakage = {view: [] for view in ProjectionView}
+    hash_failures = {view: [] for view in ProjectionView}
+    relationship_families = {split: set() for split in CorpusSplit}
+    relationship_records: list[dict[str, str]] = []
+    record_paths = {view: destination / f"{view.value}.jsonl.gz" for view in ProjectionView}
+
+    with ExitStack() as stack:
+        sinks = {}
+        for view, path in record_paths.items():
+            raw_sink = stack.enter_context(path.open("wb"))
+            sinks[view] = stack.enter_context(
+                gzip.GzipFile(
+                    filename="",
+                    mode="wb",
+                    fileobj=raw_sink,
+                    mtime=0,
+                )
+            )
+
+        for trajectory, trajectory_hash in _iter_master_run(run_root):
+            _PRECOMPUTED_TRAJECTORY_HASHES[trajectory.trajectory_id] = trajectory_hash
+            _trajectory_hash.cache_clear()
+            try:
+                for view in ProjectionView:
+                    records = _project_trajectory_for_view(
+                        trajectory,
+                        view=view,
+                        human_review_sample_rate=(human_review_sample_rate),
+                    )
+                    for record in records:
+                        if record.view is not view:
+                            raise ValueError("projection record view mismatch")
+                        if (
+                            view
+                            in {
+                                ProjectionView.EVALUATION_ONLY,
+                                ProjectionView.HUMAN_REVIEW_QUEUE,
+                            }
+                            and record.training_use is TrainingUse.TARGET
+                        ):
+                            leakage[view].append(record.record_id)
+                        payload = json.loads(record.payload_json)
+                        source = payload.get("source") if isinstance(payload, dict) else None
+                        if (
+                            source
+                            in {
+                                AnnotationSource.MODEL_PREDICTION.value,
+                                AnnotationSource.EVALUATION_READOUT.value,
+                            }
+                            and record.training_use is TrainingUse.TARGET
+                        ):
+                            leakage[view].append(record.record_id)
+                        if len(record.master_trajectory_hash) != 64:
+                            hash_failures[view].append(record.record_id)
+                        sinks[view].write(f"{canonical_json(record)}\n".encode("utf-8"))
+                        record_counts[view] += 1
+                        split_counts[view][record.split.value] += 1
+                        master_hashes[view].add(record.master_trajectory_hash)
+
+                projected = project_relationship_encoder(trajectory)
+                projected_split = _relationship_split(trajectory.family)
+                relationship_families[projected_split].add(trajectory.family)
+                filename = hashlib.sha256(projected.trajectory_id.encode("utf-8")).hexdigest() + ".trajectory.json"
+                split_root = relationship_root / projected_split.value
+                split_root.mkdir(parents=True, exist_ok=True)
+                path = split_root / filename
+                path.write_text(
+                    f"{relationship_json(projected)}\n",
+                    encoding="utf-8",
+                )
+                relationship_records.append(
+                    {
+                        "master_trajectory_hash": trajectory_hash,
+                        "projected_trajectory_id": (projected.trajectory_id),
+                        "projected_split": projected_split.value,
+                        "uri": path.relative_to(relationship_root).as_posix(),
+                    }
+                )
+            finally:
+                _PRECOMPUTED_TRAJECTORY_HASHES.pop(
+                    trajectory.trajectory_id,
+                    None,
+                )
+                _trajectory_hash.cache_clear()
+
+    projection_audits = {}
+    manifests: list[ProjectionManifest] = []
+    for view in ProjectionView:
+        checks = (
+            AuditCheck(
+                check_id="projection_eval_training_isolation",
+                passed=not leakage[view],
+                hard_gate=True,
+                observed=len(leakage[view]),
+                expected="0 eval/model records used as targets",
+                details_json=canonical_json({"violations": leakage[view]}),
+            ),
+            AuditCheck(
+                check_id="projection_master_hash_lineage",
+                passed=not hash_failures[view],
+                hard_gate=True,
+                observed=len(hash_failures[view]),
+                expected="all records cite a master SHA-256",
+                details_json=canonical_json({"violations": hash_failures[view]}),
+            ),
+        )
+        failed = tuple(check.check_id for check in checks if check.hard_gate and not check.passed)
+        if failed:
+            raise ValueError(f"projection hard gates failed for {view.value}: " + ", ".join(failed))
+        projection_audits[view.value] = checks
+        manifest = ProjectionManifest(
+            schema_version=PROJECTION_SCHEMA_VERSION,
+            view=view,
+            record_count=record_counts[view],
+            split_counts=tuple((split.value, split_counts[view][split.value]) for split in CorpusSplit),
+            master_trajectory_hashes=tuple(sorted(master_hashes[view])),
+            records_uri=record_paths[view].name,
+            records_sha256=sha256_file(record_paths[view]),
+        )
+        (destination / f"{view.value}.manifest.json").write_text(
+            f"{canonical_json(manifest)}\n",
+            encoding="utf-8",
+        )
+        manifests.append(manifest)
+
+    for left in CorpusSplit:
+        for right in CorpusSplit:
+            if left.value >= right.value:
+                continue
+            overlap = relationship_families[left] & relationship_families[right]
+            if overlap:
+                raise ValueError(f"relationship encoder family split leakage: {sorted(overlap)}")
+    (relationship_root / "split-manifest.json").write_text(
+        canonical_json(
+            {
+                "schema_version": PROJECTION_SCHEMA_VERSION,
+                "policy": "whole_scenario_family",
+                "split_families": {split.value: sorted(relationship_families[split]) for split in CorpusSplit},
+                "records": relationship_records,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (destination / "projection-audit.json").write_text(
         canonical_json(
             {
@@ -555,19 +707,73 @@ def project_master_run(
         + "\n",
         encoding="utf-8",
     )
-    manifests = tuple(
-        write_projection_view(
-            tuple(records_by_view[view]),
-            view=view,
-            output_dir=destination,
+    return tuple(manifests)
+
+
+def _iter_master_run(
+    run_root: Path,
+):
+    from .canonical import trajectory_from_json
+
+    shard_paths = tuple(sorted((run_root / "master").glob("shard-*.jsonl.gz")))
+    if not shard_paths:
+        raise FileNotFoundError(f"no master shards under {run_root / 'master'}")
+    for shard_path in shard_paths:
+        with gzip.open(shard_path, "rt", encoding="utf-8") as source:
+            for line_number, line in enumerate(source, start=1):
+                payload = line.strip()
+                if not payload:
+                    continue
+                try:
+                    trajectory = trajectory_from_json(payload)
+                except (TypeError, ValueError) as error:
+                    raise ValueError(f"invalid trajectory in {shard_path.name}:{line_number}") from error
+                yield (
+                    trajectory,
+                    hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+                )
+
+
+def _project_trajectory_for_view(
+    trajectory: ExperienceTrajectory,
+    *,
+    view: ProjectionView,
+    human_review_sample_rate: float,
+) -> tuple[ProjectionRecord, ...]:
+    if view is ProjectionView.RELATIONSHIP_ENCODER:
+        return (project_relationship_record(trajectory),)
+    if view is ProjectionView.EXPRESSION_SFT:
+        if trajectory.generation_tier is not GenerationTier.RENDERED:
+            return ()
+        return project_expression_sft(trajectory)
+    if view is ProjectionView.SEMANTIC_OWNER:
+        return project_semantic_owner(trajectory)
+    if view is ProjectionView.SOCIAL_COGNITION:
+        return project_social_cognition(trajectory)
+    if view is ProjectionView.MEMORY_RETRIEVAL:
+        return project_memory_retrieval(trajectory)
+    if view is ProjectionView.TEMPORAL_SSL:
+        if trajectory.generation_tier is not GenerationTier.LIVE_THROUGH:
+            return ()
+        return project_temporal_ssl(trajectory)
+    if view is ProjectionView.INTERNAL_RL:
+        if trajectory.generation_tier is not GenerationTier.LIVE_THROUGH:
+            return ()
+        return project_internal_rl(trajectory)
+    if view is ProjectionView.EVALUATION_ONLY:
+        return project_evaluation_only(trajectory)
+    if view is ProjectionView.HUMAN_REVIEW_QUEUE:
+        return project_human_review_queue(
+            trajectory,
+            sample_rate=human_review_sample_rate,
         )
-        for view in ProjectionView
-    )
-    write_relationship_encoder_layout(
-        trajectories,
-        output_root=destination / "relationship_encoder_dataset",
-    )
-    return manifests
+    raise AssertionError(f"unhandled projection view {view!r}")
+
+
+@lru_cache(maxsize=20_000)
+def _trajectory_hash(trajectory: ExperienceTrajectory) -> str:
+    precomputed = _PRECOMPUTED_TRAJECTORY_HASHES.get(trajectory.trajectory_id)
+    return precomputed if precomputed is not None else stable_hash(trajectory)
 
 
 def write_relationship_encoder_layout(
@@ -593,7 +799,7 @@ def write_relationship_encoder_layout(
         path.write_text(f"{relationship_json(projected)}\n", encoding="utf-8")
         records.append(
             {
-                "master_trajectory_hash": stable_hash(trajectory),
+                "master_trajectory_hash": _trajectory_hash(trajectory),
                 "projected_trajectory_id": projected.trajectory_id,
                 "projected_split": split.value,
                 "uri": path.relative_to(output_root).as_posix(),
@@ -678,7 +884,7 @@ def _record(
         view=view,
         record_id=f"{view.value}:{trajectory.trajectory_id}:{suffix}",
         master_trajectory_id=trajectory.trajectory_id,
-        master_trajectory_hash=stable_hash(trajectory),
+        master_trajectory_hash=_trajectory_hash(trajectory),
         split=split_override or trajectory.split,
         training_use=training_use,
         payload_json=canonical_json(payload),

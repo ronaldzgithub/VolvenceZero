@@ -1,0 +1,2272 @@
+{
+  "schema_version": "cursor-authored-render.v1",
+  "family": "plan_commitment_open_loop",
+  "scenarios": [
+    {
+      "scenario_id": "plan_commitment_open_loop_01",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "这周我要完成虚构数据字典。前置 schema 由另一位负责人在周三中午前交付；先帮我理清计划，暂时不要把讨论当成承诺。",
+                "我在考虑本周做完虚构数据字典，但要等负责 schema 的同事周三中午交付。请先梳理步骤，不要先替我确认。",
+                "目标是本周产出虚构数据字典，依赖项是别人负责、周三中午到位的 schema。我们先规划，我还没有正式接下截止时间。",
+                "我想排一下虚构数据字典的周计划：schema 由另一角色负责，预定周三中午给我。现在只讨论安排，不算我已承诺。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以。当前只是计划意向：你可能负责数据字典，前提是 schema 负责人周三中午交付。若以周五 17:00 为完成点，可先盘点字段来源，再在 schema 到位后映射和复核；你确认后我再把它视为明确安排。",
+                "先按候选计划看：schema 负责人应在周三 12:00 前提供依赖，你随后完成字段映射与检查。若目标定为周五下班前，需要你明确接受；在此之前我不会说你已经承诺。",
+                "我会把讨论和承诺分开。建议路径是先整理现有字段资料，周三收到 schema 后开始映射，周五 17:00 前完成复核。依赖由 schema 负责人承担，数据字典是否由你按期负责，等你确认。",
+                "目前能确定的是依赖关系，不是你的承诺：另一位负责人周三中午交 schema。可行计划是你先做资料盘点，收到后完成映射与校验，并把周五 17:00 作为候选截止；请决定是否接受。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我确认接下这项工作：由我负责虚构数据字典，截止本周五 17:00，前提仍是 schema 周三中午交付。",
+                "正式定下来吧。我承诺在周五下午五点前完成数据字典，schema 负责人要按周三中午的约定提供前置内容。",
+                "我接受这个安排：数据字典归我，周五 17:00 前完成；周三 12:00 的 schema 交付是前置依赖。",
+                "可以记录为明确承诺。我负责本周五下班前交付虚构数据字典，依赖另一位负责人周三中午给出 schema。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "已明确：你负责虚构数据字典，截止周五 17:00；schema 负责人需在周三 12:00 前提供依赖。当前待办是先等该依赖并准备可先行的资料，收到后再进入映射与复核，我不会在你更新前声称已有进展。",
+                "安排现在成立：你的交付是周五下午五点前完成数据字典，外部依赖是周三中午到位的 schema。这个事项会保持未完成状态，直到你报告实际结果；等待期间不推定工作已经发生。",
+                "责任和时间已对齐：数据字典由你在周五 17:00 前完成，schema 由另一位负责人周三中午交付。开放事项包括依赖是否按时到位以及之后的映射、检查；我只会依据后续更新调整状态。",
+                "确认如下：你承担周五下班前的数据字典交付，schema 负责人承担周三 12:00 的前置交付。两者的依赖关系保持可见，尚未发生的步骤不会被描述成已完成。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "在 schema 到来前，我能先做什么？先给建议，不要自动增加新的承诺。",
+                "等待依赖时有哪些准备工作可做？这些先作为选项，不要直接算成我的任务。",
+                "schema 还没到，能否列出可提前处理的部分？我想先评估，不接受默认追加截止。",
+                "请给我一些前置准备方案，但只当建议；我还没同意承担额外事项。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "可以先盘点字段来源、现有命名和待确认项，形成一份清单；这样 schema 到位后能更快映射。它目前只是建议，没有负责人或截止，除非你明确接受。",
+                "可提前整理来源表、字段示例与疑问列表，把无法确认的内容留待 schema 到位后处理。这是可选准备，不会被加入你的承诺。",
+                "建议做一份字段资料清单：记录来源、当前名称和缺失定义，不提前猜 schema 结构。现在只是候选动作，你决定是否执行以及何时完成。",
+                "能安全先做的是汇总已有字段证据和未决问题，不对尚未收到的 schema 作假设。该准备项仍是建议，尚未分配给你，也没有截止时间。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我接受这个准备项：字段来源清单由我在周二 17:00 前完成，未确认的定义留空。",
+                "把资料盘点也定下来。我负责周二下午五点前整理字段来源和疑问，不猜缺失定义。",
+                "我承诺周二 17:00 前完成字段清单，只记录已有证据，schema 未说明的部分标成待确认。",
+                "这项我接下：周二下班前由我交出来源清单和问题列表，未知字段不自行补写。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "现在有两项明确安排：你周二 17:00 前完成字段来源清单；你周五 17:00 前完成数据字典。第二项依赖 schema 负责人周三中午交付，未知定义保持待确认，后续按实际更新。",
+                "已把准备项纳入：字段清单由你在周二下班前完成，数据字典仍由你在周五下班前完成；后者等待周三中午的 schema。未收到的内容不会被补猜。",
+                "责任链已清楚：你先在周二 17:00 交字段资料清单，再在 schema 周三 12:00 到位后推进数据字典，最终截止周五 17:00。依赖和未决定义都保持开放。",
+                "确认两段工作：周二完成来源与疑问清单，周五完成数据字典，均由你负责；中间依赖另一位负责人周三中午交 schema。后续只有收到事实更新才会改变状态。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "更新：字段来源清单已在周二 16:40 完成。现在是周三 09:00，schema 还没有收到。",
+                "周二的清单我在 16:40 做完了；到周三早上九点，前置 schema 仍未交付。",
+                "状态变化是：来源清单已于周二 16:40 完成，但今天周三 09:00 还没看到 schema。",
+                "我已经按时完成字段清单。当前时间周三九点，schema 依赖尚未到位。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "字段清单可以关闭，完成时间为周二 16:40。数据字典仍由你负责、截止周五 17:00；schema 的约定时间尚未到，因此当前只是等待依赖，不能据此声称映射已开始。",
+                "已更新：准备项完成；主任务继续开放。现在距 schema 的周三 12:00 截止还有时间，你的周五交付不变，在收到依赖前我不会推定后续工作有进展。",
+                "目前一项已完成、一项未完成：字段清单周二 16:40 收尾，数据字典等待周三中午的 schema。你仍负责周五 17:00 的结果，映射状态暂为未开始或未知。",
+                "清单的完成有明确依据，可以结项。schema 还在其周三中午期限内，数据字典的依赖继续开放；没有新的事实证明映射已经进行。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "schema 负责人刚通知我，交付改到周四 12:00。数据字典的周五 17:00 还能保留吗？",
+                "依赖有变：负责 schema 的人把时间推迟到周四中午。请评估我周五下午五点的承诺。",
+                "我收到更新，schema 不会在今天到，要到周四 12:00。原定周五 17:00 完成是否还可行？",
+                "前置交付被重订为周四中午。帮我看一下数据字典周五下班前完成的风险，但别替我改期。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "可以把周五 17:00 暂时保留，但可用时间已缩短，是否能完成仍未知。建议把周四 12:00 设为依赖检查点：收到并验证后再确认余量；若未收到，由你决定重订截止，我不会自动改期。",
+                "原承诺尚未被你撤销，所以仍是周五下午五点；不过 schema 延到周四中午会提高风险。应先等实际交付并做快速校验，再由你判断是否调整，而不是现在假定一定赶得上。",
+                "目前应记录为“截止不变、依赖延迟、结果有风险”。schema 负责人新截止是周四 12:00，你的截止仍是周五 17:00；到检查点后根据真实到件情况再作决定。",
+                "可以继续保留原时间，但不能保证可行。责任没有变化：对方周四中午交 schema，你周五下班前交字典。下一步是核实依赖是否到位，再请你确认继续或改期。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我确认周五 17:00 暂时不变。周四 12:00 若仍没收到 schema，我会立即报出阻塞并重新决定截止。",
+                "先维持我的周五下午五点承诺；如果周四中午依赖还不到，我负责说明阻塞，再决定是否改期。",
+                "不改当前截止。到周四 12:00 schema 未到时，我会更新状态，而不是默认继续或假装完成。",
+                "我接受这个检查点：周五 17:00 仍有效，周四中午若缺 schema，就由我报告并重订安排。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "已更新：你仍负责周五 17:00 完成数据字典；schema 负责人改为周四 12:00 交付。开放事项是依赖能否到位，若届时未到，你负责报告阻塞并明确新的决定，不会被记作已有进展。",
+                "当前安排是截止保留、检查点新增：周四中午核实 schema，周五下午五点仍是你的交付时间。若依赖缺失，下一步是你说明阻塞并重订，而不是静默推迟。",
+                "确认不自动改期。主任务继续由你承担，截止周五 17:00；依赖的新期限为周四 12:00。未到件时只更新为受阻，后续时间需等你明确。",
+                "责任和状态现为：对方周四中午提供 schema，你周五下班前交数据字典。到检查点仍缺依赖时，应公开标记阻塞并由你重新决定，不能假报执行。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "请把需要带到下一次会话的状态说清楚，不要补充我没报告的进度。",
+                "我们先停在这里。请准确总结跨会话保留的未完成事项，不要推测。",
+                "给我一份可继续追踪的当前状态，只写已经发生和仍待发生的内容。",
+                "请收束本次更新：哪些已完成、哪些仍开放？不要假设我已经开始映射。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "已完成：字段来源清单，周二 16:40。仍开放：schema 负责人周四 12:00 的交付，以及你周五 17:00 的数据字典。映射是否开始没有事实依据；若周四中午依赖未到，你将报告阻塞并重新决定截止。",
+                "跨会话保留三点：清单已完成；schema 等待周四中午交付；数据字典由你负责、周五下午五点截止。当前没有映射进度记录，依赖若再次延误则等你明确改期。",
+                "状态为：准备项已结，前置 schema 未到且新期限为周四 12:00，主交付仍在周五 17:00。除这些事实外不记录任何进展，下一次从依赖结果继续。",
+                "可延续的记录只有：字段清单已收尾；schema 交付未完成；数据字典承诺仍有效。负责人和截止分别保持不变，映射进度未知，不作推定。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "周四 13:00 更新：schema 已收到，基础校验通过，我刚开始做字段映射。",
+                "依赖在周四下午一点到位，我完成了基础验证并开始映射；还没有完成数据字典。",
+                "现在有新事实：周四 13:00 收到 schema，初步检查无误，映射工作已启动。",
+                "schema 已于周四一点交付且通过基本校验。我开始处理字段对应，但尚无完成结果。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "schema 依赖可以关闭，实际到位时间是周四 13:00，基础校验已通过。数据字典从等待转为进行中，仍由你负责并以周五 17:00 为截止；目前只能确认映射已开始。",
+                "状态已推进：前置交付完成，主任务现处于执行中。你的责任和周五下午五点期限不变，尚不能把开始映射表述为完成。",
+                "已根据更新调整：schema 已收到并通过初检，不再是阻塞项；你已启动字段映射，数据字典仍开放到周五 17:00。除此之外不推定进度。",
+                "依赖环节在周四 13:00 结清。接下来由你完成映射和复核，截止仍为周五下班前；当前证据只支持“已开始”，不支持“已完成”。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "到周五 14:00，核心字段都已写完，还剩两个枚举值说明，文件也还没上传。",
+                "周五下午两点的状态是：主要字段完成，两个枚举说明待补，尚未把文件放到约定位置。",
+                "我已经处理完核心部分，但还有两处枚举描述；现在是周五 14:00，还没有交付文件。",
+                "进度更新：核心映射已完成，两个枚举定义未收尾，上传也未发生。时间是周五两点。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "数据字典仍在进行中：核心字段完成，两个枚举说明和最终上传尚未完成。负责人仍是你，截止周五 17:00；我不会把部分完成或本地文件视为已交付。",
+                "已记录真实边界：主体内容已写好，但还差两项说明，且没有上传。因此承诺尚未关闭，你仍需在下午五点前补齐、复核并完成约定交付。",
+                "当前是部分进展，不是完成结果。待办只剩两个枚举描述、最终检查和上传，均由你在周五 17:00 前处理；交付状态保持开放。",
+                "状态更新为“核心完成、尾项未结、文件未交”。你的截止没有变化，只有补齐说明并实际上传后，主任务才有关闭依据。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "周五 16:20，我补完了两个说明，复核通过，并把数据字典上传到约定的项目文件夹。",
+                "我在下午四点二十分完成枚举描述和最终检查，文件已经放进双方约定的项目目录。",
+                "最终更新：周五 16:20，所有条目复核完毕，数据字典已上传到约定位置。",
+                "两处尾项已补齐，检查也结束；文件于周五 16:20 上传到了约定文件夹。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "你负责的数据字典已在周五 16:20 完成并上传，早于 17:00 截止，因此制作与交付事项可以关闭。若还需要接收方确认，那应作为单独的待确认结果，不能由我代为假定。",
+                "主承诺已有完成依据：内容补齐、复核通过、文件按约定上传，时间为 16:20。你的交付可结项；是否被接收方认可，目前只能等待实际反馈。",
+                "已将数据字典更新为按时完成并交付。上传事实足以关闭你的执行项，但接收确认若是必要条件，仍需来自对方的真实回复，我不会替对方确认。",
+                "制作和上传均已完成，且发生在周五 17:00 前，你的责任到此履行。后续是否有修改要求尚未知，除非收到接收方反馈，不新增结论。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "接收方 P4 已确认收到，并明确回复目前不需要修改。",
+                "P4 刚回信说文件已收到，现阶段没有变更要求。",
+                "补充外部结果：P4 确认收件，也表示无需调整。",
+                "我拿到 P4 的反馈了：已经接收数据字典，没有提出修改。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "接收结果也已确认：P4 收到文件且当前无修改要求。字段清单、schema 依赖、数据字典制作和交付均已关闭，没有遗留开放事项。",
+                "现在可以完整结项。P4 的收件与无需修改回复关闭了最后的确认环节；此前的准备、依赖和周五交付都已有结果。",
+                "最终状态为全部完成：准备清单已结、schema 已到位、数据字典按时上传，P4 已确认接收且未要求返工。",
+                "最后一个待确认点已由 P4 的实际反馈消除。这个周计划至此关闭，不再保留交付或修订事项。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "plan_commitment_open_loop_02",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I need a draft policy brief by Friday. Help me shape the plan first; I have not yet committed to a deadline or delivery.",
+                "Let's plan a policy-brief draft for this week, but keep this exploratory until I explicitly accept the dates.",
+                "I'm considering preparing a draft by Friday. Please map the work without treating the idea as a promise.",
+                "Could we outline a Friday draft plan? For now, this is an intention, not an accepted commitment."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "A workable candidate is: you prepare the draft by Friday at 15:00, using source notes due from Jordan on Wednesday at 12:00, then send it to Maya only after legal clearance. None of those responsibilities are accepted until you confirm them.",
+                "Here is a proposed sequence: Jordan provides source notes by Wednesday noon; you write and check the draft by Friday 3 p.m.; Maya receives it after legal review. I will keep this as a proposal unless you agree.",
+                "The plan could assign the source notes to Jordan for Wednesday 12:00 and the draft to you for Friday 15:00, with delivery to Maya gated by legal clearance. Please confirm before I record any promise.",
+                "One option is to make Jordan's Wednesday notes the dependency, your Friday 3 p.m. draft the main result, and Maya's handoff a later step after clearance. This remains tentative for now."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I accept that plan. I am responsible for preparing the draft by Friday at 15:00; Jordan's notes are due Wednesday noon, and I will not send it to Maya before legal clearance.",
+                "Make it explicit: I commit to a finished draft by 3 p.m. Friday, dependent on Jordan's Wednesday source notes. Delivery to Maya waits for legal approval.",
+                "Confirmed. The Friday 15:00 draft is mine, Jordan supplies the notes by Wednesday 12:00, and the handoff happens only after clearance.",
+                "Yes, record the commitment: I will prepare the draft by Friday at three. Jordan owns the source-note dependency, and sending to Maya is blocked until legal clears it."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed: you are responsible for a completed draft by Friday 15:00. Jordan's source notes are due Wednesday 12:00, and delivery to Maya remains open until legal clearance arrives. I will not report drafting or delivery without an update from you.",
+                "The commitment is now clear. Your deadline is Friday at 3 p.m.; Jordan's Wednesday notes are the input; legal clearance is required before Maya receives anything. Progress remains unknown until you provide evidence.",
+                "I have the responsibilities separated: Jordan supplies the notes, you prepare the draft by Friday 15:00, and the eventual handoff to Maya waits for clearance. Each unfinished step stays open rather than being presumed done.",
+                "The accepted sequence is source notes, draft preparation, clearance, then delivery. You carry the Friday 3 p.m. draft commitment; Jordan carries the Wednesday dependency, and no handoff will be inferred."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "What exactly counts as completing my Friday commitment, and what remains separate?",
+                "Define the finish line for my draft promise versus the later delivery step.",
+                "Please distinguish a completed draft from a delivered draft so we do not close the wrong item.",
+                "Before we continue, clarify whether Friday completion means writing the file or handing it to Maya."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Your Friday commitment is complete when the draft exists and has passed your stated content check by 15:00. Sending it to Maya is a separate open step that can close only after legal clearance and an actual handoff.",
+                "Draft preparation and delivery are two results. The first closes when you finish and check the document by Friday 3 p.m.; the second stays open until clearance is received and Maya is actually sent the file.",
+                "The agreed Friday result is a completed, checked draft. A local file does not prove delivery: the Maya handoff requires legal approval first and then evidence that it was sent.",
+                "Treat the writing deadline separately from the transfer. You fulfill the draft promise by producing the checked document on time; delivery remains unresolved until approval and the real send occur."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Agreed. I will report the draft and the handoff separately, and I will not describe a saved file as delivered.",
+                "That distinction works. I will give one update for preparation and another only after the file is actually sent.",
+                "Understood: finishing the document will not close delivery. I will provide separate evidence for each.",
+                "Yes. Keep the Friday draft result distinct from sending it to Maya; I will not merge those statuses."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Then the carried state is: your checked draft is due Friday 15:00; Jordan's notes are due Wednesday noon; legal clearance and actual delivery to Maya remain later open steps. No progress is assumed.",
+                "We will track three boundaries: source notes, completed draft, and cleared handoff. You are responsible for the Friday draft, while delivery stays open until a real send is reported.",
+                "The plan is now unambiguous: Jordan's input precedes your Friday 3 p.m. draft, and clearance precedes Maya's receipt. Each step will change only from observable updates.",
+                "I will carry forward the Friday preparation commitment and the separate delivery loop. The dependency, deadline, and handoff condition remain explicit, with no background action implied."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "It is Friday at 11:00. The draft exists, but I have not delivered it. Jordan's legal review is still pending and is expected by 14:00.",
+                "Friday 11 a.m. update: I have the draft file, yet nothing has been sent to Maya because Jordan's clearance is due at 2 p.m.",
+                "The document has been prepared as of Friday morning, but delivery has not happened; legal review remains open until 14:00.",
+                "I finished a draft before noon on Friday. It is still with me, not with Maya, while I wait for Jordan's 2 p.m. legal decision."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The preparation commitment has evidence of progress, but its content check is not yet stated. Delivery is definitely still open: Jordan's clearance is pending until 14:00, and Maya has not received the file.",
+                "I can record that the draft exists, not that it was delivered. The legal dependency remains with Jordan for 2 p.m.; the Maya handoff cannot close before clearance and an actual send.",
+                "Current status: a draft file exists Friday morning, legal review is pending, and no delivery has occurred. I will keep the handoff open and avoid treating possession of the file as receipt by Maya.",
+                "The observable facts support 'draft created' and 'delivery not done.' Jordan still has the clearance step due at 14:00, so Maya's handoff remains blocked."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Correct—do not call it delivered. Jordan asked for one citation correction; I will revise it by 13:30 and then wait for clearance.",
+                "Please keep delivery open. Legal review found a citation issue, and I am taking responsibility for correcting it by 1:30 p.m.",
+                "The file is not delivered. I accept a new subtask to fix the cited source by 13:30, after which Jordan still needs to clear it.",
+                "Yes, Maya has nothing yet. I will make Jordan's requested citation change by 13:30 and return it for approval."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Updated: you are responsible for the citation correction by 13:30. Jordan remains responsible for legal clearance, expected by 14:00; delivery to Maya stays blocked and open until both that clearance and the actual send occur.",
+                "The new sequence is explicit: you revise the citation by 1:30 p.m., Jordan decides clearance at 2 p.m., and only then can you hand the draft to Maya. No delivery is recorded.",
+                "I have added the correction without changing the handoff status. Your revision deadline is 13:30, Jordan's clearance is the dependency, and Maya's receipt remains unconfirmed.",
+                "Responsibility now splits cleanly: you fix the citation by 13:30; Jordan provides approval; you send after approval. The file's existence does not close the delivery loop."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "At 13:20 I completed the citation correction and returned the draft to Jordan. I still have not sent it to Maya.",
+                "The requested revision was finished at 1:20 p.m. and is back with Jordan for review; no external handoff has happened.",
+                "I met the correction step at 13:20. Jordan now has the updated draft, while Maya still does not.",
+                "Citation fixed and resubmitted to legal at 1:20. Delivery remains undone."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Your correction can close as completed at 13:20. The remaining chain is Jordan's clearance followed by your actual send to Maya; until those events are reported, delivery stays open.",
+                "The revision is complete and back with Jordan. Legal approval is now the active dependency, and the Maya handoff remains an unresolved step rather than inferred progress.",
+                "I have closed only the citation fix. Jordan's decision and the subsequent send are still outstanding, with no evidence that Maya has received the draft.",
+                "The 13:20 correction is accounted for. Nothing changes for delivery yet: clearance is pending and no file has been sent to Maya."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Carry this into the next session exactly as it stands. What is complete, and what remains open?",
+                "Before we pause, summarize the durable status without inventing a send or an approval.",
+                "Please preserve the unfinished handoff across sessions and state the current facts only.",
+                "Give me the exact carryover: which work has closed and which result is still waiting?"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Complete: the draft exists and the citation correction was finished at 13:20. Open: Jordan's legal clearance and your delivery to Maya. No approval, send, or receipt has been reported.",
+                "The carried state is a prepared, corrected draft awaiting Jordan's clearance. You remain responsible for the later handoff to Maya, and that handoff is not complete.",
+                "I will retain the corrected draft as completed work, while legal approval and actual delivery remain unresolved. There is no evidence yet of Maya receiving anything.",
+                "Across sessions, the file is ready after the 13:20 revision; Jordan's decision is pending, and your send to Maya stays open. I will not infer either event."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Jordan cleared the corrected draft at 14:05. It is ready, but I still have not sent it to Maya.",
+                "New update: legal approval arrived at 2:05 p.m.; the handoff itself has not happened.",
+                "The review dependency closed at 14:05 when Jordan approved the draft. Maya still does not have it.",
+                "Jordan has now cleared the file, at 2:05 Friday. I have not delivered it yet."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Legal clearance can close at 14:05. The only remaining step is your actual delivery to Maya; the draft is ready, but readiness is not receipt.",
+                "Jordan's dependency is resolved. You are now responsible for the open handoff to Maya, and I will close it only after a real send is reported.",
+                "The status moves from blocked to ready for delivery. Approval is complete, while Maya's handoff remains open and has no completion evidence.",
+                "Clearance is no longer an obstacle, but delivery is still outstanding. The next result must be an actual send by you, not an assumed background action."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I sent the cleared draft to Maya at 14:15 and received an automated delivery receipt.",
+                "At 2:15 p.m. I emailed the approved file to Maya; the mail system returned a delivery receipt.",
+                "The handoff occurred at 14:15. Maya was sent the cleared draft, and I have a system receipt.",
+                "I have now delivered it: approved draft sent to Maya at 2:15, with an automated receipt recorded."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The delivery loop can close: you sent the legally cleared draft at 14:15, and the automated receipt confirms delivery. Preparation, correction, clearance, and handoff now each have an observed result.",
+                "The handoff is complete as of 2:15 p.m. The approved file was sent and a delivery receipt exists, so it is no longer accurate to describe the draft as merely local.",
+                "I can now update the status to delivered. Your actual send and the receipt close the remaining open step; the earlier draft and review work are already complete.",
+                "There is now evidence for both sending and delivery. The sequence has finished through Maya's handoff, with no need to infer any unreported action."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Distinguish the final statuses for me: prepared, cleared, delivered, and reviewed by Maya.",
+                "Please separate what is complete from anything that would require Maya's substantive review.",
+                "What can we honestly close now, and what would still need feedback from Maya?",
+                "Summarize the result without confusing successful delivery with Maya approving the content."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Prepared, corrected, legally cleared, and delivered are complete. Maya's substantive review is not known from an automated receipt; it would remain separate unless she provides feedback or you create a follow-up commitment.",
+                "The document work and handoff are closed. The receipt proves delivery, not content approval by Maya, so her review status is unknown and should not be invented.",
+                "You have evidence through receipt by Maya's channel: draft finished, legal approval obtained, file delivered. Whether Maya has reviewed or accepted the content is a different result with no evidence yet.",
+                "All execution steps up to delivery are complete. An automated receipt cannot establish Maya's judgment, so any review outcome remains unreported rather than assumed."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Maya has now confirmed receipt but said her review will happen later. I am not committing to any follow-up yet.",
+                "Maya replied that she has the draft and will review it later; I have accepted no revision task.",
+                "There is a direct receipt confirmation from Maya, but no review result and no new promise from me.",
+                "Maya acknowledged the file. She has not reviewed it, and I am not taking on another deadline at this point."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Maya's direct confirmation reinforces that delivery is closed. Her later review is simply a future event with no assigned follow-up from you; no revision commitment or deadline should be created.",
+                "Receipt is fully confirmed, while content review remains pending on Maya's side. Because you accepted no follow-up, there is no new task or due date for you.",
+                "The delivery result is complete. Maya may review later, but that does not create a revision obligation; your current commitments are closed.",
+                "I will keep Maya's review separate from your finished handoff. With no requested change and no acceptance from you, there is no open commitment to revise."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "plan_commitment_open_loop_03",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我想先做一个 reversible prototype，再决定是否 rollout。Please help me plan it, but this is not a commitment yet.",
+                "Let's explore a two-branch approach：先做可逆原型，之后再看要不要发布；目前只规划，不要替我承诺。",
+                "我的意向是 prototype first, rollout later if justified。先把依赖和步骤理清，暂时没有正式截止。",
+                "Could we plan a reversible prototype before any rollout？这只是候选方向，我还没接受执行安排。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以。Candidate plan 是：P2 周一 12:00 提供 20 条样本，你在周二 16:00 前完成可逆原型；只有质量检查通过后，才单独申请 rollout approval。现在三者都只是提案。",
+                "A possible sequence：P2 负责周一中午交样本集，你负责周二下午四点做出 reversible prototype；发布必须在质量达标后另行审批。你确认前，不记录执行承诺。",
+                "建议分开两条边界：prototype 依赖 P2 的 Monday-noon sample set，由你在 Tuesday 16:00 完成；rollout 不是自动下一步，而是通过质量门槛后再求批准。",
+                "We can stage it safely：周一 12:00 收 P2 的 20-case 数据，周二 16:00 由你完成原型；whether to roll out remains a separate decision after testing. 目前尚未接受。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我确认 prototype 这条：P2 周一 12:00 给 20 条样本，我负责周二 16:00 前完成可逆原型。No rollout commitment; 通过质量检查后还要单独批准。",
+                "I accept the prototype plan：样本由 P2 在 Monday noon 交付，原型由我 Tuesday 4 p.m. 完成；发布仍未获承诺。",
+                "正式定下第一阶段。I own the reversible prototype due Tuesday 16:00, dependent on P2's 20 cases by Monday 12:00；rollout 以后另议。",
+                "可以记录明确安排：P2 负责周一中午的数据，我负责周二下午四点的 prototype。Even a passing test will only trigger a separate approval request, not rollout."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed：P2 的依赖是周一 12:00 提供 20 条样本，你的承诺是周二 16:00 完成可逆原型。Rollout 尚未承诺，质量通过也只会开启单独审批；没有更新前不假定进展。",
+                "安排已成立：P2 delivers the sample set Monday noon；你在 Tuesday 4 p.m. 前交 prototype。发布分支保持未授权，不会因原型完成而自动启动。",
+                "责任与截止已分开。You handle the reversible prototype by Tuesday 16:00, P2 handles its Monday dependency, and rollout remains outside this commitment pending a later decision.",
+                "现在只有 prototype branch 被接受：样本 P2 周一中午到位，原型你周二下午四点完成。The rollout branch stays uncommitted and requires explicit approval later."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "质量标准定为：20 个样本里 parsing success 至少 95%，而且不能有 critical data loss。Please use that as the gate.",
+                "For the quality check，20-case 测试的解析成功率必须 ≥95%，同时关键数据丢失为零。",
+                "我补充验收条件：at least 95% parse success across all 20 cases, with no critical data loss。",
+                "The prototype passes only if 20 条样本的解析成功率不低于 95%，且没有任何 critical loss。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Gate 已明确：20 条样本的 parsing success 至少 95%，critical data loss 必须为零。原型完成后按这两项检查；只有通过才考虑提交 rollout approval，仍不代表获批或执行。",
+                "I will keep the criteria concrete：20-case pass rate ≥95% and zero critical loss。测试只以真实结果关闭，a pass merely permits a separate approval request.",
+                "验收边界现在是可观察结果，而不是主观判断：至少 19/20 成功且无关键丢失。Even then, rollout remains pending an explicit approval.",
+                "Quality gate confirmed：在 20 个样本中达到 95% 以上解析成功、关键数据零损失。未见测试结果前不称通过，通过后也不自动发布。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我还可以先写 rollback notes，但先把它当 option；I am not promising that extra work yet.",
+                "Rollback 说明也许值得提前准备，不过 for now it is only a suggestion, not another task.",
+                "Could rollback notes help？先讨论价值，不要默认给我加一个截止。",
+                "我考虑补一份回退说明。Please keep it tentative until I explicitly accept."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "它会让原型保持可逆：可记录恢复步骤、触发条件和验证方式。But it remains optional, with no responsible person or deadline until you confirm.",
+                "Rollback notes are useful for documenting how to reverse the prototype and verify recovery。现在只是候选准备项，不属于你的既有承诺。",
+                "可以把回退步骤、启动条件和恢复检查写成短说明；however, I will not assign it to you or add a due date without acceptance.",
+                "The notes would support reversibility，内容可包括回退动作与验证证据。你尚未接下它，所以当前计划不因这个建议而扩张。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "我接下 rollback notes，由我在周一 17:00 前完成；the prototype deadline stays Tuesday 16:00.",
+                "Make the notes explicit：我负责 Monday 5 p.m. 前写完回退说明，原型仍是 Tuesday 4 p.m.。",
+                "I commit to the rollback document by Monday 17:00。可逆原型的负责人和周二截止不变。",
+                "把附加项定下来：rollback notes 归我，周一下午五点完成；prototype 仍按周二 16:00。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Current commitments：你周一 17:00 完成 rollback notes，P2 周一 12:00 交 20 条样本，你周二 16:00 完成 prototype。质量按 ≥95% 且零 critical loss 检查；rollout 仍需另批。",
+                "现有责任链是 P2 Monday noon 提供样本，你 Monday 5 p.m. 完成回退说明并在 Tuesday 4 p.m. 前完成原型。Passing the gate will not itself authorize rollout.",
+                "I will carry three dated items：P2 的样本、你的 rollback notes、你的 reversible prototype。发布没有负责人或截止，必须等测试与独立批准。",
+                "安排已收束：sample dependency 周一中午，回退说明周一五点，prototype 周二四点；前两项分别由 P2 和你负责。Rollout remains a separate, unaccepted branch."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "现在是周一 12:30，P2 的 sample set 还没到；rollback notes 的 17:00 截止尚未到。",
+                "Monday 12:30 update：20 条样本仍未交付，我的回退说明则还在今天下午五点期限内。",
+                "P2 missed the Monday-noon sample time，目前 12:30；我的 rollback notes 还不能说完成或逾期。",
+                "依赖更新：到周一十二点半仍无样本。The notes are due at 17:00, so their result is not known yet."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "P2 的样本依赖已超过周一 12:00 且未完成，会影响 prototype；rollback notes 仍由你负责、截止 17:00，当前进度未知。No work will be presumed.",
+                "Current state：sample set is late and keeps the prototype blocked；你的回退说明尚在期限内，没有事实表明完成或失败。",
+                "我会分开记录：P2 的 dependency 已延误，你的 notes 仍开放到下午五点。Prototype 不能被描述为已开始，除非你有新的执行更新。",
+                "The sample loop is overdue and unresolved。回退说明仍按原截止追踪，原型受依赖阻塞；我不推断后台进展。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "P2 刚给出新时间：Tuesday 09:00。If the samples arrive then, I still intend to keep my Tuesday 16:00 prototype deadline.",
+                "新更新是样本改到周二早上九点；我确认在按时收到的前提下，prototype 仍计划 Tuesday 4 p.m. 完成。",
+                "P2 rescheduled the dependency to Tuesday 09:00。我暂不改原型截止，但它取决于样本届时到位。",
+                "样本负责人承诺周二九点交付。I keep the Tuesday 16:00 commitment conditionally on that actual arrival."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Updated：P2 的新截止是 Tuesday 09:00；你的 prototype 仍是 Tuesday 16:00，但可用窗口变短且依赖实际到件。若九点仍未收到，需要你重新决定，不能自动顺延。",
+                "The prototype deadline remains 4 p.m. Tuesday, conditional on P2 delivering at 9 a.m. 风险已增加，结果仍未知；我不会假定七小时足够。",
+                "记录为“deadline retained, dependency delayed”：P2 周二九点交样本，你周二四点交原型。到件前仍受阻，再延误时必须由你明确改期。",
+                "责任没有变化，只是 dependency moved to Tuesday morning。你的 16:00 截止继续有效，但是否可达要等样本真实到位后判断。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Monday 16:45 update：rollback notes 已完成，包含回退步骤、触发条件和恢复检查。",
+                "我在周一 16:45 写完了回退说明，the document covers reversal steps, triggers, and recovery verification.",
+                "Rollback notes are done as of 16:45 Monday；三部分内容都已补齐：步骤、条件、恢复验证。",
+                "回退文档已于 Monday 4:45 p.m. 完成，其中记录了 how to reverse, when to trigger, and how to verify recovery。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Rollback notes 可以按时关闭，完成时间 Monday 16:45。Prototype 仍未完成，继续等待 P2 在 Tuesday 09:00 提供样本，你的截止仍为 16:00。",
+                "The notes commitment is complete before its 17:00 deadline。主任务仍受样本依赖影响，不能因文档完成而说原型有进展。",
+                "已结项的是回退说明；open items remain P2's Tuesday-morning samples and your Tuesday-afternoon prototype。Rollout 仍未承诺。",
+                "I can close only the rollback document。样本和原型继续跨时段开放，分别由 P2 周二九点和你周二四点负责。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "请给我 carryover status，only facts—不要把 prototype 写成已经开始。",
+                "跨 session 保留什么？请中英都说清楚，并且 no invented progress。",
+                "Summarize the unfinished state for the next session；原型还没开始这一点要准确。",
+                "我们先暂停。Please carry forward completed notes, delayed samples, and the untouched prototype exactly."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Carryover：rollback notes 已于 Monday 16:45 完成；P2 的 20 条样本未到，新截止 Tuesday 09:00；你的 prototype 尚未开始，仍承诺 Tuesday 16:00。Rollout remains uncommitted.",
+                "下一次从这里继续：notes are complete；sample dependency is open until Tuesday 09:00；prototype has no reported progress and remains due at 16:00。发布没有被批准。",
+                "Facts only：回退文档已结，P2 样本延后且仍开放，你的原型尚未启动、周二四点到期。The quality gate and separate rollout approval remain future steps.",
+                "已完成的是 rollback notes；未完成的是 Tuesday 09:00 samples 和 Tuesday 16:00 prototype。There is no basis to claim prototype work or rollout activity."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "If P2 slips again，别自动移动我的截止，也别把它算成我失败；请先让我决定。",
+                "若 Tuesday 09:00 仍无样本，请记录 dependency failure and ask me，不能擅自改期。",
+                "One more rule：依赖再次延迟时只报告事实，不要替我续期或判定原型结果。",
+                "如果样本又晚到，keep my decision open；不要自动延长，也不要假装任务已经失败。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "明白。A further delay will be recorded against P2's dependency，prototype 状态保持受阻或未知；你的截止是否调整、承诺是否重订，都等你明确决定。",
+                "Confirmed：若九点未到，只更新样本未交和风险，不自动改变 Tuesday 16:00，也不把依赖延误等同于你的失败。",
+                "I will surface the missed dependency and ask for your choice。原型截止、责任和结果不会在没有你确认时被改写。",
+                "可以。Another slip closes nothing and changes no date by itself；我只保留事实，并由你决定继续、改期或取消。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Tuesday 09:00，P2 交付了 20 条样本；我校验数量和格式后开始做 prototype。",
+                "样本在周二九点实际到位，all 20 cases passed my format check，我现在开始原型工作。",
+                "P2 delivered at Tuesday 09:00。20 条数据已完成数量与格式验证，prototype execution has started.",
+                "依赖已解除：周二早上九点收到完整样本集，我核对无误并启动 reversible prototype。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Sample dependency 可以关闭，实际完成时间 Tuesday 09:00。Prototype 从 blocked 转为 in progress，仍由你负责并在 16:00 前给出结果；目前只确认已开始。",
+                "P2's delivery is complete and validated。你的原型现在进入执行阶段，截止仍是周二四点，尚不能称完成或通过质量检查。",
+                "状态已推进：20-case input arrived and passed basic validation；你已开始 prototype。Quality result remains open until the test is run.",
+                "依赖环节已结清，main commitment is active。负责人和 Tuesday 16:00 deadline 不变，当前无完成证据。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Tuesday 14:00 test result：20 个样本中 18 个解析成功，2 个 parse error；没有 critical data loss。",
+                "周二下午两点的结果是 18/20 passed, two parsing failures, and zero critical loss。",
+                "I ran the 20-case check at 14:00：成功 18 条、失败 2 条，关键数据丢失为零。",
+                "测试已出：parse success is 90% with 2 errors out of 20；没有观察到 critical data loss。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Observed result：18/20 equals 90%, below the 95% threshold；zero critical loss meets the second criterion. 因此质量检查未通过，prototype artifact 虽存在但验收仍开放，rollout approval 不应启动。",
+                "测试有一项不达标：parsing success 只有 90%，虽无关键丢失，仍不能判定 gate passed。原型需要修复或由你重订结果，发布分支保持关闭。",
+                "The quality gate fails on parse rate and passes on critical loss。当前可说原型已运行测试，不能说已验收；no rollout request is justified yet.",
+                "20 条里只成功 18 条，低于至少 19 条的标准；零 critical loss 不足以单独通过。Prototype commitment remains unresolved and rollout remains unapproved."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我接下 repair：由我在 Wednesday 11:00 前修复两个 parsing errors。",
+                "I commit to fixing both parse failures by Wednesday 11:00；修复负责人是我。",
+                "I accept the repair：我负责周三上午十一点前解决这两处解析问题。",
+                "The next explicit task is mine：两项 parse error 在 Wednesday 11:00 前修完。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Repair commitment confirmed：你负责在 Wednesday 11:00 前修复两处解析错误。修复完成后仍需重新跑 20-case test，只有达到 ≥95% 且零 critical loss 才能关闭验收。",
+                "已增加明确修复项：你负责在 Wednesday 11:00 前完成。Retest remains a dependency for acceptance, not an assumed outcome.",
+                "你承担周三十一点的 two-error fix；之后必须用实际复测结果决定 prototype 是否通过。Rollout 仍没有承诺。",
+                "The repair is now assigned to you through Wednesday 11:00。原型质量状态保持未通过，等待修复和复测证据。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "那原来 Tuesday 16:00 的 prototype commitment 现在算什么？Please don't hide the failed gate.",
+                "How should we state the original Tuesday deadline？原型跑起来了，但质量标准没过。",
+                "请准确区分 artifact exists 和 accepted prototype；周二 16:00 的承诺不能含糊。",
+                "The build exists before 16:00, yet the gate failed。原承诺状态应如何更新？"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "事实是 prototype artifact 在截止前存在并完成测试，但未满足约定质量，因此不能把整项承诺标为成功。The acceptance loop remains open, and its revised deadline needs your explicit decision.",
+                "The build portion occurred before Tuesday 16:00；however, quality acceptance failed at 90%。应记录为“产物存在、验收未过”，而不是完成或隐藏失败，后续时间由你重订。",
+                "原截止下完成了可运行原型，却没有完成合格原型。So the commitment is partially progressed and unresolved；修复截止已定，复测截止仍待你确认。",
+                "We should state it plainly：Tuesday artifact created, Tuesday gate failed。验收不能关闭，且不能自动把 Wednesday repair 当作原截止的静默延长。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "我明确重订：合格 prototype 的截止改为 Wednesday 12:00；我 11:00 前修复，P3 负责 12:00 前复测。",
+                "Set a new accepted deadline：周三中午前给出通过质量检查的原型；fix by me at 11:00, retest by P3 at 12:00。",
+                "我把未完成的验收延到 Wednesday noon。I handle the repair by 11, and P3 handles the 20-case rerun by 12.",
+                "正式更新安排：qualified prototype due Wednesday 12:00；修复由我十一点完成，P3 随后在中午前复测。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Revised plan confirmed：你在 Wednesday 11:00 前修复，P3 在 12:00 前复测，合格 prototype 的新截止是周三中午。此前 90% 的失败结果保留；rollout 仍需通过后另行审批。",
+                "更新后的责任链是 your repair by 11, P3's retest by noon, accepted prototype by noon Wednesday。旧的 gate failure 不被抹去，发布没有自动启动。",
+                "The unresolved commitment is now explicitly rescheduled to Wednesday 12:00。你和 P3 分别负责修复与复测，只有新结果达到双重标准才可关闭。",
+                "已重订而非静默顺延：周三十一点你交修复，十二点 P3 交复测结果。Prototype acceptance remains open; rollout remains a separate decision."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Wednesday 10:40，我修完两处 parsing errors，并把版本交给 P3 复测；结果还没出来。",
+                "修复在周三 10:40 完成，the updated prototype is now with P3，尚无 retest outcome。",
+                "Both parse fixes are done as of Wednesday 10:40。P3 已收到版本，但我不声称复测通过。",
+                "我按时交付修复版给 P3，时间是周三十点四十；quality result remains pending."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "你的 repair 可以按 Wednesday 10:40 关闭。P3 的 retest 仍开放到 12:00，qualified prototype 尚未确认；没有结果前不能说 gate passed。",
+                "The two-error fix is complete before its deadline。现在 active dependency 是 P3 的 noon retest，原型验收保持 pending。",
+                "已关闭修复项，未关闭质量项：P3 has the build and owes the 20-case rerun by noon。Rollout 仍无动作。",
+                "Repair status is complete；acceptance status is unknown。等待 P3 的实际复测，不把交付修复版等同于通过。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "P3 在 Wednesday 11:35 回报：20/20 parsing success，且 zero critical data loss。",
+                "复测结果已到，周三 11:35 all twenty cases passed and no critical loss was observed。",
+                "At 11:35 Wednesday, P3 reported 100% parse success across 20 samples，关键数据丢失为零。",
+                "P3 的实际结果是 20 条全部成功、无 critical loss，时间 Wednesday 11:35。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The retest satisfies both criteria：100% ≥95%，且 critical loss 为零。Qualified prototype 可在 Wednesday 11:35 关闭，早于中午新截止；this does not authorize rollout.",
+                "质量检查现在通过：20/20 success and zero critical loss。原型承诺已完成，但发布仍等待独立申请和批准。",
+                "P3 的结果足以关闭 prototype acceptance，完成时间周三 11:35。The rollout branch remains uncommitted despite the pass.",
+                "Gate passed on observed evidence，合格原型已按重订时间完成。下一步如果考虑 rollout，只能另行请求 approval，不能自动执行。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我会在 Wednesday 14:00 前提交 one-team pilot 的 approval request；this is a request only, not a rollout commitment.",
+                "Next, I accept responsibility for requesting approval by 2 p.m. Wednesday。申请对象只是一支团队的 pilot，尚未承诺执行。",
+                "把审批申请定为我的任务，截止周三 14:00；the proposed scope is one team, and no rollout is authorized yet.",
+                "I will file a separate pilot approval request by Wednesday 14:00。请保持它和实际 rollout commitment 分开。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Approval-request task confirmed：你在 Wednesday 14:00 前提交 one-team pilot 申请。该任务完成只表示请求已发出，不表示获批，也不创建执行承诺。",
+                "你负责周三两点前发起审批，scope limited to one team。Approval outcome and pilot execution remain separate open decisions.",
+                "The next commitment is administrative only：由你按时提交 pilot request。没有实际批准前，任何 rollout 都不能被描述为已安排。",
+                "已区分三层：request by you at 14:00, approval by the review group, execution only after a later explicit commitment。当前只接受第一层。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "申请已按时提交，review group 在 14:10 批准 one-team pilot。我现在明确承诺：P2 周四 10:00 执行，P3 监控 rollback signals；不做 broad rollout。",
+                "The request was filed and approval arrived at Wednesday 14:10 for one team only。仅限单团队；I accept a Thursday 10:00 pilot：P2 runs it, P3 watches rollback signals, no wider release.",
+                "审批结果是仅允许单团队 pilot。I now commit P2 to execute Thursday at 10 and P3 to monitor；全量 rollout 不在范围内。",
+                "Wednesday 14:10 approval is in, limited to one team。正式安排为 P2 周四十点执行、P3 负责回退监测；broad rollout remains uncommitted."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "New commitment confirmed：one-team pilot 在 Thursday 10:00，由 P2 执行、P3 监控 rollback signals；approval 已于 Wednesday 14:10 到位，rollback notes 也已完成。Broad rollout 明确不在本次安排内。",
+                "The approved scope is now actionable but bounded：P2 owns Thursday 10:00 execution, P3 owns monitoring。单团队之外没有发布承诺。",
+                "已把新 pilot 与旧候选分开：审批只覆盖 one team，P2 和 P3 分别负责执行与监测。No broad rollout will be inferred from this commitment.",
+                "责任、时间和边界都已明确：Thursday 10:00 pilot by P2, rollback monitoring by P3, one-team scope only。更大范围仍需新的决定。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Thursday 10:20 outcome：P2 完成了 one-team pilot，P3 全程监控且没有触发 rollback；我们没有继续到其他团队。",
+                "试点在周四 10:20 结束。P2 executed the single-team scope, P3 observed no rollback trigger, and no broader rollout occurred.",
+                "The approved pilot is complete as of Thursday 10:20：仅一支团队，监控未见回退触发，也没有扩大范围。",
+                "P2 已完成单团队 pilot，P3 的 monitoring 没有发现 rollback condition。时间 Thursday 10:20，broad rollout 未执行。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "One-team pilot 可以按 Thursday 10:20 关闭：P2 完成执行，P3 完成监控且未触发回退。Prototype、repair、approval 和 bounded pilot 均有结果；broad rollout 仍未承诺，也没有开放执行项。",
+                "The bounded path is complete through the pilot outcome。单团队试点已结束且未触发 rollback，其他团队没有被发布；更大 rollout remains a future, separate decision.",
+                "已结清本次明确范围：合格 prototype 完成、审批获得、one-team pilot 完成。No evidence or commitment supports extending beyond that team.",
+                "Final status：可逆原型与单团队试点均关闭，监控结果已记录。Broad rollout stays outside the completed plan and cannot be revived without a new explicit decision."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "plan_commitment_open_loop_04",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我在考虑由我起草发布检查清单，周五 15:00 前完成，前提是 P2 周四中午提供测试矩阵。先帮我规划，还不要算承诺。",
+                "发布检查清单可能由我来写，候选截止是周五下午三点，依赖 P2 周四 12:00 的测试矩阵；目前只讨论方案。",
+                "请先梳理一份计划：我也许负责周五 15:00 的发布清单，P2 负责周四中午的前置矩阵。我还没正式接受。",
+                "我想评估自己起草发布检查清单是否可行。测试矩阵由 P2 周四 12:00 交，清单拟在周五 15:00 完成，但先别确认责任。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "候选安排可以是：P2 周四 12:00 提供测试矩阵，你据此在周五 15:00 前完成清单草稿并交付复核。现在只是计划意向，需你明确接受后才形成责任。",
+                "可按依赖顺序排：先等 P2 的周四中午矩阵，再由你补齐检查项并在周五下午三点提交。负责人和截止目前都只是提案。",
+                "建议把 P2 的测试矩阵作为前置输入，你随后起草、核对并在周五 15:00 交出清单。除非你确认，我不会说这项工作已经归你。",
+                "计划边界是 P2 先交矩阵、你后写清单，候选完成点为周五三点。当前没有明确承诺，也不假设任何起草进度。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我接受：发布检查清单由我负责，周五 15:00 前交付；P2 的测试矩阵应在周四 12:00 前到位。",
+                "正式定下来。我承诺周五下午三点前完成清单，依赖 P2 周四中午提供矩阵。",
+                "可以记录为明确责任：我负责发布清单，截止周五 15:00；P2 负责周四 12:00 的前置资料。",
+                "我确认这个安排，由我按周五三点完成检查清单，P2 的周四中午矩阵是依赖。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "已确认：你负责周五 15:00 前完成发布检查清单，P2 负责周四 12:00 前交付测试矩阵。主任务在依赖到位前保持开放，不会把等待描述成进展。",
+                "责任链现在成立：P2 先按周四中午交矩阵，你再在周五下午三点前交清单。两个事项分别追踪，只有真实更新才改变状态。",
+                "当前明确安排是 P2 提供前置矩阵、你完成最终清单。你的截止为周五 15:00；尚未发生的起草和交付不会被推定。",
+                "已把负责人和时间分清：矩阵归 P2、周四中午到期；清单归你、周五三点到期。依赖和结果都保持未完成，等待后续事实。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "怎样才算我的清单任务完成？请区分草稿、复核和最终接收。",
+                "请把完成条件说清楚，不要把写出文件等同于清单已经被接收。",
+                "我想确认交付边界：起草完、交给复核、被团队接受分别算什么状态？",
+                "先定义一下结束标准，避免只有本地草稿时就把周五任务关掉。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "你周五的执行项在清单内容完成、依据测试矩阵复核并提交给团队时可关闭；团队是否接受是后续外部结果。只有本地草稿时，制作与提交都不能视为全部完成。",
+                "可以分三步：草稿形成、你完成复核并提交、团队给出接收结果。你的周五承诺覆盖前两步，最终接收需要实际反馈，不能由我推定。",
+                "完成文件只说明起草有进展；按矩阵检查并实际交付后，才算你履行了任务。团队验收仍是单独待确认结果。",
+                "你的责任终点是内容完整、复核结束并送交团队。接收或返修取决于对方的真实回应，不能用文件存在替代。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我再承诺一个检查点：周三 17:00 前完成清单结构和已有检查项，未知内容等 P2 的矩阵。",
+                "增加一个中间节点，由我在周三下午五点前写好框架和现有项目，缺少的部分不猜。",
+                "我接受周三 17:00 的大纲任务：整理清单结构，矩阵未提供的信息保留待补。",
+                "把前置草稿也定下来。我负责周三下班前完成框架，只写已经有依据的检查项。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "现在有两段责任：你周三 17:00 前完成有依据的清单框架，周五 15:00 前完成复核并提交最终清单；P2 周四 12:00 的测试矩阵是中间依赖，未知项不提前补猜。",
+                "已加入周三检查点：框架和现有项目由你完成，缺失内容等 P2 周四中午的矩阵，再在周五三点前收尾交付。",
+                "安排已细化为周三框架、周四矩阵、周五最终清单。前两项分别由你和 P2 负责，主交付仍由你承担，所有未知保持开放。",
+                "责任顺序明确：你先做周三 17:00 的结构稿，P2 再交周四 12:00 的矩阵，你最后完成周五 15:00 的清单。没有更新前不记录额外进度。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "团队刚正式调整责任：清单起草转交给 P4，P4 接受周五 15:00 的截止；我不再负责起草，只在周五 17:00 前复核。P2 的矩阵仍是周四中午。",
+                "有一项正式变更：P4 接手发布清单并承诺周五下午三点交稿，我只保留周五五点前的复核责任；P2 的依赖不变。",
+                "请更新分工。团队已把清单制作从我转给 P4，P4 负责周五 15:00，我负责之后在 17:00 前复核，测试矩阵仍由 P2 周四 12:00 提供。",
+                "责任已经由团队确认重订：P4 是清单起草负责人、截止周五三点；我只做周五五点前的审阅，P2 继续承担周四中午的矩阵。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "已按正式变更更新：P4 负责周五 15:00 前起草并提交清单，你原有的起草责任结束，只负责周五 17:00 前复核；P2 仍在周四 12:00 前提供矩阵。后续不会继续催你完成起草。",
+                "新分工取代旧安排：清单制作与三点截止归 P4，你只承担收到清单后的五点复核。P2 的前置矩阵没有变化，我不会把 P4 的执行义务继续算在你身上。",
+                "责任转交已生效。P4 接手清单交付，你保留复核而非制作，P2 继续提供依赖；旧的“你负责起草”不再是当前任务。",
+                "当前责任链为 P2 交矩阵、P4 写清单、你做复核，截止依次是周四中午、周五三点、周五五点。你的执行义务已从起草改为审阅。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "那现在还应该提醒我什么？请不要再要求我补清单正文。",
+                "明确一下我剩余的事项，尤其不要把 P4 的起草任务重新推给我。",
+                "当前我只需要跟进哪一步？写清单已经不属于我了。",
+                "请按新分工说我的待办，不要沿用旧责任催我交稿。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "你只需在收到 P4 的清单后，于周五 17:00 前完成复核并反馈结果。清单正文、周五 15:00 交稿以及依据 P2 矩阵补齐内容都由 P4 负责；若 P4 未交，你的复核会受阻，但不等于你应代写。",
+                "你的当前责任只有复核，截止周五下午五点。P4 承担起草和三点交付，P2 承担矩阵；任何上游延误只会影响你的开始时间，不会把制作义务转回给你。",
+                "应提醒你的只有“清单到达后完成审阅”。不要提醒你补正文；如果 P4 的稿件缺失，状态应是复核等待输入，而不是让你接管。",
+                "你保留的是审阅与反馈，不是起草。周五三点前由 P4 交稿，之后你在五点前复核；依赖未到时只标记受阻，不改变负责人。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我周三做过的框架文件留给 P4 参考，但这不代表我仍负责完成它。",
+                "旧框架可以作为参考资料交给 P4；请不要因此把起草义务留在我这里。",
+                "我会让 P4 看到周三的结构稿，但正式转交后的内容完善仍由 P4 负责。",
+                "此前的大纲可供 P4 使用，不过它只是历史产物，不会恢复我的清单制作责任。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "明白。框架文件只是交接参考，不改变新分工：P4 负责完成清单，你负责最终复核。旧产物的存在不会重新激活你的起草责任。",
+                "会把周三框架视为已提供的参考材料，而不是未完成任务。P4 仍承担内容补齐和提交，你只在收到成稿后审阅。",
+                "参考资料与当前义务分开记录。框架可帮助 P4，但清单制作已正式转交，不应继续要求你完成正文。",
+                "已澄清：旧框架保留历史价值，新责任仍归 P4。你的开放事项只有后续复核，不因文件来源而变化。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "周四 12:15 更新：P2 已交测试矩阵，P4 确认收到；P4 的清单还没有提交。",
+                "测试矩阵在周四十二点十五分到位并被 P4 接收，但目前没有清单稿件。",
+                "依赖已经解除：P2 周四 12:15 交出矩阵，P4 收到了。清单交付仍未发生。",
+                "新事实是 P2 的矩阵已于 12:15 送达 P4；P4 尚未把清单交给我。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "P2 的矩阵依赖可以关闭，实际时间为周四 12:15。P4 的清单仍开放到周五 15:00，你的复核则等待该稿件并截止周五 17:00；目前没有依据说 P4 已完成或你已开始复核。",
+                "状态已推进一层：矩阵已到且 P4 已收件，起草任务仍由 P4 负责、尚未交付。你的审阅继续受清单输入限制，不产生代写义务。",
+                "前置资料完成，但主稿未到。P4 仍需按周五三点提交，你收到后才开始五点前的复核；两项进度都不作额外推定。",
+                "依赖已结清，责任没有改变：P4 写清单，你审清单。当前清单交付和你的复核都保持开放，等待真实稿件。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "P4 在周四 16:00 提交了清单。我复核时发现缺少回退联系人，已要求 P4 在周五 11:00 前补齐；我的复核截止仍是周五 17:00。",
+                "周四下午四点我收到 P4 的稿件，审阅发现没有写回退联系人。修复由 P4 在周五十一点前完成，我仍负责五点前复核。",
+                "清单已由 P4 于周四 16:00 交付，但有一处缺项：回退联系人。P4 接下周五 11:00 的修订，我保留周五 17:00 的审核。",
+                "新状态：P4 的稿件到达后，我发现回退联系信息缺失，并把修复退给 P4，截止周五十一点；最终复核仍由我在五点前完成。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "P4 的初稿交付可记录在周四 16:00，但清单因缺少回退联系人尚不能验收。修复仍由 P4 负责、截止周五 11:00；你负责收到修订后在 17:00 前完成复核，起草责任没有转回给你。",
+                "状态是“初稿已到、修订开放、复核进行中”。P4 承担十一点前补齐联系人，你承担五点前审阅；缺项不会被误记成你的制作任务。",
+                "已把问题退回正确的负责人：P4 修复清单，你复核结果。初稿存在不等于清单已接受，最终结论要等修订和你的实际审阅。",
+                "当前开放环节有两个：P4 周五 11:00 的补充，以及你周五 17:00 的最终复核。责任变更继续有效，不会要求你自行补正文。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "对，请不要把我发现问题写成我重新接手了清单制作。",
+                "确认一下：我提出缺项只是履行复核，不代表起草任务又归我。",
+                "这次反馈属于审阅结果，不是责任回转；修订仍应由 P4 做。",
+                "请保持分工准确。我指出回退联系人缺失，但没有重新承诺写清单。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认。你发现并报告缺项是在履行复核责任，P4 仍是清单修订负责人。只有正式的新转交才能改变分工，这次反馈不会恢复你的起草义务。",
+                "分工保持不变：你负责判断和反馈，P4 负责修改内容。发现问题不是接管执行，也不会让周五十一点的修复落到你身上。",
+                "会准确记录为“复核者提出修订”，而不是“复核者接手起草”。P4 的修复事项继续开放，你等待修订后完成最终审阅。",
+                "你的角色仍限于复核。回退联系人由 P4 补齐，责任没有因你指出问题而移动，旧的起草任务也不会复活。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "P4 在周五 10:30 提交了修订版，回退联系人已经补上。我现在开始最后复核。",
+                "修复稿于周五十点半到达，缺失的联系信息已补齐；我的最终审阅刚开始。",
+                "P4 提前完成修订，时间 10:30，回退联系人可见。我已进入最后复核，但还没给出结论。",
+                "周五 10:30 收到 P4 新版本，缺项已修复。我正在复核，尚不能说已经接受。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "P4 的修复可在周五 10:30 关闭，早于 11:00 截止。你的最终复核从此时开始，仍需在 17:00 前给出实际结果；当前不能预先写成通过。",
+                "修订项已有完成依据，清单已回到你这里审阅。你的责任和五点截止不变，验收结论保持开放直到你明确反馈。",
+                "已更新为“P4 修复完成、复核进行中”。回退联系人问题已解决，但团队是否接受仍等待你的审核结果，不能提前关闭。",
+                "P4 按时补齐了缺项，接下来只追踪你的周五 17:00 复核。开始审阅不等于审阅通过，结果仍未知。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我在周五 12:00 完成复核并批准了清单；团队记录也确认它已被接收并发布。",
+                "最终结果：周五中午我审阅通过，随后团队确认接收并发布这份清单。",
+                "我的复核于周五 12:00 结束，结论是批准；外部团队记录显示清单已经接受和发布。",
+                "清单在周五十二点通过我的最终审核，团队随后给出已接收、已发布的确认。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "所有开放事项可以关闭：P2 提供了矩阵，P4 完成初稿和修复，你在周五 12:00 完成复核，团队确认接收并发布。最终分工保持准确，你没有重新承担清单制作。",
+                "清单流程已完整结项。P4 履行起草与修订责任，你履行复核责任，团队的接收和发布确认关闭了最后结果；没有遗留待办。",
+                "最终状态是 P4 的清单制作完成、你的审阅按时通过、团队已接受并发布。责任转交一直有效，旧的“由你起草”不会再被视为开放。",
+                "可以收束为全部完成：矩阵、稿件、修复、复核和外部发布均有实际结果。你最后承担的是审核而非写作，当前没有未关闭事项。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "plan_commitment_open_loop_05",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I have three experiment ideas: a cache-policy simulation, an index-pruning trial, and a batching benchmark. I am not choosing one until we have comparative evidence.",
+                "For brainstorming, the candidates are cache simulation, index pruning, or batching. Please keep all three tentative until the data arrives.",
+                "I want to explore three possible experiments—cache policy, index pruning, and batching—but I am explicitly postponing selection.",
+                "The option set is a cache-policy simulation, an index-pruning test, and a batching benchmark. None is an accepted task yet."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "I will treat them as three candidates, not commitments. To compare them without selecting on your behalf, what performance threshold and risk limit should the evidence address?",
+                "All three remain exploratory. We can define a common success measure and an acceptable error cost, then wait for evidence before assigning responsibility or a deadline.",
+                "No experiment is selected, so execution has no assigned person or due date. The next useful step is to specify the evidence needed to distinguish the options.",
+                "The brainstorming state stays open across all three choices. Please set the comparison criteria; I will not convert a promising idea into a promise."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Use at least a 10% improvement in p95 latency with no more than a 0.2 percentage-point error-rate increase. Quinn is responsible for the comparison report by Tuesday at 15:00.",
+                "The bar is p95 latency improving by 10% or more while errors rise by at most 0.2 points. Quinn has accepted a Tuesday 3 p.m. report deadline.",
+                "Compare each option against a ≥10% p95 gain and ≤0.2 percentage-point error increase. The evidence report belongs to Quinn and is due Tuesday 15:00.",
+                "My decision criteria are ten percent or better p95 improvement and an error increase capped at 0.2 points; Quinn will provide the report by 3 p.m. Tuesday."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The evidence dependency is now explicit: Quinn will deliver the comparison by Tuesday 15:00 using those two thresholds. You still have no experiment commitment or deadline; selection waits for the reported results.",
+                "Quinn carries the Tuesday 3 p.m. report, measured against ≥10% p95 improvement and ≤0.2 points of added error. The three experiments remain candidates only.",
+                "I can track the report as an accepted task for Quinn, while leaving your choice open. No cache, pruning, or batching run has been assigned to you.",
+                "The only current commitment is Quinn's comparison report. Your decision and any eventual experiment execution remain unassigned until evidence arrives."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "What, if anything, should I be reminded about before Quinn's report arrives?",
+                "Do I have any active task while we wait for the comparison?",
+                "Clarify my current responsibilities; I do not want a candidate experiment turned into a to-do.",
+                "Before Tuesday's report, is there a deadline for me, or only for Quinn?"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Only Quinn has an active deadline: the Tuesday 15:00 report. You have not accepted an experiment, preparation task, or decision deadline, so I should not remind you to execute any of the three.",
+                "There is no current task for you. The open item is Quinn's report; your role is to decide later, after the evidence is available.",
+                "Your responsibility remains unassigned. I can surface whether Quinn's comparison arrives on time, but I should not prompt you as though cache, pruning, or batching were selected.",
+                "The waiting state belongs to the evidence dependency, not to an experiment commitment from you. No due date should be created for you yet."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Good. Carry that distinction forward: three candidates, one report dependency, and no experiment commitment.",
+                "Please preserve the state exactly—options remain open, Quinn owes the report, and I owe no run.",
+                "Keep the brainstorming unresolved across sessions. The report is active, but no experiment has been chosen.",
+                "That is the status I want retained: evidence pending from Quinn, with all three ideas still tentative."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Carryover is clear: cache simulation, index pruning, and batching are unselected candidates; Quinn's comparison is due Tuesday 15:00; you have no execution promise or experiment deadline.",
+                "I will retain the three-way choice as open and Quinn's report as the sole dated item. No candidate will be promoted without your explicit selection.",
+                "The durable status is evidence pending, decision pending, execution unassigned. Quinn owns the report; none of the experiments belongs to you yet.",
+                "Across sessions, I will keep the options exploratory and track only the real dependency: Quinn's Tuesday report. There is no hidden commitment for you."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Even if one option sounds better in conversation, do not treat wording as my selection; wait for my explicit decision after the report.",
+                "Do not infer a choice from which idea I discuss most. I will make a direct selection once the evidence is available.",
+                "Please avoid turning conversational emphasis into routing. Only an explicit post-report decision should create a task.",
+                "Talking about an option is not acceptance. Hold the choice open until I clearly commit after seeing Quinn's results."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Understood. Discussion frequency or phrasing will not establish selection; I will wait for your explicit decision based on the report before assigning an experiment.",
+                "Confirmed: the evidence and your direct acceptance, not conversational emphasis, will determine whether a candidate becomes a commitment.",
+                "I will keep all three at the same tentative level until you state a choice. No wording alone will create responsibility or a deadline.",
+                "The boundary is explicit: exploration can continue freely, while an experiment becomes active only when you clearly accept it after reviewing the evidence."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "It is Tuesday at 15:00. Quinn has not delivered the report and now expects it Wednesday at 10:00. None of the experiments has started.",
+                "Tuesday 3 p.m. update: the comparison is missing, Quinn moved delivery to Wednesday 10 a.m., and no candidate run is under way.",
+                "Quinn missed the report time and supplied a new estimate of Wednesday at ten. I have not selected or begun an experiment.",
+                "The evidence dependency is late as of Tuesday 15:00; Quinn says Wednesday 10:00. Cache, pruning, and batching all remain unstarted."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Quinn's report is overdue and its new expected time is Wednesday 10:00. Your state does not change: no experiment is selected, assigned, or started, and I will not invent progress during the delay.",
+                "The evidence dependency remains open with a revised time of Wednesday morning. All three candidates stay exploratory; the missed report does not create work or failure for you.",
+                "I will record the report delay against Quinn's task. There is still no execution commitment from you and no basis to say any experiment has begun.",
+                "Current facts are a late comparison and three untouched options. Your decision remains pending until the actual report arrives."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I might read the setup documentation today, but that is optional and I am not accepting a deadline.",
+                "Reviewing the experiment setup could be useful while I wait, though I am not committing to do it.",
+                "One possible waiting activity is reading the setup notes. Keep it as a suggestion, with no task assigned to me.",
+                "I am considering a quick documentation review, but please do not add it to my obligations."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The documentation review can remain an optional exploration with no responsible person or due date. It does not select an experiment or alter the wait for Quinn's report.",
+                "I will keep reading the setup notes as a suggestion only. Whether you do it or not has no effect on the current commitment state.",
+                "No task is created. The optional review may inform you later, but the three candidates and the delayed report remain unchanged.",
+                "That activity stays tentative and undated. It neither commits you to preparation nor promotes any one experiment."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "I did read the setup notes. They show that the index-pruning trial has a documented rollback, but I still have not selected it or run anything.",
+                "The optional reading is now complete; I found a rollback procedure for index pruning. That fact is not a choice, and no experiment started.",
+                "I reviewed the documentation and saw that pruning is reversible. I am still waiting for the report before making a selection.",
+                "The setup notes confirm a rollback path for the index-pruning option. I have taken no execution step and make no commitment yet."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The documentation review is complete, and index pruning has a documented rollback path. That is additional evidence, not acceptance; all three experiments remain unselected and unstarted.",
+                "I will record the reversible setup as a fact about one candidate without assigning it to you. Quinn's comparative report is still needed before your decision.",
+                "Reading the notes can close as an optional activity. The pruning rollback information does not create an execution deadline or imply that you chose it.",
+                "The option set is unchanged. We now know pruning is reversible, while the decision and any actual run remain open."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "State the current status without turning that rollback fact into a recommendation or commitment.",
+                "Give me a factual summary: what is known, what is delayed, and what remains undecided?",
+                "Please summarize the carryover, keeping the pruning documentation separate from experiment selection.",
+                "What should persist into tomorrow? Do not imply that the reversible option has been chosen."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Known: the pruning setup has a documented rollback. Delayed: Quinn's comparison is now expected Wednesday 10:00. Undecided: all three candidates; you have accepted no experiment or execution deadline.",
+                "The carryover is a completed documentation review, a late report dependency owned by Quinn, and an unresolved three-way choice. No run belongs to you yet.",
+                "Only one candidate fact was added: pruning is reversible. The comparative evidence has not arrived, and cache, pruning, and batching all remain unselected.",
+                "Tomorrow begins with Quinn's report still open and your decision still pending. The rollback note is context, not a task assignment."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Wait for the actual report. I am not setting a decision deadline tonight.",
+                "Let's pause until Quinn delivers; I accept no choice or due time before then.",
+                "Do not schedule my decision yet. The next event should be the evidence arriving.",
+                "I will decide after the report, with no commitment to choose this evening."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Agreed. The next checkpoint is Quinn's actual report, expected Wednesday 10:00. Your decision has no deadline and remains open.",
+                "I will carry no task for you overnight. The evidence dependency is the only active item, and selection waits for its observed delivery.",
+                "The pause is explicit: no experiment and no decision deadline. We resume from the report rather than from an assumed choice.",
+                "Nothing further is assigned to you. Quinn's report remains pending, and your three-way decision stays unresolved."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Quinn delivered the report Wednesday at 09:40. Cache shows a 6% p95 improvement with no error increase; pruning shows 13% with a 0.1-point increase; batching shows 11% with a 0.4-point increase.",
+                "The comparison arrived at 9:40 Wednesday: cache is +6% p95 and +0.0 error points, index pruning is +13% and +0.1, and batching is +11% and +0.4.",
+                "I have Quinn's report now. Its measured pairs are cache 6%/0.0 points, pruning 13%/0.1 points, and batching 11%/0.4 points for p95 gain/error increase.",
+                "Wednesday 09:40 evidence: cache improved p95 by 6% with zero added errors, pruning by 13% with 0.1 points added, and batching by 11% with 0.4 points added."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Against your thresholds, pruning meets both criteria: 13% is at least 10%, and 0.1 is within 0.2 points. Cache misses the performance bar, while batching exceeds the error limit. This comparison does not select pruning for you.",
+                "The report closes Quinn's dependency. Cache fails the ≥10% p95 requirement; batching fails the ≤0.2-point error cap; pruning satisfies both. Your explicit choice is still required.",
+                "Only index pruning qualifies under the stated evidence rule. The other two each miss one condition, but qualification remains a basis for your decision, not an automatic commitment.",
+                "The measured fit is clear: pruning passes both limits, cache falls short on improvement, and batching adds too much error. I will wait for you to accept or decline the qualifying option."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I explicitly choose the index-pruning experiment. I am responsible for a sandbox run by Thursday at 16:00, dependent on Quinn providing the test snapshot by Thursday 09:00.",
+                "Make index pruning the selected task. I commit to running it in the sandbox by 4 p.m. Thursday; Quinn owns the snapshot due at 9 a.m.",
+                "I accept the pruning trial: the sandbox execution is mine and due Thursday 16:00, with Quinn's Thursday 09:00 snapshot as the prerequisite.",
+                "The decision is now explicit—run index pruning. I will complete the sandbox test by Thursday afternoon at four after Quinn supplies the morning snapshot."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The selection and commitment are now clear: you will complete the index-pruning sandbox run by Thursday 16:00; Quinn must provide the test snapshot by Thursday 09:00. Cache and batching remain unselected.",
+                "Index pruning has moved from candidate to accepted work. Quinn carries the 9 a.m. dependency, and you carry the 4 p.m. sandbox result; the other experiments have no active tasks.",
+                "I will track one execution path only: Quinn's Thursday-morning snapshot followed by your Thursday-afternoon pruning run. No work is assigned for cache or batching.",
+                "Responsibility is explicit: snapshot from Quinn at 09:00, sandbox run from you at 16:00, both Thursday. Progress will remain unknown until you report real outcomes."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Outline the run steps and the evidence needed to close it, but do not claim any of them have happened.",
+                "What should I do once the snapshot arrives, and what result would count as completion?",
+                "Please define the execution sequence and finish line for the pruning trial without inventing progress.",
+                "Set out the sandbox procedure and closure evidence; everything is still pending right now."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "After Quinn supplies the snapshot, validate its checksum, run index pruning only in the sandbox, capture p95 and error-rate changes, and save the artifacts. Closure needs the actual measured result and saved output, not merely a started process.",
+                "The sequence is snapshot receipt, checksum validation, sandbox execution, metric capture, and artifact storage. None is complete yet, and the run closes only when the measurements and files exist.",
+                "Once the dependency arrives, verify it, execute the bounded pruning trial, record both decision metrics, and preserve the outputs. A launch command alone would be progress, not completion.",
+                "The finish line is a completed sandbox run with p95, error-change, and saved artifacts. Before that, Quinn's snapshot and its checksum validation are required; no step is currently presumed."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Quinn has confirmed responsibility for delivering the test snapshot Thursday at 09:00. No snapshot has arrived yet.",
+                "The dependency is acknowledged by Quinn for 9 a.m. Thursday, but the file is not yet available.",
+                "Quinn accepted the Thursday 09:00 snapshot deadline. This is confirmation of the plan, not delivery.",
+                "I have Quinn's confirmation of the morning deadline; the actual snapshot remains outstanding."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Quinn's responsibility and deadline are confirmed, while the snapshot itself remains open. Your sandbox run stays dependent on that delivery and due Thursday 16:00; no execution progress is recorded.",
+                "The plan is acknowledged but the prerequisite is not complete. I will wait for the actual snapshot before moving your run from blocked to active.",
+                "Confirmation does not close the dependency. Quinn still owes the file at 09:00, and you still owe the bounded run at 16:00 after receipt.",
+                "The open chain remains snapshot, validation, run, measurements, and artifacts. Only the assignment is confirmed so far; no result has occurred."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Carry the exact plan into the next session, including the options that were not selected.",
+                "Before we pause, summarize the selected path, dependency, and the status of cache and batching.",
+                "Give me the durable state for tomorrow without implying that the snapshot or run is complete.",
+                "Please preserve the pruning commitment and leave the other two ideas inactive."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Carryover: index pruning is selected; Quinn's snapshot is due Thursday 09:00 and not yet delivered; your sandbox run is due Thursday 16:00 and not started. Cache and batching remain unselected with no tasks or deadlines.",
+                "Tomorrow's chain is Quinn's morning snapshot followed by your afternoon pruning run. Both remain open, while cache simulation and batching have stayed outside the commitment.",
+                "The accepted path is pruning only, dependent on an undelivered snapshot. Your execution result remains pending; the other candidates are inactive historical options.",
+                "I will retain one active commitment and two unchosen alternatives. Quinn owns the open dependency, you own the later run, and nothing has yet been reported complete."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "It is Thursday at 09:10. The snapshot has not arrived; Quinn now says noon. I have not started the sandbox run.",
+                "Thursday 9:10 update: Quinn missed the snapshot time and revised it to 12:00. No pruning execution has begun.",
+                "The prerequisite is late as of 09:10, with a new estimate of Thursday noon. My run remains unstarted.",
+                "Quinn has not delivered the test snapshot and expects to do so at noon; I have taken no sandbox action."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The snapshot dependency is overdue and now expected at 12:00. Your run remains blocked and unstarted; the Thursday 16:00 deadline has less available time but should not be silently changed.",
+                "I will record Quinn's delay without inventing pruning progress. You are still responsible for the run, but its prerequisite is unresolved and the original 4 p.m. deadline needs your decision.",
+                "Current status is dependency delayed, sandbox run blocked, outcome unknown. Quinn's noon estimate does not automatically move your deadline.",
+                "The missed snapshot is the active issue. No execution or failure should be attributed to your run yet, and any rescheduling must come from you."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I explicitly move my sandbox-run deadline to Friday at 11:00. Quinn remains responsible for the snapshot by Thursday noon.",
+                "Reschedule the accepted run to 11 a.m. Friday; keep Quinn's revised dependency at noon Thursday.",
+                "I am revising my commitment: pruning results are due Friday 11:00, after Quinn supplies the snapshot today at 12:00.",
+                "Make the new dates explicit—Quinn delivers by Thursday noon, and I complete the sandbox trial by Friday morning at eleven."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The commitment is explicitly rescheduled: Quinn owes the snapshot Thursday 12:00, and you owe the completed sandbox run Friday 11:00. The old Thursday 16:00 deadline is replaced rather than silently extended.",
+                "Updated responsibilities are clear: Thursday-noon dependency from Quinn, Friday-morning result from you. The run stays blocked until the file actually arrives.",
+                "I have revised your due time to Friday 11:00 based on your decision. Quinn's snapshot remains the open prerequisite with its Thursday-noon deadline.",
+                "The new sequence is now authoritative: snapshot first, then your pruning run by 11 a.m. Friday. No completion is inferred from the schedule change."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The snapshot arrived Thursday at 11:50. I validated its checksum and started the sandbox run, but there is no result yet.",
+                "Quinn delivered at 11:50 Thursday; checksum validation passed, and the pruning job is now running without an outcome.",
+                "At Thursday 11:50 I received and verified the snapshot, then launched the sandbox trial. It has not completed.",
+                "The dependency closed at 11:50: file received, checksum confirmed, execution started. I am not reporting metrics yet."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Quinn's dependency and your checksum validation can close at Thursday 11:50. The sandbox run is now in progress and remains due Friday 11:00; a start is not a measured result.",
+                "The prerequisite is resolved and execution has begun. I will keep the run open until you report completion, p95 change, error-rate change, and saved artifacts.",
+                "Status moves from blocked to active: snapshot received and verified, pruning job running, outcome unknown. Your Friday deadline remains unchanged.",
+                "Only the input and validation steps are complete. The experiment itself still lacks measurements and artifacts, so it cannot yet close."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Friday 10:20 result: the run completed with a 12.5% p95 improvement and a 0.1 percentage-point error increase; I saved the artifacts.",
+                "The pruning trial finished at 10:20 Friday. It measured +12.5% p95 performance, +0.1 error points, and the output files are stored.",
+                "I have a completed sandbox result as of Friday 10:20: p95 improved 12.5%, errors rose 0.1 points, and all artifacts were saved.",
+                "Execution is done before the deadline. The observed metrics are 12.5% p95 improvement and 0.1-point added errors, with artifacts preserved."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Your sandbox-run commitment can close at Friday 10:20: execution completed, both metrics were captured, and artifacts were saved. The result meets the earlier ≥10% and ≤0.2-point criteria; external review remains separate if required.",
+                "The bounded pruning trial is complete before 11:00. Its measured 12.5% improvement and 0.1-point error increase satisfy the thresholds, while the saved outputs provide the agreed evidence.",
+                "There is now sufficient evidence to close execution successfully. This confirms the sandbox result, not any production rollout or unreported reviewer acceptance.",
+                "The run has a complete outcome and meets both decision limits. Your task is finished; only a separately requested review would remain open."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Quinn reviewed the artifacts at 10:45 and accepted the result. I am not committing to another experiment or a production rollout.",
+                "At 10:45 Friday, Quinn confirmed the saved evidence and accepted the sandbox outcome. There is no follow-on task from me.",
+                "Quinn's review is complete and favorable as of 10:45. Cache, batching, and production work remain outside my commitments.",
+                "The result has external confirmation from Quinn at 10:45, and I accept no further run or rollout."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "All active items can close: Quinn delivered the snapshot, you completed the pruning run, and Quinn accepted the evidence. Cache and batching remain unselected historical candidates, and no production rollout or follow-up experiment is open.",
+                "The index-pruning path is fully complete through review. Nothing in that result activates the other candidates or creates a production commitment.",
+                "Final status: dependency resolved, sandbox execution successful, artifacts accepted, and no next task assigned. Cache simulation and batching stay inactive.",
+                "The selected experiment has reached closure with observed measurements and reviewer acceptance. Your explicit refusal of follow-on work leaves no open experiment or rollout loop."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "plan_commitment_open_loop_06",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我在考虑下周四做 Atlas preview launch。Please help me stage the plan first；目前还不是正式承诺。",
+                "Let's explore a staged Atlas preview for next Thursday，先列责任和依赖，不要把想法当成已接受计划。",
+                "我的初步意向是 next-Thursday preview launch。Could you map the sequence while keeping it tentative?",
+                "想讨论 Atlas 预览发布的安排，target may be next Thursday；现在只规划，我尚未确认执行。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Candidate sequence：P6 周一 16:00 交 build，Dana 周二 15:00 完成 security signoff，P7 周三 12:00 交 release notes，你在周三 16:00 做 go/no-go decision，若通过则周四 10:00 preview。请确认后才成立。",
+                "可以分阶段：Monday 16:00 build by P6，Tuesday 15:00 security review by Dana，Wednesday noon notes by P7，然后你 Wednesday 16:00 决定是否周四十点发布。All items remain proposed.",
+                "A workable plan is build → security signoff → release notes → your go/no-go → Thursday preview。对应负责人是 P6、Dana、P7 和你；这些日期仍需明确接受。",
+                "建议把 Thursday 10:00 preview 放在三个前置结果之后：P6 的周一构建、Dana 的周二安全确认、P7 的周三说明，最终由你周三四点决策。This is not active yet."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "团队已确认这些安排，我也接受：P6 Monday 16:00 交 build，Dana Tuesday 15:00 做 signoff，P7 Wednesday 12:00 交 notes；我 Wednesday 16:00 作 go/no-go，获准后 preview Thursday 10:00。",
+                "Make the plan explicit：P6 周一四点、Dana 周二三点、P7 周三中午分别交付；我承诺周三四点做发布决定，只有 go 后才在周四十点 preview。",
+                "I accept the staged launch plan, and each person has confirmed responsibility。Build 周一、security 周二、notes 周三，我负责 Wednesday 16:00 决策，preview 候选时间 Thursday 10:00。",
+                "正式定下：P6、Dana、P7 依次承担 build、signoff、release notes，我负责周三 16:00 的 go/no-go；a go decision would authorize the Thursday 10:00 preview."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed：P6 周一 16:00 build，Dana 周二 15:00 security signoff，P7 周三 12:00 release notes，你周三 16:00 go/no-go；只有明确 go 才执行 Thursday 10:00 preview。Each dependency remains open until reported.",
+                "The commitment chain is active and conditional：build、security、notes 三项先完成，再由你决定；周四十点不是无条件发布。没有更新前不假定任何步骤已完成。",
+                "责任与截止已分清。P6, Dana, and P7 supply the three prerequisites；you make the Wednesday decision, and the preview proceeds only if that decision is go.",
+                "现有计划不会自动推进：Monday build、Tuesday signoff、Wednesday notes 都需真实结果，你再在周三四点决定。Thursday preview remains conditional."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Preview 的完成条件是部署结束后，external health check 明确通过，并观察 30 分钟 rollback window。Please track those separately.",
+                "Define closure as two observed outcomes：外部健康检查通过，且发布后 30-minute rollback window 没有触发回退。",
+                "周四即使执行也不能立刻算完成。It closes only after an external health check passes and the thirty-minute rollback window ends without a trigger.",
+                "补充结果标准：deployment 后要拿到 external health confirmation，并完成三十分钟回退观察，才可关闭 preview。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Closure criteria confirmed：实际部署、external health check 通过、30-minute rollback window 无触发，三者都需有结果。Starting the preview alone will not close it.",
+                "会分开追踪执行与结果：先发生 deployment，再等待外部健康确认和 30 分钟观察。Only all three observed facts can complete the preview.",
+                "The finish line now extends beyond launch time。周四十点只是执行点，健康检查和 rollback window 都必须实际结束，不能提前推定。",
+                "已明确验收边界：部署完成不等于结果完成；external check 和三十分钟回退窗口仍是后续开放事项。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Also, do not imply you will send messages, run checks, or launch anything in the background；只依据我提供的更新追踪。",
+                "请不要假装后台执行。No contacting P6, checking systems, or launching the preview unless I report that it happened.",
+                "One boundary：你只整理状态，不声称替团队发通知、做检查或执行发布。",
+                "只基于实际输入更新计划。Please never present unperformed background work as progress."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "明白。I will only reflect reported events and decisions；不会声称联系任何人、运行 health check 或执行 preview。未收到结果的步骤保持未完成或未知。",
+                "Confirmed：我不执行或假装执行团队动作，只根据你提供的 build、signoff、notes、decision 和 outcome 更新状态。",
+                "会保持事实边界。No background messages, checks, or launch actions will be inferred；所有开放项等待真实报告。",
+                "I will act only as a status companion：记录已发生的事实、指出依赖与截止，不把未发生的操作写成完成。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "P7 已明确接受 Wednesday 12:00 的 release-notes deadline；the notes depend on P6's final build identifier.",
+                "补充依赖：P7 承诺周三中午交 notes，但需要 P6 的 final build ID。",
+                "P7 confirmed responsibility for the Wednesday-noon release notes。前置输入是 P6 最终构建标识。",
+                "Release notes 由 P7 在 Wednesday 12:00 前完成，这项安排已确认；without P6's final build ID, the notes remain blocked."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Updated：P7 的 Wednesday 12:00 notes commitment 已确认，并依赖 P6 的 final build ID。若 build 标识未到，notes 应标记受阻，不会把责任转给你或假报完成。",
+                "The dependency chain now links P6's build identifier to P7's notes。P7 仍负责周三中午交付，实际状态要等构建结果。",
+                "已把 notes 的前置条件说清：P6 supplies the final build ID, P7 completes the document。你仍只负责后续 go/no-go。",
+                "P7 的责任和截止不变，但 its work cannot close without P6's identifier。没有实际交付前，release notes 保持开放。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Before we pause, give me the exact carryover for the next session；不要补任何进度。",
+                "请总结跨 session 保留的 commitments, dependencies, and closure conditions，facts only。",
+                "What remains open when we resume？请保持所有未报告事项为未完成。",
+                "把当前计划准确收束一下，including who is responsible and when，without assumed work."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Carryover：P6 Monday 16:00 build；Dana Tuesday 15:00 signoff；P7 Wednesday 12:00 notes，依赖 final build ID；你 Wednesday 16:00 go/no-go。Only a go permits Thursday 10:00 preview，之后还需 health check 和 30-minute window。",
+                "开放链是 build → security → notes → your decision → conditional preview → external health result → rollback window。每项负责人和截止保持不变，目前没有一项被报告完成。",
+                "Facts only：P6、Dana、P7 和你分别承担既定节点，周四 preview 仍受 go decision 限制。Completion further requires an external check and thirty minutes without rollback.",
+                "下一次从全部未完成的 staged plan 继续。No background progress is recorded；P6 的 build ID 还是 P7 notes 的明确依赖，最终发布决定在你。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Monday 16:10 update：P6 的 build 还没完成，新承诺是 Tuesday 11:00。",
+                "P6 missed the Monday 16:00 build time and now expects delivery Tuesday at 11。构建尚未交付。",
+                "周一 16:10 仍无 build，P6 把交付时间改到周二上午十一点。",
+                "The first dependency is delayed：P6 did not deliver Monday and has revised the build deadline to Tuesday 11:00；构建尚未到位。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "P6 的 build 已延误并重订为 Tuesday 11:00。Dana 的 security review、P7 的 notes 和你的 go/no-go 都依赖后续结果，当前不能声称它们已开始或按时可达。",
+                "The build loop remains open with a new Tuesday-morning deadline。下游时间尚未被正式改动，但风险增加，任何进展都需实际更新。",
+                "状态是 P6 dependency delayed, all downstream items still open。新时间不会自动证明 Dana 或 P7 能守住原截止。",
+                "已记录 P6 未按周一交付。Build 现在等待周二十一点，后续 signoff、notes 和 decision 保持未知，不作乐观推定。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Dana 说 security review 必须等 build，so her Tuesday 15:00 signoff is now at risk；她还没有开始。",
+                "Security cannot start before the build arrives。Dana 的周二三点截止可能受影响，目前 review 未启动。",
+                "Dana confirmed the dependency：没有 build 就无法做安全检查，因此 Tuesday 15:00 的结果有风险。",
+                "补充事实：Dana 仍在等待构建，security signoff 尚未开始，原定周二 15:00 可能赶不上。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The chain is now explicitly blocked：P6 build first, then Dana's review。Dana 仍负责 signoff，但当前未开始且 Tuesday 15:00 有风险；这不等于已经失败或已自动改期。",
+                "已更新为 security review waiting on build。P6 的延误压缩了 Dana 的窗口，原截止仍在，除非团队明确重订。",
+                "Dana 的责任没有转移，状态是 blocked and not started。不能把风险写成完成，也不能未经决定把周二三点改掉。",
+                "Current facts：build absent, Dana unable to start, signoff deadline at risk。P7 和你的后续节点也继续开放。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "What options do we have？先列选择，不要替我改变 launch date 或取消计划。",
+                "请给出应对 build delay 的 alternatives only；我还没授权改期、继续或取消。",
+                "I need decision options for the blocked chain, not an automatic schedule change；请只列选择。",
+                "面对这个依赖延误，可以怎么处理？Keep all changes tentative until I choose."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Options：一是保留 Thursday preview，但在 build 到达后重新核算；二是现在重订下游截止；三是取消本次 preview。Each requires your explicit choice，当前计划不自动变化。",
+                "You could keep the date conditionally, move the decision and preview, or cancel the launch。先不执行任何选项，等待你选择。",
+                "可选路径有继续等待并设检查点、主动改期、或关闭本次计划。No option is accepted merely because it was proposed.",
+                "The delay supports three possible decisions：hold with a checkpoint, reschedule, or cancel。现阶段只列方案，不改变责任或日期。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我选择暂时保留 Thursday 10:00，但设 Tuesday 14:00 checkpoint。No deadline is moved yet, and launch still requires my go decision.",
+                "Keep the preview date conditionally。周二下午两点我会检查 build 和 security 状态，现在不重订任何截止。",
+                "I accept the checkpoint option：Tuesday 14:00 review，Thursday preview remains tentative and still needs my go/no-go；原截止暂不改变。",
+                "先不改期也不取消。Add a Tuesday 14:00 status checkpoint；发布仍不能绕过我的 Wednesday decision。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Checkpoint confirmed for Tuesday 14:00。原有下游截止暂不变，Thursday 10:00 仍是 conditional target；只有你后续明确 go 才能执行。",
+                "已选择“保留日期并检查”，not a silent guarantee。周二两点根据实际 build 和 security 结果再决定，其余安排目前保持开放。",
+                "The plan now has a Tuesday 14:00 decision checkpoint。它不会自动延长 Dana 或 P7 的时间，也不会预先授权 preview。",
+                "状态为 date retained, risk visible, checkpoint added。你仍负责最终 go/no-go，未到检查点前不假定风险已解除。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Tuesday 11:00，P6 已交付 build 和 final build ID；checksum validation passed，Dana 现在开始 security review。",
+                "P6 delivered at Tuesday 11 with the final identifier。构建校验通过，Dana 已据此启动安全检查。",
+                "The build dependency closed Tuesday 11:00：artifact and final ID received, checksum valid, security review started；构建依赖已解除。",
+                "周二上午十一点新状态：P6 的 build 到位且校验通过，final build ID 已给 Dana，她开始 review。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "P6 的 build 可以在 Tuesday 11:00 关闭，final ID 依赖也已满足。Dana 的 review 从 blocked 转为 in progress，signoff 仍需实际结果；P7 的 notes 现在可以使用该 ID。",
+                "The first dependency is resolved and validated。Dana 已开始但尚未完成 security review，P7 获得 notes 所需标识；后续结果不能提前确认。",
+                "已更新：build complete, security active, notes unconfirmed。Tuesday 14:00 checkpoint 仍有效，用来查看 Dana 的真实进展。",
+                "P6 履行了重订后的交付。当前开放的是 Dana signoff、P7 notes、你的 decision 和 conditional preview，均等待事实。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "At this point, list every open loop and who is responsible；不要假定 Dana 或 P7 已完成。",
+                "现在有哪些未完成事项？Please include responsibility, deadlines, and dependencies only.",
+                "Give me the exact active chain after the build delivery，keeping unknown outcomes unknown；请不要补推结果。",
+                "请更新当前计划边界：谁还欠什么、何时到期，以及 launch 仍受什么条件限制？"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Open：Dana 负责 Tuesday 15:00 security signoff；P7 负责 Wednesday 12:00 release notes，build ID 已到；你在 Wednesday 16:00 做 go/no-go。Thursday 10:00 preview 仍需 go，之后还需 external health check 和 30-minute window。",
+                "未完成链为 Dana signoff → P7 notes → your go/no-go → conditional preview → health confirmation → rollback observation。P6 的 build 已关闭，其余不推定。",
+                "Current responsibilities：Dana 提供安全结果，P7 交 notes，你作最终决策。Only a reported go can activate Thursday preview；其验收结果仍在更后面。",
+                "P6 的事项已完成。仍开放的是 Tuesday security、Wednesday notes、Wednesday decision 和可能的 Thursday execution；external check 与观察窗口也尚未发生。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Tuesday 15:00，Dana 报告一个 unresolved critical issue，因此没有给 security signoff。",
+                "Dana's 3 p.m. security result is no signoff because a critical issue remains unresolved；安全批准没有获得。",
+                "周二下午三点的实际结果：critical security issue 仍未解决，Dana 拒绝签字。",
+                "Security review finished with an unresolved critical finding at Tuesday 15:00；signoff was not granted，关键问题仍开放。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Security gate did not pass：Dana 明确未 sign off，critical issue 仍开放。Thursday preview is blocked and cannot be described as approved；下一步需你决定取消、改期或另作处理。",
+                "Dana 的结果关闭了“等待审查”，但没有满足发布依赖。The launch remains unauthorized，不能因其他材料存在而继续。",
+                "当前事实是 security review completed with no approval。P7 notes 和 build 不能替代 signoff，你的 go/no-go 必须基于这个失败结果。",
+                "The critical issue blocks the staged plan。没有 security signoff，就没有依据执行 Thursday preview；状态应公开标为受阻。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我明确取消这次 Atlas preview launch，并关闭所有 launch-related tasks。P6 和 P7 停止发布准备；there is no reschedule.",
+                "Cancel the accepted preview plan。所有与本次发布有关的 build follow-up、notes 和 Thursday execution 都结束，不安排新日期。",
+                "我的正式决定是 no-go and cancellation：P6、P7 不再继续发布准备，周四预览不会执行，也不顺延。",
+                "请关闭本次 launch。I am not postponing it；the team has been told P6 and P7 should stop release work."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Cancellation confirmed：本次 Atlas preview 已取消且不改期。P6、P7 的 launch-related work、你的 go/no-go 以及 Thursday execution 全部关闭；旧截止不再是活动提醒。",
+                "The accepted plan is now closed as cancelled, not delayed。P6 和 P7 不再承担本次发布任务，周四十点也不再是执行时间。",
+                "已根据明确 no-go 终止整条 launch chain。Build history 可保留，但不会继续驱动 notes、preview、health check 或 rollback window。",
+                "This launch has no active commitment or open execution loop。取消决定取代了此前日期，未来若重启必须是新的明确安排。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Dana 接受一个 separate task：在 Friday 15:00 前提交 critical issue report。This is not a launch task.",
+                "另开一项独立工作，Dana 负责周五下午三点前写出 critical-issue report；它不恢复 preview。",
+                "Dana has committed to an issue report by Friday 15:00。请与已取消的 launch 完全分开。",
+                "新增的是问题报告，不是发布计划：Dana 周五三点交付，Atlas preview 仍然关闭。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Separate task confirmed：Dana 负责 Friday 15:00 的 critical issue report。它用于记录问题，不会重新激活 build、notes、go/no-go 或 preview。",
+                "已建立独立的报告事项，负责人 Dana，截止周五三点。The cancelled launch remains closed and has no execution dependency on this report.",
+                "I will track only Dana's issue report as open。报告完成与否都不自动改变先前 cancellation，任何未来发布需要新决定。",
+                "分离明确：launch chain closed；issue-report loop open with Dana through Friday 15:00。两者不会互相替代。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Remove all reminders tied to the cancelled launch；只保留 Dana 的独立报告。",
+                "Please stop surfacing the old launch deadlines。当前唯一应提醒的是 Dana 的 Friday report。",
+                "取消 P6、P7、go/no-go 和 Thursday preview 的后续提示，keep only the separate issue report。",
+                "我不希望再看到已关闭 launch 的执行提醒。Only Dana's report remains active."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "确认。Active reminder 只剩 Dana 的 Friday 15:00 issue report；P6、P7、Wednesday decision、Thursday preview 及其结果检查都已关闭，不再作为待办。",
+                "The launch dates are historical, not active prompts。当前仅追踪 Dana 的独立报告，取消事项不会被重新催办。",
+                "已清理当前责任：no release preparation, no go/no-go, no preview。唯一开放环路是 Dana 周五三点的报告。",
+                "I will surface only the separate report。旧 launch 的负责人和截止保留为历史背景，不再产生行动要求。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "P7 说 release-notes draft 已经存在，但不会发布。That artifact should not reopen the launch.",
+                "There is a saved notes draft from P7, yet P7 confirms it will not be published；本次 preview 仍取消。",
+                "补充历史事实：P7 做过 release notes 草稿，现在停止发布。不要因此恢复任何 launch task。",
+                "P7 has an unpublished draft left from earlier work。它只是现有文件，不代表计划重新生效。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "The draft can be retained as historical work, but it creates no active delivery or launch commitment。P7 已停止发布，cancellation 仍是最新决定。",
+                "文件存在不改变状态。Release notes remain unpublished, P7 has no current task, and the Atlas preview stays closed.",
+                "会把草稿与活动计划分开：artifact exists, publication cancelled。它不会恢复 P7 的截止或你的 go/no-go。",
+                "P7 的历史产物只证明曾有准备，不证明当前授权。No launch loop is reopened by the saved draft."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Give me the final carryover after cancellation，including the one separate task；请保留准确边界。",
+                "请总结取消后的 durable status：哪些关闭，哪一项仍开放？",
+                "What should persist into the next session without reviving the preview？请只保留真实未结事项。",
+                "收束当前状态，facts only；launch 与 issue report 必须分开。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Carryover：Atlas preview 已明确取消且不改期，P6/P7 发布准备、你的 go/no-go、Thursday execution、health check 和 rollback window 均关闭。Only Dana's critical issue report remains open, due Friday 15:00.",
+                "The launch is fully closed as cancelled；P7 的未发布草稿只是历史文件。唯一活动事项是 Dana 周五三点的问题报告，结果尚未知。",
+                "Closed：the entire preview chain and all old reminders。Open：Dana's separate issue report through Friday 15:00。除此之外没有责任延续。",
+                "下一次只保留 Dana report 的未完成状态。Atlas build history、notes draft 和旧日期都不能重新成为活动计划。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Two weeks later, a history search surfaced the old Atlas plan with its Thursday launch time。请告诉我 its current status.",
+                "两周后我检索到那份旧计划，里面还写着 Thursday 10:00 preview。Is it active?",
+                "An old record has resurfaced with P6, P7, and the Thursday date。请告诉我当前是否仍需执行。",
+                "历史搜索显示了之前接受过的 Atlas preview schedule。Does that old entry reopen anything now?"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "It is historical and inactive。后来的明确 cancellation 关闭了 Thursday preview 及相关任务，旧记录不能覆盖更新后的决定；当前没有 Atlas launch commitment。",
+                "那份计划曾经有效，但已被后续取消。The Thursday time, P6/P7 tasks, and your go/no-go are not active now.",
+                "Current status is cancelled, not pending。历史检索只提供背景，不会重新创建发布责任或截止。",
+                "The later no-go remains authoritative。旧 schedule 可以查阅，但不能据此执行或发出提醒。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Does P7's existing release-notes draft imply that preparation is still active？这个草稿会恢复任务吗？",
+                "P7 的 notes 草稿还在，这会不会让 launch preparation 重新生效？",
+                "Could the saved draft count as an unfinished delivery obligation for P7？它是否仍是待交付事项？",
+                "现有 release notes artifact 是否意味着 P7 仍欠发布动作？"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "No. The draft proves that earlier work existed, while P7's publication task was explicitly closed with the launch。它不产生当前义务。",
+                "不会。Artifact existence is historical evidence, not renewed authorization；P7 没有活动截止，也不应发布。",
+                "The saved notes remain unpublished by design。取消决定结束了 P7 的 delivery loop，除非出现新的明确安排。",
+                "草稿与当前承诺要分开：the file persists, the task does not。它不能单独恢复 launch preparation。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "I am considering a one-team pilot next month, but this is brainstorming only；没有日期或承诺。",
+                "新的想法是下个月也许做 single-team pilot。For now, do not treat it as a plan.",
+                "Could we explore a one-team pilot for next month？我还没接受执行、负责人或截止。",
+                "我只是提出一个 future pilot concept, limited to one team；当前没有正式决定。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The one-team pilot remains a new exploratory idea, separate from the cancelled preview。没有负责人、截止或执行授权，旧计划也不会因此复活。",
+                "会把它作为 fresh candidate 讨论，而不是旧 launch 的延续。Until you explicitly accept details, no pilot commitment exists.",
+                "这是独立意向，仅限 one-team scope。当前不分配任务，也不从历史日期推导新安排。",
+                "Exploration can continue without activation。旧 Atlas preview 仍关闭，新 pilot 也尚未进入执行计划。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Possible prerequisites are a new security assessment and stakeholder consent；这些只是想法，not assigned tasks yet.",
+                "候选前置条件包括新的 security assessment 和 stakeholder approval，但现在没人承诺。",
+                "For exploration, note two possible dependencies：重新安全评估、相关方同意。不要给它们设截止。",
+                "我认为 pilot 也许需要 security reassessment plus stakeholder consent；暂时只记录为候选条件。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Noted as candidate prerequisites only：new security assessment and stakeholder consent。两者都没有负责人或截止，and the pilot remains uncommitted.",
+                "这两项可以帮助评估 future pilot，但不会自动成为待办。No assignment, due date, or execution follows from listing them.",
+                "The exploratory structure is pilot idea plus two possible dependencies。它们都保持未接受状态，与旧 launch 无活动关联。",
+                "已保留为讨论材料：security reassessment 和 stakeholder consent。Until explicit acceptance, there is no open operational loop."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "What is actually active now, including Dana's separate issue report？我们一直没有更新 its outcome.",
+                "请列出真正未关闭的事项。The pilot is only an idea, but Dana's Friday report status was never reported.",
+                "Which commitment, if any, remains open？别把探索中的 pilot 算进去，注意 Dana report 没有后续。",
+                "现在的活动状态是什么？The old launch is cancelled, the new pilot is tentative, and Dana's report lacks an outcome update."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "The old launch is closed, and the new pilot has no commitment. Dana's issue report is the only previously accepted task without an observed outcome；周五 15:00 已过，so status is unknown and should be checked rather than marked complete.",
+                "真正悬而未决的只有 Dana report。It was due Friday 15:00, but no result was reported；不能说完成，也不能让它恢复 launch。",
+                "Current state：cancelled preview, exploratory pilot, and one overdue-or-unknown issue report assigned to Dana。该报告需要 factual update.",
+                "没有活动发布计划。Dana 的独立报告仍缺少结果证据，截止已过，应保留为 outcome unknown，而不是推定成功或失败。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Dana did send the critical-issue report on Friday at 15:00，我在当天下午 acknowledged receipt.",
+                "补充结果：Dana 周五下午三点按时提交了 report，我当天确认收到。",
+                "The missing outcome is now known—Dana delivered at Friday 15:00，我也 sent a receipt acknowledgment。",
+                "Dana's separate task was completed exactly at the Friday deadline；我在同一天下午确认收件。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Dana's separate report can now close as completed Friday 15:00 with your receipt confirmed。已取消的 Atlas launch remains closed，and the possible one-team pilot remains uncommitted with no active tasks.",
+                "已补齐唯一缺失结果：Dana 按时交付且你确认收到。No old launch obligation revives, and the new pilot still has no deadline or responsibility.",
+                "The issue-report loop is fully closed。当前没有活动承诺：历史 preview 已取消，future pilot 只是探索。",
+                "最终状态是 report complete, old launch cancelled, new pilot tentative。没有遗留执行或发布事项。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 4,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "A stale calendar reminder just surfaced saying “Atlas launch tomorrow.” 这条旧提醒 should anyone follow it?",
+                "旧日历今天弹出 “明天发布 Atlas”。Does that reminder authorize action?",
+                "There is an old notification for a next-day Atlas launch。请判断它是不是当前任务。",
+                "我看到一条过期 reminder，内容是 Atlas launch tomorrow。Should P6 or P7 act on it?"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "No. The reminder is stale and conflicts with the later explicit cancellation。它只能作为历史记录，with no action by P6, P7, or you.",
+                "不能执行。最新有效决定是取消，calendar text does not recreate authorization or deadlines。",
+                "The stale alert should be corrected or dismissed, not followed。旧 launch remains closed and no team member has an active task from it.",
+                "它不是当前承诺，只是未同步的旧提醒。No launch, notes publication, or go/no-go should occur because of it."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I do want to evaluate a new one-team pilot，但我 still have not chosen a date。",
+                "我现在愿意评估新的 single-team pilot，不过尚未承诺执行时间。",
+                "Let's move the fresh pilot idea into evaluation only；目前 there is no launch date yet.",
+                "新的意向是评估一支团队的 pilot。Please keep execution and deadline unassigned for now."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The new pilot can move from brainstorming to evaluation without becoming an execution commitment。它与旧 launch 分离，目前仍无负责人或日期。",
+                "已确认评估意向，not a pilot promise。下一步可以先明确证据依赖，再由你决定是否接受执行。",
+                "I will track a fresh evaluation path only。不会推定 Friday or another date, and the cancelled preview stays closed.",
+                "评估范围是一支团队，但 execution remains unassigned。旧日历和旧计划不会为新 pilot 提供授权。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Dana accepts a new security assessment due next Wednesday at 12:00。结果到达后我才 will decide on the pilot.",
+                "新增明确依赖：Dana 负责下周三中午前完成 security assessment；我等结果后再决定，不承诺 pilot。",
+                "The assessment is now assigned to Dana for next Wednesday noon。它到达前 my pilot decision remains open.",
+                "Dana has committed to a fresh security review by Wednesday 12:00 next week；执行与否仍由我之后决定。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "New dependency confirmed：Dana is responsible for the security assessment by next Wednesday 12:00。你的后续决定 has no preset outcome, and no pilot execution is committed.",
+                "当前只有一项明确任务：Dana 下周三中午交 security result。You will evaluate it afterward；P6 和 pilot 日期均未安排。",
+                "The assessment loop is active, while the pilot remains conditional。Dana 承担截止，and you retain the later approve-or-decline choice.",
+                "已分开责任：security evidence 归 Dana，decision 归你但暂无截止，execution 尚未分配。This does not revive the old launch."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Next Wednesday at 11:30, Dana delivered the assessment。它只 clears a one-team pilot, not a broad launch.",
+                "Dana 在下周三 11:30 交付新评估，结论仅允许 single-team pilot，不能用于 broad rollout。",
+                "The security result arrived at Wednesday 11:30：一支团队 is cleared, wider release is not。",
+                "新 assessment 已按时到位，范围是仅一支团队可试点；it gives no approval for the former broad preview."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Dana's assessment can close at Wednesday 11:30。它 establishes a one-team security boundary, not an execution commitment；your approve-or-decline decision remains open.",
+                "安全依赖已完成且范围明确：single team only。The result permits consideration, but P6 has no task and no date until you explicitly approve.",
+                "The evidence supports only a bounded pilot。旧 broad launch 仍取消，新 pilot 也尚未被你接受执行。",
+                "已收到按时结果，assessment loop closed。Next step is your explicit decision；clearance alone does not schedule action."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "I explicitly approve a one-team pilot for Friday at 10:00。P6 执行，and I will decide stop or continue at 12:00；there is no broad launch.",
+                "正式承诺新 pilot：P6 周五十点执行一支团队，我在中午作 stop/continue decision。No wider rollout is authorized.",
+                "The fresh plan is accepted and bounded—single-team execution by P6 Friday 10:00, then my noon decision；旧 broad preview 不恢复。",
+                "I am now creating a new commitment：Friday 10 a.m. pilot由 P6 负责，Friday noon go/stop 由我决定，one team only."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "New commitment confirmed and kept separate from the cancelled plan：P6 executes one-team pilot Friday 10:00；you decide stop or continue at 12:00。不会恢复 broad launch or old deadline.",
+                "责任与边界已明确：Friday 10:00 single-team pilot by P6, noon decision by you。The security assessment is complete, and wider rollout remains unauthorized.",
+                "This is a fresh bounded plan, not a revival。P6 负责 execution, you carry the noon outcome decision, and only one team is in scope.",
+                "已接受新的 two-step commitment：十点试点、十二点决定。旧 Atlas launch 仍是 cancelled history，不会与本次 pilot 合并。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Friday update：P6 reported the one-team pilot completed at 10:20，我在 12:00 chose stop。No continuation or wider rollout occurred.",
+                "周五 10:20 P6 完成单团队试点；我在中午决定 stop，之后没有扩展到其他团队。",
+                "The bounded execution finished Friday 10:20。中午 I made a no-continue decision, so the pilot did not proceed further.",
+                "P6's pilot outcome is complete at 10:20，我在 12:00 decided to end it there；no broad launch followed."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "The new one-team pilot can close：P6 completed it Friday 10:20, and your noon stop decision closed continuation。没有 wider rollout open, and the old Atlas launch remains cancelled.",
+                "本次 fresh pilot 已完整结束，execution 和 stop decision 都有实际结果。There is no follow-on task, and historical reminders remain inactive.",
+                "Final status：single-team pilot completed, continuation declined, broad launch absent。旧计划没有复活，当前无开放发布事项。",
+                "可以关闭所有新环节：P6 履行试点，你按时决定停止。Neither this outcome nor the stale reminder creates another launch commitment."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

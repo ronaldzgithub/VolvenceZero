@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import gzip
 import json
 from dataclasses import replace
 from pathlib import Path
 
 from companion_encoder import examples_from_trajectory
 
-from lifeform_synthetic_data.canonical import stable_hash
+from lifeform_synthetic_data.canonical import canonical_json, stable_hash
 from lifeform_synthetic_data.contracts import (
     GenerationTier,
     SnapshotFrame,
@@ -21,6 +22,7 @@ from lifeform_synthetic_data.projections import (
     project_expression_sft,
     project_human_review_queue,
     project_internal_rl,
+    project_master_run,
     project_memory_retrieval,
     project_relationship_encoder,
     project_relationship_record,
@@ -221,3 +223,33 @@ def test_projection_files_and_relationship_layout_are_deterministic(
     assert manifest["policy"] == "whole_scenario_family"
     assert manifest["split_families"]["train"] == ["relationship_continuity"]
     assert manifest["split_families"]["val"] == ["absence_reengagement"]
+
+
+def test_project_master_run_streams_shards_and_writes_all_views(
+    tmp_path: Path,
+) -> None:
+    trajectories = (
+        _rendered("relationship_continuity"),
+        _rendered("absence_reengagement"),
+    )
+    master_root = tmp_path / "master"
+    master_root.mkdir()
+    with gzip.open(
+        master_root / "shard-00000.jsonl.gz",
+        "wt",
+        encoding="utf-8",
+    ) as sink:
+        for trajectory in sorted(
+            trajectories,
+            key=lambda item: item.trajectory_id,
+        ):
+            sink.write(canonical_json(trajectory) + "\n")
+
+    manifests = project_master_run(tmp_path)
+
+    by_view = {manifest.view: manifest for manifest in manifests}
+    assert set(by_view) == set(ProjectionView)
+    assert by_view[ProjectionView.RELATIONSHIP_ENCODER].record_count == 2
+    assert by_view[ProjectionView.EXPRESSION_SFT].record_count > 0
+    projection_audit = json.loads((tmp_path / "projections" / "projection-audit.json").read_text(encoding="utf-8"))
+    assert projection_audit["passed"] is True

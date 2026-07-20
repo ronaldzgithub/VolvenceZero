@@ -28,6 +28,42 @@ lifeform-synthetic-data generate \
 
 ## Rendered run
 
+### Cursor-authored, zero API
+
+The checked-in render assets are written directly by Cursor agents. Each turn
+has four semantically equivalent, substantially different variants. For every
+user turn, variant 1 is first compiled into generator truth as the canonical
+observable event; only then do the seed, stable turn ID, and complete asset
+hash choose an expression variant deterministically.
+
+```bash
+lifeform-synthetic-data validate-render-assets
+
+lifeform-synthetic-data generate \
+  --stage pilot96 \
+  --renderer cursor \
+  --run-id unified-v1-cursor-pilot96 \
+  --max-cost-usd 0
+
+lifeform-synthetic-data generate \
+  --stage scale768 \
+  --renderer cursor \
+  --run-id unified-v1-cursor-scale768 \
+  --max-cost-usd 0
+
+lifeform-synthetic-data generate \
+  --stage master10240 \
+  --renderer cursor \
+  --run-id unified-v1-cursor-master10240 \
+  --max-cost-usd 0 \
+  --concurrency 8
+```
+
+No API token or API cost is claimed for this path. Provenance records the
+actual Cursor model family and a content hash of all authored dialogue assets.
+
+### OpenAI-compatible endpoint
+
 Create an untracked endpoint config:
 
 ```json

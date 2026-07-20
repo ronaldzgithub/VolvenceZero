@@ -3,18 +3,24 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Sequence
 
 from .conformance import assert_v1_conformance
-from .audit import audit_trajectories, write_audit_bundle
-from .canonical import stable_hash
+from .audit import audit_run_streaming, write_audit_bundle
 from .contracts import CorpusSplit, ExperienceTrajectory, GenerationTier, ScenarioBlueprint
+from .cursor_renderer import (
+    CursorAuthoredJsonClient,
+    validate_cursor_assets,
+)
 from .llm import (
+    JsonCompletionClient,
     OpenAICompatibleConfig,
     OpenAICompatibleJsonClient,
     RateCard,
@@ -85,6 +91,10 @@ def build_parser() -> argparse.ArgumentParser:
         "validate-scenarios",
         help="validate the checked-in 96-scenario package",
     )
+    subparsers.add_parser(
+        "validate-render-assets",
+        help="validate all Cursor-authored dialogue variants",
+    )
     schema_parser = subparsers.add_parser(
         "export-schema",
         help="export the frozen JSON Schema",
@@ -137,6 +147,11 @@ def _add_generation_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--max-output-tokens", type=int, default=4096)
     parser.add_argument("--max-cost-usd", type=float, default=0.0)
+    parser.add_argument(
+        "--renderer",
+        choices=("openai", "cursor"),
+        default="openai",
+    )
     parser.add_argument("--endpoint-config", type=Path)
     parser.add_argument("--source-run-root", type=Path)
     parser.add_argument("--export-parquet", action="store_true")
@@ -157,6 +172,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "routing_test_count": report.routing_test_count,
                 "negative_routing_test_count": report.negative_routing_test_count,
                 "semantic_coherence_count": report.semantic_coherence_count,
+            }
+        )
+        return 0
+    if args.command == "validate-render-assets":
+        report = validate_cursor_assets(load_unified_v1_blueprints())
+        _print_json(
+            {
+                "asset_hash": report.asset_hash,
+                "family_count": report.family_count,
+                "scenario_count": report.scenario_count,
+                "turn_count": report.turn_count,
+                "variant_count": report.variant_count,
+                "passed": True,
             }
         )
         return 0
@@ -184,9 +212,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     if args.command == "audit":
-        trajectories = load_master_run(args.run_root)
-        report = audit_trajectories(
-            trajectories,
+        report, model_counts = audit_run_streaming(
+            args.run_root,
             expected_count=args.expected_count,
         )
         output_root = args.output_root or args.run_root / "audit"
@@ -194,11 +221,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         cost_usd, prompt_tokens, completion_tokens = _journal_usage(args.run_root)
         write_audit_bundle(
             report,
-            trajectories,
+            (),
             output_dir=output_root,
             actual_cost_usd=cost_usd,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
+            model_distribution=model_counts,
         )
         _print_json(
             {
@@ -231,20 +259,30 @@ def _run_generation_command(args: argparse.Namespace) -> int:
         if type(base_seed_value) is not int:
             raise ValueError("resume run config base_seed must be an integer")
         base_seed = base_seed_value
-    clients: tuple[OpenAICompatibleJsonClient, ...] = ()
+    clients: tuple[JsonCompletionClient, ...] = ()
     rate_card: RateCard | None = None
     source_trajectories: tuple[ExperienceTrajectory, ...] = ()
+    structural_enricher: Callable[[ExperienceTrajectory], ExperienceTrajectory] | None = None
     if tier is GenerationTier.RENDERED:
-        if args.endpoint_config is None:
-            raise ValueError("rendered stages require --endpoint-config")
         if args.source_run_root is not None:
             raise ValueError("--source-run-root is only valid for live-through")
-        clients, rate_card = _load_endpoint_clients(
-            args.endpoint_config,
-            max_output_tokens=args.max_output_tokens,
-        )
-        if args.max_cost_usd <= 0:
-            raise ValueError("rendered stages require a positive --max-cost-usd hard limit")
+        if args.renderer == "cursor":
+            if args.endpoint_config is not None:
+                raise ValueError("Cursor-authored rendering does not accept --endpoint-config")
+            validate_cursor_assets(load_unified_v1_blueprints())
+            cursor_client = CursorAuthoredJsonClient()
+            clients = (cursor_client,)
+            structural_enricher = cursor_client.enrich_truth
+            rate_card = RateCard(0.0, 0.0)
+        else:
+            if args.endpoint_config is None:
+                raise ValueError("OpenAI-compatible rendered stages require --endpoint-config")
+            clients, rate_card = _load_endpoint_clients(
+                args.endpoint_config,
+                max_output_tokens=args.max_output_tokens,
+            )
+            if args.max_cost_usd <= 0:
+                raise ValueError("OpenAI-compatible rendered stages require a positive --max-cost-usd hard limit")
     else:
         if args.endpoint_config is not None:
             raise ValueError("--endpoint-config is only valid for rendered stages")
@@ -283,12 +321,14 @@ def _run_generation_command(args: argparse.Namespace) -> int:
         rate_card=rate_card,
         scenario_package_hash=package_report.package_hash,
         source_trajectories=source_trajectories,
+        structural_enricher=structural_enricher,
     )
     estimate = pipeline.estimate_cost()
     _print_json(
         {
             "stage": args.stage,
             "tier": tier.value,
+            "renderer": (args.renderer if tier is GenerationTier.RENDERED else "not_applicable"),
             "planned_count": len(pipeline.plan_jobs()),
             "pending_calls": estimate.pending_calls,
             "conservative_upper_bound_usd": round(
@@ -342,7 +382,15 @@ def _select_live_sample(
             raise ValueError(
                 f"scenario {blueprint.scenario_id!r} has {len(candidates)} rendered sources, requires {required}"
             )
-        selected.extend(sorted(candidates, key=lambda item: (stable_hash(item), item.trajectory_id))[:required])
+        selected.extend(
+            sorted(
+                candidates,
+                key=lambda item: (
+                    hashlib.sha256(item.trajectory_id.encode("utf-8")).digest(),
+                    item.trajectory_id,
+                ),
+            )[:required]
+        )
     return tuple(selected)
 
 

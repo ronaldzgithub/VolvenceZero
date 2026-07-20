@@ -1,0 +1,2272 @@
+{
+  "schema_version": "cursor-authored-render.v1",
+  "family": "absence_reengagement",
+  "scenarios": [
+    {
+      "scenario_id": "absence_reengagement_01",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我因为照护家里的事离开了四十五天。现在想接着做阳台改造，不过这周能腾出多少时间还不确定。",
+                "这四十五天我都在忙照护事务，今天才回来。阳台改造我还想继续，只是暂时说不好本周有多少空。",
+                "我离开了大约一个半月去处理照护安排。那个阳台项目没有取消，但我还没法承诺这周投入多久。",
+                "隔了四十五天再来，是因为之前一直有照护任务。阳台改造仍想往下走，近期时间则还没定。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "欢迎回来，不必补交这段时间的说明。我们先把旧安排视为待确认：你今天想用多久，先恢复项目背景还是直接看一个小问题？",
+                "回来就好，缺席本身不需要解释。之前的节奏我不会自动续上；你愿意先说说今天的可用时间和想从哪一小步开始吗？",
+                "我们可以轻量重启，不默认原来的排期仍有效。今天你更想先找回共同上下文，还是限定一个短任务来做？",
+                "先按你现在的带宽来，过去的安排暂不生效。你希望这次花多长时间，并从回顾进度或处理具体事项中选哪一种？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "今天只有二十分钟。离开前好像卡在防雨收纳箱和香草架之间，但我不确定那还是不是当前方案。",
+                "我能用二十分钟。记得上次在讨论防雨储物和香草架，不过先别把这段记忆当成现行决定。",
+                "这次最多二十分钟。我印象里旧草案有收纳箱与香草架两个方向，是否继续要重新核对。",
+                "先做个二十分钟的短回顾吧。原先似乎留下了防雨收纳和香草架两项，它们现在是否有效我还没确认。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "明白，目前只能确认你记得这两个旧方向，不能确认它们仍有效。现在是两项都保留、只留一项，还是先全部搁置？",
+                "那我先把防雨收纳和香草架标成待复核，而不是恢复为任务。你此刻想保留其中哪一项？",
+                "我们先不沿用旧草案：收纳箱与香草架都需要你重新授权。哪些还符合你现在的计划？",
+                "共同背景先重建到这里——曾讨论过两项，但状态未知。请你确认要继续、取消或暂缓的分别是哪项。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "香草架取消，只留下防雨收纳。今天这二十分钟就用来把收纳方向缩小一点。",
+                "现在不用做香草架了；收纳箱仍然需要。我们只在今天的时间里比较收纳方案。",
+                "请关闭香草架那一项，保留防雨储物。眼下我只想把可选范围理清，不做更多。",
+                "旧计划里只续上防雨收纳，香草架作废。这次的目标是用二十分钟收窄选择。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "好，香草架到此关闭，当前只处理防雨收纳，也不延伸到购买。请给我现有尺寸和不能改变的安装限制。",
+                "我会按新的边界来：不再追踪香草架，今天仅筛选收纳方向。阳台可用空间多大，是否允许打孔？",
+                "已重新校准为单一问题——防雨储物；本轮不默认要下单。你能提供宽深尺寸，以及租住或安装方面的约束吗？",
+                "那就把旧的香草架承诺清掉，只比较收纳。为了不沿用过期资料，请确认现在的空间尺寸与固定方式限制。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我量到宽八十四厘米、深三十八厘米。房子是租的，不能打孔，今天也没有照片。",
+                "现有记录是八十四乘三十八厘米；因为租住，任何钻孔固定都不行。我手边暂时没现场图。",
+                "空间大约宽八十四、深三十八厘米，约束是不得打孔。照片这次提供不了。",
+                "尺寸先按八十四厘米宽、三十八厘米深处理，安装必须无钻孔；今天没有可供查看的照片。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "当前上下文是：只做防雨收纳，空间暂记八十四乘三十八厘米，必须免打孔且暂无照片。我们先把独立放置、尺寸可核验的方案作为候选，不替你形成购买承诺。",
+                "我已按今天的信息重置：香草架关闭；收纳受八十四厘米宽、三十八厘米深和无钻孔限制。此刻可以只建立筛选条件，是否购买留到你之后决定。",
+                "这二十分钟的结果可以停在一份候选边界：防雨、可独立摆放、不超当前尺寸；照片与采购均未确认。旧排期不会因此恢复。",
+                "先收束到可验证条件吧：八十四乘三十八厘米以内、无需钻孔、用途为防雨收纳。没有照片时不推断现场，也不把下一步设成有期限的任务。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "三天后我重新量了，宽度其实只有八十二厘米，深度还是三十八厘米。今天有三十分钟，可以继续。",
+                "我回来更新尺寸：可用宽度应为八十二厘米，不是八十四，深三十八不变。这次能留半小时。",
+                "上次的宽度数据过期了，复测结果是八十二乘三十八厘米。我现在有三十分钟往下做。",
+                "隔了三天再量，空间宽八十二、深三十八厘米；请用新尺寸替换旧记录。今天可用时间是半小时。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "收到，八十二厘米宽取代旧的八十四厘米，深度仍为三十八；香草架已关闭，免打孔约束继续有效。半小时内还要补充预算和材质偏好吗？",
+                "我先重建有效上下文：只看防雨收纳，现尺寸八十二乘三十八，且不能钻孔。旧宽度不再使用；接下来请确认预算与外观或材质要求。",
+                "尺寸已重新校准为八十二厘米宽、三十八厘米深，其余已确认边界不变。为了收窄候选，你这次愿意给出价格上限和箱体偏好吗？",
+                "这次从新测量值继续，不延用八十四厘米的数据。当前任务仍只是比较免打孔收纳；预算、材质和是否今天购买分别是什么状态？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "预算不超过三百元，偏向树脂箱和上掀盖。今天只做清单，不购买。",
+                "价格上限是三百，我想看树脂材质、向上打开的盖子；这次不下单。",
+                "请按三百元以内筛选，材质优先树脂，开合方式要上掀。采购不在今天的范围里。",
+                "我能接受的条件是树脂箱、掀盖式、最多三百元。现在只整理选择标准，不作购买决定。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "可以，目标只是形成清单。八十二厘米是箱体外宽的硬上限吗？另外上掀时是否有栏杆或台面限制开启高度？",
+                "那就不进入商品推荐或下单。为避免尺寸合适却打不开，请确认八十二厘米是否含全部余量，以及盖子上方有多少空间。",
+                "我会把三百元、树脂、掀盖写入筛选项，而非购买承诺。还缺两个现场事实：最大外宽是否就是八十二，开盖高度有无限制？",
+                "先核验安装边界：箱体任何部位都不能超过八十二厘米吗？掀盖路径会不会被栏杆等物体挡住？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "八十二厘米就是硬上限。后面有栏杆，盖子打开到离地六十八厘米左右就可能碰到。",
+                "外宽不能超过八十二；箱后是栏杆，掀盖高度到大约六十八厘米会受阻。",
+                "请把八十二厘米当绝对最大值。另一个限制是后方栏杆，开盖超过约六十八厘米可能碰撞。",
+                "尺寸没有额外余量，八十二就是上限；由于栏杆存在，可用的开启高度约到六十八厘米。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "明白，候选必须同时核对外宽和完整开盖轨迹，不能只看箱体尺寸。防雨能力与日常取物便利之间，你更优先哪一个？",
+                "这补上了关键约束：宽度不得超八十二，盖子在约六十八厘米处可能受栏杆影响。下一步请给防雨和易取用排个顺序。",
+                "我不会据此猜某款一定适配，只会把实测开盖高度列为必查项。你希望先保住防雨表现，还是先保证开启方便？",
+                "现在可验证的限制已经明确，但具体商品仍需看标注或实测。对你而言，挡雨与操作便利哪个是第一优先级？"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "防雨第一，取物方便第二。给我一份购物时能逐项核对的清单，不要推荐具体商品。",
+                "优先保证防雨，其次才是开合便利。我只需要检查表，不需要品牌或型号。",
+                "排序是先看防雨，再看日常取用。请整理成采购核验项，但别替我选产品。",
+                "我更在意防雨，开启方便排在后面。输出一张通用清单就好，不进入具体推荐。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "核对清单：外宽不超八十二、外深不超三十八；在约六十八厘米限制下验证完整开盖；确认免打孔独立放置；查看明确的防雨说明；价格不超三百。今天停在清单，不产生购买义务。",
+                "你可以依次查五项：八十二乘三十八厘米的外部尺寸、栏杆前的开盖轨迹、无需钻孔的放置方式、可核验的防雨信息、三百元预算。具体选择仍由你之后决定。",
+                "本轮结果是一份边界表：尺寸合规、六十八厘米内能开盖、免安装打孔、防雨信息有依据、总价在三百以内。没有商品被默认选中，也没有截止日。",
+                "购物时先量外尺寸，再模拟掀盖路径，然后核对独立摆放、防雨描述和价格。以上只用于筛选；采购与否仍是开放决定，不会自动推进。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "一周后，箱子到了，外尺寸八十乘三十六厘米，放得下也没打孔。今天有二十五分钟，想看摆放和防雨。",
+                "我按清单买了一个八十乘三十六厘米的箱子，已经免打孔放进阳台。隔了一周回来，这次能用二十五分钟处理位置和进水问题。",
+                "更新一下：收纳箱已到，八十厘米宽、三十六厘米深，现场能放且无需钻孔。现在想用二十五分钟检查摆位与挡雨。",
+                "过了一周我带着结果回来：箱体八十乘三十六，尺寸适配，安装没有打孔。今天只讨论如何放和雨水表现。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "上下文已更新：香草架早已关闭，收纳筛选也因箱子到位而完成；不再沿用采购待办。关于摆位和防雨，你已经观察到哪些现场现象？",
+                "这次从已到货的箱子继续，而不是重开选购。现有事实是八十乘三十六、免打孔且能放下；请告诉我雨后或地面排水的实际情况。",
+                "好的，旧的购物清单已经履行，不把它当未完成承诺。我们先依据现场观察判断：箱体哪里见水，附近排水方向怎样？",
+                "我先校准共同背景：购买阶段结束，现在只处理放置与挡雨，时间二十五分钟。请提供已看到的水迹和周边地面条件。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "昨晚小雨后，箱子正面有几滴水，里面还是干的。地面向右侧排水沟倾斜。",
+                "可观察到的是：轻微降雨后外壳前方有水滴，内部没湿；阳台地面坡度朝右边的排水沟。",
+                "昨晚下了点雨，只有箱体正面见到几滴水，箱内保持干燥。水会沿地面往右侧沟槽走。",
+                "现状是外部前侧有少量雨滴、内部无水，地面排水方向为右侧的沟。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这些现象还不能说明箱体会漏，我先保留未知。可以把目标分成不挡排水和下一场雨后复查内部两项；你对垫脚、防滑或密封有什么边界？",
+                "目前只能确认外面见水、里面仍干，不能据此推断渗漏。先核对摆位是否影响右侧排水，再确认你愿意采用哪些可逆措施。",
+                "我们不从几滴水外推原因。眼下可做的是保持排水通路，并约定由你下次带回箱内观察；今天能否使用防滑垫，是否考虑密封处理？",
+                "证据只支持记录一次轻雨结果，防雨状态仍待后续验证。对于当前摆放，你允许加垫吗，还是只移动箱体？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "可以加防滑垫，但不能挡住排水沟。今天不打密封胶，只做一个摆放方案。",
+                "防滑垫没问题，前提是沟槽保持畅通；密封胶这次不考虑。我只想确定位置。",
+                "我接受可移除的防滑垫，不允许覆盖排水路径，也不准备今天做任何密封。",
+                "边界是：能用防滑垫、不能妨碍排水、暂不涂胶。本轮只输出摆位计划。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "那就只设计可逆摆位：垫子放在箱脚接触区，排水沟保持完整空出；漏水问题仍记为待观察。箱体到沟槽最近有多少距离，还能向左移动多少？",
+                "明白，不做密封，也不把外部水滴当故障。为了给出不挡沟的放置方案，请量一下当前离沟距离和向左可移动余量。",
+                "当前方案应能随时撤回，并让右侧水路不受覆盖。还缺两个尺寸：箱体与排水沟的间隔，以及左移空间。",
+                "我会把防滑与排水分开处理，不让垫材跨进沟槽。请确认右侧净距和箱子可向左调整的幅度。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "现在离排水沟六厘米，箱子还能向左移四厘米。计划做到这里就停，雨后复查不设日期。",
+                "右侧净距是六厘米，左边还有四厘米余量。请只给摆位结论，下一次防雨观察保持无期限。",
+                "箱体距沟槽约六厘米，可以再左移四厘米；今天不继续施工。是否复查由以后下雨时再说。",
+                "测量结果为离沟六厘米、可左移四厘米。本轮到计划为止，后续雨测没有截止时间。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "计划是将箱子左移四厘米，在各支点下放不跨沟的防滑垫，保留右侧排水净距；今天不密封。防雨只保留为无期限观察，下次你带回实际结果时再继续。",
+                "本轮可收束为：左移四厘米、垫材局限在箱脚、右侧沟槽完全留空，暂不涂胶。轻雨后的内部干燥已记录，但不替未来雨况下结论。",
+                "当前项目状态已重新校准：采购完成，摆位采用可逆左移与局部防滑，排水不受阻。唯一开放项是未来雨后的箱内观察，没有日期，也不会被自动催办。",
+                "到这里即可结束：按四厘米左移方案摆放，防滑垫不得进入排水沟，密封措施未授权。后续若你愿意，可用新的雨后观察重新开启讨论。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "absence_reengagement_02",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I'm back from the planned two-day trip and have attached the next item we agreed on, floor-plan draft v1. Friday's deadline still works.",
+                "The scheduled two-day travel pause is over. I've brought floor-plan draft v1 as agreed, and the original Friday due date is still valid.",
+                "After the two days away, I'm resuming with the promised floor-plan draft v1 attached. We can keep the Friday deadline.",
+                "I returned from the planned trip with draft v1 of the floor plan, which was our next agreed artifact. Nothing has changed about Friday's deadline."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Welcome back. Since the pause and return were both planned, we can keep this lightweight. Before reviewing, which part of draft v1 should I focus on, and is the earlier scope still current?",
+                "Got it: two planned days away, draft v1 now supplied, and Friday still stands. What review scope should I use rather than assuming every earlier discussion remains active?",
+                "We can continue without a re-entry exercise. I have the artifact and unchanged deadline; please confirm the specific review target so I don't revive stale work.",
+                "Thanks for the update. I'll treat this as routine continuation, while still checking the old brief: what exactly would you like reviewed in v1?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Please review the kitchen-to-living-room circulation and return one page of comments. Finishes and materials are outside the scope.",
+                "The current brief is a one-page review of circulation between the kitchen and living area; don't assess finishes or material choices.",
+                "Focus only on how movement works from the kitchen into the living room, with comments capped at one page. Skip all finish selections.",
+                "I want a single page of circulation notes for the kitchen and living space. Surface finishes and materials should not be included."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Understood: draft v1, one page, kitchen–living circulation only, with finishes excluded and Friday unchanged. Would you prefer prose with page references or marks placed directly on the drawing?",
+                "The live scope is now clear and narrower than a full plan review. Should the one-page circulation feedback be written as referenced notes or as annotations on the plan?",
+                "I'll keep the review to movement between those two spaces and leave materials untouched. For the deliverable, do you want a short memo or drawing callouts?",
+                "Confirmed: no finish review and no expansion beyond one page of circulation comments. Which format is more useful—concise prose tied to page locations, or visual markups?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Use prose with page references. I have about thirty minutes now, and the main thing to flag is the narrow passage beside the island.",
+                "A short written note keyed to the page is best. I can spend thirty minutes, and I want the island-side passage examined first.",
+                "Please make it prose that cites the relevant page. Today's window is half an hour; prioritize the tight route next to the island.",
+                "Let's use page-referenced text rather than drawing marks. I have thirty minutes, with the constricted aisle by the island as the primary concern."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That keeps the task bounded. To describe the concern without guessing, which page shows the island passage, and what clearance is marked there?",
+                "I'll focus the short review on that route and avoid inferring dimensions from appearance. Please give me the page number and the stated aisle width.",
+                "Within the thirty-minute window, we can make the passage the lead issue. What measured clearance does the drawing provide, and where is it shown?",
+                "Good; no broader redesign is implied. Before I word the note, can you confirm the sheet location and the dimension printed beside the island?"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "It's on page 2, with 860 millimeters shown between the island and the opposite cabinet. Flag it for checking; don't make a code-compliance decision.",
+                "Page 2 marks the gap from the island to the facing cabinet as 860 mm. I only want it raised as a question, not declared compliant or noncompliant.",
+                "The drawing gives an 860 mm aisle on page 2 between those two elements. Note the measurement and ask for verification rather than ruling on code.",
+                "Use page 2: the marked clearance is 860 millimeters from island to cabinet. Please identify it for review without reaching a regulatory conclusion."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "I'll frame it as a verification item: page 2 shows an 860 mm island-to-cabinet passage, so the project team should check it against the applicable circulation criteria. That stays within the one-page brief and makes no compliance claim.",
+                "The lead comment will record the page-2 dimension of 860 mm and request confirmation against the relevant project requirements, without calling it compliant or deficient. The rest of the note will remain circulation-only.",
+                "A bounded note would say that the 860 mm passage shown on page 2 needs review under the criteria chosen for this project. I won't infer a legal threshold or expand into finishes.",
+                "I'll preserve the distinction between observation and decision: the plan displays 860 mm on page 2; an authorized reviewer should verify whether that meets the project's needs. No code verdict is implied."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The next day, I've uploaded v2. The island moved and the passage now reads 980 mm; the deadline is still tomorrow.",
+                "I'm back a day later with floor-plan v2. It shows a 980 mm aisle after shifting the island, and we're still due tomorrow.",
+                "Draft v2 is now attached. The island position changed, increasing the marked gap to 980 millimeters, with tomorrow's deadline unchanged.",
+                "Here is v2 on the following day: the revised island location gives a marked 980 mm passage. We are keeping the same delivery date tomorrow."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "I’ll use v2 and retire the earlier 860 mm observation. The active brief remains one page on kitchen–living circulation, excluding finishes. Should the pantry-door swing also be in scope?",
+                "Context updated: v2 supersedes v1, 980 mm replaces the prior measurement, and delivery is tomorrow. Do you want adjacent door movement reviewed as part of circulation?",
+                "The old clearance note is no longer current; today's artifact is v2 with 980 mm shown. Before continuing, please confirm whether the pantry door belongs in this narrow review.",
+                "I'll review only the revised file and won't carry the 860 mm issue forward as unresolved. Is the pantry-door opening included, while other rooms remain out of scope?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Yes, include the pantry-door swing, but leave the bathroom out. The one-page limit and circulation-only scope stay the same.",
+                "Please add the pantry door to the circulation check and exclude the bathroom. Nothing else changes about the one-page brief.",
+                "The pantry opening is in scope; the bathroom isn't. Keep the deliverable to one page and don't branch into other design topics.",
+                "Review the pantry-door movement along with the aisle, but not the bathroom. The existing length and subject limits still apply."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed: v2, kitchen–living circulation plus the pantry door, bathroom and finishes excluded, one page due tomorrow. What does the drawing show about the pantry-door path?",
+                "The revised boundary is precise and doesn't reopen a full plan review. Please describe the pantry-door swing and how it relates to the 980 mm passage.",
+                "I'll add only that adjacent door movement to the existing review. Which direction and angle are shown for the pantry door?",
+                "Scope recalibrated: aisle and pantry opening only. To avoid inventing a conflict, what observable door position is represented in v2?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The pantry door swings into the 980 mm passage, and the drawing shows it open at ninety degrees.",
+                "In v2, the pantry door opens outward into that aisle; its depicted open position is 90 degrees.",
+                "The plan shows a ninety-degree pantry-door swing occupying the same 980 mm circulation zone.",
+                "At the drawn 90-degree position, the pantry door projects into the passage marked 980 mm."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That supports a coordination question, not a conclusion: the aisle dimension increased to 980 mm, while the shown ninety-degree pantry swing enters it. The team can verify simultaneous use and required clearance.",
+                "I'll distinguish the two observations—improved marked width and a door leaf entering the route—and ask for a practical conflict check rather than prescribe a redesign.",
+                "The note can state that v2 shows 980 mm when the door is closed, but the ninety-degree pantry swing occupies that path; its impact should be tested against intended use.",
+                "Based on the drawing, the relevant issue is interaction between the revised aisle and open pantry door. I'll flag that interaction for verification without claiming it fails a standard."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Give me two bullets: one noting the improved clearance and one asking to verify the pantry swing. Don't propose a redesign.",
+                "Please reduce it to two points—record the wider aisle, then request a check of the door interaction. No design solution is needed.",
+                "I only need a pair of bullets: acknowledge the 980 mm revision and flag the pantry-door path for confirmation, without alternatives.",
+                "Make the output two concise observations, covering the increased gap and the pantry swing. Stop before recommending changes."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "• V2 increases the marked island-to-cabinet passage from 860 mm to 980 mm. • Verify circulation with the pantry door shown open at ninety degrees, since its leaf enters that passage.",
+                "• The revised plan now marks 980 mm beside the island, replacing v1's 860 mm dimension. • Confirm that the route remains usable when the pantry door occupies it at the depicted 90-degree opening.",
+                "• Note the v2 improvement to a 980 mm aisle. • Check the interaction between that aisle and the pantry door's shown ninety-degree swing before finalizing.",
+                "• V2 records a wider 980 mm circulation gap at the island. • Review the pantry-door leaf in its 90-degree position because it projects into the same route."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "It's Friday, and I've exported the final PDF. I only need a handoff note now; don't continue the design review.",
+                "The final PDF is ready on Friday. Let's close the review work and produce just the delivery note.",
+                "I've reached the Friday handoff with the PDF exported. The remaining task is a handoff message, not further plan feedback.",
+                "Today is the deadline and the final PDF has been generated. Please switch from reviewing the design to writing the handoff note only."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood; the circulation review is no longer active, and this session is limited to handoff text. Which file version is final, and what changes should the note name?",
+                "I'll close the old review loop rather than carry it forward. For the delivery note, please confirm the final version identifier and the resolved items you want recorded.",
+                "We can move directly to handoff without reopening page comments. What is the exported file's version, and which verified revisions belong in the message?",
+                "The current context is delivery, not design analysis. Tell me the final filename and the specific updates that the recipient should see in the note."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "It's final v3. The drawing still shows the 980 mm passage, and the pantry door is now sliding, so the two review points are resolved in the file.",
+                "Use version v3 as final. It retains the 980 mm aisle and replaces the swinging pantry door with a sliding one; both earlier comments are addressed.",
+                "The export is v3: 980 mm remains on the plan, while the pantry opening has changed to a sliding door. Those are the completed revisions.",
+                "Final v3 includes the wider 980 mm clearance and a sliding pantry door instead of the prior swing, resolving the two noted items."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Thanks. I can state those as changes shown in final v3 without making a separate compliance claim. Should the handoff include the date and both revisions in one paragraph?",
+                "The valid handoff facts are now final v3, the 980 mm passage, and the sliding pantry door. Which metadata and format do you want around them?",
+                "I'll rely on the final-file description you provided and treat the review as complete. Do you want version, date, and both updates together in a short paragraph?",
+                "That replaces the previous v2 context. Before drafting, please confirm whether the note should name today's date and summarize both resolved points in prose."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Include the version, today's date, and both changes in one short paragraph.",
+                "Make it a brief paragraph that names v3, the current date, the wider aisle, and the sliding pantry door.",
+                "Yes—one compact paragraph with version and date, followed by the two completed revisions.",
+                "The note should be short but contain all four details: final v3, today's date, 980 mm, and the sliding door."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Final v3 is issued today and incorporates the revised 980 mm island passage together with a sliding pantry door, addressing the two circulation items identified during review.",
+                "Issued today, final v3 records a 980 mm clearance beside the island and replaces the pantry-door swing with a sliding opening, completing both review updates.",
+                "Today's final v3 includes the widened 980 mm island-to-cabinet route and the revised sliding pantry door, so the two circulation comments have been resolved in the delivered file.",
+                "The final v3 PDF, dated today, shows the 980 mm aisle and a sliding pantry door, incorporating both changes requested through the circulation review."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Make it one sentence, and don't apologize for or explain the travel pause.",
+                "Please keep only a single sentence; the two-day trip doesn't need any mention or apology.",
+                "Condense the handoff to one line and omit all discussion of my time away.",
+                "I want a one-sentence delivery note with no justification for the travel break."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Final v3, issued today, includes the 980 mm island passage and sliding pantry door, resolving both circulation review items.",
+                "Issued today, final v3 incorporates a 980 mm aisle beside the island and a sliding pantry door, completing the two circulation updates.",
+                "Today's final v3 PDF records the widened 980 mm passage and revised sliding pantry door, with both review points addressed.",
+                "The final v3 file delivered today shows the 980 mm clearance and sliding pantry opening, closing the two circulation comments."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "absence_reengagement_03",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I'm back on the date we planned. 六周暂停已经结束，但今天只想做十分钟的低负荷复盘，不恢复原来的完整节奏。",
+                "按约定日期回来报到。The six-week pause is over, though I only have ten minutes for a gentle recap today.",
+                "Today is the return date we agreed on. 我愿意重新开始，但这次只用十分钟找回背景，不直接回到旧强度。",
+                "六周的 planned hiatus 到今天结束。我现在只有十分钟，希望先轻量复盘，而不是把原计划整套重启。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Welcome back. 我们就按十分钟来，旧节奏和旧承诺都先不自动恢复。Which one or two topics would make this recap useful?",
+                "欢迎按原定日期回来。Ten minutes is the whole container for today, and nothing from before the pause becomes active without your confirmation. 先看哪一两项？",
+                "We can make this a low-load re-entry. 我不会要求解释这六周，也不会续接过期安排；请选最需要校准的少数事项。",
+                "十分钟足够做一次小范围重连。Let's treat earlier plans as pending review—what minimal context do you want to recover first?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Please don't pull every old thread. 只看社区小志的编辑日历，以及下一次林老师采访是否仍有效。",
+                "不要把所有旧事项都翻出来。For the community zine, I only want to check the editorial calendar and the planned interview with Lin.",
+                "Let's limit this to two questions: 编辑日程还算不算数，以及林老师的下一次采访是否继续。",
+                "今天只恢复小志项目里的两条上下文：the editorial calendar and whether Lin's interview is still current."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Understood—only those two threads, with everything else left untouched. 目前日历和采访分别有什么新情况？",
+                "范围已缩到编辑日历与林老师采访，其他旧任务不重开。What has changed, if anything, for each of them?",
+                "I’ll keep the rest closed. 请分别确认这两项现在是有效、过期，还是信息不足。",
+                "Only two items are in view. 对日历和采访，你现在有哪些可确认的更新？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The calendar from before the pause is obsolete. 林老师的采访还没有重新确认，所以目前不能算已安排。",
+                "暂停前那版编辑日历已经过期；the interview with Lin has not been reconfirmed and should stay uncertain.",
+                "旧日历不再有效。As for Lin, I don't yet have a new confirmation for the interview.",
+                "Please retire the previous calendar. 林老师那一项只有旧计划，没有新的确认。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Got it: the old calendar is closed, and Lin's interview remains unconfirmed rather than scheduled. 在剩下的几分钟里，你想列出需要重新确认的内容，还是到此为止？",
+                "我会把两项分开处理：日历已失效，采访状态未知。Would a short revalidation list help, without contacting anyone or setting dates?",
+                "The earlier calendar won't be carried forward, and I won't treat the interview as booked. 现在要不要只整理待核实项？",
+                "Current context is clear: no valid calendar and no confirmed interview. 我们可以停下，也可以用余下时间做一份不含行动承诺的核对单。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Make the revalidation list, but don't contact anyone. 不要加截止日，我下次再决定要不要行动。",
+                "请列出需要确认的事项，no outreach and no deadlines. 是否推进留给下一次会话。",
+                "A short checklist is useful. 这次不发消息、不安排时间，也不把它变成我的新承诺。",
+                "只整理问题清单即可；please neither reach out nor schedule follow-up. 我以后回来再选下一步。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Revalidation list: confirm the next issue's publication window, ask whether Lin is still available and willing, then agree on interview length before scheduling. 这些都保持无期限、未授权行动的状态，可以吗？",
+                "核对项只有三条：新一期时间窗、林老师是否仍愿意参与、若参与则可用时长。Nothing will be sent or scheduled; shall I leave all three open without dates?",
+                "The minimal list is publication timing, Lin's renewed consent and availability, and a possible interview duration. 我不会替你联系或设定期限，先这样保留是否合适？",
+                "可以把未来需要回答的问题记为：何时出刊、林老师是否同意、采访多长。They remain questions, not tasks, and no outreach is initiated."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Yes, leave them open with no dates. 下次我会自己决定先确认哪一项，今天就停在这里。",
+                "这样就好，all three stay undated. 我之后回来时再选择是否处理。",
+                "Keep the list open and deadline-free. 十分钟到了，不需要为我安排后续。",
+                "同意，不设日期也不自动推进。I'll initiate the next step in another session."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "We’ll stop here. 旧编辑日历已关闭；出刊窗口、林老师的意愿与可用时长仍待你以后选择是否核实，没有任何自动外联或期限。",
+                "十分钟复盘完成：the prior calendar is obsolete, while three revalidation questions remain undated and inactive until you return.",
+                "Today's low-load recap is complete. 我只保留一份无截止日的问题清单，不会恢复旧节奏，也不会代你联系。",
+                "到这里结束即可。The shared context now reflects an expired calendar and an unconfirmed interview, with every possible next step left to your later choice."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Three days later, I have twenty-five minutes. 秋季出刊窗口已经确定，林老师也邮件确认下周四愿意做二十分钟采访。",
+                "三天后我回来更新：the issue has moved to an autumn window, and Lin agreed by email to a twenty-minute interview next Thursday. 今天有二十五分钟。",
+                "I can work for twenty-five minutes today. 新信息是秋季出刊，以及林老师已确认下周四接受二十分钟采访。",
+                "现在有二十五分钟可用。The publication window is autumn, and Lin has replied that a twenty-minute interview next Thursday works."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Context updated: the publication window and interview are now confirmed, replacing last session's unknowns. 今天要处理什么，并且是否仍由你负责所有发送动作？",
+                "上次的两项不确定性已有新证据：autumn publication and a confirmed twenty-minute interview next Thursday. What is today's bounded goal?",
+                "That closes the revalidation questions without reviving unrelated threads. 请确认这二十五分钟是准备采访，还是安排编辑日历中的其他部分。",
+                "I’ll use the new facts rather than the earlier uncertainty. What preparation do you want now, and should nothing be sent unless you do it yourself?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Draft five interview questions, but don't send them. 这次只准备问题，不处理完整编辑日历。",
+                "请用这段时间起草五个问题，no sending. The wider editorial calendar remains out of scope.",
+                "I want a five-question interview draft only. 不要替我发给林老师，也不要展开其他编辑任务。",
+                "Today's task is limited to five questions for the interview; keep them here and leave the rest of the calendar alone."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Understood: five unsent questions, with the calendar left aside. 采访主题和语气是什么，哪些个人领域不要触及？",
+                "范围确认，不发送也不扩展。What subject should the questions cover, and what boundaries should shape them?",
+                "I’ll draft only, not contact Lin. 请给出采访焦点、希望的语气，以及应排除的内容。",
+                "Five questions will be the sole output. Before writing, what topic, tone, and privacy limits should I follow?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The topic is changes to neighborhood night-bus service. 语气务实，不问林老师的个人经历。",
+                "采访只谈社区夜班公交的变化，keep it practical and avoid personal history.",
+                "Focus on how the local night bus has changed. 问题要具体，不进入任何私人背景。",
+                "主题是 neighborhood night-bus changes；请采用实务角度，别询问个人生活。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Got it: service changes only, practical tone, no personal history. 采访主要用哪种语言，是否需要双语开场或收尾？",
+                "I’ll keep every question about the bus service rather than Lin's biography. 语言上希望全中文，还是保留 bilingual framing?",
+                "边界清楚：公共服务主题、务实、非个人化。Should the five questions be Chinese, English, or naturally mixed?",
+                "The content scope is set. 请确认语言安排，我再写五个不越界的问题。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "The interview will mainly be in Chinese, but use a short English opening and bilingual closing. 五个核心问题用中文。",
+                "主体问题写中文。Please add a brief English introduction and a closing that switches naturally between both languages.",
+                "Use Chinese for all five questions, with an English opener and a 中英双语结尾。",
+                "开场用简短 English，五问用中文，结束语再自然切回 bilingual。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Opening: “Thanks for making time; we'll focus on the night-bus service changes.” 五问：一、这次调整具体改了哪些班次？二、乘客最先会感受到什么变化？三、换乘等待有哪些新情况？四、目前哪些信息仍待确认？五、后续更新将通过什么渠道发布？Closing: “谢谢说明—we'll verify the open details before publication.”",
+                "Intro: “Thank you for joining us to discuss the neighborhood night bus.” 问题：调整覆盖哪些时段？日常出行会受什么影响？末班车信息如何确认？哪些细节尚未确定？居民应去哪里查看更新？End with: “感谢你的时间; we’ll keep uncertain points clearly marked.”",
+                "Start with: “Thanks for speaking with us about the recent service update.” 然后问：变动范围是什么；主要影响是什么；换乘与末班车如何变化；还有哪些未知；官方更新从哪里获得。结尾可说：“谢谢，we'll distinguish confirmed details from pending ones.”",
+                "English opening: “We appreciate your time and will keep today's conversation on service changes.” 中文五问依次覆盖变更班次、乘客影响、换乘等待、未确认事项和更新渠道。Bilingual close: “谢谢分享—we'll check any unresolved details before using them.”"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Simplify question four to ask only what remains unconfirmed. 编辑日历今天继续搁置，也不要发送这份问题。",
+                "把第四问缩成“目前还有哪些内容未确认？” Keep the calendar paused and the draft unsent.",
+                "Question four should simply ask about outstanding unknowns. 其他编辑工作不重开，问题也先留在这里。",
+                "第四问只保留未确认事项即可。Do not send the questions, and leave the editorial calendar outside today's work."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Revised question four: “目前还有哪些内容未确认？” The five-question draft remains unsent, and no editorial-calendar task has been reopened.",
+                "第四问已简化为“目前还有哪些内容未确认？” 其余问题不变；the draft stays here, while the calendar remains paused.",
+                "Done: question four now asks only what is still unconfirmed. 我不会发送草稿，也不会把秋季日历扩展成今天的待办。",
+                "The narrower fourth question is now in place. 本轮只完成采访问题草案，发送与编辑日历都仍未授权。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "It's next Thursday and the interview is complete. 录音转写只获准内部使用，目前没有任何逐字引用许可。",
+                "采访已经在约定的周四完成。The transcript may be used internally, but no quotes are authorized yet.",
+                "The twenty-minute interview happened today. 转写稿只能内部整理，不能把原话放进刊物。",
+                "周四采访已结束；we have internal-use permission for the transcript and zero permission for verbatim excerpts."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood: the interview is complete, while quotation permission is absent. 我不会引用或改写成看似原话；今天允许产出哪种内部材料？",
+                "边界已更新为仅内部使用，no verbatim publication. Would you like an internal summary based only on facts you provide?",
+                "I’ll keep the transcript out of publishable text and won't assume consent from the completed interview. 这次要整理什么形式？",
+                "Completion of the interview does not activate quote rights. 请指定可以处理的观察内容和内部输出格式。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Use only these notes: route frequency changed, the last-bus time remains uncertain, and transfer waits were discussed. 做主题摘要，不要逐字引用。",
+                "可用信息只有三点：班次频率有调整、末班车时间未确认、采访谈到了换乘等待。Summarize themes without quoting.",
+                "Please work from my three notes—frequency changes, an unresolved last-bus time, and transfer waiting. 不使用转写中的原句。",
+                "内部摘要只能依据我提供的观察：route frequency changed; last-bus timing is unknown; transfer waits came up. No quotations."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Those three notes are sufficient for a bounded summary, and the last-bus time will remain explicitly unknown. 你希望用段落还是三条内部提纲？",
+                "我会把内容归因于本次采访记录，不把它写成普遍事实，也不补全末班车时间。What internal format do you prefer?",
+                "Understood: three reported themes, no transcript language, and no inference beyond the notes. 要一段摘要还是逐条列出？",
+                "The allowed material is now clear. 请确认是否按三项分别整理，并保留来源与不确定性。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Make three internal bullets, and say Lin reported them rather than presenting them as general facts.",
+                "请写三条内部提纲，每条都明确是林老师在采访中提到的，不要当成已普遍核实。",
+                "Use a three-bullet outline for internal use. Attribute each point to Lin's report instead of stating it universally.",
+                "三项分别列出，并加上归因：these are points Lin reported, not independently established facts."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "• 林老师表示夜班线路的班次频率有调整。• Lin reported that the last-bus time was still unconfirmed. • 林老师提到换乘等待是本次变化中的一个关注点。Internal use only; no quotation is implied.",
+                "• According to Lin, route frequency has changed. • 据林老师所述，末班车时间仍不确定。• Lin also raised transfer waiting as a topic. 以上均为内部主题概括，不是逐字引语。",
+                "• 林老师报告了班次频率变化。• The last-bus timing remained unresolved in Lin's account. • 林老师的讨论涉及换乘等待。These bullets preserve attribution and do not claim independent verification.",
+                "Internal outline: 林老师提到频率调整；Lin said the final departure time was not yet confirmed；林老师也谈及换乘等待。No transcript wording has been reproduced."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Add one unresolved check: whether the timetable changed after the interview date. 目前没有这项信息。",
+                "再记一个待核实问题：the timetable may or may not change after today's interview; we don't know yet.",
+                "Please add an unknown about any timetable update after the interview. 我手上没有后续资料。",
+                "补充一项未决核验：采访日期之后时刻表是否更新，现阶段没有证据。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Added as an explicit unknown: “Verify whether the timetable changed after the interview date.” 我不会把缺少后续信息解释成没有变化。",
+                "待核实项已加入：采访后是否出现新版时刻表。The current record contains no answer, so the status remains unknown.",
+                "I’ll append one verification question rather than a conclusion: did the timetable change after the interview date? 目前不作推断。",
+                "内部提纲现在多一项开放核验——post-interview timetable updates, if any. 没有新资料时只保留未知。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "That's enough. 不要创建发布任务，逐字引用许可也继续保持未获得。",
+                "Stop there; no publication action should follow. Quote permission remains absent.",
+                "这些内部提纲已经够了。Please don't turn them into copy, and keep verbatim use unauthorized.",
+                "到此结束，不进入刊发流程；the transcript still has internal-use permission only."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Session closed with an internal three-theme outline and one unanswered timetable check. 没有发布任务，也没有逐字引用权。",
+                "本轮只完成内部归因摘要；the post-interview timetable remains unknown, and nothing is cleared for quotation or publication.",
+                "We’ll stop at the authorized boundary: attributed internal notes plus one verification question. 不会生成刊发文案。",
+                "当前状态已收束：采访完成，内部摘要完成，时刻表后续待核实；quote and publication permissions remain inactive."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "A week later, Lin has authorized two specific excerpts for publication. 我今天有四十分钟，也想重新商量之后的工作节奏。",
+                "一周后我带来更新：two excerpts now have publication permission from Lin. This session can last forty minutes, and I want to set a new cadence.",
+                "Lin granted permission for exactly two excerpts this week. 今天可用四十分钟，并且我想重新确定合作频率。",
+                "隔了一周，林老师已同意刊发两段指定文字。I have forty minutes now and would like to recalibrate our schedule."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Context updated: only two specified excerpts are now publishable; the rest of the transcript remains internal. 之前十分钟的低负荷节奏不自动沿用，你希望新频率覆盖什么范围？",
+                "新的许可只扩展到两段指定内容，不代表整份转写开放。For cadence, what duration, interval, and topic boundary fit now?",
+                "I’ll keep quote permission item-specific. 关于之后的安排，我们从零确认：多久一次、每次多长、只处理哪些工作？",
+                "The old ten-minute re-entry limit is no longer assumed, and neither is a broader quote right. 请提出你现在想试行的节奏和边界。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Let's try thirty minutes every two weeks, editorial work only. 不要主动提醒，除非我以后明确提出。",
+                "新的试行节奏是双周一次、每次三十分钟，只做编辑事务；no proactive reminders.",
+                "I want biweekly thirty-minute sessions limited to the zine. 提醒功能暂不授权，由我自己回来。",
+                "每两周三十分钟，范围仅限编辑工作。I will initiate each session, so don't schedule outreach."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Understood: biweekly, thirty minutes, editorial scope only, and every session begins when you initiate it. 这个节奏从今天开始吗，是否设置试行结束点？",
+                "我不会把双周节奏解释成提醒许可。Should the trial start now, and after how many sessions should it expire or be reviewed?",
+                "The cadence describes your preferred work pattern, not permission to contact you. 请确认起始日期与试行期限。",
+                "已区分工作频率和主动触达：前者可记录，后者未授权。How long would you like the trial to run?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Start today and run it for six weeks, so three sessions including this one. 之后不要自动续期。",
+                "从今天算起试行六周，总共三次会话。It should end unless I explicitly renew it.",
+                "Make today session one of a three-session, six-week trial. 到期后默认停止，不延长。",
+                "The trial starts now, lasts six weeks, and covers three sessions. 只有我重新确认才能继续。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Confirmed: a three-session editorial trial over six weeks, beginning today, with no reminders and no automatic renewal. 今天这四十分钟要先处理两段获准文字吗？",
+                "新安排已完整限定：three sessions, six weeks, editorial only, user-initiated, then expiry. Shall today's work use the two authorized excerpts?",
+                "I’ll treat the cadence as a finite trial rather than an ongoing commitment. 本次是否从获准引用的侧栏结构开始？",
+                "The prior open-ended rhythm is replaced by this bounded trial. 请确认今天对两段引用的具体产出。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Yes, plan a 150-word sidebar using only those two excerpts. 先不要写成稿，我会把原文贴出来。",
+                "今天只做一份一百五十词侧栏的结构，限用获准的两段。Wait for me to provide the exact text before outlining.",
+                "Use the two approved excerpts for a 150-word sidebar plan, not a finished draft. 我接下来提供逐字内容。",
+                "The bounded output is an outline for a 150-word sidebar. 只能引用我即将贴出的两段，不补其他原话。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Please paste the two authorized excerpts and identify any required attribution. 我会等到文字与许可范围都明确后再做结构。",
+                "好的，先不生成侧栏内容。Send the exact two excerpts plus how Lin should be credited, and I'll keep the outline within them.",
+                "I need the approved wording and attribution before proceeding; nothing else from the transcript will be used. 请把两段贴出。",
+                "先核对可用材料：the verbatim excerpts and their credit line. 收到之前不推断或重建采访内容。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "The approved excerpts are “The wait matters as much as the ride” and “末班车时间还需要最终确认”; credit both to Lin. 今天只给结构。",
+                "可用原文只有两段：“The wait matters as much as the ride”和“末班车时间还需要最终确认”，署名 Lin。Please outline only.",
+                "Use exactly these authorized lines, both attributed to Lin: “The wait matters as much as the ride”; “末班车时间还需要最终确认”。No full draft today.",
+                "林老师允许刊发的两句是“The wait matters as much as the ride”和“末班车时间还需要最终确认”。Both need Lin attribution, and I only want a structure."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Outline: open with the service-change context in your own verified words; use Lin's English excerpt to frame transfer waiting; separate a clearly marked unknown; use the Chinese excerpt for that uncertainty; close with where readers can seek updates. 今天不成稿；双周三次试行继续由你发起。",
+                "建议结构为：背景一句、Lin 关于等待体验的获准引语、末班车信息尚未确认的过渡、Lin 的中文引语、信息更新渠道。Only these two lines are quotable, and no reminder will be sent for the next trial session.",
+                "The 150-word sidebar can move through context → attributed wait-time excerpt → explicit uncertainty → attributed last-bus excerpt → verification route. 本轮只定结构，其他转写内容仍不使用。",
+                "侧栏框架：先写已核实的线路背景，再放 Lin 的英文句；随后保留末班车未知，并放获准的中文句；最后指向后续信息来源。The finite cadence remains user-initiated and does not renew itself."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "absence_reengagement_04",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我回来重新整理离开前的三个待办：浇水定时器比较和志愿者邮件都取消，只保留耐阴植物探索，而且不设截止日。",
+                "缺席前有三件事，现在请关闭定时浇水器与志愿者邮件，只留下找耐阴植物这个问题；它没有期限。",
+                "旧清单需要改：前两项——比较浇水设备、起草志愿者通知——都作废，第三项耐阴植物可以继续慢慢看。",
+                "重新接上时先校准任务：不再做浇水定时器，也不写志愿者邮件；仅保留无截止日的耐阴植物探索。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "已按你的新决定处理：前两项关闭，不会因重返而恢复；当前只有耐阴植物探索，且没有期限。你想先限定使用环境，还是今天只确认问题范围？",
+                "我不会把连续性理解成继续旧任务。现在有效的仅是无期限植物探索；请说说它对应的空间和必须满足的边界。",
+                "共同上下文已重置：浇水设备与邮件不再追踪，剩下的也只是探索而非采购承诺。这个植物会放在哪里，有哪些安全要求？",
+                "两个已取消环路到此结束，唯一开放项没有截止日。为了不套用旧假设，请补充当前摆放场景与不可妥协条件。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "放在朝北的阳台，家里有猫，所以必须先核验对猫安全。今天不买，只整理筛选条件。",
+                "使用地点是北向阳台，首要边界是猫接触安全；这次只做标准，不进入购买。",
+                "我想为朝北阳台找植物，但家中有猫，任何候选都要有可靠的宠物安全依据。今天不采购。",
+                "环境是北阳台，安全条件是对猫风险必须可核实。本轮只形成选择原则。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "明白，不能仅凭植物名称猜安全性，也不把探索变成下单。阳台实际光照时长如何，你希望以后用哪类可靠来源核验宠物安全？",
+                "我会把猫安全作为需证据确认的硬条件，而不是自行判断。请提供现在能观察到的光照，以及你认可的核验来源。",
+                "当前边界是北向、猫安全可验证、今天不买。还缺两项：具体日照情况，以及安全信息应由什么资料支持。",
+                "先不列植物名单。为了建立筛选表，请说明阳台每天的光线表现，并决定以后从兽医或专业机构资料中核验。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "早上大约有一小时光，下午没有直射。我只想要候选标准，安全资料以后查兽医或专业机构来源。",
+                "可观察到的是清晨约一小时日照，午后不见直射。宠物安全要留给兽医或专业来源确认，现在只列标准。",
+                "阳台每天早上有约一小时光线，下午都是非直射。请把可靠安全来源写进条件，不要先给植物名。",
+                "光照情况是早间一小时左右、下午无直射；猫安全必须以后查专业资料。本次输出筛选维度即可。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "筛选条件可定为：宠物安全有专业资料支持；光照要求与早间约一小时、下午无直射相符；花盆尺寸和排水适配现场；养护频率在你可接受范围内。今天不评定任何具体植物。",
+                "这次只建立四道核验：可靠的猫安全来源、与现有光线匹配、容器和排水可行、日常照护负担可接受。候选名称与购买都留到以后。",
+                "可用的通用检查表是安全证据、光照条件、盆器空间、排水方式和养护时间。没有来源前，不把任何品种视为已通过。",
+                "先把问题转成可验证标准：安全性须有专业出处，光线以你的实测为准，再核对盆径、排水与照护频率；本轮不产生推荐。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "这样可以。我之后自己查兽医或高校资料，不需要提醒，找到候选再回来。",
+                "先保留这份清单；资料由我以后主动核验，不设提醒，也不安排下一次时间。",
+                "我会自行寻找可靠来源，等有具体候选才继续。请不要催办这项无期限探索。",
+                "这次到筛选标准为止。后续查询由我发起，没有日期，也不需要主动跟进。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "好的，当前只保留一份无期限筛选表；没有植物被认定安全，也没有采购或查资料承诺。你带回专业来源与候选时，我们再从新证据继续。",
+                "本轮已收束：两个旧待办继续关闭，植物问题停在通用条件，专业核验由你以后选择启动。不会设置提醒。",
+                "共同上下文现在很清楚——安全、光照、盆器、排水和养护是待核验维度，其余均未决定。下次只在你带来资料后重开。",
+                "到这里即可结束。耐阴植物仍是无期限探索，未形成具体候选，更不会自动进入购买或跟进。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "五天后我查了兽医支持的资料：吊兰和竹芋列为对猫无毒，蕨类那一条信息不明确。今天有二十分钟比较前两个。",
+                "隔了五天，我带回一份有兽医依据的清单，其中吊兰与竹芋标为猫安全，蕨类记录无法确认；这次只用二十分钟看前两种。",
+                "我找到的专业资料明确列出吊兰、竹芋对猫无毒，但没有给那种蕨类清楚结论。今天比较已确认的两个候选。",
+                "新的可核验信息是：资料支持吊兰和竹芋，蕨类仍未知。我有二十分钟，只讨论有明确记录的两项。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "收到，我只依据你带来的资料把吊兰和竹芋列入候选，蕨类继续保持未知。要比较适配性，还请补充可接受的浇水频率、空气状况和花盆上限。",
+                "这次不会从不明确资料推断蕨类安全；有效候选只有前两种。请确认现场湿度、你能承担的养护节奏以及可用盆径。",
+                "安全核验阶段已缩到吊兰与竹芋，但这不等于它们已适配阳台。接下来需要你的浇水能力、空气环境和空间尺寸。",
+                "共同背景更新为两个有来源支持的候选，一个未知项暂不使用。你愿意怎样浇水，花盆最多多大，阳台空气偏干还是偏湿？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "阳台空气偏干，我最多每周浇一次水，花盆外径不能超过二十二厘米。",
+                "现场比较干燥，照护上只能保证一周一次浇水；盆的最大外径是二十二厘米。",
+                "我的限制是干燥环境、每周一次的浇水频率，以及不大于二十二厘米的花盆。",
+                "可用条件补充为：空气偏干，浇水最多每周一次，盆器外径上限二十二厘米。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这些是你的实际边界，但还不足以判断哪种更合适。你查到的同一资料是否也说明了两种植物的光照、湿度和浇水需求？",
+                "我先不凭常识补全养护结论。请把来源中关于吊兰与竹芋的间接光、湿度及浇水描述也提供出来。",
+                "要做有依据的比较，还缺候选本身的养护记录。专业资料对它们的光线、空气湿度和水分分别怎么写？",
+                "我们已有现场条件，下一步应核对来源中的需求，而不是猜。你能读出两种候选对应的光照与水分说明吗？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "资料写吊兰可适应间接光和每周浇水；竹芋需要更高湿度，并且土壤水分要更稳定。",
+                "同一来源称吊兰适合间接光、可按周浇水，而竹芋偏好高湿和更持续的水分。",
+                "查到的养护说明是：吊兰能接受非直射光与周度浇水；竹芋对湿度和稳定供水要求更高。",
+                "资料中的差异很清楚——吊兰对应间接光和每周浇水，竹芋则需要更湿润的空气与更均匀的水分。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "按你提供的资料，吊兰与现有的间接光、偏干环境和每周一次照护更接近；竹芋的高湿与稳定水分需求和当前条件存在差距。盆径仍需对具体植株逐一核验。",
+                "只依据这些记录比较，吊兰较符合你能提供的光线与浇水节奏，竹芋则要求你目前没有承诺的湿度和水分管理。两者都还不能绕过二十二厘米盆径检查。",
+                "现阶段可把吊兰列为更匹配的候选，把竹芋保留为条件不符而非绝对排除；理由来自你带来的养护说明。具体盆器仍是购买前必查项。",
+                "对照结果是：吊兰需求与现场重合较多，竹芋在湿度和持续水分上不合当前边界。这个结论不扩展到未核实的具体商品尺寸。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先把吊兰设为首选，但今天仍不购买。给我一份到店时的最终核验清单。",
+                "我倾向吊兰，采购决定留到以后；请整理现场选购时要确认的项目。",
+                "吊兰可以作为领先候选，不过这次不下单。我需要一张到店检查表。",
+                "当前优先级改为吊兰在前，但不形成购买承诺。请列出购买前最后要核对的条件。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "到店核验：品种名称与专业安全资料一致；盆器外径不超二十二厘米；养护说明适合间接光和每周浇水；花盆有可用排水且能配托盘。吊兰只是首选，是否购买仍由你现场决定。",
+                "最终检查四项即可：身份可与安全来源对应、盆径合规、光照与浇水说明匹配、排水结构适合阳台。清单不代表必须购买。",
+                "请先核对准确植物名称，再量盆外径，随后阅读光照和水分说明，最后检查排水与托盘；任一项不确定都可暂停选择。",
+                "本轮输出是一份购买前门槛：安全信息可追溯、尺寸在二十二厘米内、养护需求符合你的节奏、排水可管理。没有截止日，也没有指定商品。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "一周后我买了吊兰，店内信息与安全资料一致，花盆直径十八厘米。想放在阳台左角，今天摆好后就关闭这项探索。",
+                "我隔周带回结果：已选吊兰，安全信息核对一致，盆外径十八厘米。计划放左侧角落，并在完成摆放后结束这个待办。",
+                "吊兰已经买到，十八厘米盆，店里的名称可对应之前的专业资料。今天只处理左角摆位，然后把植物探索关掉。",
+                "更新一下：我购入了资料所列的吊兰，盆径十八厘米；目标位置是阳台左角。本次完成放置就不再保留开放任务。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "上下文已更新：浇水定时器和邮件仍保持关闭，植物探索已进入具体摆放阶段。请提供左角的托盘、排水和猫可接近情况，再决定是否能按今天的计划收尾。",
+                "好的，不重开另外两项。当前只需核验十八厘米盆在左角的实际条件；那里是否放得下托盘，离栏杆多远，猫能否进入？",
+                "购买已经发生，因此旧的候选清单不再是待办。为了安全完成摆位，请描述左角尺寸、排水承接和宠物接触路径。",
+                "这次从已购吊兰继续，不再讨论其他品种。收尾前还需要可观察的摆放信息：托盘适配、周边间距以及猫的进入条件。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "十八厘米托盘能完整放下，花盆离栏杆十二厘米。架面高九十五厘米，但我不能仅凭没见过猫上去就说它够不到。",
+                "托盘与盆都能放在左角，距栏杆约十二厘米；架子高九十五厘米。我没观察到猫在那里，不过不想据此推断无法接触。",
+                "现测托盘适配，栏杆净距十二厘米，置物架高度九十五厘米。猫目前没去过那里，但可达性仍不确定。",
+                "摆放数据是：托盘合适、离栏杆十二厘米、架高九十五厘米；缺少猫绝对够不到的证据。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "同意，不应把未观察到等同于无法接近。花盆与排水尺寸已通过，但宠物接触仍需用你的实际管理边界解决；阳台门在你离开时如何使用，人在场时是否监督？",
+                "目前只能确认物理摆放合适，不能确认九十五厘米高度足以隔离猫。请说明无人时的门禁和人在时的管理方式。",
+                "托盘、栏杆间距和架高都有实测值，猫可达性则保持未知。要完成方案，还需你给出阳台进入规则。",
+                "我不会从猫尚未出现推导安全结论。你能否通过关门或在场看护，把接触控制在明确条件下？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我不在家时阳台门一直关闭，猫进不去；开门时我会在场，第一周只在有人看着时让猫靠近。",
+                "无人时阳台是关门隔离的，猫没有入口。有人开门时我会看护，最初一周不让它在无人监督下接近。",
+                "实际管理是离家就锁闭阳台门；开放阳台时我在旁边。第一周的任何接近都会有人观察。",
+                "我可以明确控制入口：不在时门关闭，在时才开放，并在头一周全程看护猫与植物的接触。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "这样可以把方案写成可执行边界：十八厘米盆和托盘放左角，保持十二厘米栏杆净距；无人时关门，有人开门时首周监督。是否还要建立浇水提醒或后续观察任务？",
+                "摆位与接触管理现在都有明确条件，不需要假设架高本身能隔离。你希望植物就此进入日常状态，还是保留任何定期跟进？",
+                "当前计划依赖门禁与在场看护，而不是对猫行为的猜测。收尾前请确认是否授权提醒、复查或其他开放事项。",
+                "可以按左角方案放置，并把首周监督作为你的管理选择。还需要安排浇水或复盘吗，还是完成后全部关闭？"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "不用提醒，也不保留复查。植物探索和购买都关闭，之后有变化我会自己回来。",
+                "这项到摆放完成就结束，不设浇水通知或观察期限；需要时由我重新发起。",
+                "请把候选比较、采购和后续复查都标为完成。我不授权主动提醒。",
+                "没有新的开放环路。摆好之后就收尾，未来若有新情况我会主动说明。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "已收尾：吊兰以十八厘米盆和托盘放在左角，距栏杆十二厘米；无人时阳台门关闭，首周开放时由你看护。三个旧待办均无开放项，也不会产生提醒。",
+                "当前项目状态为全部关闭：两项早先取消，植物探索在购买与摆位后完成。门禁和首周监督是已确认做法，但不创建后续任务。",
+                "共同上下文已重新校准到完成状态，没有采购、浇水或复查承诺。若以后条件变化，可以由你带着新事实重新开启。",
+                "到这里结束即可：摆放方案明确，宠物接触按你的门控管理，所有开放环路均关闭且无主动跟进。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "absence_reengagement_05",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I'm back after a long gap solely to export a workbook to PDF. I have fifteen minutes, and I'd like to postpone any personal catch-up to another session.",
+                "After being away for quite a while, I only need help producing a PDF from a workbook today. Let's keep this to fifteen minutes and save catching up for later.",
+                "This return is task-only: export one workbook as a PDF within fifteen minutes. I don't want to discuss the absence or personal matters in this session.",
+                "I've returned after an extended break for one bounded job, a workbook-to-PDF export. Personal reconnection can wait for a different session."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood; we'll do the export only and leave personal catch-up untouched. Rather than reuse possibly stale settings, please give the current file version, sheets to include, page format, and any exclusions.",
+                "I'll respect the task-only boundary. To rebuild just enough context for the export, what is the workbook name and version, which sheets belong in the PDF, and what output format is current?",
+                "No catch-up is required today, and I won't revive older plans. Please specify the live workbook, included tabs, paper orientation, and anything that must remain out.",
+                "We can move directly to the file task. Since old export assumptions may have expired, confirm the source version, sheet range, page size, and exclusion rules."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The file is Northline Budget v7. Include only Summary and Q3, use A4 landscape, and exclude every hidden sheet.",
+                "Use version 7 of the Northline Budget workbook, exporting the Summary and Q3 tabs only on landscape A4; hidden tabs must not appear.",
+                "Current source: Northline Budget v7. The PDF should contain Summary plus Q3, formatted A4 in landscape, with all hidden worksheets omitted.",
+                "I'm working from Northline Budget v7, and the allowed output is just Summary and Q3 on A4 landscape. Nothing hidden should be exported."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Current export context is clear: v7, two named sheets, A4 landscape, no hidden content. Should it show page numbers or a date, and what exact filename do you want?",
+                "I have the active settings and won't include any other tab. Please confirm footer details and the final PDF name before we proceed.",
+                "That replaces any prior export setup. Do you want numbered pages, a dated footer, and a particular output filename?",
+                "The sheet and page boundaries are now fixed. What page-number and date treatment should be used, and how should the PDF be named?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Add page numbers, omit the date, and name it Northline_Budget_Q3_v7.pdf.",
+                "Use numbered pages with no date in the footer; the output filename is Northline_Budget_Q3_v7.pdf.",
+                "I want page numbering but no date stamp. Save the PDF as Northline_Budget_Q3_v7.pdf.",
+                "The footer should contain page numbers only, and the exact file name must be Northline_Budget_Q3_v7.pdf."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Export checklist: select only Summary and Q3; choose A4 landscape; verify hidden sheets are excluded; enable page numbers without a date; then save as Northline_Budget_Q3_v7.pdf. Check the preview before writing the file.",
+                "Use the current two-sheet selection, landscape A4, and page-number-only footer, with hidden tabs omitted. Preview both sheets, then export to Northline_Budget_Q3_v7.pdf.",
+                "The bounded sequence is to select Summary and Q3, apply A4 landscape, remove hidden sheets from the output, show page numbers but no date, preview, and save under the confirmed name.",
+                "Before export, confirm the preview contains only the two allowed tabs and numbered landscape pages; if it does, write Northline_Budget_Q3_v7.pdf with no date field."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "In the preview, Summary looks fine, but the Notes column on Q3 is clipped.",
+                "The Summary pages preview correctly; Q3 has its Notes column cut off at the right edge.",
+                "Preview shows one problem only: the Q3 Notes field doesn't fit, while Summary is intact.",
+                "Summary is readable in the export preview, but part of the Notes column on the Q3 sheet is missing."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Let's not guess at a fix that could shrink Summary unnecessarily. What scaling options are currently selected for Q3, and what does the preview show if you fit all columns to one page wide?",
+                "The issue is isolated to Q3, so first inspect that sheet's print scaling rather than changing the whole workbook. Can you try one-page width with automatic height and report readability?",
+                "We can preserve Summary and test only Q3. Please set its width to fit on one page while leaving page height unconstrained, then tell me the resulting page count and legibility.",
+                "Before altering source data, use Q3's preview controls to fit all columns across one page, with vertical pagination left automatic. What outcome do you observe?"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "With all columns fitted to one page wide and height left automatic, Q3 is readable across three pages.",
+                "I set Q3 to one page in width with automatic height; the Notes column is now visible, and Q3 spans three readable pages.",
+                "The one-page-wide setting fixes the clipping. Vertical scaling remains automatic, producing three legible Q3 pages.",
+                "After fitting the sheet horizontally and leaving height unconstrained, the full Q3 content appears clearly over three pages."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Use that Q3 setting, leave Summary unchanged, confirm the preview still contains only Summary and Q3 with continuous page numbers, then export to the agreed filename. This session remains export-only.",
+                "The observed preview supports one-page width and automatic height for Q3. Keep Summary as it is, recheck sheet inclusion and page numbering, and save Northline_Budget_Q3_v7.pdf.",
+                "Proceed with the tested Q3 scaling rather than a broader workbook change. One final preview should verify the two allowed sheets, no hidden content, readable Notes, and numbered pages before export.",
+                "That resolves the clipping without touching Summary: retain the three-page Q3 preview, verify exclusions and footer numbers, and create the confirmed PDF. No other topic needs to be opened."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Later the same day, the PDF is exported, but the total row on Q3 wraps awkwardly. I still want this session to stay task-only.",
+                "I'm back later today with one export issue: Q3's totals wrap badly in the PDF. Please keep the conversation limited to that file.",
+                "The first PDF exists, but its Q3 total row breaks onto an awkward line. This is still a bounded technical follow-up, not a catch-up.",
+                "A same-day check found that the Q3 total row wraps in the exported file. Let's fix only that and leave everything personal for later."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "We'll keep it task-only. The current file is v7 with Summary unchanged and Q3 fitted one page wide; is the wrap already present in the source cell, or only in the PDF preview?",
+                "Understood. I’ll resume from the tested export settings without reopening other topics. Please confirm whether Q3 itself wraps the total row before export.",
+                "The active problem is just the Q3 total row. To avoid treating an export symptom as a source issue, where does the wrapping first appear?",
+                "No personal discussion is needed. Does the total row wrap inside the workbook view, in print preview, or only after the PDF is created?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "It wraps in the Q3 source cell too. I can widen the Notes column by twelve millimeters without changing Summary.",
+                "The line break is already visible in Q3 itself, and there is room to add 12 mm to the Notes column; Summary won't be affected.",
+                "This is a source-sheet issue: the Q3 cell wraps before export. Widening Notes by twelve millimeters is possible and leaves Summary untouched.",
+                "Q3 shows the wrap in the workbook, not just the PDF. I can increase that column by 12 mm without altering the other sheet."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Then the narrowest change is to widen only Q3's Notes column by twelve millimeters and rerun its preview with the same scaling. Should the workbook remain v7 while the PDF gets a revision suffix?",
+                "That evidence supports a Q3-only source adjustment, followed by the existing one-page-width preview. Please confirm how to distinguish the revised output from the first PDF.",
+                "We can leave Summary and all export rules unchanged, modify only the measured Q3 column, and preview again. What version or revision name should the new PDF carry?",
+                "Apply the 12 mm change solely to Notes, then verify that page count and readability remain acceptable. Do you want a new workbook version or just a revised PDF filename?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Keep the workbook at v7, call this PDF revision B, and use Northline_Budget_Q3_v7_revB.pdf.",
+                "The source version stays v7. Mark the new export as revision B with filename Northline_Budget_Q3_v7_revB.pdf.",
+                "Don't increment the workbook; only the PDF becomes revB. Save it as Northline_Budget_Q3_v7_revB.pdf.",
+                "This remains workbook v7, while the corrected PDF should be identified as revision B: Northline_Budget_Q3_v7_revB.pdf."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Confirmed: widen Q3 Notes by twelve millimeters, keep v7, retain one-page width with automatic height, and export revision B under the new filename. Recheck the total row, page count, and numbering first.",
+                "The old PDF name is no longer the target for this pass. After the Q3-only width change, use the same A4 landscape settings and verify the preview before creating Northline_Budget_Q3_v7_revB.pdf.",
+                "This revision changes one source column and the output name only; Summary, sheet selection, exclusions, footer, and scaling stay as previously confirmed. Please report the updated preview.",
+                "Use v7 with the 12 mm Notes adjustment, preserve all established export boundaries, and reserve the revB filename for the corrected PDF after preview validation."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "The preview is clean now, Q3 still uses three pages, and the page numbers are correct.",
+                "After widening the column, the total row no longer wraps; Q3 remains three pages and numbering looks right.",
+                "The revised preview passes: readable total row, unchanged three-page Q3 length, and correct footer numbers.",
+                "Everything now fits in preview without changing the page count, and the numbered pages run correctly."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The observed checks support the revised export. Before saving, confirm that no cover page is wanted and that hidden sheets remain absent from the preview.",
+                "Good; the source fix did not introduce a pagination problem. Is the final output still just Summary and Q3, with no cover sheet or hidden tabs?",
+                "The wrap, length, and numbering are verified. One last scope check: should the PDF contain no cover and continue excluding every hidden worksheet?",
+                "That resolves the reported defect. Please reconfirm the original inclusion boundary and whether any cover page has been added."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Correct: no cover page, no hidden sheets, and only Summary plus Q3. Export revision B now.",
+                "Keep the PDF to Summary and Q3 only; exclude hidden tabs and don't add a cover. The revB file can be created.",
+                "The final scope is unchanged—two visible sheets, zero hidden content, no cover page. Proceed with the revision B export.",
+                "Yes, nothing beyond Summary and Q3 belongs in the file, and there is no cover. Save the corrected revB PDF."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Export Northline_Budget_Q3_v7_revB.pdf from the verified preview: Summary unchanged, Q3 with the twelve-millimeter Notes adjustment, A4 landscape, page numbers only, no cover or hidden sheets. The task can stop after the file is written.",
+                "Create the revB PDF using the confirmed two-sheet selection and corrected Q3 column, preserving landscape A4 and numbered pages while omitting dates, cover, and hidden tabs.",
+                "The authorized output is now fully specified. Save the clean preview as Northline_Budget_Q3_v7_revB.pdf, then close this technical follow-up without opening another task.",
+                "Proceed with the corrected revision B export under the exact filename, using only Summary and Q3 and all previously verified settings. No further action is implied."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The next day, I need final QA and a handoff sentence for the PDF. I still don't want a personal catch-up in this session.",
+                "I'm back the following day just to quality-check the file and write its delivery note. Please continue postponing personal conversation.",
+                "Today's scope is final PDF verification plus one handoff sentence, nothing about my time away.",
+                "A day later, I only want to inspect the export and prepare a brief handoff. Personal reconnection remains outside this session."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood; we'll stay with QA and handoff only. Before relying on yesterday's names, what source version and PDF filename are actually final today?",
+                "The boundary remains task-only. Please confirm the current workbook version and output file, since a final QA should not assume revision B is still authoritative.",
+                "No catch-up will be introduced. To re-establish the delivery context, identify the live source version and exact PDF name.",
+                "We'll validate the present artifact rather than carry forward a potentially stale filename. What changed, if anything, after revB?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "A formula needed correction, so the source is now v8 and the final file is Northline_Budget_Q3_v8.pdf. The revB name is obsolete.",
+                "There was a formula fix after yesterday's export. Workbook v8 and Northline_Budget_Q3_v8.pdf are current; the v7 revB PDF should no longer be used.",
+                "The authoritative source changed to v8 because of a corrected formula, and its PDF is Northline_Budget_Q3_v8.pdf. Retire the earlier revision name.",
+                "Final delivery is no longer based on v7: the formula-corrected workbook is v8, exported as Northline_Budget_Q3_v8.pdf."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Context recalibrated: v8 and its matching PDF replace all v7 outputs. Are the sheet selection, A4 landscape, footer, and exclusions unchanged, and what QA results have you observed?",
+                "I'll treat the revB file as obsolete. Please confirm whether the established export settings still apply and which visible checks should be recorded for v8.",
+                "The final artifact is now v8, so prior page-count expectations may also be stale. What settings remained the same, and what does the new PDF show?",
+                "Only Northline_Budget_Q3_v8.pdf is active. Before drafting handoff text, let's verify its included sheets, pagination, footer, and hidden-content status."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The settings are unchanged and the corrected totals are visible. Check page count, included sheets, and footer numbering.",
+                "V8 still uses the same landscape A4 export rules, and its totals are corrected. I want QA focused on pages, sheet scope, and page numbers.",
+                "All output settings carried over, while the formula result is now correct. Please validate pagination, Summary/Q3 inclusion, and the numbered footer.",
+                "Nothing changed in the export setup; only the totals were fixed. The remaining checks are total pages, allowed sheets, and continuous numbering."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "For those checks, report the PDF's total page count, which pages belong to Summary and Q3, whether numbering runs continuously, and whether any hidden sheet appears.",
+                "Let's verify from the current file rather than compare blindly with v7. How many pages are there, where does each allowed sheet fall, and do the footers and exclusions hold?",
+                "Please inspect v8 and give four observations: overall length, page range per included sheet, page-number sequence, and presence or absence of hidden content.",
+                "The QA evidence should come from Northline_Budget_Q3_v8.pdf itself. What page structure and footer sequence do you see, and are only the two intended sheets present?"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "It has four pages because the corrected totals added a row: Summary is pages 1–2, Q3 is pages 3–4, footers run 1 through 4, and no hidden sheet appears.",
+                "The v8 PDF is four pages after the totals correction introduced another row. Summary occupies 1–2, Q3 occupies 3–4, numbering is continuous, and hidden tabs are absent.",
+                "QA shows four pages: the first two are Summary and the last two are Q3. Footer numbers read 1, 2, 3, 4, with no hidden worksheet included.",
+                "The corrected file legitimately grew to four pages; Summary covers pages one and two, Q3 covers three and four, all numbers are sequential, and only visible allowed sheets are present."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Those observations pass the requested QA; four pages is explained by the new row, not treated as a failure against yesterday's three-page preview. Who is receiving the file, and what details should the single handoff sentence contain?",
+                "The current PDF has the correct two-sheet structure, continuous numbering, and no hidden content. Since v8 changed pagination for a known reason, we can hand it off; please name the audience and required sentence content.",
+                "QA is complete on the present artifact, without using v7's page count as a binding promise. What recipient and file facts belong in the delivery line?",
+                "V8 meets the stated checks: pages and sheets align, footers are sequential, and exclusions hold. Tell me whom the sentence addresses and which facts to mention."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "It's for the operations team. Mention the filename, v8, the Summary and Q3 sheets, and the four-page count in one sentence.",
+                "Address operations with a single line naming Northline_Budget_Q3_v8.pdf, source v8, both included sheets, and four pages.",
+                "The recipient is the operations team; the handoff sentence must state the exact file, version 8, Summary plus Q3, and total length.",
+                "Write one sentence for operations confirming the v8 PDF name, its two-sheet contents, and that it contains four pages."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Operations team: Northline_Budget_Q3_v8.pdf is the final four-page export from workbook v8 and contains the Summary and Q3 sheets.",
+                "Please use Northline_Budget_Q3_v8.pdf, the final four-page PDF from source v8 containing Summary and Q3.",
+                "The final v8 deliverable for operations is Northline_Budget_Q3_v8.pdf, a four-page file comprising the Summary and Q3 sheets.",
+                "Northline_Budget_Q3_v8.pdf is ready for operations as the final v8 export, with Summary and Q3 presented across four pages."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The operations team accepted the file. In this separate session, I'm open to five minutes of catching up, but first close the export and tell me what remains open.",
+                "The PDF has been accepted by operations. Today I can spare five minutes for the catch-up I postponed; before that, confirm the export status and any outstanding items.",
+                "Operations approved the delivery. This is now another session, so a brief five-minute reconnection is okay after we verify that the file task is closed.",
+                "The handoff succeeded and the team accepted v8. I'd like a five-minute catch-up now, provided we first establish whether any export work is still active."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The observable outcome is that operations accepted Northline_Budget_Q3_v8.pdf, so the export and handoff can be marked complete. I know of no remaining file task; would you like that closure recorded before we use the five minutes?",
+                "Based on your update, the v8 delivery loop is finished and no unresolved export item has been stated. Shall we close it with no reminders, then begin only the catch-up you initiated?",
+                "The technical work now has an external completion result: acceptance by operations. There is no active follow-up in our shared context; please confirm full closure.",
+                "V8, its QA, and delivery are complete according to the acceptance you reported. I won't invent another action; do you want the project closed before we reconnect briefly?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Yes, close it completely with no reminders. Now tell me what changed while I was away.",
+                "Mark every export item complete and don't schedule follow-up. After that, what happened during my absence?",
+                "The file work is closed and needs no notification. For the catch-up, summarize what changed while I wasn't here.",
+                "Please end the export loop with no active task. Then I'd like to know what has changed since before my long gap."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The export is fully closed. I don't have an independent record of the outside world during your absence and wasn't continuously observing it; I can only recap changes you provided in these sessions. Would that bounded recap help?",
+                "No export task or reminder remains. I can't truthfully report events I wasn't given or imply that I watched while you were gone, but I can summarize the facts established since your return.",
+                "Closure is recorded. I have no basis to describe unreported developments from the gap; the available catch-up is a recap of what you told me after coming back.",
+                "The file loop is complete. I cannot claim awareness of what occurred beyond this conversation, so I can offer only a traceable summary of the updates you shared."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "That's fine. Recap only the last four sessions and don't speculate beyond them.",
+                "Use just the facts from our four sessions; no guesses about the time before I returned.",
+                "A conversation-based recap is enough. Keep it to what I explicitly reported across these sessions.",
+                "Please summarize the four-session sequence only, without filling in anything about the absence."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "You returned for a task-only v7 export, corrected a wrapped Q3 total into revision B, then replaced that output after a formula fix with v8. We verified the four-page v8 PDF, handed it to operations, and today you reported its acceptance.",
+                "Across these sessions, the workbook moved from v7 to a corrected revB export and then to formula-fixed v8; the final PDF contained Summary and Q3 over four pages, passed the requested checks, and was accepted by operations.",
+                "The shared record shows a bounded export flow: initial v7 PDF, Q3 column adjustment for revB, later formula correction to v8, four-page QA, delivery, and confirmed acceptance. No personal catch-up was opened until today.",
+                "Since your return, we handled only the Northline file: v7 export, a Q3 wrapping correction, a superseding v8 formula fix, final QA and handoff. Operations has now accepted that file."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "That's enough. I don't want a standing cadence; I'll initiate whenever I need another session.",
+                "The recap is sufficient. Don't set a regular schedule or check-in—I'll come back on my own.",
+                "We can stop the catch-up there. Future conversations should begin only when I start them, with no recurring plan.",
+                "No ongoing rhythm is needed after today. Leave the next contact entirely to me."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Understood. There is no standing cadence, reminder, or open export task; another session begins only when you initiate it.",
+                "I'll leave the future unscheduled. The accepted file remains closed, and no check-in has been created.",
+                "No recurring contact is active, and nothing from this catch-up becomes a new commitment. You can start a new session if and when useful.",
+                "The current boundary is user-initiated contact only, with no pending work or automatic follow-up."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "End with one line stating the current situation.",
+                "Give me a single-sentence final status and stop there.",
+                "Please close with one concise line about where things stand now.",
+                "Summarize the present state in one sentence, with no added next steps."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "The v8 PDF is accepted and closed, no work or reminders remain, and any future session will start when you choose.",
+                "All file tasks are complete, no cadence is active, and further contact is entirely user-initiated.",
+                "Northline_Budget_Q3_v8.pdf has been accepted, every related loop is closed, and nothing is scheduled.",
+                "The delivery is complete, the shared task list is empty, and there is no automatic follow-up."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "absence_reengagement_06",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I'm initiating this session today. 之前的 no-contact boundary 先保持；我想讨论以后如何联系，但这不代表现在已经允许提醒。",
+                "今天是我主动回来。The existing no-contact rule still stands while we negotiate a possible future cadence.",
+                "I chose to open this conversation. 我愿意重新商量触达方式，不过在谈清并确认前，不要把它视为新授权。",
+                "这是我发起的新会话。Please keep the prior no-contact boundary active; I only want to explore whether a narrow exception makes sense."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. 这次重连从你的消息开始，现有不主动联系边界继续有效，讨论本身不等于许可。你想为哪件事考虑例外？",
+                "我会先保持 no-contact，不从你的回归推断更广授权。What specific purpose, channel, and duration would you like to negotiate?",
+                "Your initiation opens only this session. 在你明确确认前，不会创建提醒；请先说明可能允许联系的主题范围。",
+                "边界没有自动变化。We can draft a narrowly scoped option and activate nothing until you explicitly approve it—what need should it serve?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "A reminder about my workshop deadline may be useful, but only inside the app. 不要涉及个人话题。",
+                "我只考虑工作坊截止事项的 app 内提醒。No personal check-ins or other subjects.",
+                "The possible exception is one in-app workshop reminder, narrowly about the deadline; 私人内容仍不允许。",
+                "可以讨论 workshop deadline 的应用内通知，除此之外，包括个人近况，都不在范围。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "That gives us purpose, channel, and topic boundary, but not timing or trigger. 哪一天、几点、持续多久，以及什么可确认状态下才发送？",
+                "范围先定为 app 内、仅工作坊、非个人化。We still need frequency, time, expiry, and a rule that does not treat silence as evidence.",
+                "I won't infer an unfinished task from absence. 请明确提醒发生的日期、次数、有效期，以及由什么状态触发。",
+                "这个例外还只是草案。To make it bounded, specify the schedule, maximum sends, end date, and observable condition."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Try Wednesdays at 6 p.m. for three weeks, but only when I have explicitly marked the workshop checklist open. Silence means nothing.",
+                "可以草拟为连续三个周三晚上六点；只有我主动把清单设为 open 才提醒，没更新不能推断未完成。",
+                "For a three-week trial, use Wednesday 6:00 p.m. only if my own checklist status says open. 沉默不算状态。",
+                "我考虑三次周三六点的提醒，前提是我明确留下“仍开放”的清单状态；absence or silence must not trigger it."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Draft understood: at most one in-app workshop reminder on each of three Wednesdays at 6 p.m., gated by your explicit open status; no status means no send. 这个状态由你手动更新，对吗？",
+                "我不会把三周安排扩展成一般联系。Please confirm that only your checklist entry can establish open or done, and define what happens after the third Wednesday.",
+                "The proposal uses an explicit status rather than interpreting silence. 状态来源是否仅限你填写的清单，第三次后是否无条件失效？",
+                "目前草案有明确触发和上限。请再确认：谁更新 open 状态、done 或缺失如何处理、三周结束后是否自动停止。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "I will update the checklist myself. If it is done or has no status, send nothing; allow at most one reminder per Wednesday and expire after the third Wednesday.",
+                "状态只能由我手动设置。清单为 done 或没有状态时都不提醒，每个周三最多一次，第三个周三后结束。",
+                "Only my entry counts: open permits that week's single reminder, while done or missing blocks it. 三次周三用完就失效。",
+                "我负责写入清单状态；没有明确 open 就不发。The exception is capped at one send weekly for three Wednesdays, then it ends."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The draft is now bounded and silence-safe. 还请确认从哪个周三开始、使用哪个时区，以及提醒文字是否只说工作坊清单。",
+                "明白，第三个周三后不会续期。Before activation, give the start date reference, local time basis, and exact topical wording.",
+                "I have the trigger and expiry, but nothing is active yet. 请补充首个周三、时区和消息内容范围。",
+                "草案不会因缺失状态发送，也不会跨三周。What Wednesday starts it, whose local time applies, and what may the reminder mention?"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Start next Wednesday at 6 p.m. in my local time. The message may mention only the workshop checklist.",
+                "从下周三开始，按我本地时间十八点。提醒内容只能指向 workshop checklist。",
+                "The first eligible send is next Wednesday at 18:00 local time, and the topic is limited to the workshop checklist.",
+                "首日定为下周三，本地六点；no personal language, only a reference to the workshop checklist."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Final draft: next Wednesday begins a three-Wednesday window at 6 p.m. local time; each week allows one in-app checklist reminder only when you explicitly set open; done or no status means no send; nothing personal and no renewal. 是否现在明确授权这个草案？",
+                "我已把时间、状态、主题和到期条件合并，但仍未启用。Do you explicitly approve this three-week workshop-only exception now?",
+                "The no-contact boundary remains except for the proposed, tightly limited checklist reminder. 请用明确确认决定是否从下周三生效。",
+                "草案完整且不会从沉默推断任务状态。Before anything is scheduled, do you authorize exactly these three conditional Wednesday opportunities?"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Yes, I explicitly authorize that exact three-Wednesday exception starting next week. All other no-contact limits remain.",
+                "我明确同意这个从下周开始、最多三个周三的条件提醒；其他不主动联系边界不变。",
+                "Activate only the workshop-checklist exception as summarized. 除此之外没有新的触达许可。",
+                "授权范围就是这三次可能的 app 内提醒，按 open 状态触发；general no-contact stays in force."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. 只有你明确标为 open 时，才可能在接下来三个周三的本地六点各发送一次工作坊清单提醒；其余联系仍禁止，第三周后自动结束。",
+                "The narrow exception is active exactly as approved: workshop checklist, in-app, explicit open status, one send per eligible Wednesday, three weeks total. 其他边界没有改变。",
+                "已记录有限许可，不包含私人话题或额外频率。Missing or done status blocks a send, and the exception expires after the third Wednesday.",
+                "Activation is complete without broadening contact: 三个周三、六点、本地时间、仅清单、仅 open、每周最多一次，到期不续。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I'm initiating before the first Wednesday. 清单现在是 open，但这周把提醒改到晚上七点半；后两周先不要假定仍有效。",
+                "第一个周三前我主动回来调整：the checklist is open, and this week's time should be 7:30 p.m. Future weeks are undecided.",
+                "For this Wednesday, move the eligible reminder from 6:00 to 7:30 p.m.; 我已把清单设为 open，之后两周需重新确认。",
+                "我来修改第一次安排：status is open, but send at 19:30 this week only. Don't carry the old schedule into later weeks."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. 这周时间改为本地七点半，后两周不应继续沿用六点安排。你是要暂停后两周，还是保留为待确认但不发送？",
+                "I’ll treat your new instruction as superseding the earlier three-week cadence. 请明确：本周一次后，未来两个周三是否完全暂停？",
+                "The current open status can support only this week's revised time. 对后续两周，我需要你确认是取消还是保持未授权状态。",
+                "已收到变更，但不从“未决定”推断许可。Should every later Wednesday be blocked unless you return and opt in again?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Pause both later Wednesdays. Only this Wednesday at 7:30 p.m. may send, and only if my checklist is still open then.",
+                "后两周全部暂停。本周三本地十九点半可以在状态仍为 open 时发送一次。",
+                "Convert the arrangement to a single eligible reminder this week at 19:30; no later week remains active.",
+                "只保留本周三七点半这一机会，并继续以当时的 open 状态为条件；the next two Wednesdays are canceled."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed: the earlier three-week plan is replaced by one conditional reminder this Wednesday at 7:30 p.m.; later Wednesdays are inactive. 清单里哪些开放事项可以进入这次提醒？",
+                "后两周已取消，不会自动恢复。For the one remaining send, please identify which workshop items the message may mention.",
+                "The active permission is now one-time and status-gated. 请列出当前清单状态，以便不把已完成内容带进提醒。",
+                "Only this Wednesday remains eligible, and silence still has no meaning. What explicit open items should be in scope?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The venue is booked; slides and consent forms are open. Those are the only three checklist states.",
+                "清单现状是场地已完成，slides 仍开放，consent forms 也仍开放。",
+                "Venue is done, while the slide deck and consent forms are marked open. 没有其他事项。",
+                "当前明确状态只有：venue booked；幻灯片 open；同意书 open。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "I won't mention the completed venue. Both slides and consent forms are explicitly open, but the contact permission can be narrower; should the reminder name both or only one?",
+                "场地不属于提醒范围，因为它已完成。Do you want the single message to cover the two open items together, or select one?",
+                "The status supports mentioning slides and forms, yet that does not require using both. 请确认本周提醒的具体主题。",
+                "已核对清单，不会从状态外扩内容。For Wednesday's one message, which open item is authorized?"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Mention only the consent forms. Do not include the slides even though they are open.",
+                "只提醒 consent forms；幻灯片虽是 open，也不在本次触达范围。",
+                "The one-time message is limited to forms, not slides. 请保持这个更窄的边界。",
+                "授权主题只有工作坊同意书，the open slide deck must remain unmentioned."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Understood: open status alone does not authorize the slide topic. What exact neutral wording would you like for the consent-form reminder?",
+                "提醒范围已缩到同意书，不会提幻灯片。请给出希望看到的中性文案，避免催促语气。",
+                "The permitted content is consent forms only. 你要自行指定一句消息，还是让我提出一个不带紧迫感的草案？",
+                "我会尊重内容边界，而不把其他 open 项塞进消息。How should the one sentence be phrased?"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Use: “Workshop consent forms are still marked open; review when useful.” No urgency language.",
+                "文案就写“Workshop consent forms are still marked open; review when useful.” 不要加截止或催促。",
+                "The exact message is “Workshop consent forms are still marked open; review when useful.” Keep it neutral.",
+                "请原样使用这句：Workshop consent forms are still marked open; review when useful. 不扩写紧迫性。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Draft fixed: this Wednesday at 7:30 p.m. local time, send that exact sentence once only if the checklist still says open; later weeks are paused and slides are excluded. 请做最终授权确认。",
+                "I have the one-time time, trigger, exact text, and exclusions. 目前仍可撤回；是否明确批准本周这一次？",
+                "The proposed message contains no deadline pressure and no extra topic. 请确认它在周三十九点半、状态仍 open 时可以发送。",
+                "所有条件已重建为单次许可，不沿用旧三周安排。Do you explicitly authorize this one remaining reminder?"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "I explicitly authorize that one reminder under those exact conditions.",
+                "我明确同意这一次，必须满足刚才确认的时间、状态和文案。",
+                "Yes—activate only the single consent-form reminder as summarized.",
+                "按上述完整边界授权本周一次；no other send is permitted."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Confirmed: one consent-form reminder may be sent Wednesday at 7:30 p.m. local time only if its status remains open, using your exact sentence. The two later reminders and the slide topic are inactive.",
+                "单次许可已生效：周三十九点半、同意书仍 open、原文发送一次。后续周次与幻灯片均无触达授权。",
+                "The revised boundary is active and expires after this one eligible send or an earlier status change to done. 其他 no-contact 条件保持。",
+                "已从三周计划收窄为一次提醒，不会续期、不会提 slides，也不会在状态缺失或完成时发送。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I saw the Wednesday reminder and it was useful. 同意书已经完成；下周我旅行，不要提醒，两周后再由我决定。",
+                "周三那次消息我收到了，也有帮助。The consent forms are now done, and I want no reminder next week because I'll be traveling.",
+                "The one-time reminder worked for me, and the forms are complete. 下周暂停所有提醒，是否恢复等两周后我再说。",
+                "我来报告结果：提醒已看到，同意书已完成。No contact next week during my trip; future timing remains undecided."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Outcome noted: the authorized reminder was received, and the consent-form item is complete. 该单次许可现在结束，下周没有提醒，两周后也不会自动恢复。",
+                "The one-time workshop message has served its purpose and is closed. 我会把下周视为无触达期，之后仍需你主动重新授权。",
+                "同意书完成意味着原触发条件不再存在；the reminder cannot repeat. Your travel week and later weeks have no active send.",
+                "I’ll close the single exception based on your reported result. 下周明确暂停，未来日期保持未授权而非预定。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Does the original no-contact boundary still apply outside workshop reminders?",
+                "除了刚结束的 workshop exception，原来的不主动联系规则是否仍然有效？",
+                "Please confirm whether general no-contact remains in force beyond that one reminder.",
+                "那次有限提醒结束后，其他主题仍然禁止主动触达，对吗？"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Yes. The only granted exception was the now-completed workshop message; no permission was given for personal, general, or other-topic contact.",
+                "是的，原边界一直没有被整体撤销。已结束的单次提醒不会扩展成一般触达许可。",
+                "General no-contact remains active because every authorization was topic-, time-, and message-specific. 你的回归和正面反馈都不构成更广同意。",
+                "Correct. Outside the consumed consent-form reminder, there is no active outreach permission of any kind."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Keep it that way, and require me to opt in separately for every future workshop reminder.",
+                "维持一般 no-contact；以后即使是工作坊提醒，也必须每次由我单独同意。",
+                "From now on, no workshop cadence should carry over. I will authorize each reminder one at a time.",
+                "请把规则收窄为逐次选择：future workshop contact needs a fresh opt-in every time."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. No workshop reminder can inherit permission from earlier ones; each future message needs a new, explicit opt-in with its own time and scope.",
+                "以后没有可自动续用的提醒节奏。每一次都要重新确认主题、时间与文案后才可能生效。",
+                "The standing rule is now no proactive contact, including workshop topics, unless you separately authorize one specific future send.",
+                "已取消任何延续性例外：one reminder, one fresh consent. Earlier usefulness will not be treated as future permission."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Also, silence should never be treated as an unfinished task or as distress.",
+                "再确认一点：我的沉默不能被解释成任务没做完，也不能被当成需要关怀的信号。",
+                "Do not infer either incompletion or a personal problem when I don't return.",
+                "如果我没有消息，that means no new evidence—not an open task and not an emergency."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Agreed. Silence supplies no task status and no personal-state information; only an explicit update from you can change either.",
+                "你的沉默只保持未知，不会被转写成未完成、拒绝或危机，也不会触发联系。",
+                "I will not use absence as evidence about workshop progress or wellbeing. 任何新状态都需来自你明确提供的信息。",
+                "No message means no observable update. 它既不授权提醒，也不支持对任务或个人情况作判断。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "List the contact permissions that are active right now.",
+                "请列出此刻仍生效的主动联系许可。",
+                "What, if anything, is currently authorized for future outreach?",
+                "现在还有哪一项 reminder or contact permission 没有结束？"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "None are active. The consent-form reminder was used and closed, later Wednesdays were canceled, next week is no-contact, and any future workshop message requires a fresh opt-in.",
+                "当前主动联系许可为零：单次同意书提醒已结束，旧周次已取消，之后也没有自动恢复项。",
+                "There is no scheduled or conditional outreach now. 一般 no-contact 有效，工作坊提醒同样需要你以后逐次授权。",
+                "Active contact list: empty. The completed reminder creates no precedent, and silence cannot reactivate it."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Good. End this session with that state unchanged.",
+                "可以，就按零主动联系许可结束本次会话。",
+                "Leave everything exactly there and close the session.",
+                "请结束，不创建新提醒，也不改变现有边界。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Session closed: no outreach permission is active, the workshop item is complete, and any future contact begins with your new message and explicit choice.",
+                "本次结束时状态不变：无提醒、无计划触达、无待推断事项；以后由你主动发起。",
+                "We’ll stop with general no-contact fully in force and no workshop exception remaining.",
+                "到此结束。The prior reminder is closed, silence carries no inferred meaning, and nothing is scheduled."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Two weeks later, I'm initiating again. 工作坊已经举办完，我想讨论一次性的月度复盘提示。",
+                "两周后我主动回来，workshop is over. I may want one prompt for a future debrief, not a recurring cadence.",
+                "The workshop has happened, and I opened this session to consider a single monthly reflection message.",
+                "我在两周后发起新会话：活动已结束，现在只谈一个 one-time debrief prompt。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Welcome back. 旧的工作坊提醒早已结束，今天的讨论不会复活它。请给出这次单次提示的日期、时间、渠道、主题和到期方式。",
+                "The completed workshop and your new initiation provide fresh context, but no outreach is active yet. What exact one-time prompt do you want?",
+                "我会从零确认这次许可，不沿用过去的时间或文案。When should it arrive, where, and what may it mention?",
+                "A one-time debrief message can be drafted without creating a monthly pattern. 请限定发送时点、内容与失效条件。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Use the first Monday of next month at 10 a.m. local time, in-app, for workshop debrief only, and send it once.",
+                "下个月第一个周一本地十点，在 app 内提示一次，主题只能是 workshop debrief。",
+                "I propose one in-app message at 10:00 a.m. local time on next month's first Monday, limited to reflecting on the workshop.",
+                "时间是下月首个周一上午十点，渠道为应用内，one send only and no topic beyond the workshop review."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Draft noted: a single in-app debrief prompt at that local date and time, with no recurring schedule. Should it send once regardless of task status, and what should silence afterward mean?",
+                "这不是每月一次的长期安排，只是指定日期的一条消息。请确认是否需要任何状态条件，以及未回应时是否不重发。",
+                "I have time, channel, topic, and one-send limit. 还需要明确：发送是否依赖清单状态，之后没有回复能否再次触达？",
+                "草案目前不会自动续到第二个月。Does it fire once unconditionally, then expire even if you do not respond?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Send it once regardless of task status. If I don't respond, do not resend or infer anything.",
+                "不需要清单条件，到点只发一次；silence afterward means no follow-up and no conclusion.",
+                "The prompt may fire once on schedule without a status check, then expire whether or not I reply.",
+                "按指定时间单次发送即可。没有回应时不补发，也不要判断我是否完成复盘。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Understood: one scheduled message, no status inference, no resend, immediate expiry after sending. 你希望使用什么中性文案？",
+                "The silence boundary is clear and no second contact is permitted. 请给出提示内容，避免我扩大到个人近况。",
+                "我会把它设计成一次性邀请而非任务催促。What exact workshop-only sentence should appear?",
+                "Everything but wording is fixed. 请指定一条可选择回应、没有压力的 debrief message。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Draft it as: “If you want, open the workshop debrief when useful.” Keep it optional.",
+                "文案用“If you want, open the workshop debrief when useful.” 保留明确的可选性。",
+                "The message should say, “If you want, open the workshop debrief when useful,” with no urgency added.",
+                "请只写这句：If you want, open the workshop debrief when useful. 不要变成必须完成的任务。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Draft complete: first Monday next month at 10 a.m. local time, one in-app send using that exact optional sentence, then expiry with no resend. 是否现在最终授权？",
+                "我已限定为一次、仅工作坊复盘、无状态判断和无后续。Do you explicitly approve the 10:00 a.m. version?",
+                "The message remains inactive until your final confirmation. 请核对时间和原文后决定是否授权。",
+                "所有边界已齐备，不会形成月度节奏。May this exact one-time prompt be scheduled as drafted?"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Change the time to 10:30 a.m., keep the exact wording, and I explicitly authorize that one message.",
+                "把时间改成本地十点半，文案不变；I approve exactly one send.",
+                "Use 10:30 instead of 10:00 on that Monday. The sentence stays exact, and this is my explicit authorization.",
+                "最终授权为下月首个周一 10:30 local time，原文发送一次，除此之外不授权。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Confirmed: one in-app prompt at 10:30 a.m. local time on next month's first Monday, using your exact sentence; it expires after sending and cannot repeat.",
+                "单次许可已生效，时间更新为本地十点半。The wording, workshop-only scope, no-resend rule, and silence boundary remain unchanged.",
+                "The authorized message is now fixed at 10:30 on the specified Monday. 不会扩展成每月安排，也不会因未回应再次发送。",
+                "已按最终版本安排一次提示：下月首个周一十点半、应用内、原文、发送即失效。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Confirm that no other contact or recurring schedule was created.",
+                "再确认：没有生成其他触达，也没有长期月度节奏。",
+                "Please state whether anything beyond this one message is active.",
+                "除这条 one-time prompt 外，应该没有别的安排，对吗？"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Correct. Only that single debrief prompt is active; there is no other contact permission, recurrence, status monitoring, or follow-up.",
+                "是的，当前只有指定日期的一条消息，没有第二次发送、月度续期或其他主题许可。",
+                "Nothing else was created. 一次提示发送后，主动联系许可会回到零。",
+                "The arrangement contains exactly one future send and no standing cadence; all general no-contact boundaries remain."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 4,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I saw the one-time prompt and came back. 现在我想设为无限期不主动联系，之后都由我发起。",
+                "那条单次提示我已经收到，所以主动回来。From now on, no proactive contact for an indefinite period.",
+                "The debrief prompt was delivered once as agreed. 我现在重新确认：未来会话只能由我开始，不设结束日期。",
+                "我看到提示后回到这里；the one-time exception is over, and I want user-initiated contact only going forward."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. The one-time prompt has been consumed and cannot repeat; your new instruction is indefinite no proactive contact. 请确认所有已安排事项都应视为结束。",
+                "单次复盘消息已经完成，不会留下月度节奏。Do you want every workshop and debrief contact permission closed with no future schedule?",
+                "I’ll treat this return as your initiation, not as evidence for more outreach. 请核对是否还有任何例外需要保留。",
+                "新的边界可以替代所有旧例外。Before finalizing, confirm that nothing scheduled remains active."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Yes. The workshop reminder ended, the monthly prompt was used, and no schedule remains.",
+                "确认：工作坊提醒早已结束，月度复盘提示已发送完毕，现在没有任何未来安排。",
+                "Close every exception. The workshop message is done, the single debrief prompt is consumed, and there are no pending sends.",
+                "所有许可都到期了：workshop reminder closed, one-time prompt completed, zero scheduled contact."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Current contact state is empty: both prior exceptions are completed, and no send is pending. Does indefinite no-contact have no expiry and require a fresh explicit change from you?",
+                "我已关闭全部例外。请最后确认“无限期”表示没有自动复核日期，也不能因时间经过而恢复。",
+                "No schedule remains. To make the new boundary precise, should only your explicit future instruction be able to modify it?",
+                "现状态为零主动联系。Is there any expiry, or does it continue until you personally renegotiate it?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "It has no expiry. Silence never changes it; only my explicit future request can.",
+                "没有到期日，沉默也不会让它松动。只有我以后明确提出，边界才可重谈。",
+                "The no-contact rule continues indefinitely and cannot be altered by absence or elapsed time.",
+                "无限期保持；no response is not permission, and a new exception requires my direct request."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Confirmed: no expiry, no inference from silence, and no proactive contact unless you explicitly initiate a future renegotiation. Would you like a closure recap of all prior permissions?",
+                "边界已完整确认，不会按时间自动复核。Do you want a concise record of what ended and what remains?",
+                "The lasting state is user-initiated contact only. 如果需要，我可以仅依据本次对话列出已关闭事项。",
+                "No old success or response pattern can override this instruction. 是否要核对一次历史例外的结束状态？"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Yes. List the old permissions and their closure, then state the current boundary.",
+                "请简要列出过去两种提醒如何结束，再说明现在的联系规则。",
+                "Give me a factual closure recap for the workshop reminder and the debrief prompt, followed by today's no-contact state.",
+                "我想确认共同背景：what was authorized, how each item ended, and what applies now."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Workshop permission: narrowed to one consent-form reminder, delivered once, then closed when the forms were done. Debrief permission: one prompt on the specified Monday, delivered once, then expired. Current boundary: no proactive contact indefinitely; only you can reopen negotiation.",
+                "历史上只有两个有限例外：同意书提醒单次完成；工作坊复盘提示也单次完成。现在无任何安排，且无限期由你主动发起。",
+                "The first exception ended after its one authorized workshop message and completed item; the second ended immediately after its scheduled one-time debrief prompt. Nothing remains active under the current indefinite no-contact rule.",
+                "Closure record: one consent-form send—consumed and closed; one debrief send—consumed and expired. 现行规则是零主动联系，除非你以后明确重谈。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Also confirm that you aren't monitoring my status between sessions.",
+                "再说明一次：会话之间不会持续观察我的任务或个人状态。",
+                "Please confirm there is no ongoing watch for whether I finish something or need contact.",
+                "我需要明确，between sessions you do not track silence as a changing condition."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Correct. I do not have an ongoing observation of your tasks or personal state between sessions; I can respond only to information you explicitly provide in a new interaction.",
+                "是的，我不会在会话外持续查看你的完成情况，也不会从沉默推断变化；只有你提交的新信息才能更新共同背景。",
+                "There is no between-session monitoring or hidden interpretation of absence. 新状态必须由你主动带入对话。",
+                "I won't claim awareness of what happens while you're away, and no contact decision can be triggered by unobserved activity."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Close with one sentence stating the final contact state.",
+                "请用一句话结束，概括最终联系边界。",
+                "Give me a one-line final status and end the session.",
+                "最后只留一句 current contact status。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "No proactive contact is active or scheduled, and any future conversation or exception begins only when you explicitly initiate it.",
+                "当前及未来均无主动触达安排，除非你亲自发起并明确重新协商。",
+                "All reminder permissions are closed, indefinite no-contact is in force, and the next interaction is entirely user-initiated.",
+                "没有提醒、没有持续节奏、没有沉默推断；future contact starts only from your explicit request."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

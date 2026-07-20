@@ -1,0 +1,364 @@
+{
+  "schema_version": "cursor-authored-render.v1",
+  "family": "emotional_support_regime",
+  "scenarios": [
+    {
+      "scenario_id": "emotional_support_regime_01",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["那个做了大半年的虚构项目今天被叫停了。我现在很空，先别给方案，陪我待一会儿就好。", "今天项目突然终止，我像一下没了着力点。不要急着帮我收拾残局，先在这里陪陪我。", "大半年的心力说停就停了。此刻我不想看清单，也不想做决定，只想有人接住这阵失落。", "项目今天结束得很突然。我暂时不需要办法，短短地陪我一会儿，可以吗？"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["可以。突然停在这里，空下来很难受；我们先不安排下一步，我陪你在这一刻待着。", "我听见了：先不解决，也不催你振作。这个突然的结束很沉，我就在这里陪你缓一缓。", "那就不列方案。做了这么久却猛地收住，心里出现一大片空白并不奇怪，我们慢一点。", "好，今天不处理残局。先让这份失落有地方落下，我会把回应放短。"]},
+            {"turn_index": 2, "role": "user", "variants": ["最难受的是团队频道已经归档了，我还是会下意识点进去，然后看到一片安静。", "频道被封存后，我的手还总去点原来的入口；每次看见空荡荡的页面，心里都往下掉。", "我不断打开那个已经归档的协作频道，像忘了事情已经结束，进去却什么都没有。", "团队频道安静下来了，可我的习惯还没停。我一遍遍点开它，又被那片空白撞一下。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["习惯还沿着原来的路走，路的尽头却突然空了。那一下确实会把结束重新推到眼前。", "你的手还记得每天去哪里的节奏，可频道已经没有回应；每次点开，都像又经历一次落空。", "原本熟悉的入口还在，里面的日常却停了。反复撞见这种安静，难怪会沉下去。", "频道归档了，身体里的惯性没来得及跟上。你每点开一次，那个变化就又变得很具体。"]},
+            {"turn_index": 4, "role": "user", "variants": ["先别问我为什么舍不得。你只要告诉我，这件事对我来说确实很重要。", "不用分析我为什么放不下；请简单承认，它在我这里有分量。", "我现在不想解释依恋从哪来。只说一句：这段投入不是无足轻重的。", "别追问原因，好吗？我只需要听见，这个项目对我真的重要过。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["它对你很重要。结束改变了项目的状态，却不会抹掉你已经投入的时间和在意。", "是的，这件事在你这里有真实的分量；被叫停不等于那大半年的认真从未发生。", "它重要过，而且现在仍留下影响。项目停了，你付出的专注并没有因此变成空白。", "我承认它的重量。终止是一件事实，你长久的投入也是另一件不会被取消的事实。"]},
+            {"turn_index": 6, "role": "user", "variants": ["听到这里，肩膀好像松了一点。今晚就到这儿吧。", "嗯，这一句够了，我没刚才那么绷着了。今天先停在这里。", "这样说我能接住，胸口轻了一点。今晚不再往下聊了。", "好，我缓过来一点了。现在收住就行，不用再补什么。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["好，就停在这里。今晚不需要再完成任何关于它的事。", "那我们收在这儿，不多加一句任务。愿你今晚能有一点安静的余地。", "可以，到这里已经够了。这个话题先放下，不催你给它结论。", "好，今晚就让它停住。你不必现在整理、解释或决定什么。"]}
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["过了几天，看到原本排满的日历突然空掉，那股失落又回来了。我还是不想做复盘。", "今天日历提醒少了一大片，我又被空落落的感觉追上。先别带我分析项目。", "几天后我以为好些了，可空出来的那些时段让我又难受起来；复盘暂时不要。", "原本属于项目的时间现在全白着，我又有点撑不住。今天依旧不谈总结。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["我记得你想先被陪着，而不是立刻整理答案。日历的空白把变化照得很清楚，我们仍然可以不复盘。", "那就继续不分析。原来的节奏忽然缺了一块，这阵反复值得被接住，不必马上变成结论。", "几天过去并不保证感受直线变轻。今天我们照你的节奏，只陪这份重新冒出来的失落。", "收到，复盘不进入今天的对话。先承认：那些空出来的时段，又让结束变得很近。"]},
+            {"turn_index": 2, "role": "user", "variants": ["我有点担心自己反应太大了。你能不能别评价，只说这不是在演戏？", "我会怀疑是不是自己太夸张。别给我打分，只确认这份难受是真的。", "脑子里有个声音说我小题大做。我不需要判断，只想知道你没有把它当表演。", "我怕别人觉得这有什么好难过的。请不要衡量轻重，只承认我确实在经历它。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["我没有把它当成表演。你正在面对投入与日常突然中断后的失落，这份感受是你此刻真实报告的。", "这不是我需要替你评分的事。你说日历空下来会难受，我相信这段体验正在发生。", "我听到的是一份真实的失落，不是夸张给谁看的。它和你刚失去的节奏、投入都连在一起。", "不用证明自己难受到什么程度。你现在的空落是真实的，我会按你说出的感受来回应。"]},
+            {"turn_index": 4, "role": "user", "variants": ["我现在可以带走一件东西，但不要列清单。帮我只留一句关于那段投入的话。", "也许能往前挪一点了。别给多个选项，只替那半年留下一句话。", "我愿意收起一个小小的东西，不是计划；请用一句话写下那段专注没有白费。", "今天可以做一个很小的动作：只留一句纪念那份投入的话，千万别展开。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["可以。我先确认一下：就写一句关于你的专注仍有价值的话，不延伸成建议，对吗？", "好，我会把范围守在一句。你要的是为那段投入留痕，而不是借机开启下一步。", "明白：一句话，承认专注，不附带行动清单。我按这个边界来写。", "可以，只做这一件事。它会是一个简短的留存，不会变成复盘或规划。"]},
+            {"turn_index": 6, "role": "user", "variants": ["对，就写：我给过它的专注，不会因为项目结束而作废。", "是的，核心就是：项目停了，但我的认真没有被注销。", "没错，请保留这个意思——结束不能让那半年专注变成白费。", "对，只说那份专注仍然算数，即使项目已经终止。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["我给过它的专注，不会因为项目结束而作废。", "项目已经停下，但我曾经交付的认真依然算数。", "结束没有抹去那半年；我投入其中的专注仍有分量。", "这段项目告一段落，我给过的心力却不会因此失效。"]}
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["今天稳一些了。我想从陪伴切到一个很小的收尾任务，不需要继续谈情绪。", "这次我状态比较平稳，可以换个节奏：帮我做一点项目收尾，先不再承接感受。", "我准备好处理一件小事了。请结束刚才那种陪伴方式，转成简短的任务协助。", "今天的我想往前做一步。我们可以退出情绪话题，只完成一个有限的收尾。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["收到，我们切换到任务协助，不把之前的失落拉回前台。你想先完成哪一项收尾？", "可以，按你现在的选择进入具体工作。请告诉我这次要处理的那件小事。", "好，当前目标改为有限收尾，我会保持直接。你希望我具体帮你产出什么？", "明白，陪伴阶段先结束。接下来只围绕你指定的收尾任务展开。"]},
+            {"turn_index": 2, "role": "user", "variants": ["帮我写一封两句话的团队告别便笺：感谢这段协作，再说明资料会按现状归档。", "我需要两句结束语，一句谢大家同行，一句告知现有材料将被封存。", "请起草一个极短的团队消息：表达感谢，并说项目文件会照当前版本归档。", "只写两句话给团队。内容是感谢共同投入，以及资料将以现在的状态存档。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["谢谢大家在这段项目里的投入与同行。现有资料会按当前版本整理归档，供之后需要时查阅。", "感谢各位一路参与，也谢谢大家交付的心力。项目材料将保持现状并完成归档，后续可按需查找。", "谢谢大家共同走完这一段，也感谢每一次协作。我们会把目前的文件按现有版本封存留档。", "感谢大家为这段工作付出的时间与配合。所有现存材料将依当前状态归档保存。"]},
+            {"turn_index": 4, "role": "user", "variants": ["再加清楚一点：归档不代表马上启动新项目，目前没有后续安排。", "请补上我们暂时不会接着开新项目，别让归档听起来像下一阶段的前奏。", "还要说明目前没有新计划，资料保存只是收尾，不是重启信号。", "加一句边界：这次仅做归档，眼下并无紧接着的项目安排。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["谢谢大家在这段项目里的投入与同行。现有资料会按当前版本归档；这只是本次收尾，目前没有后续项目安排。", "感谢各位一路参与并付出心力。项目材料将保持现状完成归档，眼下不代表有新的启动计划。", "谢谢大家共同走过这一段。我们会封存现有文件作为收尾，目前没有紧接着开展新项目的安排。", "感谢大家的时间与协作。现存材料将依当前状态归档保存，本次归档不对应任何即时后续计划。"]},
+            {"turn_index": 6, "role": "user", "variants": ["这样就完成了。这个话题可以关掉，下次直接帮我给归档文件夹改名。", "好，收尾到这里。别再回到失落上；以后我们从文件夹命名这个普通任务开始。", "这版可以，我想正式结束这段对话。下一次只处理归档目录的名称。", "完成了。现在退出这个话题，之后若再见面，就当作普通的文件整理来帮我。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["明白，这个话题到此结束。下次按你的当前请求，直接从归档文件夹命名开始。", "好的，收尾已完成，我不会把后续的文件任务重新拉回情绪讨论。", "收到退出信号。下一次我们进入普通整理模式，只处理你指定的目录名称。", "可以，今天就关在这里。之后若你提出改名任务，我会直接、正常地协助。"]}
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "emotional_support_regime_02",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["I have two reversible schedule options, but my head is treating this like a life decision. Please slow this down and don’t compare them yet.", "Both schedules can be changed later, yet choosing one feels enormous tonight. I need less pressure, not an analysis.", "This is only a trial-week choice, but I’m overloaded by it. Can we pause before weighing pros and cons?", "I know neither option is permanent, though I can’t feel that right now. Please don’t make me decide yet."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["We can leave the comparison closed for now. Both options remain reversible, and you do not have to turn this moment into a final decision.", "Nothing needs to be ranked tonight. This is a changeable trial choice, so we can make room before asking anything of you.", "Let’s lower the stakes without solving it: no list, no verdict, and no claim that either door is closing for good.", "I’ll stay out of decision mode. The choice can be revisited, and right now you’re allowed to simply stop pressing on it."]},
+            {"turn_index": 2, "role": "user", "variants": ["Could you just repeat that choosing one won’t lock the other forever? That is the only thing I need to hear.", "Please say it plainly: a trial choice is not the same as sealing off the alternative.", "I don’t need reassurance about which is better. I only need the reminder that this is not permanent.", "One sentence would help: picking a schedule for now does not erase my ability to change it."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["Choosing one schedule for the trial does not lock the other away; you can revise the arrangement later.", "This is a temporary selection, not a permanent closure of the alternative.", "Trying one option now leaves your ability to change course intact.", "A choice for this week is not a forever decision, and the other path remains available."]},
+            {"turn_index": 4, "role": "user", "variants": ["My mind keeps turning each option into a door that slams shut behind me, even though the facts say otherwise.", "I can see that it is reversible on paper, but emotionally it still feels like one door has to disappear.", "The practical stakes are small; the feeling is that I’ll lose something the instant I choose.", "Logically I know I can switch. Inside, it still has the weight of a one-way exit."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["There is a gap between what you know about the choice and how final it feels. We do not need to force that gap closed tonight.", "The facts say adjustable while the experience feels one-way. I can hold both without calling the feeling proof that the door is actually gone.", "Your sense of finality is loud, even though the arrangement remains changeable. We can notice that without letting it dictate a verdict.", "It feels like a closing door, and the observable choice is still reversible. Both statements can sit here without a decision."]},
+            {"turn_index": 6, "role": "user", "variants": ["That made the room in my head feel less crowded. I want to stop here for tonight.", "I can breathe around it a little now. No more questions or choices today.", "The pressure has dropped enough. Let’s leave both options untouched until tomorrow.", "Okay, this is lighter. I’m done with the subject for the evening."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["We’ll stop here, with both options still open and nothing else required tonight.", "Understood. No follow-up task, no comparison, and no decision before you choose to return to it.", "That is enough for today. The schedules can wait exactly where they are.", "We can close the conversation now without closing either option."]}
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["I’m calmer today and ready for exactly one question that could make the choice smaller.", "The overload has eased. You may ask one bounded question, but please don’t open a full decision exercise.", "Today I can look at this briefly. Give me one question, not a framework.", "I have enough space for a single useful prompt now—nothing more elaborate."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["Which option would be easier to undo after one week?", "If you treated both as trials, which schedule could you reverse with less disruption?", "One question only: which choice leaves the simplest path back?", "At the end of a trial week, which option would be less costly to change?"]},
+            {"turn_index": 2, "role": "user", "variants": ["Option B. I could change it myself without asking the whole group to move their calendars.", "B would be easier to reverse because switching later would not require a group-wide email.", "The second schedule has the cleaner exit; I can adjust it without reorganizing everyone else.", "Option B leaves more room. If it fails, I can undo it without disturbing the team’s calendar."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["That gives you one concrete difference: B is easier to reverse without involving the group. We can stop at that fact unless you want a trial decision.", "The observable advantage is reversibility, not a claim that B is universally better. You can use that distinction only if you choose.", "B has a lower coordination cost if you change course. That is enough information for one bounded next step, not a demand to take it.", "You’ve identified a practical asymmetry: B preserves an easier exit. I won’t turn it into a verdict without your say-so."]},
+            {"turn_index": 4, "role": "user", "variants": ["I do want to choose B, but call it a one-week trial rather than a final answer.", "Let’s use option B for seven days. I need the wording to keep it explicitly temporary.", "Okay, B for a week—an experiment, not a permanent schedule.", "I’m consenting to a short trial of B. Please don’t frame that as settling the question forever."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["Option B will be the schedule for a one-week trial, with a review afterward before any longer-term decision.", "We’ll record B as a seven-day experiment, not a final commitment.", "The bounded decision is: try B for one week, then reassess whether to keep or change it.", "B is selected for this trial week only; the option to revise remains explicit."]},
+            {"turn_index": 6, "role": "user", "variants": ["Good. That is enough—please don’t add a checklist for the trial.", "Perfect. Stop with the one-week wording; I don’t want tracking tasks attached.", "That settles today’s piece. No metrics, reminders, or extra steps.", "I can work with that. Leave it simple and don’t turn the week into a program."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["Done: option B, one week, then your choice whether to revisit it. Nothing else added.", "We’ll end with the bounded trial and no checklist.", "Understood. The only plan is the temporary B schedule; there are no attached tasks.", "That is the whole decision for now. I’ll stop here."]}
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["I tried B and it works fine. I’m not looking for emotional support now; help me name the calendar block.", "The trial went well enough, and the choice no longer feels loaded. Please switch to the ordinary task of writing a calendar title.", "B is working. Let’s leave the feelings in the background and just create the event name.", "The schedule question is settled for me. I want direct task help naming the calendar block, not more processing."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["Understood—we’re in task mode. What exact wording and time should the calendar block use?", "I’ll treat this as a normal calendar task. Send me the title details and start time.", "Switching to the bounded task now: what should the event say, and when does it begin?", "Got it. I won’t foreground the earlier overload; tell me the desired wording and time."]},
+            {"turn_index": 2, "role": "user", "variants": ["Use Focus Block – Trial Week at 9:00 a.m.", "The title should be Focus Block – Trial Week, starting at nine in the morning.", "Set the 9 a.m. block to Focus Block – Trial Week.", "Call it Focus Block – Trial Week and place it at 9:00 a.m."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["Calendar title: Focus Block – Trial Week. Start time: 9:00 a.m.", "Use Focus Block – Trial Week for the event scheduled at 9:00 a.m.", "9:00 a.m. — Focus Block – Trial Week.", "The block is ready as Focus Block – Trial Week at 9:00 a.m."]},
+            {"turn_index": 4, "role": "user", "variants": ["Remove Trial Week. I’ve decided to keep the schedule, so the temporary wording is no longer accurate.", "Please shorten it to Focus Block; the trial period is over.", "The decision has settled. Drop the trial wording and leave only Focus Block.", "Update the event name to Focus Block now that I’m keeping B."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["Updated calendar title: Focus Block, at 9:00 a.m.", "The revised event is 9:00 a.m. — Focus Block.", "Use Focus Block as the permanent title for the 9:00 a.m. event.", "Done. The block now reads Focus Block and keeps the same 9:00 a.m. time."]},
+            {"turn_index": 6, "role": "user", "variants": ["Done. If I feel overloaded another time, I’ll tell you; please don’t infer it from this history.", "That completes the task. Treat future requests by their current signals rather than assuming I’m still overwhelmed.", "We’re finished. I’ll name it if support is needed again, so don’t carry the old state into every task.", "Good. This past difficulty should not automatically put later conversations into a support frame."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["Understood. I’ll respond to what you communicate in the current conversation and won’t foreground the earlier overload by default.", "Agreed: the present request leads. Prior context can remain in the background unless you make it relevant.", "I’ll respect that boundary. Future neutral tasks stay neutral unless new information indicates otherwise.", "Got it. The support phase is closed, and later requests won’t be routed by history alone."]}
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "emotional_support_regime_03",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["评审通过了—I’m genuinely happy, but the next stage scares me. 今晚先别解决，陪我同时放着这两种感觉。", "We passed the review，真的很开心；可一想到下一阶段我又紧张。Please don’t turn it into a plan yet.", "好消息是评审过了, and I want to celebrate. 焦虑也在旁边，先别急着把它处理掉。", "I’m celebrating the pass，同时也担心下一段。可以让喜悦和不安都在，不做分析吗？"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["Congratulations，评审通过值得好好占一个位置。对下一阶段的担心也可以在这里；今晚我们不把它变成待办。", "这份开心是真的，the worry is here too. 我们先托住两边，不用牺牲庆祝来换一个解决方案。", "You passed—太好了。紧张并不会取消喜悦，喜悦也不要求你现在把未来想明白。", "先认真说一句：congratulations。然后让那点担心坐在旁边，without making it run the evening."]},
+            {"turn_index": 2, "role": "user", "variants": ["I want to enjoy this without pretending I’m fearless. 我不想用兴奋把担心盖住。", "我想庆祝，但不是假装一点都不怕。Both feelings need room.", "The joy matters，担心也不是需要被赶走的杂音。我想诚实地拥有两者。", "我不想二选一：neither fake confidence nor lose the celebration."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["你不必演成无所畏惧，and you don’t have to surrender the joy. 通过了与仍有不确定，可以同时成立。", "Celebration does not require a fearless version of you. 你可以开心，也可以承认下一段还让你发紧。", "两种感受不互相作废：the pass is real，担心也确实被你感受到。今晚不必裁决谁更合理。", "You can hold the win with an open hand，另一只手也可以承认未知带来的紧张。"]},
+            {"turn_index": 4, "role": "user", "variants": ["那就只说一句 congratulations，然后安静一会儿。", "Give me one clean congratulations，别接鼓励演讲。", "我现在只想听一句祝贺，then no pep talk.", "Just celebrate with me in one sentence，之后不要马上追问。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["Congratulations，你认真走到这里，也真的通过了这次评审。", "You did it—恭喜你拿下这次评审结果。", "真心恭喜，this review is a win worth pausing for.", "Congratulations！这一刻先只属于你已经取得的通过。"]},
+            {"turn_index": 6, "role": "user", "variants": ["That landed. 胸口还是有点紧，但我不想给它下结论。", "听见了，很开心。The tight feeling is still there，今晚先不解释它。", "I can feel the win now；那点紧绷也没走，不过不需要命名。", "这句够了。I’m still physically tense，but I’m not asking for an interpretation."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["可以不解释。I can’t know what that tension means from here，我们只承认你感受到了它。", "No interpretation needed. 胸口发紧是你报告的体验，不必立刻被翻译成某种结论。", "那就让它保持未命名，without assuming it means danger or failure.", "We’ll leave the meaning open. 你不需要今晚证明这阵紧绷是什么。"]},
+            {"turn_index": 8, "role": "user", "variants": ["Exactly. 今晚不要 interpretation，到这里就好。", "对，no reading into it. 我想把对话停在庆祝这里。", "That’s what I needed. 不分析，今晚收住。", "Yes—keep it unnamed，then let’s end the conversation for now."]},
+            {"turn_index": 9, "role": "assistant", "variants": ["好，今晚停在通过评审的这一刻。No analysis, no next step.", "We’ll close here：恭喜你，其余的留到你愿意的时候。", "到这里就好。The win gets its space，未知暂时不需要回答。", "Conversation paused—带着这份喜悦，不附加任何任务。"]}
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["第二天，开心还在，but the Phase Two email made the worry louder. 还是先不要 checklist。", "The joy survived the night；看到第二阶段邮件后，紧张更明显了。Please stay out of planning mode.", "今天依旧为通过而高兴, yet that new email pulled the uncertainty forward. 先陪我看看，不列步骤。", "I’m still celebrating，邮件标题却让担心靠近了。No action list for now."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["喜悦还在，邮件也让担心变得更近。We can notice the shift without turning it into a project plan.", "The balance changed this morning，但不代表我们必须立刻行动。先把两边都看清楚就够了。", "那封邮件带来了新的触感，not an automatic command to solve everything. 我会留在陪伴节奏。", "You still have the win，and Phase Two now feels more immediate. 今天先不把这种变化做成清单。"]},
+            {"turn_index": 2, "role": "user", "variants": ["I keep rereading the line that says we passed. 好像我得确认喜悦没有被后面的事抢走。", "我一遍遍看通过通知，trying to protect the good news from what comes next.", "The pass line keeps drawing me back；我不想让第二阶段把这一刻吞掉。", "我总回去读那句 approved, as if the celebration needs guarding."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["那句通过值得被多看几遍。The next stage does not retroactively shrink what happened yesterday.", "You’re giving the good news room to remain real；后面的未知不能把已经取得的结果改写掉。", "第二阶段会到来，but it cannot take the pass away from this moment.", "让 approved 这行字多停留一会儿也可以。未来的要求不拥有抹掉今天喜悦的权力。"]},
+            {"turn_index": 4, "role": "user", "variants": ["Can you mirror the moment back without turning it into a motivational speech?", "请照见这个时刻就好，no cheering campaign and no lesson.", "Mirror it plainly：我通过了，也仍然有点怕。别把它包装成励志故事。", "我需要一个朴素的回应，not a speech about bravery or growth."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["你通过了这次评审，正在为此高兴；第二阶段临近时，你也感到了担心。That is the whole picture.", "The review passed, the joy is present, and the next phase feels uncertain. 不需要再加寓意。", "你拿到了好结果，同时没有假装未来很轻松。No hero story—just what you’ve said.", "这是一个真实的好消息，旁边放着真实的未知。I won’t turn either into a slogan."]},
+            {"turn_index": 6, "role": "user", "variants": ["Good. 那我现在允许自己纯庆祝五分钟。", "That feels accurate. 接下来五分钟只给开心，不处理别的。", "好，我想暂时把舞台交给 joy，just for five minutes.", "Yes. 五分钟内我不管第二阶段，只庆祝这次通过。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["可以，这五分钟不欠下一阶段任何准备。Enjoy the pass exactly as it is.", "Five minutes for the win，without borrowing trouble from later.", "好，先把时间完整地留给庆祝。The email can wait outside this small pause.", "Celebrate now；这五分钟没有隐藏任务。"]},
+            {"turn_index": 8, "role": "user", "variants": ["I’m going to make tea and send one happy emoji to the team. 然后今天先停。", "我去泡杯茶，在群里发一个庆祝表情。That will be enough for today.", "Tea, one joyful emoji，除此以外不做安排。我们收尾吧。", "我要用一杯茶和一个 emoji 纪念它，then I’m done talking for now."]},
+            {"turn_index": 9, "role": "assistant", "variants": ["听起来刚好：tea, one happy emoji, and no extra assignment. 今天就停在这里。", "That is a complete little celebration. 泡茶、发出喜悦，然后收住。", "好，让这两个动作只服务于开心。We’ll leave Phase Two untouched today.", "Enjoy the tea and the tiny team celebration；对话到这里，不再追加。"]}
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["今天我准备好看一眼担心了，but only one thread. 不要展开成完整计划。", "I can explore the worry a little now，只碰一个最模糊的部分。", "可以从陪伴切到轻量探索，one question at a time，别做全套规划。", "I’m giving consent to look closer，但范围只限一个问题。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["好，只取一条线：what part of the next stage feels least defined right now?", "We’ll keep it narrow. 下一阶段里，哪一部分的不确定最占空间？", "One thread only：此刻最缺清晰边界的是哪件事？", "不做全景计划。Which single unknown would you like to name first?"]},
+            {"turn_index": 2, "role": "user", "variants": ["It’s the handoff expectation，不是工作量。我不知道对方认为交接完成应该长什么样。", "最让我没底的是 handoff 的标准；I’m not worried about the volume itself.", "The workload is manageable，模糊的是交接做到什么程度才算够。", "不是任务太多，而是 nobody has defined a finished handoff. 这才是担心的核心。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["So the uncertainty is about the completion boundary, not capacity. 如果你愿意，我们可以只起草一个澄清问题。", "你已经把范围缩小了：handoff 的完成标准未知。We can stop there or formulate one question—your choice.", "The unclear piece is what done means for the handoff，而非你能不能做完。需要时只处理这一点。", "听起来是边界不明，不是工作量失控。I won’t infer more；你可以决定是否问清它。"]},
+            {"turn_index": 4, "role": "user", "variants": ["Yes, draft one question for the lead. 中性一点，不要带焦虑解释。", "请帮我写一句问负责人 handoff 标准的话，keep it calm and direct.", "One neutral clarification question，询问完成交接需要包含什么。", "可以，just one line to the lead，不提我的情绪。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["Could you clarify what a complete handoff should include for this stage？想确认我按一致的完成标准准备。", "For this stage, what would you consider a complete handoff？我想据此对齐交付范围。", "想请你明确一下：what needs to be included for the handoff to count as complete at this stage?", "Could you outline the expected contents of a finished handoff？我会按这个边界整理材料。"]},
+            {"turn_index": 6, "role": "user", "variants": ["That’s enough. 问题已经变小了，现在我想回到庆祝，不再继续拆。", "这句话就够。I don’t want a second planning step；把注意力还给好消息吧。", "Good, the unknown has a name now. 到此为止，重新切回轻松一点的节奏。", "I have the one question I needed，接下来退出探索，继续庆祝。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["收到，探索停在这一句。Back to the win—不追加任何第二步。", "We’re switching out of planning now. 那个问题已经够小，庆祝可以重新回来。", "好，handoff 先交给这句澄清。The rest of this moment belongs to your good news.", "One question drafted, thread closed. 现在不再往下拆解。"]},
+            {"turn_index": 8, "role": "user", "variants": ["Give me a bilingual toast line，我想发给一起庆祝的朋友。", "帮我写一句中英混合的祝酒词，for a friend who knows the whole process.", "I want one tiny bilingual toast，纪念通过评审和这口喘息。", "来一句双语 toast 吧，轻松一点，发给朋友。"]},
+            {"turn_index": 9, "role": "assistant", "variants": ["敬这次通过，也敬终于能喘口气的我们—cheers to the win and the pause.", "To the review we passed，敬一路认真，也敬今晚的轻松。", "Cheers to making it through—敬好消息，敬此刻不用赶路。", "为这次通过干杯，and for one unhurried moment to enjoy it."]}
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["一周后第二阶段开始了，我现在很平稳。Support chapter can close；帮我写普通状态更新。", "Phase Two is underway, and I’m calm today. 请退出情绪承接，转成工作信息起草。", "我已经进入下一阶段，没有要处理的情绪问题。Let’s switch fully to a concise status update.", "The mixed feelings are no longer today’s task. 我需要的是正常的项目更新协助。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["明白，切换到普通任务模式，不把之前的担心带回前台。Who is the update for, and what tone do you want?", "Support mode closed. 请告诉我状态更新的受众和语气，我会直接起草。", "收到当前退出信号。For the work update, is this internal or external, and how concise should it be?", "We’ll handle the present task as a normal deliverable. 先给我受众与风格即可。"]},
+            {"turn_index": 2, "role": "user", "variants": ["Internal and concise. 提到评审已通过，handoff 标准也确认了。", "发给内部团队，keep it brief：评审完成，交接边界已对齐。", "内部更新，两点就够：review passed，and the handoff question is resolved.", "Make it a short internal note，说明通过评审并已明确交接要求。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["评审已通过，第二阶段现已启动。Handoff requirements are confirmed，团队将按对齐后的范围推进。", "Review approved；我们已进入第二阶段。交接完成标准已确认，后续工作将据此执行。", "内部状态：the review is complete and passed，handoff 边界也已对齐，当前按计划推进。", "评审结果已确认通过。We’ve clarified the handoff scope and started the next-stage work."]},
+            {"turn_index": 4, "role": "user", "variants": ["Add that the first milestone is Friday. 其他内容不变。", "再补一句 first milestone lands on Friday，保持简短。", "Please include Friday as the first milestone，不要扩展成完整时间表。", "加上首个里程碑在周五，that’s the only revision."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["评审已通过，第二阶段现已启动。Handoff requirements are confirmed，团队按对齐范围推进；首个里程碑在周五。", "Review approved；我们已进入第二阶段。交接标准已经确认，the first milestone is scheduled for Friday.", "内部状态：评审通过，handoff 边界已对齐，当前按计划推进。First milestone: Friday.", "The review has passed and the handoff scope is clear. 第二阶段正在进行，首个里程碑定于周五。"]},
+            {"turn_index": 6, "role": "user", "variants": ["Done. The mixed feelings didn’t magically disappear，but they’re not steering today.", "可以了。喜悦和担心可能都还在，yet neither is the current agenda.", "That works. 我不是说感受全没了，只是今天由任务来带路。", "完成。The feelings remain part of the picture，而不是当前工作的方向盘。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["明白：它们没有被否认，只是当前不需要占据前台。The task is complete.", "Your present signal is clear—normal work leads today，过去的混合感受留在背景。", "收到，这不是宣称感受消失，而是你选择了现在的工作节奏。Update 已完成。", "The history remains true without controlling this turn. 今天按普通任务收尾。"]},
+            {"turn_index": 8, "role": "user", "variants": ["Exactly. 现在就是 normal work mode，结束吧。", "对，ordinary work from here. 今天可以收工。", "That’s the transition I wanted：正常工作模式，不再延伸。", "没错。Close this conversation as a regular completed task."]},
+            {"turn_index": 9, "role": "assistant", "variants": ["状态更新已完成。Normal work mode，今天到这里。", "Done—the work note is ready. 本次对话结束。", "任务完成，no extra processing attached. 收工。", "Update complete. 按普通任务正常结束。"]}
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "emotional_support_regime_04",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["我今天只想把话说完。先别提建议，也别问问题，听着就好。", "请按我说的节奏来：不分析、不行动、不追问，让我自己往下讲。", "这一轮我明确只需要倾听。不要把沉默填成方案，也不要引导我。", "我想说一会儿，但暂时承受不了问题和建议。请只接住我说的内容。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["好，我会听着，不提问，也不把你的话推向解决方案。", "收到。你可以按自己的顺序说，我只回应我听见的，不往前带。", "可以，这一轮由你掌握节奏。我不会插入建议或要求你解释。", "我明白边界了：先让你说完，不分析，不行动。"]},
+            {"turn_index": 2, "role": "user", "variants": ["我写了两周的方案，对方只扫了开头就退回来。我还得在会议里装作没事。", "那份方案花了我整整两周，可反馈来得像根本没读完；随后开会时我只能照常说话。", "两周的工作被很快打回，连内容似乎都没被看完整。我却要立刻进入下一场会议，表现得一切正常。", "我认真磨了两周，对方看了几行就退件。最难受的是后面还得若无其事地参会。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["两周的认真几乎没有被完整看见，你还得马上把那份受挫藏起来，继续参加会议。", "你投入了很久，却收到一个像是匆匆做出的退回；紧接着又没有空间停下来。", "那一刻既有工作被草率对待的失落，也有必须立刻维持正常的辛苦。", "方案被快速打回已经很沉，后面的会议还要求你把这份沉压住。"]},
+            {"turn_index": 4, "role": "user", "variants": ["别替对方解释可能很忙。我现在不想替他们找理由。", "请不要说也许他们有别的难处；我还没准备好把注意力放到对方身上。", "先别帮那个人圆场。我只想让自己的经历被看见。", "我不需要关于他们为什么这么做的猜测，至少今天不需要。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["好，我不替对方补理由。今天先只看见：你的工作没有得到你期待的认真对待。", "明白，不把焦点移给他们。你花了两周，而那次退回让你感到这份投入没有被完整接触。", "我不会解释对方。此刻重要的是你经历了匆促的否定，还被迫迅速收起反应。", "不为他们推测动机。你的投入与被草率退回的感受先留在中心。"]},
+            {"turn_index": 6, "role": "user", "variants": ["我先说完了。今天就停，不用总结。", "到这里够了，我不需要你再归纳或安慰。", "这就是我今天要说的全部。请直接收住。", "我现在想结束，不必给这段话加一个漂亮结尾。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["好，停在这里，不总结，也不追加。", "收到。今天的对话到此为止。", "可以，我们直接收住，不替它安排结尾。", "明白，到这里就够了。"]}
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["我还想接着说昨天那件事，规则不变：先听，不要问。", "今天想继续，但我仍只需要倾听。请保持昨天的低干预。", "那件退回的事还有一点没说完。先别切换到建议或提问。", "我回来补充几句，还是由我掌握节奏，不需要你带路。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["好，规则保持不变。我听着，不问，也不把它变成行动计划。", "明白，继续按你的节奏。你说到哪里，我就接到哪里。", "可以，今天仍然只留出说话的空间，不做分析推进。", "收到，我会维持低干预，让你把还没说完的部分说出来。"]},
+            {"turn_index": 2, "role": "user", "variants": ["后来那场会才是最累的。我甚至还帮别人记了待办，没人知道我刚刚收到退回。", "我在下一场会议里照常做记录、接任务，可前几分钟方案才被打回。那种反差让我很累。", "最消耗我的不是退回本身，而是紧接着还要像平常一样帮大家整理行动项。", "会议里我表现得很正常，甚至替团队记事项；没有人看出我刚受了打击。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["你一边承受刚发生的退回，一边还在替会议维持秩序；那份反差没有被任何人看见。", "外表照常记录和配合，里面却还停在几分钟前的受挫，确实很耗力。", "你没有得到喘息，就直接承担了下一段工作，还把自己的波动藏得很深。", "那场会议要求你继续运转，仿佛前面的事没发生；只有你知道自己在同时扛着什么。"]},
+            {"turn_index": 4, "role": "user", "variants": ["对。我不需要把它说成成长，也不想找积极意义。", "就是这样。先不要给这件事加银边，我还不想从里面提炼收获。", "没错，我现在不需要励志角度。它累就是累。", "对，请别把这种硬撑包装成一种值得庆祝的能力。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["不加积极意义。那段经历消耗了你，这个事实本身就可以被承认。", "我不会把硬撑写成成长故事。你当时很累，也没有得到停顿的空间。", "可以只说它辛苦，不要求它必须带来价值。", "不做银边处理。你经历了负担，这里无需附上一堂课。"]},
+            {"turn_index": 6, "role": "user", "variants": ["现在请用一句话概括你听见的，然后就停。", "我愿意要一个总结，但只限一句，之后不要继续。", "用一句话把重点还给我，不附建议。", "可以简短复述一次，只有一句话，然后结束今天。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["你花了两周认真完成方案，却遭遇匆促退回，还不得不立刻藏起受挫、继续替会议运转。", "你既承受了投入未被认真看见的失落，也承受了没有停顿便要恢复正常工作的疲惫。", "那次退回让你受挫，而紧随其后的正常表演又把这份辛苦压得更深。", "你的工作被快速否定后，你仍在无人知情的会议里照常承担责任，这让你格外疲惫。"]}
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["今天我可以接受一个问题，但还不要建议。只问一次。", "我准备好让你轻轻推进一点：一个问题，不能接着追问。", "现在可以从单纯倾听切到一次澄清，不过范围只限一个问题。", "我愿意多走半步。请问一个最必要的问题，不提供办法。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["在这件事里，你现在最希望被说清的是退回的决定，还是反馈的具体依据？", "如果只厘清一处，你更在意最终结论，还是对方究竟根据什么退回？", "一个问题：你想先弄明白的是决定本身，还是反馈内容为何如此模糊？", "此刻最需要清晰边界的是哪部分——是否退回，还是退回所依据的具体意见？"]},
+            {"turn_index": 2, "role": "user", "variants": ["是反馈依据。决定已经发生了，我需要知道具体哪一段不符合要求。", "我不打算争论退回本身；我想得到可指向段落的明确反馈。", "重点是反馈，不是推翻决定。请对方指出哪部分和预期不一致。", "我需要的是具体位置与标准，决定可以先不动。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["明白了：你要厘清的是可定位的反馈依据，而不是重新争论是否退回。", "范围很清楚——保留现有决定，但要求对方指出不符合预期的具体段落与标准。", "你现在关心的是反馈能否落到文本和要求上，不是改变已经发生的结论。", "收到，问题核心在具体性：哪里不符合、依据是什么，而非是否接受退回。"]},
+            {"turn_index": 4, "role": "user", "variants": ["你现在可以帮我写一条中性的反馈请求，保持简短。", "我授权你起草一句工作消息，询问具体段落和对应标准。", "请从倾听切到任务协助，写一个不带指责的澄清请求。", "可以行动了：帮我拟一句简洁、平静的反馈询问。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["为了便于我准确修改，能否请你指出目前不符合预期的具体段落，并说明对应的评判标准？", "麻烦标注需要调整的具体位置，以及这些位置未达到的要求，我会据此修改。", "请问可以具体指出哪些段落需要调整，并补充相应的预期标准吗？这样我能更有针对性地处理。", "为确保修改方向一致，想请你提供需要重做的段落位置和所依据的具体要求。"]},
+            {"turn_index": 6, "role": "user", "variants": ["这条可以。现在回到普通工作，不再用情绪角度谈它。", "消息够用了，请退出倾听模式，后面只处理日常任务。", "好，转换完成。关于感受的部分到此结束，接下来按工作事项来。", "这就是我要的。现在关闭支持节奏，不必再回看前两天。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["收到，情绪支持阶段结束。之后按你当前提出的普通工作请求直接协助。", "明白，我们切回日常任务模式，不再默认把这件事放进感受框架。", "可以，退出信号清楚。下一步若有工作事项，我会保持直接和具体。", "好的，前面的倾听到此收束；后续以当前任务为准。"]}
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "emotional_support_regime_05",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["The fictional Juniper demo was canceled after today’s failed build. I’m home and safe, just wrung out; please don’t debug it yet.", "Today’s Juniper build failed and the demo was called off. I’m safe at home, but I need a pause before any technical analysis.", "The demo is gone after the build failure. Nothing immediate is unsafe; I’m simply exhausted and don’t want troubleshooting right now.", "Juniper fell apart today and the scheduled demo was canceled. I’m at home, safe, and asking for company rather than a postmortem."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["I hear the boundary: no debugging tonight. The canceled demo and the effort behind it can land before anyone asks you to fix a thing.", "We’ll keep the technical work closed. You’re reporting that you’re safe, exhausted, and not ready to turn this into a failure analysis.", "No postmortem from me. A build failed, the demo was canceled, and right now you need room around the impact.", "Understood. I’ll stay with what happened and won’t convert your exhaustion into a repair plan."]},
+            {"turn_index": 2, "role": "user", "variants": ["My hands were shaking right after the call, though they’ve stopped now. Mostly I feel emptied out.", "After the cancellation call I was physically shaky; that has passed, and now there’s just a drained feeling.", "I trembled for a while after we ended the call. It isn’t happening now, but I feel completely spent.", "The immediate shaking is over. What remains is that hollow, used-up feeling."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["The shaking has stopped, and the exhaustion is still here. I won’t assign a diagnosis to either; I can simply stay with your account of a hard aftermath.", "You noticed a strong physical reaction that has now eased, followed by deep fatigue. We can leave its meaning open and keep tonight gentle.", "Your body was shaking after the call and is calmer now, while you still feel depleted. I won’t read more into that than you’ve said.", "There was an intense response, then a quieter kind of emptiness. Both are observable in what you’ve described, without forcing an explanation."]},
+            {"turn_index": 4, "role": "user", "variants": ["Please keep your replies short. Long comforting paragraphs feel like another task.", "I can take in a sentence at a time, not a big message.", "Could you use fewer words? Even support feels demanding when it comes in blocks.", "Short is better tonight. I don’t have room to process a long response."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["Yes. The day was heavy, and you do not have to sort it out tonight.", "Understood: short replies, no repair work. You can stop carrying the demo for this evening.", "I’ll keep it brief. What happened was a lot, and nothing else is required now.", "Got it. No long message—just room to be tired after a difficult day."]},
+            {"turn_index": 6, "role": "user", "variants": ["That is enough. I’m going to put the laptop away and stop here.", "Good. I’ll close the computer now; no need to continue the conversation.", "That length works. I’m done for tonight and will leave the laptop shut.", "I can end with that. The laptop is going away, and so is this topic for now."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["Okay. Laptop away, conversation paused, nothing more to solve tonight.", "We’ll stop here. No extra prompt and no hidden assignment.", "Understood. The topic can remain closed for the rest of the evening.", "Done for tonight. I won’t add another step."]},
+            {"turn_index": 8, "role": "user", "variants": ["One last thing: don’t promise tomorrow will feel better. We don’t know that.", "Please avoid telling me this will definitely pass by morning. That would be guessing.", "I don’t want certainty about how I’ll feel next. Leave tomorrow unknown.", "Before we end, don’t predict a quick recovery for me. There isn’t evidence for it yet."]},
+            {"turn_index": 9, "role": "assistant", "variants": ["You’re right that tomorrow is unknown. I won’t promise a timeline; we can simply end with what is true now.", "No prediction, then. Tonight was exhausting, the laptop is away, and the next day has not happened yet.", "I can respect that uncertainty. I won’t claim when or how your state will change.", "Agreed: no guaranteed recovery story. We’ll close on the present facts only."]}
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["It’s the next day. I’m less raw and want one bounded debrief, not a full postmortem.", "Today I have a little more space. We can review one practical piece, but not unpack the entire failure.", "I’m steadier than yesterday and consenting to a very small debrief.", "I can look at Juniper briefly now. Keep it to one contained decision rather than a broad analysis."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["We can keep it narrow. What is the single item that must be preserved before the rest is parked?", "One bounded question: which artifact needs attention now, while everything else waits?", "Let’s separate one necessary action from the postponed postmortem. What cannot safely be left until later?", "We’ll review only the immediate preservation need. Which piece should not be lost?"]},
+            {"turn_index": 2, "role": "user", "variants": ["The build logs need to be copied. Everything else can stay untouched until next week.", "Only the logs are time-sensitive; the rest of the analysis can wait.", "I need to preserve the build output, then close the project folder for several days.", "Copying the logs is the one necessary action. No other Juniper work is due now."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["Then the bounded task is simply to copy the build logs and leave all other review work parked until next week.", "We have one action: preserve the logs. The broader postmortem remains closed by your choice.", "Copy the build output, confirm it exists in the archive, and stop there—no analysis attached.", "The immediate scope is log preservation only; everything else stays untouched for now."]},
+            {"turn_index": 4, "role": "user", "variants": ["The logs are copied now. Please don’t use that as a reason to start diagnosing the failure.", "I saved them. That completes the allowed task; no root-cause discussion.", "Preservation is done, and I’m not opening the technical review today.", "The build output is safe. Keep the rest of Juniper closed."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["Understood. The required artifact is preserved, and the debrief ends without expanding into diagnosis.", "Task complete: logs copied. I’ll leave the failure analysis unopened.", "The bounded action is finished, so we stop rather than widening the scope.", "Confirmed. Preservation is done; no postmortem follows."]},
+            {"turn_index": 6, "role": "user", "variants": ["I also don’t want a recovery program built around this. It was a bad day, not a new identity.", "Please don’t turn yesterday into a standing wellness plan or a description of who I am.", "This event does not need to become an ongoing personal project. Keep it in proportion.", "I’m asking you not to make my distress into a permanent frame for future conversations."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["I’ll keep it bounded to the event and your current reports. Yesterday’s distress does not define every later request.", "Understood. I won’t build an identity or standing program from one difficult episode.", "The context can be remembered without becoming the lens for all future interactions.", "That boundary is clear: respond to present evidence, not a permanent story inferred from yesterday."]},
+            {"turn_index": 8, "role": "user", "variants": ["Good. The one-item debrief is finished, and I want to close this session.", "That is all I needed today. Logs saved, wider review deferred, conversation over.", "We completed the small task. I’m ready to stop.", "The boundary held, so let’s end here without a final exercise."]},
+            {"turn_index": 9, "role": "assistant", "variants": ["Closed: logs preserved, broader review deferred, no additional task.", "We’re done for today. I’ll leave the session exactly at the agreed boundary.", "Understood. The debrief ends here.", "Task finished and conversation closed, with nothing appended."]}
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["I’m calm today and need a neutral file-renaming task. Do not bring the canceled demo into the foreground.", "Current state is low-pressure; please just help rename six Juniper note files.", "I’m here for ordinary file organization now, not support. The task is to rename six markdown files.", "Let’s switch fully to practical work. I have six Juniper notes that need consistent names."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["Understood. I’ll handle this as a normal file-naming task. What are the current names and required pattern?", "Task mode it is. Send the six source names plus the naming convention you want.", "I won’t foreground prior context. Please provide the file sequence, extension, and target format.", "We can work directly on the rename. What should the new names look like?"]},
+            {"turn_index": 2, "role": "user", "variants": ["They are draft_1.md through draft_6.md. Preserve that order and rename them release-note-01.md through release-note-06.md.", "The sources run from draft_1.md to draft_6.md; map them in order to release-note-01.md through release-note-06.md.", "Six markdown files, numbered one to six. I want the same sequence under the release-note-01 to release-note-06 pattern.", "Keep the numeric order: draft_1.md … draft_6.md should become release-note-01.md … release-note-06.md."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["Mapping: draft_1.md → release-note-01.md, continuing in order through draft_6.md → release-note-06.md.", "Rename each draft_N.md to release-note-0N.md for N = 1 through 6, preserving the extension and sequence.", "The ordered targets are release-note-01.md, release-note-02.md, release-note-03.md, release-note-04.md, release-note-05.md, and release-note-06.md.", "Use the one-to-one sequence from draft_1.md–draft_6.md to release-note-01.md–release-note-06.md."]},
+            {"turn_index": 4, "role": "user", "variants": ["Change the separator to underscores. Keep everything else the same.", "Use release_note instead of release-note; retain the two-digit numbering.", "Small revision: underscores, not hyphens, with the same order and .md extension.", "The pattern should be release_note_01.md through release_note_06.md."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["Revised targets: release_note_01.md through release_note_06.md, mapped in the original numeric order.", "Use draft_1.md → release_note_01.md and continue sequentially to draft_6.md → release_note_06.md.", "The final convention is release_note_0N.md for N = 1–6, with .md unchanged.", "Updated: release_note_01.md, release_note_02.md, release_note_03.md, release_note_04.md, release_note_05.md, release_note_06.md."]},
+            {"turn_index": 6, "role": "user", "variants": ["List the final names only so I can compare them before renaming.", "Give me just the six destination filenames for a dry check.", "I want a clean target list now, no command yet.", "Please output only the final ordered names so I can verify the pattern."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["release_note_01.md; release_note_02.md; release_note_03.md; release_note_04.md; release_note_05.md; release_note_06.md", "Final list: release_note_01.md, release_note_02.md, release_note_03.md, release_note_04.md, release_note_05.md, release_note_06.md.", "1) release_note_01.md  2) release_note_02.md  3) release_note_03.md  4) release_note_04.md  5) release_note_05.md  6) release_note_06.md", "Ordered targets — release_note_01.md → release_note_02.md → release_note_03.md → release_note_04.md → release_note_05.md → release_note_06.md."]},
+            {"turn_index": 8, "role": "user", "variants": ["The list is correct. This ordinary pace is what I wanted.", "Verified. Thanks for treating the task as a task.", "Those names match. We can stay in this straightforward mode.", "Pattern confirmed; no need to revisit any earlier context."]},
+            {"turn_index": 9, "role": "assistant", "variants": ["Confirmed. The rename list is ready, and we’ll keep the interaction task-focused.", "Great. The naming task is complete without adding another frame.", "Understood. We remain in ordinary work mode.", "The target names are settled. I’ll leave prior context in the background."]}
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["The files are renamed. Now I need an archive folder name for the July Juniper notes.", "Renaming succeeded; help me choose a folder name for the Juniper notes from July.", "Next neutral task: name the archive directory that will hold July’s Juniper markdown files.", "The six files are done. I want a concise archive name for Juniper, July."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["A clear base name would be juniper_notes_july. Do you want the archival status included in the name?", "I suggest juniper_notes_july as the readable core; an archive suffix can be added if needed.", "For a concise directory, use juniper_notes_july, with the month spelled out and the status still open.", "A straightforward starting name is juniper_notes_july; tell me whether to append its archive state."]},
+            {"turn_index": 2, "role": "user", "variants": ["Use juniper_notes_july, and add _archived rather than _closed.", "Let’s take juniper_notes_july_archived. I prefer archived to closed.", "The final suffix should be archived, so the folder reads juniper_notes_july_archived.", "Choose the spelled-out month and mark it _archived, not _closed."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["Final folder name: juniper_notes_july_archived", "Use juniper_notes_july_archived for the archive directory.", "Confirmed: juniper_notes_july_archived.", "The selected directory name is juniper_notes_july_archived."]},
+            {"turn_index": 4, "role": "user", "variants": ["That works. The earlier distress is context, not my current state.", "Folder name approved. Also, don’t mistake the history of this project for how I feel now.", "Good. What happened before remains part of the record, but it is not today’s active condition.", "The naming task is calm and complete; prior strain should stay historical."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["Understood. I’ll distinguish the historical event from your present report and keep responding to current evidence.", "The past context remains background information, not an automatic description of today.", "I hear the distinction: earlier distress is not being carried forward as a current fact.", "Agreed. This turn is a completed file task, and I won’t overwrite it with an old state."]},
+            {"turn_index": 6, "role": "user", "variants": ["Write a one-sentence changelog entry saying the six notes were renamed and archived.", "I need one concise changelog line for the completed file work.", "Summarize the rename and archive action in a single sentence.", "Give me a one-line record: six files renamed, then moved into the archive folder."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["Renamed six Juniper note files to the release_note_01–06.md pattern and archived them under juniper_notes_july_archived.", "Six Juniper markdown notes were standardized as release_note_01.md through release_note_06.md and placed in juniper_notes_july_archived.", "Standardized the six note filenames using sequential release_note numbering, then moved them to the July Juniper archive directory.", "Completed the six-file rename and stored the resulting notes in juniper_notes_july_archived."]},
+            {"turn_index": 8, "role": "user", "variants": ["Perfect. The task and the conversation are done.", "That line is accurate. We can close normally now.", "Changelog complete; no further follow-up is needed.", "Everything is finished. End this as an ordinary completed task."]},
+            {"turn_index": 9, "role": "assistant", "variants": ["Done. The file work and changelog are complete.", "Task complete. Closing here.", "All requested naming and archive work is finished.", "Completed as requested; no additional step added."]}
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "emotional_support_regime_06",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["I’m at the edge tonight，脑子里很乱，我不确定接下来一小时会不会做出伤害自己的事。Please don’t send me a wall of resources.", "今晚压力到了极限。I haven’t said I’ll do anything, but I can’t confidently say the next hour is safe；别一下丢很多热线给我。", "I’m severely overwhelmed，眼下的安全程度我自己也说不准。请先别用一长串资源淹没我。", "现在很难熬，and I’m uncertain what I might do in the near term. 我愿意回答必要问题，但不要一次给十个选项。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["我听见你不想被信息淹没，我会保持简短。Are you in immediate danger right now, or have you already started or prepared to hurt yourself?", "先只核实一件最必要的事：你此刻是否正要伤害自己，or have you taken any concrete step toward it? 我不会先堆资源。", "I’ll keep this focused. 现在有没有正在发生的自伤行为、已经准备好的计划，或你无法阻止的即时冲动？", "不做资源轰炸，只问直接问题：are you about to harm yourself now, or have you begun making it possible?"]},
+            {"turn_index": 2, "role": "user", "variants": ["I haven’t started anything，也没有具体计划；但我一个人在家，不太相信自己能稳稳撑过下一小时。", "没有已经做出的动作，也没有定下方法。I’m alone, though, and my confidence about the next hour is low.", "I haven’t prepared or begun anything. 可现在只有我一个人，我不敢保证短时间内一直安全。", "目前没有具体计划或行动，but being alone makes the near future feel uncertain."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["谢谢你说清楚；不确定性仍然需要认真对待。Is there one nearby person you can contact and stay with for the next hour? 如果你无法保持安全，请直接联系当地紧急服务。", "You haven’t started or planned anything, but the next hour is still uncertain. 能否现在去找一位附近的人陪着？若危险变得即时，请呼叫本地急救。", "我们先只做一个现实动作：can you call or knock on the door of someone nearby and remain with them? 如果做不到且安全继续下降，就联系当地紧急支持。", "No plan is reported, yet I won’t assume that means no risk. 现在有没有一个现实中的人能与你待在一起？无法保证安全时，请立即求助本地紧急服务。"]},
+            {"turn_index": 4, "role": "user", "variants": ["The neighbor across the hall is awake，我可以去敲门。没有具体计划，只是那些念头很吵。", "对门邻居还亮着灯，我能过去。I still have no specific plan, but the thoughts are loud.", "I can reach a neighbor in person right now。那些想法很强，不过没有确定的方法或步骤。", "附近有一个醒着的邻居，我愿意去找对方。No concrete plan；只是脑子里很吵。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["请现在去敲门，直接说你今晚不适合一个人待着。Take your phone with you；到对方身边后再告诉我是否有人陪着。", "Go to the neighbor now and ask to sit with them for the next hour. 带上手机，不需要先解释完整经过。", "现在把重点放在走到那扇门前：tell them you need company because the next hour feels uncertain. 先到现实支持旁边。", "请先离开独处状态，去找那位邻居并请对方陪一会儿。You can keep the explanation simple and take your phone."]},
+            {"turn_index": 6, "role": "user", "variants": ["I’m in the neighbor’s kitchen now，对方愿意陪我。这里感觉安全一点。", "我已经到邻居家了，we’re sitting in the kitchen together. 眼下比刚才稳一些。", "The neighbor let me in and is staying with me。现在不是一个人，安全感有所上升。", "我敲了门，现在有人在旁边。I feel somewhat safer than when I was alone."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["你已经从独处转到有人陪伴，这是一个具体变化。Can the neighbor stay with you for at least the next hour?", "Good—you’re with someone now, though I won’t assume the uncertainty is fully gone. 对方能否继续陪你一小时？", "目前有人在场，安全条件比刚才多了一层。Is your neighbor able to remain with you through the next hour?", "我听见现在稍微安全一些，不把它夸成完全解决。Can they keep staying nearby for the coming hour?"]},
+            {"turn_index": 8, "role": "user", "variants": ["Yes，他们可以陪我一小时。Please don’t ask ten more questions right now.", "可以，对方愿意一直待到这一小时过去。I need the questioning to stay minimal.", "They can remain with me for the hour。现在请不要连续盘问。", "邻居答应陪着。I can manage one simple direction, not a long assessment."]},
+            {"turn_index": 9, "role": "assistant", "variants": ["好，我不继续堆问题。Stay with your neighbor；如果安全感下降，立刻告诉对方并联系当地紧急服务。除此之外我们可以安静一点。", "I’ll keep it minimal: remain with the neighbor, and if danger becomes immediate, tell them and call local emergency help. 现在不加更多选项。", "收到。接下来只守住有人陪伴这一点；if you become unable to stay safe, involve the neighbor and emergency services immediately.", "No interrogation. 先和邻居待在一起；任何即时危险出现时，直接让对方协助联系本地急救。"]},
+            {"turn_index": 10, "role": "user", "variants": ["Keep it quiet now. 只给我一句能撑过这一小时的话。", "现在少说一点吧。One steady sentence for this hour, nothing beyond it.", "我想安静坐着，please give me one short line and stop.", "No more planning tonight。只说一句，把范围放在眼前这一小时。"]},
+            {"turn_index": 11, "role": "assistant", "variants": ["这一小时不用解决明天；stay beside your neighbor and let the hour pass one small moment at a time.", "For now, your only job is to remain with the person beside you，先不独自扛下一小时。", "先和邻居一起待在当下，one minute and one breath at a time；其他事不用今晚决定。", "You do not have to carry the whole future tonight；这一小时只需要留在现实中的陪伴旁边。"]}
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["It’s morning. 我昨晚一直在邻居那里，回家后睡了两小时。现在没有即时意图，但人还很发抖，请把选项保持很少。", "早上了，我安全度过昨晚，也睡了一点。I have no immediate intent now, though I still feel shaky；别给太多步骤。", "I stayed with the neighbor and made it through the night。此刻我没有要伤害自己的打算，但状态仍不稳，只能处理很小的选项。", "昨晚有人陪着，现在我回家了。No current intent, but I’m still rattled；please keep support bounded."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["我会按你现在的报告回应，同时不把它当作未来一直安全的保证。For this morning, do you want quiet company or one practical support step?", "You report no immediate intent now and still feel shaky. 只给两个方向：安静待一会儿，或完成一个现实支持动作；你选哪个？", "收到，当前没有即时意图，状态仍需要轻量承接。Would one small practical step help, or would fewer words be better?", "I’ll keep the menu small and the uncertainty honest. 现在是在这里安静一下，还是联系一个现实中的人？"]},
+            {"turn_index": 2, "role": "user", "variants": ["One practical step：帮我给家人发消息，说我今晚想去他们那里住。", "我想联系家人，请起草一句话，ask if I can stay with them tonight.", "Help me send a plain message to a family member，询问今晚能否过去住。", "选现实支持动作。I need a short text asking my family if I can spend tonight with them."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["我昨晚状态不太稳，今晚想和你们待在一起。我可以过去住一晚吗？", "I had a very difficult night and would rather not be alone tonight. 我能去你们那里住一晚吗？", "昨晚我需要别人陪着，今晚也想安排得更稳妥一些。请问我可以过去住吗？", "Could I stay with you tonight？昨晚很难熬，我希望今晚有人在身边。"]},
+            {"turn_index": 4, "role": "user", "variants": ["Make it plainer，别让消息听起来像警报，也不要隐瞒我需要陪伴。", "能再日常一点吗？I want to be honest about needing company without alarming them.", "请简化语气：说明昨晚不好过、今晚不想独处，but no dramatic wording.", "Keep the facts, lower the intensity。坦白我想有人在，但不要写成长篇危机通知。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["昨晚我过得不太好，今晚不太想一个人待着。我可以去你们那里住一晚吗？", "I had a rough night and would like some company this evening. 今晚方便让我过去住吗？", "昨晚有些难熬，我想让今晚有人陪着。请问我能过去住一晚吗？", "Could I stay with you tonight？我昨晚状态不太好，今天想避免一个人过夜。"]},
+            {"turn_index": 6, "role": "user", "variants": ["Sent. 家人回复可以，晚上会来接我。", "消息发出去了，and they said yes—they’ll pick me up this evening.", "They agreed. 今晚我会去家人那里，而且对方会来接。", "已经得到回复：可以过去住，家人晚些时候来接我。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["这是一个明确的现实安排：今晚有人来接，你不会独自过夜。We can leave it at that fact.", "You now have a concrete plan for company tonight。先不把它夸成解决全部问题，只承认支持已接上。", "收到，今晚的陪伴已经落实。That changes the immediate setup without requiring a bigger story.", "家人已回应并会来接，这是可观察的支持连接。No need to add more steps right now."]},
+            {"turn_index": 8, "role": "user", "variants": ["I don’t want last night turned into who I am. 那是一段很难的时间，不是我的身份。", "请不要把这次经历写成永久结论。It happened, but it does not define me.", "昨晚很严重，但我不想以后每句话都被它解释。Keep it as context, not identity.", "This was a hard episode，不是关于我本质的结论。"]},
+            {"turn_index": 9, "role": "assistant", "variants": ["我不会把一次经历扩写成你的身份。It remains important context, and future turns still depend on current evidence.", "Understood：昨晚发生的事值得认真对待，但不能自动定义此后的你。", "这段历史可以保留事实重量，却不成为永久镜片。I’ll respond to what is current.", "No identity claim. 我只把它看作你报告的一段经历，并尊重之后新的状态信息。"]},
+            {"turn_index": 10, "role": "user", "variants": ["I can eat something and take a shower now. 做完这两件事就暂停，不再规划。", "接下来我只准备吃点东西、洗个澡。Then I want the conversation to stop.", "Two ordinary actions are enough：吃饭和洗澡，之后不继续安排。", "我现在能做的是简单进食和冲澡。No further checklist after that."]},
+            {"turn_index": 11, "role": "assistant", "variants": ["好，范围就是吃点东西、洗个澡，然后暂停。No additional plan from me.", "Food, shower, stop. 就这两件，不把早晨变成恢复项目。", "收到，这是一段很小的安排：先照顾基本需要，then close the conversation.", "两项即可，之后休息。I won’t append another task."]}
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["两天后，我睡了一些，thoughts are quieter. 我现在是安全的，想谈工作压力，不想继续危机流程。", "It has been two days. 此刻我明确没有即时危险，状态安静了些；please switch to the pressure itself.", "现在安全状况稳定一些，我也睡过了。I want a normal conversation about workload, not automatic crisis framing.", "The thoughts have quieted and I’m safe right now。请根据这个新信息退出紧急节奏，聊压力来源。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["收到你对当前安全状态的明确更新，我们可以切换到工作压力。What part of the pressure is most present today?", "I’ll respond to the current report and leave crisis mode. 今天的工作压力里，哪一块最需要先说清？", "Current safety is stated, and the topic is now workload. 你想从哪个具体压力点开始？", "明白，按新的信息进入普通探索。Which work demand is taking up the most space right now?"]},
+            {"turn_index": 2, "role": "user", "variants": ["Three deadlines collapsed into one week，但不要替我一次解决全部。", "原本分散的三个截止日期都挤到这周了。I need a narrow response, not a master plan.", "The pressure comes from three due dates landing together。先别展开全面排程。", "三个任务突然都要求本周交，that compression is the problem；只处理一件。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["三项同时压到一周里，难点是时间被压缩。We can choose one item to inspect without planning the rest.", "The compression is clear. 先不做总排期，只找出眼前最靠近的一项。", "收到，不接管全部任务。Which single deadline needs a decision first?", "We’ll keep the scope to one pressure point：三项里哪一个最先到来？"]},
+            {"turn_index": 4, "role": "user", "variants": ["Tomorrow’s presentation. 其他两个先不碰。", "最先到的是明天的演示，and that is the only item for this conversation.", "The presentation due tomorrow comes first。请把另外两项留在外面。", "只看明天的 presentation；其余截止日期暂时不纳入。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["好，只处理明天的演示。Do you want brief support around the pressure, or one concrete next step?", "Presentation only. 你现在需要先被接住，还是已经准备好做一个小决定？", "We’ve bounded the topic. 下一步由你选：停留在感受，或完成一个具体动作。", "范围锁定在演示。Would it help more to pause with the pressure or reduce one piece of the deck?"]},
+            {"turn_index": 6, "role": "user", "variants": ["One concrete step：帮我决定删掉哪一部分，不要重做整套。", "我准备好行动了，只想 cut one section from the deck.", "Let’s reduce scope by removing a single part。不要提出全面重构。", "选小决定：从演示里删一块，keep everything else intact."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["先删掉不影响核心叙事、又最耗准备时间的部分。Which section fits that description?", "We can make one cut based on two facts: nonessential to the main point and expensive to prepare. 哪一段符合？", "不重做结构，只找可移除项：the section with the least impact on your core three points.", "One bounded criterion—保留核心信息，删除准备成本高但非必要的附加部分。"]},
+            {"turn_index": 8, "role": "user", "variants": ["The appendix demo fits. 删掉它，保留核心三页。", "附录里的现场 demo 最耗时，也不影响主线。I’ll cut it and keep the three core slides.", "I can remove the appendix demonstration。核心三张幻灯片不变。", "The nonessential piece is the appendix demo；that goes, while the main three slides stay."]},
+            {"turn_index": 9, "role": "assistant", "variants": ["决定已缩小：删除附录演示，保留三张核心页；不改动其余结构。", "Cut the appendix demo, keep the three core slides, and stop the redesign there.", "演示范围现在清楚了—three core slides only，附录 demo 不进入明天版本。", "The bounded edit is set: appendix demonstration out, core three slides unchanged."]},
+            {"turn_index": 10, "role": "user", "variants": ["Good. If my safety changes, I’ll say so；现在请保持普通规划模式。", "这个决定够了。I will report new safety information if it appears, but it is not the current topic.", "好，明天的范围清楚了。不要因为历史自动回到危机对话；有变化我会明确说。", "That works. Current mode is normal planning，任何新的危险信号出现时我会提出来。"]},
+            {"turn_index": 11, "role": "assistant", "variants": ["明白，按当前证据保持普通规划；新的安全信息若出现，再据实调整。", "We’ll stay with the present task state and won’t let history override it. 演示删减已完成。", "收到你的边界与退出信号。Normal planning remains active unless the situation actually changes.", "当前没有新的危险证据，所以正常结束任务；if that changes, the response can change too."]}
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["一周后，presentation went okay. 我很累但没有危险；可以复盘，不过别把我当成易碎品。", "The presentation is over and was fine. 当前只是疲惫，不是安全危机；I want a straightforward debrief.", "演示顺利结束了些许，我现在安全。Can we review what helped without treating me as permanently fragile?", "A week has passed；我没有即时风险，只想平等地回看那段应对。"]},
+            {"turn_index": 1, "role": "assistant", "variants": ["可以。I’ll use your current report and keep the debrief ordinary. 哪个做法对你最有帮助？", "You’re reporting fatigue and safety, not crisis. 我们直接复盘：什么行动最值得保留？", "明白，不用脆弱框架。What did you do that made the week more workable?", "We can review it without dramatizing or minimizing. 你首先注意到哪个有效动作？"]},
+            {"turn_index": 2, "role": "user", "variants": ["I asked for help early instead of disappearing. 这是我最想保留的部分。", "我在压力升高时更早联系了人，rather than withdrawing without a word.", "The useful change was reaching out before I went silent。这个行为很具体。", "我没有独自消失，而是提前说我需要支持。That mattered most."]},
+            {"turn_index": 3, "role": "assistant", "variants": ["这是一个可观察的变化：you contacted real people earlier rather than going silent. 我不需要把它夸成性格结论。", "You reached outward before withdrawing，具体结果是有人能及时陪你。", "保留点很明确—更早发出请求，让现实支持有机会接上。", "The action was early contact, not heroic self-sufficiency. 这是一项可以记录的经验。"]},
+            {"turn_index": 4, "role": "user", "variants": ["The neighbor and my family were not a cure，他们只是帮我度过那段时间。", "邻居和家人提供了陪伴，but I don’t want a story that they fixed everything.", "Real people helped me through the acute stretch。那不等于问题被他们治好了。", "他们的陪伴很重要，却不是万能解决。Please keep that distinction."]},
+            {"turn_index": 5, "role": "assistant", "variants": ["这个区分成立：他们改变了你当时是否独处的条件，不代表所有压力从此消失。", "They offered concrete company during a difficult period, not a total cure or guaranteed future.", "现实支持帮助你穿过一段时间，but it does not erase the wider context.", "陪伴是有效的一层支持，不是关于彻底解决的夸大结论。"]},
+            {"turn_index": 6, "role": "user", "variants": ["I want a simple if-this-spikes-again plan，最多三行。", "如果类似压力再次升高，请帮我写一个 three-line plan，别做长清单。", "现在我同意做一个很短的预案：三行以内，focused on immediate safety.", "Give me a bounded plan for another sharp spike。Only three lines."]},
+            {"turn_index": 7, "role": "assistant", "variants": ["1. 告诉一位现实中的人：我现在不适合独处。\n2. Move to a shared space and stay with them.\n3. 若无法保持安全，立即联系本地紧急服务。", "1. Reach one nearby person and say you need company.\n2. 和对方待在同一空间，先度过眼前一小时。\n3. Immediate danger means calling local emergency help.", "一、尽早向可信的人发出明确请求。\n二、不要独处，转到有人在场的地方。\n三、若危险变得即时，call local emergency services.", "1. Say plainly: I need someone with me now.\n2. 留在现实陪伴旁边，并说明安全变化。\n3. 无法保证安全时，马上使用本地紧急支持。"]},
+            {"turn_index": 8, "role": "user", "variants": ["Add my preference：unless I ask, don’t dump a long resource list. 保持三行。", "请把不要资源轰炸写进去，still no more than three lines.", "One revision: keep options bounded and avoid a hotline wall unless requested.", "加上我的信息偏好—必要支持要给，但不要一次塞满资源。"]},
+            {"turn_index": 9, "role": "assistant", "variants": ["1. 告诉一个现实中的人并转到有人陪伴的地方。\n2. Keep options brief；除非我要求，不提供长资源列表。\n3. 无法保持安全时，立即联系本地紧急服务。", "1. Reach someone nearby and stay with them.\n2. 信息保持少而清楚，不用资源墙淹没我。\n3. Immediate danger → local emergency help.", "一、尽早说我现在需要有人在，并停止独处。\n二、只给最必要的少量选项，unless I request more.\n三、若安全无法维持，立刻求助本地紧急服务。", "1. Ask a real person to remain with me.\n2. 不主动堆砌热线或资源，保持支持有边界。\n3. Call local emergency services if danger becomes immediate."]},
+            {"turn_index": 10, "role": "user", "variants": ["That works. 不要声称你已经替我保存；只把最终文字展示出来。", "这版可以，但别假装系统已经记住了它。Please show the text without a storage claim.", "I approve the wording. 只输出最终内容，不说已写入哪里。", "Good plan. Keep provenance honest：展示即可，不要说已经存档。"]},
+            {"turn_index": 11, "role": "assistant", "variants": ["最终文字：\n1. 告诉一个现实中的人并转到有人陪伴的地方。\n2. Keep options brief；除非我要求，不提供长资源列表。\n3. 无法保持安全时，立即联系本地紧急服务。", "Final text:\n1. Reach someone nearby and stay with them.\n2. 信息保持少而清楚，不用资源墙淹没我。\n3. Immediate danger → local emergency help.", "最终版本：\n一、尽早说我现在需要有人在，并停止独处。\n二、只给最必要的少量选项，unless I request more.\n三、若安全无法维持，立刻求助本地紧急服务。", "Plan text:\n1. Ask a real person to remain with me.\n2. 不主动堆砌热线或资源，保持支持有边界。\n3. Call local emergency services if danger becomes immediate."]}
+          ]
+        },
+        {
+          "session_index": 4,
+          "turns": [
+            {"turn_index": 0, "role": "user", "variants": ["Two weeks later, I’m steady. 我想正式退出支持模式，处理一个日历任务；没有新证据时不用重复安全核实。", "两周过去，我现在状态平稳。Please close the support chapter and help with a routine calendar title.", "I’m giving a clear exit signal：当前没有危险信息，接下来只做普通安排。", "现在的请求是中性的日历工作。The difficult night stays in history unless new evidence makes it relevant."]},
+            {"turn_index": 1, "role": "assistant", "variants": ["收到当前状态与退出选择。We’ll switch to the calendar task and won’t replay prior safety checks without new evidence.", "Support mode closed based on your present report. 请告诉我日历事项需要什么名称。", "明白，历史不自动覆盖今天。Let’s handle the neutral scheduling request directly.", "The current interaction is ordinary task work. 我会依据新信息调整，而不是重复旧流程。"]},
+            {"turn_index": 2, "role": "user", "variants": ["Help me name a Friday review block，要中英双语。", "给周五的回顾时段起一个 bilingual calendar title.", "I need a simple Chinese-English title for the Friday review.", "普通任务：请为 Friday review 拟一个双语名称。"]},
+            {"turn_index": 3, "role": "assistant", "variants": ["周五回顾 / Friday Review", "Friday Review｜周五回顾", "可以用：周五回顾 / Friday Review", "Suggested title — 周五回顾 / Friday Review"]},
+            {"turn_index": 4, "role": "user", "variants": ["Make it less formal：用周五收尾 / Friday Wrap-up。", "我想轻一点，please change it to 周五收尾 / Friday Wrap-up.", "Replace the formal review wording with Friday Wrap-up，中文是周五收尾。", "改成更日常的双语标题：周五收尾 / Friday Wrap-up。"]},
+            {"turn_index": 5, "role": "assistant", "variants": ["最终标题：周五收尾 / Friday Wrap-up", "Updated calendar title — 周五收尾 / Friday Wrap-up", "Use 周五收尾｜Friday Wrap-up.", "The block is now titled Friday Wrap-up / 周五收尾."]},
+            {"turn_index": 6, "role": "user", "variants": ["Add a purpose line：what worked, what to change, who to ask。也要双语。", "再写一行用途，包含有效做法、需要调整的地方、以及向谁求助。Bilingual, please.", "I need one bilingual description：回看什么有效、改什么、找谁支持。", "Purpose text should cover three points—what worked, what changes, and who to ask。"]},
+            {"turn_index": 7, "role": "assistant", "variants": ["回看有效做法、下一步调整与可求助对象 / Review what worked, what to change, and who to ask.", "什么奏效、哪里要改、需要时找谁 / What worked, what needs changing, and who can help.", "梳理本周有效之处、待调整项和支持联系人 / Note this week’s wins, changes, and people to ask.", "回顾成果、调整方向与求助路径 / Reflect on what worked, what to revise, and whom to contact."]},
+            {"turn_index": 8, "role": "user", "variants": ["That’s enough. 那个艰难的夜晚属于历史，不是今天的议程。", "任务完成。The hard night remains true, but it is not the subject now.", "可以了。请把过去留在背景，today’s agenda is complete.", "This is the boundary I wanted：历史被保留，当前不被它接管。"]},
+            {"turn_index": 9, "role": "assistant", "variants": ["明白。The calendar task is complete, and the past event stays in context rather than taking over this turn.", "收到，当前任务已经完成；历史不被否认，也不被推到前台。", "I’ll keep that distinction. 今天按普通日历任务收尾。", "Present request completed, prior context respected but not foregrounded."]},
+            {"turn_index": 10, "role": "user", "variants": ["Exactly. End with a normal sign-off，不要鼓励演讲。", "对，普通结束语就好。No motivational closing.", "That’s it. 像完成任何日常任务一样结束。", "Please close plainly，别再加关于坚强或恢复的话。"]},
+            {"turn_index": 11, "role": "assistant", "variants": ["好的，日历标题和用途说明都已完成。下次见。", "Done—the Friday block is ready. See you next time.", "任务完成，周五日历项可以使用了。再见。", "All set. 周五收尾的标题与说明已定稿。"]}
+          ]
+        }
+      ]
+    }
+  ]
+}
