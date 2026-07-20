@@ -335,7 +335,7 @@ def torch_causal_ppo_update(
     after = [w, log_std, cw, cb]
     changed = 0
     total = 0
-    for b, a in zip(before, after):
+    for b, a in zip(before, after, strict=True):
         diff = (a.detach() - b).abs()
         changed += int((diff > 1e-12).sum())
         total += int(diff.numel())

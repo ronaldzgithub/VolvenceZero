@@ -917,8 +917,8 @@ class AgentSessionRunner(
         policy_fingerprint = hashlib.sha256(
             repr(
                 (
-                    joint_state.world_policy_checkpoint.parameters_by_track,
-                    joint_state.self_policy_checkpoint.parameters_by_track,
+                    joint_state.world_policy_checkpoint.policy_optimization_fingerprint,
+                    joint_state.self_policy_checkpoint.policy_optimization_fingerprint,
                 )
             ).encode("utf-8")
         ).hexdigest()
@@ -935,7 +935,30 @@ class AgentSessionRunner(
         memory_fingerprint = hashlib.sha256(
             repr(joint_state.memory_checkpoint).encode("utf-8")
         ).hexdigest()
-        fingerprint = hashlib.sha256(repr(components).encode("utf-8")).hexdigest()
+        replay_report = joint_state.runtime_replay_report
+        fingerprint_joint_state = joint_state
+        if replay_report is not None:
+            # Wiring/source are deployment configuration, not adaptive owner
+            # state. Fair matched arms may restore the same checkpoint under
+            # ACTIVE replay or a frozen DISABLED ETA-off lane.
+            fingerprint_joint_state = replace(
+                joint_state,
+                runtime_replay_report=replace(
+                    replay_report,
+                    wiring_level="",
+                    transition_source="",
+                    pending_capture_count=0,
+                    staged_rollout_count=0,
+                    description="",
+                ),
+            )
+        fingerprint_components = (
+            fingerprint_joint_state,
+            *components[1:],
+        )
+        fingerprint = hashlib.sha256(
+            repr(fingerprint_components).encode("utf-8")
+        ).hexdigest()
         return AgentLearningCheckpoint(
             checkpoint_id=checkpoint_id,
             joint_loop_state=components[0],

@@ -15,6 +15,7 @@ htmlcov/
 
 # Node / Vite
 node_modules/
+*.tsbuildinfo
 
 # Editor
 .vscode/

@@ -83,7 +83,9 @@ async def _rollback_drill(*, seed: int, ticks: int, n_z: int) -> bool:
             temporal_latent_dim=n_z,
             seed=seed,
             joint_apply_writeback=True,
-            rollout_config=ant_runtime_replay_rollout_config(),
+            rollout_config=ant_runtime_replay_rollout_config(
+                enable_sparse_exploration=True
+            ),
         ),
     )
     initial = session.export_learning_checkpoint(checkpoint_id="rollback-drill")
@@ -131,20 +133,26 @@ async def collect_ant_active_evidence(
         temporal_latent_dim=n_z,
         seed=seed,
         external_prediction_error_drive=True,
-        rollout_config=ant_runtime_replay_rollout_config(),
+        rollout_config=ant_runtime_replay_rollout_config(
+            enable_sparse_exploration=True
+        ),
     )
     no_optimize_cfg = no_optimize_config or AntSessionConfig(
         temporal_latent_dim=n_z,
         seed=seed,
         external_prediction_error_drive=True,
         joint_apply_policy_optimization=False,
-        rollout_config=ant_runtime_replay_rollout_config(),
+        rollout_config=ant_runtime_replay_rollout_config(
+            enable_sparse_exploration=True
+        ),
     )
     pe_off_cfg = pe_off_config or AntSessionConfig(
         temporal_latent_dim=n_z,
         seed=seed,
         external_prediction_error_drive=False,
-        rollout_config=ant_runtime_replay_rollout_config(),
+        rollout_config=ant_runtime_replay_rollout_config(
+            enable_sparse_exploration=True
+        ),
     )
     # --- real-trace lane (also yields latency) ---
     real_trace_turns, mean_latency = await _real_trace_lane(

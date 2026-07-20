@@ -52,9 +52,15 @@ async def main(
     reports = []
     for seed in seeds:
         report = await run_motor_calibration_experiment(
-            learned_config=_learned_config(seed, n_z),
+            learned_config=_learned_config(
+                seed,
+                n_z,
+                enable_sparse_exploration=False,
+            ),
             no_optimize_config=_schedule_gated_arms(
-                seed=seed, n_z=n_z
+                seed=seed,
+                n_z=n_z,
+                enable_sparse_exploration=False,
             )["no_optimize"],
             ticks=ticks,
             switch_tick=switch_tick,

@@ -52,7 +52,9 @@ async def main(*, n_ants: int, rounds: int, seeds: tuple[int, ...]) -> int:
                     ),
                     joint_apply_writeback=True,
                     joint_apply_policy_optimization=True,
-                    rollout_config=ant_runtime_replay_rollout_config(),
+                    rollout_config=ant_runtime_replay_rollout_config(
+                        enable_sparse_exploration=True
+                    ),
                 ),
             )
         )

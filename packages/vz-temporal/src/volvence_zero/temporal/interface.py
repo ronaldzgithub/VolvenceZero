@@ -2015,7 +2015,7 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
 
     def __init__(self, *, parameter_store: MetacontrollerParameterStore | None = None) -> None:
         self._parameter_store = parameter_store or MetacontrollerParameterStore()
-        self._previous_code = (0.0, 0.0, 0.0)
+        self._previous_code = _nz_zeros(self._parameter_store.n_z)
         self._cached_reflection_snapshot: ReflectionSnapshot | None = None
 
     @property
@@ -2100,7 +2100,7 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
         residual_code = _residual_signature(substrate_snapshot)
         memory_signal = _memory_signal(memory_snapshot)
         reflection_signal = _reflection_signal(effective_reflection_snapshot)
-        code = (
+        base_code = (
             _clamp(
                 residual_code[0] * self._parameter_store.temporal_weights["residual"]
                 + memory_signal * self._parameter_store.temporal_weights["memory"]
@@ -2114,14 +2114,28 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
                 + (memory_signal + reflection_signal) / 2.0
             ),
         )
-        delta = sum(abs(current - previous) for current, previous in zip(code, self._previous_code))
-        switch_gate = _clamp(self._parameter_store.switch_bias + delta / 2.0 + reflection_signal * 0.2)
+        from volvence_zero.temporal.metacontroller_components import (
+            _project_to_ndim,
+        )
+
+        code = _project_to_ndim(base_code, self._parameter_store.n_z)
+        delta = sum(
+            abs(current - previous)
+            for current, previous in zip(
+                code, self._previous_code, strict=True
+            )
+        )
+        switch_gate = _clamp(
+            self._parameter_store.switch_bias
+            + delta / 2.0
+            + reflection_signal * 0.2
+        )
         is_switching = switch_gate >= 0.55
         previous_steps = (
             previous_snapshot.controller_state.steps_since_switch if previous_snapshot is not None else 0
         )
         steps_since_switch = 0 if is_switching else previous_steps + 1
-        active_action = _abstract_action_from_code(code, switch_gate)
+        active_action = _abstract_action_from_code(base_code, switch_gate)
         params_hash = _hash_payload(
             {
                 "mode": self.mode.value,
@@ -2137,7 +2151,12 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
         )
         self._parameter_store.record_runtime_observation(
             latent_mean=code,
-            latent_scale=tuple(abs(current - previous) for current, previous in zip(code, self._previous_code)),
+            latent_scale=tuple(
+                abs(current - previous)
+                for current, previous in zip(
+                    code, self._previous_code, strict=True
+                )
+            ),
             decoder_control=code,
             switch_gate=switch_gate,
             sequence_length=len(residual_sequence_from_snapshot(substrate_snapshot)),
@@ -2288,15 +2307,30 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             if substrate_snapshot.residual_sequence
             else 0
         )
+        segment = step // 24
+        burst_phase = step % 24 < 3
+        shared_mean = sum(posterior_mean) / max(len(posterior_mean), 1)
+        shared_digest = sha256(
+            f"{segment}:coast:{shared_mean:.12f}".encode("utf-8")
+        ).digest()
+        shared_unit = int.from_bytes(shared_digest[:8], "big") / float(
+            2**64 - 1
+        )
+        shared_proposal = shared_unit * 2.0 - 1.0
         sampled: list[float] = []
         for index, (mean, original) in enumerate(
             zip(posterior_mean, base_noise, strict=True)
         ):
-            digest = sha256(
-                f"{step}:{index}:{mean:.12f}".encode("utf-8")
-            ).digest()
-            unit = int.from_bytes(digest[:8], "big") / float(2**64 - 1)
-            proposal = unit * 2.0 - 1.0
+            if burst_phase:
+                digest = sha256(
+                    f"{segment}:burst:{index}:{mean:.12f}".encode("utf-8")
+                ).digest()
+                unit = int.from_bytes(digest[:8], "big") / float(
+                    2**64 - 1
+                )
+                proposal = unit * 2.0 - 1.0
+            else:
+                proposal = shared_proposal
             sampled.append(
                 max(
                     -1.0,
@@ -2827,18 +2861,43 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             beta_threshold=self._parameter_store.beta_threshold,
         )
         exploration_noise = encoded.posterior.sample_noise
+        runtime_posterior_mean = encoded.posterior.posterior_mean
+        runtime_posterior_std = encoded.posterior.posterior_std
         if latent_override is None and self._runtime_exploration_strength > 0.0:
             exploration_noise = self._runtime_exploration_noise(
                 substrate_snapshot=substrate_snapshot,
                 posterior_mean=encoded.posterior.posterior_mean,
                 base_noise=encoded.posterior.sample_noise,
             )
+            # Sparse-reward policies need an explicit entropy floor; the
+            # learned posterior often collapses near 0.05 before any milestone
+            # is observed. The floor is generic latent uncertainty (no task
+            # direction) and is published as the effective posterior std so
+            # runtime replay reconstructs the exact action likelihood.
+            entropy_floor = 0.4 * self._runtime_exploration_strength
+            runtime_posterior_std = tuple(
+                max(value, entropy_floor)
+                for value in encoded.posterior.posterior_std
+            )
+            runtime_step = (
+                substrate_snapshot.residual_sequence[-1].step
+                if substrate_snapshot.residual_sequence
+                else 0
+            )
+            if runtime_step % 24 >= 3:
+                centroid = sum(runtime_posterior_mean) / max(
+                    len(runtime_posterior_mean), 1
+                )
+                runtime_posterior_mean = tuple(
+                    value * (1.0 - self._runtime_exploration_strength)
+                    + centroid * self._runtime_exploration_strength
+                    for value in runtime_posterior_mean
+                )
             z_candidate = tuple(
                 _clamp(
-                    encoded.posterior.posterior_mean[index]
-                    + encoded.posterior.posterior_std[index]
+                    runtime_posterior_mean[index]
+                    + runtime_posterior_std[index]
                     * exploration_noise[index]
-                    * 0.5
                 )
                 for index in range(n_z)
             )
@@ -2899,8 +2958,8 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             active_label=active_label,
             prior_mean=encoded.posterior.prior_mean,
             prior_std=encoded.posterior.prior_std,
-            posterior_mean=encoded.posterior.posterior_mean,
-            posterior_std=encoded.posterior.posterior_std,
+            posterior_mean=runtime_posterior_mean,
+            posterior_std=runtime_posterior_std,
             posterior_sample_noise=exploration_noise,
             z_tilde=z_candidate,
             posterior_hidden_state=encoded.posterior.hidden_state,

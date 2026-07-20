@@ -152,7 +152,11 @@ class AntAppRun:
             temporal_latent_dim=self.config.temporal_latent_dim,
             session_id=f"digital-ant-app:{self.run_id}",
             seed=self.config.seed,
-            rollout_config=ant_runtime_replay_rollout_config(),
+            rollout_config=ant_runtime_replay_rollout_config(
+                enable_sparse_exploration=(
+                    self.config.objective is AppObjective.FORAGING
+                )
+            ),
             joint_apply_writeback=True,
             joint_apply_policy_optimization=(
                 self.config.arm is AppArm.LEARNED

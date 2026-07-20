@@ -50,7 +50,12 @@ _ANT_RL_RUNTIME_MODULATION_STRENGTH = ANT_RUNTIME_MODULATION_STRENGTH
 _ANT_RL_RUNTIME_EXPLORATION_STRENGTH = ANT_RUNTIME_EXPLORATION_STRENGTH
 
 
-def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
+def _schedule_gated_arms(
+    *,
+    seed: int,
+    n_z: int,
+    enable_sparse_exploration: bool = True,
+) -> dict[str, AntSessionConfig]:
     """Build the schedule-gated kernel arms (script-side JointLoopSchedule)."""
 
     from volvence_zero.joint_loop import JointLoopSchedule
@@ -73,7 +78,9 @@ def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
             joint_schedule=active,
             joint_apply_writeback=True,
             joint_apply_policy_optimization=False,
-            rollout_config=ant_runtime_replay_rollout_config(),
+            rollout_config=ant_runtime_replay_rollout_config(
+                enable_sparse_exploration=enable_sparse_exploration
+            ),
         ),
         # ETA-off retains the same substrate/world while disabling learned
         # latent replacement/switching and SSL/RL.
@@ -84,7 +91,9 @@ def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
             joint_schedule=frozen,
             joint_apply_writeback=False,
             joint_apply_policy_optimization=False,
-            rollout_config=ant_runtime_replay_rollout_config(),
+            rollout_config=ant_runtime_replay_rollout_config(
+                enable_sparse_exploration=enable_sparse_exploration
+            ),
             temporal_policy=LearnedLiteTemporalPolicy(
                 parameter_store=MetacontrollerParameterStore(n_z=n_z)
             ),
@@ -92,7 +101,12 @@ def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
     }
 
 
-def _learned_config(seed: int, n_z: int) -> AntSessionConfig:
+def _learned_config(
+    seed: int,
+    n_z: int,
+    *,
+    enable_sparse_exploration: bool = True,
+) -> AntSessionConfig:
     from volvence_zero.joint_loop import JointLoopSchedule
 
     return AntSessionConfig(
@@ -102,11 +116,18 @@ def _learned_config(seed: int, n_z: int) -> AntSessionConfig:
         joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=3),
         joint_apply_writeback=True,
         joint_apply_policy_optimization=True,
-        rollout_config=ant_runtime_replay_rollout_config(),
+        rollout_config=ant_runtime_replay_rollout_config(
+            enable_sparse_exploration=enable_sparse_exploration
+        ),
     )
 
 
-def _pe_off_config(seed: int, n_z: int) -> AntSessionConfig:
+def _pe_off_config(
+    seed: int,
+    n_z: int,
+    *,
+    enable_sparse_exploration: bool = True,
+) -> AntSessionConfig:
     from volvence_zero.joint_loop import JointLoopSchedule
 
     return AntSessionConfig(
@@ -116,7 +137,9 @@ def _pe_off_config(seed: int, n_z: int) -> AntSessionConfig:
         joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=3),
         joint_apply_writeback=True,
         joint_apply_policy_optimization=True,
-        rollout_config=ant_runtime_replay_rollout_config(),
+        rollout_config=ant_runtime_replay_rollout_config(
+            enable_sparse_exploration=enable_sparse_exploration
+        ),
     )
 
 

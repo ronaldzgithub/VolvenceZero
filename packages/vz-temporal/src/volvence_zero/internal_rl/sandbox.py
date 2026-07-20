@@ -181,6 +181,7 @@ class CausalPolicyCheckpoint:
     checkpoint_id: str
     parameters_by_track: tuple[CausalPolicyParameters, ...]
     metacontroller_snapshot: MetacontrollerParameterSnapshot
+    policy_optimization_fingerprint: str = ""
     runtime_replay: RuntimeReplayCheckpoint | None = None
 
 
@@ -596,10 +597,23 @@ class CausalZPolicy:
         )
 
     def create_checkpoint(self, *, checkpoint_id: str) -> CausalPolicyCheckpoint:
+        parameters = self.export_parameters()
+        optimization_state = tuple(
+            (
+                params.track.value,
+                params.update_step,
+                params.critic_weights,
+                params.critic_bias,
+            )
+            for params in parameters
+        )
         return CausalPolicyCheckpoint(
             checkpoint_id=checkpoint_id,
-            parameters_by_track=self.export_parameters(),
+            parameters_by_track=parameters,
             metacontroller_snapshot=self._parameter_store.export_parameter_snapshot(),
+            policy_optimization_fingerprint=stable_value_hash(
+                optimization_state
+            ),
         )
 
     def restore_checkpoint(self, checkpoint: CausalPolicyCheckpoint) -> None:

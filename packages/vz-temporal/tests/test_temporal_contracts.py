@@ -26,6 +26,7 @@ from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import build_training_trace
 from volvence_zero.temporal.interface import (
     FullLearnedTemporalPolicy,
+    LearnedLiteTemporalPolicy,
     MetacontrollerParameterStore,
 )
 from volvence_zero.tensor_backend import is_torch_available
@@ -74,6 +75,19 @@ def test_full_learned_policy_ndim_components_follow_store() -> None:
     assert policy.parameter_store.n_z == _NDIM
     # Default backend is the pure rollback baseline.
     assert policy.runtime_backend is WiringLevel.DISABLED
+
+
+def test_learned_lite_code_dimension_follows_store() -> None:
+    policy = LearnedLiteTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    step = policy.step(
+        substrate_snapshot=_trace_step_snapshot(_trace()),
+        previous_snapshot=None,
+    )
+
+    assert step.controller_state.code_dim == _NDIM
+    assert len(step.controller_state.code) == _NDIM
 
 
 # ---------------------------------------------------------------------------
@@ -472,6 +486,9 @@ def test_joint_loop_no_optimize_reports_but_does_not_persist_rl_update() -> None
 
     trace = _trace("joint-no-optimize")
     enabled = ETANLJointLoop()
+    enabled_before = enabled.create_learning_checkpoint(
+        checkpoint_id="enabled-before"
+    )
     enabled_report = asyncio.run(
         enabled.run_cycle(
             cycle_index=1,
@@ -479,7 +496,13 @@ def test_joint_loop_no_optimize_reports_but_does_not_persist_rl_update() -> None
             apply_policy_optimization=True,
         )
     )
+    enabled_after = enabled.create_learning_checkpoint(
+        checkpoint_id="enabled-after"
+    )
     disabled = ETANLJointLoop()
+    disabled_before = disabled.create_learning_checkpoint(
+        checkpoint_id="disabled-before"
+    )
     disabled_report = asyncio.run(
         disabled.run_cycle(
             cycle_index=1,
@@ -487,8 +510,23 @@ def test_joint_loop_no_optimize_reports_but_does_not_persist_rl_update() -> None
             apply_policy_optimization=False,
         )
     )
+    disabled_after = disabled.create_learning_checkpoint(
+        checkpoint_id="disabled-after"
+    )
 
     assert enabled_report.policy_objective != 0.0
     assert disabled_report.policy_objective != 0.0
     assert enabled_report.policy_update_applied is True
     assert disabled_report.policy_update_applied is False
+    assert (
+        enabled_before.world_policy_checkpoint.policy_optimization_fingerprint
+        != enabled_after.world_policy_checkpoint.policy_optimization_fingerprint
+    )
+    assert (
+        disabled_before.world_policy_checkpoint.policy_optimization_fingerprint
+        == disabled_after.world_policy_checkpoint.policy_optimization_fingerprint
+    )
+    assert (
+        disabled_before.self_policy_checkpoint.policy_optimization_fingerprint
+        == disabled_after.self_policy_checkpoint.policy_optimization_fingerprint
+    )

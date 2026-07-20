@@ -1,13 +1,13 @@
 {
   "artifact": {
-    "path": "research/ant/results/matched_control.json",
-    "sha256": "4a5fd3523fa0471e36984c72bab02fdcfeeebb3a95375cb8cd85db88c68828cd",
-    "size_bytes": 69250
+    "path": "research/ant/results/motor_calibration.v1.json",
+    "sha256": "cd10768fa5a5bdaeabde4d5653ffb7854e2f6ff55095b9f4c4a7dbeed0084499",
+    "size_bytes": 30023
   },
   "externally_retainable": false,
   "inputs": [],
   "provenance": {
-    "config_digest": "4395f330f5bb160a97c6378244f756a6e8b63138452eb84217308395ce6b5399",
+    "config_digest": "e534a2f86f0390bf174db28026ac953c4a456fd86a3763b70ebab4bc6b119dc7",
     "dependency_versions": [
       [
         "vz-contracts",

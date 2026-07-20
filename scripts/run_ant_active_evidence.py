@@ -44,7 +44,9 @@ def _arm_configs(
         LearnedBackendComponent.CMS_TORCH,
     )
     candidate_index = order.index(component)
-    rollout = ant_runtime_replay_rollout_config()
+    rollout = ant_runtime_replay_rollout_config(
+        enable_sparse_exploration=True
+    )
     backend_fields = tuple(item.value for item in order)
     rollout = replace(
         rollout,
