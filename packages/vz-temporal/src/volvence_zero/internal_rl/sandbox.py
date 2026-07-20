@@ -83,7 +83,7 @@ class ZTransition:
     runtime_base_mean: tuple[float, ...] = ()
     runtime_base_std: tuple[float, ...] = ()
     runtime_previous_code: tuple[float, ...] = ()
-    runtime_beta_t: float = 0.0
+    runtime_beta_t: float | tuple[float, ...] = ()
     runtime_other_track_sum: tuple[float, ...] = ()
     lineage_matched: bool = False
 
@@ -153,7 +153,7 @@ class RuntimeActionCapture:
     value_estimate: float
     runtime_base_mean: tuple[float, ...]
     runtime_base_std: tuple[float, ...]
-    runtime_beta_t: float
+    runtime_beta_t: tuple[float, ...]
     runtime_other_track_sum: tuple[float, ...]
 
 
@@ -181,6 +181,7 @@ class CausalPolicyCheckpoint:
     checkpoint_id: str
     parameters_by_track: tuple[CausalPolicyParameters, ...]
     metacontroller_snapshot: MetacontrollerParameterSnapshot
+    policy_optimization_fingerprint: str = ""
     runtime_replay: RuntimeReplayCheckpoint | None = None
 
 
@@ -253,7 +254,7 @@ def runtime_replay_policy_distribution(
     base_mean: tuple[float, ...],
     base_std: tuple[float, ...],
     previous_code: tuple[float, ...],
-    beta_t: float,
+    beta_t: float | tuple[float, ...],
     track_weights: tuple[float, ...],
     other_track_sum: tuple[float, ...],
     modulation_strength: float,
@@ -279,8 +280,18 @@ def runtime_replay_policy_distribution(
             f"mean={n}, std={len(base_std)}, previous={len(previous_code)}, "
             f"weights={len(track_weights)}, other_sum={len(other_track_sum)}"
         )
-    if not 0.0 <= beta_t <= 1.0:
-        raise ValueError(f"runtime replay beta_t must be within [0, 1], got {beta_t!r}")
+    beta_vector = (
+        tuple(float(beta_t) for _ in range(n))
+        if isinstance(beta_t, (float, int))
+        else tuple(beta_t)
+    )
+    if len(beta_vector) != n or any(
+        not 0.0 <= value <= 1.0 for value in beta_vector
+    ):
+        raise ValueError(
+            "runtime replay beta_t must be a scalar or aligned [0, 1] vector, "
+            f"got {beta_t!r}"
+        )
     if modulation_strength < 0.0:
         raise ValueError(
             "runtime replay modulation_strength must be >= 0, "
@@ -308,8 +319,8 @@ def runtime_replay_policy_distribution(
     )
     policy_mean = tuple(
         _clamp(
-            beta_t * modulated_mean[index]
-            + (1.0 - beta_t) * previous_code[index]
+            beta_vector[index] * modulated_mean[index]
+            + (1.0 - beta_vector[index]) * previous_code[index]
         )
         for index in range(n)
     )
@@ -318,7 +329,12 @@ def runtime_replay_policy_distribution(
             0.02,
             min(
                 0.5,
-                abs(beta_t * base_std[index] * gains[index] * 0.5),
+                abs(
+                    beta_vector[index]
+                    * base_std[index]
+                    * gains[index]
+                    * 0.5
+                ),
             ),
         )
         for index in range(n)
@@ -581,10 +597,23 @@ class CausalZPolicy:
         )
 
     def create_checkpoint(self, *, checkpoint_id: str) -> CausalPolicyCheckpoint:
+        parameters = self.export_parameters()
+        optimization_state = tuple(
+            (
+                params.track.value,
+                params.update_step,
+                params.critic_weights,
+                params.critic_bias,
+            )
+            for params in parameters
+        )
         return CausalPolicyCheckpoint(
             checkpoint_id=checkpoint_id,
-            parameters_by_track=self.export_parameters(),
+            parameters_by_track=parameters,
             metacontroller_snapshot=self._parameter_store.export_parameter_snapshot(),
+            policy_optimization_fingerprint=stable_value_hash(
+                optimization_state
+            ),
         )
 
     def restore_checkpoint(self, checkpoint: CausalPolicyCheckpoint) -> None:
@@ -810,7 +839,14 @@ class CausalZPolicy:
                         policy_sensitivity = 0.0
                     else:
                         policy_sensitivity = (
-                            transition.runtime_beta_t
+                            (
+                                transition.runtime_beta_t[index]
+                                if isinstance(
+                                    transition.runtime_beta_t,
+                                    tuple,
+                                )
+                                else transition.runtime_beta_t
+                            )
                             * transition.runtime_base_mean[index]
                             * self._runtime_track_modulation_strength
                             * dims
@@ -968,10 +1004,20 @@ class CausalZPolicy:
                 last_gae = delta + gamma * gae_lambda * last_gae
                 raw_advantages[index] = last_gae
                 returns[index] = raw_advantages[index] + values[index]
-            mean_advantage = sum(raw_advantages) / max(n, 1)
-            var_advantage = sum((value - mean_advantage) ** 2 for value in raw_advantages) / max(n, 1)
-            std_advantage = max(var_advantage ** 0.5, 1e-8)
-            normalized_advantages = tuple((value - mean_advantage) / std_advantage for value in raw_advantages)
+            if rollout.reward_mode == "runtime-replay":
+                # Runtime evidence arrives as one real environment transition
+                # per rollout. Per-rollout normalization would turn every
+                # one-sample advantage into exactly zero, severing the
+                # reward->policy path. Keep bounded raw GAE here; batching and
+                # PPO clipping still constrain the update.
+                normalized_advantages = tuple(
+                    _clamp(value) for value in raw_advantages
+                )
+            else:
+                mean_advantage = sum(raw_advantages) / max(n, 1)
+                var_advantage = sum((value - mean_advantage) ** 2 for value in raw_advantages) / max(n, 1)
+                std_advantage = max(var_advantage ** 0.5, 1e-8)
+                normalized_advantages = tuple((value - mean_advantage) / std_advantage for value in raw_advantages)
             mean_return = sum(returns) / max(n, 1)
         value_loss = sum(
             (returns[index] - rollout.transitions[index].value_estimate) ** 2
@@ -1134,6 +1180,7 @@ class CausalZPolicy:
                 "Internal-RL batches cannot mix transition sources, got "
                 f"{tuple(sorted(transition_sources))}"
             )
+        transition_source = next(iter(transition_sources))
         track = filtered_rollouts[0].track
         updated_rollouts, transitions, advantages, mean_return, value_loss = self._aggregate_batch_targets(
             rollouts=filtered_rollouts,
@@ -1174,7 +1221,10 @@ class CausalZPolicy:
             best_clip_fraction = clip_fraction
             best_kl = kl_penalty
             best_replacement_delta = replacement_effect_delta
-            if surrogate_objective >= -0.15:
+            if (
+                transition_source == "runtime-replay"
+                or surrogate_objective >= -0.15
+            ):
                 self._parameter_store.track_weights[track] = normalized_weights
                 previous_weights = normalized_weights
             if kl_penalty > max_kl:
@@ -1409,11 +1459,13 @@ class InternalRLSandbox:
         base_std = tuple(runtime_state.posterior_std)
         policy_noise = tuple(runtime_state.posterior_sample_noise)
         hidden_state = tuple(runtime_state.posterior_hidden_state)
+        sampled_candidate = tuple(runtime_state.z_tilde)
         for name, values in (
             ("posterior_mean", base_mean),
             ("posterior_std", base_std),
             ("posterior_sample_noise", policy_noise),
             ("posterior_hidden_state", hidden_state),
+            ("z_tilde", sampled_candidate),
         ):
             if len(values) != n:
                 raise ValueError(
@@ -1442,7 +1494,29 @@ class InternalRLSandbox:
             for index in range(n)
         )
         track_weights = tuple(track_parameters[track.value])
-        beta_t = float(runtime_state.latest_switch_gate)
+        scalar_beta = float(runtime_state.latest_switch_gate)
+        beta_t = tuple(
+            max(
+                0.0,
+                min(
+                    1.0,
+                    (
+                        (action[index] - self._runtime_previous_code[index])
+                        / (
+                            sampled_candidate[index]
+                            - self._runtime_previous_code[index]
+                        )
+                    )
+                    if abs(
+                        sampled_candidate[index]
+                        - self._runtime_previous_code[index]
+                    )
+                    > 1e-9
+                    else scalar_beta,
+                ),
+            )
+            for index in range(n)
+        )
         policy_mean, policy_std = runtime_replay_policy_distribution(
             base_mean=base_mean,
             base_std=base_std,
@@ -1496,6 +1570,7 @@ class InternalRLSandbox:
         environment_outcome: EnvironmentOutcome | None,
         prediction_error_snapshot: PredictionErrorSnapshot | None,
         credit_snapshot: CreditSnapshot | None,
+        prediction_error_reward_enabled: bool = True,
     ) -> RuntimeReplaySettlement:
         """Settle the prior action using only matching PE-first evidence."""
 
@@ -1560,7 +1635,7 @@ class InternalRLSandbox:
             )
         )
         segment_bonus = 0.0
-        if segment_records:
+        if prediction_error_reward_enabled and segment_records:
             segment_bonus = _clamp(
                 (
                     sum(record.credit_value for record in segment_records)
@@ -1569,7 +1644,11 @@ class InternalRLSandbox:
                 * 0.1
                 * (1.0 + max(0.0, prediction_error_snapshot.error.magnitude))
             )
-        pe_reward = _clamp(prediction_error_snapshot.error.signed_reward)
+        pe_reward = (
+            _clamp(prediction_error_snapshot.error.signed_reward)
+            if prediction_error_reward_enabled
+            else 0.0
+        )
         reward = _clamp(pe_reward + segment_bonus)
         next_signature = _surface_signature(
             next_substrate_snapshot,
@@ -1660,6 +1739,7 @@ class InternalRLSandbox:
         environment_outcome: EnvironmentOutcome | None,
         prediction_error_snapshot: PredictionErrorSnapshot | None,
         credit_snapshot: CreditSnapshot | None,
+        prediction_error_reward_enabled: bool = True,
     ) -> tuple[RuntimeReplaySettlement, RuntimeActionCapture]:
         """Settle the previous action, then capture the current runtime action."""
 
@@ -1668,6 +1748,7 @@ class InternalRLSandbox:
             environment_outcome=environment_outcome,
             prediction_error_snapshot=prediction_error_snapshot,
             credit_snapshot=credit_snapshot,
+            prediction_error_reward_enabled=prediction_error_reward_enabled,
         )
         capture = self.capture_runtime_action(
             turn_index=turn_index,

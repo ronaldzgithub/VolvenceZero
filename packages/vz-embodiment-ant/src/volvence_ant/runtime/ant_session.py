@@ -96,6 +96,7 @@ class AntStepRecord:
     at_food: bool
     at_nest: bool
     command: AntMotorCommand
+    applied_turn: float
     code: tuple[float, ...]
     switch_gate: float
     is_switching: bool
@@ -120,6 +121,11 @@ class AntStepRecord:
     joint_schedule_action: str
     writeback_operations: tuple[str, ...]
     backend_wiring: tuple[tuple[str, str], ...]
+    runtime_replay_captured: int
+    runtime_replay_settled: int
+    runtime_replay_transitions: int
+    runtime_replay_lineage_matches: int
+    runtime_replay_drop_reasons: tuple[str, ...]
 
 
 class AntSession:
@@ -268,6 +274,7 @@ class AntSession:
             else 0
         )
         rollout = self.runner.rollout_config
+        replay = result.runtime_replay_report
         body = self.world.body(self._body_id)
         record = AntStepRecord(
             tick=self.world.tick,
@@ -279,6 +286,7 @@ class AntSession:
             at_food=observation.at_food,
             at_nest=observation.at_nest,
             command=command,
+            applied_turn=transition.applied_turn,
             code=code,
             switch_gate=switch_gate,
             is_switching=temporal_snapshot.controller_state.is_switching,
@@ -318,7 +326,30 @@ class AntSession:
                 ("temporal_runtime_backend", rollout.temporal_runtime_backend.value),
                 ("temporal_ssl_backend", rollout.temporal_ssl_backend.value),
                 ("internal_rl_backend", rollout.internal_rl_backend.value),
+                (
+                    "internal_rl_runtime_replay",
+                    rollout.internal_rl_runtime_replay.value,
+                ),
+                (
+                    "internal_rl_runtime_exploration_strength",
+                    f"{rollout.internal_rl_runtime_exploration_strength:.6f}",
+                ),
                 ("cms_torch_backend", rollout.cms_torch_backend.value),
+            ),
+            runtime_replay_captured=(
+                replay.captured_count if replay is not None else 0
+            ),
+            runtime_replay_settled=(
+                replay.settled_count if replay is not None else 0
+            ),
+            runtime_replay_transitions=(
+                replay.transition_count if replay is not None else 0
+            ),
+            runtime_replay_lineage_matches=(
+                replay.lineage_match_count if replay is not None else 0
+            ),
+            runtime_replay_drop_reasons=(
+                replay.drop_reasons if replay is not None else ()
             ),
         )
         self.holder.update(

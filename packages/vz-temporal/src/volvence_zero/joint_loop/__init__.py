@@ -16,6 +16,7 @@ from volvence_zero.joint_loop.runtime import (
     OnlineFastImportResult,
     RareHeavyImportCheckpoint,
     RareHeavyImportResult,
+    RuntimeReplayReport,
     ScheduledJointLoopResult,
 )
 
@@ -32,6 +33,7 @@ __all__ = [
     "RareHeavyArtifact",
     "RareHeavyImportCheckpoint",
     "RareHeavyImportResult",
+    "RuntimeReplayReport",
     "SSLRLTrainingPipeline",
     "ScheduledJointLoopResult",
     "TakeoverGateReport",

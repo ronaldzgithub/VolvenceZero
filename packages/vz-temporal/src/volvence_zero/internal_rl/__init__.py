@@ -27,9 +27,14 @@ from volvence_zero.internal_rl.sandbox import (
     InternalRLSandbox,
     OptimizationReport,
     PolicyOptimizationResult,
+    RuntimeActionCapture,
+    RuntimeReplayCheckpoint,
+    RuntimeReplayLineageError,
+    RuntimeReplaySettlement,
     ZRollout,
     ZTransition,
     derive_abstract_action_credit,
+    runtime_replay_policy_distribution,
 )
 
 
@@ -72,7 +77,12 @@ __all__ = [
     "MiniHierarchicalEnvironment",
     "OptimizationReport",
     "PolicyOptimizationResult",
+    "RuntimeActionCapture",
+    "RuntimeReplayCheckpoint",
+    "RuntimeReplayLineageError",
+    "RuntimeReplaySettlement",
     "ZRollout",
     "ZTransition",
     "derive_abstract_action_credit",
+    "runtime_replay_policy_distribution",
 ]

@@ -132,15 +132,10 @@ class AntWorld:
         n_bodies: int = 1,
     ) -> None:
         self.config = config or AntWorldConfig()
-        if self.config.motor_distortions and len(self.config.motor_distortions) not in {
-            1,
-            max(1, n_bodies),
-        }:
-            raise ValueError(
-                "motor_distortions must be empty, a single broadcast profile, "
-                f"or one profile per body; got {len(self.config.motor_distortions)} "
-                f"profiles for {max(1, n_bodies)} bodies"
-            )
+        self._validate_motor_distortions(
+            self.config.motor_distortions, n_bodies=max(1, n_bodies)
+        )
+        self._motor_distortions = tuple(self.config.motor_distortions)
         self._rng = np.random.default_rng(self.config.seed)
         self._food: list[FoodSource] = list(food_sources) or [
             FoodSource(x=8.0, y=0.0, strength=1.0, decay=6.0)
@@ -307,10 +302,43 @@ class AntWorld:
         return self.observe(body_id)
 
     def _motor_distortion(self, body_id: int) -> MotorDistortionProfile:
-        profiles = self.config.motor_distortions
+        profiles = self._motor_distortions
         if not profiles:
             return MotorDistortionProfile()
         return profiles[0] if len(profiles) == 1 else profiles[body_id]
+
+    @staticmethod
+    def _validate_motor_distortions(
+        profiles: tuple[MotorDistortionProfile, ...], *, n_bodies: int
+    ) -> None:
+        if profiles and len(profiles) not in {1, n_bodies}:
+            raise ValueError(
+                "motor_distortions must be empty, a single broadcast profile, "
+                f"or one profile per body; got {len(profiles)} profiles for "
+                f"{n_bodies} bodies"
+            )
+
+    def set_motor_distortion(
+        self,
+        profile: MotorDistortionProfile,
+        *,
+        body_id: int | None = None,
+    ) -> None:
+        """Replace the hidden actuator transfer at an environment boundary.
+
+        This owner API is intended for controlled perturbations.  The profile
+        remains absent from observations; agents can only observe its physical
+        consequences through the normal outcome/PE path.
+        """
+
+        if body_id is None:
+            self._motor_distortions = (profile,)
+            return
+        if body_id < 0 or body_id >= self.n_bodies:
+            raise IndexError(f"body_id {body_id} outside [0, {self.n_bodies})")
+        per_body = [self._motor_distortion(index) for index in range(self.n_bodies)]
+        per_body[body_id] = profile
+        self._motor_distortions = tuple(per_body)
 
     def _resolve_contacts(self, body: AntBody, body_id: int) -> AntBody:
         cfg = self.config

@@ -9,10 +9,10 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
-from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.runtime import WiringLevel
 
 from volvence_ant.evidence import (
+    ant_runtime_replay_rollout_config,
     collect_ant_active_evidence,
     collect_ant_provenance,
     write_ant_artifact_bundle,
@@ -44,7 +44,9 @@ def _arm_configs(
         LearnedBackendComponent.CMS_TORCH,
     )
     candidate_index = order.index(component)
-    rollout = FinalRolloutConfig()
+    rollout = ant_runtime_replay_rollout_config(
+        enable_sparse_exploration=True
+    )
     backend_fields = tuple(item.value for item in order)
     rollout = replace(
         rollout,
@@ -64,13 +66,15 @@ def _arm_configs(
             rollout_config=rollout,
             joint_schedule=active,
             joint_apply_writeback=True,
+            joint_apply_policy_optimization=True,
         ),
         "no_optimize": AntSessionConfig(
             temporal_latent_dim=n_z,
             seed=seed,
             rollout_config=rollout,
             joint_schedule=active,
-            joint_apply_writeback=False,
+            joint_apply_writeback=True,
+            joint_apply_policy_optimization=False,
         ),
         "pe_off": AntSessionConfig(
             temporal_latent_dim=n_z,
@@ -78,6 +82,7 @@ def _arm_configs(
             rollout_config=rollout,
             joint_schedule=active,
             joint_apply_writeback=True,
+            joint_apply_policy_optimization=True,
             external_prediction_error_drive=False,
         ),
         "eta_off": AntSessionConfig(
@@ -86,6 +91,7 @@ def _arm_configs(
             rollout_config=rollout,
             joint_schedule=frozen,
             joint_apply_writeback=False,
+            joint_apply_policy_optimization=False,
             temporal_policy=LearnedLiteTemporalPolicy(
                 parameter_store=MetacontrollerParameterStore(n_z=n_z)
             ),
@@ -213,6 +219,7 @@ async def main(
             _RESULTS_DIR / "phase0_homing.json",
             _RESULTS_DIR / "phase0_route_learning.json",
             _RESULTS_DIR / "matched_control.json",
+            _RESULTS_DIR / "motor_calibration.v1.json",
             _RESULTS_DIR / "phase1_colony.json",
             _RESULTS_DIR / "phase2_caste.json",
             _RESULTS_DIR / "dual_substrate.json",

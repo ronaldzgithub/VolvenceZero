@@ -5,6 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ProcessPoolExecutor
 import importlib.util
 import multiprocessing
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,6 +20,43 @@ from volvence_ant.runtime import AntSessionConfig
 _HAS_TORCH = importlib.util.find_spec("torch") is not None
 
 
+def test_read_only_diagnostic_order_identifies_sparse_exploration_breakpoint() -> None:
+    from volvence_ant.env import AntWorld, AntWorldConfig, FoodSource
+    from volvence_ant.proofs import matched_control
+
+    world = AntWorld(
+        config=AntWorldConfig(seed=0),
+        food_sources=(FoodSource(x=6.0, y=0.0),),
+    )
+    initial = SimpleNamespace(
+        fingerprint="initial",
+        policy_fingerprint="policy-a",
+        temporal_fingerprint="temporal-a",
+        memory_fingerprint="memory-a",
+    )
+    trained = SimpleNamespace(
+        fingerprint="trained",
+        policy_fingerprint="policy-b",
+        temporal_fingerprint="temporal-b",
+        memory_fingerprint="memory-b",
+    )
+    metrics = matched_control._metrics_from_positions(
+        arm="learned",
+        world=world,
+        positions=[(0.0, 0.0), (0.2, 0.0)],
+        ticks=2,
+        initial_checkpoint=initial,
+        trained_checkpoint=trained,
+        mean_abs_turn_command=0.2,
+        mean_abs_applied_turn=0.2,
+        steering_code_std=0.1,
+    )
+
+    assert metrics.policy_parameters_changed
+    assert metrics.minimum_food_distance == pytest.approx(5.8)
+    assert metrics.diagnostic_breakpoint == "exploration-no-food-contact"
+
+
 async def test_behavioral_matched_control_arms_present() -> None:
     report = await run_behavioral_matched_control(ticks=20, seed=0)
     arm_names = {arm.arm for arm in report.arms}
@@ -26,6 +64,11 @@ async def test_behavioral_matched_control_arms_present() -> None:
     for arm in report.arms:
         assert arm.ticks == 20
         assert arm.mean_food_experienced >= 0.0
+        assert arm.minimum_food_distance >= 0.0
+        assert arm.diagnostic_breakpoint != "not-evaluated"
+    learned = next(arm for arm in report.arms if arm.arm == "learned")
+    assert learned.initial_policy_fingerprint is not None
+    assert learned.trained_policy_fingerprint is not None
 
 
 async def test_learned_arm_beats_random_floor() -> None:
@@ -72,6 +115,9 @@ async def test_multiseed_matrix_reports_real_no_optimize_effect() -> None:
         "no_optimize",
         "pe_off",
     }
+    for seed_report in report.reports:
+        by_arm = {arm.arm: arm for arm in seed_report.arms}
+        assert not by_arm["no_optimize"].policy_parameters_changed
 
 
 def test_spawn_seed_workers_match_serial_and_preserve_seed_order() -> None:
@@ -106,13 +152,16 @@ def test_spawn_seed_workers_match_serial_and_preserve_seed_order() -> None:
 
 def test_formal_no_optimize_is_a_real_policy_update_ablation() -> None:
     from scripts.run_ant_matched_control import (
+        _ANT_RL_RUNTIME_EXPLORATION_STRENGTH,
         _ANT_RL_RUNTIME_MODULATION_STRENGTH,
         _learned_config,
         _schedule_gated_arms,
     )
 
     learned = _learned_config(seed=0, n_z=16)
-    no_optimize = _schedule_gated_arms(seed=0, n_z=16)["no_optimize"]
+    schedule_gated = _schedule_gated_arms(seed=0, n_z=16)
+    no_optimize = schedule_gated["no_optimize"]
+    eta_off = schedule_gated["eta_off"]
 
     assert learned.joint_apply_policy_optimization is True
     assert no_optimize.joint_apply_policy_optimization is False
@@ -121,6 +170,15 @@ def test_formal_no_optimize_is_a_real_policy_update_ablation() -> None:
         learned.rollout_config.internal_rl_runtime_modulation_strength
         == no_optimize.rollout_config.internal_rl_runtime_modulation_strength
         == _ANT_RL_RUNTIME_MODULATION_STRENGTH
+    )
+    assert (
+        learned.rollout_config.internal_rl_runtime_exploration_strength
+        == no_optimize.rollout_config.internal_rl_runtime_exploration_strength
+        == _ANT_RL_RUNTIME_EXPLORATION_STRENGTH
+    )
+    assert (
+        eta_off.rollout_config.internal_rl_runtime_replay
+        is learned.rollout_config.internal_rl_runtime_replay
     )
 
 

@@ -32,6 +32,7 @@ _RUNNER_SCHEMA = "digital-ant-pipeline-stage.v1"
 _OUTPUTS = {
     "phase0": ("phase0_homing.json", "phase0_route_learning.json"),
     "matched": ("matched_control.json",),
+    "motor": ("motor_calibration.v1.json",),
     "colony": ("phase1_colony.json",),
     "caste": ("phase2_caste.json",),
     "g1": ("dual_substrate.json",),
@@ -93,6 +94,16 @@ def _commands(
             "--with-latent",
             "--workers",
             str(matched_workers),
+        ],
+        "motor": [
+            py,
+            "scripts/run_ant_motor_calibration.py",
+            "--seeds",
+            seeds,
+            "--ticks",
+            "60",
+            "--switch-tick",
+            "30",
         ],
         "colony": [py, "scripts/run_ant_colony.py", *colony],
         "caste": [py, "scripts/run_ant_caste.py", *caste],
@@ -396,7 +407,17 @@ if __name__ == "__main__":
     parser.add_argument("--profile", choices=("demo", "formal"), default="demo")
     parser.add_argument(
         "--stage",
-        choices=("all", "phase0", "matched", "colony", "caste", "g1", "demos", "active"),
+        choices=(
+            "all",
+            "phase0",
+            "matched",
+            "motor",
+            "colony",
+            "caste",
+            "g1",
+            "demos",
+            "active",
+        ),
         default="all",
     )
     parser.add_argument("--resume", action="store_true")

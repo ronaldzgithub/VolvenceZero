@@ -54,6 +54,8 @@ class MotorCalibrationReport:
     arms: tuple[MotorCalibrationArm, ...]
     learned_late_error_advantage: float
     learned_recovery_advantage: float
+    min_late_error_advantage: float
+    min_recovery_advantage: float
     learned_recovers_better: bool
     description: str
 
@@ -171,12 +173,16 @@ async def run_motor_calibration_experiment(
         arms=(learned, no_optimize),
         learned_late_error_advantage=late_advantage,
         learned_recovery_advantage=recovery_advantage,
+        min_late_error_advantage=_MIN_LATE_ERROR_ADVANTAGE,
+        min_recovery_advantage=_MIN_RECOVERY_ADVANTAGE,
         learned_recovers_better=recovers_better,
         description=(
             "hidden motor calibration: "
             f"learned late_error={learned.mean_error_late:.4f}, "
             f"no_optimize late_error={no_optimize.mean_error_late:.4f}, "
             f"advantage={late_advantage:.4f}, "
+            f"learned_recovery={learned.recovery:.4f}, "
+            f"no_optimize_recovery={no_optimize.recovery:.4f}, "
             f"recovery_advantage={recovery_advantage:.4f}, "
             f"learned_recovers_better={recovers_better}"
         ),

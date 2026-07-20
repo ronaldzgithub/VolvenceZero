@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from volvence_zero.application.runtime import ApplicationRareHeavyCheckpoint
 from volvence_zero.evaluation import EvaluationScore, EvolutionJudgement
-from volvence_zero.internal_rl import CausalPolicyCheckpoint
+from volvence_zero.internal_rl import CausalPolicyCheckpoint, ZRollout
 from volvence_zero.memory import MemoryStoreCheckpoint
 from volvence_zero.substrate import SubstrateOnlineFastCheckpoint, SubstrateRareHeavyCheckpoint
 from volvence_zero.temporal import MetacontrollerParameterSnapshot, MetacontrollerRuntimeState
@@ -28,6 +28,20 @@ class DefaultContinualLearningSurface:
     rollback_applied: bool
     evolution_decision: str
     evolution_category: str
+    description: str
+
+
+@dataclass(frozen=True)
+class RuntimeReplayReport:
+    wiring_level: str
+    transition_source: str
+    captured_count: int
+    settled_count: int
+    transition_count: int
+    lineage_match_count: int
+    pending_capture_count: int
+    staged_rollout_count: int
+    drop_reasons: tuple[str, ...]
     description: str
 
 
@@ -64,6 +78,7 @@ class JointCycleReport:
     rare_heavy_review_recommended: bool = False
     rl_batch_rollout_count: int = 1
     default_continual_learning_surface: DefaultContinualLearningSurface | None = None
+    runtime_replay_report: RuntimeReplayReport | None = None
 
 
 @dataclass(frozen=True)
@@ -94,6 +109,7 @@ class ScheduledJointLoopResult:
     substrate_online_fast_due: bool = False
     rare_heavy_review_recommended: bool = False
     default_continual_learning_surface: DefaultContinualLearningSurface | None = None
+    runtime_replay_report: RuntimeReplayReport | None = None
 
 
 @dataclass(frozen=True)
@@ -106,6 +122,9 @@ class RareHeavyImportCheckpoint:
     memory_checkpoint: MemoryStoreCheckpoint
     substrate_checkpoint: SubstrateRareHeavyCheckpoint | None = None
     application_checkpoint: ApplicationRareHeavyCheckpoint | None = None
+    pending_task_rollouts: tuple[ZRollout, ...] | None = None
+    pending_relationship_rollouts: tuple[ZRollout, ...] | None = None
+    runtime_replay_report: RuntimeReplayReport | None = None
 
 
 @dataclass(frozen=True)

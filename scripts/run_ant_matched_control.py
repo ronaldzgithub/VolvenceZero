@@ -25,7 +25,10 @@ import os
 from pathlib import Path
 
 from volvence_ant.evidence import (
+    ANT_RUNTIME_EXPLORATION_STRENGTH,
+    ANT_RUNTIME_MODULATION_STRENGTH,
     SeedPartialStore,
+    ant_runtime_replay_rollout_config,
     ant_stage_fingerprint,
     collect_ant_provenance,
     stable_json_digest,
@@ -39,24 +42,20 @@ from volvence_ant.proofs import (
     run_single_seed_matched_control,
 )
 from volvence_ant.runtime.ant_session import AntSessionConfig
-from volvence_zero.integration import FinalRolloutConfig
 
 _RESULTS_DIR = Path("research/ant/results")
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_ANT_RL_RUNTIME_MODULATION_STRENGTH = 0.3
+# Backward-compatible script constants; values are owned by runtime_profile.
+_ANT_RL_RUNTIME_MODULATION_STRENGTH = ANT_RUNTIME_MODULATION_STRENGTH
+_ANT_RL_RUNTIME_EXPLORATION_STRENGTH = ANT_RUNTIME_EXPLORATION_STRENGTH
 
 
-def _ant_rollout_config() -> FinalRolloutConfig:
-    """Open the bounded reward→code bridge for every matched kernel arm."""
-
-    return FinalRolloutConfig(
-        internal_rl_runtime_modulation_strength=(
-            _ANT_RL_RUNTIME_MODULATION_STRENGTH
-        )
-    )
-
-
-def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
+def _schedule_gated_arms(
+    *,
+    seed: int,
+    n_z: int,
+    enable_sparse_exploration: bool = True,
+) -> dict[str, AntSessionConfig]:
     """Build the schedule-gated kernel arms (script-side JointLoopSchedule)."""
 
     from volvence_zero.joint_loop import JointLoopSchedule
@@ -79,7 +78,9 @@ def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
             joint_schedule=active,
             joint_apply_writeback=True,
             joint_apply_policy_optimization=False,
-            rollout_config=_ant_rollout_config(),
+            rollout_config=ant_runtime_replay_rollout_config(
+                enable_sparse_exploration=enable_sparse_exploration
+            ),
         ),
         # ETA-off retains the same substrate/world while disabling learned
         # latent replacement/switching and SSL/RL.
@@ -90,7 +91,9 @@ def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
             joint_schedule=frozen,
             joint_apply_writeback=False,
             joint_apply_policy_optimization=False,
-            rollout_config=_ant_rollout_config(),
+            rollout_config=ant_runtime_replay_rollout_config(
+                enable_sparse_exploration=enable_sparse_exploration
+            ),
             temporal_policy=LearnedLiteTemporalPolicy(
                 parameter_store=MetacontrollerParameterStore(n_z=n_z)
             ),
@@ -98,7 +101,12 @@ def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
     }
 
 
-def _learned_config(seed: int, n_z: int) -> AntSessionConfig:
+def _learned_config(
+    seed: int,
+    n_z: int,
+    *,
+    enable_sparse_exploration: bool = True,
+) -> AntSessionConfig:
     from volvence_zero.joint_loop import JointLoopSchedule
 
     return AntSessionConfig(
@@ -108,11 +116,18 @@ def _learned_config(seed: int, n_z: int) -> AntSessionConfig:
         joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=3),
         joint_apply_writeback=True,
         joint_apply_policy_optimization=True,
-        rollout_config=_ant_rollout_config(),
+        rollout_config=ant_runtime_replay_rollout_config(
+            enable_sparse_exploration=enable_sparse_exploration
+        ),
     )
 
 
-def _pe_off_config(seed: int, n_z: int) -> AntSessionConfig:
+def _pe_off_config(
+    seed: int,
+    n_z: int,
+    *,
+    enable_sparse_exploration: bool = True,
+) -> AntSessionConfig:
     from volvence_zero.joint_loop import JointLoopSchedule
 
     return AntSessionConfig(
@@ -122,7 +137,9 @@ def _pe_off_config(seed: int, n_z: int) -> AntSessionConfig:
         joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=3),
         joint_apply_writeback=True,
         joint_apply_policy_optimization=True,
-        rollout_config=_ant_rollout_config(),
+        rollout_config=ant_runtime_replay_rollout_config(
+            enable_sparse_exploration=enable_sparse_exploration
+        ),
     )
 
 
@@ -213,8 +230,12 @@ async def main(
         "with_latent": with_latent,
         "include_e2e_rl": include_e2e_rl,
         "internal_rl_runtime_modulation_strength": (
-            _ANT_RL_RUNTIME_MODULATION_STRENGTH
+            ANT_RUNTIME_MODULATION_STRENGTH
         ),
+        "internal_rl_runtime_exploration_strength": (
+            ANT_RUNTIME_EXPLORATION_STRENGTH
+        ),
+        "internal_rl_runtime_replay": "active",
     }
     if resume and _final_artifact_matches(config=config):
         print("[matched-control] resumed complete final artifact")
@@ -242,6 +263,14 @@ async def main(
     payload: dict = {
         "artifact_kind": "digital-ant-fair-learning-matrix",
         "experiment": "workstream_e_matched_control",
+        "diagnostic_order": (
+            "exploration-food-contact",
+            "outcome-pe-credit",
+            "runtime-replay-settlement",
+            "policy-vs-no-optimize-divergence",
+            "z-and-turn-action-effect",
+            "held-out-generalization",
+        ),
         **config,
     }
 
@@ -313,14 +342,19 @@ async def main(
         tuple(reports_by_seed.values()),
         seed_order=seeds,
     )
+    validation_delta = (
+        report.learned_minus_no_optimize / max(ticks, 1)
+        if report.learned_minus_no_optimize is not None
+        else None
+    )
     payload["behavioral"] = {
         "per_seed": [asdict(seed_report) for seed_report in report.reports],
         "aggregates": [asdict(aggregate) for aggregate in report.aggregates],
         "learned_minus_no_optimize": report.learned_minus_no_optimize,
+        "validation_delta": validation_delta,
         "verdict": (
             "PASS"
-            if report.learned_minus_no_optimize is not None
-            and report.learned_minus_no_optimize > 0.0
+            if validation_delta is not None and validation_delta >= 0.02
             else "BLOCK"
         ),
     }
@@ -337,7 +371,8 @@ async def main(
     )
     print(
         "[matched-control] "
-        f"learned-minus-no-optimize={report.learned_minus_no_optimize}"
+        f"learned-minus-no-optimize={report.learned_minus_no_optimize} "
+        f"validation-delta={validation_delta}"
     )
     print(f"[matched-control] manifest={manifest}")
     return 0

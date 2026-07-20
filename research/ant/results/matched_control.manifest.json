@@ -1,13 +1,13 @@
 {
   "artifact": {
     "path": "research/ant/results/matched_control.json",
-    "sha256": "3d41cc7b91fb80cc71512c90beca61c909d7cbc25339a5fd42d18115428cd748",
-    "size_bytes": 21197
+    "sha256": "4a5fd3523fa0471e36984c72bab02fdcfeeebb3a95375cb8cd85db88c68828cd",
+    "size_bytes": 69250
   },
   "externally_retainable": false,
   "inputs": [],
   "provenance": {
-    "config_digest": "84bf462caa18a7213f995e3000906cf260ea4eaaa5628ffc5db225b70d3ee0d7",
+    "config_digest": "4395f330f5bb160a97c6378244f756a6e8b63138452eb84217308395ce6b5399",
     "dependency_versions": [
       [
         "vz-contracts",
@@ -31,7 +31,7 @@
       ]
     ],
     "git_branch": "main",
-    "git_sha": "8420e39c9de59dca5b786e63e7e0677c6700b9de",
+    "git_sha": "1c6c392f8561270ed6041017dbdfdd69f9c72c2e",
     "model_fingerprint": null,
     "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
     "python_version": "3.13.5",

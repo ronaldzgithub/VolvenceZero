@@ -120,6 +120,7 @@ from volvence_zero.joint_loop import (
     RareHeavyArtifact,
     RareHeavyImportCheckpoint,
     RareHeavyImportResult,
+    RuntimeReplayReport,
     SSLRLTrainingPipeline,
     ScheduledJointLoopResult,
     OnlineFastImportResult,
@@ -221,6 +222,7 @@ class AgentLearningCheckpoint:
     regime_state: object
     dual_track_gate_state: object
     reflection_state: object
+    policy_fingerprint: str
     temporal_fingerprint: str
     memory_fingerprint: str
     fingerprint: str
@@ -250,6 +252,7 @@ class AgentTurnResult:
     joint_schedule_action: str
     joint_learning_summary: str
     joint_cycle_report: JointCycleReport | None
+    runtime_replay_report: RuntimeReplayReport | None
     default_continual_learning_surface: DefaultContinualLearningSurface | None
     response: AgentResponse
     event_count: int
@@ -580,12 +583,19 @@ class AgentSessionRunner(
         # FinalRolloutConfig.temporal_runtime_backend.
         _runtime_backend = self._config.temporal_runtime_backend
         _track_modulation = self._config.internal_rl_runtime_modulation_strength
+        _runtime_exploration = self._config.internal_rl_runtime_exploration_strength
         if isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
             self._world_temporal_policy.set_runtime_backend(_runtime_backend)
             self._world_temporal_policy.set_runtime_track_modulation(_track_modulation)
+            self._world_temporal_policy.set_runtime_exploration(
+                _runtime_exploration
+            )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy.set_runtime_backend(_runtime_backend)
             self._self_temporal_policy.set_runtime_track_modulation(_track_modulation)
+            self._self_temporal_policy.set_runtime_exploration(
+                _runtime_exploration
+            )
         self._evaluation_backbone = EvaluationBackbone()
         self._application_rare_heavy_state = ApplicationRareHeavyState()
         domain_backend = None
@@ -819,7 +829,21 @@ class AgentSessionRunner(
             primary_prediction_error_dominance_enabled=primary_prediction_error_dominance_enabled,
             ssl_backend=self._config.temporal_ssl_backend,
             internal_rl_backend=self._config.internal_rl_backend,
+            internal_rl_runtime_replay=self._config.internal_rl_runtime_replay,
+            runtime_replay_prediction_error_enabled=(
+                external_prediction_error_drive
+            ),
         )
+        if (
+            self._joint_loop.internal_rl_runtime_replay
+            is not self._config.internal_rl_runtime_replay
+        ):
+            raise ValueError(
+                "AgentSessionRunner config/joint-loop runtime replay wiring "
+                "mismatch: config="
+                f"{self._config.internal_rl_runtime_replay.value}, loop="
+                f"{self._joint_loop.internal_rl_runtime_replay.value}"
+            )
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         self._joint_schedule = joint_schedule or JointLoopSchedule()
         self._joint_apply_writeback = joint_apply_writeback
@@ -890,6 +914,14 @@ class AgentSessionRunner(
             self._reflection_consolidation_learner.export_state(),
         )
         joint_state = components[0]
+        policy_fingerprint = hashlib.sha256(
+            repr(
+                (
+                    joint_state.world_policy_checkpoint.policy_optimization_fingerprint,
+                    joint_state.self_policy_checkpoint.policy_optimization_fingerprint,
+                )
+            ).encode("utf-8")
+        ).hexdigest()
         temporal_fingerprint = hashlib.sha256(
             repr(
                 (
@@ -903,7 +935,30 @@ class AgentSessionRunner(
         memory_fingerprint = hashlib.sha256(
             repr(joint_state.memory_checkpoint).encode("utf-8")
         ).hexdigest()
-        fingerprint = hashlib.sha256(repr(components).encode("utf-8")).hexdigest()
+        replay_report = joint_state.runtime_replay_report
+        fingerprint_joint_state = joint_state
+        if replay_report is not None:
+            # Wiring/source are deployment configuration, not adaptive owner
+            # state. Fair matched arms may restore the same checkpoint under
+            # ACTIVE replay or a frozen DISABLED ETA-off lane.
+            fingerprint_joint_state = replace(
+                joint_state,
+                runtime_replay_report=replace(
+                    replay_report,
+                    wiring_level="",
+                    transition_source="",
+                    pending_capture_count=0,
+                    staged_rollout_count=0,
+                    description="",
+                ),
+            )
+        fingerprint_components = (
+            fingerprint_joint_state,
+            *components[1:],
+        )
+        fingerprint = hashlib.sha256(
+            repr(fingerprint_components).encode("utf-8")
+        ).hexdigest()
         return AgentLearningCheckpoint(
             checkpoint_id=checkpoint_id,
             joint_loop_state=components[0],
@@ -912,6 +967,7 @@ class AgentSessionRunner(
             regime_state=components[3],
             dual_track_gate_state=components[4],
             reflection_state=components[5],
+            policy_fingerprint=policy_fingerprint,
             temporal_fingerprint=temporal_fingerprint,
             memory_fingerprint=memory_fingerprint,
             fingerprint=fingerprint,
@@ -1302,6 +1358,56 @@ class AgentSessionRunner(
                     user_input=user_input,
                     trace=trace,
                     substrate_batch=substrate_batch,
+                )
+            if self._config.internal_rl_runtime_replay is not WiringLevel.DISABLED:
+                world_temporal = integration_result.active_snapshots.get(
+                    "world_temporal"
+                )
+                self_temporal = integration_result.active_snapshots.get(
+                    "self_temporal"
+                )
+                credit = integration_result.active_snapshots.get("credit")
+                prediction_error_snapshot = (
+                    integration_result.prediction_error_snapshot
+                )
+                if (
+                    substrate_snap is None
+                    or not isinstance(substrate_snap.value, SubstrateSnapshot)
+                    or world_temporal is None
+                    or not isinstance(
+                        world_temporal.value,
+                        TemporalAbstractionSnapshot,
+                    )
+                    or self_temporal is None
+                    or not isinstance(
+                        self_temporal.value,
+                        TemporalAbstractionSnapshot,
+                    )
+                    or credit is None
+                    or not isinstance(credit.value, CreditSnapshot)
+                    or prediction_error_snapshot is None
+                ):
+                    raise RuntimeError(
+                        "runtime replay requires active immutable substrate, "
+                        "world_temporal, self_temporal, prediction_error, and "
+                        "credit snapshots"
+                    )
+                world_runtime_state = (
+                    self._joint_loop.world_temporal_policy.export_runtime_state()
+                )
+                self_runtime_state = (
+                    self._joint_loop.self_temporal_policy.export_runtime_state()
+                )
+                self._joint_loop.observe_runtime_transition(
+                    turn_index=self._turn_index,
+                    substrate_snapshot=substrate_snap.value,
+                    world_temporal_snapshot=world_temporal.value,
+                    self_temporal_snapshot=self_temporal.value,
+                    world_runtime_state=world_runtime_state,
+                    self_runtime_state=self_runtime_state,
+                    environment_outcome=environment_outcome,
+                    prediction_error_snapshot=prediction_error_snapshot,
+                    credit_snapshot=credit.value,
                 )
             if integration_result.prediction_error_snapshot is not None:
                 self._previous_prediction_reward = integration_result.prediction_error_snapshot.error.signed_reward

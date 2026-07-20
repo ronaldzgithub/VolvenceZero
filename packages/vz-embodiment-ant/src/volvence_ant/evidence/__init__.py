@@ -28,14 +28,22 @@ from volvence_ant.evidence.resume import (
     SeedPartialStore,
     ant_stage_fingerprint,
 )
+from volvence_ant.evidence.runtime_profile import (
+    ANT_RUNTIME_EXPLORATION_STRENGTH,
+    ANT_RUNTIME_MODULATION_STRENGTH,
+    ant_runtime_replay_rollout_config,
+)
 
 __all__ = [
     "AntActiveEvidenceBundle",
     "AntArtifactIntegrityError",
     "AntResumeStateError",
     "AntRunProvenance",
+    "ANT_RUNTIME_EXPLORATION_STRENGTH",
+    "ANT_RUNTIME_MODULATION_STRENGTH",
     "SeedPartialStore",
     "ant_stage_fingerprint",
+    "ant_runtime_replay_rollout_config",
     "atomic_write_json",
     "collect_ant_provenance",
     "collect_ant_active_evidence",

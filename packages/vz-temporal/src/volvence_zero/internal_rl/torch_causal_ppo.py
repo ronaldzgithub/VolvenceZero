@@ -53,6 +53,17 @@ class TorchPPOReport:
     description: str = ""
 
 
+def _transition_source(transition: Any) -> str:
+    """Read the source while preserving legacy synthetic fixture compatibility."""
+
+    try:
+        return str(transition.transition_source)
+    except AttributeError:
+        # Pre-runtime-replay callers supplied the original synthetic transition
+        # shape, which had no explicit source field.
+        return "synthetic"
+
+
 def torch_causal_ppo_update(
     *,
     parameter_store: Any,
@@ -88,6 +99,18 @@ def torch_causal_ppo_update(
             entropy=0.0, parameters_changed=0, parameter_change_rate=0.0,
             wrote_back=False, description="no usable transitions",
         )
+    transition_sources = {_transition_source(t) for t in usable}
+    if len(transition_sources) != 1:
+        raise ValueError(
+            "torch Internal-RL cannot mix transition sources, got "
+            f"{tuple(sorted(transition_sources))}"
+        )
+    transition_source = next(iter(transition_sources))
+    if transition_source not in {"synthetic", "runtime-replay"}:
+        raise ValueError(
+            f"unsupported torch Internal-RL transition source {transition_source!r}"
+        )
+    runtime_replay = transition_source == "runtime-replay"
 
     dtype = torch.float64
 
@@ -99,14 +122,50 @@ def torch_causal_ppo_update(
     actions = torch.stack([vec(t.policy_action, n_z) for t in usable])
     hidden = (
         torch.stack([vec(t.hidden_state, n_z) for t in usable])
-        if runtime_track_modulation_strength > 0.0
+        if runtime_track_modulation_strength > 0.0 and not runtime_replay
+        else None
+    )
+    runtime_base_mean = (
+        torch.stack([vec(t.runtime_base_mean, n_z) for t in usable])
+        if runtime_replay
+        else None
+    )
+    runtime_base_std = (
+        torch.stack([vec(t.runtime_base_std, n_z) for t in usable])
+        if runtime_replay
+        else None
+    )
+    runtime_previous_code = (
+        torch.stack([vec(t.runtime_previous_code, n_z) for t in usable])
+        if runtime_replay
+        else None
+    )
+    runtime_beta_t = (
+        torch.stack(
+            [
+                vec(
+                    t.runtime_beta_t
+                    if isinstance(t.runtime_beta_t, tuple)
+                    else tuple(float(t.runtime_beta_t) for _ in range(n_z)),
+                    n_z,
+                )
+                for t in usable
+            ]
+        )
+        if runtime_replay
+        else None
+    )
+    runtime_other_track_sum = (
+        torch.stack([vec(t.runtime_other_track_sum, n_z) for t in usable])
+        if runtime_replay
         else None
     )
     advantages = torch.tensor([float(t.advantage_estimate) for t in usable], dtype=dtype)
     returns = torch.tensor([float(t.return_estimate) for t in usable], dtype=dtype)
     if advantages.abs().sum() == 0:
         advantages = torch.tensor([float(t.reward) for t in usable], dtype=dtype)
-    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    if not runtime_replay:
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
     # Live policy params as torch leaves.
     base_weights = list(parameter_store.track_weights[track])[:n_z]
@@ -119,6 +178,34 @@ def torch_causal_ppo_update(
     cb = torch.tensor([float(value_bias.get(track, 0.0))], dtype=dtype, requires_grad=True)
 
     def policy_mean(weights: Any) -> Any:
+        if runtime_replay:
+            if (
+                runtime_base_mean is None
+                or runtime_previous_code is None
+                or runtime_beta_t is None
+                or runtime_other_track_sum is None
+            ):
+                raise RuntimeError(
+                    "runtime replay requires captured posterior/beta/track context"
+                )
+            aggregate_weights = (
+                weights.unsqueeze(0) + runtime_other_track_sum
+            ) / 3.0
+            gain = 1.0 + runtime_track_modulation_strength * (
+                aggregate_weights * n_z - 1.0
+            )
+            gain = torch.clamp(gain, 0.5, 1.5)
+            modulated_mean = torch.clamp(
+                runtime_base_mean * gain,
+                -1.0,
+                1.0,
+            )
+            return torch.clamp(
+                runtime_beta_t * modulated_mean
+                + (1.0 - runtime_beta_t) * runtime_previous_code,
+                -1.0,
+                1.0,
+            )
         if runtime_track_modulation_strength <= 0.0:
             # Byte-compatible historical rollback lane.
             return torch.clamp(weights.unsqueeze(0) * obs, 0.0, 1.0)
@@ -157,32 +244,83 @@ def torch_causal_ppo_update(
         gain = torch.clamp(gain, 0.5, 1.5)
         return torch.clamp(base_candidate * gain.unsqueeze(0), 0.0, 1.0)
 
-    def log_prob(mean: Any, ls: Any) -> Any:
-        std = torch.exp(ls)
+    def policy_std(weights: Any, ls: Any) -> Any:
+        if runtime_replay:
+            if (
+                runtime_base_std is None
+                or runtime_beta_t is None
+                or runtime_other_track_sum is None
+            ):
+                raise RuntimeError(
+                    "runtime replay requires captured posterior standard deviation"
+                )
+            aggregate_weights = (
+                weights.unsqueeze(0) + runtime_other_track_sum
+            ) / 3.0
+            gain = torch.clamp(
+                1.0
+                + runtime_track_modulation_strength
+                * (aggregate_weights * n_z - 1.0),
+                0.5,
+                1.5,
+            )
+            return torch.clamp(
+                torch.abs(runtime_beta_t * runtime_base_std * gain * 0.5),
+                0.02,
+                0.5,
+            )
+        return torch.exp(ls).unsqueeze(0).expand_as(actions)
+
+    def log_prob(mean: Any, ls: Any, weights: Any) -> Any:
+        std = policy_std(weights, ls)
+        if runtime_replay:
+            variance = torch.clamp(std.pow(2), min=1e-6)
+            return torch.sum(
+                -0.5
+                * (
+                    (actions - mean.expand_as(actions)).pow(2) / variance
+                    + torch.log(2.0 * math.pi * variance)
+                ),
+                dim=1,
+            )
         var = std.pow(2)
         return torch.sum(
             -0.5 * ((actions - mean.expand_as(actions)).pow(2) / (var + 1e-8))
-            - ls - 0.5 * math.log(2.0 * math.pi),
+            - torch.log(std) - 0.5 * math.log(2.0 * math.pi),
             dim=1,
         )
 
     with torch.no_grad():
         old_mean = policy_mean(w)
-        old_log_prob = log_prob(old_mean, log_std)
+        old_log_prob = (
+            torch.tensor(
+                [float(t.log_prob) for t in usable],
+                dtype=dtype,
+            )
+            if runtime_replay
+            else log_prob(old_mean, log_std, w)
+        )
 
     opt = torch.optim.Adam([w, log_std, cw, cb], lr=learning_rate)
     before = [w.detach().clone(), log_std.detach().clone(), cw.detach().clone(), cb.detach().clone()]
     last_policy_loss = last_value_loss = last_kl = last_clip = last_entropy = 0.0
     for _ in range(ppo_epochs):
         mean = policy_mean(w)
-        new_lp = log_prob(mean, log_std)
+        new_lp = log_prob(mean, log_std, w)
         ratio = torch.exp(new_lp - old_log_prob)
         unclipped = ratio * advantages
         clipped = torch.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * advantages
         policy_loss = -torch.mean(torch.min(unclipped, clipped))
         values = torch.matmul(obs, cw) + cb
         value_loss = torch.mean((returns - values).pow(2))
-        entropy = torch.mean(torch.sum(log_std + 0.5 * math.log(2.0 * math.pi * math.e), dim=0))
+        current_std = policy_std(w, log_std)
+        entropy = torch.mean(
+            torch.sum(
+                torch.log(current_std)
+                + 0.5 * math.log(2.0 * math.pi * math.e),
+                dim=1,
+            )
+        )
         loss = policy_loss + value_coef * value_loss - entropy_coef * entropy
         opt.zero_grad()
         loss.backward()
@@ -197,7 +335,7 @@ def torch_causal_ppo_update(
     after = [w, log_std, cw, cb]
     changed = 0
     total = 0
-    for b, a in zip(before, after):
+    for b, a in zip(before, after, strict=True):
         diff = (a.detach() - b).abs()
         changed += int((diff > 1e-12).sum())
         total += int(diff.numel())

@@ -1,0 +1,48 @@
+{
+  "artifact": {
+    "path": "research/ant/results/motor_calibration.v1.json",
+    "sha256": "cd10768fa5a5bdaeabde4d5653ffb7854e2f6ff55095b9f4c4a7dbeed0084499",
+    "size_bytes": 30023
+  },
+  "externally_retainable": false,
+  "inputs": [],
+  "provenance": {
+    "config_digest": "e534a2f86f0390bf174db28026ac953c4a456fd86a3763b70ebab4bc6b119dc7",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "1c6c392f8561270ed6041017dbdfdd69f9c72c2e",
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}

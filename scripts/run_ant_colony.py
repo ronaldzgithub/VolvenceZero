@@ -15,7 +15,11 @@ import asyncio
 from dataclasses import asdict
 from pathlib import Path
 
-from volvence_ant.evidence import collect_ant_provenance, write_ant_artifact_bundle
+from volvence_ant.evidence import (
+    ant_runtime_replay_rollout_config,
+    collect_ant_provenance,
+    write_ant_artifact_bundle,
+)
 from volvence_ant.experiments import (
     colony_foraging_experiment,
     kernel_colony_foraging_experiment,
@@ -47,6 +51,10 @@ async def main(*, n_ants: int, rounds: int, seeds: tuple[int, ...]) -> int:
                         rl_interval=3,
                     ),
                     joint_apply_writeback=True,
+                    joint_apply_policy_optimization=True,
+                    rollout_config=ant_runtime_replay_rollout_config(
+                        enable_sparse_exploration=True
+                    ),
                 ),
             )
         )
