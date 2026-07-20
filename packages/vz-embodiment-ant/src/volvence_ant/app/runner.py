@@ -215,11 +215,15 @@ class AntAppRun:
                 f"checkpoint={checkpoint.config.temporal_latent_dim}"
             )
         if self._kernel_colony is not None:
-            self._kernel_colony.restore_learning_checkpoints(checkpoint.checkpoints)
+            self._kernel_colony.restore_learning_checkpoint_archives(
+                checkpoint.checkpoint_archives
+            )
         elif self._kernel_single is not None:
-            if len(checkpoint.checkpoints) != 1:
+            if len(checkpoint.checkpoint_archives) != 1:
                 raise ValueError("solo ecology run requires a one-ant checkpoint")
-            self._kernel_single.restore_learning_checkpoint(checkpoint.checkpoints[0])
+            self._kernel_single.restore_learning_checkpoint_archive(
+                checkpoint.checkpoint_archives[0]
+            )
         else:
             raise RuntimeError("learned ecology checkpoint requires a kernel controller")
         self._checkpoint_loaded = True
@@ -557,6 +561,8 @@ class AntAppRun:
             runtime_replay_drop_reasons=tuple(
                 reason for record in materialized for reason in record.runtime_replay_drop_reasons
             ),
+            runtime_replay_pending_captures=sum(record.runtime_replay_pending_captures for record in materialized),
+            runtime_replay_staged_rollouts=sum(record.runtime_replay_staged_rollouts for record in materialized),
             verdict=self._formal_verdict,
             verdict_reason=self._formal_verdict_reason,
             checkpoint_loaded=self._checkpoint_loaded,

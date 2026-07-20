@@ -39,6 +39,15 @@ class ScheduleGateShadow:
     summary: str
 
 
+@dataclass(frozen=True)
+class ScheduleGateLearnerState:
+    """Owner-authored persistent state; pending one-turn evidence is excluded."""
+
+    weights: tuple[float, ...]
+    observation_count: int
+    settled_count: int
+
+
 def build_schedule_gate_features(
     *,
     pe_pressure: float,
@@ -94,6 +103,38 @@ class ScheduleGateLearner:
 
     def weights(self) -> tuple[float, ...]:
         return tuple(self._weights)
+
+    def export_state(self) -> ScheduleGateLearnerState:
+        return ScheduleGateLearnerState(
+            weights=tuple(self._weights),
+            observation_count=self._observation_count,
+            settled_count=self._settled_count,
+        )
+
+    def restore_state(self, state: ScheduleGateLearnerState) -> None:
+        if len(state.weights) != _FEATURE_DIM:
+            raise ValueError(
+                "schedule gate state weight count mismatch: "
+                f"expected={_FEATURE_DIM}, actual={len(state.weights)}"
+            )
+        if state.observation_count < 0 or state.settled_count < 0:
+            raise ValueError("schedule gate state counters must be non-negative")
+        if state.settled_count > state.observation_count:
+            raise ValueError(
+                "schedule gate settled_count cannot exceed observation_count"
+            )
+        weights = tuple(float(value) for value in state.weights)
+        if any(
+            not math.isfinite(value) or abs(value) > _WEIGHT_BOUND
+            for value in weights
+        ):
+            raise ValueError(
+                "schedule gate state weights must be finite and within bounds"
+            )
+        self._weights = list(weights)
+        self._observation_count = state.observation_count
+        self._settled_count = state.settled_count
+        self._pending_features = None
 
     def derive_shadow(self, features: tuple[float, ...]) -> ScheduleGateShadow:
         if len(features) != _FEATURE_DIM:

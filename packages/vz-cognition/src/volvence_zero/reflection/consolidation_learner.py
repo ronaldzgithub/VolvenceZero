@@ -18,12 +18,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
+
 _FEATURE_DIM = 7
 _LR = 0.06
 _WEIGHT_LIMIT = 1.5
 _MIN_SETTLES = 50
 _MAE_MARGIN = 0.02
 _KILL_DEGRADATION = 0.10
+_REFLECTION_CONSOLIDATION_OWNER_NAME = "reflection.consolidation_score"
+_REFLECTION_CONSOLIDATION_SCHEMA_VERSION = 1
 
 
 def _clamp01(value: float) -> float:
@@ -153,6 +162,65 @@ class ConsolidationScoreLearner:
             abs_error_sum=self._abs_error_sum,
             baseline_abs_error_sum=self._baseline_abs_error_sum,
         )
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        state = self.export_state()
+        return OwnerPersistenceSnapshot(
+            owner_name=_REFLECTION_CONSOLIDATION_OWNER_NAME,
+            schema_version=_REFLECTION_CONSOLIDATION_SCHEMA_VERSION,
+            payload={
+                "weights": list(state.weights),
+                "settled_count": state.settled_count,
+                "abs_error_sum": state.abs_error_sum,
+                "baseline_abs_error_sum": state.baseline_abs_error_sum,
+            },
+            description=(
+                "Reflection consolidation learner snapshot "
+                f"settled={state.settled_count}"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self,
+        snapshot: OwnerPersistenceSnapshot,
+    ) -> None:
+        if snapshot.owner_name != _REFLECTION_CONSOLIDATION_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                "ConsolidationScoreLearner expected owner_name="
+                f"{_REFLECTION_CONSOLIDATION_OWNER_NAME!r}, "
+                f"got {snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _REFLECTION_CONSOLIDATION_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                "ConsolidationScoreLearner unsupported schema_version="
+                f"{snapshot.schema_version!r}; expected "
+                f"{_REFLECTION_CONSOLIDATION_SCHEMA_VERSION}"
+            )
+        try:
+            weights = snapshot.payload["weights"]
+            if not isinstance(weights, list | tuple):
+                raise HydrationPayloadInvalidError(
+                    "ConsolidationScoreLearner weights must be a list"
+                )
+            self.restore_state(
+                ConsolidationScoreLearnerState(
+                    weights=tuple(float(value) for value in weights),
+                    settled_count=int(snapshot.payload["settled_count"]),
+                    abs_error_sum=float(snapshot.payload["abs_error_sum"]),
+                    baseline_abs_error_sum=float(
+                        snapshot.payload["baseline_abs_error_sum"]
+                    ),
+                )
+            )
+        except KeyError as exc:
+            raise HydrationPayloadInvalidError(
+                "ConsolidationScoreLearner payload missing key "
+                f"{exc.args[0]!r}"
+            ) from exc
+        except (TypeError, ValueError) as exc:
+            raise HydrationPayloadInvalidError(
+                f"ConsolidationScoreLearner payload is invalid: {exc}"
+            ) from exc
 
     def restore_state(self, state: ConsolidationScoreLearnerState) -> None:
         if len(state.weights) != _FEATURE_DIM:

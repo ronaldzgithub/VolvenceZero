@@ -8,7 +8,15 @@ and re-exports the historic public API from ``volvence_zero.joint_loop.runtime``
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
+from typing import Any
 
+from volvence_zero.canonical_json import (
+    CanonicalJsonError,
+    canonical_json_bytes,
+    typed_from_json,
+    typed_to_json,
+)
 from volvence_zero.credit.gate import (
     CreditModule,
     CreditSnapshot,
@@ -59,6 +67,12 @@ from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.joint_loop.scheduling import _JointLoopSchedulingMixin
 from volvence_zero.memory import MemoryModule
 from volvence_zero.memory import MemoryStore, Track, build_default_memory_store
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
 from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.reflection import ReflectionEngine, ReflectionModule, WritebackMode
 from volvence_zero.regime import RegimeModule
@@ -86,6 +100,10 @@ from volvence_zero.temporal import (
     build_temporal_runtime_state_aggregate,
     clone_full_learned_temporal_policy,
 )
+
+
+_JOINT_LEARNING_OWNER_NAME = "joint_loop.learning"
+_JOINT_LEARNING_SCHEMA_VERSION = 1
 
 
 class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
@@ -506,7 +524,104 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 if include_runtime_replay
                 else None
             ),
+            schedule_gate_state=self._schedule_gate_learner.export_state(),
         )
+
+    def export_learning_persistence_snapshot(
+        self,
+        *,
+        include_runtime_replay: bool = False,
+    ) -> OwnerPersistenceSnapshot:
+        """Publish strict JSON state for out-of-turn archive orchestration."""
+
+        checkpoint = self.create_learning_checkpoint(
+            checkpoint_id="joint-loop:learning-archive",
+            include_runtime_replay=include_runtime_replay,
+        )
+        payload = typed_to_json(checkpoint, RareHeavyImportCheckpoint)
+        if not isinstance(payload, dict):
+            raise RuntimeError("joint-loop checkpoint codec did not produce an object")
+        return OwnerPersistenceSnapshot(
+            owner_name=_JOINT_LEARNING_OWNER_NAME,
+            schema_version=_JOINT_LEARNING_SCHEMA_VERSION,
+            payload=payload,
+            description=(
+                "Joint-loop learned state "
+                f"runtime_replay={'included' if include_runtime_replay else 'excluded'}"
+            ),
+        )
+
+    def hydrate_learning_from_persistence(
+        self,
+        snapshot: OwnerPersistenceSnapshot,
+    ) -> tuple[str, ...]:
+        """Validate and restore an owner-authored learning archive part."""
+
+        checkpoint = self._decode_learning_persistence_snapshot(snapshot)
+        return self.restore_learning_checkpoint(checkpoint)
+
+    def learning_persistence_fingerprints(
+        self,
+        snapshot: OwnerPersistenceSnapshot,
+    ) -> tuple[str, str, str]:
+        """Describe policy/temporal/memory substate inside the owner boundary."""
+
+        self._decode_learning_persistence_snapshot(snapshot)
+        payload = typed_to_json(
+            dict(snapshot.payload),
+            dict[str, Any],
+        )
+        if not isinstance(payload, dict):
+            raise RuntimeError(
+                "joint-loop persistence fingerprint codec did not produce an object"
+            )
+        policy_payload = {
+            "world": payload["world_policy_checkpoint"],
+            "self": payload["self_policy_checkpoint"],
+        }
+        temporal_payload = {
+            "world_policy": payload["world_policy_checkpoint"],
+            "self_policy": payload["self_policy_checkpoint"],
+            "world_temporal": payload["world_temporal_snapshot"],
+            "self_temporal": payload["self_temporal_snapshot"],
+        }
+        return (
+            hashlib.sha256(canonical_json_bytes(policy_payload)).hexdigest(),
+            hashlib.sha256(canonical_json_bytes(temporal_payload)).hexdigest(),
+            hashlib.sha256(
+                canonical_json_bytes(payload["memory_checkpoint"])
+            ).hexdigest(),
+        )
+
+    @staticmethod
+    def _decode_learning_persistence_snapshot(
+        snapshot: OwnerPersistenceSnapshot,
+    ) -> RareHeavyImportCheckpoint:
+        if snapshot.owner_name != _JOINT_LEARNING_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                "ETANLJointLoop expected owner_name="
+                f"{_JOINT_LEARNING_OWNER_NAME!r}, got {snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _JOINT_LEARNING_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                "ETANLJointLoop unsupported schema_version="
+                f"{snapshot.schema_version!r}; expected "
+                f"{_JOINT_LEARNING_SCHEMA_VERSION}"
+            )
+        try:
+            checkpoint = typed_from_json(
+                dict(snapshot.payload),
+                RareHeavyImportCheckpoint,
+            )
+        except CanonicalJsonError as exc:
+            raise HydrationPayloadInvalidError(
+                f"ETANLJointLoop learning payload is invalid: {exc}"
+            ) from exc
+        if not isinstance(checkpoint, RareHeavyImportCheckpoint):
+            raise HydrationPayloadInvalidError(
+                "ETANLJointLoop codec returned an unexpected checkpoint type"
+            )
+        return checkpoint
 
     def restore_learning_checkpoint(
         self, checkpoint: RareHeavyImportCheckpoint
@@ -514,6 +629,11 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         """Restore a checkpoint created by :meth:`create_learning_checkpoint`."""
 
         operations = self.rollback_rare_heavy_import(checkpoint)
+        if checkpoint.schedule_gate_state is not None:
+            self._schedule_gate_learner.restore_state(
+                checkpoint.schedule_gate_state
+            )
+            operations = operations + ("schedule-gate:restored",)
         if checkpoint.runtime_replay_report is None:
             self._world_sandbox.reset_runtime_replay_for_episode_transfer()
             self._self_sandbox.reset_runtime_replay_for_episode_transfer()

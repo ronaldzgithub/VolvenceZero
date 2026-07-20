@@ -10,6 +10,7 @@ from volvence_zero.internal_rl import CausalPolicyCheckpoint, ZRollout
 from volvence_zero.memory import MemoryStoreCheckpoint
 from volvence_zero.substrate import SubstrateOnlineFastCheckpoint, SubstrateRareHeavyCheckpoint
 from volvence_zero.temporal import MetacontrollerParameterSnapshot, MetacontrollerRuntimeState
+from volvence_zero.joint_loop.gate_learner import ScheduleGateLearnerState
 
 
 @dataclass(frozen=True)
@@ -125,6 +126,7 @@ class RareHeavyImportCheckpoint:
     pending_task_rollouts: tuple[ZRollout, ...] | None = None
     pending_relationship_rollouts: tuple[ZRollout, ...] | None = None
     runtime_replay_report: RuntimeReplayReport | None = None
+    schedule_gate_state: ScheduleGateLearnerState | None = None
 
 
 @dataclass(frozen=True)

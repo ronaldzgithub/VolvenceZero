@@ -46,6 +46,8 @@ const frame: AppFrame = {
     runtime_replay_transitions: 0,
     runtime_replay_lineage_matches: 0,
     runtime_replay_drop_reasons: [],
+    runtime_replay_pending_captures: 0,
+    runtime_replay_staged_rollouts: 0,
     verdict: "BLOCK",
     verdict_reason: "not passed",
     checkpoint_loaded: false,

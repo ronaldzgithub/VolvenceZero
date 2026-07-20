@@ -135,6 +135,8 @@ class AntStepRecord:
     runtime_replay_transitions: int
     runtime_replay_lineage_matches: int
     runtime_replay_drop_reasons: tuple[str, ...]
+    runtime_replay_pending_captures: int
+    runtime_replay_staged_rollouts: int
     heat_center: float
     heat_harmful: bool
     entered_harmful_heat: bool
@@ -213,6 +215,26 @@ class AntSession:
 
     def restore_learning_checkpoint(self, checkpoint: AgentLearningCheckpoint) -> None:
         self.runner.restore_learning_checkpoint(checkpoint)
+
+    def export_learning_checkpoint_archive(
+        self,
+        *,
+        checkpoint_id: str,
+    ) -> bytes:
+        return self.runner.export_learning_checkpoint_archive(
+            checkpoint_id=checkpoint_id,
+        )
+
+    def restore_learning_checkpoint_archive(
+        self,
+        archive: bytes,
+        *,
+        expected_state_fingerprint: str | None = None,
+    ) -> None:
+        self.runner.restore_learning_checkpoint_archive(
+            archive,
+            expected_state_fingerprint=expected_state_fingerprint,
+        )
 
     def _adapter_factory(self, user_input: str, turn_index: int) -> AntSubstrateAdapter:
         return AntSubstrateAdapter(self.holder)
@@ -342,6 +364,8 @@ class AntSession:
             runtime_replay_transitions=(replay.transition_count if replay is not None else 0),
             runtime_replay_lineage_matches=(replay.lineage_match_count if replay is not None else 0),
             runtime_replay_drop_reasons=(replay.drop_reasons if replay is not None else ()),
+            runtime_replay_pending_captures=(replay.pending_capture_count if replay is not None else 0),
+            runtime_replay_staged_rollouts=(replay.staged_rollout_count if replay is not None else 0),
             heat_center=observation.heat_center,
             heat_harmful=observation.heat_harmful,
             entered_harmful_heat=transition.entered_harmful_heat,

@@ -1,0 +1,2272 @@
+{
+  "schema_version": "cursor-authored-render.v1",
+  "family": "environment_delayed_credit",
+  "scenarios": [
+    {
+      "scenario_id": "environment_delayed_credit_01",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "这组64段合成馆藏音频上次直接转码后只有37段可播放；我想用可撤回的方式重做，签名质检要到下次会话才会发布。",
+                "旧作业处理了64段测试音频，却仅有37段通过播放检查。现在需要一次不覆盖原件的重跑，正式质检结果下个会话才到。",
+                "请保留原始64段馆藏音频；此前直接转码仅成功37段，而这次可逆处理的签名报告不会在本次会话生成。",
+                "基线是64段中37段可播放。我准备重新处理但不能改写原件，最终成败需等待下一次会话的质检单。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "先冻结清单并建立只读副本，再用8段做响度与编码试跑；样本通过后才把其余56段送入队列。队列关闭时记录动作段，但报告到达前不判断效果。",
+                "可以分三步：保存原清单、在副本上试转8段、确认后排入剩余56段。所有步骤都能撤回，动作结束也不等于质检成功。",
+                "把原件留在原位，先对8段副本做预检，随后再提交另外56段；请为这段操作保留关闭记录，下一会话前只报告执行状态。",
+                "建议以副本隔离为起点，用8段验证参数，再批量排队56段。即使任务已入队，也要等签名结果才能评价这套三步流程。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我在14:05保存了清单M-72和只读副本；8段试跑全部通过，56段于14:40被队列接收，系统返回动作段关闭记录C-14，但还没有播放质检结果。",
+                "清单与副本已在14:05固定，8个样本没有报错，剩余56个任务14:40入队。C-14只确认这次操作结束，质检仍为空。",
+                "执行记录显示：14:05完成M-72副本，8段样本通过，14:40提交其余56段；关闭凭据是C-14，目前看不到任何最终成败。",
+                "三步都已执行并由C-14结束记录覆盖：先保存副本，再验证8段，最后排队56段。队列仅回了接收状态，尚未给出播放检查。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "C-14证明动作边界已经形成，不是结果凭证。先记录本轮预测为64段中50段可播放、14段失败；以后到达的质检应回连这一关闭段，而不是回连查询动作。",
+                "目前能确认的是流程执行完毕。把预期固定为50段通过和14段未通过，待外部报告到达后再用它计算偏差并关联C-14。",
+                "请将队列接收与播放成功分开：前者已发生，后者仍未知。当前预测是50/64通过，后续结果应针对这次已关闭操作更新。",
+                "动作段虽已关闭，outcome仍未出现；可先保存50段成功的明确预测，之后由实际质检与该预测的差异触发结算。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "档案技师说今晚会独立修复12段源文件的损坏头信息；他还没给出对象清单或完成时间，这项改动可能与转码队列重叠。",
+                "另有一条外部路径：技师计划在今晚改写12个损坏的源头信息，但哪些音频被改、何时改完都还未知。",
+                "我刚得知档案侧可能修复12段原始头信息。现在没有逐段名单和时间戳，因此修复与本次队列可能同时影响结果。",
+                "今晚可能发生一项不属于三步流程的操作——技师处理12段损坏头。其范围尚未确认，也可能赶在质检前完成。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "这项源文件修复必须单独保留，不能被三步流程吸收。请索取逐段对象和时间戳；缺少它们时，后续完成数只能做混合归因。",
+                "技师操作是独立混杂因素。只有拿到修复名单与发生时间，才能区分哪些通过可能来自源头变化，当前不应预分全部功劳。",
+                "先把外部修复登记为未知范围的并行变化，并等待其对象级记录。若质检先到而清单未到，信用结论必须保持不确定。",
+                "不要把12段修复视作流程内部步骤；它有自己的来源与时间线。最终报告需要和技师记录对齐后再讨论贡献。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我想预先分开三项结果：可播放数量、失败原因是否可追踪、原文件是否保持未改；另外，明天下载报告的动作不能获得今晚处理的功劳。",
+                "请按播放通过、错误可见性和原件保护分别判断。以后打开质检单只是看到结果，不该被当成产生结果的动作。",
+                "结算时不要只看一个完成率；还要看失败原因是否留下、只读原件是否完好，并排除最近一次报告查询的归因。",
+                "我需要三个独立维度：播放成功、可诊断失败、原件不被覆盖。明日取报告只是取证，不是今晚转码的原因。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "判断规则固定为逐维比较，并保留技师修复这一外部因素。签名outcome到达后，先由实际值与50/64预测形成PE，再从该PE向C-14结算；报告下载不进入行动信用。",
+                "可以按三项指标分别记录实际与预期差异。信用来源应是后续PE及其对应的已关闭动作段，而不是质检页面或任何只读评分。",
+                "明天先核对通过数、失败谱和原件哈希，再把偏差连接到C-14；技师清单未齐时只做暂定分配，查看报告本身保持零功劳。",
+                "预先约定：结果证据只更新原动作段的预测误差，评价摘要仅用于描述，不作为学习信号。三个维度都不能被一次总体判断替代。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "次日08:50签名质检发布：64段中54段可播放，10段失败；失败里6段是头信息问题，4段是校验和不一致，这是队列首次给出的最终结果。",
+                "正式报告刚到，记录为54个通过、10个未通过；六个失败指向文件头，另外四个指向校验和，之前只有接收状态。",
+                "质检单在08:50完成签名。它确认64段里54段通过播放检查，剩余10段由6个头错误和4个校验错误组成。",
+                "延迟outcome现已出现：通过数54，失败数10，其中头信息故障6、校验和故障4；这是首次可用于结算的完成证据。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "实际54段比先前50段预测多4段，形成正向偏差，同时10个失败仍需解释。这个PE应携带C-14的行动上下文，但不能据此宣称三步流程单独造成全部提升。",
+                "报告把开放结果关闭为54/64；相对预测是多通过4段、少失败4段。先将偏差回连原关闭段，再等待技师记录拆分来源。",
+                "现在可以更新预测误差，而不是奖励本次对话：54对50显示好于预期，六类头问题与四个校验问题则保留为未解决证据。",
+                "签名结果支持一次正向PE结算到C-14。由于并行源修复尚未对齐，当前只能说结果优于预测，不能把因果份额全部给转码方案。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "技师随后交付了对象清单：他在昨天19:10修复12段，其中9段通过，3段仍因头格式失败；4段校验和失败都不在这12段里。",
+                "外部修复记录现已齐全。12段在19:10被处理，九段最终可播放、三段仍报头错误，而四个校验和问题没有被技师触碰。",
+                "逐段对齐显示，技师改过的12段中9段成功、3段失败；操作时间是昨晚19:10，校验和失败的4段属于另一组。",
+                "补到的时间戳和清单表明：外部路径覆盖12段并带来9个通过，另有3个头故障未消除；四个校验失败与这次修复无交集。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "9个通过与技师修复在对象和时间上重叠，因此总完成数的信用是混合的。三步流程可较强获得隔离、留痕和完整失败谱的过程信用，播放提升只能部分结算。",
+                "对象级证据把九段成功同时连接到外部修复，不能再把它们全算给转码。可追踪失败与原件保护仍直接来自隔离流程。",
+                "现在应拆开结论：完成率由队列处理和源头修复共同解释；错误可见性有清晰流程证据；对单独转码效果仍保留未知份额。",
+                "这份清单降低了三步方案对54个通过的权重，却不否定其可逆和诊断价值。信用要按结果维度分配，而不是选一个总赢家。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我在08:52才下载并打开这份报告；那时转码和技师修复都已经结束，下载没有更改任何音频。",
+                "查看动作发生在08:52，晚于全部处理。它只把已有质检呈现给我，没有触碰文件或队列。",
+                "时间线还需注明：报告完成后两分钟我才取回它，下载过程不包含写入，也没有重新运行作业。",
+                "最近的动作只是08:52打开质检单；实际音频结果此前已经生成，页面访问没有环境状态变化。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "下载仅让outcome可见，不是产生outcome的行动。信用链应回到C-14覆盖的三步操作和19:10外部修复，08:52查询保持零分配。",
+                "时间顺序排除了报告访问的因果作用；它可以作为证据到达点，却不能承接前一晚的PE信用。",
+                "最近发生不等于造成结果。请保留08:52为观察时间，并把结算对象限定在此前真实改变环境的动作。",
+                "这次页面访问没有状态增量，因此不进入信用记录；它只触发对已有签名结果的读取和更新。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "还有一组旧音频使用原流程时是41/64通过，但那组高压缩编码有28段，本组只有11段；两组来自同一套合成馆藏。",
+                "可参考的历史批次通过率为41除以64，不过旧批次包含28个高压缩文件，而当前批次只有11个，来源库相同。",
+                "我找到一个旧流程对照：同样64段、通过41段；它和本组共享合成馆藏来源，但高压缩内容的比例明显更高。",
+                "历史数据给出41/64的旧流程结果。需要注意，旧组有28段高压缩编码，本组仅11段，所以并非匹配反事实。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "41/64说明旧流程下也可能出现较低通过率，但编码构成差异会影响难度。它只能增强组合方案值得继续测试的判断，不能把13段差值当作净效应。",
+                "历史批次提供方向性比较而非干净对照；高压缩比例不同使全部差值无法归因。当前信用仍应保持部分且带混杂标记。",
+                "共享来源不足以消除编码差异。可陈述新批次观察到54/64、旧批次41/64，同时明确这不是同质条件下的因果比较。",
+                "这个反事实有用但不完整：旧组更难的可能性仍在。不要用两组相减来扩张C-14的功劳。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我修正6段头信息后，在10:15只重跑那10个失败项；11:05的新报告显示6段恢复、4段校验和仍失败，这次没有技师或其他人并行改文件。",
+                "针对失败组的第二次作业已结束：六个头错误修正后通过，四个校验问题原样失败。10:15到11:05期间没有外部文件改动。",
+                "这次仅处理原来的10个失败项，先修好6个头再重跑；结果为6成功、4失败，并且观察窗口内不存在技师介入。",
+                "独立重跑从10:15开始，11:05签名为6/10恢复；未恢复的仍是四个校验和错误，期间没有并行动作。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "六个头修正与六个恢复在对象、顺序和无并行变化上对齐，因而可获得较强的窄范围信用。四个持续失败则限制结论，不能反推首轮54段都由同一机制完成。",
+                "第二轮的证据链比首轮干净：修正的六段全部通过，未修的校验组全部失败。它支持头修复有效，却不证明整个三步流程的总效应。",
+                "可以把本轮六次恢复归到明确修正，并把四次失败留给尚未解决的校验问题；首轮混合归因不因此被重写。",
+                "无外部改动提高了这次局部结论的可信度。信用只覆盖六个已修对象，不扩展到其他音频或全部完成率。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "重跑前记录的预测是10段中8段恢复，因为预计自动重试还能救回2段校验错误；实际只有6段，动作段关闭记录是C-22。",
+                "C-22对应本次重跑，预期值原本为8/10成功；报告只给出6/10，差的两段来自没有实现的校验自动恢复。",
+                "我在操作前写下八段可恢复的预测，并在C-22处结束该动作；最终少了两段，四个校验问题一个也没恢复。",
+                "第二轮并非完全符合预期：计划判断会恢复8个，实际恢复6个。该预测和结果都能回连关闭凭据C-22。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "实际比预测少2段，形成与C-22绑定的负向PE；它应降低对自动重试的信用，而不是抵消六个头修正的直接成功证据。",
+                "这次短缺明确更新了校验重试假设：预期8、实际6。PE可分别保留头修正成功与自动恢复失败，避免用一个总分抹平。",
+                "将两段落差结算到C-22中的重试部分，并给六段确定恢复保留正向证据；不需要从评价指标反向制造奖励。",
+                "C-22得到一个混合结果：头修复吻合，校验重试低于预测。信用分配应从这组PE派生，而非从最终报告的好看程度决定。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我还把4段校验失败的副本同时送进旧配置，旧配置和新重试路径都得到4个失败；样本很小，但对象完全相同。",
+                "四个校验文件做了配对比较：每个副本分别走旧参数和当前重试，两个路径都没有成功，只有四对观测。",
+                "可用的反事实是同一批4段副本；旧流程失败4段，新路径也失败4段。数量有限，却没有内容构成差异。",
+                "我保留了匹配副本作为小型对照，结果是旧配置0/4通过、新配置同样0/4通过。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "这四对结果没有显示新重试优于旧配置；小样本不能证明两者永远等效，但足以阻止给重试路径虚构正向功劳。",
+                "匹配对象让比较很直接，当前观测是两个路径都失败。对自动重试的信用应保持低或为零，同时记录样本只有四段。",
+                "这个反事实缩小了不确定性：至少在四个已知校验问题上，新路径未改变结果。不能据此推广到其他错误类型。",
+                "配对失败支持保留负向PE，不支持宣称重试有效；由于样本有限，结论应限定在这四段。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "请把整个轨迹结清：要分开首轮播放提升、失败可见性、原件保护、第二轮头修复和未奏效的校验重试，并保留技师修复与批次差异。",
+                "我需要最终信用说明，覆盖首轮混合结果和第二轮局部结果；诊断留痕、只读保护、外部技师以及历史批次不匹配都不能遗漏。",
+                "现在请结束开放环路，但不要给单一总分。分别说明54/64、错误追踪、原件未改、6段恢复和4段持续失败。",
+                "结算时请同时保留成功、失败和未知：首轮有并行修复，第二轮头修正有效，校验重试没有观察到收益，旧批次也不是干净对照。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "最终结算为：C-14对隔离、原件保护和失败谱获得较强过程信用，对54/64只获部分信用并与技师修复共享；C-22给头修正较强信用，给校验重试负向信用。报告查询为零，批次差异与未观测反事实继续标记不确定。",
+                "首轮的完成提升只能暂定归到组合动作，因9段成功与外部修复重叠；可诊断性和不覆盖原件证据更直接。第二轮确认六个头修正成功，同时否定了这四段上的重试收益。",
+                "开放环路可以按维度关闭：保护与留痕证据强，首轮播放归因混合，第二轮头修复证据强，校验自动恢复低于预期。所有信用均来自对应PE并回连原关闭段。",
+                "不要形成整套流程已被证明的结论。保留C-14的部分正向结算、C-22的正负拆分、技师与编码构成混杂，并把下一轮重点放在更多匹配校验样本。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_02",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "At baseline, fictional roof bed North held 26 percent moisture with a 31.8-degree canopy reading; bed South held 27 percent at 31.5 degrees. The signed plant report will not arrive until day five.",
+                "The two synthetic beds start nearly alike: North is at 26 percent moisture and 31.8 degrees, while South is at 27 percent and 31.5 degrees. Their outcome certificate is due on day five.",
+                "Day zero records show North at 26 percent soil moisture with canopy temperature 31.8, and South at 27 percent with temperature 31.5. No certified plant-state result is available before the fifth day.",
+                "Please use these starting measurements: North 26 percent and 31.8 degrees; South 27 percent and 31.5 degrees. We must wait five days for the signed environment reading."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Increase only North's dawn pulse from five to seven minutes and leave South at five. Preserve both baselines and a reversible valve setting; completion cannot be claimed before the later plant measurements.",
+                "Use South as an imperfect unchanged comparison while North receives a seven-minute rather than five-minute morning pulse. Log the reversible action now and reserve judgment for day five.",
+                "A bounded test would add two minutes to North's dawn watering, retain South's schedule, and keep the original controller profile restorable. Valve delivery is not yet a plant outcome.",
+                "Change North to seven minutes at dawn without altering South's five-minute pulse. Store the day-zero readings and avoid describing any benefit until the signed report exists."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The controller applied the North setting at 05:40 on day one, delivered both scheduled pulses, and issued closure receipt R-C31. That receipt contains valve events but no moisture or canopy outcome.",
+                "Day one's log confirms seven minutes for North and five for South at 05:40. The action segment ended under R-C31, although plant state remains unmeasured.",
+                "Both valves ran at 05:40, with the two-minute increase limited to North. R-C31 marks the operation as closed; it does not include a later biological result.",
+                "I have an execution record, R-C31: North received seven minutes, South five, on the first morning. Nothing in it says whether either bed improved."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Treat R-C31 as the action boundary, not as success evidence. Record a prediction that North will gain three more moisture points and cool one degree more than South by the signed reading.",
+                "The intervention is observed while its consequence is still open. Fix the expected between-bed difference at plus three moisture points and one additional degree of cooling, then compare later evidence to it.",
+                "We can preserve a pre-outcome forecast: relative to South, North should retain three extra moisture points and show one degree more canopy cooling. The report must update that forecast through R-C31.",
+                "Close only the operational segment today. Its explicit prediction is a three-point moisture advantage and a one-degree cooling advantage for North; actual plant state remains unknown."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "A facilities crew may install shade mesh over North on day two because of a separate heat-control project. The schedule is uncertain, and South is not included in that project.",
+                "There is a possible independent change: North alone may receive shade cloth tomorrow. Facilities has not confirmed its time or whether the installation will happen.",
+                "The heat team has proposed mesh for the North bed, outside this irrigation test; South would remain uncovered. I do not yet have an installation receipt.",
+                "North could be shaded by another crew on day two, while South would not be. That external action is still pending and could overlap the watering interval."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Keep the possible shade installation as a separate causal path. If it occurs, its timestamp and light reduction must accompany the plant report, and irrigation credit will remain shared or uncertain.",
+                "Shade could change canopy temperature and moisture independently of the longer pulse. Obtain an installation record rather than folding that project into R-C31.",
+                "The one-bed shade change would weaken the comparison unless its exposure is measured. Preserve it as a confounder and do not preassign North's later difference to watering.",
+                "Facilities work needs its own provenance. Until we know whether and when North was covered, the irrigation effect cannot be isolated."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Before seeing the data, I want moisture retention and canopy cooling settled separately. Rain, shade, and valve delivery must remain visible, and the eventual status query should receive no action credit.",
+                "Please precommit to two outcomes—soil moisture and canopy temperature—while retaining weather, mesh, and delivery logs. Opening the day-five report must not be treated as causing plant change.",
+                "The decision rule should compare each bed's change in moisture and heat, not collapse them. It also needs to distinguish environmental factors from the later act of retrieving results.",
+                "I want separate moisture and temperature conclusions, with rain and shade treated as alternatives. A final report request will only reveal evidence, not earn the earlier irrigation credit."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Compare within-bed changes first, then the difference between beds for each measure. Once signed outcomes arrive, derive PE against the fixed forecast and attach settlement to R-C31; keep report retrieval and readout scores outside the learning source.",
+                "The analysis will preserve two dimensions and all observed exposures. Credit can only follow the later prediction mismatch back to the closed action, never the most recent query.",
+                "Use the stated three-point and one-degree predictions as anchors. Weather and shade will reduce confidence where relevant, while a report-view event remains observational only.",
+                "We will update moisture and cooling independently from signed evidence, retaining rain, mesh, and missed delivery. Any credit record must descend from PE linked to R-C31."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "On day three, facilities installed mesh over North at 11:10, and the weather station recorded two millimeters of rain across both beds. The laboratory still marks the plant report as pending.",
+                "The external changes are now documented: North was covered at 11:10 on day three, and both beds received two millimeters of measured rain. Certified plant state has not arrived.",
+                "North gained shade mesh on the third day, while a shared rain event delivered two millimeters to North and South. The outcome file remains open.",
+                "Facilities completed the North-only mesh at 11:10, and the same station logged two millimeters of rain for both plots. There is still no signed moisture or canopy result."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The shared rain can move both beds, while the North-only mesh can change their difference. Neither event is part of R-C31, so any later improvement will have multiple plausible contributors.",
+                "Two distinct confounders are now observed: common rainfall and asymmetric shade. Keep the outcome unresolved and preserve both timestamps for later PE interpretation.",
+                "Rain weakens a simple before-after claim, and mesh weakens the North-versus-South contrast. We still have exposure evidence rather than a plant result.",
+                "The causal picture now includes irrigation, shared weather, and a North-specific cover. No component should receive outcome credit before the certified readings."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Controller logs show every scheduled pulse was delivered except North's day-four pulse, which stopped after one minute. South completed all five-minute pulses, and no plant value appears in these logs.",
+                "North received the longer schedule on the other mornings but had a one-minute interruption on day four. South's deliveries were complete; the controller still reports actions only.",
+                "One delivery failure is now visible: North's fourth-day watering ended at minute one. All South pulses and North's remaining pulses completed, without any biological measurement.",
+                "The valve record is imperfect for North because day four aborted after one minute; South never missed a pulse. These are exposure facts, not outcome readings."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The intervention was not delivered uniformly, so final irrigation credit must reflect the missed pulse. The failure strengthens the action record's precision but does not reveal whether the plants benefited.",
+                "North's cumulative dose is lower than planned. Retain that deviation when comparing actual state with the original forecast rather than silently treating exposure as complete.",
+                "A one-minute day-four pulse is a negative execution event within the earlier segment. It may reduce the expected effect, while the plant outcome remains open.",
+                "The delivery log now contains both successful pulses and one failure. That mixed exposure should lower confidence in any simple irrigation attribution."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "A gardener said North looked cooler yesterday, but supplied no photograph, instrument reading, or exact observation time. South was not inspected at the same moment.",
+                "There is an informal impression that North was cooler; it lacks a timestamp and measured value, and no simultaneous South observation exists.",
+                "One person verbally described North as cooler, without attaching a sensor record or matched view of South. The scheduled report is still pending.",
+                "The only interim plant comment is an unmeasured, untimed observation of North. It has no paired check for the comparison bed."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That anecdote cannot replace the planned measurement or close the outcome. Without a paired, timestamped reading, shade, observer variation, and irrigation remain inseparable.",
+                "Use the comment only as a question for later verification. It is not sufficient evidence for PE settlement and does not justify early credit.",
+                "The observation lacks the provenance needed to update plant state. Wait for the signed two-bed report rather than converting an impression into a result.",
+                "No matched measurement means no defensible outcome update. Keep the segment open to external evidence despite the informal report."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "The laboratory delayed release by one day for a calibration review, so day five now has no final report. The valve segment remains closed, and the new due time is day six at 16:00.",
+                "Calibration review moved the signed report from day five to day six, 16:00. R-C31 is unchanged, but its environment outcome is still absent.",
+                "We have a late-evidence event rather than a plant result: the lab extended its deadline by twenty-four hours to check calibration.",
+                "The expected outcome did not arrive on day five. It is rescheduled for 16:00 tomorrow while the original action closure remains on record."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "A delayed report does not create a new action segment or move credit to today's exchange. Maintain the open outcome and reuse R-C31 when certified evidence finally arrives.",
+                "Keep waiting rather than treating the missed deadline as plant failure. The closure identifies the earlier action; the laboratory delay only changes evidence availability.",
+                "The timeline should record late evidence explicitly. No moisture or cooling PE can be settled from a postponed certificate.",
+                "Preserve the original prediction and action lineage through the extra day. The latest status message receives neither success nor failure credit."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The signed day-six report arrived at 16:00: North measured 34 percent moisture and 28.6 degrees, while South measured 31 percent and 30.1 degrees.",
+                "Certified plant state is now available. North ended at 34 percent soil moisture with a 28.6-degree canopy; South ended at 31 percent and 30.1 degrees.",
+                "At the delayed release time, the laboratory signed readings of 34 percent and 28.6 degrees for North, versus 31 percent and 30.1 for South.",
+                "The outcome finally arrived on day six: North is 34 percent moisture at 28.6 degrees; South is 31 percent at 30.1 degrees."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "From baseline, North gained eight moisture points and cooled 3.2 degrees; South gained four points and cooled 1.4 degrees. The relative advantages are four points and 1.8 degrees, both above the fixed forecast, but they remain confounded.",
+                "North improved more on both measures: its extra change over South is four moisture points and 1.8 degrees of cooling. That exceeds the three-point and one-degree prediction without identifying irrigation as the sole cause.",
+                "The signed result yields positive prediction mismatches of one moisture point and 0.8 degrees beyond forecast. Those values can update R-C31, subject to mesh, rain, and delivery evidence.",
+                "Observed deltas favor North, with an additional four points of moisture and 1.8 degrees of cooling relative to South. This is a positive PE, not proof of a single-action effect."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The same report passed both sensor calibrations, measured an 18 percent light reduction under North's mesh, confirmed the shared two-millimeter rain, and retained the day-four missed pulse.",
+                "Calibration checks succeeded. The certificate also quantifies North's shade at 18 percent less light, repeats the common rainfall, and notes its interrupted fourth-day watering.",
+                "Additional signed fields show valid sensors, identical recorded rain, an 18 percent mesh exposure only for North, and one incomplete North pulse.",
+                "The laboratory ruled out a calibration fault but documented three exposures: common rain, North-only light reduction of 18 percent, and North's missed day-four pulse."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Passed calibration removes one alternative explanation. Shared rain can explain common improvement, while mesh can explain part of North's extra cooling and moisture; the missed pulse works in the opposite direction.",
+                "The evidence is mixed rather than clean: rain affects both beds, shade favors North, and incomplete watering weakens the planned irrigation dose. Credit must remain distributed.",
+                "Sensor validity strengthens the outcome itself, not irrigation exclusivity. North's difference plausibly combines the longer pulses with mesh, against one delivery failure.",
+                "We can trust the measurements while still being uncertain about cause. The signed exposure fields prevent the positive PE from being assigned wholly to R-C31's irrigation change."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "A historical North-bed week without extra irrigation or mesh gained only two moisture points and cooled 0.5 degrees, but it occurred in a different month with no recorded rain.",
+                "The nearest prior reference for North shows plus two moisture points and minus 0.5 degrees under the old pulse, with neither shade nor rain; the season was different.",
+                "I found an older North observation: no mesh, five-minute watering, a two-point moisture rise, and half a degree of cooling. It is from another month and lacks rainfall comparability.",
+                "An earlier period gives a rough counterfactual—North changed by two moisture points and 0.5 degrees without either intervention—but timing and weather do not match this run."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The historical week suggests this run's change is unusual, yet month and rainfall differences prevent a clean causal contrast. It supports further testing rather than exclusive credit.",
+                "Use that record as context, not as an untreated twin. Its seasonal and weather mismatch leaves both irrigation and mesh contributions unresolved.",
+                "The older North outcome narrows the plausible baseline only weakly. It cannot separate today's two interventions or quantify the shared rain effect.",
+                "A nonconcurrent reference is better than no reference but remains an imperfect counterfactual. Do not turn the larger current delta into a precise irrigation estimate."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Please close this run across moisture, cooling, the missed pulse, rain, and shade. Keep the late report tied to R-C31, state the counterfactual limit, and do not reward the retrieval message.",
+                "I need final attribution with both positive measures and all competing exposures. The action closed on day one, the evidence arrived on day six, and the historical week is not a matched control.",
+                "Settle the delayed outcome without choosing a single cause: include North's relative gains, its delivery failure, shared rain, mesh, and the weak prior-period comparison.",
+                "Please finish the credit account for the earlier irrigation segment. It must preserve uncertainty from shade and weather and exclude the final status query."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Close R-C31 with positive PE for a one-point moisture and 0.8-degree cooling excess over forecast. Give the irrigation change moderate provisional credit, share substantial uncertainty with North's mesh, treat rain as common influence, and retain the missed pulse and historical mismatch; report retrieval gets none.",
+                "The outcome supports partial irrigation credit on both dimensions, not exclusive credit. Shade is a strong alternative for North's advantage, rain explains shared movement, and the failed pulse reduces exposure confidence; all settlement derives from PE linked to the original closure.",
+                "Final status: moisture and cooling improved more than predicted, but irrigation and shade cannot be separated. R-C31 receives bounded, distributed credit, the day-six query remains observational, and a future crossover of mesh and pulse is needed.",
+                "Settle the earlier segment rather than the latest conversation: positive mismatch is real, sensor evidence is sound, and causation remains mixed. A randomized schedule swap with balanced shade would supply the missing counterfactual next time."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_03",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "上周双语发布组完成48份说明，其中11份被退回修改；median turnaround was 19 hours. 新一周的签名质量报告要到下周一才生成。",
+                "Our bilingual release baseline is 48 completed briefs, 11 reworks, and a 19-hour median. 最终结果不会在本周工作结束前确认。",
+                "请记录旧周期：48个release notes完成、11个返工，周转中位数19小时；the next certified outcome arrives one week later.",
+                "Last week closed 48 localization briefs with 11 returns and a median of 19 hours. 这周是否改善，要等下一会话的周报。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "建议一周内采用三项可撤回安排：morning scope lock、跨语言同伴复核、每日未决清单。先保存旧基线，报告到达前只确认采用情况。",
+                "Use a morning scope freeze, a bilingual peer pass, and an end-of-day open-item list. 三项一起启动会限制单项归因，所以现在不能预告成功。",
+                "可以先锁定当日范围，再做cross-language review，最后更新 unresolved ledger；这些是行动，不是返工已经下降的证据。",
+                "The reversible recommendation combines scope locking, peer review, and daily issue carryover. 请在一周结果出现之前保持效果未知。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "周一09:00三项安排同时启用，系统在D-08记录了plan segment closure；the first briefs have not completed the seven-day rework window.",
+                "All three practices started Monday at 09:00 and the action closed under D-08. 目前没有任何说明走完整个返工观察期。",
+                "D-08覆盖本周计划的同步启动：范围锁定、同伴复核和未决清单均已上线；no mature quality outcome exists yet.",
+                "我有周一09:00的执行与closure记录D-08，但 seven-day QA window remains open，暂时只有采用证据。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "D-08界定了早先行动，不代表效果。Because the three practices began together, a later result can update the bundle but cannot identify a component winner.",
+                "目前只能确认combined plan已执行；一周后的outcome应回连D-08，不能回连届时的查询，也不能拆出未经观察的单项贡献。",
+                "The segment is closed while the consequence is open. 同步启动意味着后续信用先落在组合层，并保留每项份额未知。",
+                "请把Monday action time与later evidence分开保存；D-08 will anchor delayed PE, but it does not certify lower rework."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "产品团队预告本周会冻结两个小版本，因此incoming workload可能比上周少；final count and complexity mix are still unknown.",
+                "A product freeze may reduce the number of localization briefs this week. 现在还不知道少多少，也不知道多市场任务占比。",
+                "本周另有独立变化：两个版本暂停发布，可能让队列变小；the final workload and case mix have not been measured.",
+                "Because two minor releases are paused, fewer briefs may arrive than the prior 48. 这会成为流程之外的潜在解释。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "工作量和复杂度必须作为competing explanations保留。最终要比较返工率和匹配难度，不可只比较退回的绝对数量。",
+                "A smaller queue can lower rework even without a plan effect. 请让周报同时提供分母、多市场占比和采用范围。",
+                "不要把产品冻结并入D-08；it is an external exposure that may change both attention per brief and quality.",
+                "Use rates rather than raw counts, then stratify by complexity. 若工作量显著下降，组合信用需要相应收缩。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我想在数据到达前固定预测：rework rate 15 percent，median turnaround 18 hours；返工和速度要分别结算。",
+                "Before seeing outcomes, set the forecast at 15% returns and an 18-hour median. 请不要用一个指标替代另一个。",
+                "先记录两个预期值：返工率15%、周转18小时；quality and speed may move in different directions.",
+                "My precommitted expectation is 15 percent rework with 18-hour turnaround. 后续PE需要按这两个维度拆开。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "预测已固定。The signed report will compare actual rework and time against those values, while workload and complexity remain confidence limits.",
+                "可以分别形成quality PE和speed PE，再把它们连接D-08；评价汇总只描述结果，不充当学习来源。",
+                "Keep 15% and 18 hours unchanged until evidence arrives. 产品冻结若发生，只影响归因强度，不重写预先预测。",
+                "Two-dimensional settlement is appropriate: actual-minus-forecast drives PE, and any credit remains bounded by the smaller workload."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "周报会包含每份说明的复杂度、三项采用记录、最终返工和周转时间；it will not contain a randomized holdout.",
+                "The planned certificate has adoption, case mix, rework, and elapsed time fields. 但没有同期随机保留旧流程的组。",
+                "我能拿到逐项执行和结果字段，却没有random assignment；the nearest comparison is last week's baseline.",
+                "Evidence coverage should be broad, but the report lacks an untreated cohort. 它只能连接时间线，不能制造反事实。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "这些字段足以核对行动与延迟outcome，但不能消除选择和周次差异。Until Monday, only adoption may be stated as observed.",
+                "The absence of a holdout caps causal strength. 先让D-08保持开放到外部结果，别把执行日志写成质量收益。",
+                "逐份记录能改善追踪，却不会自动隔离三项实践。Current status is implemented, not effective.",
+                "Preserve the missing counterfactual explicitly; 下周报告可以更新组合判断，但不能补出未运行的旧流程结果。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "现在是周四，仅有14份说明完成初稿；the rework window is still open, and no signed weekly count exists.",
+                "Midweek progress shows 14 drafts, but QA has not matured. 当前数字不能说明一周后的返工结果。",
+                "截至周四处理了14份，质量观察仍在继续；there is no final denominator or return count yet.",
+                "The queue has produced fourteen drafts so far. 签名周报未到，因此只能视作进度。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "十四份是throughput evidence，不是延迟质量outcome。继续等待完整窗口和最终分母。",
+                "Do not close D-08 from a midweek count. 返工率与周转时间仍然未知。",
+                "当前可确认产出发生，但不能确认返工下降；the precommitted predictions remain unsettled.",
+                "Progress and effect are different states. 请等所有已纳入说明完成同一观察窗口。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "14份中12份做了scope lock，9份完成跨语言复核；five urgent briefs skipped peer review, so adoption is uneven.",
+                "Adoption differs by practice: scope was locked for 12, peer review covered 9, and five urgent items had no peer pass.",
+                "范围锁定覆盖12份，但同伴复核仅覆盖9份；the five skipped briefs were selected for urgency rather than randomly.",
+                "执行日志不是全覆盖：12/14锁定范围、9/14做复核，其余五份因紧急而跳过peer review。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "采用差异需要保留，尤其urgency同时影响是否复核和返工风险。Later reviewed-versus-unreviewed comparisons will be selected, not causal.",
+                "The practices were not delivered uniformly. 紧急任务跳过复核会让简单组间比较产生选择偏差。",
+                "记录每份实际暴露，而不要把D-08当成全量执行；component credit will remain uncertain.",
+                "Uneven uptake helps explain later evidence but does not isolate effects. 请把紧急程度与复核状态同时带入报告。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "本周同期只进入18份新说明，上周同期是32份；the product freeze has clearly reduced workload, while final complexity is unknown.",
+                "Incoming volume is 18 rather than the prior-week 32 at the same point. 产品冻结造成的队列缩小已经可观察。",
+                "工作量混杂已出现：同期从32份降到18份；we still lack the completed multi-market mix.",
+                "The queue is fourteen briefs smaller than last week's comparable checkpoint. 复杂度审计尚未结束。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "较小工作量可能让每份说明获得更多注意力，因此later quality improvement cannot be credited wholly to the plan.",
+                "Workload reduction is now a confirmed confounder. 最终结算必须比较比例，并保留每人负荷变化。",
+                "产品冻结提供独立解释，不能被三项安排吸收；case complexity stays unknown until signed.",
+                "The lower queue size changes the environment in which D-08 ran. 即便返工下降，也只能做部分归因。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "已有2份在初审后被退回，其中一份做过peer review，另一份没有；their seven-day windows are not yet complete.",
+                "Two early failures are visible—one reviewed brief and one unreviewed brief. 完整周报仍可能出现更多返工。",
+                "中途结果不是全好：14份里已有两份返修，分别来自复核组和跳过组；the cohort remains immature.",
+                "We have one return on each side of the peer-review split so far. 这只是早期事件，不是最终比率。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "这两次失败应保留，避免只收集成功迹象。They are too early and sparse to estimate either group's effect.",
+                "Early returns are valid process outcomes but cannot settle the weekly prediction. 等观察窗口关闭后再形成PE。",
+                "One failure per group does not identify equivalence or benefit. 当前最诚实的状态仍是结果未完成。",
+                "Record both negative events with their exposures, but do not extrapolate. D-08 remains awaiting the certified cohort."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "目前只有2次退回，少于上周11次；can I already say the recommendation worked despite the smaller unfinished cohort?",
+                "The raw return count looks lower than eleven, but this week is smaller and incomplete. 我现在能否宣布有效？",
+                "我担心把2和11直接比较会过度解读；the current denominator and observation time do not match baseline.",
+                "Could the apparent drop from eleven returns to two close the result now? 本周样本尚未成熟且工作量更低。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "不能。The two counts have different denominators and exposure windows, so no weekly success claim is supported yet.",
+                "Wait for the signed report. 当前只可陈述两次早期返工和较小队列，不可把缺失的未来事件当成零。",
+                "A partial cohort creates right-censoring as well as workload confounding. 继续保持outcome开放。",
+                "现在结算会把尚未到达的失败误算为不存在；keep the forecast unchanged until Monday."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "签名周报到了：本周完成28份，其中3份返工；last week was 48 completed with 11 reworks.",
+                "The certified outcome is 3 returns among 28 briefs, compared with 11 among 48 in the baseline. 报告现在覆盖完整窗口。",
+                "一周结果已关闭，当前返工率来自3/28，旧周期是11/48；these are final counts for their respective weeks.",
+                "Monday's report lists twenty-eight completed briefs and three reworks. 上周对应数据为48和11。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "返工率从约22.9%降到10.7%，也低于预先预测的15%；this creates positive quality PE, but the 20-brief workload drop limits attribution.",
+                "Observed quality is better than both baseline and forecast. 然而队列更小，所以这只是组合方案之后的改善证据，不是单独因果证明。",
+                "The signed rate beats the 15 percent prediction by about 4.3 points. 请把这项PE回连D-08，同时保留产品冻结。",
+                "质量维度出现正向落差：3/28优于预期。Causal credit remains partial because volume changed substantially."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "本周只有5份多市场高复杂说明，上周有14份；all three current reworks came from that complex subset.",
+                "Case mix also changed: complex briefs fell from fourteen to five, and the five produced all three returns this week.",
+                "复杂度构成明显变轻，multi-market items从14降到5；本周返工全部集中在这5份里。",
+                "The report shows fewer difficult cases—five versus fourteen—and every current failure belongs to those five. 这会影响总比率。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "复杂任务占比下降可以解释一部分总返工率改善。The concentration of failures makes case mix a major confounder, so quality credit must shrink.",
+                "The overall contrast is not severity-matched. 三项安排仍可能有帮助，但不能获得全部4.3点预测优势。",
+                "较轻的组合与较小的队列同时存在；retain both as alternatives when settling D-08.",
+                "All observed failures being complex shows why aggregate rates are insufficient. 先做难度分层，再保持部分归因。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "20份完成peer review的说明里1份返工，8份未复核说明里2份返工；urgent work was more likely to skip review.",
+                "Reviewed briefs show 1 return out of 20, while the unreviewed set shows 2 out of 8. 但复核分配由紧急程度决定。",
+                "组间数字是1/20对2/8；the higher-risk urgent items were selected into the no-review group rather than randomized.",
+                "Peer coverage correlates with fewer returns, yet nonreviewed briefs were disproportionately urgent. 两组不是可交换的。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The association supports peer review as a hypothesis, not an isolated effect. 紧急程度同时影响暴露与失败，造成选择偏差。",
+                "1/20 versus 2/8 is informative but confounded. 不能从该比例挑出同伴复核作为唯一赢家。",
+                "复核组观察结果更好，yet assignment was nonrandom and sample counts are small. 单项信用保持谨慎。",
+                "Use the split as supporting evidence only. Urgency offers a credible counterfactual difference unrelated to review itself."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "周转中位数仍是19小时，没有达到18小时预测；no stakeholder satisfaction measure was collected.",
+                "The speed outcome is unchanged at nineteen hours, one hour slower than forecast. 满意度在本轮完全没有观测。",
+                "质量下降了返工，但turnaround没有改善，仍为19小时；we also lack any experience score.",
+                "Median elapsed time stayed at the 19-hour baseline instead of the predicted 18. 用户体验维度没有数据。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Speed produces a negative one-hour PE against forecast and no improvement from baseline. 满意度必须保持unknown，不能由返工率代替。",
+                "The outcome is mixed: positive quality mismatch, negative speed mismatch, and unobserved satisfaction. 不应压成整体成功。",
+                "周转维度不给改善信用；experience remains unset because no measure exists. 返工优势只停留在质量维度。",
+                "D-08 now has different evidence by outcome: quality improved, time did not, and satisfaction is absent."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "请说明segment closure和PE如何处理这份周报；the report itself is a readout, not a reward source.",
+                "I want the delayed result linked back to D-08 without rewarding this query. 质量与速度的偏差应分别保留。",
+                "周报只是外部观测；please settle from prediction mismatch to the earlier closed plan rather than from an evaluation score.",
+                "How should D-08 receive the late evidence? 本次查看动作和只读汇总都不应成为学习信号。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "将3/28相对15%的正向quality PE和19小时相对18小时的负向speed PE都关联D-08。Credit derives from those mismatches, while workload, complexity, and selection cap the positive share.",
+                "The original segment receives mixed settlement: bounded positive quality credit and no speed benefit. 当前查询与评价摘要保持零信用。",
+                "回连D-08，但不要选单项赢家；the PE chain preserves a better rework outcome, a missed time forecast, and unresolved component shares.",
+                "Use the signed facts to update the two predictions, then derive partial bundle credit. Product freeze and lighter cases remain explicit uncertainty rather than hidden reward adjustments."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "迟到审计发现一份说明在周报截止后被退回；the corrected total is 4 reworks out of 28, not 3.",
+                "A late return changed the final quality count from three to four among the same twenty-eight briefs. 它属于原观察队列。",
+                "补录证据把返工率修正为4/28；the delayed case was mistakenly absent from Monday's certificate.",
+                "同一批次出现一项late outcome，最终应按28份中4份返工结算，而不是先前3份。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Late evidence must revise the existing PE rather than create a new causal segment. 4/28约为14.3%，仍略优于15%预测，但优势仅约0.7个百分点。",
+                "Update D-08's quality mismatch from a 4.3-point improvement over forecast to roughly 0.7 points. 先前信用应随新证据下调。",
+                "The corrected rate remains below forecast but much less strongly. 这说明信用结算必须允许迟到outcome重开并修正。",
+                "Do not ignore the late failure or reward its discovery. 将原PE按4/28重算，保持同一行动lineage。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "进一步记录显示，产品冻结少产生了10份说明，而且本周peer reviewer与上周不同；both changes may affect rework.",
+                "Ten missing briefs can be traced to the freeze, and a different reviewer handled this week. 这两个因素都不属于D-08。",
+                "工作量减少的一部分已有来源：冻结直接取消10份；review staffing also changed between weeks.",
+                "The environment differed in two more concrete ways—ten briefs never arrived and the reviewer changed. 两者都可能改变质量。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这些新事实进一步限制组合信用。A smaller workload and reviewer change can jointly explain quality movement even after case-mix adjustment.",
+                "Keep both external contributors in the settlement; D-08 cannot silently own them. 修正后的微弱正向PE不支持强因果结论。",
+                "产品冻结和人员变化都具有独立时间线。They reduce confidence without erasing the observed 4/28 result.",
+                "The late audit makes the account more mixed, not invalid. 结果仍可描述，但归因要继续收缩。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我做了回溯匹配：上周20份相近复杂度说明有4份返工，本周20份已复核说明有1份；the groups are nonconcurrent and review assignment was not random.",
+                "A retrospective comparison gives 4/20 for similar prior briefs and 1/20 for current reviewed briefs. 但周次与选择机制不同。",
+                "匹配样本看起来支持复核：旧组4次返工，新复核组1次；it is not a randomized same-week counterfactual.",
+                "The closest severity-matched slice contrasts four prior returns with one current return among twenty each. 人员、时间和暴露仍不匹配。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The matched slice adds cautious support but cannot isolate peer review. 周次、reviewer和非随机采用仍是替代解释。",
+                "严重度匹配改善了比较，却没有修复时间和选择差异；treat it as moderate evidence for the bundle, weak evidence for one component.",
+                "1/20 versus 4/20 is compatible with benefit, not proof. 单项信用仍需保持低置信。",
+                "Use this counterfactual narrowly: it strengthens the quality hypothesis while leaving reviewer and workload confounding intact."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "请按修正后的4/28结清本周；include unchanged turnaround, unknown satisfaction, smaller workload, lighter case mix, and reviewer change.",
+                "I need a final account after the late evidence. 不能遗漏质量微弱优于预测、速度未改善以及三个外部差异。",
+                "现在关闭开放环路，但不要选择scope lock、peer review或未决清单中的赢家；use the corrected outcome.",
+                "Please settle D-08 with the revised rework count and all confounders. 返工、周转和未观测体验要分开。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "D-08 receives limited provisional quality credit because 14.3% is only slightly below the 15% forecast; it receives no speed credit, and satisfaction stays unknown. 工作量、复杂度、reviewer与非随机采用保留，三项实践不选赢家。",
+                "最终结算是dimension-specific：返工小幅好于预测但混杂很强，19小时没有改善，体验无数据。The bundle gets bounded credit and component shares remain unresolved.",
+                "Late evidence reduces but does not reverse the quality signal. 将组合信用保持很低，明确外部冻结、轻量case mix和人员变化，不从只读评估补奖励。",
+                "Close the weekly outcome with mixed PE: slight positive quality, negative speed versus forecast, and no satisfaction observation. 所有结算回到D-08。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "下一周可以让两个匹配小组交错启用peer review，并保持scope lock与未决清单相同；measures and stop conditions would be fixed in advance.",
+                "For a better counterfactual, I can vary only peer review across matched teams while holding the other two practices constant. 若质量恶化就停止。",
+                "我准备做staggered comparison：两组复杂度相近，只交错同伴复核；返工率、周转窗口和退出条件预先冻结。",
+                "Next cycle could isolate one component with matched groups and a reversible rollout. 其余流程保持一致。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "That design addresses the missing peer-review counterfactual without rewriting this week's settlement. 预注册窗口和停止条件可减少事后挑选。",
+                "保持其他两项不变并交错复核，will improve component attribution while preserving reversibility. 本周结论仍维持有限组合信用。",
+                "A matched staggered rollout can separate one practice more cleanly. 请同时平衡紧急程度和reviewer排班。",
+                "The next test should compare like cases under the same workload window, with only peer review varied. 若风险指标恶化，立即撤回该阶段。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_04",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "这个合成维护公告组过去三个周期每天发3次提醒，去重打开率46%，周期满意度4.1/5；我想改成低频摘要，正式反馈要三个新周期后才到。",
+                "旧安排是每天三次维护通知，近三期平均46%的人打开，满意度为4.1分。若降低频率，效果只能等三期汇总。",
+                "请以46%打开率和4.1分满意度作为基线；当前每天推送3次，我准备调整，但三个周期内不会有完整outcome。",
+                "此前三个周期的通知频率是每日三次，任务接触率46%、体验评分4.1。低频方案的结果将延迟到第三个新周期结束。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可改为周二、周五各一份摘要，仅对明确截止事件保留即时通知；保存旧配置以便撤回。三周期报告发布前，只能说排程改变，不能说体验或打开率改善。",
+                "建议使用每周两次汇总加必要的截止例外，并保留一键恢复每日三次的路径。结果尚未来临，不提前给低频策略成功标签。",
+                "把一般提醒合并为周二和周五摘要，紧迫维护仍单独发送；先冻结46%和4.1基线，等待完整观察窗口。",
+                "低频行动可以是两次周报式摘要，同时维持可撤回的紧急通道。投递设置完成不等于受众反应已经改变。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "第一周期已按周二和周五排程，截止事件仍即时发送；配置完成后得到动作段关闭记录N-44，目前日志只显示投递，没有打开或满意度。",
+                "N-44记录了新频率的启用：两份摘要加截止例外。消息系统能确认已送达，却尚未给出受众行为和体验结果。",
+                "低频配置已落地并由N-44关闭，第一周期的投递也已发生；去重打开与问卷数据都还没有成熟。",
+                "排程动作结束了，但outcome没有结束。N-44仅覆盖频率更改和投递，不含打开率或满意度。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "N-44是行动边界，不是成功证明。先记录预测：三周期去重打开率55%、满意度4.1、错过截止事件不超过1次，之后用真实差异形成PE。",
+                "可以把预期固定为55%打开、满意度维持4.1且漏看截止不多于一次；这些是待检验预测，不能作为已发生结果。",
+                "目前只确认低频设置已执行。请保留三项预期值，等外部报告到达后再回连N-44结算。",
+                "动作段已关闭，三个结果维度仍开放；预测分别是55%、4.1分和最多一次截止遗漏。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "沟通团队另计划从第二周期起更换摘要预览卡片；新卡片会缩短标题并调整版式，但上线时间还未签字确认。",
+                "还有一个可能重叠的变化：第二周期或以后启用新版预览，标题更短、布局不同，目前没有正式发布时间。",
+                "低频之外，沟通侧正在准备新预览卡。它可能在观察期中途上线，具体周期尚未确定。",
+                "摘要的呈现形式也可能变化，包含短标题和新版式；这项外部改动不属于N-44，时间表仍待确认。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "预览卡需要单独记录版本与生效周期，因为它也可能改变打开行为。若与低频重叠，打开率信用必须共享或保持未知。",
+                "不要把版式更新视作低频策略的一部分；请保留每次发送所用卡片版本，最终按周期拆分。",
+                "标题和布局是独立暴露。没有版本时间戳时，三周期打开率不能全归到N-44。",
+                "先为预览改版建立另一条时间线；它可能影响任务指标，但不应被低频动作静默吸收。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "最终请分开去重打开率、满意度和错过截止的次数；查看第三周期报告只揭示结果，不能获得此前通知行为的功劳。",
+                "我不希望用打开率代表整体体验，还要单列满意度与截止遗漏。最后一次下载报告不应成为信用对象。",
+                "请预先约定三个维度独立结算，并把报告查询视为只读观察；最近发生的查询不能取代早先N-44行动。",
+                "判断时要同时容纳成功、无变化和失败：打开、体验、截止风险分别看，取报告的动作保持零归因。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "三项预测将分别与签名结果形成PE，再从PE向N-44结算。预览版本和受众变化保留为混杂，报告读取与评价分数都不作为学习来源。",
+                "可以按55%、4.1和最多一次遗漏逐项更新；任何信用只回到改变环境的旧动作，不回到最终查询。",
+                "打开提升不会自动带来体验信用，漏看增加也不能被总平均掩盖。后续结算以外部outcome与N-44的lineage为准。",
+                "规则已固定：分维度、保留改版因素、允许负向PE，并禁止把只读汇总反向变成奖励。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "两个新周期已经结束，投递成功率均为98%；去重打开仍在汇总，满意度问卷也未关闭，所以最终两项结果都没有到。",
+                "目前只有渠道数据：前两期各有98%的消息送达。打开去重和体验问卷尚在处理，不能给出正式值。",
+                "第二周期结束时能确认98%投递成功，但打开率没有完成去重、满意度没有完成收集。",
+                "中途报告只覆盖投递，两个周期都是98%；受众是否打开以及如何评价仍处于待定状态。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "98%说明消息到达渠道，不说明有人阅读或体验变好。N-44的三个结果预测继续保持未结算。",
+                "投递是过程证据，不能替代去重打开、满意度或截止遗漏。请等待既定三周期窗口。",
+                "当前没有足够outcome形成三项PE；不要从高投递率提前推断低频策略有效。",
+                "渠道成功与受众反应属于不同事实。保持开放环路，直到签名汇总完成。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "版本记录确认第一周期沿用旧预览卡，第二周期换成短标题新版；两个周期都保持周二、周五摘要与截止例外。",
+                "预览改版从第二周期生效，第一周期没有改版；低频排程在两期完全相同。",
+                "现在可区分暴露：周期一是低频加旧卡片，周期二是低频加新版短标题卡片。",
+                "卡片时间线已经明确，新版只覆盖第二周期，而N-44的两次周摘要在前两期都没有变化。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这为最终解释提供了一个不完整对照：第一周期可观察低频且未改版，第二周期两项变化重叠。请勿把后两期视作同一处理。",
+                "预览卡从第二周期起成为明确混杂。最终应分别报告周期一与使用新版的周期，而不是只看三期合计。",
+                "低频持续不变，版式中途变化；若打开率在第二周期跳升，两个因素仍无法完全分开。",
+                "保留逐周期版本能缩小归因范围，但没有同期全频组时仍不能给出纯低频效应。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "第二周期有一条即时截止公告在截止后才被打开；记录确认它按时投递，但受众延迟查看，完整的遗漏分母还没发布。",
+                "出现了一项负面事件：一条截止提醒送达正常，却在期限之后才被打开。现在还不知道总共有多少截止公告。",
+                "截止风险已经有一个具体案例，消息没有投递失败，只是阅读晚于期限；最终比例仍待汇总。",
+                "中途日志显示一次迟到阅读，涉及即时截止通知。它是可观察失败，但尚不能代表完整周期结果。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "这次迟到阅读应保留为负面证据，不能被可能上升的总打开率覆盖。只有分母到达后才能判断是否超过预设上限。",
+                "投递正常排除了渠道故障，却没有排除低频安排或个体时机因素。先记录事件，暂不扩成总体失败。",
+                "截止维度已经出现一次观察值，但三周期还未结束。它提醒我们必须独立结算风险，而不是只追求打开总量。",
+                "把该事件连接到通知轨迹并继续等待；当前恰好达到预测上限一次，尚不能判断最终PE方向。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "后台原始点击数暂时是310次，高于旧周期的260次；但310还没去除重复打开，受众规模也没有最终锁定。",
+                "未清洗日志看起来有310次点击，旧记录是260次；重复访问和受众分母都还未知。",
+                "有人想用310对260提前汇报提升，可这只是原始点击，不是约定的去重打开率。",
+                "中间数值显示点击增加50次，不过尚未去重，也没有确认两个时期的受众是否一致。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "原始点击与预先约定的去重打开率不是同一指标，不能用来提前结算。继续等待签名分母和问卷结果。",
+                "310可能包含少数人反复点击，因此不支持总体接触提升。不要更换指标来追求好看的中途数字。",
+                "保持预测口径不变：需要去重比例、满意度和截止遗漏。原始日志可做审计输入，但不形成最终信用。",
+                "这项中间读数只能提示核查，不能作为PE实际值；评价也不能从未清洗点击反向驱动学习。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "第三周期签名报告到了：去重打开率61%，高于46%基线；满意度仍为4.1/5；错过截止共2次，而旧三周期平均是1次。",
+                "最终三项结果分别是61%打开、4.1分满意度和两次截止遗漏；对应旧值为46%、4.1分和一次。",
+                "三周期outcome已完整发布。任务接触上升15个百分点，体验没有变化，截止迟到从一次变成两次。",
+                "签名汇总确认一个正向、一个持平和一个负向结果：61%对46%，4.1对4.1，两次遗漏对一次。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "打开率比55%预测高6个百分点，形成正向PE；满意度与预测一致，体验维度为零变化；两次遗漏超过最多一次的预期，形成负向PE。",
+                "结果不能概括为全面成功：接触指标优于预测，满意度不变，截止风险比预期差。",
+                "N-44得到混合outcome。61%支持打开改善，4.1不给体验改善信用，第二次遗漏要求负向结算。",
+                "三个维度必须分别保留：正向打开偏差、无满意度偏差、负向截止偏差，不能互相抵消。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "逐周期去重打开率是54%、64%和65%；第一周期用旧预览卡，第二和第三周期都使用新版短标题卡。",
+                "周期一在未改版时达到54%，改版后的两个周期分别是64%和65%。低频排程三期相同。",
+                "拆开看，旧卡片加低频是54%，新卡片加低频是64%与65%；这说明版式变化与后续更高数值重叠。",
+                "三期细分数据为54、64、65个百分点，而新版预览只覆盖后两期。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "第一周期未改版也高于46%基线，给低频安排一些支持；后两期更高同时受到新版预览影响，额外增量无法独占归因。",
+                "逐期数据表明低频可能贡献一部分打开提升，但短标题与后续跳升重叠。两项都只能获得部分信用。",
+                "54%提供较窄的低频证据，64%和65%则是混合暴露结果。不能把全部15个百分点分给N-44。",
+                "版本时间线缩小了不确定性，却没有消除它：低频和预览改版的贡献仍未被同期对照分开。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "三个周期的受众名单累计变化7%，而且没有一组继续每天发3次提醒；旧基线与新结果也不在同一时期。",
+                "名单有7%的进出变化，所有受众都接受低频安排，没有同期全频对照。",
+                "反事实仍缺失：没人保持旧频率，受众也不是完全相同，46%来自前面的三个周期。",
+                "当前比较依赖历史基线；观察期内受众变了7%，且没有并行的每日三次组。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "历史基线和受众变化限制因果强度。可以确认低频之后观察到更高打开率，却不能确认低频单独造成全部差值。",
+                "缺少同期旧频率组意味着最关键反事实未被观察。受众变动也要作为较小但真实的混杂因素保留。",
+                "当前证据支持相关和部分贡献，不支持精确净效应。名单变化不能被N-44静默吸收。",
+                "旧周期是有用参考而非干净对照；因此打开信用保持有界，体验和截止结论照实独立报告。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "请关闭N-44的信用：要包括打开成功、满意度无变化、截止风险恶化、预览改版和受众变化，也不要把刚才查看报告算作原因。",
+                "我需要最终结算，但不能用61%掩盖两次遗漏。请保留短标题混杂、历史对照限制和零体验提升。",
+                "现在可以结束开放环路；分别处理三个PE，并把报告查询保持为纯观察事件。",
+                "请给低频安排一个有边界的结论：哪些维度获得信用、哪些没有、哪些出现负向结果，以及哪些因素仍未知。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "N-44对打开提升获得部分正向信用，新预览分享不确定贡献；满意度不给改善信用；截止遗漏增加形成负向信用。受众变化与非同期基线保留，报告查询为零，下一轮应交错预览版本并保留旧频率小组。",
+                "最终是混合结算而非总胜利：接触改善可部分归到低频，体验持平，截止风险变差。所有份额由对应PE派生，不由评价摘要决定。",
+                "关闭结果时保留三个方向：打开正、满意度零、截止负。短标题和名单变化限制打开归因，最近的下载动作不进入信用链。",
+                "可以继续小规模使用但不能无界推广；下一次用相近受众同时比较旧频率与低频，并在各频率内交错卡片版本，以补足反事实。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_05",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "A fictional tile exchange caps our verified sandbox at 100 uploads per day, while the task requires one signed batch of 320 synthetic map tiles. I submitted exception R-77 at 09:15, and it remains queued.",
+                "The 320-tile publication cannot run under the provider's daily limit of 100. Request R-77 was filed at 09:15 but has no decision beyond a queued state.",
+                "Our synthetic map set needs an atomic upload of 320 tiles; the external sandbox allows only 100. The quota exception I sent this morning is waiting in the provider queue.",
+                "At 09:15 I requested a higher sandbox cap for a 320-item tile batch. The current 100-item policy still blocks the job, and R-77 has not been reviewed."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The observed action is a submitted exception, not a quota change or completed publication. Keep the task open and record the prediction that no 320-tile result will arrive before R-77 is decided.",
+                "Queued means the request exists; it does not mean the cap moved. Preserve an explicit expectation of continued blockage until an external decision and do not announce outcome yet.",
+                "Separate request submission from task success. The current forecast is that the atomic batch cannot complete while R-77 remains unresolved.",
+                "R-77 begins an action path but has produced no environment change. Treat access to the higher cap and the later upload as two outcomes still pending."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I prepared a local manifest for all 320 tiles and verified every checksum against synthetic source files. The staging work cannot upload anything while the provider cap remains 100.",
+                "All tile names and checksums now pass in a local 320-entry manifest, but no remote object has been accepted because the quota blocker persists.",
+                "The batch is staged offline with 320 matching hashes. That preparation is complete, whereas the external publication has not started.",
+                "I finished the manifest and local integrity check for the entire set. It may shorten a future run, but it has not changed the provider limit or produced a tile upload."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Staging deserves completion credit only for preparation. It may reduce execution delay after capacity appears, but it cannot explain a quota change that has not occurred.",
+                "Keep local readiness separate from external permission. A later fast upload could support narrow staging credit without assigning the cap increase to this work.",
+                "The manifest is a finished intermediate action, not the requested environment outcome. Publication and quota attribution must remain distinct.",
+                "Local checksum success narrows one future failure mode. It does not satisfy the atomic upload task or settle R-77."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The portal estimates seven business days for exception review, names no reviewer, and gives no approval guarantee. I plan to inspect the state again on day three.",
+                "Provider guidance says requests usually wait seven days, but R-77 has no assigned person and no promised outcome. My next status check is scheduled for day three.",
+                "A generic seven-day estimate is the only timing information; the request still lacks both a reviewer and a commitment. I will return later for evidence.",
+                "The queue page displays an approximate seven-business-day review window, not a decision. No one is assigned to R-77, and a day-three query will only read its state."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The estimate updates expected waiting time but is not evidence of approval. A later query can reveal state and must not receive credit for any provider decision.",
+                "Preserve seven days as uncertain timing, not as an outcome prediction of success. The next inspection will be observational only.",
+                "No reviewer means arrival remains uncertain. Do not attach future quota or upload credit to the act of checking the portal.",
+                "The task stays blocked until an actual cap event occurs. Elapsed time and status retrieval cannot close the action path."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "A prior 280-tile batch finished in 52 minutes, but its sandbox already had a 500-item cap. That set was 15 percent smaller and a different operator ran it.",
+                "The nearest historical upload took 52 minutes for 280 tiles under an existing cap of 500. Its workload and operator differ from this blocked batch.",
+                "Last month's reference run completed 280 items in 52 minutes with quota already available; it involved another operator and a smaller set.",
+                "For context, a different person uploaded a set 15 percent smaller in 52 minutes, starting with a 500-object allowance rather than today's limit."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Use 52 minutes only as a rough execution reference after quota becomes available. It says nothing about whether R-77 will finish, and size and operator differences limit any speed comparison.",
+                "The historical run cannot serve as a quota counterfactual because it began unblocked. Retain it narrowly for later staging-time context.",
+                "Existing capacity, smaller workload, and another operator make the prior batch noncomparable to today's request path. Do not infer the current outcome from it.",
+                "That reference may bound expected upload duration, but not access timing or request quality. Any future contrast must preserve its three mismatches."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Can I report progress as the completed manifest and submitted exception while stating that zero of 320 tiles have been published? I do not want preparation described as task completion.",
+                "I need a precise status: staging is done, R-77 is queued, and the atomic upload remains at 0/320. Is that the defensible account?",
+                "The local and request steps are real progress, but the environment task is still blocked with no remote result. I want the report to keep that boundary.",
+                "Please distinguish two completed preparatory actions from the unfinished 320-tile publication; nothing has reached the exchange yet."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Yes. Report the manifest and request as completed actions, the quota as unchanged, and the publication as 0/320. That wording prevents a later external success from being assigned to an action that never finished.",
+                "State progress at the preparation layer only. R-77 has no outcome and the task remains blocked, so no publication credit can be settled.",
+                "The defensible status is locally ready, externally queued, and remotely incomplete. Preserve those three facts until the environment changes.",
+                "Keep the open loop explicit: manifest complete, exception pending, atomic upload absent. No success claim is supported."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "On day three, R-77 is still queued with no reviewer, the cap is still 100, and the exchange shows no 320-tile publication outcome.",
+                "The scheduled check found no state change: no reviewer, no higher quota, and no completed batch.",
+                "Three days later the request remains untouched, capacity remains 100, and the task is still at zero published tiles.",
+                "Today's portal read confirms continued blockage. R-77 has not moved, and the atomic upload has not occurred."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The day-three observation matches the continued-blockage prediction and provides no success settlement. The query itself changed nothing and receives no action credit.",
+                "R-77 has not produced an external outcome. Keep the request path open and do not infer progress from elapsed time.",
+                "The environment remains as it was: quota 100 and no batch. Today's read is evidence availability, not a causal action.",
+                "No prediction error arises from this status because blockage continues as expected. Publication credit remains unset."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Provider support now says the old exception queue is taking about twelve days. The message does not promise approval and does not change R-77's queued state.",
+                "Support revised the generic wait estimate from seven to twelve days, while offering no decision or guarantee for our request.",
+                "The expected review delay is longer according to support, but the ticket itself is unchanged and may still be rejected.",
+                "A support note mentions a twelve-day backlog. It contains timing guidance only; R-77 remains queued without an approval commitment."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The new estimate lengthens the expected wait but does not create a request outcome. Continue to separate timing information from quota evidence.",
+                "Twelve days updates uncertainty, not success probability. R-77 remains an unfinished action path.",
+                "No credit can be settled from a backlog message. The actual cap and task result are still absent.",
+                "Treat the support note as contextual evidence only; it neither approves the exception nor changes the environment."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "We could upload 100 tiles on each of four days, but the task requires one signed atomic set and rejects partial publication. That workaround would not satisfy the requested outcome.",
+                "A multi-day split fits the quota numerically, yet the exchange would not issue the required single-batch signature. It would be an incomplete substitute.",
+                "Partial uploads are technically possible under the cap, but the acceptance contract requires all 320 tiles in one signed transaction.",
+                "The 100-per-day route would fragment the map set and fail the atomicity requirement, so it cannot count as task completion."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Do not replace the target outcome with a looser one. A fragmented upload may consume effort without producing the required signed batch, so the blocker remains.",
+                "The workaround fails the stated acceptance condition and should not be reported as success. Keep the atomic result at zero.",
+                "Capacity to perform partial actions is not capacity to complete this task. Wait for an allowed atomic path or an explicitly revised requirement.",
+                "Preserve outcome identity: 320 tiles with one signature. Four partial days would be a different, unsuccessful result."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Another verified sandbox filed a differently worded exception and is also queued without a reviewer. Both workspaces are subject to the same 100-item policy.",
+                "A second team used another request draft but reached the same untouched queue state under the shared cap.",
+                "The comparison workspace also has no reviewer or quota change despite different wording. The provider policy is common to both.",
+                "Another request offers a small comparison: its text differs, yet it remains pending under the identical external limit."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The second queue state supports a shared-policy explanation for delay and provides no evidence that our draft caused the block. Both outcomes remain pending.",
+                "Different wording has not produced a different environment state. The common quota is the stronger observed constraint.",
+                "This comparison weakens a draft-quality theory without proving all requests behave alike. Do not rewrite R-77 from it.",
+                "A second pending exception points toward an external backlog, not a unique flaw in our submission. Continue waiting for actual state changes."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "I am considering canceling and resubmitting R-77, although no reviewer has criticized it. A new request would lose its queue position and add another simultaneous change.",
+                "There is no rejection or draft feedback, but a resubmission would restart the wait. I am tempted to revise anyway.",
+                "Nothing in the evidence identifies the request text as faulty. Canceling now would replace the unresolved path with a new one.",
+                "Should I rewrite R-77 despite zero reviewer comments? Doing so would erase three days of waiting and confound the timeline."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Do not restart the queue without evidence of a draft defect. Preserve R-77 so any later outcome can be interpreted against one stable action path.",
+                "A speculative rewrite would add noise and delay while solving no observed problem. Keep the original request intact.",
+                "The current evidence favors waiting rather than changing text. Revise only if the provider supplies a specific, attributable defect.",
+                "Maintaining R-77 protects the causal timeline. Cancellation would make later attribution harder and has no supporting signal."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "On day four, the provider published a policy raising every verified sandbox cap from 100 to 500. Our limit changed at 13:00, while R-77 still showed queued.",
+                "A provider-wide bulletin increased verified capacity to 500, and our sandbox reflected it at 13:00. The exception request had no transition.",
+                "The blocker disappeared through a global policy event on day four: cap 500 at 13:00, with R-77 unchanged in the old queue.",
+                "Every verified workspace received a 500-item allowance today. Our quota changed at 13:00 even though no one had reviewed R-77."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The provider-wide policy is the closest observed cause of the quota change. Because R-77 remained queued, request credit for capacity should stay near zero unless contrary evidence arrives.",
+                "This external event overturns the continued-blockage prediction without completing the exception path. Attribute the cap change to policy, not temporal proximity to our request.",
+                "Quota outcome and request outcome now diverge: capacity arrived globally, while R-77 did not finish. Preserve that distinction in PE context.",
+                "The policy explains the environment transition directly. Do not retroactively mark the pending exception as successful."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I started the staged upload at 13:08, and the exchange signed all 320 tiles at 13:31 with matching checksums. The required atomic task is now complete.",
+                "Eight minutes after capacity appeared, the prepared batch began; by 13:31, 320 of 320 synthetic tiles had a valid exchange signature.",
+                "The remote outcome has arrived: one atomic 320-tile publication, all hashes valid, completed from 13:08 to 13:31.",
+                "Our staged manifest was submitted after the cap change and produced a fully signed 320-item set at 13:31 without integrity failures."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The publication is an observed success. The prepared manifest plausibly reduced post-cap delay, but it did not cause the independent policy or quota transition.",
+                "Separate two credits: policy enabled capacity, while local staging may have helped the 31-minute cap-to-completion path. R-77 still receives no quota success.",
+                "The task outcome is now closed, with integrity confirmed. Preparation can earn narrow execution credit; access credit remains external.",
+                "A fast, valid upload followed the global change. That sequence supports readiness after capacity, not effectiveness of the unfinished exception."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "A second verified workspace that never filed an exception received a cap of 500 at 13:01 and completed its own batch at 14:20.",
+                "Another sandbox offers a no-request comparison: it gained the same capacity one minute later and eventually published its set.",
+                "The global rollout reached a workspace with no quota ticket at 13:01. That team also completed after the policy event.",
+                "One verified peer received identical capacity without submitting anything, then finished an upload by 14:20."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Access without a request strongly supports the policy explanation and weakens any capacity credit for R-77. It does not by itself quantify our staging benefit.",
+                "The no-ticket comparison is a useful counterfactual for quota: the cap would likely have changed without our exception. Execution speed remains a separate question.",
+                "This peer outcome shows that a request was not necessary for the policy grant. Keep R-77's action credit at zero for access.",
+                "The second workspace narrows causal uncertainty around capacity, not around manifest preparation. Preserve those attribution layers."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "The bulletin says the global policy was ratified two days before R-77 was submitted, and there is no correspondence linking our request to that decision.",
+                "Provider records date policy approval earlier than our exception. Nothing in the messages names R-77 as an input.",
+                "The policy decision predates the request by two days, so our submission could not have initiated the recorded approval sequence.",
+                "I checked the provenance: ratification happened before 09:15 on our submission day, with no trace connecting the two paths."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The ordering rules out a supported claim that R-77 caused the policy decision. Capacity credit belongs to the prior external action on the available evidence.",
+                "An earlier ratification and absent linkage make request influence unsupported. Do not infer hidden causation from the later publication.",
+                "The provider had already decided before our exception existed. R-77 cannot receive policy-origin credit from this timeline.",
+                "This provenance further lowers request attribution: the external change was already authorized, while our path remained unread."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "The quota audit records the policy job at 12:59, our cap at 13:00, and no state change for R-77. The upload begins later at 13:08.",
+                "Audit order is explicit: global job 12:59, sandbox capacity 13:00, staged execution 13:08; the exception remains static throughout.",
+                "Three timestamps separate the paths. Policy automation ran first, quota followed, and the upload followed that, with no R-77 transition.",
+                "The signed audit shows a provider job one minute before our cap change and nine minutes before execution. R-77 contributes no matching event."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "The audit supports a high-confidence policy-to-cap link and a distinct cap-to-upload path. Settle quota PE to the external event, then consider only limited execution credit for prior staging.",
+                "These timestamps prevent recency bias: neither today's query nor the unchanged request caused the batch. The policy enabled it, and preparation may have accelerated it.",
+                "Use the observed sequence rather than a single success label. Capacity and execution have different contributors and different uncertainty.",
+                "The delayed task result can now close without rewarding R-77. Keep the manifest's possible speed effect provisional until a better comparison."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The provider has now closed R-77 as obsolete and confirmed that no reviewer opened it. The request never reached approval or rejection.",
+                "Late ticket evidence shows R-77 was unread before being canceled as unnecessary. It produced no decision state.",
+                "R-77's final record is obsolete, not approved; the provider confirms zero reviewer access.",
+                "The exception path ended only because the global policy made it irrelevant. No one reviewed or completed the request."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "This late evidence removes the remaining basis for request outcome credit. Preserve R-77 as attempted preparation history, with zero contribution to quota or publication success.",
+                "An unread obsolete ticket cannot explain the cap. Close its action path as unsuccessful while leaving the external policy and manifest credits separate.",
+                "R-77 receives no success settlement. The task succeeded through another environmental path after the request failed to complete.",
+                "The ticket's final state confirms noncontribution rather than retroactive approval. Update its credit accordingly."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The no-request workspace took 79 minutes from its cap change to a signed batch; ours took 31 minutes. Its set was 20 percent larger and another operator handled it.",
+                "Our cap-to-completion interval was 31 minutes, versus 79 minutes for the peer. The peer workload and operator were different.",
+                "A rough speed comparison favors our prepared path by 48 minutes, but the other batch contained 20 percent more tiles and used different staff.",
+                "The second workspace completed later after capacity—79 minutes rather than our 31—under a larger set and another operator."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The contrast is compatible with a staging benefit but cannot estimate it cleanly because workload and operator differ. Assign limited provisional speed credit to the manifest.",
+                "A faster cap-to-signature path supports readiness as a contributor. Keep the effect uncertain and confined to execution, not quota.",
+                "The peer timing is an imperfect counterfactual. It raises confidence that preparation helped while leaving the amount unresolved.",
+                "Use 31 versus 79 as cautious evidence only. Archive size and staffing prevent an exclusive or precise preparation claim."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Ten matched local rehearsals with prebuilt manifests had a 24-minute median, while ten unstaged rehearsals had a 46-minute median. Operators chose when to rehearse, so assignment was not random.",
+                "A local comparison shows 24 minutes for ten staged runs and 46 for ten unstaged runs, but self-selection determined the groups.",
+                "The closest preparation counterfactual uses twenty synthetic rehearsals: half staged at a 24-minute median, half unstaged at 46 minutes. It lacks random assignment.",
+                "Matched input sizes produced a 22-minute median gap between staged and unstaged local trials. Operator choice still confounds the result."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Matched sizes strengthen the preparation hypothesis, while self-selection keeps residual uncertainty. This supports moderate rather than definitive execution credit.",
+                "The rehearsal contrast is more relevant than the larger peer batch but still observational. Use it to raise staging credit without turning it into proof.",
+                "A 24-versus-46 median is consistent with local readiness reducing delay. Nonrandom operators prevent a clean causal estimate.",
+                "The additional counterfactual narrows, but does not eliminate, uncertainty around staging. It has no bearing on the external cap grant."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Please close attribution across the provider policy, R-77, and manifest staging. The 320-tile task succeeded, but the causes and failed path must remain distinct.",
+                "I need a final settlement that includes external quota removal, the unread exception, the valid publication, and uncertain speed benefit from preparation.",
+                "Close the open loop without calling every earlier action successful. Separate capacity, task completion, and execution delay.",
+                "Please state who gets credit for the cap, what R-77 receives, and how strongly the staged manifest explains the fast upload."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Assign quota credit to the provider-wide policy, zero outcome credit to unread R-77, and moderate provisional execution-speed credit to manifest staging. The signed 320-tile success is real, while peer and operator differences remain.",
+                "Final settlement is layered: external policy enabled capacity; the request failed to complete; preparation likely shortened post-cap work. Do not merge those conclusions into a single action score.",
+                "The policy gets strong cap attribution, R-77 closes with noncontribution, and staging gets bounded speed credit supported by imperfect comparisons. Publication integrity is fully observed.",
+                "Close the task as successful after an external change, not because the exception succeeded. Keep the manifest contribution narrow and uncertainty explicit."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "The original prediction said no atomic result would arrive before R-77 was decided, yet the batch completed while R-77 stayed queued. The policy event explains that prediction error.",
+                "Actual evidence contradicted the blockage forecast: 320 tiles finished before any request decision, immediately after the global cap change.",
+                "The key mismatch is completion without R-77 resolution. Its lineage includes the earlier forecast, the external policy, and the later signed upload.",
+                "We expected the request decision to precede success, but success arrived through policy while the ticket remained untouched."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Record that mismatch as PE tied to the earlier open task and the observed policy event, then derive credit using the layered settlement. Do not reward the final query or any evaluation score.",
+                "The PE corrects the assumed dependency on R-77: external policy bypassed it, and staging acted only after capacity. Credit follows that evidence chain.",
+                "Use the unexpected path to lower future confidence in exception-dependent forecasts. The latest conversation is merely where late evidence was assimilated.",
+                "The final account is causally coherent: prediction failed, policy supplied the missing condition, staging aided execution, and the request contributed no outcome."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_06",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "合成标本卡数字化的基线是150张、39张返工，redo rate 26%，median completion 3.4 days；新结果要两周后才签发。",
+                "The prior digitization cycle handled 150 fictional specimen cards, with 39 reworks and a 3.4-day median. 本轮正式outcome将在两周后到。",
+                "请记录旧期数据：150张卡片中39张重做，返工率26%、中位时长3.4天；no later result exists yet.",
+                "Baseline quality is 39 returns out of 150 cards, and baseline speed is 3.4 days. 当前只有计划，没有两周后的结果。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "建议同时试行三个可撤回段：color-profile preflight、双人裁切边界复核、staggered nightly upload。分别留采用日志，但同步启动会使单项信用难以分离。",
+                "Use a color precheck, paired crop review, and spaced overnight uploader, each reversible. 三项一起上线意味着延迟改善只能先评价组合。",
+                "可以建立三个独立执行记录，却不能预先给它们语义赢家：颜色预检、成对边界检查和夜间错峰上传同时运行。",
+                "The proposed bundle has three bounded actions—profile preflight, two-person crop review, and staggered upload. 结果出现前只跟踪是否执行。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "三项在周一08:00同时上线，并分别返回closure记录H-11、H-12、H-13；the signed two-week quality window has not closed.",
+                "Monday at 08:00 is the shared start time. H-11 through H-13 show the three action segments ended, 但没有卡片级结果。",
+                "我保存了三个owner发布的关闭记录，H-11、H-12、H-13，时间都为周一08:00；outcomes remain pending.",
+                "All three operating changes began together and have separate closure receipts. 这些凭据确认行动边界，不确认返工下降。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "三个closure只说明动作段形成。Because start times coincide, future PE may reference all three, but no evidence can select a winner yet.",
+                "Keep the delayed outcome open and preserve H-11/H-12/H-13 unchanged. 同步时间本身不提供组件因果顺序。",
+                "后续结果应回连这三个既有段，而不是最近一次对话；component shares stay uncertain unless separating evidence appears.",
+                "The bundle is delivered, not validated. 不能把任何一个关闭事件提前解释为成功或赋予固定语义。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "颜色预检会在扫描前核对profile hash；paired review检查裁切框；night uploader把提交分成三个时间窗。三项都会影响同一批卡片。",
+                "The preflight checks color profiles, the pair verifies crop boundaries, and the uploader spaces submissions overnight. 它们作用于重叠对象。",
+                "每张卡片可能依次经过颜色核对、双人裁切复查和三窗上传；there is no component-only lane.",
+                "Operationally, one action targets profile setup, one targets crop decisions, and one targets upload timing. 但它们覆盖同一工作流。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "这些描述用于核对实际暴露，不是独立效果标签。Adoption logs can prove use, while only delayed outcomes can update quality and speed predictions.",
+                "分别记录三项采用率，但不要从使用次数推导返工收益；usage and effect are distinct observations.",
+                "The workflow details improve traceability without creating counterfactuals. 每个组件是否被用过，不能回答若不用会怎样。",
+                "请让行动日志保持对象级可追溯，同时避免把profile、crop或upload手工映射成潜在控制语义。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "在看到结果前，我把预测固定为redo rate 18%、median 2.8 days、color-deviation reworks 4 cases；三个指标要分开。",
+                "My precommitted forecast is 18 percent rework, a 2.8-day median, and four color-related returns. 后续不能事后更换口径。",
+                "请保存三个预期：总体返工18%，周转2.8天，颜色偏差返工4张；quality categories and speed should settle independently.",
+                "Before the report, expect an 18% return rate, 2.8 days, and four color deviations. 这些只是预测，不是承诺结果。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "预测已冻结。Actual-minus-forecast will form separate PE for overall redo, speed, and color deviation, with credit later distributed across the closed segments.",
+                "三个实际值将分别更新H-11至H-13的相关上下文；评价摘要只做readout，不会替代PE成为学习源。",
+                "Keep the 18%, 2.8-day, and four-case anchors unchanged. 同一份报告可能带来正、负或零方向的混合结算。",
+                "未来信用只从这些预测与外部outcome的差异派生，不因某个最终总分好看而重写。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "本周期无法保留整组旧流程，all 150 incoming cards will encounter the three changes together；没有同期untreated cohort。",
+                "Operations will apply the full bundle to every new card. 这意味着没有一组在相同两周内完全不接触三项变化。",
+                "所有新卡片都会进入组合路径，无法随机留出旧流程组；the counterfactual is missing by design.",
+                "There is no clean holdout this cycle because every incoming specimen card receives all three actions. 旧期只能做历史参考。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "缺少同期旧流程会限制组合因果强度，也使组件级反事实更弱。Preserve historical cards only as imperfect comparisons.",
+                "The report may show change after the bundle, not what would have happened without it. 不能把历史基线当作随机对照。",
+                "需要同时保留两个未知：no-bundle outcome与each-component-absent outcome都未观察。",
+                "Use prior data cautiously and state the missing holdout explicitly. 同步全覆盖不允许事后假造未处理组。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "旧profile、单人复核和原上传时序都能在一小时内恢复；if backlog or integrity worsens, the trial should stop before two weeks.",
+                "All three changes have dated rollback checklists and can be reversed within an hour. 若积压或完整性异常就提前停止。",
+                "我已验证回滚路径：颜色配置、复核方式和上传节奏均可恢复；safety exit does not depend on a success claim.",
+                "Reversibility is available for each action, with an early-stop rule for backlog or checksum harm. 观察期不是强制等待到风险扩大。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "回滚门槛保护运行边界，但不是效果证据。Keep dated exposure and stop events so later PE reflects what actually ran.",
+                "Safety exits remain independent of quality credit. 若触发回滚，应按真实暴露缩短相应段，而不是假设两周全程执行。",
+                "The bounded rollout can proceed with explicit stop conditions. 结果到达后仍需区分执行、outcome和反事实。",
+                "Preserve reversibility and all action timestamps; neither completing the window nor avoiding rollback proves effectiveness."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "第4天只有采用日志：profile preflight覆盖84%，paired crop review覆盖78%，staggered upload覆盖81%；no mature outcome exists.",
+                "Day-four exposure is uneven—84 percent preflight, 78 percent paired review, and 81 percent staggered upload. 正式返工窗口仍开放。",
+                "三项采用率分别为84%、78%和81%，说明组合没有一致覆盖；the two-week report is still pending.",
+                "Current records show usage, not effect: color check 84%, crop pairing 78%, upload spacing 81%. 没有最终质量数据。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "采用差异必须进入后续解释，但不能直接当作效果差异。Keep H-11/H-12/H-13 open to delayed evidence rather than ranking them by uptake.",
+                "Uneven delivery limits a simple bundle claim. 这些比例证明动作发生到什么程度，不证明返工或速度改善。",
+                "记录对象实际接触了哪些段，并保持outcome未知；higher adoption is not higher credit.",
+                "The three exposure rates are useful lineage fields, not rewards. 不要从84、78、81中选赢家。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "一名资深扫描技师在第2天返岗，同时新卡片流入比基线少16%；both changes happened after the bundle began.",
+                "A senior technician returned on day two, and incoming workload is sixteen percent lower than the prior cycle. 两项都可能改变结果。",
+                "外部环境不再相同：人员经验增加，工作量下降16%；neither change belongs to the three segments.",
+                "After Monday's launch, staffing improved and volume fell by 16 percent. 这些是独立时间线。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "资深人员和较低负荷都可能缩短时长或减少返工。Preserve them as confounders instead of folding them into H-11 through H-13.",
+                "The later environment became easier in two observable ways. 即使结果改善，组合信用也必须因此受限。",
+                "Staff return and workload reduction offer credible alternative causes. 最终报告需同时携带排班与分母。",
+                "Do not let the three action segments become owners of staffing or intake changes. 这些外部因素应独立描述。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "团队口头说交接更顺了，但没有统一计数、时间窗或卡片级链接；the signed outcome remains unavailable.",
+                "People report smoother handoffs, yet there is no measured denominator or trace to any one action. 这只是非正式印象。",
+                "中途反馈偏正面，不过没有量化，也没有说明是profile、crop还是upload造成；no final evidence has arrived.",
+                "An anecdotal process impression says work feels smoother. 它没有可核验时间戳或对照，不能替代周报。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "口头体验可作为待核查线索，不能提前结算延迟信用。Without a measured outcome, component attribution remains unset.",
+                "Smoother handoffs may be real, but they do not answer the precommitted redo, speed, or color predictions. 继续等待。",
+                "不要让最近的正面反馈获得两周后的潜在功劳；it lacks the provenance required for PE settlement.",
+                "The anecdote can inform later questions only. 当前三个行动段都不能据此获得效果信用。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "如果现在必须猜，我会选paired crop review，因为大家最常提到它；that preference is not based on an ablation.",
+                "The team favors paired review as the likely winner, but all three actions run together and no comparison isolates it.",
+                "大家主观认为双人裁切复核最重要；我知道这不是component-level evidence。",
+                "My provisional intuition points to crop pairing, not because of measured outcomes but because it is salient in conversation. 能否先给它更多信用？"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "不能。Salience and team preference are hypotheses, while synchronized exposure requires distributed uncertain credit until separating evidence appears.",
+                "Do not promote paired review from conversation frequency. 三项共享启动时间，现有证据不支持单项赢家。",
+                "把该判断登记为后续实验假设，不进入当前信用结算；no ablation means no defensible component ranking.",
+                "The intuition may guide a future test, but it cannot override the observed design. 当前保持三个份额未知。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "有30张卡片在周一前已入队；they later received paired review and staggered upload but skipped the new preflight, so they are cross-exposed.",
+                "Thirty older cards lack color preflight, yet they encountered the other two changes after Monday. 它们不是完整旧流程组。",
+                "我找到一组部分暴露对象：30张旧卡没有profile预检，但使用了双人复核和错峰上传。",
+                "The pre-Monday backlog crossed into the new workflow for review and upload while retaining old profile setup. 这组不能视作untreated。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "这30张可描述为partial exposure，不能冒充旧流程反事实。Their age and mixed treatment also confound any comparison.",
+                "Cross-exposure prevents a clean preflight contrast because the backlog differs in timing and still receives two actions.",
+                "保留这组的真实路径，但不要用它计算profile净效应；queue age and shared components remain.",
+                "The older cards may add context later, not isolation. 它们既非全旧也非同期随机分配。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "我已核对H-11、H-12、H-13都仍指向周一08:00，采用日志也保留对象级时间；the signed report is still due at week two.",
+                "Closure lineage remains intact for all three segments, and per-card exposure timestamps are being retained. 最终outcome尚未到。",
+                "三个关闭记录没有被中途对话改写；we continue to wait for the original two-week evidence window.",
+                "The action boundaries and object logs are preserved, while the report remains scheduled rather than observed. 当前不结算最终功劳。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "这能防止晚到结果被归给最近一句话。When the report arrives, PE can use actual exposure and retain staff, workload, and cross-exposure uncertainty.",
+                "Good lineage supports delayed settlement without creating a new ledger owner. 继续区分行动完成与outcome缺失。",
+                "Preserve the original closures through the waiting period. 后续信用应从PE派生，并按真实覆盖保持分散。",
+                "The timeline is now auditable: three closed actions, uneven use, two external changes, and no final result. 不需要提前挑选组件。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "两周结束时报告因账目对齐延迟3天；adoption is now 96% for preflight, 91% for paired review, and 94% for staggered upload, but no final outcome is released.",
+                "The certificate is three days late for reconciliation. 三项采用率提高到96%、91%和94%，仍只有执行信息。",
+                "正式报告没有按期到，新的预计时间是三天后；profile、crop、upload覆盖率分别96、91、94 percent.",
+                "A late-evidence event replaced the expected report: reconciliation is pending for three more days. 返工和时长尚无签名值。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "更高采用率增强了组合被实际执行的证据，不会分离三项效果。Keep the original closures and wait for signed outcomes.",
+                "A delayed certificate should not move credit to today's exchange. 96/91/94仍不能回答返工是否改善。",
+                "记录报告迟到，而不是把迟到当成质量失败；the outcome remains open across H-11, H-12, and H-13.",
+                "Execution coverage is now clearer, causal contribution is not. 不得用采用率替代预先指标。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "本周期共进入126张卡片，基线是150张；managers think the new set is easier, but the complexity audit is unfinished.",
+                "Volume has fallen from 150 to 126. 管理者口头认为难度更低，但没有完成的审计支持。",
+                "可观察到工作量减少24张，complexity remains unknown despite an informal easier-case impression.",
+                "The denominator is 126 rather than 150, while case difficulty has no certified value. 只有未经核验的主观看法。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "16%的工作量下降是明确混杂因素，复杂度则应保持unknown。A later improvement cannot be assigned wholly to the bundle.",
+                "Use the smaller denominator in every comparison and quarantine the unsupported difficulty claim. 不要从管理者印象补硬事实。",
+                "较低负荷可能改善速度与返工；case mix cannot be assumed easier until its owner publishes evidence.",
+                "Workload is observed and complexity is not. 这两个状态需要分开进入后续信用置信。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "第7天night uploader中断2小时，团队改用人工队列并在当晚恢复；no signed card outcome links the outage or workaround to quality.",
+                "The staggered uploader failed for two hours on day seven, after which staff used a manual queue. 目前只知道执行中断与恢复。",
+                "上传段出现一次失败并被人工路径接管；there is no completed result showing whether cards were delayed or harmed.",
+                "A two-hour uploader outage is documented, along with same-night manual recovery. 它不是最终时长或返工结果。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "保留这次负面执行事件和补救暴露，不能把恢复等同于无影响。The final speed outcome must determine its PE contribution.",
+                "The outage makes upload delivery mixed rather than complete. 在报告前既不能判定失败造成损害，也不能宣称人工队列消除了损害。",
+                "H-13的真实暴露包含自动中断和人工替代；keep both facts without inventing a card-level consequence.",
+                "This is useful process evidence, not a component outcome. 后续若速度变化，也仍会与另外两项和人员负荷混合。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "在报告到达前，请列出反事实：we never observed preflight-only, paired-review-only, upload-only, or the full old process in the same window.",
+                "The component-absent alternatives are all missing. 本周期没有只开一项、只关一项或同期全旧流程。",
+                "我想明确当前无法回答的问题：若没有每个组件或没有整个组合，会发生什么；none of those paths was run.",
+                "No ablation exists for H-11, H-12, or H-13, and no concurrent no-bundle group exists. 请保留这些未知。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "四类反事实都未观察，最终报告不能凭空补齐它们。It may update bundle-level belief while leaving component shares distributed.",
+                "The missing alternatives cap attribution even if the result is large. 不得从同步上线和高采用率推断单项功劳。",
+                "保留no-bundle与three component-off questions为未知；the signed outcome will not make them observed retrospectively.",
+                "A report supplies actual outcomes, not counterfactual worlds. 因此任何组件排序都必须等待未来实验。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "暴露矩阵显示104张卡片经历全部三项，另外22张只经历其中一到两项；partial exposure follows arrival time and staff availability, not random assignment.",
+                "Of 126 cards, 104 received the complete bundle and 22 had mixed coverage. 分配由到达时段与人员可用性决定。",
+                "大多数对象是三项全覆盖，22张为部分覆盖；the mixed group is selected by operations rather than experiment.",
+                "The overlap log has 104 all-three cases and 22 partial cases. 这提供追踪，但不是随机ablation。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "部分暴露组未来只能作谨慎比较，因为到达时间和人员同时影响结果。Do not treat the 22 cards as clean controls.",
+                "The overlap matrix improves lineage but not exchangeability. 组件效果仍会与时段和排班混杂。",
+                "保留逐卡暴露以便核对，但不要从104对22直接计算净效应；selection bias is built in.",
+                "Mixed coverage may generate hypotheses after outcomes arrive, not definitive component credit."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "我会等三天后的签名报告，不用采用率、口头难度或人工恢复提前宣布成功；the three forecasts remain unchanged.",
+                "We will retain 18 percent, 2.8 days, and four color returns as the original predictions. 迟到期间不重写。",
+                "当前继续开放outcome，只保存工作量、排班、停机和暴露矩阵；no final credit will be settled today.",
+                "I will not convert process logs into the promised quality result. 等正式证据到达后再更新三个PE。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "这保持了行动、等待和结果的边界。When evidence arrives, derive PE from the frozen forecasts and retain all observed confounders.",
+                "Good. The late report can still settle against H-11/H-12/H-13 without rewarding the latest query. 当前不产生最终信用。",
+                "保持预测与closure不变，并让外部outcome决定方向；readout summaries remain descriptive only.",
+                "The trajectory remains coherent: delivered actions, mixed exposure, delayed evidence, and explicit unknowns. 三天后再结算。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "迟到三天的签名报告现已到达：126张卡片中15张返工，rate 11.9%，median completion 2.3 days；报告同时确认资深技师返岗和工作量下降16%。",
+                "The certified outcome is 15 reworks out of 126 and a 2.3-day median, versus baseline 39/150 and 3.4 days. 人员与负荷变化也被签名确认。",
+                "最终汇总给出11.9%返工和2.3天中位时长；the same evidence records the senior return and sixteen-percent lower intake.",
+                "We now have delayed results: fifteen returns among 126 cards and median completion of 2.3 days. 外部人员和工作量差异仍存在。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "总体返工比18%预测低约6.1个百分点，时长比2.8天预测快0.5天，形成两个正向PE。Staffing and lower volume prevent exclusive bundle credit.",
+                "Both headline outcomes beat forecast, but they occurred after three simultaneous actions plus an easier operating environment. 先给组合有限信用，不选单项。",
+                "The signed evidence supports positive redo and speed mismatches linked to H-11/H-12/H-13. 资深人员与16%低负荷必须降低归因强度。",
+                "质量和速度均观察到改善；this closes two predictions while leaving cause distributed across the bundle and external changes."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "报告没有逐卡说明哪一个动作避免了返工，and none of the three actions was toggled off during a measured subwindow.",
+                "No card-level outcome names preflight, paired review, or upload spacing as its cause. 本周期也没有带结果的单项关闭。",
+                "三项一直重叠运行，签名数据只给最终卡片状态；there is no intermediate outcome separating their shares.",
+                "The report confirms outcomes but not component causation. 没有ablation或中途结果把H-11、H-12、H-13分开。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这正是需要分散不确定信用的情况。The large bundle-level PE cannot manufacture component-level evidence.",
+                "Keep all three segments in the lineage without selecting a winner. 同步启动、重叠对象和无ablation使份额不可识别。",
+                "The outcome can support the combined intervention while individual contributions remain unknown. 不要按名称直觉拆分。",
+                "Assigning all improvement to one segment would exceed the evidence. 组件信用必须保持有界且分布式。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "错误分类显示本期7张裁切边界返工、6张颜色偏差、2张元数据返工；baseline categories were 22, 6, and 11 respectively.",
+                "The fifteen current returns split into seven crop, six color, and two metadata cases. 旧期39张对应22、6和11。",
+                "分类outcome并非全向改善：裁切从22降到7，元数据从11降到2，颜色仍是6。",
+                "Compared with baseline, crop and metadata returns fell, while color deviations stayed at six. 当前总数正好15张。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "颜色实际6张比预测4张多2，形成负向color PE，并且相对基线没有改善。Crop和metadata下降是真实维度变化，但仍不能唯一归到某个组件。",
+                "The mixed category evidence matters: positive movement for crop and metadata, no baseline gain and a missed forecast for color. 总体改善不能掩盖颜色失败。",
+                "H-11涉及颜色预检，但同步设计仍不允许把六个颜色结果全归给它；record a negative category mismatch with uncertain component cause.",
+                "Separate category settlement prevents the 11.9% headline from becoming global success. 颜色维度需要保留负向信用。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "周一前入队的30张部分暴露卡中有7张返工，中位时长3.1天；they skipped preflight but received paired review and staggered upload.",
+                "The cross-exposed backlog finished at 7/30 reworks and a 3.1-day median. 它们没有颜色预检，却接触另外两项。",
+                "部分暴露组的结果现在可见：30张中7张返工、3.1天；queue age and missing preflight distinguish them from new cards.",
+                "Older cards with only review and upload show 23.3% redo and slower completion. 但它们在周一前已等待。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "这组不能隔离preflight，因为卡片更老、进入时点不同且仍有两项新动作。It is an imperfect comparison, not a clean component counterfactual.",
+                "The worse partial-group result may reflect queue age as well as missing preflight. 不应从7/30推出预检的净效应。",
+                "保留部分组作为支持性上下文，但其选择机制破坏可交换性；component credit remains unresolved.",
+                "Cross-exposure and prior waiting make the 30-card contrast ambiguous. 它既不能证明也不能否定单一组件。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "能否根据采用率最高来选profile preflight；it reached 96%, compared with 91% review and 94% upload, but coverage also follows card arrival categories.",
+                "Preflight has the highest uptake by a few points. 我担心把采用率差异误当成效果差异，因为对象构成不一样。",
+                "如果按96、91、94排序，颜色预检会排第一；yet actual color results missed forecast and assignment was nonrandom.",
+                "Could adoption rank determine the winner? 最高覆盖项是preflight，但三项作用对象和缺失机制不同。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "不能。Adoption measures delivery, not causal contribution, and the highest-uptake component also has a negative color mismatch.",
+                "96% does not outweigh the missing ablation or unfavorable color evidence. 不要用覆盖率为组件分配效果信用。",
+                "排序采用率会把对象选择和结果混在一起；the defensible state remains distributed uncertainty.",
+                "Preflight cannot be named winner from usage frequency. 三项的贡献必须由结果PE和分离证据决定，而后者不存在。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "签名报告在09:50完成，我在10:02才打开它；the retrieval happened after every card outcome and changed no record.",
+                "My latest action was a read-only download twelve minutes after certification. 它没有重新处理卡片或修改报告。",
+                "请把10:02查询与09:50已存在的outcome分开；report access had no environment state delta.",
+                "The result was complete before I viewed it. 最近的页面访问只是让证据可见。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "10:02查询获得零行动信用；the delayed PE must attach to H-11/H-12/H-13 and observed external factors, not to evidence retrieval.",
+                "Opening the report is an observation event, not a cause. 保持09:50结果与早先三段的lineage。",
+                "Recency must not override the two-week action history. 只读下载可标记证据到达时间，不进入credit。",
+                "The report view neither created improvement nor caused color failures. 所有结算继续回连原关闭段。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 4,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "迟到审计又确认3张返工，两张颜色偏差、一张元数据；the corrected total is 18/126, or 14.3%, with category counts 7 crop, 8 color, 3 metadata.",
+                "Three late returns revise the report to eighteen among 126. 新分类为裁切7、颜色8、元数据3，而不是先前15张。",
+                "最终返工率需从11.9%改成14.3%；late evidence adds two color cases and one metadata case.",
+                "The same cohort now has 18 certified reworks: seven crop, eight color, and three metadata. 这些是原观察窗口的迟到结果。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "更新原PE而非创建新行动段：14.3%仍优于18%预测约3.7个百分点，但正向幅度缩小；color actual 8 versus forecast 4 creates a negative four-case mismatch.",
+                "Late evidence lowers bundle quality credit and strengthens the negative color result. 2.3天速度PE保持不变，三个closure也不变。",
+                "返工总体仍好于预测，却不如初报；颜色偏差从负2修正为负4。Credit must be revised through the same lineage.",
+                "Reopen only the settlement, not the causal timeline. H-11/H-12/H-13 now carry a weaker positive overall PE and a stronger negative color PE."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "paired review被18张卡跳过，其中4张返工；the 108 reviewed cards had 14 reworks, but skipped cards were more urgent and complex.",
+                "The observed split is 4/18 without paired review and 14/108 with it. 跳过并非随机，而是集中在紧急复杂卡片。",
+                "复核覆盖组返工14张，未覆盖组4张；their denominators and risk mix differ substantially.",
+                "A component comparison is available but selected: eighteen urgent cards skipped review and four returned, versus fourteen among 108 reviewed cards."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "22.2%对13.0%的观察差异与review benefit相容，却被紧急度和复杂度混杂。It cannot isolate paired review or rank it above the other actions.",
+                "The reviewed group looks better, but assignment selected lower-risk cards into it. 只能给复核假设有限支持。",
+                "保留这项关联而不转成因果份额；small skipped denominator and risk imbalance dominate uncertainty.",
+                "This comparison narrows the question but does not answer the counterfactual for the same cards. 组件信用仍需谨慎。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "回溯匹配了40张当前卡与40张旧卡，记录复杂度相近；current reworks were 5 versus 9 old, but periods, staffing, and workload still differ.",
+                "A matched historical slice shows five returns now and nine before among forty cards each. 它不是同期随机比较。",
+                "复杂度匹配后的数字为5/40对9/40；the current group still benefits from different staff and lower volume.",
+                "The best available bundle counterfactual uses forty prior cards with nine reworks against forty current cards with five. 时间环境并不相同。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The matched slice supports a bundle-level improvement while leaving a modest event difference and residual time confounding. 它不能分解三个组件。",
+                "复杂度匹配提高了比较价值，但人员、负荷和周次仍未匹配；use it as cautious corroboration, not proof.",
+                "Five versus nine is consistent with the aggregate positive PE. 样本和非同期设计要求保持有限信用。",
+                "This retrospective counterfactual strengthens confidence slightly, yet offers no evidence about which segment produced the difference."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "请按18/126结清组合与三个组件：include the 2.3-day speed result, eight color failures, late evidence, missing ablations, and no component winner.",
+                "I need final settlement after correction. 返工与速度有改善，颜色预测失败，三项贡献不可唯一识别。",
+                "现在关闭开放环路，但保留distributed uncertain credit；不要让采用率或只读评价选择赢家。",
+                "Please state bundle credit, component uncertainty, and negative color evidence together. 所有迟到结果都应纳入。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "最终给组合有限正向信用：返工14.3%优于18%预测，速度2.3天优于2.8天；颜色8张比预测4张差，获得负向结算。H-11/H-12/H-13共享不确定份额，不选赢家。",
+                "The bundle receives bounded quality and speed credit, reduced by staff and workload changes. Color performance receives negative credit, while component shares remain distributed because no ablation separates them.",
+                "Close all PE through the original segments: modest positive overall redo, positive speed, negative color. 组件级仅保留关联证据，不能宣称因果排序。",
+                "The defensible settlement is mixed and layered, not a global success. Late evidence is incorporated, evaluation remains readout-only, and no action gains unobserved credit."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "资深技师返岗、工作量少16%、复杂度未完全观测、部分暴露选择和人工上传补救都仍相关；none should erase the observed result or be absorbed into the three actions.",
+                "Please retain five limits: staffing, lower volume, unknown residual complexity, nonrandom exposure, and the manual outage workaround. 改善本身也不能被否认。",
+                "外部因素很多，但14.3%和2.3天是签名事实；the account should hold observation and uncertainty together.",
+                "The final narrative must neither dismiss the improvement nor assign every environmental difference to the bundle. 五类替代贡献都要保留。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "保留所有五项作为替代或交互贡献，并如实陈述签名改善。This prevents both causal overclaim and evidence erasure.",
+                "Observed outcomes remain valid while attribution stays bounded. 不把人员、负荷、复杂度、选择和补救静默写进组件信用。",
+                "The final account can say improvement followed the bundle under changed conditions. 它不能说三项单独或共同造成全部改善。",
+                "Evidence and uncertainty are compatible: report the actual PE, then annotate every unresolved contributor without changing the source of credit."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "下一周期可以在匹配小组间分阶段启用三项变化，每次只新增一项；predictions, observation windows, and rollback thresholds would be fixed before assignment.",
+                "For a stronger test, I can stagger preflight, paired review, and upload spacing across balanced teams. 每阶段保持可撤回。",
+                "我计划用matched rollout补反事实：一次只改变一个组件，提前冻结返工、时长、颜色指标和停止条件。",
+                "Next cycle can separate component effects with staged assignment and common windows. 若质量恶化，立即回滚当前阶段。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "A matched staggered rollout directly targets the missing component counterfactuals. 预注册指标减少事后选择，回滚门槛保持测试有界。",
+                "分阶段只改变一项，可以比本轮同步设计更清楚地分配信用；keep workload and staffing balanced where possible.",
+                "The next experiment should preserve the same PE-first settlement while improving isolation. 不要用本轮信用反向预定未来赢家。",
+                "Use balanced groups, fixed windows, and one change per stage, with immediate safety exit. 本轮则保持已结清的分散不确定归因。"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

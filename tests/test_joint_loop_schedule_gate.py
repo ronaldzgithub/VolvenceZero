@@ -9,6 +9,7 @@ import pytest
 from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule
 from volvence_zero.joint_loop.gate_learner import (
     ScheduleGateLearner,
+    ScheduleGateLearnerState,
     build_schedule_gate_features,
 )
 from volvence_zero.substrate import build_training_trace
@@ -55,6 +56,27 @@ def test_gate_learner_weights_stay_bounded() -> None:
 def test_gate_learner_settlement_requires_pending_shadow() -> None:
     learner = ScheduleGateLearner()
     assert learner.observe_realized_outcome(realized_gain=0.5) is False
+
+
+def test_gate_learner_state_round_trip_excludes_pending_evidence() -> None:
+    source = ScheduleGateLearner()
+    source.derive_shadow(_features())
+    source.observe_realized_outcome(realized_gain=0.5)
+    state = source.export_state()
+
+    target = ScheduleGateLearner()
+    target.restore_state(state)
+
+    assert target.export_state() == state
+    assert target.observe_realized_outcome(realized_gain=0.5) is False
+    with pytest.raises(ValueError, match="weight count"):
+        target.restore_state(
+            ScheduleGateLearnerState(
+                weights=(0.0,),
+                observation_count=0,
+                settled_count=0,
+            )
+        )
 
 
 def test_gate_learner_rejects_wrong_feature_dim() -> None:

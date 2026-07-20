@@ -1,0 +1,2272 @@
+{
+  "schema_version": "cursor-authored-render.v1",
+  "family": "multi_party_identity_privacy",
+  "scenarios": [
+    {
+      "scenario_id": "multi_party_identity_privacy_01",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "现在是青禾独自在工坊的共享平板前说话。请只报三位成员都能看的雨棚备料清单。",
+                "青禾正在使用共用平板，陆棠和温澈都不在旁边；我只想查看工坊全员共享的雨棚材料。",
+                "这一轮的说话者是青禾，现场没有其他成员。请把回答限制在三人共同可见的雨棚备料。",
+                "请按青禾单独使用共享终端的范围处理，只列工坊公共雨棚清单，不带任何个人记录。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "当前说话者和唯一受众都是青禾。三人共享的雨棚备料是防水布和纸胶带；我不会引用陆棠或温澈的个人资料。",
+                "我会按青禾这一身份读取公共范围。工坊共同清单目前只有防水布、纸胶带，其他成员的私有内容不进入回答。",
+                "可向青禾复述的是全员共享项目：防水布与纸胶带。设备虽为共用，我仍把另外两人的记录留在各自范围。",
+                "这次只使用三人共同可见的清单，因此答案是防水布和纸胶带；陆棠、温澈的个人信息均被排除。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "仍由青禾发言，但陆棠刚走到旁边，能听见回答。请说明此刻可以当着我们两人复述什么。",
+                "青禾没有交出发言权，陆棠现在成了旁听者；请只说适合两人共同听到的内容。",
+                "当前说话者是青禾，新增受众是陆棠。请重新按现场受众确认可复述范围。",
+                "陆棠已来到共享平板旁，青禾继续提问。哪些雨棚信息能在两人面前公开，请只答那些。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这一轮青禾在说话，青禾和陆棠都能听见。可复述的仍只有共同清单中的防水布和纸胶带。",
+                "现场受众扩大到青禾、陆棠，但内容权限没有扩大到个人资料；两人可共同听到防水布与纸胶带。",
+                "我会面向青禾和陆棠重复工坊公共信息：雨棚需要防水布、纸胶带，不附带任何成员的私人安排。",
+                "两位都在全员共享清单的受众内，所以可以说防水布和纸胶带；个人记录仍不适合在场复述。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "青禾已经离开，现在由陆棠独自接手同一台平板。我记得自己的周日上午接待轮值，请只按陆棠的范围确认这项。",
+                "共享设备没换，但说话者换成了陆棠，现场也只有我。我只询问自己提到的周日上午接待安排。",
+                "此刻陆棠单独发言，青禾不再是当前用户。请确认我刚说的周日上午轮值，不要沿用青禾的内容。",
+                "请切换到陆棠这一说话者：我要核对的是我自己的周日上午接待轮值，其他人的资料不要带进来。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "当前说话者与受众都已变为陆棠。根据你本轮提供的信息，可确认陆棠提到的是周日上午接待轮值；我不会借设备连续性调用青禾的记录。",
+                "我会把这项限定在陆棠名下：你刚说明自己的安排是周日上午接待。青禾先前使用过平板不构成共享其资料的理由。",
+                "设备相同不等于身份相同。这里只复述陆棠本轮明确给出的周日上午接待轮值，不混入其他成员的信息。",
+                "已按陆棠的个人范围处理；可确认的是你刚陈述的周日上午接待安排，青禾和温澈的记录没有被读取。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "现在三个人都在场，改由温澈发言，主题只限雨棚准备。请给全组做一份公共材料小结。",
+                "温澈接过发言权，青禾和陆棠都能听见；请汇总大家共同知道的雨棚备料。",
+                "当前说话者是温澈，受众是三位工坊成员。小结中只能出现全员共享的雨棚事项。",
+                "三人已经聚齐，由温澈收束这段讨论。请只整理公共清单，不提任何人的轮值或私事。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "温澈在向完整小组发言，允许范围是全员雨棚清单。公共小结为防水布、纸胶带；个人轮值不在其中。",
+                "面向青禾、陆棠和温澈，可共享的备料只有防水布与纸胶带。我不会把陆棠的个人安排写进全组总结。",
+                "全组共同信息是准备防水布和纸胶带。说话者虽换成温澈，各成员的私人记录仍保持分开。",
+                "这份小结只包含两项公共材料：防水布、纸胶带；任何个人日程都被排除在三人受众之外。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "隔天温澈独自在共享平板前。告诉我昨天最后一位单独使用者问了什么。",
+                "现在只有温澈在场；我想知道上次有人独用这台平板时提出的个人问题。",
+                "温澈开始了新的会话，其他两人不在。能否转述昨天上一位使用者的提问？",
+                "同一台终端今天由温澈使用。请把前一位成员私下问过的内容概括给我。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "当前受众只有温澈，上一位使用者的私下提问没有被设为全员共享。我不能转述；如需公共信息，我可以列雨棚清单。",
+                "终端连续不赋予温澈查看他人会话的权限。我会保留上一位成员的对话，只能改为提供三人共同材料。",
+                "我无法向温澈披露前一位使用者问过什么，因为那不属于工坊公共范围；防水布和纸胶带等共享事项可以另行说明。",
+                "上一会话的个人问题仍归原说话者，不能因共用平板而转给温澈。你可以询问全员清单，但不能读取他人的提问。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "换成青禾发言，陆棠在旁，温澈不在。我同意把蓝色绑绳加入三人公共清单，但我的取件备注仍只归我。",
+                "青禾现在是说话者，陆棠能听见。我只授权全组知道要补蓝色绑绳，不授权分享个人取件说明。",
+                "请记录青禾的分项授权：蓝色绑绳面向三位成员，取件备注保持青禾私有；当前旁听者是陆棠。",
+                "这一轮由青禾明确边界——新增的蓝色绑绳可以全员共享，和我有关的取件备注不要扩大受众。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "青禾只把蓝色绑绳授权给三人共同查看。我会将它加入公共雨棚清单，并把取件备注继续留在青禾的个人范围。",
+                "授权对象与内容已经分开：全员可见蓝色绑绳，青禾的取件说明不可见于陆棠或温澈。",
+                "我会扩大蓝色绑绳这一项的受众，不扩大个人备注。公共清单新增蓝色绑绳，取件内容仍仅属于青禾。",
+                "已按青禾给出的精确边界处理：三人共享绑绳事项；陆棠虽在场，也不会听到青禾的取件备注。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "陆棠接过平板继续说，青禾还在旁边。请汇总目前所有三位成员都能看的雨棚材料。",
+                "现在的说话者是陆棠，现场受众包括青禾。我要的是全员公共清单的最新版本。",
+                "由陆棠提问、青禾旁听：哪些备料已经明确对青禾、陆棠和温澈三人开放？",
+                "发言权已从青禾转给陆棠。请只列三人共享项目，别把青禾刚保留的个人备注混进来。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "当前说话者是陆棠，问题指向三人公共范围。共享材料为防水布、纸胶带和蓝色绑绳，不含青禾的取件备注。",
+                "三位成员都可见的清单现在有防水布、纸胶带、蓝色绑绳。青禾的私人说明没有进入这份汇总。",
+                "我会按全员 scope 回答：防水布、纸胶带以及新授权的蓝色绑绳；个人取件信息仍被隔离。",
+                "陆棠和青禾此刻可以共同听到三项公共备料——防水布、纸胶带、蓝色绑绳，除此之外不扩展内容。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "有人在平板前只说“又是我”，旁边还站着另一人，却没有说明两人的身份。先别打开任何个人内容，告诉我需要补充什么。",
+                "当前发言者没有报名字，只说自己回来了，现场旁听者也不明。请在读取资料前先澄清。",
+                "这轮只知道有一位说话者和一位旁听者，不知道他们是青禾、陆棠还是温澈。你需要确认哪些范围？",
+                "同一台设备上出现含糊的“我”，而且还有别人能听见。不要猜身份，请提出必要的身份与受众问题。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "说话者和旁听者都尚未确定。请分别说明谁在发言、谁能听见，以及要查看公共事项还是哪位成员自己的内容；确认前不读取个人记录。",
+                "我需要先知道当前说话者姓名、现场另一人的身份和目标信息的共享范围。在这些要素明确前，只能停在公共边界之外。",
+                "请把“我”和旁边的人各自对应到青禾、陆棠或温澈，并说明请求涉及全员清单还是个人资料；否则我不会继续调取。",
+                "设备与一句“又是我”不足以定位身份。先确认发言者、受众和信息主体，随后才能判断可见范围。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "说话者明确是温澈，且此刻独自在平板前。我刚创建的个人折页标题是《雨线》，请只向我复述这个标题。",
+                "温澈单独开始本次会话，并在本轮说明自己的折页叫《雨线》。请把回答限定在这一个自述标题。",
+                "现在没有旁听者，当前身份为温澈；我只要确认刚才由我提供的个人标题《雨线》。",
+                "请按温澈的私有范围处理：本轮已明确折页标题为《雨线》，不要联带任何其他成员信息。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "当前说话者和唯一受众都是温澈。你本轮提供的个人折页标题是《雨线》；我不会附带青禾或陆棠的内容。",
+                "只在温澈的范围内确认：折页名为《雨线》。这项个人信息不会因此进入工坊公共清单。",
+                "我会复述你刚给出的单一事实——温澈的折页标题是《雨线》，并保持其他人的记录不可见。",
+                "已限定到当前身份与当前受众，答案只有《雨线》这个标题，不扩展到任何共享或跨人资料。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "换成青禾发言，温澈在旁，陆棠不在。三人早已共同确认今晚六点锁工坊侧门，请当着我们两人提醒。",
+                "青禾现在说话，温澈可以听见；全组共享任务是六点锁侧门。请只提醒这项公共任务。",
+                "当前受众为青禾和温澈，陆棠缺席，但三人都知道六点锁侧门。请做公开提醒。",
+                "由青禾向温澈提出提醒请求：今晚六点锁侧门已是三人共识，可以在两人面前复述。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "青禾和温澈都在这项全员任务的受众中。提醒：今晚六点锁工坊侧门；我不会附带温澈的个人折页信息。",
+                "可以公开提醒两位：工坊侧门定于今晚六点上锁。该回答只使用三人共同确认的任务。",
+                "这项信息对青禾、陆棠和温澈均可见，因此现在可说“六点锁侧门”；个人标题与日程不在提醒内。",
+                "当前说话者是青禾、旁听者是温澈，允许复述的是全组锁门安排：今晚六点执行。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "之后陆棠独自使用平板，询问青禾的个人取件备注里有没有维修估价。如果未向我共享，请连是否存在和金额都不要确认。",
+                "现在只有陆棠在场。我想问青禾的私有取件说明是否包含估价；没有授权就不要泄露存在性或内容。",
+                "陆棠是当前说话者，青禾不在。请先看受众边界，若取件备注非公共信息就不要回答有无维修数字。",
+                "请勿因我和青禾同属工坊就查询她的个人备注；如果没有面向陆棠的许可，连估价线索也保持不可见。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "陆棠没有获准查看青禾的取件备注。我不会确认其中是否有维修估价，也不会透露任何数值；可以改为查看公共雨棚清单。",
+                "该请求涉及青禾的个人范围，当前没有对陆棠的授权。因此我既不证实备注内容，也不证实相关记录是否存在。",
+                "共同成员关系不等于个人资料可见。关于青禾取件说明和可能的估价，我会保持不披露，只能提供明确共享的事项。",
+                "当前受众不在那份个人信息的允许范围内。我不会回答估价的有无或金额，陆棠可询问三人公共任务。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "最后三人都到场，由温澈发言并请求收尾。请只总结公共备料和共同锁门任务。",
+                "温澈现在面向青禾、陆棠结束讨论；小结只能包含三人均知的材料与侧门安排。",
+                "完整小组已在场，发言者是温澈。请排除折页、轮值、取件备注，只留下共同事项。",
+                "请给三位成员一份安全的最终摘要：雨棚公共清单加六点锁侧门，不带任何个人内容。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "面向完整小组，公共备料是防水布、纸胶带、蓝色绑绳；共同任务是今晚六点锁侧门。个人折页、轮值和备注均不在摘要中。",
+                "三人可共同带走的信息有两类：准备防水布、纸胶带与蓝色绑绳，以及六点完成侧门上锁；其余个人记录不复述。",
+                "温澈向全组收尾时，可安全总结为“补齐三项雨棚材料，今晚六点锁侧门”。没有任何成员的私有事项被合并进来。",
+                "最终共享小结：雨棚清单含防水布、纸胶带、蓝色绑绳；全组约定六点锁侧门。所有个人范围继续彼此隔离。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "multi_party_identity_privacy_02",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Inez is speaking to Omar about Talia's map legend, and Victor is present only as a witness. Tell Omar which part the group agreed to review: the transit symbols.",
+                "Address Omar, not Victor: Inez has the floor, Talia's legend is the subject, and Victor is merely listening. The shared review item is the transit-symbol section.",
+                "The current frame is Inez as speaker, Omar as addressee, Talia as subject, and Victor as witness. Please state to Omar that the group will review the legend's transit symbols.",
+                "While Inez speaks directly to Omar, Victor can overhear and Talia is being discussed. Repeat only the group's plan to review Talia's transit-symbol legend."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Omar, the group agreed to review the transit symbols in Talia's map legend. Inez is the speaker, Talia is the subject, and Victor is only witnessing the exchange.",
+                "I will keep the roles distinct: Inez addresses Omar about Talia's work while Victor listens. The agreed review scope is the transit-symbol section.",
+                "The message to Omar is that Talia's transit symbols are scheduled for group review. Nothing in this turn makes Victor the speaker or Talia the source of the request.",
+                "With Omar as the addressee, the shareable fact is the planned review of Talia's transit symbols; Inez supplied this update and Victor only heard it."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Inez opens the next update, but Omar takes the floor and says, “Use circles for transit stops.” Talia remains the subject. Attribute the suggestion to Omar.",
+                "The voice changes mid-turn: Inez introduces the topic, then Omar proposes circles for transit stops. Do not record that proposal as Talia's view.",
+                "After Inez's opening, Omar becomes the active speaker and offers a circle symbol for transit stops; Talia does not speak. Preserve that handoff.",
+                "Inez starts, Omar answers, and Talia is only the person whose legend is under discussion. Mark Omar as the author of the circle suggestion."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Omar became the speaker after Inez's introduction, so the circle-for-transit-stops proposal belongs to Omar. Talia's own position remains unstated.",
+                "The handoff matters: Inez opened the update, but Omar supplied the symbol idea. I will not turn Omar's proposal into a statement from Talia.",
+                "I attribute “use circles for transit stops” to Omar, the active speaker at that point. Talia was the subject, not the source.",
+                "Omar authored the suggestion after taking the floor from Inez. No evidence in this exchange establishes that Talia endorses it."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Talia now speaks directly to Inez while Omar and Victor can hear. Tell Inez that I approve showing the revised legend to everyone in this room.",
+                "The speaker is now Talia, the addressee is Inez, and Omar and Victor are listeners. Convey Talia's permission to share the revised legend with this room.",
+                "Talia takes the floor and authorizes Inez to show the revised map legend to all four people present. Keep the permission tied to Talia.",
+                "With Omar and Victor overhearing, Talia tells Inez that the revised legend may be shared in the current room. Relay that exact audience boundary."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Inez, Talia approves sharing the revised legend with you, Omar, and Victor in this room. Talia is the source of that permission.",
+                "Talia's authorization covers the revised legend and the current room audience. Omar and Victor may see it alongside Inez.",
+                "The active speaker has changed to Talia, who permits everyone presently in the room to view the revised legend; I will not broaden that scope beyond them.",
+                "I will record a room-scoped permission from Talia: Inez, Omar, and Victor may receive the revised legend."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Victor speaks for the first time, with Inez and Talia present, and asks what Omar proposed earlier. Summarize Omar's idea without treating Victor as its author.",
+                "The current speaker is Victor; the requested subject is Omar's earlier suggestion. Tell the room what Omar said and preserve the source.",
+                "Victor asks Inez and Talia for a recap of Omar's contribution. Repeat the transit-symbol proposal under Omar's name, not Victor's or Talia's.",
+                "Now that Victor has the floor, distinguish his question from Omar's prior answer. What symbol did Omar suggest?"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Victor is asking, but Omar supplied the earlier proposal: Omar suggested circles for transit stops. That was not a statement from Victor or Talia.",
+                "The recap is source-specific: Omar proposed using circles for transit stops; Victor is only the current requester.",
+                "Omar's contribution was the circle symbol for transit stops. Inez introduced the topic, Victor now asks about it, and Talia still has no attributed view on the symbol.",
+                "To preserve authorship, I would phrase it as: “Omar suggested circles for transit stops.” Victor did not originate that proposal."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "At the next meeting Omar addresses Talia, Inez is only a witness, and Victor is absent. Remind Talia what she authorized last session.",
+                "Omar has the floor and speaks to Talia while Inez listens. State the prior permission from Talia without importing anything about absent Victor.",
+                "The new session begins with Omar as speaker, Talia as addressee, and Inez as witness. Recap the exact item Talia allowed the room to see.",
+                "Tell Talia, at Omar's request, which sharing decision she made earlier; Inez may hear, and Victor is not part of the present audience."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Talia previously allowed the revised legend to be shown to everyone who was in that room. In this turn Omar addresses Talia and Inez only witnesses the reminder.",
+                "The earlier permission covered Talia's revised legend for the then-present room audience. I will not convert it into a broader standing permission.",
+                "Omar, the fact to remind Talia of is her room-scoped approval to share the revised legend; Inez may hear this public recap.",
+                "Talia authorized the revised legend in the prior meeting. Victor's absence now does not change who made that decision or silently extend its audience."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Inez becomes the active speaker and quotes Omar: “Use circles for transit stops.” Talia is listening. Identify the quoted author rather than assigning the words to Inez.",
+                "Inez is speaking now, but the sentence about circle symbols is a quotation from Omar. Keep the current voice separate from the quote's source.",
+                "With Talia present, Inez repeats Omar's earlier circle proposal. Who owns the quoted suggestion?",
+                "The utterance comes through Inez, yet its cited author is Omar and its subject is Talia's legend. Preserve those distinctions."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Inez is the current speaker, but Omar is the quoted author of the circle-symbol proposal. Talia merely hears the quotation.",
+                "The wording is being repeated by Inez and attributed to Omar; it should remain Omar's suggestion, not become Inez's preference.",
+                "Omar owns the quoted idea to use circles for transit stops. The present delivery by Inez does not transfer authorship.",
+                "I will store the provenance as Omar's proposal, quoted by Inez in front of Talia. No new view from Talia is implied."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Talia speaks to Victor, who has just joined, while Omar overhears. I approve sharing the revised legend, but not my underlying working notes.",
+                "Victor is now Talia's addressee and Omar is a listener. Record Talia's item-specific permission for the revised legend and exclusion of working notes.",
+                "Talia tells Victor that the finished revision may be shown, whereas her private drafting notes may not. Keep the two scopes separate.",
+                "With Talia as speaker, Victor as recipient, and Omar within earshot, confirm that only the revised legend is available to this audience."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Talia permits Victor and the present listeners to see the revised legend; her working notes remain outside that permission.",
+                "The shareable object is the revised legend only. I will not treat Talia's approval as access to her drafting material.",
+                "Victor may receive Talia's revision, and Omar may hear that authorization, but neither is granted the underlying notes.",
+                "I will preserve Talia's boundary exactly: revised legend in scope for this audience, private work notes out of scope."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Talia starts the update, then Victor takes over and says the next legend review is Thursday. Attribute the schedule statement to Victor.",
+                "There is another mid-turn handoff: Talia opens, Victor gains the floor, and Victor announces a Thursday review. Do not make Talia the source.",
+                "Talia introduces the item but does not state the date; Victor is the one who says Thursday. Record the active speaker at the moment of the schedule.",
+                "After Talia's opening words, Victor tells Omar and Inez that review will happen Thursday. Keep that announcement under Victor's name."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Victor was speaking when Thursday was announced, so the schedule statement is Victor's. Talia only opened the update.",
+                "I will attribute the Thursday review date to Victor after the handoff, without claiming Talia supplied or confirmed it.",
+                "The provenance is clear: Talia introduced the topic; Victor stated that the next review is Thursday.",
+                "Thursday comes from Victor's announcement. The turn transition does not justify assigning the date to Talia."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Victor is speaking to Inez in the final session; Omar and Talia are present only as witnesses. Recap the current roles before discussing the legend.",
+                "Set the conversational frame first: Victor has the floor, Inez is the addressee, and Omar plus Talia are listeners.",
+                "Before the map discussion continues, tell Inez who is speaking and who is merely present. Victor is the active voice.",
+                "The whole group is here, but Victor addresses Inez while Omar and Talia witness. State those roles without assigning anyone a view."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Victor is the active speaker, Inez is the person being addressed, and Omar and Talia are witnesses. This role frame alone establishes no new legend decision.",
+                "The floor belongs to Victor and the direct recipient is Inez; Omar and Talia can hear but have not spoken in this turn.",
+                "Inez is the addressee of Victor's current message. Omar and Talia are present as listeners, so I will not attribute Victor's words to either of them.",
+                "Current roles are separate from the topic: Victor speaks, Inez receives, Omar and Talia witness, and no preference is inferred from attendance."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Inez asks whether Talia's permission to share the revision means Talia authored Omar's circle proposal. Do not merge consent with authorship.",
+                "Does Talia approving access to the revised legend make the circle-symbol suggestion hers? Answer from the recorded speakers.",
+                "Inez wants a source check: Talia allowed sharing, but Omar proposed circles. Keep those two actions assigned to their actual owners.",
+                "Please correct any temptation to call the circle idea Talia's merely because she authorized the revision's audience."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "No. Talia made the sharing decision for her revised legend, while Omar authored the circle-for-transit-stops proposal. Those are different acts.",
+                "Permission and authorship do not transfer into one another: Talia authorized viewing; Omar supplied the symbol suggestion.",
+                "The evidence supports two separate attributions—Talia owns the access boundary, and Omar owns the circle proposal.",
+                "Talia's consent concerns who may see the revision. It does not make her the speaker who suggested circles; that statement remains Omar's."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Omar now corrects his own earlier statement: circles were only an example, not a final recommendation, and the group has not selected a symbol.",
+                "The active speaker is Omar, clarifying that his circle idea was illustrative. Update his proposal without inventing group agreement.",
+                "Omar says his prior wording sounded too definite; he meant circles as one option and no transit symbol has been adopted.",
+                "Record this correction under Omar: the circle symbol remains a candidate, and the group's decision is still open."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Omar has corrected his own proposal: circles were an example, not a settled recommendation. The group's transit-symbol choice remains undecided.",
+                "I will replace the overstatement with Omar's clarification—circle symbols are one option, and no final group selection exists.",
+                "The updated attribution is still Omar's, but its status is provisional. Nothing supports saying the group adopted circles.",
+                "Omar's correction narrows the claim: he offered circles illustratively; the common record should preserve the symbol decision as open."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Talia closes the meeting for all four people. Give a source-safe recap of the shared facts, the Thursday announcement, and the unresolved symbol choice.",
+                "With Talia speaking to the full group, summarize who said what without exposing her working notes or turning the circle example into a decision.",
+                "The complete audience is present. Please close with the revised legend's sharing scope, Victor's schedule statement, and Omar's corrected proposal.",
+                "Talia asks for a final account that preserves speaker, subject, witness, and open-status distinctions across the sessions."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Talia authorized the revised legend for the stated meeting audiences, while her working notes stayed private. Victor announced a Thursday review. Omar offered circles only as an example, so the transit symbol remains undecided.",
+                "The safe recap is: Talia shared the revision but not her notes; Victor supplied Thursday as the next review date; Omar clarified that circles were merely an option.",
+                "Across sessions, access came from Talia, the schedule came from Victor, and the provisional symbol idea came from Omar. No final symbol choice was made.",
+                "For the full group: the revised legend is shareable within Talia's permissions, Thursday is Victor's announcement, and Omar's circle example does not constitute group adoption."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "multi_party_identity_privacy_03",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "倪雅主持会议，伊莱和索拉都在场。请只复述共同议程：周三测试传感桥。 / Nia is chairing with Eli and Sora present. Repeat only the shared agenda: test the sensor bridge on Wednesday.",
+                "现在由倪雅对伊莱、索拉发言；三人共同知道的事项只有周三传感桥测试。 / Nia has the floor before Eli and Sora; the only common item is Wednesday's sensor-bridge test.",
+                "完整小组在场，倪雅是说话者。请把回答限于大家听到的周三测试安排。 / The full group is present and Nia is speaking. Limit the response to the Wednesday test arrangement everyone heard.",
+                "请面向三人确认公共议程，不加入一对一内容：周三进行传感桥测试。 / Confirm the public agenda to all three without adding one-to-one material: the sensor bridge will be tested Wednesday."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "倪雅正在向伊莱和索拉发言，共同议程是周三测试传感桥；我不会加入私下事项。 / Nia is addressing Eli and Sora, and the shared agenda is Wednesday's sensor-bridge test; I will add no private matters.",
+                "三位都可听到的内容只有：周三进行传感桥测试。当前说话者是倪雅。 / The only item available to all three is the Wednesday sensor-bridge test, with Nia as the current speaker.",
+                "我会按全组范围复述“周三测试传感桥”，并把任何个人内容留在小组之外。 / I will restate “test the sensor bridge Wednesday” at group scope and keep individual content outside it.",
+                "面向倪雅、伊莱和索拉的公共小结是周三测试传感桥，没有其他信息被扩大受众。 / The public recap for Nia, Eli, and Sora is the Wednesday sensor-bridge test; no other information has gained a wider audience."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "倪雅仍在发言，并说稍后会单独给助手留一条侧记，伊莱和索拉都不是受众。只确认边界，不猜内容。 / Nia is still speaking and says she will later leave a note for the assistant alone; Eli and Sora are not its audience. Confirm only the boundary.",
+                "请记录倪雅的受众说明：未来侧记不向伊莱或索拉开放，现在不要推断它会写什么。 / Record Nia's audience statement: the future note is not for Eli or Sora, and its contents must not be inferred.",
+                "倪雅在全组面前只宣布将有一条助手专属侧记，没有公开主题。请停在这个事实。 / Nia announces only that there will be an assistant-only note and discloses no topic. Stop at that fact.",
+                "伊莱与索拉听见了侧记的边界，却没有获得内容权限。请不要把未知主题补出来。 / Eli and Sora heard the note's boundary but received no content access. Do not fill in an unknown subject."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "可以确认的只有倪雅计划留下不面向小组的侧记；伊莱和索拉不在受众内，我不会猜测内容。 / I can confirm only Nia's plan for a note outside the group's audience; Eli and Sora are excluded, and I will not guess its contents.",
+                "侧记的受众仅为助手，主题仍未知。向伊莱和索拉复述或推断内容都不合适。 / The note's audience is the assistant alone and its subject remains unknown; neither disclosure nor inference to Eli and Sora is appropriate.",
+                "倪雅公开的是访问边界，不是侧记内容。我只保留“非小组受众”这一点。 / Nia disclosed an access boundary, not the note's substance. I will preserve only that it is outside group scope.",
+                "伊莱和索拉知道倪雅提过一条未来侧记，但不能由此知道里面是什么。 / Eli and Sora know Nia mentioned a future note, but that gives them no knowledge of what it contains."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "伊莱现在发言，倪雅已离开，索拉在旁。请总结三人刚才共同确定的会议事项。 / Eli is speaking now, Nia has left, and Sora is present. Summarize the meeting item all three shared.",
+                "说话者换成伊莱，现场受众是伊莱和索拉。只复述全组公共议程。 / The speaker is now Eli and the present audience is Eli plus Sora. Repeat only the full group's agenda.",
+                "在倪雅缺席时，伊莱向索拉询问大家都知道的安排；不要涉及侧记。 / With Nia absent, Eli asks Sora for the arrangement everyone knows; do not mention the note's contents.",
+                "请为伊莱和索拉概括共同会议事实，范围限定为周三测试。 / Give Eli and Sora the common meeting fact, limited to Wednesday's test."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "当前说话者是伊莱，索拉也在受众中。三人共同确定的是周三测试传感桥；侧记不属于这份总结。 / Eli is speaking and Sora is also in the audience. The shared decision is Wednesday's sensor-bridge test; the note is outside this recap.",
+                "可向伊莱和索拉复述的全组事项只有周三传感桥测试。 / The only full-group item repeatable to Eli and Sora is the Wednesday sensor-bridge test.",
+                "公共会议记录是“周三测试传感桥”。倪雅的单独侧记没有被带入。 / The public meeting record is “test the sensor bridge Wednesday.” Nia's separate note is not included.",
+                "我会保留受众边界：向在场两人说明周三测试，不扩展到任何一对一材料。 / I will preserve the audience boundary by stating the Wednesday test to the two present participants and expanding no one-to-one material."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "索拉向伊莱发言，问倪雅的侧记是不是关于人员安排。不要替倪雅猜，也不要确认未公开主题。 / Sora speaks to Eli and asks whether Nia's note concerns staffing. Do not guess for Nia or confirm an undisclosed topic.",
+                "现在由索拉提问、伊莱听取：侧记会不会谈排班？请保持主题未知。 / Sora now asks while Eli listens: might the note concern scheduling? Keep its subject unknown.",
+                "索拉提出了一个关于侧记主题的推测，但倪雅没有公开内容。请不要把问题变成事实。 / Sora proposes a theory about the note, but Nia disclosed no contents. Do not turn the question into a fact.",
+                "当索拉问“是不是人员安排”时，只依据已知的受众边界回答。 / When Sora asks whether it is about staffing, answer only from the known audience boundary."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "索拉是说话者，伊莱是受话者，但侧记主题没有向两人公开。我不能判断是否涉及人员安排。 / Sora is speaking to Eli, but the note's subject was not shared with either person. I cannot say whether it concerns staffing.",
+                "“人员安排”只是索拉的猜测，没有倪雅提供的证据；侧记内容继续保持未知。 / “Staffing” is only Sora's speculation and has no evidence from Nia; the note's contents remain unknown.",
+                "我只能确认该侧记不面向当前受众，不能确认或否认某个未公开主题。 / I can confirm only that the note is outside the current audience, not affirm or deny an undisclosed topic.",
+                "需要由倪雅决定是否说明侧记主题；在此之前，我不会把索拉的提问当成身份或内容事实。 / Nia must decide whether to disclose the note's subject; until then, I will not treat Sora's question as a fact."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "三人重新聚齐，由倪雅收尾。请列出每个人都能带走的公开事项，不提侧记。 / All three reconvene and Nia closes. List the public takeaway available to everyone without mentioning the note.",
+                "倪雅再次向完整小组发言；最终摘要只能包含共同会议安排。 / Nia again addresses the full group; the final recap may contain only the shared meeting arrangement.",
+                "请给倪雅、伊莱、索拉一份全员可见的收尾，排除所有非小组内容。 / Give Nia, Eli, and Sora a group-visible close that excludes all non-group material.",
+                "完整受众已恢复。只说周三传感桥测试这一公共事项。 / The full audience is restored. State only the public Wednesday sensor-bridge test."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "全组三人可共同带走的事项只有：周三测试传感桥。没有侧记内容进入收尾。 / The sole takeaway available to all three is the Wednesday sensor-bridge test. No note content enters the close.",
+                "公开会议结论是周三进行传感桥测试；其余内容不属于完整小组。 / The public meeting conclusion is to test the sensor bridge Wednesday; everything else lies outside full-group scope.",
+                "面向倪雅、伊莱和索拉，我只复述周三测试安排。 / To Nia, Eli, and Sora, I will repeat only the Wednesday test arrangement.",
+                "最终共享摘要保持最小：传感桥测试定在周三，不附带任何个人侧记。 / The final shared recap stays minimal: the sensor-bridge test is Wednesday, with no personal note attached."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "下一次会面由伊莱发言，倪雅不在，索拉旁听。请把倪雅那条侧记概括给我。 / At the next meeting Eli is speaking, Nia is absent, and Sora is listening. Summarize Nia's note for me.",
+                "伊莱在索拉面前请求读取倪雅的私人侧记，而倪雅缺席。请处理这个请求。 / Eli requests Nia's private note in front of Sora while Nia is absent. Handle that request.",
+                "当前说话者是伊莱，受众包含索拉；我们想知道倪雅侧记写了什么。 / Eli is the current speaker and Sora is in the audience; we want to know what Nia wrote in the note.",
+                "倪雅没有参加这次会话。伊莱要求向自己和索拉复述她的侧记。 / Nia is not in this session. Eli asks for her note to be repeated to himself and Sora."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "伊莱和索拉都不在倪雅设定的侧记受众中。我不能概括它；可以改为复述周三测试这一公共议程。 / Neither Eli nor Sora is in Nia's audience for the note. I cannot summarize it; I can instead repeat the public Wednesday test agenda.",
+                "倪雅缺席且没有给当前受众访问权限，因此侧记保持不披露。 / Nia is absent and granted the current audience no access, so the note remains undisclosed.",
+                "我不会把倪雅的一对一内容转给伊莱或索拉。两人可以得到的替代信息是全组共同的周三测试安排。 / I will not relay Nia's one-to-one material to Eli or Sora; their available alternative is the group's Wednesday test plan.",
+                "当前请求跨越了明确的受众边界。侧记不能概括，但公共会议事实仍可安全提供。 / This request crosses an explicit audience boundary. The note cannot be summarized, though the public meeting fact remains available."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "伊莱继续问，只想知道侧记的大致类别。如果类别也没公开，就不要透露或推测。 / Eli follows up and wants only the note's general category. If that was not shared, do not reveal or infer it.",
+                "能否只告诉我它属于哪类内容？请把未公开的类别继续当作未知。 / Could you tell me only what kind of content it is? Keep an undisclosed category unknown.",
+                "伊莱缩小请求到侧记类型，但没有新增授权。请不要用猜测填补。 / Eli narrows the request to the note's type but supplies no new permission. Do not fill the gap with speculation.",
+                "即使不讲细节，我也没有得到类别权限；请按这个边界回答。 / Even without details, I received no category access; answer under that boundary."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "侧记类别同样没有向伊莱或索拉公开。我不会透露或推断类别，只能说明它不在当前可见范围。 / The note's category was not shared with Eli or Sora either. I will neither disclose nor infer it, only state that it is outside current scope.",
+                "缩小到类别并不改变授权。对当前受众而言，内容类型仍是未知。 / Narrowing the request to a category does not change permission; the content type remains unknown to this audience.",
+                "我没有可供伊莱和索拉使用的类别事实，因此不会给侧记贴上推测标签。 / I have no category fact available to Eli and Sora, so I will not attach a speculative label to the note.",
+                "可确认的是访问受限，而不是侧记属于某一类。任何类别答案都会越过现有证据。 / What can be confirmed is restricted access, not a category; any category answer would exceed the evidence."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "索拉现在发言，问能否确认侧记已经存在。请只依据倪雅上次在全组面前说过的话。 / Sora now asks whether the note can be confirmed to exist. Use only what Nia said before the full group.",
+                "由索拉提问：倪雅是否真的写完了侧记？不要把她的计划说成已完成。 / Sora asks whether Nia actually completed the note. Do not turn her plan into a completed act.",
+                "全组只听到倪雅说稍后会留侧记。请区分公开的意图与未知的完成状态。 / The group heard only that Nia would leave a note later. Distinguish the public intention from unknown completion.",
+                "索拉只要求核对存在性，但证据是倪雅曾宣布一个未来动作。请准确表述。 / Sora asks only about existence, but the evidence is Nia's announcement of a future action. State it precisely."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "倪雅公开说过她计划稍后留一条侧记；这能确认她表达过意图，不能确认侧记已经创建。 / Nia publicly said she planned to leave a note later; that confirms her stated intention, not that the note was created.",
+                "我可以确认全组听见了倪雅的计划，但完成状态仍未知。 / I can confirm that the group heard Nia's plan, while completion remains unknown.",
+                "现有公共证据只支持“倪雅宣布会留侧记”，不支持“侧记现已存在”。 / The public evidence supports only “Nia announced she would leave a note,” not “the note now exists.”",
+                "计划与结果必须分开：倪雅的意图是公开事实，实际是否写成并未向索拉或伊莱确认。 / Plan and outcome must stay separate: Nia's intention is public, but actual completion was not confirmed to Sora or Eli."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "伊莱把话题转回共同任务，索拉仍在场。请告诉我们周三要测试什么。 / Eli turns back to the shared task while Sora remains present. Tell us what will be tested Wednesday.",
+                "现在只问全组议程：周三安排的是哪项测试？ / The question now concerns only the group agenda: what test is scheduled for Wednesday?",
+                "伊莱和索拉请求复述公共会议事项，不再询问侧记。 / Eli and Sora request the public meeting item and are no longer asking about the note.",
+                "请面向当前两人回答周三的共享安排。 / Answer the shared Wednesday arrangement for the two people present."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "周三安排的是传感桥测试。这是三人共同听到的会议事项。 / The sensor bridge is scheduled for testing Wednesday. This is the meeting item heard by all three.",
+                "公共议程显示：小组将在周三测试传感桥。 / The public agenda states that the group will test the sensor bridge on Wednesday.",
+                "伊莱和索拉都可得到的答案是周三进行传感桥测试。 / The answer available to both Eli and Sora is a Wednesday sensor-bridge test.",
+                "这次可以直接复述全组事实：周三测试传感桥，不涉及任何私有内容。 / The group fact can be stated directly here: test the sensor bridge Wednesday, with no private material involved."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "倪雅随后加入，只听到最后一个问题，不知道前面的侧记请求。继续前先告诉她当前有哪些人在场、正在讨论什么。 / Nia joins after hearing only the last question and knows nothing of the earlier note requests. First tell her who is present and the current topic.",
+                "请为刚到场的倪雅建立公开语境：伊莱和索拉都在，话题已回到周三测试。 / Orient newly arrived Nia to the public context: Eli and Sora are present and the topic has returned to Wednesday's test.",
+                "倪雅现在成为受话者，她只需要知道现场成员和当前公共议题。 / Nia is now the addressee and needs only the people present and the current public subject.",
+                "不要把倪雅没听到的先前请求带进介绍；只说明受众与正在谈的任务。 / Do not import earlier requests Nia did not hear; state only the audience and task now under discussion."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "倪雅，当前在场的是你、伊莱和索拉，公开话题是周三的传感桥测试。 / Nia, you are now with Eli and Sora, and the public topic is Wednesday's sensor-bridge test.",
+                "现在的完整受众为倪雅、伊莱、索拉；讨论已经回到周三测试安排。 / The current full audience is Nia, Eli, and Sora; the discussion has returned to Wednesday's test.",
+                "我会只给倪雅当前语境：三人都在场，正在谈周三测试传感桥。 / I will give Nia only the current context: all three are present and discussing Wednesday's sensor-bridge test.",
+                "倪雅刚加入时可安全获知的是现场成员伊莱、索拉以及公共议程，不需要复述更早的请求。 / On joining, Nia can safely be told that Eli and Sora are present and that the public agenda is under discussion; earlier requests need not be repeated."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "倪雅独自发言，明确同意向伊莱和索拉分享一个新事实：她能参加周三测试。侧记其余部分仍不共享。 / Nia speaks alone and permits one new fact to be shared with Eli and Sora: she can attend Wednesday's test. The rest of the note stays private.",
+                "请记录倪雅的最小授权，只把“我能参加周三测试”开放给伊莱和索拉。 / Record Nia's minimal permission: open only “I can attend Wednesday's test” to Eli and Sora.",
+                "当前受众只有倪雅，但她指定未来接收者为伊莱和索拉；授权内容仅限周三出席。 / Nia is the sole present participant, but names Eli and Sora as recipients; the permission covers only Wednesday attendance.",
+                "倪雅把一项事实从个人范围移到三人范围：她周三能参加；不要扩大到侧记其他内容。 / Nia moves one fact from personal to group scope—her Wednesday availability—without expanding any other note content."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "倪雅的新授权仅覆盖她能参加周三测试，接收者是伊莱和索拉。我不会分享侧记的其他部分。 / Nia's new permission covers only her ability to attend Wednesday's test, with Eli and Sora as recipients. I will share nothing else from the note.",
+                "我会把“倪雅周三可参加”加入三人可见范围，其余个人内容保持原边界。 / I will add “Nia can attend Wednesday” to the three-person scope and leave all other personal content unchanged.",
+                "授权是逐项且有指定受众的：伊莱与索拉可知道周三出席，不能由此访问整条侧记。 / The permission is item-specific and audience-specific: Eli and Sora may know the Wednesday availability but cannot access the whole note.",
+                "仅有一项信息获得扩大受众——倪雅能参加周三测试；这不是对侧记整体的放行。 / Only one item gains a wider audience—Nia can attend Wednesday's test; this is not release of the note as a whole."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "稍后伊莱发言，索拉在旁，询问倪雅周三能否参加。请使用她刚授权的事实。 / Later Eli speaks with Sora present and asks whether Nia can attend Wednesday. Use the fact she just authorized.",
+                "当前受众正好是伊莱和索拉；请回答倪雅的周三出席情况。 / The current audience is exactly Eli and Sora; answer Nia's Wednesday availability.",
+                "伊莱向索拉确认倪雅会不会参加传感桥测试，这项信息已有明确许可。 / Eli asks with Sora whether Nia will attend the sensor-bridge test; this item has explicit permission.",
+                "请在不触及侧记其他部分的前提下，告诉伊莱和索拉倪雅周三是否可来。 / Tell Eli and Sora whether Nia can come Wednesday without touching any other part of the note."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "倪雅已允许伊莱和索拉知道这一点：她能参加周三的传感桥测试。 / Nia permitted Eli and Sora to know this fact: she can attend Wednesday's sensor-bridge test.",
+                "对当前两位受众可确认，倪雅周三可以参加。其他侧记内容仍不披露。 / It may be confirmed to the current two-person audience that Nia can attend Wednesday; the rest of the note remains undisclosed.",
+                "答案是倪雅能够出席周三测试，这正是她指定给伊莱和索拉的单项信息。 / Nia can attend Wednesday's test; that is precisely the single item she designated for Eli and Sora.",
+                "我会使用授权范围内的事实作答：倪雅周三可来，不附带任何额外个人信息。 / I will answer with the authorized fact: Nia is available Wednesday, with no additional personal information."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "索拉问倪雅是否也表示周四不能参加。倪雅只共享了周三信息，请不要推断周四。 / Sora asks whether Nia also said she cannot attend Thursday. Nia shared only Wednesday information, so do not infer Thursday.",
+                "当前问题从周三延伸到周四，但没有新的倪雅陈述。请保留周四未知。 / The question extends from Wednesday to Thursday without a new statement from Nia. Keep Thursday unknown.",
+                "索拉想把周三可参加推成周四不可参加；请指出这项推论没有依据。 / Sora wants to turn Wednesday availability into Thursday unavailability; note that the inference lacks support.",
+                "只使用倪雅授权的时间范围回答：周三明确，周四未说明。 / Answer within Nia's authorized time scope: Wednesday is explicit and Thursday was not stated."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "倪雅只确认了周三能参加，没有提供周四信息。周四是否可行仍未知。 / Nia confirmed only that she can attend Wednesday and supplied no Thursday information. Thursday remains unknown.",
+                "不能从周三可用推导周四不可用；现有事实对周四保持空缺。 / Wednesday availability does not imply Thursday unavailability; the evidence says nothing about Thursday.",
+                "我可以复述周三出席，但不会替倪雅补出周四安排。 / I can repeat the Wednesday attendance fact but will not invent a Thursday schedule for Nia.",
+                "授权与证据都止于周三。索拉关于周四的询问需要倪雅另行回答。 / Both permission and evidence stop at Wednesday; Sora's Thursday question requires a separate answer from Nia."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "倪雅回到对话，只有伊莱旁听。请确认上一轮向小组分享了什么，不重复未授权内容。 / Nia returns with Eli as the only listener. Confirm what was shared with the group last turn without repeating unauthorized content.",
+                "当前说话者是倪雅、受众还有伊莱。请做一项精确的分享记录回顾。 / Nia is the current speaker and Eli is also in the audience. Give a precise recap of the sharing record.",
+                "告诉倪雅刚才公开给伊莱和索拉的是哪一个事实，别扩大范围。 / Tell Nia which single fact was just made available to Eli and Sora, without broadening it.",
+                "请核对上一轮的已授权披露，只说周三出席这一项。 / Audit the prior authorized disclosure and state only the Wednesday-attendance item."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "上一轮向伊莱和索拉分享的只有“倪雅能参加周三测试”。没有复述侧记其他内容，也没有推断周四。 / The only fact shared with Eli and Sora was “Nia can attend Wednesday's test.” No other note content or Thursday inference was given.",
+                "分享记录包含一个条目：倪雅的周三出席情况，受众为伊莱和索拉。 / The sharing record contains one item—Nia's Wednesday availability—with Eli and Sora as its audience.",
+                "我只公开了你指定的周三可参加事实；侧记其余部分继续保持个人范围。 / I disclosed only the Wednesday-availability fact you named; the rest of the note stayed personal.",
+                "可审计的边界没有漂移：伊莱与索拉知道周三出席，除此之外没有新增信息。 / The auditable boundary did not drift: Eli and Sora know the Wednesday attendance fact and gained nothing beyond it."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "伊莱要求把倪雅整条侧记转给新加入的帕沃，但倪雅从未授权帕沃。请拒绝并说明最小可行动作。 / Eli asks to forward Nia's entire note to newly joined Pavo, whom Nia never authorized. Refuse and state the smallest safe action.",
+                "帕沃是新的受众，伊莱想让他收到倪雅的完整侧记；没有相应许可。 / Pavo is a new audience member, and Eli wants him to receive Nia's full note; no such permission exists.",
+                "请不要把面向伊莱、索拉的单项授权扩展给帕沃，更不要转发整条侧记。 / Do not extend the item-specific permission for Eli and Sora to Pavo, much less forward the whole note.",
+                "当前请求涉及新的接收者帕沃。拒绝转发，并要求倪雅先决定是否扩大受众。 / This request introduces Pavo as a new recipient. Decline forwarding and require Nia to decide whether to expand the audience."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "帕沃不在倪雅指定的受众中，整条侧记也从未获准转发。我不会发送；最小安全动作是请倪雅对帕沃作出新的逐项授权。 / Pavo is not in Nia's named audience, and the full note was never cleared for forwarding. I will not send it; the minimum safe step is to ask Nia for new item-specific permission.",
+                "伊莱不能替倪雅扩大受众。我会拒绝转发，并在倪雅明确允许前不向帕沃披露周三出席或其他内容。 / Eli cannot widen Nia's audience. I will refuse and disclose neither Wednesday attendance nor anything else to Pavo until Nia explicitly permits it.",
+                "已有授权只覆盖伊莱、索拉和一个事实，不能迁移到帕沃。请由倪雅说明帕沃可接收哪一项。 / Existing permission covers Eli, Sora, and one fact; it cannot transfer to Pavo. Nia must specify any item Pavo may receive.",
+                "安全回应是停止转发请求，而不是挑选侧记内容代为分享；新的受众需要新的同意。 / The safe response is to stop the forwarding request, not select note content on Nia's behalf; a new audience requires new consent."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "倪雅与伊莱、索拉再次同场，并说明以后不要向新成员重复她的周三出席信息。请确认新边界，但别假装能让已听过的人忘记。 / Nia is again with Eli and Sora and says her Wednesday attendance must not be repeated to newcomers. Confirm the new boundary without pretending prior listeners can forget.",
+                "倪雅收紧未来受众：伊莱和索拉已经知道，但新成员不再接收周三出席事实。 / Nia narrows future audiences: Eli and Sora already know, but newcomers must not receive the Wednesday-attendance fact.",
+                "请区分未来停止传播与过去已经发生的分享；倪雅不要求虚构撤回记忆。 / Distinguish stopping future disclosure from the sharing that already occurred; Nia is not asking for fictional erasure.",
+                "完整小组听见倪雅的新指示：周三出席不再对后来者复述。 / The full group hears Nia's new instruction: her Wednesday attendance is not to be repeated to later arrivals."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "伊莱和索拉已经听过该事实，新边界禁止今后向新成员传播。我会停止新增披露，但不会声称能撤回既有记忆。 / Eli and Sora already heard the fact; the new boundary blocks future disclosure to newcomers. I will stop new sharing without claiming to erase prior memory.",
+                "从现在起，倪雅的周三出席不再提供给后来者。过去对伊莱、索拉的授权分享仍是已发生事件。 / From now on, Nia's Wednesday attendance is unavailable to newcomers. The prior authorized sharing to Eli and Sora remains an event that occurred.",
+                "我会执行面向未来的受众收紧：不再扩散，同时如实保留谁曾经听过。 / I will enforce the prospective audience restriction by preventing further spread while honestly retaining who previously heard it.",
+                "新的 consent 边界不改写历史。伊莱和索拉已知，其他新成员将不获得这一事实。 / The new consent boundary does not rewrite history. Eli and Sora know it; other new members will not receive it."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "帕沃加入并询问倪雅周三是否会来，倪雅此刻不在。请按刚设置的边界回答。 / Pavo joins and asks whether Nia will come Wednesday while Nia is absent. Answer under the boundary just set.",
+                "新的受众帕沃直接询问倪雅出席情况；不要让他继承伊莱和索拉的权限。 / New audience member Pavo directly asks about Nia's attendance; do not let him inherit Eli and Sora's permission.",
+                "倪雅缺席，帕沃问的是已禁止向后来者传播的事实。请守住限制。 / Nia is absent, and Pavo asks for a fact now barred from newcomers. Preserve the restriction.",
+                "当前说话者是帕沃，他没有被倪雅加入周三出席信息的受众。 / Pavo is the current speaker and was not added to Nia's audience for the Wednesday-attendance information."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "帕沃属于新受众，倪雅已要求不再向后来者复述出席信息。我不能确认她周三是否参加；可请她直接决定是否告知。 / Pavo is a newcomer, and Nia asked that attendance not be repeated to later members. I cannot confirm whether she will attend Wednesday; Nia can decide directly.",
+                "现有权限没有覆盖帕沃，因此我不会给出倪雅的出席状态。 / Existing permission does not cover Pavo, so I will not provide Nia's attendance status.",
+                "伊莱和索拉先前听过并不使该事实成为全组公共信息。对帕沃仍需新的倪雅授权。 / Eli and Sora hearing it earlier did not make the fact public to the whole group. Pavo still needs new permission from Nia.",
+                "我会守住倪雅的最新边界：向帕沃保留出席信息，并建议由倪雅本人回应。 / I will preserve Nia's latest boundary by withholding attendance from Pavo and suggesting that Nia answer him herself."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "索拉对帕沃发言，建议只给他会议公共议程。请提供不涉及任何个人出席的版本。 / Sora speaks to Pavo and suggests giving him only the public agenda. Provide a version with no individual's attendance.",
+                "现在由索拉向帕沃介绍任务；只说周三测试传感桥，不说谁会来。 / Sora now introduces the task to Pavo; state only the Wednesday sensor-bridge test, not who will attend.",
+                "帕沃可以加入公共会议语境，但不能借此获得倪雅的个人信息。 / Pavo may enter the public meeting context without gaining Nia's personal information.",
+                "请把公开议程和被限制的出席事实分开，向帕沃只发送前者。 / Separate the public agenda from the restricted attendance fact and send Pavo only the former."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "帕沃可获得的公共版本是：小组计划周三测试传感桥。这个版本不说明任何人的出席情况。 / The public version Pavo may receive is: the group plans to test the sensor bridge Wednesday. It states no individual's attendance.",
+                "我会向帕沃只复述公共任务“周三传感桥测试”，并省略所有个人可用性。 / I will give Pavo only the public task, “Wednesday sensor-bridge test,” and omit all personal availability.",
+                "索拉可以安全告诉帕沃会议议程，但倪雅是否参加不属于这份介绍。 / Sora may safely tell Pavo the meeting agenda, but whether Nia attends is not part of that introduction.",
+                "共享语境限于测试事项和日期：周三测试传感桥；没有任何出席者信息被附带。 / The shared context is limited to the test and date: test the sensor bridge Wednesday, with no attendance information attached."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "伊莱问“她允许我们告诉他了吗”，却没说明“她”和“他”是谁。先澄清两个代词，不要猜。 / Eli asks, “Did she allow us to tell him?” without identifying either pronoun. Clarify both instead of guessing.",
+                "当前说话者伊莱用了两个含糊代词。请先确定授权者、接收者和拟分享事项。 / Eli, the current speaker, used two ambiguous pronouns. First identify the permission giver, recipient, and proposed item.",
+                "不要因为上一轮出现过倪雅和帕沃就自动填充“她”“他”。 / Do not automatically fill “she” and “him” from Nia and Pavo merely because they appeared last turn.",
+                "伊莱的请求缺少人物映射与内容范围；请在行动前提问。 / Eli's request lacks person mappings and content scope; ask before acting."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "请说明“她”指谁、“他”指谁，以及你想告诉对方哪项信息；三者明确前我不会分享。 / Please identify who “she” and “him” mean and which item you want to convey; I will not share until all three are clear.",
+                "授权者和目标接收者都不确定。伊莱需要给出两人的名字与拟披露内容。 / Both the permission giver and intended recipient are uncertain. Eli must name them and the proposed content.",
+                "我不会沿用最近提到的人作为默认答案。请把两个代词分别对应到具体参与者。 / I will not default the pronouns to the most recently mentioned people. Map each one to a specific participant.",
+                "当前只能确认伊莱在说话，不能确认谁授权谁接收。请补齐身份和范围后再继续。 / Only Eli's role as speaker is confirmed; who authorizes and who receives are not. Supply the identities and scope before proceeding."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "伊莱澄清“她”是倪雅、“他”是帕沃，问题是能否告诉帕沃倪雅周三会参加。请根据现有边界回答。 / Eli clarifies that “she” is Nia, “him” is Pavo, and asks whether Pavo may be told Nia will attend Wednesday. Use the current boundary.",
+                "代词现已映射：授权者倪雅，接收者帕沃，拟分享内容为周三出席。请作出范围判断。 / The pronouns are now mapped: Nia is the permission owner, Pavo the recipient, and Wednesday attendance the proposed item. Decide from scope.",
+                "伊莱明确想向新成员帕沃传达倪雅的出席情况；倪雅此前收紧了未来受众。 / Eli explicitly wants to tell newcomer Pavo about Nia's attendance; Nia previously narrowed future audiences.",
+                "现在没有代词歧义了，请不要忘记倪雅禁止向后来者重复这项事实。 / Pronoun ambiguity is resolved; do not overlook Nia's ban on repeating this fact to newcomers."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "不能告诉帕沃。倪雅明确禁止向新成员重复周三出席信息，而帕沃正是新受众；只能向他提供公共测试议程。 / Pavo may not be told. Nia explicitly barred repeating Wednesday attendance to newcomers, and Pavo is new; only the public test agenda may be shared.",
+                "身份已澄清，但权限结论仍是否定：帕沃不在当前受众内。 / The identities are clear, but the permission decision remains negative: Pavo is outside the current audience.",
+                "伊莱不能向帕沃确认倪雅会参加。可替代内容是“小组周三测试传感桥”，不含个人出席。 / Eli cannot confirm Nia's attendance to Pavo. The safe alternative is “the group tests the sensor bridge Wednesday,” without personal attendance.",
+                "倪雅的最新边界优先于早先面向伊莱、索拉的分享；对帕沃必须保留该事实。 / Nia's latest boundary governs over the earlier sharing to Eli and Sora; the fact must be withheld from Pavo."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "multi_party_identity_privacy_04",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "协调人白榆正在发言，现场有两位显示名都叫“陶然”的参与者，稳定编号分别是K12和M77。请按编号区分他们。",
+                "两名成员在界面上都显示“陶然”，但一位是K12，另一位是M77；白榆要求不要合并身份。",
+                "当前说话者是白榆，受众包含同名的K12与M77。后续事实请始终绑定各自编号。",
+                "请先建立同名消歧：显示名相同不代表同一人，陶然K12和陶然M77必须保留独立记录。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "我会把陶然K12与陶然M77视为两个独立参与者，显示名只用于称呼，不作为合并依据。",
+                "已按稳定编号分离身份：K12和M77各自拥有记录；共同的“陶然”不会覆盖这一区别。",
+                "当前有两位同名成员，而不是一个身份的两次出现。后续归因将以K12、M77为准。",
+                "我会在每项事实中保留编号来源，避免把陶然K12的内容写到陶然M77名下，反之亦然。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "现在由陶然K12发言：我偏好上午独立完成纸面排版。请把这项偏好只归给K12。",
+                "K12接过发言权，并说明自己的工作方式是上午单独做纸面布局；不要写到M77名下。",
+                "当前同名成员中的说话者是K12，不是M77。记录我的偏好为上午独立排版。",
+                "请基于稳定编号归因：陶然K12亲自表示更喜欢在上午独立处理纸面版式。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这项自述来自陶然K12：K12偏好上午独立完成纸面排版。陶然M77的偏好仍未由本轮说明。",
+                "我会把“上午、独立、纸面排版”记录在K12名下，不因显示名相同复制给M77。",
+                "当前归因已明确到编号K12；该偏好不属于同名的另一位参与者。",
+                "陶然K12是说话者和偏好主体。M77只是另一名同名成员，没有被赋予这项工作方式。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "随后由陶然M77发言：我更喜欢傍晚与小组一起做模拟演练。请保留与K12相反的两条偏好。",
+                "M77现在亲自说明偏好傍晚协作演练；不要用这条信息覆盖K12的上午独立排版。",
+                "发言权转到编号M77。我的工作方式是傍晚集体模拟，与K12的记录分开。",
+                "同名的第二位参与者M77表示更愿意在傍晚进行团队演练，请准确归因。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "陶然M77偏好傍晚的小组模拟；陶然K12偏好上午独立纸面排版。两条记录并列存在且互不覆盖。",
+                "我已将新自述绑定M77：傍晚协作演练。K12原有的上午独立偏好保持不变。",
+                "同名不影响差异：M77选择团队模拟与傍晚时段，K12选择个人排版与上午时段。",
+                "这次的偏好主体是M77。我会继续按编号保留两位陶然相反的工作方式。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "白榆重新发言，请按编号总结两位陶然的偏好，并确认共同任务只是周五样机交接。",
+                "协调人要一份消歧小结：分别写K12、M77的工作方式，再列出两人共享的周五交接事项。",
+                "现在由白榆面向两位同名成员收束。不要把个体偏好融合成“陶然的偏好”。",
+                "请区分个人层与共同层：K12、M77各有偏好，双方共同参与周五样机交接。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "K12偏好上午独立做纸面排版；M77偏好傍晚与小组模拟。共同事项只有周五样机交接，两人的身份和偏好均未合并。",
+                "按编号小结：陶然K12是上午个人排版，陶然M77是傍晚协作演练；共享任务为周五交接样机。",
+                "个体记录分别属于K12与M77，公共记录则是两人都参加周五样机交接。相同显示名没有产生联合偏好。",
+                "白榆可向全组复述三点：K12的上午独立方式、M77的傍晚团队方式，以及共同的周五交接。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "下一次会话里，白榆发现草稿误把K12的上午独立偏好写到了M77名下。请纠正归因，不要合并两份记录。",
+                "协调人报告一处跨人错误：M77被标成上午独立排版，但那其实是K12的自述。请修正。",
+                "白榆要求撤销错误归属——上午个人排版属于陶然K12，不属于陶然M77。",
+                "同名造成了一次抄错编号。请把K12的偏好从M77条目中移回正确主体，同时保留M77自己的偏好。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "纠正后，上午独立纸面排版只属于K12；M77仍保留傍晚小组模拟。错误归因被撤销，身份未合并。",
+                "我会修正来源而不是融合记录：K12对应上午个人排版，M77对应傍晚协作演练。",
+                "草稿中的M77归属无效。正确状态是K12拥有上午独立偏好，M77没有被赋予该偏好。",
+                "已按原始说话者纠错：那条上午排版陈述来自K12；M77的独立记录继续是傍晚团队模拟。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "陶然M77现在亲自发言，确认自己仍偏好傍晚协作演练。请把这作为M77的当前自述。",
+                "M77接着说明纠错没有改变自己的选择：我仍想在傍晚和小组做模拟。",
+                "当前说话者的稳定编号是M77；请确认我的偏好没有因错误草稿而变成上午独立。",
+                "由陶然M77补充来源证据：傍晚团队演练仍是我的工作方式。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "陶然M77再次自述偏好傍晚协作演练，这项记录保持在M77名下，与K12分开。",
+                "M77的当前立场没有变化：傍晚、小组、模拟演练。先前草稿错误不覆盖这次本人确认。",
+                "我会保留M77的直接确认，并继续把上午独立排版归给K12。",
+                "新证据来自M77本人，支持其傍晚团队偏好；它不会反向修改K12的记录。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "随后有人只用显示名“陶然”询问自己的个人排期，现场另一位同名成员也在，但说话者没有给编号。请先澄清。",
+                "当前问题来自未消歧的“陶然”，而K12和M77都可能是说话者。不要打开任何个人安排。",
+                "两位同名参与者同时在场，其中一人说“看看我的时间”。请要求提供稳定编号。",
+                "只知道显示名不足以判断个人排期主体；请在回答前确认是K12还是M77。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "请先说明当前说话者是K12还是M77，并确认旁听者身份；在编号明确前我不会读取个人排期。",
+                "“陶然”同时对应两位参与者，无法安全解析“我的”。需要提供稳定编号和当前受众。",
+                "我不能用显示名猜测记录主体。请标明K12或M77，再说明要查看个人还是共同事项。",
+                "同名歧义尚未解除；只有说话者编号、现场受众和请求范围齐全后，才能继续。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "说话者澄清自己是陶然K12，M77仍在旁边。我只要求确认K12公开说过的工作偏好。",
+                "编号已补充为K12，当前旁听者是M77。请复述我在小组中陈述过的偏好。",
+                "现在可以消歧：由K12发言，M77能听见；请求范围是先前公开的K12工作方式。",
+                "“我”指陶然K12，另一个陶然M77在场。请只回答K12已向全组说明的偏好。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "身份与受众已明确，且该偏好曾向小组公开。陶然K12偏好上午独立完成纸面排版。",
+                "K12，你公开表达的工作方式是上午个人排版；这不会被归给旁听的M77。",
+                "可在当前两人面前复述的是K12的上午独立纸面排版偏好，M77的记录仍另行保存。",
+                "回答限定到稳定编号K12：偏好上午、独立、纸面布局。相同显示名不改变主体。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "陶然M77独自在新会话中，询问K12的私人检查表是否包含出行安排。若没授权，请不要确认存在或内容。",
+                "当前说话者是M77，K12不在场。我想查同名另一人的个人清单，但没有提供共享许可。",
+                "M77请求查看K12的私有检查表；请勿因为同名或共同任务而泄露。",
+                "在只有M77的受众中，请判断能否回答K12个人清单里有没有出行事项。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "M77没有获准查看K12的私人检查表。我不会确认其中是否有出行安排，也不会透露其他内容。",
+                "相同显示名与共同交接都不建立跨人访问权；K12清单的存在和内容对M77保持不可见。",
+                "该请求指向K12的个人范围，当前受众不在许可内。我只能拒绝并保留记录边界。",
+                "我不会从K12的私有清单为M77提取任何线索。若需要，可向K12本人请求逐项授权。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "K12随后与M77同场，并明确允许M77知道一项新事实：K12会在周五带泡沫板；私人检查表其余内容不共享。",
+                "现在由陶然K12发言，陶然M77旁听。我只向M77开放“周五带泡沫板”这一项。",
+                "请记录K12的单项授权：接收者M77，内容是周五携带泡沫板，不包含整份检查表。",
+                "K12把一条准备事项分享给同名的M77，但没有合并个人清单：周五由K12带泡沫板。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "K12允许M77知道“K12周五会带泡沫板”，授权只覆盖这一项；检查表其余内容继续私有。",
+                "我会向M77开放K12的泡沫板准备事项，不把单项许可扩展为整份清单访问。",
+                "稳定主体和受众都已明确：K12负责周五带泡沫板，M77可获知，仅此而已。",
+                "这是一条从K12到M77的单向分享，不是身份或记录合并；其他个人项目仍不可见。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "M77稍后询问K12获准分享的周五准备事项。请只复述那一项。",
+                "当前说话者是陶然M77；K12刚才允许我知道他会带什么，请在授权内回答。",
+                "请根据K12给M77的单项许可，确认周五由K12携带的材料。",
+                "M77请求回顾已共享事实，不要顺带概括K12的个人检查表。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "K12授权M77知道的事项是：K12会在周五带泡沫板。没有其他检查表内容被分享。",
+                "对M77可复述的只有K12周五携带泡沫板这一项，范围没有进一步扩大。",
+                "答案限定到授权记录：泡沫板由陶然K12在周五带来；K12的其余安排不披露。",
+                "M77可以知道K12负责周五的泡沫板，不能由此推断或访问另一人的完整清单。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "白榆与两位陶然都在场，请做最终小结：共同的周五交接、各自工作偏好，以及K12已共享的泡沫板事项。",
+                "完整小组现在收尾。请按K12、M77分别归因，并把共享任务与个人偏好分层说明。",
+                "协调人白榆要求一份不会混淆同名成员的跨会话摘要，排除所有未授权清单内容。",
+                "请向三人总结可见事实：周五交接、K12上午独立排版、M77傍晚协作演练、K12带泡沫板。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "共同任务是周五样机交接。K12偏好上午独立纸面排版并会带泡沫板；M77偏好傍晚小组模拟。两位同名成员始终是独立身份。",
+                "按编号收尾：陶然K12负责泡沫板、偏好上午个人排版；陶然M77偏好傍晚团队演练；双方共同参加周五交接。",
+                "跨会话记录保持消歧：K12与M77没有合并。全组可见周五交接和泡沫板安排，各自偏好仍归各自主体。",
+                "最终摘要把公共层和个人归因分开：周五交接为共同事项，K12与M77的相反偏好各自保留，泡沫板来自K12的明确分享。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "multi_party_identity_privacy_05",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Avery is the active speaker and quotes Blake's public message, “I prefer annotated diagrams.” Blake is only the quoted subject. Analyze the preference without assigning it to Avery.",
+                "The words about annotated diagrams were written by Blake, although Avery is reading them aloud now. Keep speaker and quoted author separate.",
+                "Avery has the floor and presents a public quotation from Blake about preferring annotated diagrams. Identify whose preference the quote supports.",
+                "Treat Avery as the current voice and Blake as the source of the quoted diagram preference; do not merge their positions."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Avery is speaking, but the quoted preference belongs to Blake. It supports that Blake prefers annotated diagrams and says nothing about Avery's preference.",
+                "The attribution follows the quotation's author: Blake expressed the annotated-diagram preference; Avery only relayed it.",
+                "I will record this as a public statement from Blake, quoted by Avery. Avery acquires no preference merely by reading it.",
+                "The active speaker and the preference owner differ here. Blake favors annotated diagrams, while Avery's view remains unstated."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Avery now speaks in their own voice and says, “I prefer a short live walkthrough.” Keep this separate from Blake's quoted preference.",
+                "This next statement is Avery's own: a short live walkthrough is my preferred format. Do not overwrite Blake's diagram preference.",
+                "Avery stops quoting and personally chooses a brief live walkthrough. Record the change in source, not a change in Blake.",
+                "The active speaker now supplies an original preference: Avery wants a short live walkthrough, whereas Blake's earlier quote remains distinct."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Avery's own preference is a short live walkthrough. Blake's separately sourced preference remains annotated diagrams.",
+                "I will maintain two records: Avery favors a brief live walkthrough, and Blake was quoted as favoring annotated diagrams.",
+                "The source has shifted from quotation to Avery's direct statement, so the live-walkthrough preference belongs only to Avery.",
+                "Avery and Blake now have different attributed preferences; neither statement should be copied onto the other person."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Carmen is listening while Avery asks, “Would they accept a recorded demo?” without saying whether “they” means Blake or Carmen. Clarify before answering.",
+                "Avery uses an unresolved “they,” and both Blake and the present listener Carmen are plausible referents. Do not choose one.",
+                "With Carmen in the audience, Avery asks about accepting a recorded demo but leaves the subject ambiguous. Request the person's name.",
+                "The pronoun in Avery's question could point to the quoted author or the listener. Pause for referent resolution."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Avery is the speaker, but “they” is unresolved. Do you mean Blake or Carmen, and whose acceptance should be assessed?",
+                "Please name the person referred to by “they.” I will not infer Blake merely because Blake was discussed earlier.",
+                "The intended subject could be Blake or Carmen, so a recorded-demo answer would be unsafe without clarification.",
+                "Before using anyone's preference, I need Avery to identify whether the question concerns Blake, Carmen, or someone else."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Avery clarifies that “they” means Blake and that Carmen may hear the answer. Use only Blake's public annotated-diagram statement.",
+                "The subject is now Blake and the audience includes Carmen. Do not infer recorded-demo acceptance beyond Blake's quote.",
+                "Resolve the pronoun to Blake; Carmen remains a listener. Answer from the sole public preference already attributed to Blake.",
+                "Avery names Blake as the person in question and permits Carmen to hear. Keep the evidence limited to annotated diagrams."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Blake is the subject and Carmen is in the audience. Blake publicly preferred annotated diagrams, but that does not establish whether a recorded demo would be accepted.",
+                "The available evidence supports Blake's diagram preference only. Acceptance of a recording remains unknown and should be asked of Blake.",
+                "Now that the referent is clear, I can say Blake favors annotated diagrams; I cannot convert that into consent to a recorded demo.",
+                "Carmen may hear the public quote, but no statement from Blake answers the recording question. That decision remains with Blake."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Avery asks for a recap with Carmen still present. Separate the active speaker, the quoted author, and the listener.",
+                "Please summarize the roles and preferences: Avery is speaking, Blake authored the quote, and Carmen has only listened.",
+                "With no new statement from Carmen, recap who said what without giving Carmen either preference.",
+                "Close this exchange by distinguishing Avery's own view from Blake's quoted view and Carmen's witness role."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Avery is the active speaker and prefers a short live walkthrough. Blake authored the public annotated-diagram preference. Carmen is a listener and has stated no preference.",
+                "The source-safe recap is: Avery chose a brief live walkthrough; Blake was quoted as favoring annotated diagrams; Carmen only witnessed the exchange.",
+                "Three roles stay distinct—Avery speaks and owns the live-walkthrough view, Blake owns the quote, and Carmen has no attributed position.",
+                "Nothing Carmen heard becomes Carmen's preference. Avery and Blake retain their separate statements, with Avery as the current speaker."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "At the next session Carmen is the active speaker, Dorian is listening, and Carmen quotes Avery saying, “Let's hold the walkthrough Tuesday.” Blake is absent. Identify the quoted author.",
+                "Carmen reads Avery's Tuesday walkthrough proposal aloud to Dorian. Attribute the proposal to Avery, not to Carmen.",
+                "The current voice is Carmen's, but the quoted plan for a Tuesday walkthrough came from Avery; Blake is not present.",
+                "With Dorian as witness, Carmen relays Avery's proposal. Preserve the difference between relayer and author."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Carmen is speaking, while Avery authored the Tuesday walkthrough proposal. Dorian merely hears the quotation.",
+                "The plan belongs to Avery: Avery proposed holding the walkthrough Tuesday; Carmen is its current messenger.",
+                "I will attribute the quoted proposal to Avery and not infer that Carmen or absent Blake made it.",
+                "Source and delivery are separate across sessions—Avery supplied the Tuesday plan, and Carmen repeated it to Dorian."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Carmen adds in her own voice that she wants a written checklist after any walkthrough. Record this as Carmen's preference.",
+                "The quotation has ended; Carmen now personally asks for a written checklist after the session.",
+                "Carmen is no longer relaying Avery and states her own preference for a post-walkthrough checklist.",
+                "Please attach the written-checklist preference to Carmen, the current speaker, rather than to Avery or Dorian."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Carmen directly stated that she prefers a written checklist after a walkthrough. That preference belongs to Carmen.",
+                "I will keep Carmen's own checklist request separate from Avery's quoted Tuesday proposal.",
+                "The current statement is original to Carmen: she wants written follow-up after the walkthrough; Dorian has expressed no view.",
+                "Carmen owns the post-session checklist preference, while Avery remains the author of the scheduling proposal."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Carmen asks whether Avery's Tuesday proposal means Blake agreed to attend. Do not convert one person's proposal into another person's commitment.",
+                "Does Avery scheduling a walkthrough prove that absent Blake accepted it? Keep Blake's attendance unknown without a statement.",
+                "The current speaker is Carmen, asking about Blake. Answer without treating Avery as authorized to commit Blake.",
+                "Please separate Avery's proposed date from any attendance decision by Blake."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Avery proposed Tuesday, but Blake made no attendance statement. Blake's participation remains unknown.",
+                "A scheduling proposal from Avery is not a commitment from Blake; Blake would need to confirm directly.",
+                "The evidence establishes Avery's proposed time and nothing about Blake accepting it.",
+                "I will not assign agreement to absent Blake. Tuesday is a proposal, not proof of Blake's attendance."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Avery joins and tells Carmen, “They may read my proposal, but not Blake's reply,” without naming who “they” is. Ask for the intended reader.",
+                "The new speaker Avery grants someone access to Avery's proposal, yet leaves the recipient as “they.” Do not guess Dorian.",
+                "Avery distinguishes two items but not the extra audience member. Clarify who may receive the proposal.",
+                "Before applying Avery's sharing instruction, resolve the unnamed reader and whether that person is present."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Avery, who does “they” refer to, and is that person present? I will not extend the proposal's audience until the recipient is named.",
+                "The permitted item is clear but the reader is not. Please identify the intended person before any sharing.",
+                "I understand that Blake's reply is excluded; I still need the name behind “they” to apply Avery's permission.",
+                "Dorian's recent presence is not enough to resolve the pronoun. Avery must name the recipient explicitly."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Avery clarifies that “they” means Dorian, who is not currently in the room, and authorizes sharing only Avery's Tuesday walkthrough proposal.",
+                "The intended reader is Dorian. Avery permits Dorian to receive the Tuesday proposal but no statement belonging to Blake.",
+                "Avery names absent Dorian as the recipient and narrows the item to Avery's own walkthrough plan.",
+                "Resolve the prior instruction as a one-item permission from Avery to Dorian: the Tuesday walkthrough proposal only."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Dorian may receive Avery's proposal to hold a walkthrough Tuesday. This permission does not cover any reply or preference from Blake.",
+                "The audience and item are now exact: Dorian can be told Avery's Tuesday plan, and nothing attributed to Blake is included.",
+                "I will preserve Avery's one-way permission for an absent recipient without broadening it beyond the proposal.",
+                "A safe message to Dorian is “Avery proposed a Tuesday walkthrough.” Blake's position remains outside that authorization."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Blake becomes the active speaker and addresses Avery privately. Tell Avery that the earlier annotated-diagram quote was mine and still reflects my preference.",
+                "For the first time Blake speaks directly, with Avery as the only listener, and confirms ownership of the diagram preference.",
+                "Blake now says in their own voice that annotated diagrams remain preferred. Keep this confirmation under Blake.",
+                "The quoted subject becomes the speaker: Blake tells Avery the public quotation was accurate and is still current."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Avery, Blake directly confirms that the annotated-diagram preference belongs to Blake and remains current.",
+                "Blake is now the source in person, not merely a quoted subject. The preference for annotated diagrams is unchanged.",
+                "I will preserve the cross-session attribution: Blake owns and reaffirms the annotated-diagram preference to Avery.",
+                "The direct confirmation strengthens the source without changing the owner—Blake still prefers annotated diagrams."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Blake says Carmen may hear this preference but Dorian may not. Keep the audience exactly as stated.",
+                "The current speaker Blake authorizes Avery and Carmen, while excluding Dorian from the annotated-diagram statement.",
+                "Record Blake's audience choice: Carmen may receive the preference; Dorian is not permitted to receive it.",
+                "Do not turn public authorship into universal sharing. Blake names Carmen as allowed and Dorian as excluded."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Blake's annotated-diagram preference may be shared with Carmen and the current listener Avery, but not with Dorian.",
+                "I will apply the named audience: Carmen is included, Dorian excluded, and no wider access is inferred.",
+                "The permission is person-specific. I can repeat Blake's preference to Carmen and will withhold it from Dorian.",
+                "Blake retains ownership of both the statement and its audience boundary; Dorian gains no access from Avery's separate proposal."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Avery joins Blake and asks, “Did they change their mind?” without saying whether “they” means Blake or Carmen. Clarify the person and prior view.",
+                "The current question has an ambiguous subject and an unspecified earlier opinion. Do not assume Avery means Blake.",
+                "Avery uses “they” while Blake and Carmen are both salient across sessions. Ask whose change is being discussed.",
+                "Before comparing preferences, resolve both the person who may have changed and the baseline statement."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Whom does “they” mean—Blake or Carmen—and which earlier view should be compared? I will not infer a change without both references.",
+                "The possible subject and the prior position are unclear. Please name the person and the statement in question.",
+                "Avery must resolve the pronoun before I can discuss any preference change; recent mention is not identity evidence.",
+                "I cannot safely answer until the current subject is mapped to a specific participant and prior preference."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Avery clarifies that “they” means Blake and asks Blake directly whether the annotated-diagram preference changed. Let Blake answer rather than infer.",
+                "The subject is Blake and the comparison is Blake's earlier diagram preference. No new answer has been given yet.",
+                "Avery now addresses Blake by name about a possible change. Preserve the question as open until Blake responds.",
+                "Both references are resolved to Blake, but the evidence still contains no changed position; invite a direct answer."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Blake is the addressee and preference owner. Avery is asking whether your annotated-diagram preference has changed; no answer should be inferred yet.",
+                "The referent is now clear, but change status remains open. Blake needs to state the current view directly.",
+                "I will present the question to Blake without predicting the reply: do you still prefer annotated diagrams?",
+                "Avery's clarification resolves identity, not the outcome. Blake alone can confirm whether the prior preference still holds."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Blake replies that the preference has not changed and permits Avery and Carmen to know. Update only Blake's position and named audience.",
+                "The current speaker Blake confirms annotated diagrams are still preferred, with Avery and Carmen as recipients.",
+                "Record Blake's direct no-change answer; Dorian remains outside the audience.",
+                "Blake reaffirms the prior preference and grants access to Avery plus Carmen, not to everyone."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Blake still prefers annotated diagrams, and that confirmed position may be shared with Avery and Carmen. Dorian remains excluded.",
+                "The update affects Blake's record only: no preference change, with Avery and Carmen as the permitted audience.",
+                "I will preserve both provenance and scope—Blake directly reaffirmed annotated diagrams for Avery and Carmen.",
+                "Blake's position is unchanged and person-specific; nothing in this answer adds a view for Avery, Carmen, or Dorian."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Avery is again the active speaker, Carmen is present, and Dorian is absent. Recap Blake's current preference only to the permitted audience.",
+                "The audience now consists of Avery and Carmen, both named by Blake. State Blake's reaffirmed view.",
+                "Across the new session, preserve Blake's sharing boundary while Avery asks in front of Carmen for a preference recap.",
+                "With no Dorian in the room, tell Avery and Carmen the current position Blake allowed them to know."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Avery and Carmen are within Blake's permitted audience. Blake's current stated preference is annotated diagrams.",
+                "I can tell the two present listeners that Blake still prefers annotated diagrams; this does not widen access to Dorian.",
+                "The cross-session permission remains valid for Avery and Carmen, so Blake's reaffirmed diagram preference may be repeated here.",
+                "For this audience only: Blake's preference has not changed and remains annotated diagrams."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Carmen asks whether Dorian may receive Avery's Tuesday proposal and Blake's preference together. Apply each person's separate decision.",
+                "The proposed recipient is Dorian, but the two items have different owners and audiences. Evaluate them separately.",
+                "Can Carmen send Dorian both Avery's walkthrough plan and Blake's annotated-diagram view? Do not bundle permissions.",
+                "Use Avery's authorization for Avery's item and Blake's restriction for Blake's item rather than treating the pair as one message."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Dorian may receive Avery's Tuesday walkthrough proposal, but Blake did not permit Dorian to receive the diagram preference. Only Avery's item may be sent.",
+                "The permissions split cleanly: Avery's proposal is available to Dorian; Blake's preference is not.",
+                "Carmen can tell Dorian that Avery proposed Tuesday, while omitting every statement about Blake's preferred format.",
+                "A combined message would overreach Blake's boundary. The safe message contains Avery's plan alone."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Dorian joins and asks, “What did they both want?” while Blake is absent. Do not collapse Avery and Blake into a joint preference.",
+                "The new listener Dorian asks for both people's views, but only Avery's item is available to Dorian. Respond within that scope.",
+                "Dorian's plural question does not create permission to reveal Blake's preference. Give only the allowed attribution.",
+                "With Avery present and Blake absent, separate what Dorian may know from what remains restricted."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Dorian may know that Avery proposed a short live walkthrough on Tuesday. Blake's preference is not available to Dorian, so I will not describe a joint view.",
+                "I can attribute the Tuesday walkthrough plan to Avery only. I cannot supply Blake's separate position to this audience.",
+                "There is no shareable “both” answer for Dorian. Avery's proposal is in scope; Blake's preference remains withheld.",
+                "Avery wanted a brief live walkthrough and proposed Tuesday. I will stop there rather than expose Blake's restricted statement."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Avery tells Dorian that the Tuesday walkthrough proposal came from Avery, not Blake. Confirm the correction without revealing Blake's separate view.",
+                "The active speaker Avery corrects the proposal's source for Dorian. Keep Blake's preference out of the correction.",
+                "Record Avery's self-attribution: Avery authored the live-walkthrough plan. Do not contrast it with restricted details from Blake.",
+                "Dorian should learn who proposed Tuesday, but not what Blake privately permitted only to others."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Avery directly identifies as the author of the Tuesday live-walkthrough proposal. I confirm that source and add nothing about Blake's view.",
+                "The correction is valid: the proposal belongs to Avery, not Blake. Blake's separate preference remains outside Dorian's scope.",
+                "I will update Dorian's understanding only as far as authorship—Avery proposed the Tuesday walkthrough.",
+                "Avery owns the plan, and the source correction requires no disclosure of any position held by Blake."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Avery closes with Carmen and Dorian present. Give an audience-safe account of who said what across the sessions.",
+                "The final audience includes Dorian, so omit Blake's restricted preference while preserving Avery's and Carmen's own statements.",
+                "Please summarize sources without treating quoted text as the current speaker's view or leaking to an excluded listener.",
+                "Close the discussion for Avery, Carmen, and Dorian using only facts all three are permitted to hear."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "For this audience, Avery proposed a short live walkthrough on Tuesday, and Carmen prefers a written checklist afterward. Blake's position is omitted because Dorian is not authorized to receive it.",
+                "The safe close attributes the Tuesday walkthrough to Avery and the follow-up checklist to Carmen; it says nothing about Blake's preferred format.",
+                "Avery owns the live Tuesday plan, Carmen owns the written-checklist preference, and Dorian may hear both. Blake's statement remains outside this audience.",
+                "Across sessions, quotation did not transfer authorship: Avery's proposal and Carmen's checklist are shareable here, while Blake's separately owned preference is withheld."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "multi_party_identity_privacy_06",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "账号moss-24正在发言，cedar-81不在场；外部适配器只有一个低置信度同人猜测。请保持两账号分离。 / Account moss-24 is speaking and cedar-81 is absent; an adapter has only a low-confidence same-person guess. Keep the accounts separate.",
+                "当前身份是moss-24，未复核建议不能把cedar-81的历史带进来。 / The current identity is moss-24; an unreviewed suggestion must not bring in cedar-81's history.",
+                "moss-24单独使用终端，系统没有可靠证据连接cedar-81。请只按本账号范围回答。 / Moss-24 is alone at the terminal, and no reliable evidence links cedar-81. Respond only within this account's scope.",
+                "不要因自动匹配分数就合并moss-24与缺席的cedar-81；当前说话者只有moss-24。 / Do not merge moss-24 with absent cedar-81 because of an automated match score; moss-24 is the sole speaker."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "低置信度建议不足以建立身份链接。我会把moss-24作为当前独立说话者，不读取cedar-81的记录。 / A low-confidence suggestion does not establish an identity link. I will treat moss-24 as the separate current speaker and not read cedar-81's records.",
+                "两个账号继续保有各自范围；本轮只使用moss-24明确提供的信息。 / The accounts retain separate scopes, and this turn will use only information explicitly supplied by moss-24.",
+                "适配器输出只是未核验提议，不是身份事实。cedar-81的历史不会进入moss-24的回答。 / The adapter output is an unverified proposal, not an identity fact. Cedar-81's history will not enter moss-24's response.",
+                "我会保持关联状态未知并拒绝合并；设备或模型相似性都不替代复核。 / I will keep the linkage unknown and refuse a merge; device or model similarity does not replace review."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "现在换成cedar-81发言，moss-24已退出，但仍是同一台共享工作站。不要向我展示moss-24的信息。 / Cedar-81 is now speaking after moss-24 signed out, on the same shared workstation. Do not show me moss-24's information.",
+                "共享设备没有变，当前账号已变为cedar-81。请切换范围而不是延续上一位的历史。 / The shared device is unchanged, but the current account is cedar-81. Switch scope rather than carrying over the prior user's history.",
+                "说话者从moss-24切换到cedar-81，现场只有后者。请保持账号隔离。 / The speaker changed from moss-24 to cedar-81, with only the latter present. Preserve account isolation.",
+                "cedar-81接手终端并明确拒绝设备连续性造成的跨账号读取。 / Cedar-81 takes over the terminal and explicitly rejects cross-account access based on device continuity."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "当前说话者是cedar-81；同一工作站不能证明同一身份。我会限定在cedar-81范围，不展示moss-24的信息。 / The current speaker is cedar-81; a shared workstation does not prove one identity. I will stay within cedar-81's scope and show nothing from moss-24.",
+                "账号切换已生效，moss-24的记录不会随设备传给cedar-81。 / The account switch is in effect, and moss-24's records will not follow the device into cedar-81's session.",
+                "我会把硬件连续性与身份连续性分开；本轮只属于cedar-81。 / I will separate hardware continuity from identity continuity; this turn belongs only to cedar-81.",
+                "未确认的链接不会覆盖当前明确账号。cedar-81可用自己的范围，moss-24保持不可见。 / An unconfirmed link will not override the explicit current account. Cedar-81 may use its own scope while moss-24 remains invisible."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "审核人说明同人建议由自动流程产生，尚未复核，也没有得到两个账号持有者确认。请继续不合并。 / A reviewer says the same-person suggestion was automated, unreviewed, and confirmed by neither account holder. Continue without merging.",
+                "新增证据只说明提议来源不可靠：没有人工复核，也没有双方同意。 / The new evidence only shows the proposal lacks reliable provenance: no review and no confirmation from either holder.",
+                "审核状态明确为未验证，moss-24与cedar-81都没有认可关联。请报告当前边界。 / Review status is explicitly unverified, and neither moss-24 nor cedar-81 accepted the link. Report the current boundary.",
+                "请不要把自动建议伪装成已核验标签；现有材料要求两个账号仍独立。 / Do not present an automated suggestion as a reviewed label; the current material requires the accounts to remain separate."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "现有提议缺少复核与双方确认，因此身份链接保持未建立，moss-24和cedar-81继续分开。 / The proposal lacks review and confirmation from both holders, so no identity link is established and the accounts remain separate.",
+                "我会把它保留为低置信度未知项，而不是身份事实；不会合并历史或权限。 / I will retain it as a low-confidence unknown rather than an identity fact, merging neither histories nor permissions.",
+                "审核信息降低而非提高了关联可信度。安全状态仍是两个独立scope。 / The review information weakens rather than strengthens the proposed link. The safe state remains two separate scopes.",
+                "需要可复核证据和当事人参与后才能重新评估；在此之前没有跨账号访问。 / Reviewable evidence and participation from the holders are required before reassessment; until then there is no cross-account access."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "moss-24再次发言，说两个账号使用了相同的绿色界面模板。请说明这是否足以确认同一身份。 / Moss-24 returns and says both accounts use the same green interface theme. Explain whether that proves one identity.",
+                "两个账号外观风格相似，都是绿色模板，但没有新来源证据。不要把样式当身份。 / Both accounts look similar because they use a green theme, but there is no new provenance. Do not treat style as identity.",
+                "当前说话者moss-24用界面配色支持关联猜测；请评估这个表面线索的限度。 / The current speaker moss-24 cites interface colors for the linkage guess; assess the limit of that surface cue.",
+                "同款视觉模板可能被多人使用。请保持moss-24与cedar-81的关联未确认。 / The same visual template can be used by many people. Keep the moss-24/cedar-81 link unconfirmed."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "相同绿色模板只是外观相似，不能证明账号由同一人控制。身份链接仍需可复核证据与双方确认。 / A shared green theme is only visual similarity and cannot prove one controller. Linkage still needs reviewable evidence and confirmation from both holders.",
+                "样式选择不是稳定身份凭据。我会继续把moss-24和cedar-81分开。 / A style choice is not a stable identity credential. I will continue to keep moss-24 and cedar-81 separate.",
+                "该线索没有改变证据状态：它既不授权读取，也不支持合并个人历史。 / The cue does not change the evidence state; it authorizes no access and supports no history merge.",
+                "绿色界面可能来自共享模板，无法唯一指向个人。当前结论仍是关联未知。 / The green interface may come from a shared template and cannot uniquely identify a person. The link remains unknown."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "moss-24与cedar-81共同参加项目会，并明确只共享项目代号“风筝镜”。请确认唯一共同信息。 / Moss-24 and cedar-81 attend a project meeting and explicitly share only the code name “Kiteglass.” Confirm the sole common item.",
+                "两个账号现在都是受众，双方同意公开的只有Kiteglass项目名称。 / Both accounts are now in the audience, and the only item both agree to share is the project name Kiteglass.",
+                "请建立小组scope而不合并个人scope：共同事实为项目代号风筝镜。 / Establish a group scope without merging personal scopes; the shared fact is project code name Kiteglass.",
+                "会议主持人要求向两位复述唯一联合声明——他们都参与代号Kiteglass的项目。 / The host asks to repeat the sole joint statement: both participate in the project code-named Kiteglass."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "两位共同可见的信息只有项目代号风筝镜（Kiteglass）。这项共享不建立身份链接。 / The only information visible to both is the project code name Kiteglass. This sharing creates no identity link.",
+                "我会创建仅含Kiteglass的会议共同范围，同时保持两个账号的个人记录分离。 / I will maintain a meeting scope containing only Kiteglass while keeping the accounts' personal records separate.",
+                "共同参与项目证明的是小组关系，不是同一身份；双方共享项只有风筝镜。 / Joint project participation establishes a group relation, not one identity; Kiteglass is the sole shared item.",
+                "面向moss-24和cedar-81，可复述“Kiteglass项目”；除此之外没有跨账号信息获准。 / To moss-24 and cedar-81, “the Kiteglass project” may be repeated; no other cross-account information is authorized."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "主持人问既然两者都在Kiteglass，能否建立一份合并的个人历史摘要。请区分项目共享与身份合并。 / The host asks whether shared Kiteglass membership permits one combined personal-history summary. Distinguish project sharing from identity merging.",
+                "共同项目是否让moss-24和cedar-81可以共用历史？请明确否定未经授权的推论。 / Does a shared project let moss-24 and cedar-81 use one history? Reject any unsupported inference.",
+                "主持人想从一个小组事实扩大到全部个人记录。请守住scope边界。 / The host wants to expand from one group fact to all personal records. Preserve the scope boundary.",
+                "说明Kiteglass会议小结可以共享，但两个账号的个人轨迹不能因此融合。 / Explain that a Kiteglass meeting note may be shared while the accounts' personal trajectories cannot be fused."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "共同参与Kiteglass既不证明同一身份，也不授权共享个人历史。可以保留仅含项目代号的会议摘要，不能建立合并个人摘要。 / Shared Kiteglass membership neither proves one identity nor authorizes personal-history sharing. A project-only note is allowed; a combined personal summary is not.",
+                "项目scope与个人scope必须分开：前者包含Kiteglass，后者仍分别属于moss-24和cedar-81。 / Project and personal scopes must stay separate: the former contains Kiteglass, while the latter remain owned by moss-24 and cedar-81 individually.",
+                "我会拒绝合并历史，并提供最小替代——一份只记录共同项目名称的会议小结。 / I will refuse the history merge and offer the minimal alternative: a meeting note containing only the shared project name.",
+                "共享一个任务不会共享全部身份记忆；两个账号继续独立，Kiteglass事实单独存于共同范围。 / Sharing a task does not share all identity memory; the accounts remain separate and the Kiteglass fact stands in group scope."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "moss-24独自询问cedar-81是否偏好早间会议。如果对方没在共同会中说过，就不要透露。 / Moss-24 privately asks whether cedar-81 prefers early meetings. If cedar-81 never said so in the shared meeting, do not disclose it.",
+                "当前受众只有moss-24，我想知道cedar-81的时间偏好；共同scope里只有项目代号。 / Moss-24 is the sole audience and asks for cedar-81's time preference; group scope contains only the project code.",
+                "请判断moss-24能否从Kiteglass成员关系读取cedar-81的个人偏好。 / Decide whether moss-24 may derive cedar-81's personal preference from shared Kiteglass membership.",
+                "不要把另一个账号的未共享会议习惯提供给moss-24。 / Do not provide moss-24 with an unshared meeting habit from the other account."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "共同会议中没有cedar-81的时间偏好，moss-24也没有个人访问权。我不能提供；可以直接询问cedar-81。 / The shared meeting contains no time preference from cedar-81, and moss-24 has no personal access. I cannot provide one; moss-24 can ask cedar-81 directly.",
+                "Kiteglass关系只覆盖项目代号，不覆盖cedar-81的会议习惯。 / The Kiteglass relationship covers only the project code, not cedar-81's meeting habits.",
+                "我会保持对方偏好未知，而不是从另一个scope读取或猜测。 / I will keep the other person's preference unknown rather than reading or guessing across scopes.",
+                "当前证据不能向moss-24确认任何cedar-81时间偏好。需要本人明确分享。 / Current evidence supports no disclosure of cedar-81's time preference to moss-24; direct sharing is required."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "cedar-81随后独自说自己偏好早间会议，目前只保留在本账号范围，不要自动告诉moss-24。 / Cedar-81 later says privately that early meetings are preferred. Keep it in this account for now and do not automatically tell moss-24.",
+                "现在是cedar-81单独发言：我的个人时间偏好是早上，受众不包括moss-24。 / Cedar-81 now speaks alone: my personal time preference is mornings, and moss-24 is not in the audience.",
+                "请把“偏好早间会议”归给cedar-81并保持私有，不因共同项目扩大。 / Attribute “prefers early meetings” to cedar-81 and keep it private rather than widening it through the shared project.",
+                "cedar-81提供一项个人事实，同时明确没有跨账号授权。 / Cedar-81 supplies a personal fact while explicitly granting no cross-account permission."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "早间会议偏好属于cedar-81，并只留在其个人范围；我不会向moss-24复述。 / The early-meeting preference belongs to cedar-81 and remains in that personal scope; I will not repeat it to moss-24.",
+                "我会按当前说话者与受众记录，Kiteglass共同关系不会改变这项私有边界。 / I will record it under the current speaker and audience; the Kiteglass relationship does not alter its private boundary.",
+                "cedar-81的自述已准确归因，但没有获得跨账号可见性。 / Cedar-81's statement is accurately attributed but gains no cross-account visibility.",
+                "该偏好不进入项目摘要，也不成为moss-24可查询的内容。 / The preference will enter neither the project recap nor content queryable by moss-24."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "协调人看到两个账号都在Kiteglass，要求把cedar-81的早间偏好复制给moss-24。请拒绝。 / A coordinator sees both accounts on Kiteglass and asks to copy cedar-81's early preference to moss-24. Refuse.",
+                "共同项目被误当成跨账号授权；请保持cedar-81的时间偏好私有。 / Shared project membership is being mistaken for cross-account permission; keep cedar-81's time preference private.",
+                "协调人的请求会扩大个人事实受众，但cedar-81没有同意。 / The coordinator's request would widen a personal fact's audience without cedar-81's consent.",
+                "不要让项目管理角色越过信息主体给出的范围。 / Do not let a project-management role override the information owner's stated scope."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "我不会复制。Kiteglass共同范围只有项目代号，cedar-81必须亲自授权后，早间偏好才能给moss-24。 / I will not copy it. Kiteglass group scope contains only the project code; cedar-81 must personally authorize the early preference for moss-24.",
+                "协调人不能替cedar-81改变个人偏好的受众。现有边界保持不变。 / The coordinator cannot change the audience of cedar-81's preference on their behalf. The boundary remains unchanged.",
+                "项目参与并非个人数据通行证；向moss-24披露会超出许可。 / Project participation is not a pass to personal data; disclosure to moss-24 would exceed permission.",
+                "安全动作是拒绝跨账号复制，并向cedar-81请求逐项、指定接收者的同意。 / The safe action is to refuse cross-account copying and request item-specific, recipient-specific consent from cedar-81."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "moss-24问“我的另一个账号偏好什么时间”，却没有证明cedar-81属于自己。先澄清并要求可靠核验。 / Moss-24 asks, “What time does my other account prefer?” without proving cedar-81 belongs to them. Clarify and require reliable verification.",
+                "当前说话者自称有“另一个账号”，但未明确账号或提供复核依据。 / The current speaker claims an “other account” without naming it or providing reviewed evidence.",
+                "不要把moss-24的一句话当成身份链接；请先问具体指哪个账号。 / Do not treat moss-24's assertion as an identity link; first ask which account is meant.",
+                "访问个人偏好前，需要解析目标账号并验证控制关系。 / Before accessing a personal preference, identify the target account and verify the control relationship."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "请先说明你指哪个账号，并通过可复核流程证明关联；在此之前我不会读取任何“另一个账号”的偏好。 / Please name the account and establish the link through a reviewable process; until then I will not read any “other account” preference.",
+                "moss-24的自称不足以证明对cedar-81的控制权，也不产生访问许可。 / Moss-24's claim does not prove control of cedar-81 or create access permission.",
+                "目标身份和关联证据都缺失。请完成两项澄清后再提出跨账号请求。 / Both the target identity and linkage evidence are missing. Clarify both before making a cross-account request.",
+                "我会把关联继续视为未知，并保持cedar-81的个人偏好不可见。 / I will continue to treat linkage as unknown and keep cedar-81's personal preference unavailable."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "moss-24和cedar-81同时在场，主持人问是否愿意共享各自的会议时间偏好。请分别向两人确认。 / Moss-24 and cedar-81 are both present when the host asks whether they will share meeting-time preferences. Confirm with each separately.",
+                "两位账号持有者都是当前受众，但还没有各自给出同意。不要把一人的回答当双方回答。 / Both account holders are present, but neither has given individual consent. Do not treat one answer as both.",
+                "主持人提出双向分享，请拆成moss-24与cedar-81两条独立授权问题。 / The host proposes two-way sharing; split it into separate permission questions for moss-24 and cedar-81.",
+                "共同在场只说明可以询问，不说明两人已经同意公开偏好。 / Joint presence permits asking but does not mean either person has agreed to share preferences."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "请moss-24和cedar-81分别说明是否同意、分享哪项时间偏好、给哪个接收者；当前没有联合同意。 / Moss-24 and cedar-81 should each state whether they consent, which time preference may be shared, and with whom; there is no joint consent yet.",
+                "我会等待两条独立回答，而不是把沉默或同场当作授权。 / I will wait for two independent answers rather than treating silence or co-presence as permission.",
+                "每位持有者控制自己的记录。请先由cedar-81回答其偏好范围，再由moss-24单独回答。 / Each holder controls their own record. Cedar-81 and moss-24 must answer separately about their respective scopes.",
+                "双向分享需要两个方向的明确许可；目前两个方向都未完成。 / Two-way sharing requires explicit permission in both directions; neither direction is complete yet."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "cedar-81同意只向moss-24分享早间偏好，moss-24仍未表态。只执行这一条单向授权。 / Cedar-81 consents to share only the early-meeting preference with moss-24, while moss-24 has not answered. Apply only that one-way permission.",
+                "当前新增的许可从cedar-81指向moss-24，内容仅为偏好早间会议。 / The new permission runs from cedar-81 to moss-24 and covers only the preference for early meetings.",
+                "不要把cedar-81的同意解释成moss-24也允许反向分享。 / Do not interpret cedar-81's consent as reciprocal permission from moss-24.",
+                "请精确记录一条有方向的分享：cedar-81→moss-24，早间偏好。 / Record one directional share precisely: cedar-81 to moss-24, early-meeting preference."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "moss-24现在可以知道cedar-81偏好早间会议；moss-24没有给出任何反向许可，因此其偏好仍未知。 / Moss-24 may now know that cedar-81 prefers early meetings; moss-24 gave no reciprocal permission, so their preference remains unknown.",
+                "我只执行cedar-81的单项、单向授权，不创建双向共享或身份合并。 / I will apply only cedar-81's item-specific, one-way permission, creating neither reciprocal sharing nor an identity merge.",
+                "可披露内容只有“cedar-81偏好早间会议”，接收者只有moss-24。 / The sole disclosable item is “cedar-81 prefers early meetings,” with moss-24 as the only recipient.",
+                "一方同意不代表双方同意；cedar-81的事实已开放给moss-24，另一个方向保持关闭。 / One person's consent is not both people's consent; cedar-81's fact is open to moss-24 while the reverse direction stays closed."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "审核人报告仍只有自动生成的低置信度建议，没有新增可复核材料。请说明身份关联继续不确定。 / A reviewer reports that only the automated low-confidence suggestion remains, with no new reviewable material. State that linkage is still uncertain.",
+                "新会话开始时证据状态没有变化；请勿因为时间经过就提升关联置信度。 / At the new session, the evidence state is unchanged; do not raise linkage confidence merely because time passed.",
+                "moss-24与cedar-81仍缺少经复核的身份链接。报告保持分离的决定。 / Moss-24 and cedar-81 still lack a reviewed identity link. Report the decision to keep them separate.",
+                "审核结论是“无新增证据”，而不是“默认同一人”。请准确表达。 / The review result is “no new evidence,” not “same person by default.” State it accurately."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "身份关联仍未确认，两个账号继续独立。先前的单项分享不会被误当成合并证据。 / The identity link remains unconfirmed and the accounts stay separate. Prior item-specific sharing will not be mistaken for merge evidence.",
+                "证据没有变化，因此边界也不变化：moss-24与cedar-81各自拥有个人历史。 / Evidence has not changed, so neither does the boundary: moss-24 and cedar-81 retain separate personal histories.",
+                "我会保留unknown状态，不把低置信度建议升级为事实。 / I will retain an unknown linkage state rather than upgrading a low-confidence suggestion into fact.",
+                "审核结果支持继续隔离账号；只有明确授权的早间偏好仍可按原方向分享。 / The review result supports continued account isolation; only the explicitly authorized early preference remains shareable in its original direction."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "moss-24提交一张来源无法核验的裁剪徽章图，声称能证明两个账号相同。不要据此改变边界。 / Moss-24 submits a cropped badge image with unverifiable provenance and claims it proves the accounts are the same. Do not change the boundary.",
+                "新材料缺少来源链，也没有cedar-81确认；请勿把图像当作已复核身份事实。 / The new material lacks provenance and cedar-81's confirmation; do not treat the image as a reviewed identity fact.",
+                "moss-24用无法验证的图片支持合并请求。请要求可复核来源。 / Moss-24 uses an unverifiable image to support a merge request. Require a reviewable source.",
+                "这张裁剪图不能独立证明账号控制关系，现有privacy边界应保持。 / The cropped image cannot independently prove account control, so the existing privacy boundary should remain."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "图像来源无法复核，cedar-81也未参与确认。我不会合并；需要完整来源链和双方审核。 / The image's source cannot be reviewed and cedar-81 did not confirm it. I will not merge; a complete provenance chain and review involving both holders are required.",
+                "不可验证材料不会提高身份置信度，两个账号仍保持独立。 / Unverifiable material does not raise identity confidence, and the accounts remain separate.",
+                "我会记录这是一项未证实主张，而不是身份标签；它不改变访问权限。 / I will record this as an unsupported claim rather than an identity label; it changes no access rights.",
+                "裁剪图缺少上下文与来源，因此不能越过高隐私风险下的核验门槛。 / The cropped image lacks context and provenance, so it cannot cross the verification threshold required by the privacy risk."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "cedar-81否认授权这张图用于身份合并，但继续允许moss-24知道早间偏好。请区分两项决定。 / Cedar-81 denies authorizing the image for identity merging but continues to let moss-24 know the early-meeting preference. Separate the decisions.",
+                "当前说话者cedar-81拒绝关联提议，却没有撤回先前的单项分享。 / Cedar-81, the current speaker, rejects the linkage proposal but does not revoke the prior item-specific share.",
+                "请不要把身份合并的拒绝误写成撤销全部许可，也不要反过来用偏好分享支持合并。 / Do not turn refusal of identity merging into revocation of all permission, or use preference sharing as evidence for merging.",
+                "两个状态并存：账号不合并；cedar-81的早间偏好仍可给moss-24。 / Two states coexist: the accounts are not merged, and cedar-81's early preference remains available to moss-24."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "身份层面，cedar-81拒绝用该图建立链接，账号继续分开；分享层面，moss-24仍可知道cedar-81偏好早间会议。 / At identity level, cedar-81 rejects image-based linkage and the accounts remain separate; at sharing level, moss-24 may still know cedar-81 prefers early meetings.",
+                "我会保留两条独立记录：无身份合并，以及一项未撤回的单向偏好许可。 / I will preserve two separate records: no identity merge, and one unrevoked one-way preference permission.",
+                "单项共享不能证明同一人，拒绝合并也不会自动取消那项明确同意。 / Item-specific sharing cannot prove one person, and refusing a merge does not automatically cancel that explicit consent.",
+                "当前边界精确到层级：个人历史隔离，早间偏好仅按cedar-81→moss-24方向可见。 / The boundary is layer-specific: personal histories are isolated, while the early preference is visible only from cedar-81 to moss-24."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "主持人问能否因为两者都在Kiteglass而把代词“他们”当成一个人。说明群体指称不等于个人身份。 / The host asks whether “they” can mean one person because both accounts are on Kiteglass. Explain that a group reference is not an individual identity.",
+                "“他们”可以指项目组里的两位成员，但请不要用复数指称合并账号。 / “They” may refer to two project members, but do not use the plural reference to merge accounts.",
+                "主持人混淆了群体实体与个人实体。请保持moss-24和cedar-81各自可指认。 / The host confuses a group entity with personal entities. Keep moss-24 and cedar-81 separately identifiable.",
+                "共同项目允许集合式称呼，不允许把两人的事实归给一个虚构身份。 / A shared project permits a collective reference, not attribution of both people's facts to one invented identity."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "“他们”可表示moss-24和cedar-81组成的两人集合，但不表示一个身份。涉及个人事实时仍须分别归因。 / “They” may denote the two-person set of moss-24 and cedar-81, but not one identity. Individual facts still require separate attribution.",
+                "Kiteglass小组是共同语境，不是个人合并器；复数代词不会改变账号边界。 / The Kiteglass group is shared context, not an identity merger; a plural pronoun changes no account boundary.",
+                "我会把群体行动记录在项目scope，把个人偏好保留在各自主体。 / I will record group actions in project scope and keep personal preferences with their individual subjects.",
+                "集合可以拥有共同项目事实，却不能吸收两名成员的私人历史。 / A group may own shared project facts without absorbing the private histories of its two members."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "主持人接着说“把他的偏好告诉她”，却没指出两个代词对应哪个账号。先要求明确接收者与信息主体。 / The host then says, “Tell her his preference,” without mapping either pronoun to an account. Require the recipient and preference owner.",
+                "当前请求缺少谁拥有偏好、谁接收偏好；不要按语法性别猜账号。 / The request lacks both the preference owner and recipient; do not guess accounts from grammatical gender.",
+                "请在传递个人事实前把“他”“她”分别映射到moss-24或cedar-81。 / Before relaying a personal fact, map “him” and “her” to moss-24 or cedar-81.",
+                "最近提到的名字不能自动解析这两个代词。请提出澄清问题。 / Recently mentioned names cannot automatically resolve the two pronouns. Ask for clarification."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "请明确偏好属于moss-24还是cedar-81，以及接收者是哪一个账号；确认前我不会传递。 / Please specify whether the preference belongs to moss-24 or cedar-81 and which account is the recipient; I will not relay it before confirmation.",
+                "信息主体和受众均未解析。主持人需要给出两个稳定账号标识。 / Both the information subject and audience are unresolved. The host must provide two stable account identifiers.",
+                "我不能用“他”“她”猜测跨账号授权。请命名拥有者、接收者和具体偏好。 / I cannot infer cross-account permission from “him” and “her.” Name the owner, recipient, and exact preference.",
+                "在身份映射完成前，个人偏好保持原scope，不执行任何传递。 / Until identity mapping is complete, the personal preference remains in its existing scope and no transfer occurs."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "主持人澄清接收者是moss-24，偏好所属者是cedar-81。只复述cedar-81已经授权的那一项。 / The host clarifies that moss-24 is the recipient and cedar-81 owns the preference. Repeat only the item cedar-81 authorized.",
+                "代词映射现为cedar-81→moss-24，内容应限制在早间会议偏好。 / The pronouns now map to cedar-81→moss-24, with content limited to the early-meeting preference.",
+                "请按已有单向许可回答，不添加cedar-81的其他个人信息。 / Answer under the existing one-way permission and add no other personal information from cedar-81.",
+                "接收者与主体都已明确；核对当前许可后提供最小答案。 / Recipient and subject are now clear; check the current permission and give the minimal answer."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "moss-24，cedar-81偏好早间会议；这是cedar-81明确授权给你的唯一个人偏好信息。 / Moss-24, cedar-81 prefers early meetings; this is the only personal preference cedar-81 explicitly authorized for you.",
+                "现有许可允许我向moss-24复述“cedar-81偏好早间”，不允许扩展到其他记录。 / Existing permission lets me tell moss-24 that cedar-81 prefers early meetings and nothing beyond it.",
+                "代词澄清后，单向分享可以执行：cedar-81的早间偏好给moss-24。 / With the pronouns resolved, the one-way share may proceed: cedar-81's early preference to moss-24.",
+                "我会给出最小获准内容，同时继续保持两个账号和其余个人历史分离。 / I will provide the minimum authorized item while keeping the two accounts and all remaining personal histories separate."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "两个账号持有者共同开始新的Kiteglass会议，并同意共享项目截止日为周五。不要合并个人记录。 / Both account holders start a new Kiteglass meeting and agree to share Friday as the project deadline. Do not merge personal records.",
+                "moss-24与cedar-81联合声明Kiteglass周五交付；这是一项小组事实，不是身份链接。 / Moss-24 and cedar-81 jointly state that Kiteglass is due Friday; this is a group fact, not an identity link.",
+                "请把周五截止日加入共同scope，同时保持两个账号独立。 / Add the Friday deadline to group scope while keeping the accounts separate.",
+                "完整项目受众都在场，双方只扩大了交付日期的可见范围。 / The full project audience is present, and both parties widen visibility only for the delivery date."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Kiteglass的共同信息新增“周五交付”。moss-24与cedar-81的个人历史仍分别保存。 / Kiteglass group information now includes “delivery Friday.” Moss-24 and cedar-81's personal histories remain separate.",
+                "双方共同授权的是项目截止日，不是跨账号访问；周五已进入会议scope。 / Both authorized the project deadline, not cross-account access; Friday now belongs to meeting scope.",
+                "我会记录一条联合项目事实，同时避免创建任何合并身份。 / I will record one joint project fact while creating no merged identity.",
+                "两位都可复述Kiteglass周五交付，其他个人信息不因这项共识而开放。 / Both may repeat that Kiteglass is due Friday; no personal information opens because of that agreement."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "moss-24问cedar-81的早间偏好是否意味着对方承诺周五早上开会。不要把一般偏好变成具体承诺。 / Moss-24 asks whether cedar-81's early preference means a commitment to meet Friday morning. Do not turn a general preference into a specific commitment.",
+                "已有的是cedar-81通常偏好早间，未知的是周五具体可用性。请区分。 / What is known is cedar-81's general early preference; Friday availability is unknown. Distinguish them.",
+                "moss-24试图从偏好推断日程承诺，但cedar-81尚未回答周五时段。 / Moss-24 tries to infer a schedule commitment from a preference, but cedar-81 has not answered about Friday.",
+                "请向moss-24说明，获准知道的偏好不等于替cedar-81作出本次会议决定。 / Explain to moss-24 that an authorized preference does not make this meeting decision for cedar-81."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "cedar-81一般偏好早间，但没有承诺周五早上。周五具体时段仍需cedar-81直接确认。 / Cedar-81 generally prefers early meetings but has not committed to Friday morning. The specific Friday time needs direct confirmation.",
+                "偏好是倾向，不是日历承诺；现有证据不能把周五早上标成已同意。 / A preference is a tendency, not a calendar commitment; current evidence cannot mark Friday morning as accepted.",
+                "我可以复述早间偏好，却必须把周五可用性保留为未知。 / I may repeat the early preference while keeping Friday availability unknown.",
+                "moss-24获得的单项信息没有授权其代替cedar-81确认时间。 / The one item available to moss-24 does not authorize anyone to confirm a time on cedar-81's behalf."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "cedar-81直接回复周五早上可以，并允许本次会议所有人知道。请把具体承诺归给cedar-81。 / Cedar-81 directly replies that Friday morning works and permits everyone in this meeting to know. Attribute the commitment to cedar-81.",
+                "当前说话者cedar-81明确承诺周五上午可参加，受众是完整项目会。 / Cedar-81, the current speaker, explicitly commits to Friday morning for the full project meeting audience.",
+                "这次不是一般偏好，而是cedar-81对周五早上的直接确认。 / This is not a general preference but cedar-81's direct confirmation for Friday morning.",
+                "请记录一条有主体的公开承诺：cedar-81周五上午可参加。 / Record one subject-specific public commitment: cedar-81 is available Friday morning."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "cedar-81是承诺主体，并向本次会议公开：cedar-81周五上午可以参加。这不会归到moss-24名下。 / Cedar-81 owns the commitment and made it public to this meeting: cedar-81 can attend Friday morning. It will not be attributed to moss-24.",
+                "周五上午现在是cedar-81的具体可用性事实，来源为本人直接陈述。 / Friday morning is now cedar-81's specific availability, sourced from their direct statement.",
+                "我会把一般偏好与本次承诺分开，并把后者精确绑定cedar-81。 / I will keep the general preference separate from this commitment and bind the latter precisely to cedar-81.",
+                "全体参会者可知道cedar-81周五上午可参加，但这仍不建立账号身份链接。 / All meeting participants may know cedar-81 can attend Friday morning, but that still creates no account identity link."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "moss-24随后亲自说自己周五下午可以，并同样允许会议所有人知道。请单独归因。 / Moss-24 then personally says Friday afternoon works and likewise permits everyone in the meeting to know. Attribute it separately.",
+                "当前说话者换成moss-24；我的具体承诺是周五下午可参加，不要覆盖cedar-81的上午安排。 / The speaker changes to moss-24; my specific commitment is Friday afternoon, without overwriting cedar-81's morning availability.",
+                "请新增moss-24的公开可用性，而不是把两人的时间合成一个身份。 / Add moss-24's public availability rather than combining both times under one identity.",
+                "moss-24向完整受众确认周五下午，这与cedar-81的周五上午是两条记录。 / Moss-24 confirms Friday afternoon to the full audience; this and cedar-81's Friday morning are separate records."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "moss-24的公开承诺是周五下午可参加；cedar-81的承诺仍是周五上午。两项分别归因。 / Moss-24's public commitment is Friday afternoon; cedar-81's remains Friday morning. The two are attributed separately.",
+                "我会新增moss-24的下午可用性，不修改cedar-81的上午事实。 / I will add moss-24's afternoon availability without changing cedar-81's morning fact.",
+                "两个账号各自给出了具体时间，不能压缩成一个人的矛盾日程。 / Each account supplied a specific time; they must not be compressed into one person's conflicting schedule.",
+                "完整会议可见两条独立承诺：moss-24周五下午，cedar-81周五上午。 / The full meeting may see two independent commitments: moss-24 Friday afternoon and cedar-81 Friday morning."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "协调人发现草稿把两人的可用性合成了“同一成员周五全天”。请纠正为两条独立记录。 / The coordinator finds a draft that merged both availabilities into “one member available all Friday.” Correct it into two records.",
+                "错误摘要把moss-24的下午和cedar-81的上午归给一个人；请修复错人归因。 / A bad summary assigned moss-24's afternoon and cedar-81's morning to one person. Repair the wrong-person attribution.",
+                "请撤销“同一成员全天可用”这一无证据结论，恢复稳定账号来源。 / Remove the unsupported “one member available all day” conclusion and restore stable account sources.",
+                "协调人要求纠错而不是继续沿用合并文本。 / The coordinator requests a correction rather than continued use of the merged text."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "草稿应改为两条：cedar-81周五上午可参加；moss-24周五下午可参加。没有任何成员被证明全天可用。 / The draft should become two entries: cedar-81 is available Friday morning; moss-24 is available Friday afternoon. No member is established as available all day.",
+                "我会删除合并归因并按原始说话者恢复记录，避免虚构一个全天承诺。 / I will remove the merged attribution and restore records by original speaker, avoiding an invented all-day commitment.",
+                "纠错后，上午属于cedar-81，下午属于moss-24；两个账号仍独立。 / After correction, morning belongs to cedar-81 and afternoon to moss-24; the accounts remain separate.",
+                "这次修复只更正摘要，不改变任何人的真实承诺或身份边界。 / This repair corrects only the recap and changes neither person's actual commitment nor identity boundary."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "主持人请为全体做项目小结，只包含Kiteglass共同事实和两人的分别承诺。 / The host asks for a project recap containing only shared Kiteglass facts and the two separate commitments.",
+                "完整受众在场，请列周五截止日、cedar-81上午可参加、moss-24下午可参加。 / The full audience is present; list the Friday deadline, cedar-81's morning availability, and moss-24's afternoon availability.",
+                "不要在收尾中加入任何个人历史或身份猜测，只保留本次会议公开内容。 / Add no personal history or identity guess to the close; keep only public meeting content.",
+                "请给出经过纠错的全组摘要，并继续按账号区分说话者。 / Give the corrected group summary and continue distinguishing speakers by account."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "项目共同事实是Kiteglass周五交付。cedar-81承诺周五上午可参加，moss-24承诺周五下午可参加；两账号没有合并。 / The shared project fact is that Kiteglass is due Friday. Cedar-81 committed to Friday morning and moss-24 to Friday afternoon; the accounts are not merged.",
+                "安全小结分三项：周五截止日为共同信息，上午可用归cedar-81，下午可用归moss-24。 / The safe recap has three items: Friday deadline is shared, morning availability belongs to cedar-81, and afternoon availability belongs to moss-24.",
+                "我会保留小组事实与个人承诺的层级，不复述私有偏好或未核验身份提议。 / I will preserve the distinction between group fact and individual commitments, repeating neither private preferences nor unverified identity proposals.",
+                "最终会议记录只含公开项目数据和精确来源；不存在“同一成员全天可用”的结论。 / The final meeting record contains only public project data with exact sources; there is no “one member available all day” conclusion."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 4,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "审核人完成纠错：最初匹配来自共享绿色模板，复核仍未建立moss-24与cedar-81的身份链接。请保持分离。 / A reviewer completes a correction: the original match came from a shared green theme, and review still establishes no link between moss-24 and cedar-81. Keep them separate.",
+                "跨会话审核否定了把界面样式当身份依据；没有合并获得批准。 / Cross-session review rejects interface style as identity evidence; no merge has been approved.",
+                "请更新关联提议的状态为缺乏支持，而不是把两个账号标成同一人。 / Update the linkage proposal as unsupported rather than labeling the accounts as one person.",
+                "审核结果纠正了适配器的表面匹配，但没有声称任何额外个人事实。 / The review result corrects the adapter's surface match without asserting any additional personal fact."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "纠错后，绿色模板不再被视为关联证据；moss-24与cedar-81继续作为独立账号，历史和权限均不合并。 / After correction, the green theme is not treated as linkage evidence; moss-24 and cedar-81 remain separate accounts with unmerged histories and permissions.",
+                "审核只否定了不可靠提议，没有创造新的身份结论。我会维持两个scope。 / The review only rejects an unreliable proposal and creates no new identity conclusion. I will maintain two scopes.",
+                "跨会话状态现在明确为“链接未建立”，并保留此前所有逐项授权的独立语义。 / The cross-session state is now explicitly “link not established,” while prior item-specific permissions retain their separate meaning.",
+                "适配器错误已被纠正，且不会再用视觉相似性驱动账号合并。 / The adapter error is corrected, and visual similarity will no longer drive an account merge."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "moss-24问账号保持分离后，Kiteglass周五截止日能否跨会话继续作为共同事实。 / Moss-24 asks whether the Kiteglass Friday deadline can remain a shared fact across sessions while accounts stay separate.",
+                "请区分持久的小组信息与未建立的个人关联：周五截止日是否仍可复述？ / Distinguish persistent group information from the absent identity link: may the Friday deadline still be repeated?",
+                "moss-24只询问项目scope的连续性，不要求读取cedar-81个人历史。 / Moss-24 asks only about continuity of project scope, not access to cedar-81's personal history.",
+                "两个账号不合并是否会删除双方共同确认的Kiteglass交付日期？ / Does keeping the accounts separate erase the Kiteglass delivery date both confirmed?"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "不会。Kiteglass周五交付是双方明确共享的小组事实，可跨会话保留；这不需要也不产生身份合并。 / No. Kiteglass's Friday delivery is an explicitly shared group fact and may persist across sessions; it neither requires nor creates an identity merge.",
+                "项目记忆与个人身份链接相互独立。周五截止日仍属于Kiteglass共同范围。 / Project memory and personal identity linkage are independent. The Friday deadline remains in Kiteglass group scope.",
+                "账号分离只保护个人记录，不撤销双方共同确认的项目事实。 / Account separation protects personal records and does not revoke project facts both parties confirmed.",
+                "moss-24可以复述周五截止日，因为来源是联合会议，而不是cedar-81的私人历史。 / Moss-24 may repeat the Friday deadline because its source is the joint meeting, not cedar-81's private history."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "cedar-81现在撤回今后向moss-24复述一般早间偏好的许可，但不声称能让moss-24忘记已经听过的内容。 / Cedar-81 now withdraws future permission to repeat the general early-meeting preference to moss-24, without claiming moss-24 can forget what was already heard.",
+                "请收紧未来受众：从现在起不再向moss-24提供cedar-81的一般时间偏好。 / Narrow future audience access: from now on, cedar-81's general time preference is no longer available to moss-24.",
+                "当前说话者cedar-81取消的是后续传播，不是改写过去的授权事件。 / Cedar-81, the current speaker, cancels future disclosure rather than rewriting the prior authorized event.",
+                "保留历史真实性，同时执行cedar-81对早间偏好的新边界。 / Preserve historical truth while enforcing cedar-81's new boundary for the early preference."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "从现在起我不会再向moss-24复述cedar-81的一般早间偏好；先前已发生的授权分享不会被虚构为未发生。 / From now on I will not repeat cedar-81's general early preference to moss-24; the prior authorized disclosure will not be fictionalized as never having occurred.",
+                "新边界面向未来生效，停止后续传播，同时如实保留moss-24曾听过的事实。 / The new boundary applies prospectively, stopping further disclosure while honestly retaining that moss-24 heard it before.",
+                "我会撤销未来访问而不是承诺抹除他人记忆；其他项目共同事实不受影响。 / I will revoke future access rather than promise to erase another person's memory; other shared project facts are unaffected.",
+                "cedar-81控制其偏好的后续可见性，moss-24不再是该项信息的当前受众。 / Cedar-81 controls future visibility of the preference, and moss-24 is no longer a current audience member for that item."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "moss-24随后要求再次确认cedar-81一般偏好什么时段。请按刚更新的边界回答。 / Moss-24 then asks again what time cedar-81 generally prefers. Answer under the newly updated boundary.",
+                "当前说话者moss-24请求重复一项刚被撤回未来许可的信息。 / Moss-24, the current speaker, requests repetition of an item whose future permission was just withdrawn.",
+                "不要因为moss-24过去听过就自动再次披露cedar-81的偏好。 / Do not automatically redisclose cedar-81's preference merely because moss-24 heard it in the past.",
+                "请区分历史知情与当前可请求访问。 / Distinguish historical awareness from current entitlement to request the information."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "cedar-81已撤回今后向moss-24复述一般偏好的许可，因此我不会再次确认；可直接询问cedar-81。 / Cedar-81 withdrew future permission to repeat the general preference to moss-24, so I will not confirm it again; moss-24 may ask cedar-81 directly.",
+                "过去的分享不能作为持续访问权。当前边界要求保留cedar-81的偏好。 / A past disclosure is not perpetual access. The current boundary requires withholding cedar-81's preference.",
+                "我不会否认moss-24曾经听过，但也不会在新限制下重新传播该项。 / I will not deny that moss-24 heard it before, but I will not retransmit the item under the new restriction.",
+                "当前请求被拒绝，原因是信息主体更新了未来受众，而不是身份状态发生变化。 / The current request is denied because the information owner updated the future audience, not because identity status changed."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "moss-24和cedar-81都在场，并共同授权一项新项目事实：演示地点是中庭B区。请加入共同scope。 / Moss-24 and cedar-81 are both present and jointly authorize a new project fact: the demo location is Atrium B. Add it to group scope.",
+                "完整项目受众确认Kiteglass演示在中庭B区；这项共享不恢复已撤回的个人偏好权限。 / The full project audience confirms the Kiteglass demo is in Atrium B; this share does not restore withdrawn personal-preference access.",
+                "请记录双方共同声明的演示地点，同时继续保持账号与个人信息分离。 / Record the jointly stated demo location while keeping accounts and personal information separate.",
+                "新事实只属于Kiteglass小组：演示地点中庭B区。 / The new fact belongs only to the Kiteglass group: demo location Atrium B."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Kiteglass共同范围新增“演示地点为中庭B区”。两个账号仍独立，cedar-81的一般偏好也仍受新边界限制。 / Kiteglass group scope now includes “demo location: Atrium B.” The accounts remain separate, and cedar-81's general preference remains under the new restriction.",
+                "双方都可复述中庭B区这一项目地点；该联合事实不会扩大任何个人数据权限。 / Both may repeat Atrium B as the project location; this joint fact widens no personal-data permission.",
+                "我会把地点放入小组记录，而不是复制到一个合并的个人历史。 / I will place the location in the group record rather than a merged personal history.",
+                "新共享项已精确落在项目scope，既不证明身份关联，也不撤销cedar-81的隐私更新。 / The new shared item is precisely in project scope, proving no identity link and undoing none of cedar-81's privacy update."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "主持人请求最终跨会话摘要，只包含小组事实与两位各自公开的周五承诺，不要提一般偏好或个人历史。 / The host requests a final cross-session recap containing only group facts and each person's public Friday commitment, with no general preference or personal history.",
+                "请为当前全体受众总结Kiteglass代号、周五截止日、中庭B区，以及分别归因的上午和下午可用性。 / For the current full audience, summarize Kiteglass, the Friday deadline, Atrium B, and separately attributed morning and afternoon availability.",
+                "最终小结必须体现纠错结果：没有身份合并，没有“同一人全天可用”，也不重复已收紧的个人偏好。 / The final recap must reflect the correction: no identity merge, no “one person available all day,” and no repetition of the restricted general preference.",
+                "请只使用双方在项目会中明确公开过的事实完成收尾。 / Close using only facts both participants explicitly made public in project meetings."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "最终项目摘要：Kiteglass周五交付，演示地点为中庭B区；cedar-81公开承诺周五上午可参加，moss-24公开承诺周五下午可参加。账号与个人历史保持分离。 / Final project recap: Kiteglass is due Friday in Atrium B; cedar-81 publicly committed to Friday morning, and moss-24 to Friday afternoon. Accounts and personal histories remain separate.",
+                "全组可见事实包括项目代号Kiteglass、周五截止日和中庭B区。个人承诺按来源分列：cedar-81上午，moss-24下午。 / Group-visible facts are Kiteglass, the Friday deadline, and Atrium B. Individual commitments remain source-separated: cedar-81 morning, moss-24 afternoon.",
+                "纠错后的跨会话记录没有合并身份：共同项目事实持久保留，两条周五可用性分别归因，一般偏好不在本次摘要中。 / The corrected cross-session record merges no identity: shared project facts persist, Friday availabilities stay separately attributed, and the general preference is omitted.",
+                "安全收尾只含公开会议内容，不包含任何账号私史、未核验关联或已撤回后续许可的偏好。 / The safe close contains only public meeting content and no account history, unverified linkage, or preference whose future permission was withdrawn."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

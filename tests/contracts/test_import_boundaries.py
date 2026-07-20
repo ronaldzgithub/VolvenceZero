@@ -179,6 +179,8 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-temporal": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
+            # Strict owner-authored checkpoint payload codec (vz-contracts).
+            "canonical_json",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
@@ -195,6 +197,9 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-runtime": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory", "dialogue_trace",
+            # Out-of-turn owner archive envelope uses the strict canonical
+            # JSON codec from vz-contracts.
+            "canonical_json",
             # #91: Brain wiring installs the SemanticEmbeddingBackend seam
             # (set/reset) when a real transformers substrate runtime is
             # present. The seam + stub fallback live in
@@ -241,6 +246,18 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "agent", "integration", "brain",
             # NL/ETA full-autograd migration: proof/parity harness wiring.
             "tensor_backend", "tensor_backend_parity",
+        }
+    ),
+    "vz-embodiment-ant": frozenset(
+        {
+            # Public vz-runtime orchestration facade only.
+            "agent",
+            "integration",
+            # Public contracts/substrate surfaces used by the ant adapter.
+            "environment",
+            "runtime",
+            "substrate",
+            "temporal_types",
         }
     ),
 }

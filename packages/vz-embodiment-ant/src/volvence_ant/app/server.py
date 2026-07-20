@@ -318,8 +318,8 @@ def main() -> None:
         "--ecology-checkpoint-report",
         type=Path,
         help=(
-            "trusted local PASS ecology checkpoint report; the bound archive "
-            "is restored only through owner checkpoint APIs"
+            "local PASS ecology checkpoint report; its canonical JSON archive "
+            "is integrity-checked and restored only through owner APIs"
         ),
     )
     args = parser.parse_args()

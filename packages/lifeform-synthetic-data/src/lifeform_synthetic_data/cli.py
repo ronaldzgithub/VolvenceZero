@@ -16,7 +16,10 @@ from .conformance import assert_v1_conformance
 from .audit import audit_run_streaming, write_audit_bundle
 from .contracts import CorpusSplit, ExperienceTrajectory, GenerationTier, ScenarioBlueprint
 from .cursor_renderer import (
+    DEFAULT_ASSET_BUNDLE,
     CursorAuthoredJsonClient,
+    bundled_asset_root,
+    validate_cursor_asset_novelty,
     validate_cursor_assets,
 )
 from .llm import (
@@ -69,6 +72,14 @@ _STAGES: dict[
             (CorpusSplit.TEST, 64),
         ),
     ),
+    "master50000": (
+        GenerationTier.RENDERED,
+        (
+            (CorpusSplit.TRAIN, 625),
+            (CorpusSplit.VAL, 313),
+            (CorpusSplit.TEST, 312),
+        ),
+    ),
     "live1024": (
         GenerationTier.LIVE_THROUGH,
         (
@@ -91,9 +102,13 @@ def build_parser() -> argparse.ArgumentParser:
         "validate-scenarios",
         help="validate the checked-in 96-scenario package",
     )
-    subparsers.add_parser(
+    render_assets_parser = subparsers.add_parser(
         "validate-render-assets",
         help="validate all Cursor-authored dialogue variants",
+    )
+    render_assets_parser.add_argument(
+        "--cursor-asset-bundle",
+        default=DEFAULT_ASSET_BUNDLE,
     )
     schema_parser = subparsers.add_parser(
         "export-schema",
@@ -152,6 +167,7 @@ def _add_generation_arguments(parser: argparse.ArgumentParser) -> None:
         choices=("openai", "cursor"),
         default="openai",
     )
+    parser.add_argument("--cursor-asset-bundle")
     parser.add_argument("--endpoint-config", type=Path)
     parser.add_argument("--source-run-root", type=Path)
     parser.add_argument("--export-parquet", action="store_true")
@@ -176,14 +192,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     if args.command == "validate-render-assets":
-        report = validate_cursor_assets(load_unified_v1_blueprints())
+        asset_root = bundled_asset_root(args.cursor_asset_bundle)
+        report = validate_cursor_assets(
+            load_unified_v1_blueprints(),
+            root=asset_root,
+        )
+        novelty = (
+            validate_cursor_asset_novelty(candidate_root=asset_root)
+            if args.cursor_asset_bundle != DEFAULT_ASSET_BUNDLE
+            else None
+        )
         _print_json(
             {
+                "asset_bundle": args.cursor_asset_bundle,
                 "asset_hash": report.asset_hash,
                 "family_count": report.family_count,
                 "scenario_count": report.scenario_count,
                 "turn_count": report.turn_count,
                 "variant_count": report.variant_count,
+                "normalized_overlap_with_unified_v1": (
+                    novelty.normalized_overlap_count
+                    if novelty is not None
+                    else 0
+                ),
                 "passed": True,
             }
         )
@@ -263,18 +294,34 @@ def _run_generation_command(args: argparse.Namespace) -> int:
     rate_card: RateCard | None = None
     source_trajectories: tuple[ExperienceTrajectory, ...] = ()
     structural_enricher: Callable[[ExperienceTrajectory], ExperienceTrajectory] | None = None
+    cursor_asset_bundle_id: str | None = None
+    cursor_asset_hash: str | None = None
     if tier is GenerationTier.RENDERED:
         if args.source_run_root is not None:
             raise ValueError("--source-run-root is only valid for live-through")
         if args.renderer == "cursor":
             if args.endpoint_config is not None:
                 raise ValueError("Cursor-authored rendering does not accept --endpoint-config")
-            validate_cursor_assets(load_unified_v1_blueprints())
-            cursor_client = CursorAuthoredJsonClient()
+            asset_bundle = args.cursor_asset_bundle or DEFAULT_ASSET_BUNDLE
+            asset_root = bundled_asset_root(asset_bundle)
+            asset_report = validate_cursor_assets(
+                load_unified_v1_blueprints(),
+                root=asset_root,
+            )
+            if asset_bundle != DEFAULT_ASSET_BUNDLE:
+                validate_cursor_asset_novelty(candidate_root=asset_root)
+                cursor_asset_bundle_id = asset_bundle
+                cursor_asset_hash = asset_report.asset_hash
+            cursor_client = CursorAuthoredJsonClient(
+                asset_root=asset_root,
+                asset_bundle=asset_bundle,
+            )
             clients = (cursor_client,)
             structural_enricher = cursor_client.enrich_truth
             rate_card = RateCard(0.0, 0.0)
         else:
+            if args.cursor_asset_bundle is not None:
+                raise ValueError("--cursor-asset-bundle requires --renderer cursor")
             if args.endpoint_config is None:
                 raise ValueError("OpenAI-compatible rendered stages require --endpoint-config")
             clients, rate_card = _load_endpoint_clients(
@@ -284,6 +331,8 @@ def _run_generation_command(args: argparse.Namespace) -> int:
             if args.max_cost_usd <= 0:
                 raise ValueError("OpenAI-compatible rendered stages require a positive --max-cost-usd hard limit")
     else:
+        if args.cursor_asset_bundle is not None:
+            raise ValueError("--cursor-asset-bundle is only valid for rendered Cursor stages")
         if args.endpoint_config is not None:
             raise ValueError("--endpoint-config is only valid for rendered stages")
         if tier is GenerationTier.LIVE_THROUGH:
@@ -313,6 +362,8 @@ def _run_generation_command(args: argparse.Namespace) -> int:
         max_cost_usd=args.max_cost_usd,
         max_output_tokens=args.max_output_tokens,
         export_parquet=args.export_parquet,
+        cursor_asset_bundle=cursor_asset_bundle_id,
+        cursor_asset_hash=cursor_asset_hash,
     )
     pipeline = CorpusGenerationPipeline(
         config=config,
@@ -329,6 +380,12 @@ def _run_generation_command(args: argparse.Namespace) -> int:
             "stage": args.stage,
             "tier": tier.value,
             "renderer": (args.renderer if tier is GenerationTier.RENDERED else "not_applicable"),
+            "cursor_asset_bundle": (
+                (args.cursor_asset_bundle or DEFAULT_ASSET_BUNDLE)
+                if tier is GenerationTier.RENDERED
+                and args.renderer == "cursor"
+                else None
+            ),
             "planned_count": len(pipeline.plan_jobs()),
             "pending_calls": estimate.pending_calls,
             "conservative_upper_bound_usd": round(

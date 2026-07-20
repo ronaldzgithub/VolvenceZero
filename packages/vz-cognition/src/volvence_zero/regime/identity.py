@@ -9,6 +9,7 @@ public names from this module via the re-exports below.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from volvence_zero.dialogue_trace import (
@@ -1141,9 +1142,9 @@ def _serialize_regime_checkpoint(checkpoint: RegimeCheckpoint) -> dict[str, obje
 
 
 def _deserialize_regime_checkpoint(payload) -> RegimeCheckpoint:
-    if not isinstance(payload, dict):
+    if not isinstance(payload, Mapping):
         raise HydrationPayloadInvalidError(
-            f"RegimeModule payload must be a dict; got {type(payload).__name__}"
+            f"RegimeModule payload must be a mapping; got {type(payload).__name__}"
         )
     try:
         return RegimeCheckpoint(

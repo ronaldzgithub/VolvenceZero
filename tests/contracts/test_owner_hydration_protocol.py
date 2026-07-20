@@ -331,6 +331,31 @@ def test_dual_track_gate_learner_round_trip() -> None:
     assert exported.payload == re_exported.payload
 
 
+def test_reflection_consolidation_learner_round_trip() -> None:
+    from volvence_zero.reflection.consolidation_learner import (
+        ConsolidationScoreLearner,
+        ConsolidationScoreLearnerState,
+    )
+
+    source = ConsolidationScoreLearner()
+    source.restore_state(
+        ConsolidationScoreLearnerState(
+            weights=(0.1, -0.1, 0.2, 0.0, 0.05, 0.15, -0.2),
+            settled_count=7,
+            abs_error_sum=1.2,
+            baseline_abs_error_sum=1.6,
+        )
+    )
+    exported = source.export_persistence_snapshot()
+    assert exported.owner_name == "reflection.consolidation_score"
+
+    target = ConsolidationScoreLearner()
+    target.hydrate_from_persistence(exported)
+    re_exported = target.export_persistence_snapshot()
+
+    assert exported.payload == re_exported.payload
+
+
 def test_owner_hydration_seed_once_does_not_overwrite_existing_payload() -> None:
     from volvence_zero.brain import _seed_owner_hydration_snapshots_once
     from volvence_zero.memory import InMemoryPersistenceBackend

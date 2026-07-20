@@ -7,13 +7,29 @@ channels (the PE seam), with no kernel changes.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
+import pytest
+
+from volvence_zero.agent import (
+    decode_agent_learning_archive,
+    encode_agent_learning_archive,
+)
+from volvence_zero.owner_hydration import HydrationPayloadInvalidError
+
 from volvence_ant.env.ant_world import (
     AntWorld,
     AntWorldConfig,
     FoodSource,
     MotorDistortionProfile,
 )
-from volvence_ant.runtime import AntObjectiveKind, AntSession, AntSessionConfig
+from volvence_ant.env.colony import ColonyWorld
+from volvence_ant.runtime import (
+    AntObjectiveKind,
+    AntSession,
+    AntSessionConfig,
+    KernelColonyRunner,
+)
 
 
 def _world(seed: int = 3) -> AntWorld:
@@ -98,6 +114,145 @@ async def test_learning_checkpoint_round_trip_restores_owner_state() -> None:
     restored = session.export_learning_checkpoint(checkpoint_id="shared-initial")
     assert restored.fingerprint == checkpoint.fingerprint
     assert restored.policy_fingerprint == checkpoint.policy_fingerprint
+
+
+async def test_json_learning_archive_round_trip_restores_all_owner_parts() -> None:
+    session = AntSession(
+        _world(), config=AntSessionConfig(temporal_latent_dim=4, seed=3)
+    )
+    await session.run(4)
+    archive = session.export_learning_checkpoint_archive(checkpoint_id="trained")
+    expected = decode_agent_learning_archive(archive)
+
+    await session.run(2)
+    session.restore_learning_checkpoint_archive(archive)
+    restored = decode_agent_learning_archive(
+        session.export_learning_checkpoint_archive(checkpoint_id="trained")
+    )
+
+    assert restored.info.state_fingerprint == expected.info.state_fingerprint
+    assert restored.info.policy_fingerprint == expected.info.policy_fingerprint
+    assert b"pickle" not in archive
+
+
+async def test_json_learning_archive_late_owner_failure_rolls_back() -> None:
+    session = AntSession(
+        _world(), config=AntSessionConfig(temporal_latent_dim=4, seed=3)
+    )
+    await session.run(3)
+    target = decode_agent_learning_archive(
+        session.export_learning_checkpoint_archive(checkpoint_id="target")
+    )
+    invalid_parts = tuple(
+        replace(
+            snapshot,
+            payload={**snapshot.payload, "weights": []},
+        )
+        if snapshot.owner_name == "reflection.consolidation_score"
+        else snapshot
+        for snapshot in target.owner_snapshots
+    )
+    invalid_archive = encode_agent_learning_archive(
+        checkpoint_id="invalid-late-owner",
+        owner_snapshots=invalid_parts,
+        policy_fingerprint=target.info.policy_fingerprint,
+        temporal_fingerprint=target.info.temporal_fingerprint,
+        memory_fingerprint=target.info.memory_fingerprint,
+    )
+
+    await session.run(2)
+    before = decode_agent_learning_archive(
+        session.export_learning_checkpoint_archive(checkpoint_id="before")
+    )
+    with pytest.raises(
+        HydrationPayloadInvalidError,
+        match="ConsolidationScoreLearner",
+    ):
+        session.restore_learning_checkpoint_archive(invalid_archive)
+    after = decode_agent_learning_archive(
+        session.export_learning_checkpoint_archive(checkpoint_id="after")
+    )
+
+    assert after.info.state_fingerprint == before.info.state_fingerprint
+
+
+def test_json_learning_archive_rejects_owner_fingerprint_mismatch() -> None:
+    session = AntSession(
+        _world(), config=AntSessionConfig(temporal_latent_dim=4, seed=3)
+    )
+    valid = decode_agent_learning_archive(
+        session.export_learning_checkpoint_archive(checkpoint_id="valid")
+    )
+    invalid = encode_agent_learning_archive(
+        checkpoint_id="invalid-fingerprint",
+        owner_snapshots=valid.owner_snapshots,
+        policy_fingerprint="0" * 64,
+        temporal_fingerprint=valid.info.temporal_fingerprint,
+        memory_fingerprint=valid.info.memory_fingerprint,
+    )
+
+    with pytest.raises(ValueError, match="owner fingerprint mismatch"):
+        session.restore_learning_checkpoint_archive(invalid)
+
+    after = decode_agent_learning_archive(
+        session.export_learning_checkpoint_archive(checkpoint_id="after")
+    )
+    assert after.info.state_fingerprint == valid.info.state_fingerprint
+
+
+async def test_colony_archive_failure_rolls_back_every_body() -> None:
+    runner = KernelColonyRunner(
+        ColonyWorld(
+            config=AntWorldConfig(seed=3),
+            food_sources=(FoodSource(x=8.0, y=0.0, strength=1.0, decay=6.0),),
+            n_bodies=2,
+        ),
+        base_config=AntSessionConfig(temporal_latent_dim=4, seed=3),
+    )
+    await runner.run(2)
+    targets = runner.export_learning_checkpoint_archives(
+        checkpoint_prefix="targets"
+    )
+    second = decode_agent_learning_archive(targets[1])
+    invalid_second = encode_agent_learning_archive(
+        checkpoint_id=second.info.checkpoint_id,
+        owner_snapshots=tuple(
+            replace(
+                snapshot,
+                payload={**snapshot.payload, "weights": []},
+            )
+            if snapshot.owner_name == "reflection.consolidation_score"
+            else snapshot
+            for snapshot in second.owner_snapshots
+        ),
+        policy_fingerprint=second.info.policy_fingerprint,
+        temporal_fingerprint=second.info.temporal_fingerprint,
+        memory_fingerprint=second.info.memory_fingerprint,
+    )
+
+    await runner.run(2)
+    before = tuple(
+        decode_agent_learning_archive(item).info.state_fingerprint
+        for item in runner.export_learning_checkpoint_archives(
+            checkpoint_prefix="before"
+        )
+    )
+    with pytest.raises(ValueError, match="body mapping mismatch"):
+        runner.restore_learning_checkpoint_archives(
+            (targets[1], targets[0])
+        )
+    with pytest.raises(HydrationPayloadInvalidError):
+        runner.restore_learning_checkpoint_archives(
+            (targets[0], invalid_second)
+        )
+    after = tuple(
+        decode_agent_learning_archive(item).info.state_fingerprint
+        for item in runner.export_learning_checkpoint_archives(
+            checkpoint_prefix="after"
+        )
+    )
+
+    assert after == before
 
 
 async def test_heading_stability_objective_publishes_dense_motor_facts() -> None:

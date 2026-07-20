@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from volvence_zero.agent import decode_agent_learning_archive
+
 from volvence_ant.env.ant_world import AntWorld
 from volvence_ant.runtime.ant_session import (
     AntLearningCheckpoint,
@@ -83,8 +85,80 @@ class KernelColonyRunner:
             raise ValueError(
                 f"colony checkpoint count mismatch: expected={len(self.sessions)}, actual={len(checkpoints)}"
             )
-        for session, checkpoint in zip(self.sessions, checkpoints, strict=True):
-            session.restore_learning_checkpoint(checkpoint)
+        preimages = self.export_learning_checkpoints(
+            checkpoint_prefix="colony:rollback-preimage",
+            include_runtime_replay=True,
+        )
+        try:
+            for session, checkpoint in zip(self.sessions, checkpoints, strict=True):
+                session.restore_learning_checkpoint(checkpoint)
+        except Exception as restore_error:
+            rollback_errors: list[Exception] = []
+            for session, preimage in zip(self.sessions, preimages, strict=True):
+                try:
+                    session.restore_learning_checkpoint(preimage)
+                except Exception as rollback_error:
+                    rollback_errors.append(rollback_error)
+            if rollback_errors:
+                raise ExceptionGroup(
+                    "colony checkpoint restore failed and rollback failed",
+                    [restore_error, *rollback_errors],
+                ) from restore_error
+            raise
+
+    def export_learning_checkpoint_archives(
+        self,
+        *,
+        checkpoint_prefix: str,
+    ) -> tuple[bytes, ...]:
+        return tuple(
+            session.export_learning_checkpoint_archive(
+                checkpoint_id=f"{checkpoint_prefix}:body:{body_id}",
+            )
+            for body_id, session in enumerate(self.sessions)
+        )
+
+    def restore_learning_checkpoint_archives(
+        self,
+        archives: tuple[bytes, ...],
+    ) -> None:
+        if len(archives) != len(self.sessions):
+            raise ValueError(
+                "colony checkpoint archive count mismatch: "
+                f"expected={len(self.sessions)}, actual={len(archives)}"
+            )
+        checkpoint_ids = tuple(
+            decode_agent_learning_archive(archive).info.checkpoint_id
+            for archive in archives
+        )
+        for body_id, checkpoint_id in enumerate(checkpoint_ids):
+            if not checkpoint_id.endswith(f":body:{body_id}"):
+                raise ValueError(
+                    "colony checkpoint body mapping mismatch: "
+                    f"index={body_id}, checkpoint_id={checkpoint_id!r}"
+                )
+        if len(set(checkpoint_ids)) != len(checkpoint_ids):
+            raise ValueError("colony checkpoint ids must be unique")
+        preimages = self.export_learning_checkpoints(
+            checkpoint_prefix="colony:archive-rollback-preimage",
+            include_runtime_replay=True,
+        )
+        try:
+            for session, archive in zip(self.sessions, archives, strict=True):
+                session.restore_learning_checkpoint_archive(archive)
+        except Exception as restore_error:
+            rollback_errors: list[Exception] = []
+            for session, preimage in zip(self.sessions, preimages, strict=True):
+                try:
+                    session.restore_learning_checkpoint(preimage)
+                except Exception as rollback_error:
+                    rollback_errors.append(rollback_error)
+            if rollback_errors:
+                raise ExceptionGroup(
+                    "colony archive restore failed and rollback failed",
+                    [restore_error, *rollback_errors],
+                ) from restore_error
+            raise
 
     async def step_round(self) -> ColonyRoundRecord:
         steps: list[AntStepRecord] = []

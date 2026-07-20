@@ -8,6 +8,8 @@ import json
 
 import pytest
 
+from volvence_zero.agent import decode_agent_learning_archive
+
 from volvence_ant.app import (
     AntAppManager,
     AppArm,
@@ -243,7 +245,10 @@ async def test_promoted_ecology_checkpoint_is_restored_and_projected() -> None:
             sense_schema=AntSenseSchema.ECOLOGY_V2,
         ),
     )
-    checkpoint = bootstrap.export_learning_checkpoint(checkpoint_id="ecology-promoted")
+    checkpoint_archive = bootstrap.export_learning_checkpoint_archive(
+        checkpoint_id="ecology-promoted"
+    )
+    checkpoint_info = decode_agent_learning_archive(checkpoint_archive).info
     curriculum_config = EcologyCurriculumConfig(
         n_ants=1,
         temporal_latent_dim=4,
@@ -253,8 +258,8 @@ async def test_promoted_ecology_checkpoint_is_restored_and_projected() -> None:
         heldout_seeds=(1,),
     )
     loaded = LoadedEcologyCheckpoint(
-        checkpoints=(checkpoint,),
-        fingerprint=checkpoint.fingerprint,
+        checkpoint_archives=(checkpoint_archive,),
+        fingerprint=checkpoint_info.state_fingerprint,
         verdict="PASS",
         config=curriculum_config,
         report_path="local-test",
@@ -275,4 +280,9 @@ async def test_promoted_ecology_checkpoint_is_restored_and_projected() -> None:
     frame = json.loads(frame_event.payload_json)
     assert frame["evidence"]["checkpoint_loaded"] is True
     assert frame["evidence"]["checkpoint_verdict"] == "PASS"
+    assert (
+        frame["evidence"]["checkpoint_fingerprint"]
+        == checkpoint_info.state_fingerprint
+    )
+    assert "runtime_replay_pending_captures" in frame["evidence"]
     await manager.close()

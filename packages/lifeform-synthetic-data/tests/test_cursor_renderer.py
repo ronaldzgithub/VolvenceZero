@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from lifeform_synthetic_data.contracts import GenerationTier, ScenarioBlueprint
 from lifeform_synthetic_data.cursor_renderer import (
     ASSET_SCHEMA_VERSION,
     CursorAuthoredJsonClient,
+    validate_cursor_asset_novelty,
     validate_cursor_assets,
 )
 from lifeform_synthetic_data.llm import BudgetLedger, RateCard
@@ -90,7 +93,93 @@ def test_cursor_variant_selection_is_unique_for_128_replicates(
     assert len(transcripts) == 128
 
 
-def _write_asset(root: Path, blueprint: ScenarioBlueprint) -> None:
+def test_versioned_cursor_bundle_is_novel_and_records_bundle_id(
+    tmp_path: Path,
+) -> None:
+    blueprint = load_unified_v1_blueprints()[0]
+    reference_root = tmp_path / "reference"
+    candidate_root = tmp_path / "candidate"
+    reference_root.mkdir()
+    candidate_root.mkdir()
+    _write_asset(reference_root, blueprint)
+    _write_asset(candidate_root, blueprint, text_prefix="new authored event")
+
+    novelty = validate_cursor_asset_novelty(
+        candidate_root=candidate_root,
+        reference_root=reference_root,
+    )
+    client = CursorAuthoredJsonClient(
+        asset_root=candidate_root,
+        asset_bundle="expansion_test",
+    )
+    enriched = client.enrich_truth(
+        compile_structural_trajectory(
+            blueprint,
+            replicate_index=0,
+            seed=23,
+            run_id="cursor-bundle-test",
+            created_at="2026-07-20T00:00:00Z",
+            git_sha="test",
+        )
+    )
+
+    assert novelty.normalized_overlap_count == 0
+    assert "/expansion_test@" in client.model_id
+    assert dict((item.key, item.value) for item in enriched.metadata)[
+        "cursor_render_asset_bundle"
+    ] == "expansion_test"
+
+
+def test_cursor_bundle_novelty_rejects_reused_variants(
+    tmp_path: Path,
+) -> None:
+    blueprint = load_unified_v1_blueprints()[0]
+    reference_root = tmp_path / "reference"
+    candidate_root = tmp_path / "candidate"
+    reference_root.mkdir()
+    candidate_root.mkdir()
+    _write_asset(reference_root, blueprint)
+    _write_asset(candidate_root, blueprint)
+
+    with pytest.raises(ValueError, match="reuses normalized variants"):
+        validate_cursor_asset_novelty(
+            candidate_root=candidate_root,
+            reference_root=reference_root,
+        )
+
+
+def test_cursor_bundle_novelty_rejects_internal_repetition(
+    tmp_path: Path,
+) -> None:
+    blueprint = load_unified_v1_blueprints()[0]
+    reference_root = tmp_path / "reference"
+    candidate_root = tmp_path / "candidate"
+    reference_root.mkdir()
+    candidate_root.mkdir()
+    _write_asset(reference_root, blueprint)
+    _write_asset(candidate_root, blueprint, text_prefix="new authored event")
+    asset_path = candidate_root / f"{blueprint.family}.json"
+    payload = json.loads(asset_path.read_text(encoding="utf-8"))
+    turns = payload["scenarios"][0]["sessions"][0]["turns"]
+    turns[1]["variants"][0] = turns[0]["variants"][0]
+    asset_path.write_text(
+        json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="internally"):
+        validate_cursor_asset_novelty(
+            candidate_root=candidate_root,
+            reference_root=reference_root,
+        )
+
+
+def _write_asset(
+    root: Path,
+    blueprint: ScenarioBlueprint,
+    *,
+    text_prefix: str = "session",
+) -> None:
     payload = {
         "schema_version": ASSET_SCHEMA_VERSION,
         "family": blueprint.family,
@@ -106,7 +195,10 @@ def _write_asset(root: Path, blueprint: ScenarioBlueprint) -> None:
                                 "turn_index": turn_index,
                                 "role": ("user" if turn_index % 2 == 0 else "assistant"),
                                 "variants": [
-                                    (f"session {session_index} turn {turn_index} variant {variant_index}")
+                                    (
+                                        f"{text_prefix} {session_index} "
+                                        f"turn {turn_index} variant {variant_index}"
+                                    )
                                     for variant_index in range(4)
                                 ],
                             }

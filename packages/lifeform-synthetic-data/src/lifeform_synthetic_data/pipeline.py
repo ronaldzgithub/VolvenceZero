@@ -78,6 +78,8 @@ class GenerationRunConfig:
     max_cost_usd: float = 0.0
     max_output_tokens: int = 4096
     export_parquet: bool = False
+    cursor_asset_bundle: str | None = None
+    cursor_asset_hash: str | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id.strip():
@@ -103,6 +105,32 @@ class GenerationRunConfig:
             raise ValueError("max_cost_usd must be non-negative")
         if self.max_output_tokens < 1:
             raise ValueError("max_output_tokens must be positive")
+        if (self.cursor_asset_bundle is None) != (
+            self.cursor_asset_hash is None
+        ):
+            raise ValueError(
+                "cursor_asset_bundle and cursor_asset_hash must be set together"
+            )
+        if (
+            self.cursor_asset_bundle is not None
+            and self.generation_tier is not GenerationTier.RENDERED
+        ):
+            raise ValueError(
+                "Cursor asset identity is only valid for rendered generation"
+            )
+        if self.cursor_asset_bundle is not None:
+            if not self.cursor_asset_bundle.strip():
+                raise ValueError("cursor_asset_bundle must be non-empty")
+            asset_hash = self.cursor_asset_hash
+            if asset_hash is None:
+                raise AssertionError("cursor asset hash pairing was not enforced")
+            if len(asset_hash) != 64 or any(
+                character not in "0123456789abcdef"
+                for character in asset_hash
+            ):
+                raise ValueError(
+                    "cursor_asset_hash must be a lowercase SHA-256"
+                )
 
     def replicates_for(self, split: CorpusSplit) -> int:
         entries = dict(self.split_replicates)
@@ -584,6 +612,12 @@ class CorpusGenerationPipeline:
             payload["source_master_trajectory_hashes_hash"] = _hash_strings(
                 tuple(stable_hash(item) for item in self._source_trajectories)
             )
+        if self._config.cursor_asset_bundle is not None:
+            payload["renderer"] = "cursor"
+            payload["cursor_asset_bundle"] = (
+                self._config.cursor_asset_bundle
+            )
+            payload["cursor_asset_hash"] = self._config.cursor_asset_hash
         write_run_config(self._run_root / "run-config.json", payload)
 
     def _build_manifest(

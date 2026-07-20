@@ -65,6 +65,12 @@ from volvence_zero.agent.response import (
     ResponseContext,
     ResponseSynthesizer,
 )
+from volvence_zero.agent.checkpoint_archive import (
+    AgentLearningArchiveInfo,
+    AgentLearningArchiveRecord,
+    decode_agent_learning_archive,
+    encode_agent_learning_archive,
+)
 from volvence_zero.agent.dialogue_trace import DialogueTraceStore
 from volvence_zero.agent.dialogue_outcome_producers import (
     commitment_outcome_evidence_from_commitment,
@@ -126,6 +132,7 @@ from volvence_zero.joint_loop import (
     OnlineFastImportResult,
 )
 from volvence_zero.memory import MemorySnapshot, MemoryStore, Track, build_default_memory_store
+from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 from volvence_zero.planning import ImaginationResult, imagine
 from volvence_zero.prediction.error import (
     ActualOutcome,
@@ -907,15 +914,11 @@ class AgentSessionRunner(
                 checkpoint_id="agent-learning",
                 include_runtime_replay=include_runtime_replay,
             ),
-            self._prediction_module.export_predictive_head_checkpoint(
-                checkpoint_id="agent-learning:prediction"
-            ),
+            self._prediction_module.export_persistence_snapshot(),
             self._credit_module.export_persistence_snapshot(),
-            self._regime_module.create_checkpoint(
-                checkpoint_id="agent-learning:regime"
-            ),
-            self._dual_track_gate_learner.export_state(),
-            self._reflection_consolidation_learner.export_state(),
+            self._regime_module.export_persistence_snapshot(),
+            self._dual_track_gate_learner.export_persistence_snapshot(),
+            self._reflection_consolidation_learner.export_persistence_snapshot(),
         )
         joint_state = components[0]
         policy_fingerprint = hashlib.sha256(
@@ -977,25 +980,288 @@ class AgentSessionRunner(
             fingerprint=fingerprint,
         )
 
+    def export_learning_checkpoint_archive(
+        self,
+        *,
+        checkpoint_id: str,
+        include_runtime_replay: bool = False,
+    ) -> bytes:
+        """Export owner-authored canonical JSON without exposing owner fields."""
+
+        if include_runtime_replay:
+            raise ValueError(
+                "persistent learning archives exclude ephemeral runtime replay"
+            )
+        return self._encode_current_learning_archive(
+            checkpoint_id=checkpoint_id,
+            include_runtime_replay=False,
+        )
+
+    def _encode_current_learning_archive(
+        self,
+        *,
+        checkpoint_id: str,
+        include_runtime_replay: bool,
+    ) -> bytes:
+        owner_snapshots = self._export_learning_owner_snapshots(
+            include_runtime_replay=include_runtime_replay,
+        )
+        (
+            policy_fingerprint,
+            temporal_fingerprint,
+            memory_fingerprint,
+        ) = self._joint_loop.learning_persistence_fingerprints(
+            owner_snapshots[0]
+        )
+        return encode_agent_learning_archive(
+            checkpoint_id=checkpoint_id,
+            owner_snapshots=owner_snapshots,
+            policy_fingerprint=policy_fingerprint,
+            temporal_fingerprint=temporal_fingerprint,
+            memory_fingerprint=memory_fingerprint,
+        )
+
+    def validate_learning_checkpoint_archive(
+        self,
+        archive: bytes,
+    ) -> AgentLearningArchiveInfo:
+        """Validate the envelope and owner/version set without mutating state."""
+
+        record = decode_agent_learning_archive(archive)
+        current_snapshots = self._export_learning_owner_snapshots(
+            include_runtime_replay=False,
+        )
+        expected = tuple(
+            sorted(
+                (
+                    snapshot.owner_name,
+                    snapshot.schema_version,
+                )
+                for snapshot in current_snapshots
+            )
+        )
+        if record.info.owner_versions != expected:
+            raise ValueError(
+                "learning archive owner/version mismatch: "
+                f"expected={expected!r}, actual={record.info.owner_versions!r}"
+            )
+        archived_snapshots = {
+            snapshot.owner_name: snapshot
+            for snapshot in record.owner_snapshots
+        }
+        (
+            policy_fingerprint,
+            temporal_fingerprint,
+            memory_fingerprint,
+        ) = self._joint_loop.learning_persistence_fingerprints(
+            archived_snapshots[current_snapshots[0].owner_name]
+        )
+        archived_fingerprints = (
+            record.info.policy_fingerprint,
+            record.info.temporal_fingerprint,
+            record.info.memory_fingerprint,
+        )
+        owner_fingerprints = (
+            policy_fingerprint,
+            temporal_fingerprint,
+            memory_fingerprint,
+        )
+        if archived_fingerprints != owner_fingerprints:
+            raise ValueError(
+                "learning archive owner fingerprint mismatch: "
+                f"archive={archived_fingerprints!r}, "
+                f"owner={owner_fingerprints!r}"
+            )
+        return record.info
+
+    def restore_learning_checkpoint_archive(
+        self,
+        archive: bytes,
+        *,
+        expected_state_fingerprint: str | None = None,
+    ) -> tuple[str, ...]:
+        """Atomically restore all owners, rolling back on any late failure."""
+
+        target = decode_agent_learning_archive(archive)
+        self.validate_learning_checkpoint_archive(archive)
+        if (
+            expected_state_fingerprint is not None
+            and target.info.state_fingerprint != expected_state_fingerprint
+        ):
+            raise ValueError(
+                "learning archive fingerprint mismatch: "
+                f"expected={expected_state_fingerprint}, "
+                f"actual={target.info.state_fingerprint}"
+            )
+        preimage_bytes = self._encode_current_learning_archive(
+            checkpoint_id="agent-learning-archive:rollback-preimage",
+            include_runtime_replay=True,
+        )
+        preimage = decode_agent_learning_archive(preimage_bytes)
+        expected_owner_names = tuple(
+            snapshot.owner_name
+            for snapshot in self._export_learning_owner_snapshots(
+                include_runtime_replay=False,
+            )
+        )
+        try:
+            operations = self._apply_learning_archive_record(
+                target,
+                expected_owner_names=expected_owner_names,
+            )
+            restored_bytes = self.export_learning_checkpoint_archive(
+                checkpoint_id=target.info.checkpoint_id,
+                include_runtime_replay=False,
+            )
+            restored = decode_agent_learning_archive(restored_bytes)
+            self._require_matching_archive_state(target, restored)
+            return operations
+        except Exception as restore_error:
+            try:
+                self._apply_learning_archive_record(
+                    preimage,
+                    expected_owner_names=expected_owner_names,
+                )
+                rolled_back = decode_agent_learning_archive(
+                    self._encode_current_learning_archive(
+                        checkpoint_id=preimage.info.checkpoint_id,
+                        include_runtime_replay=True,
+                    )
+                )
+                self._require_matching_archive_state(preimage, rolled_back)
+            except Exception as rollback_error:
+                raise ExceptionGroup(
+                    "learning archive restore failed and rollback failed",
+                    [restore_error, rollback_error],
+                ) from rollback_error
+            raise
+
+    def _export_learning_owner_snapshots(
+        self,
+        *,
+        include_runtime_replay: bool,
+    ) -> tuple[OwnerPersistenceSnapshot, ...]:
+        return (
+            self._joint_loop.export_learning_persistence_snapshot(
+                include_runtime_replay=include_runtime_replay,
+            ),
+            self._prediction_module.export_persistence_snapshot(),
+            self._credit_module.export_persistence_snapshot(),
+            self._regime_module.export_persistence_snapshot(),
+            self._dual_track_gate_learner.export_persistence_snapshot(),
+            self._reflection_consolidation_learner.export_persistence_snapshot(),
+        )
+
+    def _apply_learning_archive_record(
+        self,
+        record: AgentLearningArchiveRecord,
+        *,
+        expected_owner_names: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        snapshots = {
+            snapshot.owner_name: snapshot
+            for snapshot in record.owner_snapshots
+        }
+        if set(snapshots) != set(expected_owner_names):
+            raise ValueError(
+                "learning archive owner set mismatch during restore: "
+                f"expected={sorted(expected_owner_names)!r}, "
+                f"actual={sorted(snapshots)!r}"
+            )
+        operations = list(
+            self._joint_loop.hydrate_learning_from_persistence(
+                snapshots[expected_owner_names[0]]
+            )
+        )
+        self._prediction_module.hydrate_from_persistence(
+            snapshots[expected_owner_names[1]]
+        )
+        self._credit_module.hydrate_from_persistence(
+            snapshots[expected_owner_names[2]]
+        )
+        self._regime_module.hydrate_from_persistence(
+            snapshots[expected_owner_names[3]]
+        )
+        self._dual_track_gate_learner.hydrate_from_persistence(
+            snapshots[expected_owner_names[4]]
+        )
+        self._reflection_consolidation_learner.hydrate_from_persistence(
+            snapshots[expected_owner_names[5]]
+        )
+        operations.extend(
+            (
+                "learning-archive:prediction-restored",
+                "learning-archive:credit-restored",
+                "learning-archive:regime-restored",
+                "learning-archive:dual-track-restored",
+                "learning-archive:reflection-restored",
+            )
+        )
+        return tuple(operations)
+
+    @staticmethod
+    def _require_matching_archive_state(
+        expected: AgentLearningArchiveRecord,
+        actual: AgentLearningArchiveRecord,
+    ) -> None:
+        expected_fingerprints = (
+            expected.info.state_fingerprint,
+            expected.info.policy_fingerprint,
+            expected.info.temporal_fingerprint,
+            expected.info.memory_fingerprint,
+        )
+        actual_fingerprints = (
+            actual.info.state_fingerprint,
+            actual.info.policy_fingerprint,
+            actual.info.temporal_fingerprint,
+            actual.info.memory_fingerprint,
+        )
+        if actual_fingerprints != expected_fingerprints:
+            raise RuntimeError(
+                "learning archive restore fingerprint mismatch: "
+                f"expected={expected_fingerprints!r}, "
+                f"actual={actual_fingerprints!r}"
+            )
+
     def restore_learning_checkpoint(
         self, checkpoint: AgentLearningCheckpoint
     ) -> tuple[str, ...]:
-        """Restore each adaptive owner through its public owner API."""
+        """Atomically restore the in-process checkpoint used by experiments."""
 
+        preimage = self.export_learning_checkpoint(
+            checkpoint_id="learning-checkpoint:rollback-preimage",
+            include_runtime_replay=True,
+        )
+        try:
+            return self._apply_learning_checkpoint(checkpoint)
+        except Exception as restore_error:
+            try:
+                self._apply_learning_checkpoint(preimage)
+            except Exception as rollback_error:
+                raise ExceptionGroup(
+                    "learning checkpoint restore failed and rollback failed",
+                    [restore_error, rollback_error],
+                ) from rollback_error
+            raise
+
+    def _apply_learning_checkpoint(
+        self,
+        checkpoint: AgentLearningCheckpoint,
+    ) -> tuple[str, ...]:
         operations = list(
             self._joint_loop.restore_learning_checkpoint(
                 checkpoint.joint_loop_state
             )
         )
-        self._prediction_module.restore_predictive_head_checkpoint(
+        self._prediction_module.hydrate_from_persistence(
             checkpoint.prediction_state
         )
         self._credit_module.hydrate_from_persistence(checkpoint.credit_state)
-        self._regime_module.restore_checkpoint(checkpoint.regime_state)
-        self._dual_track_gate_learner.restore_state(
+        self._regime_module.hydrate_from_persistence(checkpoint.regime_state)
+        self._dual_track_gate_learner.hydrate_from_persistence(
             checkpoint.dual_track_gate_state
         )
-        self._reflection_consolidation_learner.restore_state(
+        self._reflection_consolidation_learner.hydrate_from_persistence(
             checkpoint.reflection_state
         )
         operations.extend(

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from volvence_zero.agent import (
     AgentLearningCheckpointArchive,
+    decode_agent_learning_archive,
     decode_agent_learning_checkpoint_archive,
     encode_agent_learning_checkpoint_archive,
 )
@@ -23,18 +24,20 @@ from volvence_ant.evidence.provenance import (
     write_ant_artifact_bundle,
 )
 from volvence_ant.experiments.ecology_curriculum import (
+    ECOLOGY_CURRICULUM_SCHEMA_VERSION,
+    ECOLOGY_REQUIRED_GATE_NAMES,
     EcologyCheckpointCandidate,
     EcologyCurriculumConfig,
 )
-from volvence_ant.runtime import AntLearningCheckpoint, AntSenseSchema
+from volvence_ant.runtime import AntSenseSchema
 
 
-ECOLOGY_CHECKPOINT_BUNDLE_KIND = "digital-ant-ecology-checkpoint.v1"
+ECOLOGY_CHECKPOINT_BUNDLE_KIND = "digital-ant-ecology-checkpoint.v2"
 
 
 @dataclass(frozen=True)
 class LoadedEcologyCheckpoint:
-    checkpoints: tuple[AntLearningCheckpoint, ...]
+    checkpoint_archives: tuple[bytes, ...]
     fingerprint: str
     verdict: str
     config: EcologyCurriculumConfig
@@ -49,6 +52,7 @@ def ecology_checkpoint_compatibility(
         ("sense_schema", AntSenseSchema.ECOLOGY_V2.value),
         ("latent_dim", str(config.temporal_latent_dim)),
         ("n_ants", str(config.n_ants)),
+        ("runtime_replay", "excluded"),
     )
 
 
@@ -74,9 +78,49 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
 
 
 def _aggregate_fingerprint(
-    checkpoints: tuple[AntLearningCheckpoint, ...],
+    checkpoint_archives: tuple[bytes, ...],
 ) -> str:
-    return hashlib.sha256(repr(tuple(item.fingerprint for item in checkpoints)).encode("utf-8")).hexdigest()
+    records = tuple(
+        decode_agent_learning_archive(item)
+        for item in checkpoint_archives
+    )
+    checkpoint_ids = tuple(record.info.checkpoint_id for record in records)
+    for body_id, checkpoint_id in enumerate(checkpoint_ids):
+        if not checkpoint_id.endswith(f":body:{body_id}"):
+            raise AntArtifactIntegrityError(
+                "ecology checkpoint body mapping mismatch: "
+                f"index={body_id}, checkpoint_id={checkpoint_id!r}"
+            )
+    if len(set(checkpoint_ids)) != len(checkpoint_ids):
+        raise AntArtifactIntegrityError(
+            "ecology checkpoint ids must be unique"
+        )
+    fingerprints = tuple(
+        record.info.state_fingerprint for record in records
+    )
+    payload = json.dumps(
+        fingerprints,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _validated_report_verdict(report: dict[str, object]) -> str:
+    if report.get("schema_version") != ECOLOGY_CURRICULUM_SCHEMA_VERSION:
+        raise AntArtifactIntegrityError(f"unexpected ecology report schema: {report.get('schema_version')!r}")
+    raw_gates = report.get("gates")
+    if not isinstance(raw_gates, (list, tuple)) or not all(isinstance(gate, dict) for gate in raw_gates):
+        raise AntArtifactIntegrityError("ecology checkpoint gates must be structured objects")
+    gate_names = tuple(str(gate.get("name", "")) for gate in raw_gates)
+    if gate_names != ECOLOGY_REQUIRED_GATE_NAMES:
+        raise AntArtifactIntegrityError(f"ecology checkpoint gate set mismatch: {gate_names!r}")
+    all_passed = all(gate.get("passed") is True for gate in raw_gates)
+    expected_verdict = "PASS" if all_passed else "BLOCK"
+    report_verdict = str(report.get("verdict", "BLOCK")).upper()
+    if report_verdict != expected_verdict:
+        raise AntArtifactIntegrityError("ecology checkpoint verdict contradicts its frozen gates")
+    return report_verdict
 
 
 def write_ecology_checkpoint_bundle(
@@ -87,8 +131,14 @@ def write_ecology_checkpoint_bundle(
     repo_root: Path,
 ) -> Path:
     config = candidate.report.config
+    report_payload = candidate.report.to_dict()
+    _validated_report_verdict(report_payload)
+    if len(candidate.checkpoints) != config.n_ants:
+        raise AntArtifactIntegrityError("ecology in-process checkpoint count does not match configured ant count")
+    if len(candidate.checkpoint_archives) != config.n_ants:
+        raise AntArtifactIntegrityError("ecology checkpoint archive count does not match configured ant count")
     archive_bytes = encode_agent_learning_checkpoint_archive(
-        candidate.checkpoints,
+        candidate.checkpoint_archives,
         compatibility=ecology_checkpoint_compatibility(config),
     )
     _atomic_write_bytes(archive_path, archive_bytes)
@@ -97,14 +147,14 @@ def write_ecology_checkpoint_bundle(
         repo_root=repo_root,
         seeds=config.heldout_seeds,
         config=asdict(config),
-        model_fingerprint=_aggregate_fingerprint(candidate.checkpoints),
+        model_fingerprint=_aggregate_fingerprint(candidate.checkpoint_archives),
     )
     payload = {
         "artifact_kind": ECOLOGY_CHECKPOINT_BUNDLE_KIND,
         "promotion_verdict": candidate.report.verdict,
         "checkpoint_archive": asdict(archive_digest),
-        "checkpoint_fingerprint": _aggregate_fingerprint(candidate.checkpoints),
-        "report": candidate.report.to_dict(),
+        "checkpoint_fingerprint": _aggregate_fingerprint(candidate.checkpoint_archives),
+        "report": report_payload,
     }
     return write_ant_artifact_bundle(
         artifact_path=report_path,
@@ -148,7 +198,12 @@ def load_promoted_ecology_checkpoint(
         raise AntArtifactIntegrityError("ecology checkpoint report must be an object")
     if payload.get("artifact_kind") != ECOLOGY_CHECKPOINT_BUNDLE_KIND:
         raise AntArtifactIntegrityError(f"unexpected ecology artifact kind: {payload.get('artifact_kind')!r}")
-    verdict = str(payload.get("promotion_verdict", "BLOCK")).upper()
+    raw_report = payload.get("report")
+    if not isinstance(raw_report, dict):
+        raise AntArtifactIntegrityError("ecology checkpoint report is missing report object")
+    verdict = _validated_report_verdict(raw_report)
+    if verdict != str(payload.get("promotion_verdict", "BLOCK")).upper():
+        raise AntArtifactIntegrityError("ecology checkpoint promotion verdict mismatch")
     if verdict != "PASS":
         raise AntArtifactIntegrityError(f"ecology checkpoint is not promoted: verdict={verdict}")
     raw_archive = payload.get("checkpoint_archive")
@@ -163,16 +218,15 @@ def load_promoted_ecology_checkpoint(
     config = _config_from_report(payload)
     archive: AgentLearningCheckpointArchive = decode_agent_learning_checkpoint_archive(
         archive_path.read_bytes(),
-        trusted_local_artifact=True,
         expected_compatibility=ecology_checkpoint_compatibility(config),
     )
-    if len(archive.checkpoints) != config.n_ants:
+    if len(archive.checkpoint_archives) != config.n_ants:
         raise AntArtifactIntegrityError("ecology checkpoint count does not match configured ant count")
-    fingerprint = _aggregate_fingerprint(archive.checkpoints)
+    fingerprint = _aggregate_fingerprint(archive.checkpoint_archives)
     if fingerprint != str(payload.get("checkpoint_fingerprint", "")):
         raise AntArtifactIntegrityError("ecology aggregate checkpoint fingerprint mismatch")
     return LoadedEcologyCheckpoint(
-        checkpoints=archive.checkpoints,
+        checkpoint_archives=archive.checkpoint_archives,
         fingerprint=fingerprint,
         verdict=verdict,
         config=config,

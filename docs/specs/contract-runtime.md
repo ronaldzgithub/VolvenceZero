@@ -172,6 +172,20 @@ temporal/Internal-RL、memory、PE、credit、regime、dual-track gate 与 refle
 也不允许消费者从 replay snapshot 反建 owner 状态。用途仅限 matched-control 分叉、held-out replay
 与 rollback drill。
 
+持久化边界使用 `export_learning_checkpoint_archive()` /
+`validate_learning_checkpoint_archive()` / `restore_learning_checkpoint_archive()`：
+
+- owner 只通过 `OwnerPersistenceSnapshot(owner_name, schema_version, payload)` 描述自己的状态；
+  runtime 不解释 payload 字段。
+- 单 agent 为 `agent-learning-archive.v2` strict canonical UTF-8 JSON；collection 只嵌套 opaque
+  agent bytes，并在 `agent-learning-checkpoint-collection.v1` 绑定部署 compatibility。
+- 禁止 pickle、动态 class tag、object hook 和宽松默认值；重复 key、未知/缺失字段、NaN/Infinity、
+  owner/version/digest 不匹配均 fail loudly。
+- 恢复前保存完整 preimage；晚期 owner hydration 或重导出 fingerprint 不一致时回滚全部 owner。
+  colony 编排还必须跨 body 原子化，禁止部分恢复。
+- out-of-turn artifact 固定排除 pending capture、staged rollout 等 episode-local runtime replay；
+  同 episode 的内存 checkpoint 可显式包含 replay，但不能落入该持久格式。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
@@ -181,6 +195,7 @@ temporal/Internal-RL、memory、PE、credit、regime、dual-track gate 与 refle
 
 ## 变更日志
 
+- 2026-07-20: learning checkpoint 持久化改为 owner-authored canonical JSON archive，并补充单 agent / colony 事务回滚。
 - 2026-07-19: 新增 session aggregate learning checkpoint facade，用于共享初始状态的公平 held-out 分叉；所有状态仍由原 owner export/restore。
 - 2026-04-25: 同步当前 runtime kernel 口径：模块基类为 `RuntimeModule`，`propagate(auto_sort=True)` 默认拓扑排序且 cycle 时回退输入顺序；补充 adaptive owners 默认 `SHADOW` 接线
 - 2026-04-25: 补充 `response_assembly.expression_intent` 口径：表达层由 owner 发布是否需要 judgment-process 式回答，prompt 只消费该公共约束。

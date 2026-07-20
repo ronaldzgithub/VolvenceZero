@@ -62,6 +62,35 @@ lifeform-synthetic-data generate \
 No API token or API cost is claimed for this path. Provenance records the
 actual Cursor model family and a content hash of all authored dialogue assets.
 
+Versioned post-v1 expansion bundles live under
+`render_asset_bundles/<bundle_id>/` and never overwrite the frozen
+`render_assets/` baseline. Validation also requires zero normalized variant
+overlap with the baseline:
+
+```bash
+lifeform-synthetic-data validate-render-assets \
+  --cursor-asset-bundle expansion_20260720
+
+lifeform-synthetic-data generate \
+  --stage scale768 \
+  --renderer cursor \
+  --cursor-asset-bundle expansion_20260720 \
+  --run-id unified-v1-cursor-expansion-20260720-scale768 \
+  --max-cost-usd 0 \
+  --concurrency 8
+
+lifeform-synthetic-data generate \
+  --stage master50000 \
+  --renderer cursor \
+  --cursor-asset-bundle expansion_20260720 \
+  --run-id unified-v1-cursor-expansion-20260720-master50000 \
+  --max-cost-usd 0 \
+  --concurrency 8
+```
+
+`master50000` expands the fixed 96-blueprint split without moving scenarios
+between splits: 40,000 train, 5,008 validation, and 4,992 test trajectories.
+
 ### OpenAI-compatible endpoint
 
 Create an untracked endpoint config:

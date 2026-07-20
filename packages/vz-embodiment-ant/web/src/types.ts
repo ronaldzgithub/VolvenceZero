@@ -57,6 +57,8 @@ export interface EvidenceProjection {
   runtime_replay_transitions: number;
   runtime_replay_lineage_matches: number;
   runtime_replay_drop_reasons: string[];
+  runtime_replay_pending_captures: number;
+  runtime_replay_staged_rollouts: number;
   verdict: "PASS" | "BLOCK";
   verdict_reason: string;
   checkpoint_loaded: boolean;

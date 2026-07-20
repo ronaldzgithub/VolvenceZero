@@ -543,8 +543,16 @@ export default function App() {
               </strong>
             </article>
             <article>
-              <span>replay settled</span>
-              <strong>{evidence?.runtime_replay_settled ?? 0}</strong>
+              <span>replay settled / eligible</span>
+              <strong>
+                {evidence
+                  ? `${evidence.runtime_replay_settled}/${Math.max(
+                      0,
+                      evidence.runtime_replay_captured -
+                        evidence.runtime_replay_pending_captures,
+                    )}`
+                  : "0/0"}
+              </strong>
             </article>
             <article>
               <span>实际 tick latency</span>

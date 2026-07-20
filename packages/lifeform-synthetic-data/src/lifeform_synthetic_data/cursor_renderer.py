@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -22,6 +24,8 @@ from .prompt_manager import parse_render_request
 
 ASSET_SCHEMA_VERSION = "cursor-authored-render.v1"
 MODEL_FAMILY = "cursor-agent/gpt-5.6-sol-authored-v1"
+DEFAULT_ASSET_BUNDLE = "unified_v1"
+_ASSET_BUNDLE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 @dataclass(frozen=True)
@@ -54,15 +58,39 @@ class CursorAssetReport:
     variant_count: int
 
 
+@dataclass(frozen=True)
+class CursorAssetNoveltyReport:
+    candidate_asset_hash: str
+    reference_asset_hash: str
+    candidate_variant_count: int
+    reference_variant_count: int
+    normalized_overlap_count: int
+
+
 class CursorAuthoredJsonClient:
     """Select from checked-in Cursor-authored variants without an API call."""
 
-    def __init__(self, *, asset_root: Path | None = None) -> None:
-        root = asset_root or bundled_asset_root()
+    def __init__(
+        self,
+        *,
+        asset_root: Path | None = None,
+        asset_bundle: str | None = None,
+    ) -> None:
+        resolved_bundle = asset_bundle or (
+            DEFAULT_ASSET_BUNDLE if asset_root is None else "custom"
+        )
+        _validate_asset_bundle_id(resolved_bundle)
+        root = asset_root or bundled_asset_root(resolved_bundle)
         scenarios, report = load_cursor_assets(root)
         self._scenarios = {item.scenario_id: item for item in scenarios}
         self._report = report
-        self._model_id = f"{MODEL_FAMILY}@{report.asset_hash[:16]}"
+        self._asset_bundle = resolved_bundle
+        model_family = (
+            MODEL_FAMILY
+            if resolved_bundle == DEFAULT_ASSET_BUNDLE
+            else f"{MODEL_FAMILY}/{resolved_bundle}"
+        )
+        self._model_id = f"{model_family}@{report.asset_hash[:16]}"
 
     @property
     def model_id(self) -> str:
@@ -133,6 +161,16 @@ class CursorAuthoredJsonClient:
                 "scenario_ref": trajectory.scenario_ref,
             }
         )
+        bundle_metadata = (
+            ()
+            if self._asset_bundle == DEFAULT_ASSET_BUNDLE
+            else (
+                KeyValue(
+                    key="cursor_render_asset_bundle",
+                    value=self._asset_bundle,
+                ),
+            )
+        )
         return replace(
             trajectory,
             scenario_hash=enriched_scenario_hash,
@@ -163,7 +201,8 @@ class CursorAuthoredJsonClient:
                     key="cursor_render_asset_hash",
                     value=asset_hash,
                 ),
-            ),
+            )
+            + bundle_metadata,
         )
 
     def complete_json(
@@ -238,8 +277,14 @@ class CursorAuthoredJsonClient:
         )
 
 
-def bundled_asset_root() -> Path:
-    return Path(__file__).parent / "render_assets"
+def bundled_asset_root(
+    asset_bundle: str = DEFAULT_ASSET_BUNDLE,
+) -> Path:
+    _validate_asset_bundle_id(asset_bundle)
+    package_root = Path(__file__).parent
+    if asset_bundle == DEFAULT_ASSET_BUNDLE:
+        return package_root / "render_assets"
+    return package_root / "render_asset_bundles" / asset_bundle
 
 
 def load_cursor_assets(
@@ -346,6 +391,79 @@ def validate_cursor_assets(
     return report
 
 
+def validate_cursor_asset_novelty(
+    *,
+    candidate_root: Path,
+    reference_root: Path | None = None,
+) -> CursorAssetNoveltyReport:
+    candidate, candidate_report = load_cursor_assets(candidate_root)
+    reference, reference_report = load_cursor_assets(
+        reference_root or bundled_asset_root(),
+    )
+    candidate_entries = [
+        (
+            _normalized_variant(variant),
+            (
+                f"{scenario.family}:{scenario.scenario_id}:"
+                f"s{session.session_index}:t{turn.turn_index}:v{variant_index}"
+            ),
+        )
+        for scenario in candidate
+        for session in scenario.sessions
+        for turn in session.turns
+        for variant_index, variant in enumerate(turn.variants)
+    ]
+    candidate_variant_list = [value for value, _ in candidate_entries]
+    candidate_variants = set(candidate_variant_list)
+    if len(candidate_variants) != len(candidate_variant_list):
+        duplicate_values = {
+            value
+            for value, count in Counter(candidate_variant_list).items()
+            if count > 1
+        }
+        duplicate_refs = sorted(
+            ref
+            for value, ref in candidate_entries
+            if value in duplicate_values
+        )
+        raise ValueError(
+            "Cursor asset bundle repeats normalized variants internally; "
+            f"count={len(candidate_variant_list) - len(candidate_variants)}, "
+            f"sample_refs={duplicate_refs[:10]}"
+        )
+    reference_variants = {
+        _normalized_variant(variant)
+        for scenario in reference
+        for session in scenario.sessions
+        for turn in session.turns
+        for variant in turn.variants
+    }
+    overlaps = candidate_variants & reference_variants
+    if overlaps:
+        overlap_hashes = sorted(
+            hashlib.sha256(value.encode("utf-8")).hexdigest()
+            for value in overlaps
+        )
+        overlap_refs = sorted(
+            ref
+            for value, ref in candidate_entries
+            if value in overlaps
+        )
+        raise ValueError(
+            "Cursor asset bundle reuses normalized variants from the "
+            f"reference bundle; count={len(overlaps)}, "
+            f"sample_refs={overlap_refs[:10]}, "
+            f"sample_hashes={overlap_hashes[:5]}"
+        )
+    return CursorAssetNoveltyReport(
+        candidate_asset_hash=candidate_report.asset_hash,
+        reference_asset_hash=reference_report.asset_hash,
+        candidate_variant_count=candidate_report.variant_count,
+        reference_variant_count=reference_report.variant_count,
+        normalized_overlap_count=0,
+    )
+
+
 def _parse_scenario(
     raw: object,
     *,
@@ -439,6 +557,17 @@ def _variant_index(
     return int.from_bytes(digest[:8], "big") % variant_count
 
 
+def _normalized_variant(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def _validate_asset_bundle_id(value: str) -> None:
+    if _ASSET_BUNDLE_RE.fullmatch(value) is None:
+        raise ValueError(
+            "Cursor asset bundle must match ^[a-z][a-z0-9_]*$"
+        )
+
+
 def _load_json_object(path: Path) -> dict[str, object]:
     try:
         decoded = json.loads(path.read_text(encoding="utf-8"))
@@ -472,13 +601,16 @@ def _require_exact_fields(
 
 __all__ = [
     "ASSET_SCHEMA_VERSION",
+    "DEFAULT_ASSET_BUNDLE",
     "MODEL_FAMILY",
     "AuthoredScenario",
     "AuthoredSession",
     "AuthoredTurn",
+    "CursorAssetNoveltyReport",
     "CursorAssetReport",
     "CursorAuthoredJsonClient",
     "bundled_asset_root",
     "load_cursor_assets",
+    "validate_cursor_asset_novelty",
     "validate_cursor_assets",
 ]

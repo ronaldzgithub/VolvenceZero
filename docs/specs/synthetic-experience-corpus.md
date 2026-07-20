@@ -55,10 +55,10 @@
 生成分三层：
 
 1. `structural`：确定性 world/FSM compiler 生成事件、状态转移、硬标签与结构占位文本；
-2. `rendered`：集中式 prompt + JSON Schema 仅替换文本槽。可使用 OpenAI-compatible 在线模型，或使用经 Cursor 子代理逐场景创作、通过 `cursor-authored-render.v1` 严格结构校验的四路等价话术资产；Cursor 资产中每个 user turn 的第 1 个变体先作为 canonical observable event 编译进 `generator_truth`，随后才允许从四个语义等价表达中确定性选文。两种来源必须在 `model_id` 与资产 hash 中明确区分，Cursor 路径不得伪造 API token 或费用；
+2. `rendered`：集中式 prompt + JSON Schema 仅替换文本槽。可使用 OpenAI-compatible 在线模型，或使用经 Cursor 子代理逐场景创作、通过 `cursor-authored-render.v1` 严格结构校验的四路等价话术资产；Cursor 资产中每个 user turn 的第 1 个变体先作为 canonical observable event 编译进 `generator_truth`，随后才允许从四个语义等价表达中确定性选文。冻结基线位于 `render_assets/`，后续新增语义内容必须进入命名的 `render_asset_bundles/<bundle_id>/`，不得覆盖基线；扩展 bundle 还必须通过相对基线的 normalized variant 零重用门禁。两种来源必须在 `model_id`、bundle id 与资产 hash 中明确区分，Cursor 路径不得伪造 API token 或费用；
 3. `live_through`：只从已完成并通过门禁的 rendered master 做按 scenario 分层的确定性抽样，逐 turn 调用 `LifeformSession` 公共接口并采集公开快照，生成 runtime observation sidecar；必须保留 source master trajectory hash/run ID，禁止重新编译结构占位文本冒充真实输入。
 
-批处理必须支持 seed、shard、append-only journal、幂等 resume、失败 quarantine、调用/token/费用记账、用户提供 rate card 和 `--max-cost-usd` 硬上限。鉴权、配额、合同或 schema 错误 fail loudly；只允许对文档化的瞬时 HTTP 状态重试。Cursor-authored 路径由 seed、stable turn ID 与整套资产 hash 确定性选择变体，批量展开费用固定为 0，但 provenance 必须保留实际 Cursor 模型族和资产 hash。
+批处理必须支持 seed、shard、append-only journal、幂等 resume、失败 quarantine、调用/token/费用记账、用户提供 rate card 和 `--max-cost-usd` 硬上限。鉴权、配额、合同或 schema 错误 fail loudly；只允许对文档化的瞬时 HTTP 状态重试。Cursor-authored 路径由 seed、stable turn ID 与整套资产 hash 确定性选择变体，批量展开费用固定为 0，但 provenance 必须保留实际 Cursor 模型族和资产 hash；非默认 bundle 的 run config 必须同时锁定 bundle id 与完整 SHA-256，resume 时任一不一致均 fail loudly。
 
 ## 派生视图
 
@@ -75,7 +75,7 @@
 
 最少覆盖：schema/immutability/hash、96 场景与引用完整性、phase 顺序、split lineage 零泄漏、annotation source policy、judge 不入训练、held-out/版权来源隔离、PII/secret、精确与近重复、分布、幂等 resume、费用门禁、HTTP 故障和端到端 projection。
 
-扩容顺序固定为 96 structural golden → 96 rendered pilot → 768 扩容验证 → 10,240 rendered master → 1,024 分层 live-through。每一阶段产出 run manifest、checksum、dataset card、字段字典、annotation handbook、coverage matrix、费用/模型分布和审计报告。
+首版扩容顺序固定为 96 structural golden → 96 rendered pilot → 768 扩容验证 → 10,240 rendered master → 1,024 分层 live-through。通过首版全部硬门禁后，命名的 Cursor 扩展 bundle 可按“资产全覆盖与零重用校验 → 768 扩展试跑 → 50,000 rendered expansion”推进；50,000 条固定为 40,000 train、5,008 val、4,992 test，场景仍不跨 split。每一阶段产出 run manifest、checksum、dataset card、字段字典、annotation handbook、coverage matrix、费用/模型分布和审计报告。
 
 ## 与其他能力域的关系
 
@@ -88,3 +88,4 @@
 ## 变更日志
 
 - 2026-07-20：冻结 v1 母 schema、96 场景包、三层生成路径、投影与质量门禁。
+- 2026-07-20：增加不覆盖 v1 基线的命名 Cursor 资产 bundle、相对基线零重用门禁与 50,000 条零 API 扩展阶段。

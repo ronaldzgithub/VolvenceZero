@@ -23,7 +23,14 @@ from volvence_zero.owner_hydration import (
 
 def _bad_snap(owner: str, version: int = 1, payload=None):
     if payload is None:
-        payload = {"records": {}, "completed_refs": {}, "revision_counts": {}, "record_lifecycle": {}, "record_followup_policy": {}, "record_outcome": {}}
+        payload = {
+            "records": {},
+            "completed_refs": {},
+            "revision_counts": {},
+            "record_lifecycle": {},
+            "record_followup_policy": {},
+            "record_outcome": {},
+        }
     return OwnerPersistenceSnapshot(
         owner_name=owner,
         schema_version=version,
@@ -235,6 +242,27 @@ def test_dual_track_gate_learner_invalid_weights_fails_loud() -> None:
                     "abs_error_sum": 0.0,
                     "heuristic_abs_error_sum": 0.0,
                     "settled_comparison_count": 0,
+                },
+            )
+        )
+
+
+def test_reflection_consolidation_invalid_weights_fails_loud() -> None:
+    from volvence_zero.reflection.consolidation_learner import (
+        ConsolidationScoreLearner,
+    )
+
+    learner = ConsolidationScoreLearner()
+    with pytest.raises(HydrationPayloadInvalidError, match="weights"):
+        learner.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="reflection.consolidation_score",
+                schema_version=1,
+                payload={
+                    "weights": "not-a-list",
+                    "settled_count": 0,
+                    "abs_error_sum": 0.0,
+                    "baseline_abs_error_sum": 0.0,
                 },
             )
         )

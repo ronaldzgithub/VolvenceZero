@@ -35,6 +35,7 @@ lifeform_synthetic_data = [
     "py.typed",
     "prompts/*.md",
     "render_assets/*.json",
+    "render_asset_bundles/*/*.json",
     "schemas/*.json",
     "scenario_packages/**/*.yaml",
     "scenario_packages/**/*.json",

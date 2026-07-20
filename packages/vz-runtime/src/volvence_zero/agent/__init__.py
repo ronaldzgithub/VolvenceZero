@@ -1,9 +1,14 @@
 from volvence_zero.agent.checkpoint_archive import (
     AGENT_LEARNING_ARCHIVE_SCHEMA_VERSION,
+    AGENT_LEARNING_COLLECTION_SCHEMA_VERSION,
     AgentLearningArchiveError,
+    AgentLearningArchiveInfo,
     AgentLearningArchiveMetadata,
+    AgentLearningArchiveRecord,
     AgentLearningCheckpointArchive,
+    decode_agent_learning_archive,
     decode_agent_learning_checkpoint_archive,
+    encode_agent_learning_archive,
     encode_agent_learning_checkpoint_archive,
 )
 from volvence_zero.agent.cli import build_arg_parser, main, render_turn_result, run_repl
@@ -199,8 +204,11 @@ from volvence_zero.agent.trial import (
 
 __all__ = [
     "AGENT_LEARNING_ARCHIVE_SCHEMA_VERSION",
+    "AGENT_LEARNING_COLLECTION_SCHEMA_VERSION",
     "AgentLearningArchiveError",
+    "AgentLearningArchiveInfo",
     "AgentLearningArchiveMetadata",
+    "AgentLearningArchiveRecord",
     "AgentLearningCheckpointArchive",
     "AgentResponse",
     "AgentLearningCheckpoint",
@@ -384,6 +392,8 @@ __all__ = [
     "export_dialogue_paper_suite_artifact_bundle",
     "run_substrate_path_benchmark",
     "decode_agent_learning_checkpoint_archive",
+    "decode_agent_learning_archive",
+    "encode_agent_learning_archive",
     "encode_agent_learning_checkpoint_archive",
     "main",
     "render_trial_turn_result",

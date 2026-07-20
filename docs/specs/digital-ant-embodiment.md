@@ -239,9 +239,20 @@ promotion gate：
   App 不遍历或重建对象内部参数。
 - `ecology_curriculum` 按黄油 → 木棍 → 火柴 → 组合场景重建随机世界，跨 episode 仅携带
   owner-exported checkpoint；learned 与 no-optimize 从同一初始 checkpoint 分叉。
-- held-out 地图使用未见位置、木棍方向和 seed，并分别冻结 policy change、黄油 pickup/delivery、
-  木棍碰撞降低、火柴有害暴露降低且真实脱离、runtime replay settled/lineage ≥ 0.99 等 gate。
+- held-out 按黄油-only、木棍、火柴、三物体组合四类独立地图运行，使用未见位置、木棍方向和 seed；
+  分别冻结 policy change、黄油 pickup/delivery、木棍碰撞降低、火柴有害暴露降低且真实脱离、
+  组合投递/危害不劣化、runtime replay settled/lineage ≥ 0.99 等 gate。
+  settlement coverage 的分母是 `captured - pending_capture_count`；episode 尾部尚无下一状态的
+  capture 被明确发布为 pending，不得误报为 drop，也不得借此忽略真实 drop reason。
   任一失败即 `BLOCK`；不得加载为 demo checkpoint，也不得用 `FixedRuleAnt` 或 Canvas 脚本伪装通过。
+
+2026-07-20 小预算 smoke（`n_ants=1, n_z=4, stage_rounds=8, heldout_rounds=16,
+seed=19`）结论为 **BLOCK**：learned policy fingerprint 已变化、no-optimize fingerprint 保持稳定，
+四类 held-out 的 eligible settlement/lineage 均为 `1.0/1.0` 且 drop=0；但 learned/cold/no-optimize
+均为 0 pickup、0 delivery，木棍接触、火柴有害暴露/脱离也全为 0，组合门同样无行为证据。因此本阶段
+断点是对象 encounter/任务行为覆盖，而不是 replay lineage、policy 持久化或 checkpoint 恢复断链。
+artifact：`research/ant/results/ecology_checkpoint_smoke.v2.json` + manifest；该 BLOCK archive 仅供
+诊断，App loader 必须拒绝。
 
 ## 6. 冻结 claims 与 kill conditions
 
@@ -324,10 +335,19 @@ promotion gate：
 - checkpoint 由 `AgentSessionRunner.export_learning_checkpoint` 聚合各 owner 自己发布的
   temporal/Internal-RL、memory、PE heads、credit heads、regime、dual-track gate 与 reflection
   immutable state；embodiment 将其视为 opaque value，不遍历或重建 owner 私有状态。
-- 持久化使用 `agent-learning-checkpoint.v1` opaque archive：runtime facade 序列化 owner value，
-  header 绑定 payload sha256、逐 ant fingerprint 和有序 compatibility（sense schema / latent dim /
-  ant count）。pickle 解码只允许操作者显式指定的可信本地 artifact，HTTP 不提供上传入口；恢复后仍由
-  每个 owner 校验 fingerprint，任何 schema、数量或 digest 不匹配都 fail loudly。
+- 持久化使用 `agent-learning-archive.v2` 单体 archive +
+  `agent-learning-checkpoint-collection.v1` 多 ant envelope：每个 owner 先发布自己的
+  `OwnerPersistenceSnapshot`，runtime facade 只做 strict canonical UTF-8 JSON、逐 part sha256、
+  整体 state fingerprint 与有序 compatibility（sense schema / latent dim / ant count）绑定。
+  格式禁止 pickle、动态类型名、object hook、未知字段、缺失字段、重复 JSON key 与非有限数。
+  恢复时先完整校验 envelope/owner set/version，再经 owner hydration API 应用；任一晚期 owner 失败时
+  单 ant 和 colony 都恢复 preimage 并复核 fingerprint，rollback 失败则同时抛出原错误与回滚错误。
+  colony archive 的 checkpoint id 必须与有序 `body:{index}` 映射一致且全局唯一，交换、重复或数量
+  不符均在任何 owner 变更前拒绝。
+  sha256 只提供完整性而非来源认证；HTTP 仍不提供 archive 上传入口，若未来开放外部导入必须在 JSON
+  decode 前增加签名验证。
+  旧 `agent-learning-checkpoint.v1` pickle 不提供迁移解码器，也不能自动提升为 v2；必须从 owner
+  checkpoint 重新导出或重新训练，避免为了兼容而再次执行不可信对象反序列化。
 - training→held-out transfer 使用 owner 的 `include_runtime_replay=False` 导出模式：保留已学习参数，
   但不迁移未结算 capture、staged rollout 或 episode-local replay 计数，避免把 training action 与
   held-out outcome 错配；同一 episode 内的 shift/adaptation/final audit checkpoint 仍包含 replay。

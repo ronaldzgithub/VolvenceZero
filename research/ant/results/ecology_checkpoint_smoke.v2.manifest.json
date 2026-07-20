@@ -1,19 +1,19 @@
 {
   "artifact": {
-    "path": "research\\ant\\results\\ecology_checkpoint_smoke.v1.json",
-    "sha256": "9ca5add507c2e125135192a5c5712ee235cbeae3e617b87c787dc8a262381ce4",
-    "size_bytes": 5420
+    "path": "research\\ant\\results\\ecology_checkpoint_smoke.v2.json",
+    "sha256": "e3b84c866587e0e48b73f22e89606a68fb029efd22c3676db08cffa1bba52284",
+    "size_bytes": 11729
   },
   "externally_retainable": false,
   "inputs": [
     {
-      "path": "research\\ant\\results\\ecology_checkpoint_smoke.v1.vzac",
-      "sha256": "1685d7580e71b5ed69dfcaec152909a9551ad0624a6d1da8b4db36912330f20d",
-      "size_bytes": 109690
+      "path": "research\\ant\\results\\ecology_checkpoint_smoke.v2.vzac",
+      "sha256": "da68c0584a559ec45d8f82b3513029c4a35526d9b7612e2353ca5a3f5c34c644",
+      "size_bytes": 826142
     }
   ],
   "provenance": {
-    "config_digest": "8398c62786888baef0440cf1776a85193dc15bf75aac2b090cb28ec316aaf63e",
+    "config_digest": "ade82075ab5e8e616ba2a91b8249c23ba41f78fc2c31511dcf1fdfaa63d10102",
     "dependency_versions": [
       [
         "vz-contracts",
@@ -37,8 +37,8 @@
       ]
     ],
     "git_branch": "main",
-    "git_sha": "7c0e24d2f4f858e3ec88576f5634c88d7e9e2809",
-    "model_fingerprint": "601928f287309f471f06ad5da1b0947af8405e84a6cdb4ceb8c9f0ea1fd080be",
+    "git_sha": "67275e6181fe68315f3c88ae8ab0fa0fea8128db",
+    "model_fingerprint": "442b935cadb751323c8984700f56827c6679b5957065a28cbccbaa919709defd",
     "platform": "Windows-10-10.0.20348-SP0",
     "python_version": "3.11.9",
     "seed_schedule": [

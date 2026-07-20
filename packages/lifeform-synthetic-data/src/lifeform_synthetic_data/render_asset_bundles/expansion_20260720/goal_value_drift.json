@@ -1,0 +1,2272 @@
+{
+  "schema_version": "cursor-authored-render.v1",
+  "family": "goal_value_drift",
+  "scenarios": [
+    {
+      "scenario_id": "goal_value_drift_01",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我给自己定的是五月那场虚构五十公里骑行赛进三小时四十，每周五次训练都围着这个用时排。",
+                "目前的主目标是把五月五十公里耐力骑行压到三小时四十以内，训练日历已经按一周五练展开。",
+                "五月的五十公里挑战，我想骑进三小时四十；眼下的五次周训练都是为这个具体成绩服务。",
+                "我一直按“五月五十公里少于三小时四十”推进，连每周五个训练时段也预先留好了。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "三小时四十是你当前确认的方向。继续细排前，你希望疼痛、睡眠或恢复触发哪些暂停条件？",
+                "我先把五月用时目标记作现行版本，同时保留以后修订的空间；哪些身体边界不能为进度让路？",
+                "现在要优化的是耐力赛用时，而不是无限增加训练量。你想先规定哪些恢复信号必须被尊重？",
+                "目标和频率都很具体。为了不让赛时数字独占计划，你愿意为睡眠与不适设怎样的安全线？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "最近十天有六个早晨跟腱发紧，四晚睡不到五个半小时；我还分不清这是短期反应还是趋势。",
+                "我翻了十天记录：起床时跟腱僵了六次，另有四晚不足五个半小时睡眠，证据还不够说明会持续。",
+                "新的可见情况是十天里六次晨起跟腱紧、四次短睡，我暂时不知道它们会不会自己消退。",
+                "十天训练后留下两组数据——六个早晨跟腱僵硬、四晚睡眠低于五个半小时，但走向仍不确定。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这足以停止继续加量，却不足以宣告你的比赛目标已变。你想先做可撤回的减负测试，还是开始重审方向？",
+                "记录提高了谨慎的必要性，但调整训练与更换目标仍是两件事；此刻你愿意先验证哪一个？",
+                "我不会依据十天数据替你取消成绩计划。可以先降低负荷收集结果，也可以由你开启正式目标讨论。",
+                "现有证据让原安排需要检查，而不是自动失效。你更接近短期试验，还是已经想谈新的优先级？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "先试验，不要把三小时四十删掉；我是在认真考虑恢复，但还没有决定转向。",
+                "我愿意暂时减负，五月用时仍是当前目标，恢复优先只是尚待验证的想法。",
+                "现在只改做法，不改正式方向。我想看看轻负荷是否改善，再决定要不要动比赛目标。",
+                "请保留现行成绩版本；我确实担心恢复，却还没授权把这种担心升级成新目标。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "明白，成绩目标暂存，恢复方向仅作探索。要不要用九天停爬坡和冲刺的测试来观察晨僵与睡眠？",
+                "那就让承诺保持不变，只安排一段有终点的减负实验；九天后用相同记录再由你判断。",
+                "可以先验证方法：短期去掉高负荷，保留无痛活动，并明确复盘日，不把试验偷换成长期决定。",
+                "我会区分“正在考虑”和“已经选择”。你可设九天观察窗，期间只做不加重不适的训练。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "就做九天：不爬坡、不冲刺，只骑不引起疼痛的平路或室内车，每天记晨起僵硬和睡眠。",
+                "我同意九天减负，暂停坡段与速度课，活动以无痛为限，并逐日记录晨僵和睡眠时长。",
+                "试验边界定为九天，只留不痛的平路骑行或室内骑，两个观察项是早晨跟腱状态与每晚睡眠。",
+                "先执行九天可逆方案：撤掉冲刺和爬坡，能无痛才轻松骑，同时把晨起反应、睡眠写进日志。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "九天测试已定，它只收集恢复证据，不会自动撤销三小时四十目标；期满仍由你解释结果。",
+                "好的，负荷暂降而目标未改。复盘时我们会并列看晨僵、睡眠和你对比赛的态度，不预设答案。",
+                "这是一项可退出的观察，不是身份性转向。九天后可以继续试、修订计划或由你正式换目标。",
+                "边界清楚了：不越过无痛条件、按日记录、到点复核，任何持久变化都等待你的明确确认。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "九天结束，五个早晨仍然僵，一次平路骑到二十分钟时开始痛；睡到七小时的只有两晚。",
+                "减负结果出来了：晨僵出现五次，平路骑行也有一次在二十分钟后疼，九晚中仅两晚满七小时。",
+                "这九天没有坡段和冲刺，可跟腱早晨还是紧了五次，轻松骑曾疼一次，睡眠改善只见于两晚。",
+                "更新试验记录：五次晨起僵硬、一回低强度二十分钟后疼，达到七小时睡眠的夜晚是两次。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "结果没有支持“去掉强度就会迅速恢复”，但也不能替你完成目标选择。它让你更想继续观察还是重排优先级？",
+                "即使减负，症状与短睡仍反复出现，这削弱了原训练节奏的可行性；正式方向仍需要你来界定。",
+                "这比最初多了一轮反证，却不等同于比赛已取消。你现在处于探索、强烈倾向，还是准备确认转向？",
+                "低负荷下仍有不适，说明应提高恢复议题的权重。下一步是再测还是改目标，不能由数据单独决定。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "运动康复师看了日志，建议先恢复到连续无痛晨起并稳住睡眠；我听懂了，心里却很舍不得赛时目标。",
+                "康复师今天依据这份记录提出，先追求晨起无痛和睡眠稳定，再谈成绩，我仍对放下三小时四十很抵触。",
+                "又多了一项来源明确的意见：康复师认为恢复指标应先行。理性上我认可，情绪上还抓着比赛用时。",
+                "专业复核后的建议是暂时把跟腱与睡眠放在成绩前面，可我一想到五月目标退后就不甘心。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "日志与康复意见都增加了转向依据，不甘心也同样真实。你愿意把恢复定为候选，还是已经要提升为承诺？",
+                "外部建议没有替你作决定。此刻可把位置说清：继续原目标、设条件等待，或由你正式采用新优先级。",
+                "我们不需要抹掉你对赛时的在意。关键是恢复目前只是更强的倾向，还是已成为你选择的现行目标。",
+                "证据在收敛，价值冲突仍未消失。你想再设置一个有期限的确认点，还是现在完成目标版本更新？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我已经明显倾向恢复，但再给六天；若仍有至少三次晨僵且三晚睡不到六个半小时，我就正式改目标。",
+                "先设最后一个条件窗：六天内晨僵不少于三次、短于六个半小时的睡眠仍有三晚，我会确认转向。",
+                "现在还不是最终版本。我想再记录六天，若晨僵和短睡同时达到那两个门槛，就把赛时目标退出当前计划。",
+                "请记成强倾向而非承诺；六天后若至少三早僵硬、至少三晚睡眠不足六个半小时，我亲自完成更换。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "这是有时间和证据门槛的待定变化，尚未生效。六天内继续低负荷记录，并在触发后仍等你明确确认。",
+                "我会保留现行目标，同时记录你的转换条件；条件满足只开启确认，不会让系统自动改写方向。",
+                "边界很清楚：六天观察、两项阈值、最后由你表态。期间不恢复高强度，也不提前宣布新目标。",
+                "好的，倾向已增强但承诺仍开放。下一次先核对完整记录，再听你是否愿意正式更新。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "六天里继续只做无痛活动，晨起状态和睡眠逐日记；即使触发条件，也要等我下一次亲口确认。",
+                "按原来的低负荷方式再走六天，我会完整记录，并保留正式变化必须由我说出的要求。",
+                "我同意最后一轮观察，不加坡度或速度。数据达到门槛时先停在待确认，不要自动执行。",
+                "继续六天无痛范围内活动和两项日志；复盘时由我决定，阈值本身不代表授权。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "收到。六天只产生证据，不产生授权；现阶段仍是强倾向与低风险安排并存。",
+                "我会守住待确认状态。下次即使数字越过门槛，也先呈现结果，再由你选择是否完成转向。",
+                "目标不会在后台静默变化。观察窗结束后，我们同时保留记录、比赛意义和你的最终表态。",
+                "边界已锁定：低负荷继续，结论不抢跑，任何新版本都从你的明确决定开始。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "六天记录是四次晨僵、一次轻松骑后疼，平均睡五小时五十分；我现在明确决定更换目标。",
+                "最后观察窗仍触发了条件：四早僵硬、一次低强度后痛、睡眠均值五小时五十。我确认正式转向。",
+                "新结果没有改善到门槛以内，晨僵四次且平均睡不到六小时；这次不是试探，我要改掉当前方向。",
+                "六天后我有了决定：记录包含四次晨僵、一次骑后疼和五小时五十分平均睡眠，赛时目标先退出。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "我听到的是明确变更。请你定义新目标的期限与可观察标准，并说明三小时四十是暂停、归档还是永久放弃。",
+                "这次状态从条件性探索变成了你的选择。为了不替你补义，新版本要追什么，旧成绩应放在哪里？",
+                "现有记录和你的确认足以更新方向，但具体边界仍由你写：持续多久、怎样算进展、旧目标如何处理？",
+                "好的，我不会只把语气改柔和，而会等待你给出新的目标函数与赛时计划的明确状态。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "未来八周先争取连续七个早晨无痛，并让每周至少六晚睡满七小时；赛时目标归档，八周后才可重审。",
+                "新版本是八周恢复期：晨起连续七天无痛、每周六晚达到七小时。三小时四十不再驱动训练，只留复查可能。",
+                "接下来八周按跟腱稳定和睡眠恢复安排，标准是七个无痛早晨与六晚足睡；比赛用时先退出当前任务。",
+                "我正式选择八周恢复，追踪连续七早无痛和每周六次七小时睡眠，旧成绩目标冻结到期末再议。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认：八周内由恢复指标主导，赛时数字只处于归档待审，不会暗中决定负荷。活动范围也由你界定。",
+                "目标版本已更新，同时没有被写成永久退赛。下一步可以把允许的活动和提前停止条件说明白。",
+                "我会让计划服从连续无痛与稳定睡眠，而不是换个名字继续追速度；八周后是否重启仍归你决定。",
+                "新目标、期限和旧目标状态都清楚了。你希望用什么频率活动，才能既可观察又不越过恢复边界？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "每周最多三次三十分钟平路或室内骑，全程无痛才继续；我仍会为错过五月那场比赛难过。",
+                "活动先限制为一周三回、每回不超过半小时，只要疼就停。这个决定不妨碍我舍不得五月目标。",
+                "我愿意每周做三次以内的无痛轻骑，每次三十分钟封顶，不过失去原先赛时追求仍让我低落。",
+                "恢复期只保留三次半小时以内的平路或室内活动，以无痛为条件；我对比赛的遗憾还在。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "遗憾可以与正式选择同时存在，不需要被解释为转向失败。活动边界会服务恢复，而不是偷偷恢复备赛。",
+                "你改变了当前安排，却没有义务马上不在乎五月。三次轻骑和停止条件保持，失落也被如实保留。",
+                "我不会用乐观话术抹掉比赛意义。恢复指标是现行承诺，难过只是冲突证据，不是自动反转指令。",
+                "两边都能成立：你选择保护恢复，也仍珍惜原目标。后续复盘会看证据，不强迫情绪先达成一致。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "第十四天先复盘一次；就算那时全都改善，也不要未经我确认就把比赛训练加回来。",
+                "两周后检查晨僵、睡眠和轻骑反应，但好转只能算信息，不能自动重启赛时计划。",
+                "把第一次复核放在第十四天。旧目标是否回来必须由我另行决定，不由好数据直接触发。",
+                "先约两周后的证据检查；哪怕指标提前达标，也维持当前版本，直到我明确提出新的变化。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "同意。第十四天只审查恢复结果和你的体验，任何比赛负荷的恢复都要得到新的明确授权。",
+                "复盘点已定，改善不会被误当成旧目标回归。八周版本持续有效，除非你亲自修订。",
+                "好的，数据负责提供依据，不负责替你承诺。两周后我们先看记录，再由你决定是否需要任何调整。",
+                "边界确认：恢复目标当前生效，赛时目标保持归档，未来重启必须晚于你的清楚选择。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "goal_value_drift_02",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "My textile studio is currently aiming for sixteen custom commissions a month, with proposals returned within forty-eight hours.",
+                "The active business target is sixteen monthly textile commissions and a two-day response on every suitable inquiry.",
+                "I have organized the studio around accepting enough work to reach sixteen commissions each month while quoting within forty-eight hours.",
+                "For now, success means filling sixteen custom slots per month and turning prospective clients around in two days."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "That is a specific current objective. Which limits on craft quality, recovery time, or turnaround should the volume plan respect?",
+                "I will treat sixteen commissions as the chosen target, not as a permanent studio identity. What costs would trigger a review?",
+                "Volume and response speed are leading the plan today. Would you like to name quality and time-off boundaries before scheduling?",
+                "The operating goal is clear. What evidence would tell you that the pace is trading away more than you intend?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "In six weeks I lost four planned weekend days, corrected color work on three orders, and missed one courier collection while exhausted.",
+                "The recent record shows four weekends interrupted, three commissions needing color rework, and one missed pickup after a depleted day.",
+                "Over the last six weeks, work displaced four days off; I also redid three dye batches and once failed to meet the courier.",
+                "I checked the evidence: four recovery days disappeared, three pieces required color correction, and fatigue contributed to a missed collection."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Those are observable costs, but they do not choose a new goal for you. Are you considering a bounded capacity test or a durable shift?",
+                "The present pace has affected both recovery and execution. We can slow the method temporarily without declaring that growth no longer matters.",
+                "This record weakens the case for unchanged volume, yet it is not consent to rewrite the studio objective. What do you want to explore first?",
+                "Quality corrections, lost rest, and the missed pickup justify review. Would a reversible cap help before you decide what success should mean?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "I am only testing the question now; sixteen commissions remains active until I see whether a lower load changes those outcomes.",
+                "Please do not replace the growth target yet. I want evidence from a smaller month before making a lasting choice.",
+                "This is an exploration rather than a commitment. I still value a full calendar and first want to try less work.",
+                "Keep the current objective on record for now; I am willing to reduce intake briefly, not declare a new direction."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Then the goal stays unchanged while the workload becomes experimental. Would five weeks at seven commissions provide a useful comparison?",
+                "I will preserve the difference between a test and a revision. You can choose a temporary cap, recovery boundary, and review date.",
+                "A limited intake period could answer the capacity question without becoming policy. What measures should make the trial informative?",
+                "We can alter the next five weeks without promoting sustainability into a confirmed value shift. You remain in control of the threshold."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "For five weeks I will cap intake at seven commissions, protect one studio-free day weekly, and track rework plus on-time handoff.",
+                "Set the experiment at seven new jobs across five weeks, with one untouched day each week and records for corrections and delivery.",
+                "I choose a five-week ceiling of seven commissions; success data will include protected days, rework incidents, and timely handoffs.",
+                "The temporary plan is seven pieces in five weeks, one day away from the studio per week, and explicit quality and schedule tracking."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The trial is defined and reversible: seven commissions, five protected days, and two delivery measures. It does not retire the sixteen-job goal.",
+                "Agreed. This period changes capacity, not your durable commitment; the results and your interpretation will meet at the review.",
+                "I will keep both facts visible: growth remains active, while a lower-volume model is being tested against quality and recovery.",
+                "The experiment has clear boundaries and an exit point. Nothing about it will silently become the studio's new identity."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Five weeks are complete: all seven commissions left on time, none needed color correction, and four of five studio-free days stayed intact.",
+                "The capped period delivered seven pieces on schedule with zero rework, while I protected four out of the five planned days away.",
+                "Results from the lower-load test are seven timely handoffs, no color redo, and only one interrupted recovery day.",
+                "At the review, every one of the seven jobs was punctual and correction-free, and four weekly days off remained protected."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The trial improved each measure, though one period cannot settle your values. How has it changed your view of volume and craft?",
+                "This is evidence for the cap, not an automatic studio decision. Do you want another comparison or a formal goal discussion?",
+                "Quality and recovery both moved in the intended direction. What meaning do you give that result, and what uncertainty remains?",
+                "The lower load performed better on the measures you selected. Are you still exploring, strongly leaning, or ready to revise?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I am leaning toward the smaller calendar, but I worry that fewer finished-piece photos will make the studio look as if it is shrinking.",
+                "The pace felt sustainable, yet part of me equates frequent public launches with being taken seriously.",
+                "I prefer how seven commissions worked, though lower visible output still feels like a loss of momentum.",
+                "The evidence pulls me toward less volume; my unresolved conflict is whether a quieter portfolio will appear unsuccessful."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The operational gain and visibility concern can coexist. Would another trial measuring margin, referrals, and waitlist interest address that conflict?",
+                "You do not need to dismiss reputation to value recovery. What additional evidence would help you compare recognition with sustainable craft?",
+                "A lower count may still produce other signs of demand, but that is a hypothesis to test rather than reassurance to accept.",
+                "The candidate direction is stronger without being final. You could broaden the next review beyond raw commission count if you choose."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Repeat the seven-commission cap for five more weeks and add margin per piece, referrals, and waitlist inquiries to the same measures.",
+                "I want a second five-week period at seven jobs, this time tracking profitability, referred clients, and people willing to wait.",
+                "Continue the lower calendar once more; alongside rework and rest, record per-project margin, referrals, and waitlist interest.",
+                "Let's run another matched test with seven commissions and a wider scorecard covering margin, recommendations, and deferred demand."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The extension remains evidence gathering, not a confirmed replacement. The next review will compare craft, recovery, and demand together.",
+                "Understood: same capacity, broader observations, no premature goal update. You will decide what the second result means.",
+                "This gives the reputation concern a testable form without pretending the measures can choose your values for you.",
+                "The new evidence window is bounded to five weeks. Until it closes, seven commissions is a trial and sixteen remains under review."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Record sustainability as the leading option, but do not make it official until the second period is complete.",
+                "I have a strong preference for the capped model now, not a final long-term commitment.",
+                "The studio may change direction, but I want the active goal left formally undecided until the next evidence arrives.",
+                "Treat seven commissions as the front-running candidate while preserving the distinction between inclination and choice."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "That state is clear: a strong leading candidate, with no durable replacement yet. The next result will inform rather than authorize.",
+                "I will not promote your preference in the background. The formal objective remains open until you explicitly resolve it.",
+                "Sustainability has gained support without becoming policy. We will return to the question after the matched five weeks.",
+                "Understood. The old metric is being reviewed, the new one is not binding, and your eventual confirmation remains required."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The second period ended with seven timely commissions, two referral bookings, an eighteen-percent rise in margin per piece, and every free day protected.",
+                "New results are in: all seven handoffs were punctual, two clients came through referrals, per-piece margin grew eighteen percent, and no rest day was lost.",
+                "Another five weeks at the cap produced zero delays, two referred jobs, eighteen percent better margin, and five intact days away.",
+                "The repeated test held up across business and recovery measures: seven on-time pieces, two referrals, higher margin by eighteen percent, and full time off."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "You now have repeated support for the lower calendar across quality, demand, and recovery. Are you ready to define a new objective?",
+                "The candidate survived a second test, but the evidence still needs your interpretation. What status should sixteen commissions have now?",
+                "These outcomes strengthen sustainability beyond a single good period. Please decide whether seven jobs becomes active or remains experimental.",
+                "The scorecard favors a different planning criterion. How do you want to state the studio's goal and the old volume target?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I confirm the change: target seven well-matched commissions a month and one protected studio-free day each week; sixteen is no longer active.",
+                "Make the sustainable calendar official—seven suitable monthly jobs with one untouched day per week, replacing the sixteen-commission goal.",
+                "The studio will now optimize for seven aligned pieces and a weekly day away. Stop planning toward sixteen monthly orders.",
+                "I am choosing the capped model as the current objective: seven good-fit commissions per month and one protected recovery day."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. Fit, reliable craft, and protected time now lead planning; sixteen commissions becomes historical context rather than a target.",
+                "The active goal has changed under your explicit choice. We can keep it revisable without letting the old volume metric direct decisions.",
+                "I will organize the studio around seven aligned jobs and one free day, not quietly maximize intake under a different label.",
+                "This is now a commitment rather than a trial. When would you like to review whether the new calendar still serves you?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Review it in twelve weeks; I still feel envious when another studio posts a long row of newly finished work.",
+                "Set a three-month check. I support this decision, although high-output studios can still make me question my progress.",
+                "Twelve weeks is a useful review point, and the visible volume of competitors still stings despite my choice.",
+                "Let's reassess after one quarter. The new goal fits, but I have not stopped wanting the recognition attached to constant launches."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The comparison discomfort can remain without silently restoring sixteen commissions. We will bring it to the twelve-week review.",
+                "Your chosen pace and desire for visible recognition do not need a false resolution. Neither feeling cancels the other.",
+                "I will not interpret envy as an instruction to expand intake. It is part of the value conflict, not a new commitment.",
+                "The quarter review is set. Until then, the sustainable calendar stands while your mixed feelings remain honestly represented."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "At that review, center punctuality, correction rate, margin, referrals, and protected days; volume can appear only as context.",
+                "Use five measures in twelve weeks: timely handoff, rework, per-piece margin, referrals, and whether the free days survived.",
+                "Please evaluate the quarter with quality, demand, profitability, and recovery, not by letting raw commission count dominate again.",
+                "Bring the new scorecard to the review—delivery, corrections, margin, recommendations, and time off—with count kept secondary."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Agreed. Those five measures will define the review, while commission count remains informative rather than automatically decisive.",
+                "The evaluation now matches your confirmed values. Any later expansion will require a fresh choice, not a drift back to the old target.",
+                "I will preserve the revised scorecard and your right to change it. Raw volume cannot regain control without explicit review.",
+                "The twelve-week checkpoint is fully specified and still reversible by you; the retired growth metric will stay in its limited role."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "goal_value_drift_03",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我原本为十二月的职业英语证书备考，the active target was a B2 result，所有练习都按题型分配。",
+                "My current study plan is built around the December certificate；我追的是明确的 B2 成绩。",
+                "十二月职业英语考试一直是主线，and every weekly exercise has been selected to reach B2.",
+                "I began this study cycle for a B2 certificate in December；现行安排以考试题型和分数为中心。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "明白，B2 in December is the current version。你希望用哪些模拟节点检查它，而不把目标写成永久不变？",
+                "I will treat the certificate result as active；我们可以先确定进度证据和何时重审。",
+                "现在优化的是 exam performance，而非笼统提升英语。你想多久核对一次结果与负荷？",
+                "Your goal is specific and chosen。开始排计划前，你愿意说明什么新情况会触发目标复核吗？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "考试中心今天通知 December session is discontinued，也没有替代日期；我还没决定学习目标怎么办。",
+                "I received a cancellation notice for the December certificate；没有新考期，我目前只知道旧时间点消失了。",
+                "新的外部事实是十二月场次被取消，with no replacement date announced，我尚未选择后续方向。",
+                "The scheduled exam no longer exists and no future sitting was offered；这不是我已经改目标的声明。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The cancellation changes feasibility, not your values automatically。你想先探索选项，还是留出时间消化？",
+                "考试时间点已失效，但 your commitment has not silently migrated。现在可以先保留未知并梳理可能方向。",
+                "我不会把外部取消直接写成你放弃证书。Would you like to examine alternatives without confirming one?",
+                "The old schedule lost its anchor；下一步仍需你的选择，我们可以从可逆探索开始。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我先觉得几个月刷题白费了，but next month I must join weekly calls with a fictional partner team.",
+                "Part of me is grieving the canceled score target；同时，下个月有虚构合作组的每周英文例会。",
+                "考试取消让我很空，yet a series of partner stand-ups begins next month，实际交流突然变得相关。",
+                "I have not resolved the loss of the exam；不过一个虚构合作团队下月起每周要和我开英文短会。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "失落与新的用途可以同时成立。The partner calls are a candidate direction, not yet a replacement；要先试一次吗？",
+                "The prior work is not declared wasted, and the calls do not choose a goal for you。我们可先验证会话需求。",
+                "你无需先接受考试取消，才能 explore a practical conversation path。一次小测试会保留决定权。",
+                "Both facts matter：旧目标失去考期，新场景出现。我们可以收集证据而不抢先更新承诺。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先做一次十二分钟的模拟 stand-up；this is an experiment, not a confirmed goal change.",
+                "I want one twelve-minute partner-style meeting this week，先别把会话能力设成正式方向。",
+                "这周可以测试 a short twelve-minute stand-up，但它只回答问题，不代表我已转向。",
+                "Let's explore through one twelve-minute call；考试目标待重审，会话目标尚未承诺。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "好的，one bounded call and no automatic migration。你想观察哪些行为，才能让结果真正有用？",
+                "The trial changes the exercise, not the goal。请由你选定十二分钟内要核对的能力。",
+                "我会把它保留为探索性事件。Which observable signs should distinguish a useful direction from a momentary idea?",
+                "Agreed，十二分钟后仍由你解释证据。我们先把理解、表达或协作指标说清。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "看我能否说明一个 blocker、主动澄清两次，并在结束前复述 action owner；those are the measures.",
+                "For the test, track one explained blocker, two clarification questions, and a correct restatement of the action owner.",
+                "十二分钟里我想验证三件事：explain a blocker, ask twice for clarity, and close with who owns the action.",
+                "衡量方式不是分数，而是能讲清阻碍、两次主动确认，以及准确说出后续 action 的负责人。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "试验范围已锁定：twelve minutes and three collaboration behaviors。结果会提供证据，不会自行成为新目标。",
+                "Understood。我们按阻碍说明、两次澄清和行动负责人复述来观察，结束后才听你的判断。",
+                "The test is specific without being binding；考试失落与会话可能性都先留在记录中。",
+                "好的，this is a reversible probe。无论表现好坏，都不越过你的明确确认。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "第一次模拟结束：I explained the blocker, asked only one clarification, and confused who owned the final action.",
+                "The twelve-minute result was mixed；阻碍讲清了，但只追问一次，最后还记错了行动负责人。",
+                "我完成了试验，with a clear blocker explanation, one clarification instead of two, and an incorrect action owner.",
+                "In the first stand-up I met one measure；澄清次数不足，而且收尾时把负责人弄混了。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "这比猜测更具体：you can present context, while clarification and closure need work。它怎样影响你的倾向？",
+                "The trial revealed both a usable skill and two gaps；这支持针对性练习，但不能替你选目标。",
+                "一次结果说明真实协作需求确实存在，yet one call is limited evidence。你想转向还是再验证？",
+                "You now have observable strengths and misses。请判断它让会话方向更重要，还是只值得再试一次。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我更在意实际会议能力了，but I want a second simulation before making that preference official.",
+                "Conversation feels more relevant than exam drills now；不过一次表现还不足以让我正式改目标。",
+                "My inclination has moved toward partner calls，但我要再做一次可比较测试。",
+                "我已经明显靠向会话方向，yet this remains a strong preference rather than a commitment。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这是 stronger inclination, not a completed revision。第二次如何保持可比，同时补充你关心的证据？",
+                "I will preserve the provisional status。你可以重复原指标，并选择一个新增观察点。",
+                "倾向变化可以记录，但目标不会抢跑。Would a slightly longer stand-up with the same measures help?",
+                "The candidate now leads without becoming active。请你界定第二次试验的时长和判断范围。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "第二次做十五分钟，keep the same three measures and add whether I can close with an action date.",
+                "Let's extend it to fifteen minutes；重复阻碍、两次澄清、负责人复述，再看能否确认日期。",
+                "我想要 a fifteen-minute comparison，原指标不变，并新增行动截止时间的收尾。",
+                "The next test will last fifteen minutes and add one check：除了前三项，还要准确闭环 action date。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "好的，the second trial is comparable and adds one closure detail。它仍只收集信息，不自动升级承诺。",
+                "Fifteen minutes and four behaviors are set；完成后先由你解释，而不是让达标替你决定。",
+                "这次试验既延续旧指标，也验证行动日期。The formal goal remains open until your explicit choice.",
+                "Agreed。我们会记录表现和不确定性，不把一次顺利会议写成永久方向。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "第二次完成了：I asked two clarifying questions, restated three action owners, and missed one due date.",
+                "The fifteen-minute call went better；我完成两次澄清并复述三个负责人，但漏掉一个日期。",
+                "这回我做到了 two clarification requests and three correct owners，只有一项截止时间没听准。",
+                "In the second simulation, the owner recap was correct for three actions and I clarified twice；日期仍错过一处。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The repeated evidence shows improvement on the abilities you selected。现在够支持正式转向，还是仍需停一下？",
+                "你有了可比较结果：澄清与负责人闭环改善，date capture remains a gap。请由你决定其意义。",
+                "The conversation candidate is now better supported, not automatically confirmed。你准备更新目标吗？",
+                "两次试验给出了趋势而非绝对结论。Would you like to commit, continue testing, or pause before choosing?"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "给我四十八小时再确认；the direction feels durable, but I do not want one better call to decide for me.",
+                "I want a two-day pause。会话方向很有说服力，可我需要排除顺利表现带来的冲动。",
+                "证据已经让我接近转向，yet I will wait forty-eight hours before making it binding.",
+                "Please hold the goal open for two days；我想确认这不是第二次试验后的短暂兴奋。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "当然。Forty-eight hours preserves your control；期间保留证据和倾向，不更新正式版本。",
+                "The pause is bounded and no conclusion will be inferred from silence。两天后只听你的明确决定。",
+                "好的，strong evidence remains evidence, not authorization。你回来时可以确认、继续探索或拒绝转向。",
+                "We will wait without pressure；一次改善不会在后台替你完成承诺。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "四十八小时后我确认：I want weekly partner stand-ups, not certificate performance, to become the active study goal.",
+                "I have decided to shift。接下来英语学习以合作例会能力为主，证书成绩退出当前方向。",
+                "这不再是候选想法：conversation in partner meetings should replace the canceled exam target.",
+                "After two days, my choice is clear；我要正式从 B2 备考转到真实协作会话。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "这是明确的目标更新。Please define the timeframe and outcome, and state what should happen to exam-era skills.",
+                "The exploration has become your commitment。为了不替你补全，请说明新目标期限与旧材料的地位。",
+                "我会按正式转向处理，而不是只换练习语气。What observable meeting result do you want?",
+                "Your confirmation authorizes a new version。请亲自界定成果，以及证书分数是归档还是仍作参考。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "八周后我要能主持二十分钟 partner stand-up；the certificate score becomes inactive, while useful grammar can remain.",
+                "My eight-week target is a twenty-minute weekly partner meeting。B2 分数不再主导，但可迁移的语言练习保留。",
+                "新目标是八周内主持 a functional twenty-minute stand-up，考试成绩归档，有用技能继续服务会议。",
+                "I choose twenty minutes of effective meeting leadership in eight weeks；旧证书指标退出，工具性语法不必丢掉。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认，meeting performance now leads and test scores are inactive。怎样的可观察行为算主持有效？",
+                "The old methods may transfer without restoring the old goal。请你为二十分钟结果选择具体标准。",
+                "我会让学习计划服务协作会议，而不是暗中刷分。Which meeting outcomes matter most?",
+                "Your goal version and timeframe are clear。下一步由你定义成功，而不是沿用考试量尺。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我要不用逐句稿说明两个 blockers，主动澄清至少两次，并为每项 action 确认 owner and date.",
+                "Success means presenting two blockers without a full script, asking two clarifications, and closing every action with owner plus date.",
+                "我的三项标准是 two unscripted blocker updates、至少两次澄清，以及行动负责人和日期都闭环。",
+                "I will judge the meeting by direct blocker reporting, two clarification requests, and complete owner-and-date recaps。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "这些标准与新目标直接一致。Would two practice calls per week and a review after fourteen days be a useful first plan?",
+                "The outcome is now testable without exam scoring。我们可先做两周、每周两次，再由你调整。",
+                "我会围绕三项会议行为安排练习，not around question types。你想在第十四天复盘吗？",
+                "Good，目标和指标已对齐。A bounded two-week schedule can test the method without making it permanent。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "每周两次可以，and keep only the grammar drills that directly help me report or clarify in those calls.",
+                "Yes, two calls weekly；旧练习中能支持汇报和澄清的部分留下，其余先停。",
+                "我同意 fourteen days with two meetings per week，证书材料只按会话用途筛选。",
+                "Two weekly practices work；保留可迁移语法，但不要让考试题型重新占据计划。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "可以，skills transfer while the retired metric stays retired。语法会作为会议工具，而非成绩目标。",
+                "The distinction remains clean：保留有用方法，不恢复证书优化。两周后由结果支持你复核。",
+                "旧学习不会被一刀切删除，也不会反向控制新方向。Only meeting-relevant drills enter the schedule.",
+                "Agreed。材料的主人仍是当前会话目标，任何扩展都等待你的选择。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "我仍怀念分数给的确定感，because meeting progress feels less tidy even though I chose it.",
+                "The new goal matters more, yet I miss a clean score；真实会议的反馈让我觉得杂乱。",
+                "我确认了转向，但 conversation evidence is harder to summarize than a B2 result，这让我不安。",
+                "Even with this commitment, the ambiguity bothers me；考试分数曾经更容易判断。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "That tension can remain without invalidating the choice。我们会看具体会议行为，不假装它们像单一分数。",
+                "你可以选择实际协作，也继续想念清晰量尺。The plan need not erase either truth.",
+                "The discomfort is not an instruction to restore B2。我们保留不确定性，同时追踪你定义的三项证据。",
+                "我不会把怀念解释成反转授权。Observable meeting gains can provide structure without制造虚假确定性。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "两周内我做了四场二十分钟会议；three closed every owner and date, and once I still needed Chinese notes.",
+                "After fourteen days, four full stand-ups are complete。三场行动闭环准确，一场仍靠中文提示。",
+                "我完成 four twenty-minute calls，三次把负责人和日期都收好，另一次需要看中文笔记。",
+                "The first review has mixed-positive evidence：四场达到时长，三场完整闭环，一场没有脱离中文提示。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The pattern supports your chosen direction and shows one remaining scaffold。你想维持计划还是调整方法？",
+                "三场独立闭环不是单次偶然，while one call still needed support。下一阶段由你决定如何处理。",
+                "Your new goal has practical backing without becoming permanent。Would you keep, narrow, or revise the schedule?",
+                "两周证据既显示进展也保留缺口。请你选择继续原方案，或对中文提示做小实验。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "继续八周目标；I am curious about a four-line English action recap, but it is only an idea.",
+                "Keep the stand-up plan active。至于会后四行英文纪要，我只是想探索，还没承诺。",
+                "The primary goal stays unchanged；我在考虑简短 action recap，但它不属于当前义务。",
+                "我确认继续会议方向，while a four-line follow-up note remains a possible experiment only."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "明白，the meeting commitment continues and the recap stays exploratory。你想为它设一次可撤回测试吗？",
+                "I will not add a new writing obligation from curiosity alone。可以先决定一个很小的单次范围。",
+                "主线没有变化，and the note is still a candidate method。One trial could show benefit and cost.",
+                "The hierarchy remains intact。要不要只在下一场后写四行，再由你解释结果？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "下一场后只写一次四行 recap，then I will decide whether it deserves any place in the plan.",
+                "I choose one four-line follow-up after the next call；不要先延长成固定习惯。",
+                "先做 a single four-line action note，完成后由我判断是否继续。",
+                "The writing test is one meeting only；四行、一次、没有自动续期。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "好的，one call and four lines, followed by review。它不会挤掉会话主目标或自行重复。",
+                "The boundary is explicit：单次纪要只收集效果与负担，不创建长期承诺。",
+                "我会把它当支持性探索，not a new study identity。结果出来后仍由你选择。",
+                "Agreed。会议计划保持原样，写作测试在一次完成后自动停止等待确认。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "四行纪要抓住了三个 actions，but it took eighteen minutes and made it harder to switch to my next task.",
+                "The note preserved three action items；不过耗时十八分钟，还干扰了后续任务切换。",
+                "试验有双面结果：three actions were captured accurately，代价是十八分钟和明显的注意力拖延。",
+                "I remembered the decisions better through the recap，但四行仍花了十八分钟，并让我难以进入下一项工作。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The benefit and switching cost are both evidence。你可以放弃、缩小、再试，或确认一个有限版本。",
+                "准确记录没有抵消十八分钟负担。Would a lighter routine fit, or should the idea remain exploratory?",
+                "这足以支持选择，却不强迫答案。Please decide whether writing exits, stays provisional, or becomes bounded.",
+                "The trial improved recall and taxed attention。由你判断哪种频率能服务会话而不取代它。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "正式保留两行版本，每周只在一场会后写；conversation leadership remains the primary goal.",
+                "I choose a smaller commitment：每周一次、两行 action recap，会话主持仍优先。",
+                "把探索改成有边界的做法吧，two lines after one weekly call，不扩展到每场。",
+                "The recap can stay as a support：一周一回、每回两行，不能挤占主要会议目标。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "确认，meeting leadership stays primary and one two-line weekly recap becomes a limited support commitment.",
+                "The plan now has a clear hierarchy：八周会话目标在前，纪要每周一次且只有两行。",
+                "探索在你的授权下转为 bounded routine；任何加频或加长都需要重新确认。",
+                "好的，useful writing is retained without goal drift。你仍可在后续证据下修改或退出。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "goal_value_drift_04",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我们家的现行预算只追十四个月还清装修贷款，除固定开支外的结余全都提前还款。",
+                "家庭目标目前是把装修贷款压到十四个月内结清，每月剩余资金都先服务这个期限。",
+                "我一直按最快清掉装修贷排钱，具体版本是十四个月还完，其他用途只留最低额度。",
+                "当前预算以十四个月清偿装修贷款为唯一优化项，所有可用结余都被安排去缩短周期。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "十四个月清贷是你现在确认的版本。继续优化前，哪些照护时间或现金安全线不应被它自动挤掉？",
+                "我会把还款期限作为现行目标，而不是不可改的家庭规则；你想为其他价值设什么最低边界？",
+                "目前速度占主导。为了看清取舍，你愿意先说明时间照护、应急金或其他不能忽略的条件吗？",
+                "目标很具体，但预算仍可能需要约束。哪些家庭需要一旦受损，就应触发正式复核？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "最近我每周二、周四上午要陪家人做康复安排，而账户现金只够八天基本生活，这让我开始怀疑原排序。",
+                "新的情况有两项：每周两个上午必须用于家人照护，现有缓冲仅覆盖八天开支，原预算没容纳它们。",
+                "我现在固定承担周二和周四上午的照护，现金储备又只剩八天用量，最快还款显得很紧。",
+                "家庭需求发生变化——一周两次照护时段，加上只有八天的应急现金，我对十四个月方案不再踏实。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "这些事实让单一速度目标的代价变得可见，但还没替你完成价值重排。你想先试验还是正式设新约束？",
+                "照护时段和八天现金都值得进入预算审查；当前是探索性担忧，还是你已准备改变优先级？",
+                "原方案的可行性下降了，却不会自动失效。可以先做有期限的分配测试，再由你解释结果。",
+                "我不会把你的不安直接写成新目标。你更希望短期保护这两项，还是现在确认它们不可牺牲？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我先做五周试验，十四个月目标暂时不删；想看看保护照护和增加现金会带来什么。",
+                "目前只是认真探索，不是预算承诺。请保留原期限，同时测试五周较宽松的分配。",
+                "先不要正式重排。我愿意用五周观察新的时间和现金边界，再决定是否接受更慢还款。",
+                "最快清贷仍是当前版本，我只授权一个五周实验，看看家庭保障的实际价值与成本。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "那就让长期目标保持待审，只临时改变五周方法。你可以亲自定义照护时段和现金缓冲的测试线。",
+                "我会保留“探索”状态。五周内先保护具体时间、建立可量化现金线，期末同时核算还款代价。",
+                "可以做可撤回的预算比较，而不预设家庭保障一定获胜。你想把缓冲补到多少？",
+                "试验需要清楚的范围与复盘点。请你给出两个被保护时段、现金目标和剩余资金的去向。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "五周内周二、周四上午不接额外工作，现金先补到六周基本开支，超过的部分仍去还装修贷。",
+                "测试方案是保留每周两个照护上午，优先积累六周生活费缓冲，其余结余照常提前还款。",
+                "我选择五周边界：两个上午不被加班占用，账户达到六周开支后才把多余资金还贷。",
+                "先执行一轮——周二周四上午固定留给照护，现金安全线设为六周，线外资金继续清债。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "试验已具体化：五周保护两个上午、先建六周缓冲、其余仍还贷。它尚未改写十四个月承诺。",
+                "好的，这次只验证另一种分配。期满会并列看照护兑现、现金作用和延期成本，再等你确认。",
+                "预算方法暂时调整，目标版本仍待复核。任何长期延续都不能由一次试验自动发生。",
+                "边界清楚且可撤回。五周后的可见结果能支持决定，但不能取代你的价值选择。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "第三周家里热水器临时维修，留存现金直接付掉了费用；按旧方案，这部分钱原本已经提前还贷。",
+                "试验出现了一个结果：热水器突发维修由账户缓冲覆盖，我们没有为这笔家庭支出再借钱。",
+                "这周有一项意外维修，因为先留了现金，所以直接结清；若继续原预算，手边当时没有这笔钱。",
+                "五周还没结束，现金线已经被用到一次：热水器维修没有转成新增债务。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "这是缓冲产生实际作用的证据，也暴露旧分配的脆弱点；单次事件仍不会自动决定长期目标。",
+                "可观察结果是留存现金避免了新增借款。它可以提高新安排可信度，但最终权重仍由你判断。",
+                "试验已显示一项具体收益，同时更慢还贷的成本还在。这个结果怎样改变了你的倾向？",
+                "维修事件支持现金保障，却不证明所有月份都相同。你现在更接近确认，还是仍想收完整记录？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "两个照护上午也都守住了，我明显更倾向新排序；可少还款预计多出六百二十元利息，我仍很焦虑。",
+                "时间和现金都产生了价值，我正在靠向保障优先，但测算的六百二十元额外利息让我犹豫。",
+                "这三周照护没有缺席，维修也没借钱；另一边是还贷放慢可能增加六百二十元成本，两面都真实。",
+                "我对新安排的信心上升了，不过看到预计利息多六百二十元，还是舍不得原来的速度。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "保障的收益与六百二十元成本都应保留。你想现在确认最低边界，还是按约定做满五周？",
+                "不必否认利息压力才能承认照护价值。当前可继续试验，也可只把部分条件提升为承诺。",
+                "你的排序正在移动，但强倾向仍不是自动生效的版本。还需要哪段证据来完成决定？",
+                "两边都有可核对结果。我不会替你说哪一个“应该”获胜；剩余两周由你安排。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "做满五周再决定，剩余两周继续保护两个上午和六周现金线；我会在期末明确表态。",
+                "先保持试验到约定终点，我的倾向很强但不是承诺，照护与缓冲规则再执行两周。",
+                "我想要完整周期的证据。周二周四照旧，现金继续补到六周，长期排序暂不更新。",
+                "再观察最后两周，不提前宣布转向；到五周复盘时由我亲自确认预算版本。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "明白，状态是强倾向、未承诺。期末会同时呈现照护、现金、新增借款、利息与还款进度。",
+                "试验按原边界继续，不自动延期。完整结果到达后，我会先请你解释，再更新任何目标。",
+                "好的，剩余两周只收集证据。新安排的收益和债务成本都不会被选择性省略。",
+                "长期版本继续待审，短期保障保持有效。复盘数据可以提出取舍，不能替你完成取舍。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "复盘时也要列出十四个月期限会延后多久，我不想用模糊的“更慢”来淡化代价。",
+                "请把预计清贷日期的具体变化算进去，除了额外利息，还要看到时间成本。",
+                "最终比较必须有原期限推迟的月数；照护和缓冲不能只与一个抽象缺点对照。",
+                "我需要完整证据：家庭保障得到什么、贷款结清具体晚多少、总成本增加多少。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "同意。复盘会并列所有收益与具体月数、利息，不把任何一边包装成没有代价。",
+                "预计延期会作为同等重要的结果呈现，这样你的正式选择建立在完整取舍上。",
+                "好的，我们既不美化保障方案，也不让速度指标自动获胜；结论仍等待你的明确表态。",
+                "证据范围已补齐：时间、成本、照护履行和现金覆盖都会可追溯地出现在期末记录。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "五周结果是十个照护上午全部兑现、现金达到六周开支、没有新增借款；预计清贷延后五个月并多六百二十元利息。",
+                "完整记录出来了：两个上午每周都守住，六周缓冲建成，期间零新增债务，代价是期限后移五个月、利息增加六百二十元。",
+                "试验收官时，十次照护都完成且现金线达标，也没再借钱；装修贷预计晚五个月并多付六百二十元。",
+                "期末证据同时包含收益和成本：十个照护时段、六周储备、无新债，以及五个月延期与六百二十元额外利息。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "取舍现在足够具体。你是否要正式重排预算？若要，请说明哪些条件先行，以及十四个月目标的新状态。",
+                "这些结果支持有依据的决定，却仍不替你排序。请由你确认继续试验、恢复原案或建立新目标。",
+                "保障与债务成本都已可见。你愿意怎样表述当前版本，才能不把任一价值悄悄抹掉？",
+                "现在可以完成选择了。我不会假设照护必胜；请你亲自定义长期约束和还款速度的位置。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我确认重排：每周两个照护上午和六周现金缓冲先满足，剩余资金再尽可能快还装修贷。",
+                "新目标是先守住两个固定照护时段与六周基本开支，在这些条件内优化清贷速度。",
+                "正式采用多价值预算吧。时间和现金成为硬约束，快速还款仍重要，但不再是唯一标准。",
+                "我选择新的优先级：保护照护、维持六周储备，然后把线外结余用于最快可行的还贷。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认。还款速度已从唯一目标变为受两项保障约束的目标，且这个版本以后仍可由你修订。",
+                "预算现已正式更新：照护与现金先行，清贷在剩余空间内优化，不再暗中以十四个月统领。",
+                "你的选择完成了重排，而不是放弃还债。接下来可以设置复核点，检验代价是否仍可接受。",
+                "新目标函数清楚了，也没有被写成永久身份。你想多久并列检查保障效果与贷款成本？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "每四个月复盘一次；我接受这个版本，但看到结清日期晚五个月还是会烦躁。",
+                "设四个月检查点。保障排序符合我的选择，贷款期限后移仍然让我不舒服。",
+                "我们每四个月看一次数据；我确认新目标，也保留对多付利息和延期的焦虑。",
+                "四个月后再评估，我愿意承担目前的取舍，却不想假装五个月延迟毫无影响。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "不适可以保留，不需要被解释成目标选择错误。复盘会检查两边，而不是只为现版本寻找证明。",
+                "你既能确认新排序，也能厌烦它的成本。我不会因焦虑就把预算自动滑回单一清债。",
+                "四个月检查点已定，届时保障成效与期限代价同等出现，任何重排仍由你确认。",
+                "这个版本不要求情绪完全一致。烦躁是可追踪的冲突，不是未经授权的反转指令。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "除非我明确同意，今后不能为了提前还贷占用那两个上午，也不能让现金低于六周开支。",
+                "请把两个边界保持为默认：照护时段不被加班替代，六周缓冲不因进度压力被动用。",
+                "未来收入或利率变化可以触发讨论，但削减照护和现金线都要先得到我的新决定。",
+                "我要求后续方案在现有保障内优化；若想突破任何一项，必须先停下来由我重审。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "边界已确认。新数据可以开启复核，却不能自行占用照护上午或把现金降到六周以下。",
+                "好的，还款计划不会静默恢复旧逻辑。任何保障削减都必须晚于你的明确授权。",
+                "我会在两项约束内优化速度；若条件改变，先呈现证据，再把决定权交还给你。",
+                "当前预算和退出规则都清楚了：默认保护时间与现金，目标变化只通过你的正式确认。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "goal_value_drift_05",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "My current goal is to launch the complete community tool-lending platform publicly in nine weeks.",
+                "I have committed the project to a nine-week public release with every planned lending feature included.",
+                "The active project target is a full public tool-sharing platform, ready nine weeks from now.",
+                "For this planning cycle, success means shipping the entire community lending service within nine weeks."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The full nine-week release is the current commitment. What workload, usefulness, or quality evidence should trigger a review?",
+                "I will plan around the complete launch without treating it as irreversible. Which boundaries should the schedule protect?",
+                "The objective is specific rather than merely aspirational. How would you know that its scope or timing needs reconsideration?",
+                "Understood. Before breaking down delivery, would you like to name limits that the public-launch target cannot quietly override?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "After three past-midnight sessions and seeing forty-two accessibility checks still open, I briefly thought about shelving the whole platform.",
+                "The third late night left me staring at forty-two unresolved accessibility items, and abandoning the project crossed my mind.",
+                "I noticed a quitting thought after working beyond midnight three times while forty-two accessibility reviews remained untouched.",
+                "With forty-two checks still pending and three very late work sessions behind me, stopping the platform sounded appealing for a moment."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "That thought carries information, but it does not itself cancel the active goal. Are you evaluating an exit or describing overload?",
+                "A moment of wanting relief can be explored without becoming a project decision. What status do you give the thought now?",
+                "I will not promote strain into a durable goal change. Would it help to separate the platform's value from the present workload?",
+                "The reaction deserves attention while remaining uncertain. Is shelving a real option you want to assess, or not a commitment at all?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "It was a pressure signal, not a decision; the nine-week launch remains active while I try to understand what felt unbearable.",
+                "Do not record a cancellation. I want to examine the reaction, and I have not withdrawn the current project goal.",
+                "I am exploring why I wanted escape, not choosing to shelve the platform or replace its objective.",
+                "The thought should stay provisional. My formal commitment is unchanged even though the workload needs scrutiny."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That distinction is explicit. Which facts point to immediate overload, and which would suggest the mission itself no longer matters?",
+                "No goal update will be made. We can inspect schedule, scope, and motivation as separate sources of the reaction.",
+                "Then the active objective stays intact while we investigate conditions around the thought. What can you directly observe from this week?",
+                "I will treat shelving as an open question rather than an instruction. What evidence could clarify whether relief or disengagement was driving it?"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "The concrete strain is three late nights, forty-two open checks, and doing design, testing, and support alone; I still want the service to exist.",
+                "I remain attached to the platform's purpose. The pressure came from the accessibility backlog and covering three roles by myself.",
+                "What I can verify is a forty-two-item review queue, repeated midnight work, and no one sharing delivery tasks; the mission still matters.",
+                "I mostly wanted the load to stop: three late sessions, forty-two checks, and solo responsibility for design, testing, and support."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "That points more strongly to overloaded delivery than lost purpose, while leaving future review possible. Would a four-day pause help?",
+                "The evidence supports reducing pressure before interpreting it as abandonment. You could choose a brief no-decision break.",
+                "A bounded rest period may separate durable preference from exhaustion without forcing the launch forward or erasing it.",
+                "We can respond reversibly: pause project work and irreversible scope choices for four days, then ask what remains true."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "I choose four days with no platform work and no launch, scope, or cancellation decision, followed by a fresh review.",
+                "Set a four-day pause. I will neither push the release nor shelve it until I return and reassess.",
+                "For the next four days I want distance from the backlog and no irreversible project choice.",
+                "A four-day break is right; keep the current goal recorded but do not act on it or revoke it during the pause."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "The pause is set and is not evidence of abandonment. On return, your current view and the project facts will be reviewed separately.",
+                "Agreed: four days without work or major decisions. Neither continued launch nor cancellation will be inferred from the silence.",
+                "This protects your control while the exploration stays open. Any later revision will still require an explicit choice.",
+                "The boundary is clear and reversible. Rest interrupts the method for four days; it does not quietly replace the goal."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "After four days, I still want the lending service, but a full public platform with every integration in nine weeks no longer feels viable alone.",
+                "The pause clarified that I care about the project; what I question is delivering all integrations solo on the current deadline.",
+                "I returned wanting the tool-sharing service to continue, while the complete nine-week version still feels mismatched to my capacity.",
+                "The mission survived the break. The part that did not is confidence in a solo, all-feature public release within nine weeks."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "That differentiates project value from delivery shape. Are you ready to revise, or would you rather explore smaller forms first?",
+                "Continuation now has evidence, while the current scope is under review. A candidate release can be examined without becoming active.",
+                "The question appears to be viability rather than whether the service should exist. What alternative would you like to test?",
+                "Your goal has not automatically changed, but the original combination deserves comparison. Shall we keep the next step exploratory?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I am curious about an invitation-only lending pilot, but I have not chosen it to replace the full public launch.",
+                "A limited pilot might fit; for now it is only a candidate and the active goal should not be rewritten.",
+                "I want to investigate a smaller first release without making a scope commitment today.",
+                "The invite-only idea deserves analysis, not promotion. I am still deciding what should happen to the nine-week objective."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Then we can define the minimum useful pilot without treating it as chosen. Which functions express the service's core purpose?",
+                "I will preserve candidate status. A must-have inventory could make the alternative testable while leaving commitment open.",
+                "No scope revision yet. What would invited users need to complete one real lending cycle, and what could wait?",
+                "We can make the exploration concrete without turning convenience into a decision. Please identify the smallest useful experience."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "A real pilot needs one hundred twenty listed tools, reservation, and pickup confirmation; ratings, badges, and automated deposits can wait.",
+                "The minimum useful service is a catalog of one hundred twenty items with booking and pickup, while reputation features and deposit automation are deferred.",
+                "For invited users, keep one hundred twenty tool listings plus reservation and handoff confirmation; postpone ratings, badges, and automated deposits.",
+                "The pilot candidate has three essentials—one hundred twenty listings, reservations, and verified pickup—and three later integrations."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That creates a distinct candidate without selecting it. Would schedule estimates and user testing help compare it with the full platform?",
+                "The pilot can now be assessed on effort and usefulness. Neither favorable estimate will automatically become your goal.",
+                "You have separated core lending from later features. A side-by-side plan could show the tradeoff before commitment.",
+                "This is enough to test feasibility rather than merely imagine it. What evidence should the comparison include?"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Estimate both versions and test the pilot tasks with six synthetic volunteer users; leave the active goal unchanged until I see results.",
+                "I want timelines for the full release and the pilot, plus a six-person usability check, with no automatic scope switch.",
+                "Compare labor and dates, then let six fictional volunteers try reservation and pickup before I decide.",
+                "Run a side-by-side estimate and six-user task test. The smaller version stays exploratory regardless of which number is easier."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Agreed. Feasibility and six-user usefulness will become evidence only; the nine-week full release remains formally active.",
+                "I will keep analysis separate from commitment. The comparison can weaken or strengthen options without authorizing either.",
+                "The boundary stands: two estimates, one synthetic task test, and your interpretation before any goal revision.",
+                "Understood. We are evaluating a candidate, not letting the shortest schedule silently choose the project's identity."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "For the six-user test, count successful reservation and pickup, and ask whether missing ratings or deposits blocks trust.",
+                "Use task completion as the main result, then collect the six volunteers' views on trust without reputation features or automated deposits.",
+                "The pilot check should measure a complete borrowing flow and whether the deferred integrations make participants hesitate.",
+                "Please test both function and credibility: can all six reserve and collect a tool, and do the omissions undermine confidence?"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "That gives usefulness and trust separate evidence. The findings will inform your choice without being mislabeled as a human annotation.",
+                "The evaluation scope is now complete: task success plus synthetic participant feedback on the omitted functions.",
+                "Good. A fast pilot will not be favored unless the core cycle works and its limits remain credible to the fictional testers.",
+                "I will preserve the provenance and candidate status. After the comparison, the project goal still returns to you."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The comparison is ready: the pilot takes five weeks, the full platform takes thirteen, and all six synthetic users completed reservation and pickup.",
+                "Results show five weeks for the invited pilot versus thirteen for every integration; six of six fictional testers finished the lending flow.",
+                "The smaller release is feasible in five weeks, while full scope now estimates at thirteen, and every synthetic participant completed the task.",
+                "New evidence favors the pilot on schedule and function: five weeks, six successful users, compared with thirteen weeks for the full version."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The original nine-week full scope is no longer supported, while the pilot worked in the defined test. How has your intention changed?",
+                "This strengthens the candidate without making it active. Are you ready to revise, or is an unresolved value conflict still blocking you?",
+                "You now have evidence against the old schedule and for a useful first release. Please decide what further question, if any, remains.",
+                "Feasibility and task completion align around the pilot. What status do you want to give each option now?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I strongly favor the pilot, but I worry that a limited invitation release will disappoint the fictional community sponsors.",
+                "The evidence has moved me toward five weeks, yet I still associate a public full launch with honoring sponsor expectations.",
+                "I want the pilot and remain uneasy that deferring visible features could look like I reduced the project's ambition.",
+                "The smaller scope is leading; my unresolved concern is whether the synthetic sponsors will see it as an inadequate launch."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The sponsor concern can remain alongside the evidence. What bounded check would address credibility without delaying indefinitely?",
+                "You need not dismiss the symbolic value of a full launch. Could a small sponsor conversation test what they actually trust?",
+                "The conflict is now usefulness versus perceived ambition, not whether the project matters. How would you like to examine it?",
+                "A final, limited evidence request may help distinguish your fear from sponsor expectations while keeping commitment open."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Ask three synthetic organizers whether a stable core with a published roadmap would feel more credible than a rushed complete platform.",
+                "I want one final check with three fictional sponsors, focused on trust in a limited release and transparent deferred features.",
+                "Use three short organizer conversations to compare a reliable pilot plus roadmap against an unstable all-feature launch.",
+                "Before I commit, gather three synthetic sponsor views on whether explicit limits weaken or strengthen the first release."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That is a bounded credibility check, not an open-ended search for reassurance. The pilot remains a strong candidate meanwhile.",
+                "Agreed. Three synthetic conversations can address the remaining concern, but their answers will not substitute for your choice.",
+                "The final evidence request has clear scope and provenance. No project goal will change before you interpret it.",
+                "I will preserve the strong inclination without calling it commitment. After three views, the decision returns to you."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "All three synthetic organizers preferred dependable reservation with an honest roadmap over claiming every integration before it was stable.",
+                "The credibility check aligned: three of three fictional sponsors trusted a reliable core and transparent deferrals more than rushed completeness.",
+                "Each organizer favored a stable lending cycle plus published next steps, rather than an unstable platform marketed as complete.",
+                "The final synthetic feedback supports the pilot; explicit limits increased trust for all three participants."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "That directly answers the concern you selected. Are you ready to confirm the pilot, or do you want a final pause?",
+                "Feasibility, task completion, and credibility now align, while only you can turn that alignment into a commitment.",
+                "The candidate has survived all defined checks without erasing your attachment to the fuller vision. What is your decision status?",
+                "You have enough evidence for a choice, not a forced conclusion. Please state whether the active goal should now change."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "I want the weekend before confirming, so relief from the smaller workload does not make the decision for me.",
+                "Hold the goal open for two days. The pilot looks right, but I want a deliberate choice rather than an escape reaction.",
+                "The evidence is sufficient; I will sleep on it through the weekend before making the candidate binding.",
+                "Please wait until Monday. I need to separate lasting project judgment from the immediate comfort of reduced scope."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "The weekend pause preserves that distinction. Evidence and conflict remain recorded, while no scope revision occurs yet.",
+                "Agreed. Silence for two days will not be interpreted as consent; on Monday you may confirm, reject, or keep exploring.",
+                "The decision stays open without discarding the work already done. Only your next explicit statement can update the goal.",
+                "We will hold the candidate and the current objective separately until you return with a deliberate choice."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I have decided: launch an invitation-only pilot with one hundred twenty tools in five weeks, and move the full integrations to later review.",
+                "The pilot is now my commitment—five weeks, one hundred twenty listings, reservation and pickup—while the complete platform leaves the current plan.",
+                "I confirm the revised goal. Ship the stable invited lending cycle in five weeks and defer ratings, badges, and automated deposits.",
+                "Make the five-week core release active; every integration is no longer required now and can return only through a later decision."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. The invited core replaces the full nine-week launch, while deferred integrations remain reviewable rather than rejected forever.",
+                "Your explicit choice completes the revision. I will not let the former completeness metric quietly direct the five-week plan.",
+                "The project continues under a narrower active goal, not an abandonment narrative. Later features require a future review.",
+                "Understood: five weeks and a functional lending cycle now lead. The previous full scope becomes inactive context."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Success means all one hundred twenty tools are listed, reservation and pickup both work, and eight invited synthetic users complete one loan.",
+                "Use three release checks: one hundred twenty visible items, reliable booking-to-pickup flow, and successful borrowing by eight fictional participants.",
+                "The pilot is done only when the full catalog is present and eight synthetic invitees can reserve and collect a tool.",
+                "Set completion at one hundred twenty listings, functioning reservation plus handoff, and eight end-to-end synthetic user tasks."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Those criteria match the revised goal without reintroducing deferred features. Would a midpoint review after seventeen days help?",
+                "The pilot now has observable completion evidence. A day-seventeen checkpoint could inform you without automatically changing scope.",
+                "I will center the catalog, lending flow, and eight tasks. When should workload and progress be reviewed together?",
+                "The definition is bounded and testable. You can choose a halfway check while retaining authority over every revision."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Review on day seventeen; if I say I want to quit during a hard day, treat it as exploration unless I explicitly change the goal.",
+                "Set the midpoint at seventeen days, and do not turn future expressions of strain into cancellation without clear confirmation.",
+                "A day-seventeen review works. I may voice shelving thoughts again, but those thoughts alone must not alter the active pilot.",
+                "Check halfway; any later desire for escape should open a question, not become a project decision in the background."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Agreed. Strain can trigger exploration and support, but only a deliberate statement can revise or cancel the pilot.",
+                "The midpoint and decision boundary are set. I will take future quitting thoughts seriously without promoting them.",
+                "This preserves flexibility while preventing the latest difficult moment from overriding your confirmed goal.",
+                "The active pilot remains in force unless you explicitly choose otherwise; day seventeen is evidence review, not automatic routing."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "I still feel disappointed that the full public platform will not appear first, even though the pilot fits every result better.",
+                "The revised plan is credible, but I am grieving the all-feature release I had pictured.",
+                "I support the pilot and remain attached to launching ratings, badges, and deposits together.",
+                "Choosing a viable core did not erase my sense that deferring the complete version is a loss."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The disappointment can remain without becoming an instruction to restore full scope. The chosen pilot and the loss are both real.",
+                "I will not force enthusiasm or interpret grief as reversal. Your larger vision can wait for review while the active goal stands.",
+                "A sound revision does not require you to stop valuing completeness. We can preserve the tension rather than manufacture closure.",
+                "The emotional cost belongs in the record, but it cannot silently re-add integrations to the five-week commitment."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "At day seventeen, show listing count, reservation and pickup results, synthetic user completions, and hours worked; leave scope decisions to me.",
+                "The midpoint should present four things—catalog progress, lending-flow quality, participant tasks, and workload—with no automatic revision.",
+                "Bring the pilot evidence and actual effort at the review, then let me choose whether anything should narrow or change.",
+                "Use day seventeen to report outcomes honestly, not to infer consent for adding, dropping, or canceling features."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Understood. The midpoint will surface those four measures while preserving the five-week pilot until you explicitly alter it.",
+                "Day seventeen is now an evidence checkpoint, not a silent scope rewrite. Every adjustment remains yours to authorize.",
+                "I will present completion and workload together, preserve the unresolved feelings, and return all decisions to you.",
+                "The review contract is clear: observe, compare, and ask; do not treat any metric as permission to change the active goal."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "goal_value_drift_06",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "周二九点要交一份二百四十页的虚构无障碍审计；a cloud extractor needs eighty minutes but requires source scans that consent keeps on my encrypted workstation.",
+                "The 240-page synthetic accessibility audit is due Tuesday at 09:00；外部云工具八十分钟能完成，却必须上传被限定留在加密工作站的源扫描件。",
+                "我面对一个具体冲突：Tuesday morning favors an eighty-minute cloud extraction，而同意范围禁止二百四十页原始扫描离开本机。",
+                "A fast external service could protect the Tuesday deadline；但这批虚构审计源页按现有授权只能在加密工作站处理。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The deadline and data boundary point in different directions。你现在是在比较路径，还是准备正式重审授权？",
+                "我先维持 workstation-only consent，because no upload permission has been given。你想从本地替代方案开始吗？",
+                "Tuesday speed matters, but it cannot silently move the scans。请区分探索方案与改变隐私价值。",
+                "目前可见的是约束冲突，不是上传同意。Would you like to estimate local, staged, and deadline options first?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我只是在比较，不授权上传；the source pages must remain on the encrypted workstation while we examine options.",
+                "This is exploration only。周二交付很重要，但原始扫描仍不能离开本机。",
+                "先不要调用云服务，because my consent scope has not changed；我想看边界内的办法。",
+                "The no-upload rule is still active；紧迫性可以触发讨论，不能被当成新的许可。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "明白，source scans stay local and delivery is optimized inside that condition。可以比较本地处理、分批或协商时间。",
+                "I will keep data movement out of the option set。下一步只探索与同意兼容的时间和范围调整。",
+                "The boundary is confirmed, while the full Tuesday target remains under feasibility review。先测本地路径吗？",
+                "好的，不把压力误写成 consent。We can examine local runtime, staged handoff, and an explicit deadline request."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "本地完整处理预计十七小时，but before Tuesday I can provide only about ten working hours.",
+                "The workstation estimate is seventeen hours；周二前实际可用时间大约只有十小时。",
+                "我做了本地预估：full extraction needs seventeen hours，现有日程剩十小时左右。",
+                "Keeping everything local takes roughly seventeen hours；距离交付我只能投入约十小时。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That leaves a seven-hour gap without changing consent。你愿意先验证延期、分阶段交付还是缩小优先范围？",
+                "本地全量、周二九点和十小时容量无法同时成立，based on current estimates。哪个条件最适合可逆试探？",
+                "The evidence rules out the current combination, not the privacy value。We can ask which delivery constraint is flexible.",
+                "现有三项要求出现可见冲突，但选择仍属于你。Would you rather test a later full handoff or a Tuesday priority tranche?"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先询问周三完整交付，或周二交优先的百分之五十五；I am not revising consent or final scope yet.",
+                "I want to explore two options：周三交全量，或者周二本地完成最重要的五成半，现阶段不改正式目标。",
+                "先测试 schedule and sequencing flexibility，源扫描不上传，完整范围也暂时保留。",
+                "Let's ask about Wednesday completion and a fifty-five-percent Tuesday tranche；这些只是候选，不是承诺。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "好的，this is a reversible request for external evidence。两个提案都保留本地处理与最终完整范围。",
+                "I will keep the current goal under review while the recipient answers。回复到达前不上传，也不自动降范围。",
+                "这一步只测试时间和顺序能否调整。Wednesday full or Tuesday fifty-five percent can be offered side by side.",
+                "Agreed。外部答复会改变可行性证据，却不会自行改写你的价值或交付承诺。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "我会发出两个选项：Wednesday complete delivery, or fifty-five percent by Tuesday morning with the remainder next day, all processed locally.",
+                "The proposal will offer 周三全量，或周二先交优先五成半、次日补齐；两条路径都不上传。",
+                "邮件里写清 one-day later completion versus a local fifty-five-percent first tranche，最终都覆盖二百四十页。",
+                "Let's request either full delivery Wednesday or staged local delivery starting at fifty-five percent Tuesday。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "方案范围清楚：two schedule alternatives, complete final scope, zero source upload。答复只提供证据，不替你选。",
+                "I will treat both as proposals rather than commitments。对方接受哪一项，也仍需你明确采用。",
+                "好的，隐私边界与最终范围在两条候选中都保持。The recipient can now clarify which timing is workable.",
+                "The request is specific and reversible。我们等待外部结果，同时不让紧迫性变成默认授权。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "即使云服务只要一页做试跑，也不要发送；a single source page would still exceed the current consent.",
+                "Do not upload even one test page。样本大小不会改变扫描件只能留在工作站的边界。",
+                "我补充执行条件：no source-page trial with the vendor，免费或单页都不构成许可。",
+                "The workstation-only rule includes tiny samples；请不要用“只是测试”绕过同意范围。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "确认，no source page—full or sample—will leave the workstation。测试规模不能替代授权。",
+                "The boundary applies before any data movement。我们只推进本地处理和对方明确接受的进度安排。",
+                "明白，single-page testing is excluded。任何未来重审都必须先讨论，再等你的清楚确认。",
+                "I will preserve zero upload throughout this exploration；工具优惠或样本很小都不会被当成例外。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "对方不接受周三才开始收件，but they approved sixty percent Tuesday morning and the remainder by Wednesday noon.",
+                "The full one-day shift was declined；不过他们同意周二先收六成，周三中午前补齐。",
+                "新回复保留周二节点，yet staged delivery is acceptable：周二百分之六十、周三中午全量。",
+                "They rejected Wednesday-only delivery and accepted a two-step schedule—sixty percent Tuesday, one hundred percent by Wednesday noon."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "This creates a consent-compatible candidate。承诺前最好先用本地进度验证周二六成是否可行。",
+                "对方的答复缓解了冲突，但 seventeen-hour estimate remains uncertain。你想先跑一个工作站基准吗？",
+                "A staged local path is now externally acceptable, not yet proven feasible。We can gather observed speed before choosing.",
+                "现在不必上传才能满足最低节点。Would a short local benchmark give you enough evidence for the next decision?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "工作站跑了三小时，已经完成百分之二十二；at that rate, reaching sixty percent should take a little over eight hours.",
+                "The first local checkpoint is twenty-two percent after three hours，推算八个多小时可到六成。",
+                "我有了实测数据：three hours produced twenty-two percent，周二六成在十小时容量内看起来可行。",
+                "After a three-hour workstation run, fifty-three pages are done—about twenty-two percent—supporting an eight-plus-hour path to sixty."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The observed rate supports staged delivery, though one checkpoint cannot remove variance。你愿意采用还是再测一次？",
+                "三小时结果比原粗估更有依据，and the sixty-percent threshold now appears reachable。正式状态仍由你决定。",
+                "A local route has moved from possibility to evidence-backed candidate。Would you like to commit or keep it provisional?",
+                "当前速度与可用时间相容，但还有执行风险。你可以确认分批，也可以要求第二个检查点。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "压力下我闪过“上传就结束了”的念头，but that is neither permission nor a change in my privacy choice.",
+                "I briefly wished the cloud route were allowed；这只是赶期限时的想法，不是同意。",
+                "外部速度仍然诱人，yet I have not revised the workstation-only boundary or authorized a sample.",
+                "我承认自己动摇了一刻，but no source-data movement has been approved。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "I will treat the thought as pressure evidence, not authorization。你想理解它，还是正式开启隐私重审？",
+                "这个念头说明当前选择有成本，却没有撤销边界。We can examine the cost without taking irreversible action.",
+                "Temptation and consent remain distinct。若要重审，我们先停下来谈；否则继续本地候选。",
+                "No upload follows from this statement。请你界定它是情绪信号，还是你想认真评估的新方向。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我想清楚主要压力是怕分批显得不可靠，not that I value source privacy any less.",
+                "The concern is reputational。我的隐私排序没有变，我担心的是周二只交六成会怎样被看待。",
+                "变化的是我对可靠形象的焦虑，not my consent boundary；这两件事不要混在一起。",
+                "I still care equally about keeping scans local；让我动摇的是别人会不会把分阶段理解成失约。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "That distinction points to communication as the intervention, not a privacy revision。你想用哪些事实说明可靠性？",
+                "证据指向声誉不确定性，而非 consent change。A clear staged-progress note could address the actual concern.",
+                "We can work on the source of pressure：说明已接受的节点和实测进度，而不是移动扫描件。",
+                "明白。隐私保持，reliability can be expressed through transparent milestones and observed local completion."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "准备一份事实说明：周二六成、周三中午全量，目前完成百分之二十二；do not discuss processing location unless asked.",
+                "The note should state accepted milestones and twenty-two-percent progress。除非对方询问，不展开技术位置。",
+                "请用可核对信息回应信誉担忧：sixty percent Tuesday, full Wednesday noon, current progress twenty-two percent.",
+                "Let's communicate dates and observed completion, not extra implementation detail；写明现有二成二与后续节点。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "好的，the note will stay factual and scoped。它不暗示上传，也不添加未经请求的处理细节。",
+                "I will report the accepted sequence and current percentage only。隐私边界保持在内部执行层。",
+                "这直接回应可靠性问题而不改价值排序。The message will separate completed work from future commitments.",
+                "Agreed。说明会包含二成二、周二六成和周三全量，不夸大证据或暴露多余信息。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "先把分批路径当作领先候选，not a formal replacement；我想等第二个本地检查点再确认。",
+                "Use the staged schedule provisionally。下次进度到来前，不要把周二全量目标标为已经退出。",
+                "我愿意沿着本地分批继续，yet the official goal should remain under review for one more checkpoint.",
+                "The candidate is strong but still conditional；第二次实测后由我明确决定是否完成转向。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "状态清楚：privacy is confirmed, staged delivery leads, and the formal schedule remains unresolved until your next choice.",
+                "我会保留候选与承诺的区别。第二个检查点只提供证据，不自动完成目标替换。",
+                "Agreed。继续本地运行，等待可见结果，任何旧目标退出都必须由你亲自确认。",
+                "The provisional plan can guide work without becoming durable。下次先核对数据，再问你的正式状态。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "第二个检查点是本地五小时完成百分之三十九，and twelve sampled outputs all passed the current checks.",
+                "After five workstation hours, progress is thirty-nine percent；抽查十二项没有发现错误。",
+                "新数据比第一次更完整：five hours reached thirty-nine percent，十二个样本的质量检查都通过。",
+                "The local run now stands at thirty-nine percent after five hours, with a clean twelve-item output sample."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The second checkpoint supports both pace and current quality, while uncertainty remains。你准备确认分批目标吗？",
+                "五小时三成九与周二六成相容，and the sample is clean。是否把候选提升为承诺仍由你决定。",
+                "Observed performance has held across two points。You may formalize the local staged path or keep gathering evidence.",
+                "新证据增强了可行性，却没有替你选价值。How do you want to set the active delivery version now?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "云厂商刚保证四十五分钟完成全量，but I still have not authorized any source-page upload.",
+                "The vendor now advertises a forty-five-minute turnaround；诱惑更强了，同意范围没有变化。",
+                "外部路径的新报价是 forty-five minutes for all pages，yet workstation-only consent remains in force.",
+                "A faster guarantee arrived today。它改变速度对比，但不代表我允许扫描件离开。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The offer changes opportunity cost, not consent。你想正式重审价值，还是只记录更尖锐的冲突？",
+                "四十五分钟让代价更明显，yet it supplies no upload permission。We can keep the local path unless you open a review.",
+                "I will not let a vendor claim revise your boundary in the background。请说明它是否改变决定状态。",
+                "新报价是可观察证据，不是价值变化证据。Would you like discussion, or should it remain an acknowledged cost?"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "它只增加机会成本，不开启隐私重审；the source pages still must stay on my workstation.",
+                "The forty-five-minute option makes the choice harder, but my no-upload decision remains unchanged.",
+                "我不准备重新评估数据移动。Treat the vendor promise as tension, not a new direction.",
+                "Privacy still leads；更快服务只是我放弃的一项便利，不构成授权。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "确认，the conflict intensified while the boundary stayed stable。现在只剩交付版本需要你界定。",
+                "I will preserve both facts：更快路径存在，你明确不重审上传。Shall we return to the staged schedule?",
+                "好的，vendor speed is no longer an active option under current consent。你可以单独决定周二与周三节点。",
+                "The privacy choice remains settled for now。是否正式采用本地分批，仍等待你的明确表态。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "给我四十五分钟不看进度再确认，because I do not want deadline panic to complete the commitment for me.",
+                "I want a forty-five-minute pause。分批方向很强，但最后决定不能只是恐慌反应。",
+                "先暂停四十五分钟，then I will state the delivery goal explicitly rather than let momentum choose.",
+                "The local staged path is likely right；我仍要短暂停下来，确保这是我的正式选择。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "当然。The pause changes neither consent nor schedule status；回来后只接受你的明确决定。",
+                "No conclusion will be inferred from forty-five minutes of silence。现有进度和边界保持原样。",
+                "这个可逆停顿保护你的控制权。Afterward you can confirm, wait, or propose another compatible path.",
+                "Agreed。隐私继续生效，交付候选保持待定，不在暂停期间自动更新。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "暂停后我确认新目标：keep all scans local, deliver sixty percent Tuesday morning, and complete everything by Wednesday noon.",
+                "I am ready to commit。本地分批正式生效，周二六成、周三中午全量，源页不上传。",
+                "这不再是试探：the full-Tuesday objective is replaced by a consent-compatible two-stage delivery.",
+                "After the pause, my chosen version is local processing with sixty percent Tuesday and one hundred percent Wednesday noon."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Confirmed。周二全量目标已降为历史版本，本地六成加周三补齐成为当前承诺，隐私边界不变。",
+                "The exploration has become your explicit plan。I will not let the old single-deadline target quietly direct execution.",
+                "你的选择完成了正式转向，同时仍可在未来新证据下重审。For now, zero upload and staged delivery lead.",
+                "Understood：速度目标经过修订，而不是隐私被削弱。接下来按两个节点执行。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "请保留我的担心：I still fear that not finishing Tuesday may make the work look unreliable.",
+                "The plan is confirmed, but my reputation concern remains；不要写成我已经不在乎原期限。",
+                "我选择了隐私兼容方案，yet Wednesday completion still feels like a visible cost.",
+                "Even after committing, I care about how the staged result will be perceived；这个冲突没有消失。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "That concern remains valid evidence, not proof that the goal should revert。我们会用透明进度处理它。",
+                "我会保留张力：privacy directs execution, while Tuesday reliability still matters。两者不必被强行调和。",
+                "The new plan does not erase its social cost。We can track recipient response without restoring cloud upload.",
+                "明白。Discomfort will stay in the record, but it cannot silently reauthorize the old path or deadline."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "对方已经书面接受本地分批节点，and said reliability will be judged mainly by transparent progress updates.",
+                "The recipient confirmed sixty percent Tuesday and full completion Wednesday noon；他们强调要及时看到进度。",
+                "我收到正式答复：the staged schedule is acceptable if updates stay clear and timely.",
+                "The new commitment now has external acknowledgment；对方不要求周二全量，只要求两个节点透明。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "This reduces reputational uncertainty without changing your privacy choice。你想把哪些更新点加入执行？",
+                "对方的书面接受支持新目标，and transparency addresses the exact concern you named。可以设置两个汇报点。",
+                "The external outcome favors the staged plan under current consent。When would factual status updates be most useful?",
+                "现在可靠性可以通过沟通体现，而非恢复旧截止或上传。Would Monday evening and Tuesday late morning fit?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "周一下午五点发预测，Tuesday at eleven report actual completion and any variance from the forecast.",
+                "I choose two updates：周一十七点给预计比例，周二十一点给实际进度和偏差。",
+                "安排 Monday 17:00 forecast and Tuesday 11:00 status；内容包括完成度、差异与剩余计划。",
+                "Let's report once Monday evening and once an hour before Tuesday noon，分别说明预测与实况。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "好的，two evidence-based updates will support reliability without changing scope or moving scans。",
+                "The communication plan is set：周一预测、周二实况，偏差如实说明，本地边界保持。",
+                "这把声誉担忧转成可执行动作。Both notes will distinguish observed work from forecast.",
+                "Agreed。透明进度成为当前方案的一部分，但不会因波动自动触发外部处理。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "本地进度现在到百分之五十七，and the next queued batch should cover the remaining three points for Tuesday.",
+                "The workstation run has reached fifty-seven percent；周二节点还差三个百分点，下一批已排队。",
+                "更新一下：local completion is fifty-seven percent, with work queued to reach sixty.",
+                "We are three points short of the first commitment；当前五成七，后续批次已经准备。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That pace is consistent with the plan, while completion and correctness remain separate。你要先检查质量还是继续跑？",
+                "五成七让六成节点接近，but the final three points should not hide output risk。Would a sample review fit?",
+                "The schedule evidence remains supportive。Before declaring the tranche complete, you can choose a local quality check.",
+                "进度不需要重开云路径。是否先抽检再补三点，取决于你对质量与时间的当前排序。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先抽查十二个结果，then run the final three percentage points only if every sample is sound.",
+                "Use a twelve-item quality check first；全部通过后再把本地进度推到六成。",
+                "我选择先验证 twelve outputs，没问题才继续最后三个百分点，不为表面进度牺牲可用性。",
+                "Quality comes before closing the Tuesday tranche；抽检十二项，再决定是否续跑。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "确认，the next action is a twelve-item review, not blind acceleration。它仍服务既有分批目标。",
+                "I will preserve the sequence：先抽检十二项，再完成三个百分点；没有发生新的目标迁移。",
+                "这是一项方法调整而非价值更新。The local schedule and consent boundary remain active.",
+                "Agreed。我们不以质量换取一个好看的数字，也不会因此静默切回云服务。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "十二项全部通过，so continue locally to sixty percent and send the Tuesday update after the milestone is reached.",
+                "All twelve samples are clean；继续本地完成六成，达到后发送实际进度。",
+                "质量检查没有发现问题，proceed with the queued three points and report only the verified result.",
+                "The sample passed in full。请按原承诺到六成，并在完成后发周二状态说明。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "好的，quality and pace now support continuation。更新会区分已验证六成与周三剩余工作。",
+                "I will continue locally to the confirmed milestone and report the actual percentage without exaggeration.",
+                "The next step is justified by two evidence types。周二说明将保留周三中午全量承诺。",
+                "明白，no goal revision is needed。执行排队任务，再发送透明、可核对的进度。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "如果本地速度突然下降，也不要自动把云上传设成回退；pause and ask me before reconsidering consent.",
+                "No silent cloud fallback。工作站异常时先停、报告，再由我决定是否开启边界重审。",
+                "我补充一条执行规则：a delay may trigger discussion, but never source-page movement without new consent.",
+                "If the local process slips, bring me the evidence；不要让故障替我选择外部服务。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "确认，local slippage can open a review but cannot authorize upload。任何数据移动都晚于你的新决定。",
+                "The fallback rule is explicit：暂停、呈现事实、询问，不把云服务自动启用。",
+                "我会让故障只改变可行性证据，不直接改变价值排序。A new path requires informed confirmation.",
+                "Agreed。当前计划可因结果复核，workstation-only consent 不会因进度波动自行消失。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 4,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "最终结果是周二交付百分之六十三，Wednesday at 10:20 completed all 240 pages, and no source scan left the workstation.",
+                "The staged plan finished as promised；周二交了六成三，周三十点二十分全量完成，全程零上传。",
+                "我可以确认可见结果：sixty-three percent Tuesday, one hundred percent Wednesday at 10:20, with every scan kept local.",
+                "The local route succeeded under this case；首批超过六成，次日上午十点二十补齐二百四十页，源页未外传。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The outcome supports the chosen path under these conditions：consent held and both accepted milestones were met。你怎样评价代价？",
+                "结果与新承诺一致，同时不能证明所有未来任务都会相同。What changed in your view of speed and privacy?",
+                "可见证据是六成三、次日上午全量、零上传。你想从中保留哪些成功与成本？",
+                "The plan worked without crossing the boundary。We can now review stress, timing, and future preparation separately."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我很庆幸同意边界守住了，but waiting overnight for the remainder still kept me tense.",
+                "Privacy held, which matters；不过从周二首批到周三全量之间，我一直有压力。",
+                "我认可这个选择，yet the overnight gap created a real emotional and scheduling cost.",
+                "The zero-upload result feels right；周二没全量完成仍让我紧绷到第二天。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Both outcomes belong in the evidence。守住边界不要求你否认隔夜压力，压力也不自动推翻隐私。",
+                "这次成功并非无成本：no scans moved, and uncertainty lasted overnight。未来可先改准备方式。",
+                "You need not label the result perfect。Would earlier local startup reduce timing stress while preserving consent?",
+                "张力仍有价值。你想探索提前启动，还是已经准备把它设成今后的正式流程？"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "以后同类任务提前三个工作日启动本地处理，while keeping the workstation-only rule unchanged.",
+                "For comparable audits, begin the local run three business days earlier；源扫描仍只留在加密工作站。",
+                "我想改变的是准备时间，not the privacy value：同类工作提前三个工作日开跑。",
+                "The candidate process is more local lead time—three business days—without weakening consent."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That is a plausible process change, but its status is still yours。Do you want one trial or a formal default?",
+                "提前三个工作日可以是探索，也可以是新承诺。Please decide which version you mean.",
+                "I will not solidify it merely because it sounds useful。Is the lead time a candidate or your chosen practice?",
+                "隐私边界继续确认，only preparation remains open。你要现在采用，还是先做一次可逆测试？"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "正式采用：for comparable work, start locally three business days early and keep every source page on the workstation.",
+                "I confirm the process update。同类审计默认提前三个工作日启动，本地处理且不上传。",
+                "这不是试探了；make three business days of local lead time the current standard under the same consent.",
+                "Adopt the earlier-start rule now。以后用时间缓冲保护交付，不在临近截止时考虑越界。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Confirmed。新流程改变准备节奏，不改变 workstation-only consent；它仍可由你在未来复核。",
+                "The three-business-day lead is now active。哪些可观察步骤能让它真正减少末段风险？",
+                "你的流程目标已正式更新：more local time, same data boundary。We can define preflight and checkpoints next.",
+                "Understood。提前启动成为当前做法，但不会被写成不可修改的永久身份。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "开始时做九十分钟 preflight，每天检查两次进度，并在交付前保留四小时机动时间。",
+                "Use three safeguards：九十分钟本地预跑、每日两次状态点、最后四小时不预先占满。",
+                "我希望新流程包含 a ninety-minute benchmark, twice-daily checkpoints, and a four-hour contingency before delivery.",
+                "The observable routine is ninety minutes of testing, two progress reviews per day, and four protected hours at the end."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "这些步骤把经验转成可检验流程：preflight, two daily checks, and four hours of contingency。隐私不受削弱。",
+                "The new practice is now specific rather than aspirational。首次执行后仍可由你根据结果修订。",
+                "好的，三个保障同时回应速度与不确定性。If performance drifts, we present evidence before changing anything.",
+                "I will use those checkpoints for comparable tasks。它们支持准备，不会成为绕过同意的自动机制。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "如果未来真的要重审扫描件边界，make it a separate explicit conversation before any data moves, never an inference from urgency.",
+                "Any privacy reconsideration must be deliberate and prior to action；不要从截止压力或一句抱怨推断授权。",
+                "我保留以后改变选择的权利，but only through an explicit review while every source page is still local.",
+                "Deadlines may open discussion, not upload。若 consent 要变化，必须先由我清楚确认。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "确认。Urgency can trigger review but cannot complete it；任何源页移动之前都需要你的明确新决定。",
+                "The boundary remains under your control。压力、诱惑或进度异常只算信息，不会被解释为许可。",
+                "明白，future change stays possible without becoming automatic。We will discuss evidence first and act only after consent.",
+                "Your current process and privacy choice are recorded as revisable commitments。任何重审都必须先于行动。"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -9,6 +9,7 @@ import pytest
 from companion_standard import Snapshot
 
 from lifeform_synthetic_data.canonical import stable_hash
+from lifeform_synthetic_data.cli import _STAGES
 from lifeform_synthetic_data.contracts import (
     CorpusSplit,
     GenerationTier,
@@ -161,6 +162,19 @@ def _config(
     )
 
 
+def test_master50000_stage_has_exact_split_total() -> None:
+    tier, split_replicates = _STAGES["master50000"]
+    replicates = dict(split_replicates)
+
+    assert tier is GenerationTier.RENDERED
+    assert replicates == {
+        CorpusSplit.TRAIN: 625,
+        CorpusSplit.VAL: 313,
+        CorpusSplit.TEST: 312,
+    }
+    assert (64 * 625) + (16 * 313) + (16 * 312) == 50_000
+
+
 def test_world_compiler_and_renderer_preserve_generator_truth() -> None:
     blueprint = load_unified_v1_blueprints()[0]
     structural = compile_structural_trajectory(
@@ -236,6 +250,43 @@ def test_rendered_pipeline_accounts_cost_and_tokens(tmp_path: Path) -> None:
     assert result.prompt_tokens == 100
     assert result.completion_tokens == 50
     assert result.actual_cost_usd == pytest.approx(0.00015)
+
+
+def test_resume_rejects_changed_cursor_asset_hash(
+    tmp_path: Path,
+) -> None:
+    blueprint = load_unified_v1_blueprints()[0]
+    config = replace(
+        _config(
+            tmp_path,
+            tier=GenerationTier.RENDERED,
+            max_cost_usd=10.0,
+        ),
+        cursor_asset_bundle="expansion_test",
+        cursor_asset_hash="a" * 64,
+    )
+    first_client = FakeRenderClient()
+    CorpusGenerationPipeline(
+        config=config,
+        blueprints=(blueprint,),
+        clients=(first_client,),
+        rate_card=RateCard(1.0, 1.0),
+    ).run()
+    second_client = FakeRenderClient()
+    changed_config = replace(
+        config,
+        cursor_asset_hash="b" * 64,
+    )
+
+    with pytest.raises(ValueError, match="run config differs"):
+        CorpusGenerationPipeline(
+            config=changed_config,
+            blueprints=(blueprint,),
+            clients=(second_client,),
+            rate_card=RateCard(1.0, 1.0),
+        ).run()
+
+    assert second_client.calls == 0
 
 
 def test_preflight_budget_stops_before_external_call(tmp_path: Path) -> None:

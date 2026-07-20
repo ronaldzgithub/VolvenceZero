@@ -148,6 +148,8 @@ class AppEvidenceProjection:
     runtime_replay_transitions: int = 0
     runtime_replay_lineage_matches: int = 0
     runtime_replay_drop_reasons: tuple[str, ...] = ()
+    runtime_replay_pending_captures: int = 0
+    runtime_replay_staged_rollouts: int = 0
     verdict: str = "BLOCK"
     verdict_reason: str = "formal evidence has not passed"
     checkpoint_loaded: bool = False

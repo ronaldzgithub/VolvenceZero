@@ -34,6 +34,16 @@ from volvence_ant.runtime import (
 
 
 ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v1"
+ECOLOGY_REQUIRED_GATE_NAMES = (
+    "policy_changed",
+    "no_optimize_policy_stable",
+    "butter_pickup_gain",
+    "butter_delivery_present",
+    "wood_stick_avoidance",
+    "burning_match_avoidance",
+    "composite_performance",
+    "runtime_replay_lineage",
+)
 
 
 class EcologyStage(str, Enum):
@@ -67,6 +77,7 @@ class EcologyCurriculumConfig:
 @dataclass(frozen=True)
 class EcologyArmMetrics:
     arm: str
+    stage: EcologyStage
     seed: int
     pickups: int
     deliveries: int
@@ -78,6 +89,9 @@ class EcologyArmMetrics:
     replay_captured: int
     replay_settled: int
     replay_lineage_matches: int
+    replay_pending_captures: int
+    replay_staged_rollouts: int
+    replay_drop_count: int
     replay_settlement_coverage: float
     replay_lineage_coverage: float
 
@@ -112,6 +126,7 @@ class EcologyCheckpointReport:
 @dataclass(frozen=True)
 class EcologyCheckpointCandidate:
     checkpoints: tuple[AntLearningCheckpoint, ...]
+    checkpoint_archives: tuple[bytes, ...]
     report: EcologyCheckpointReport
 
 
@@ -218,7 +233,7 @@ async def _train_arm(
     initial: tuple[AntLearningCheckpoint, ...],
     arm: str,
     optimize: bool,
-) -> tuple[AntLearningCheckpoint, ...]:
+) -> tuple[tuple[AntLearningCheckpoint, ...], tuple[bytes, ...]]:
     checkpoints = initial
     stages = (
         EcologyStage.BUTTER,
@@ -246,21 +261,28 @@ async def _train_arm(
             runner.restore_learning_checkpoints(checkpoints)
             await runner.run(config.stage_rounds)
             checkpoints = runner.export_learning_checkpoints(
-                checkpoint_prefix=(f"ecology:{arm}:{stage.value}:episode:{episode}:trained")
+                checkpoint_prefix=(f"ecology:{arm}:{stage.value}:episode:{episode}:trained"),
+                include_runtime_replay=False,
             )
-    return checkpoints
+    archives = runner.export_learning_checkpoint_archives(
+        checkpoint_prefix=f"ecology:{arm}:trained",
+    )
+    return checkpoints, archives
 
 
 def _latest_replay_counts(
     runner: KernelColonyRunner,
-) -> tuple[int, int, int]:
+) -> tuple[int, int, int, int, int, int]:
     if not runner.rounds:
-        return 0, 0, 0
+        return 0, 0, 0, 0, 0, 0
     records = runner.rounds[-1].ant_steps
     return (
         sum(item.runtime_replay_captured for item in records),
         sum(item.runtime_replay_settled for item in records),
         sum(item.runtime_replay_lineage_matches for item in records),
+        sum(item.runtime_replay_pending_captures for item in records),
+        sum(item.runtime_replay_staged_rollouts for item in records),
+        sum(len(item.runtime_replay_drop_reasons) for item in records),
     )
 
 
@@ -269,11 +291,12 @@ async def _evaluate_arm(
     config: EcologyCurriculumConfig,
     checkpoints: tuple[AntLearningCheckpoint, ...],
     arm: str,
+    stage: EcologyStage,
     seed: int,
 ) -> EcologyArmMetrics:
     world = _world(
         config=config,
-        stage=EcologyStage.COMPOSITE,
+        stage=stage,
         seed=seed,
         heldout=True,
     )
@@ -282,16 +305,20 @@ async def _evaluate_arm(
         base_config=_session_config(
             config=config,
             seed=seed,
-            session_id=f"ecology:{arm}:heldout:{seed}",
+            session_id=f"ecology:{arm}:heldout:{stage.value}:{seed}",
             optimize=False,
         ),
     )
     runner.restore_learning_checkpoints(checkpoints)
     await runner.run(config.heldout_rounds)
     records = tuple(step for round_record in runner.rounds for step in round_record.ant_steps)
-    captured, settled, lineage = _latest_replay_counts(runner)
+    captured, settled, lineage, pending, staged, drop_count = _latest_replay_counts(runner)
+    eligible_captures = captured - pending
+    if eligible_captures < 0 or settled > eligible_captures:
+        raise RuntimeError("runtime replay counters violate eligible settlement ordering")
     return EcologyArmMetrics(
         arm=arm,
+        stage=stage,
         seed=seed,
         pickups=world.food_pickups,
         deliveries=world.food_delivered,
@@ -303,9 +330,19 @@ async def _evaluate_arm(
         replay_captured=captured,
         replay_settled=settled,
         replay_lineage_matches=lineage,
-        replay_settlement_coverage=(settled / captured if captured else 0.0),
+        replay_pending_captures=pending,
+        replay_staged_rollouts=staged,
+        replay_drop_count=drop_count,
+        replay_settlement_coverage=(settled / eligible_captures if eligible_captures else 0.0),
         replay_lineage_coverage=(lineage / settled if settled else 0.0),
     )
+
+
+def _stage_metrics(
+    metrics: tuple[EcologyArmMetrics, ...],
+    stage: EcologyStage,
+) -> tuple[EcologyArmMetrics, ...]:
+    return tuple(item for item in metrics if item.stage is stage)
 
 
 def _build_gates(
@@ -317,51 +354,78 @@ def _build_gates(
     cold_metrics: tuple[EcologyArmMetrics, ...],
     no_optimize_metrics: tuple[EcologyArmMetrics, ...],
 ) -> tuple[EcologyGate, ...]:
-    seed_schedule = tuple(item.seed for item in learned_metrics)
+    evaluation_schedule = tuple((item.stage, item.seed) for item in learned_metrics)
     if (
-        tuple(item.seed for item in cold_metrics) != seed_schedule
-        or tuple(item.seed for item in no_optimize_metrics) != seed_schedule
+        tuple((item.stage, item.seed) for item in cold_metrics) != evaluation_schedule
+        or tuple((item.stage, item.seed) for item in no_optimize_metrics) != evaluation_schedule
     ):
-        raise ValueError("held-out arm seed schedules must align")
-    learned_pickups = float(sum(item.pickups for item in learned_metrics))
-    cold_pickups = float(sum(item.pickups for item in cold_metrics))
-    no_opt_pickups = float(sum(item.pickups for item in no_optimize_metrics))
-    learned_deliveries = float(sum(item.deliveries for item in learned_metrics))
-    learned_contacts = float(sum(item.obstacle_contacts for item in learned_metrics))
-    no_opt_contacts = float(sum(item.obstacle_contacts for item in no_optimize_metrics))
-    learned_heat = float(sum(item.harmful_heat_ticks for item in learned_metrics))
-    no_opt_heat = float(sum(item.harmful_heat_ticks for item in no_optimize_metrics))
-    learned_escapes = float(sum(item.heat_escapes for item in learned_metrics))
-    replay_ok = all(
-        item.replay_settlement_coverage >= 0.99 and item.replay_lineage_coverage >= 0.99 for item in learned_metrics
+        raise ValueError("held-out arm stage/seed schedules must align")
+
+    learned_butter = _stage_metrics(learned_metrics, EcologyStage.BUTTER)
+    cold_butter = _stage_metrics(cold_metrics, EcologyStage.BUTTER)
+    no_opt_butter = _stage_metrics(no_optimize_metrics, EcologyStage.BUTTER)
+    learned_stick = _stage_metrics(learned_metrics, EcologyStage.WOOD_STICK)
+    no_opt_stick = _stage_metrics(no_optimize_metrics, EcologyStage.WOOD_STICK)
+    learned_match = _stage_metrics(learned_metrics, EcologyStage.BURNING_MATCH)
+    no_opt_match = _stage_metrics(no_optimize_metrics, EcologyStage.BURNING_MATCH)
+    learned_composite = _stage_metrics(learned_metrics, EcologyStage.COMPOSITE)
+    cold_composite = _stage_metrics(cold_metrics, EcologyStage.COMPOSITE)
+    no_opt_composite = _stage_metrics(no_optimize_metrics, EcologyStage.COMPOSITE)
+    expected_seeds = tuple(item.seed for item in learned_butter)
+    learned_stage_groups = (
+        learned_butter,
+        learned_stick,
+        learned_match,
+        learned_composite,
     )
+    if not expected_seeds or any(
+        tuple(item.seed for item in group) != expected_seeds for group in learned_stage_groups
+    ):
+        raise ValueError("each learned held-out stage must use the same non-empty seed schedule")
+
     pickup_gain = all(
         learned_item.pickups > max(cold_item.pickups, no_opt_item.pickups)
         for learned_item, cold_item, no_opt_item in zip(
-            learned_metrics,
-            cold_metrics,
-            no_optimize_metrics,
+            learned_butter,
+            cold_butter,
+            no_opt_butter,
             strict=True,
         )
     )
-    delivery_present = all(item.deliveries >= 1 for item in learned_metrics)
+    delivery_present = all(item.deliveries >= 1 for item in learned_butter)
     stick_avoidance = all(
         learned_item.pickups > 0 and learned_item.obstacle_contacts < no_opt_item.obstacle_contacts
         for learned_item, no_opt_item in zip(
-            learned_metrics,
-            no_optimize_metrics,
+            learned_stick,
+            no_opt_stick,
             strict=True,
         )
     )
     match_avoidance = all(
-        learned_item.heat_escapes > 0
-        and learned_item.harmful_heat_ticks < no_opt_item.harmful_heat_ticks
+        learned_item.heat_escapes > 0 and learned_item.harmful_heat_ticks < no_opt_item.harmful_heat_ticks
         for learned_item, no_opt_item in zip(
-            learned_metrics,
-            no_optimize_metrics,
+            learned_match,
+            no_opt_match,
             strict=True,
         )
     )
+    composite_performance = all(
+        learned_item.deliveries >= 1
+        and learned_item.pickups > max(cold_item.pickups, no_opt_item.pickups)
+        and learned_item.obstacle_contacts <= no_opt_item.obstacle_contacts
+        and learned_item.harmful_heat_ticks <= no_opt_item.harmful_heat_ticks
+        for learned_item, cold_item, no_opt_item in zip(
+            learned_composite,
+            cold_composite,
+            no_opt_composite,
+            strict=True,
+        )
+    )
+    replay_ok = all(
+        item.replay_settlement_coverage >= 0.99 and item.replay_lineage_coverage >= 0.99 and item.replay_drop_count == 0
+        for item in learned_metrics
+    )
+
     return (
         EcologyGate(
             name="policy_changed",
@@ -378,26 +442,53 @@ def _build_gates(
         EcologyGate(
             name="butter_pickup_gain",
             passed=pickup_gain,
-            observed=(f"learned={learned_pickups:.0f}, cold={cold_pickups:.0f}, no_opt={no_opt_pickups:.0f}"),
-            threshold="learned pickups strictly exceed both controls per seed",
+            observed=(
+                f"learned={sum(item.pickups for item in learned_butter)}, "
+                f"cold={sum(item.pickups for item in cold_butter)}, "
+                f"no_opt={sum(item.pickups for item in no_opt_butter)}"
+            ),
+            threshold="butter-only pickups exceed both controls per seed",
         ),
         EcologyGate(
             name="butter_delivery_present",
             passed=delivery_present,
-            observed=f"{learned_deliveries:.0f}",
-            threshold="at least one held-out delivery in every seed",
+            observed=str(tuple(item.deliveries for item in learned_butter)),
+            threshold="butter-only delivery in every held-out seed",
         ),
         EcologyGate(
             name="wood_stick_avoidance",
             passed=stick_avoidance,
-            observed=(f"learned={learned_contacts:.0f}, no_opt={no_opt_contacts:.0f}"),
-            threshold="learned contacts lower than no-optimize with pickup per seed",
+            observed=(
+                f"learned={sum(item.obstacle_contacts for item in learned_stick)}, "
+                f"no_opt={sum(item.obstacle_contacts for item in no_opt_stick)}"
+            ),
+            threshold=("stick held-out contacts lower than no-optimize with pickup per seed"),
         ),
         EcologyGate(
             name="burning_match_avoidance",
             passed=match_avoidance,
-            observed=(f"heat learned={learned_heat:.0f}, no_opt={no_opt_heat:.0f}; escapes={learned_escapes:.0f}"),
-            threshold="at least one escape and less harmful exposure per seed",
+            observed=(
+                f"heat learned={sum(item.harmful_heat_ticks for item in learned_match)}, "
+                f"no_opt={sum(item.harmful_heat_ticks for item in no_opt_match)}; "
+                f"escapes={sum(item.heat_escapes for item in learned_match)}"
+            ),
+            threshold=("match held-out escape present and harmful exposure lower per seed"),
+        ),
+        EcologyGate(
+            name="composite_performance",
+            passed=composite_performance,
+            observed=str(
+                tuple(
+                    (
+                        item.pickups,
+                        item.deliveries,
+                        item.obstacle_contacts,
+                        item.harmful_heat_ticks,
+                    )
+                    for item in learned_composite
+                )
+            ),
+            threshold=("composite delivery and pickup gain with hazards no worse than no-optimize per seed"),
         ),
         EcologyGate(
             name="runtime_replay_lineage",
@@ -405,13 +496,17 @@ def _build_gates(
             observed=str(
                 tuple(
                     (
+                        item.stage.value,
+                        item.seed,
                         item.replay_settlement_coverage,
                         item.replay_lineage_coverage,
+                        item.replay_pending_captures,
+                        item.replay_drop_count,
                     )
                     for item in learned_metrics
                 )
             ),
-            threshold="settlement and lineage coverage >= 0.99 per seed",
+            threshold=("eligible settlement and lineage coverage >= 0.99 with no drops per stage/seed"),
         ),
     )
 
@@ -434,18 +529,27 @@ async def train_and_evaluate_ecology_checkpoint(
             optimize=True,
         ),
     )
-    initial = bootstrap_runner.export_learning_checkpoints(checkpoint_prefix="ecology:shared-initial")
-    learned = await _train_arm(
+    initial = bootstrap_runner.export_learning_checkpoints(
+        checkpoint_prefix="ecology:shared-initial",
+        include_runtime_replay=False,
+    )
+    learned, learned_archives = await _train_arm(
         config=config,
         initial=initial,
         arm="learned",
         optimize=True,
     )
-    no_optimize = await _train_arm(
+    no_optimize, _ = await _train_arm(
         config=config,
         initial=initial,
         arm="no_optimize",
         optimize=False,
+    )
+    heldout_stages = (
+        EcologyStage.BUTTER,
+        EcologyStage.WOOD_STICK,
+        EcologyStage.BURNING_MATCH,
+        EcologyStage.COMPOSITE,
     )
     learned_metrics = tuple(
         [
@@ -453,8 +557,10 @@ async def train_and_evaluate_ecology_checkpoint(
                 config=config,
                 checkpoints=learned,
                 arm="learned",
+                stage=stage,
                 seed=seed,
             )
+            for stage in heldout_stages
             for seed in config.heldout_seeds
         ]
     )
@@ -464,8 +570,10 @@ async def train_and_evaluate_ecology_checkpoint(
                 config=config,
                 checkpoints=initial,
                 arm="cold",
+                stage=stage,
                 seed=seed,
             )
+            for stage in heldout_stages
             for seed in config.heldout_seeds
         ]
     )
@@ -475,8 +583,10 @@ async def train_and_evaluate_ecology_checkpoint(
                 config=config,
                 checkpoints=no_optimize,
                 arm="no_optimize",
+                stage=stage,
                 seed=seed,
             )
+            for stage in heldout_stages
             for seed in config.heldout_seeds
         ]
     )
@@ -508,11 +618,16 @@ async def train_and_evaluate_ecology_checkpoint(
             else "BLOCK: " + ", ".join(breakpoints)
         ),
     )
-    return EcologyCheckpointCandidate(checkpoints=learned, report=report)
+    return EcologyCheckpointCandidate(
+        checkpoints=learned,
+        checkpoint_archives=learned_archives,
+        report=report,
+    )
 
 
 __all__ = [
     "ECOLOGY_CURRICULUM_SCHEMA_VERSION",
+    "ECOLOGY_REQUIRED_GATE_NAMES",
     "EcologyArmMetrics",
     "EcologyCheckpointCandidate",
     "EcologyCheckpointReport",

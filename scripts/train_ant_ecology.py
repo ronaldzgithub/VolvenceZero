@@ -16,8 +16,8 @@ from volvence_ant.experiments.ecology_curriculum import (
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_ARCHIVE = Path("research/ant/results/ecology_checkpoint.v1.vzac")
-_DEFAULT_REPORT = Path("research/ant/results/ecology_checkpoint.v1.json")
+_DEFAULT_ARCHIVE = Path("research/ant/results/ecology_checkpoint.v2.vzac")
+_DEFAULT_REPORT = Path("research/ant/results/ecology_checkpoint.v2.json")
 
 
 def _repo_path(path: Path) -> Path:

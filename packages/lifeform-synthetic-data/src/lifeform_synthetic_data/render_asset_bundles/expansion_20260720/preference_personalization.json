@@ -1,0 +1,2272 @@
+{
+  "schema_version": "cursor-authored-render.v1",
+  "family": "preference_personalization",
+  "scenarios": [
+    {
+      "scenario_id": "preference_personalization_01",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "周二早上我正在坐渡轮去展馆。沿用前几次通勤的习惯，把“萤岸展览”的布展状态压成三行。",
+                "我在周二早班渡轮上，请照此前确认过的通勤方式，用三行概括萤岸展览的准备情况。",
+                "现在是去展馆的通勤早晨；萤岸布展进度仍给我三行速览。",
+                "早上赶渡轮，时间不多。请按我们几次用过的通勤格式，三行说清萤岸展览进度。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以。你提到的是已有多次证据的通勤早晨三行方式；请确认它继续作为该情境的偏好，而不只是今天临时缩短，对吗？",
+                "明白。我会先区分范围：这次是继续沿用已确认的早间通勤三行偏好，还是只为当前渡轮行程简写？",
+                "好的。为免把一次赶时间误当长期设置，请确认今天仍属于你持续选择的“通勤早晨三行”情境。",
+                "可以做三行版。先核对一下：你希望保留这个通勤情境的既有偏好，而不是仅让这一条回复变短，是吗？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "继续保留：通勤早晨看三行，晚上回到工作室再做详细推演；这是可修改的情境偏好。",
+                "是持续设置。早晨在路上只要三行，晚间工作室复盘要展开，之后我随时能调整。",
+                "不是只限今天；通勤时的早晨用三行，晚上复盘写详细，但不要把它当成不可撤销的规则。",
+                "确认沿用这组区分：早间通勤简成三行，晚间复盘充分说明，我以后可以更新或删除。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认。我只在已说明的两个情境中使用它：通勤早晨三行、晚间工作室详细；不会外推成你在所有场合都偏好某种长度，你也可随时修订。",
+                "收到。当前偏好按时间与场景分开，早间通勤对应三行，晚间复盘对应详述；未覆盖的情况会重新确认。",
+                "明白，这不是全局长短标签。我会分别处理通勤早晨和晚间复盘，并保留你查看、调整或撤回的空间。",
+                "范围已确认：三行只用于早晨通勤，详细分析只用于晚间复盘，其他场景不自动套用，之后均可更改。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "三行写这些事实：投影脚本已通过，港区场地还在等电力检查，今天要由布展协调员小岑排出演练清单。",
+                "请概括三点：投影程序已经验收；展馆电力检查尚未完成；小岑今天需要排好演练顺序。",
+                "内容是投影脚本过审、港区场地待电力巡检，以及布展协调员小岑今日制定演练表。",
+                "速览只需覆盖：投影方案通过，场地供电检查仍待处理，今天由小岑确定演练清单。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "已完成：投影脚本通过验收。\n待处理：港区场地仍等电力检查。\n今日行动：小岑排出演练清单。",
+                "进展：投影程序已经获批。\n依赖：展馆供电巡检尚未结束。\n下一步：小岑今天确定演练顺序。",
+                "投影脚本现已确认可用。\n场地电力检查仍是未完成项。\n小岑将在今天整理演练表。",
+                "完成项：投影方案过审。\n等待项：港区场地的供电检查。\n今天：由小岑敲定演练清单。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "只在今天这版第三行补上摄影志愿者阿禾也参加演练，别把“总写参与人”保存成偏好。",
+                "本次请注明阿禾会加入演练，但这只是当前内容修订，不要以后每份晨报都列参与者。",
+                "把最后一行改成小岑排表、阿禾参加；仅改这一条，长期设置仍只是三行。",
+                "今天的行动项顺带写明摄影志愿者阿禾会到场，这不构成新的持续格式要求。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "可以，只更新当前摘要：\n已完成：投影脚本通过验收。\n待处理：港区场地仍等电力检查。\n今日行动：小岑排出演练清单，阿禾参加演练。",
+                "明白，参与人信息仅用于这次：\n进展：投影程序已经获批。\n依赖：展馆供电巡检尚未结束。\n下一步：小岑今天定出演练顺序，阿禾到场参与。",
+                "已按本轮信息修订，不会固定延续：\n投影脚本现已确认可用。\n场地电力检查仍未完成。\n小岑负责演练表，摄影志愿者阿禾参与。",
+                "好的，持续偏好仍然只有通勤三行。当前版本是：\n投影方案过审。\n供电检查待完成。\n小岑排表，阿禾参加今天的演练。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "周二晚上我回到工作室了，想把萤岸展览今天的变化详细复盘一遍。",
+                "现在是晚间工作室复盘，请把白天的萤岸布展进度完整展开。",
+                "晚上有时间了；请沿用晚间详述，细看今天展览准备的最新情况。",
+                "我已结束通勤回到工作室，今晚想对萤岸项目做一次充分分析。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以，当前符合你已确认的晚间详细复盘情境。今晚是否临时按“完成、依赖、风险、行动”四节组织？",
+                "好的，我会使用晚间详述，而不是早晨三行版。你这次想用完成情况、外部依赖、风险和后续行动四个标题吗？",
+                "明白，今晚会完整展开。为确认本次版式，要不要临时分成进展、依赖、风险、下一步四部分？",
+                "可以详细复盘。具体结构仍由本次决定：今晚采用完成项、依赖项、风险项和行动项是否合适？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "今晚就用这四节。长期偏好只保留晚间详细，四个标题不要带到下一次。",
+                "按完成、依赖、风险、行动写，但这是今晚的一次性结构；以后晚上仍详述，不固定标题。",
+                "四部分适合今天。请区分开：持续的是晚间展开，临时的是这套分节名称。",
+                "本轮采用四个标题即可，别把它存成晚间模板；之后只默认详细程度。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认：晚间详细复盘继续有效，“完成、依赖、风险、行动”仅服务今晚。请提供下午后的最新事实。",
+                "明白。我会保留晚间详述的情境偏好，但四节结构到本次结束。现在可以补充项目变化。",
+                "范围已分开：详细程度可持续，标题排列只用一次。请把萤岸展览的最新状态发来。",
+                "好的，今晚使用四部分，未来晚间不会自动复刻这些标题。请告诉我今天后半段的更新。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "下午投影联调通过；电力检查改到周四；雨天导流方案还没签字；小岑明早带阿禾走一遍动线。",
+                "最新事实是投影测试已完成，供电巡检顺延到周四，雨天路线仍待批准，小岑和阿禾明早演练。",
+                "补充进展：投影联测成功；场地电检排在周四；雨天导流方案未确认；明早小岑会带阿禾熟悉路线。",
+                "今天后续变化为：投影系统通过联调，电力检查延至周四，雨天动线没获签字，小岑与阿禾明早走场。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "完成：投影系统已通过联调，核心展示链路已有可验证结果。\n依赖：场地电力检查改至周四，完整通电确认需等待。\n风险：雨天导流方案尚未签字，天气变化时的人流安排仍不确定。\n行动：小岑明早带阿禾走场，先验证现有动线并记录问题。",
+                "完成：下午的投影测试成功，展示部分可继续推进。\n依赖：供电巡检顺延到周四，此前不能关闭场地电力事项。\n风险：雨天路线没有批准，可能影响入口与观众分流。\n行动：小岑和阿禾明早进行动线演练，形成待修清单。",
+                "完成：投影联测已经通过，技术展示有了明确进展。\n依赖：电力检查排到周四，场地验收仍受该时间点约束。\n风险：雨天导流方案待确认，备用人流路径尚未落定。\n行动：明早由小岑带阿禾走一遍路线，并反馈现场阻塞。",
+                "完成：投影系统今天完成联调。\n依赖：周四的供电巡检是下一项外部节点。\n风险：雨天动线未获签字，恶劣天气下的安排仍有缺口。\n行动：小岑与阿禾明早先做现场演练，随后更新问题列表。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "这版可以。明早坐渡轮时仍回到三行，也不要沿用今晚这四个标题。",
+                "很好；下一次早间通勤请恢复三行速览，今晚的分节到此为止。",
+                "就这样。明天路上只给三行，不要把完成、依赖、风险、行动带过去。",
+                "复盘结束。明早仍按通勤三行处理，四节结构不跨会话。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "明白。下次早间通勤恢复三行，今晚四节不会延续；若明早需求有变化，你仍可当场覆盖。",
+                "确认：晚间的一次性标题已经结束，明早渡轮情境只沿用三行偏好。",
+                "好的，两个范围保持分离。下一次通勤早晨用三行，不携带今晚的结构。",
+                "收到。明早按三行速览处理，四个标题仅属于本次晚间复盘，之后仍可随时调整。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "周六早上我在家整理模型，发现三行不够用。我想把早晨偏好按是否通勤重新修订。",
+                "这是居家的周六上午，不要直接套渡轮三行；我需要更新之前较宽的早间设置。",
+                "今天早晨没有通勤，我想调整格式偏好：在家时需要比三行更完整。",
+                "周六居家整理萤岸材料，原来的早间规则太笼统，请按地点情境重新设定。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以。请确认你要持续改为：通勤早晨三行、居家早晨五个要点，晚间仍详细，并替换掉笼统的“所有早晨三行”，对吗？",
+                "明白。我先核对修订范围：路上早晨保留三行，在家早晨改成五项，晚间详述不变，未覆盖情境仍询问。",
+                "可以更新。你的意思是将早晨拆为通勤三行与居家五点两种可修订偏好，而不是只让今天变长，是吗？",
+                "好的。是否要撤下宽泛早间设置，建立“通勤三行、居家五条、晚间详细”三项明确情境？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "对，这是持续修订：通勤早晨三行，居家早晨五点，晚间详细；其他情境先问我。",
+                "确认替换旧概括。以后路上早晨三行、家中早晨五项、晚上展开，没说明的场景不要推断。",
+                "是长期但可改的更新，不只用于今天。三种情境分别处理，其余情况重新确认。",
+                "没错，请保存这次明确修订；旧的全体早晨三行不再有效，未覆盖时间先询问。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "已确认更新：通勤早晨三行、居家早晨五个要点、晚间详细；旧的笼统早间设置停止使用，其他情境先询问。",
+                "明白。早晨现按通勤与居家分开，晚间仍详述；不会扩展到未确认的地点或时间，你可以再次修订。",
+                "好的，我会用三个明确情境替代旧概括，并保留查看、撤回和后续修改的能力。",
+                "修订完成：路上三行、家中五点、晚上展开。没有证据的情境不自动套用，任何一项都可取消。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "那用居家五点列今天的事：核对雨天导流图、确认周四电检窗口、看走场记录、安排字幕校验、给志愿者发更新。",
+                "请按家中早晨的五项格式整理：检查雨天路线图，核实电检时间，阅读走场记录，排字幕校验，通知志愿者。",
+                "今天五件事分别是审雨天动线、确认周四供电巡检、查看小岑的演练记录、安排字幕复核、同步志愿者。",
+                "给我五个要点：雨天导流图核对、电检窗口确认、走场问题检查、字幕校验排期、志愿者进度通知。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "1. 核对雨天导流图，标出仍待签字的路线。\n2. 确认周四电力检查的准确窗口。\n3. 查看小岑与阿禾的走场记录。\n4. 安排展览字幕的校验时段。\n5. 向志愿者同步进展和下一步。",
+                "• 审查雨天路线图及未决项。\n• 核实周四供电巡检时间。\n• 阅读今早走场留下的问题。\n• 排定字幕复核工作。\n• 给志愿者发送最新安排。",
+                "一是检查雨天导流方案；二是确认电检窗口；三是看小岑的演练记录；四是安排字幕校验；五是通知志愿者当前进度。",
+                "今日五项：核对备用动线；敲定周四电检时段；检查走场记录；安排字幕复核；向志愿团队更新计划。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "做完这份清单后，请撤销全部长期格式偏好，包括晚间详细。以后每次按我当场的要求来。",
+                "现在把通勤三行、居家五点和晚间详述都取消；下一次不要根据时间地点自动选格式。",
+                "我决定删除这三项持续设置。刚才的清单保留，但今后每轮重新确认版式。",
+                "请撤回所有早晚格式偏好；从下一次起只看当前请求，不再沿用三行、五点或详述。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "确认撤销：通勤三行、居家五点和晚间详细均不再自动应用。已完成的当前清单不受影响，未来按每次请求决定格式。",
+                "好的，三项持续偏好已经取消。之后不会因时间或地点自行选择版式，而会依据你当场的说明。",
+                "明白。刚才的五点回复仍是本次结果，但所有长期格式设置到此结束，下次重新确认。",
+                "已移除全部早晚格式偏好。今后不默认三行、五点或详述，你可以在每次对话中另行指定。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "preference_personalization_02",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I'm at my desktop preparing the harbor-garden review. As in my earlier desktop sessions, explain the volunteer-retention trend in prose rather than squeezing it into a miniature chart.",
+                "This is my verified desktop context for the harbor-garden review. Please use the written analysis I have chosen here before, not a tiny visual.",
+                "I'm working from the desktop on our quarterly garden report; walk me through the retention numbers in paragraphs, consistent with my previous desktop choices.",
+                "For this desktop review, give me an explanatory narrative about volunteer retention instead of a compact chart."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "I can do that. Should I treat this as continued evidence for your established desktop-prose preference, while keeping mobile formatting separate, or as a choice limited to today's review?",
+                "Understood. To preserve the right scope, are you reaffirming the ongoing prose setting for verified desktop sessions rather than making a one-report request?",
+                "Certainly. You have referenced repeated desktop choices; please confirm that explanatory prose remains your editable device-specific preference.",
+                "I'll use prose here. Before carrying the choice forward, should it remain the default for your desktop context, not a universal rejection of charts?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Keep the contextual split: explanatory prose on desktop and compact charts on mobile. I may still override either one, so do not turn this into a general dislike of visuals.",
+                "Yes, retain the device-specific preference—written interpretation at my desktop, small charts on my phone—and leave both settings revisable.",
+                "This is ongoing by verified device: desktop means prose, mobile means a compact visual. It is not a blanket rule, and I can change it later.",
+                "Please preserve the desktop-prose and mobile-chart distinction without applying it outside those contexts or treating it as permanent."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. Verified desktop sessions default to explanatory prose, and verified mobile sessions default to compact charts. Neither choice is global, and either can be overridden, revised, or removed.",
+                "Got it. I will keep desktop prose and mobile visuals as separate contextual defaults rather than infer a universal format preference.",
+                "Understood. The current evidence supports a device-scoped distinction only; other contexts will be checked, and future explicit requests take priority.",
+                "The scope is clear: prose here, compact charts on mobile, with no claim that you always prefer or avoid either format."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Volunteer retention rose from 68% to 81%. Returning plot coordinators account for most of the improvement, while first-time sign-ups stayed nearly flat. Explain the pattern and its main limitation.",
+                "Interpret this result: retention moved from sixty-eight to eighty-one percent, largely because experienced coordinators returned; new volunteer enrollment barely changed.",
+                "The garden kept 81% of volunteers this quarter versus 68% before. Repeat coordinators drove the gain, but first-time registrations were level. What does that imply?",
+                "Please analyze a thirteen-point retention increase, from 68% to 81%, where returning coordinators improved the number and new sign-ups did not grow."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Retention improved by 13 percentage points, which indicates that the garden is doing a better job keeping experienced volunteers engaged. Because returning plot coordinators supplied most of the gain while first-time sign-ups were flat, the result reflects continuity more than expansion. The main limitation is a weak intake pipeline: future capacity may stall unless new volunteers begin entering.",
+                "Moving from 68% to 81% is a substantial retention gain. Its source matters, however: familiar coordinators are coming back, but the pool of first-time volunteers is not widening. The program therefore has stronger continuity without equivalent growth, so recruitment remains the principal constraint.",
+                "The quarter shows improved loyalty among existing volunteers rather than broader acquisition. A thirteen-point increase supported by returning coordinators is valuable for operational stability, yet flat first-time enrollment means the garden cannot assume its volunteer base will keep expanding.",
+                "An 81% retention rate, up from 68%, suggests that experienced coordinators find the program worth returning to. Since new registrations stayed level, the improvement does not demonstrate a healthier entry funnel. The next review should separate retention success from the unresolved need to attract newcomers."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "That depth works. Keep the remaining section of this review in prose, but do not record a prohibition on desktop charts; I may request one for a presentation.",
+                "Continue the written analysis for this document only. My desktop default is flexible, not a ban on using a chart when I explicitly ask.",
+                "Use the same narrative depth for the rest of the harbor-garden report, while leaving room for a future desktop visual.",
+                "Stay with prose through this review, but keep the device preference overridable rather than making charts unavailable on desktop."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Understood. This review will remain in prose, while the desktop setting stays an overridable default rather than a chart ban.",
+                "Confirmed. I will continue the current document as written analysis, and any later explicit desktop-chart request can replace that format for its own task.",
+                "Got it. The report keeps its present depth; your contextual preference remains flexible and does not exclude future visuals.",
+                "I will preserve prose for the rest of this review without converting it into an absolute restriction on desktop charts."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I'm checking from my verified phone between two garden sites. Show the last three weeks of restoration work in a compact chart.",
+                "This is my mobile session while I am moving between sites; I need a small visual of the three-week restoration metrics.",
+                "I'm on my phone with only a minute. Please use my mobile format for the recent plot-restoration figures.",
+                "From this verified mobile context, give me a quick compact chart for the garden's latest three weeks."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "This matches your confirmed mobile-chart preference. For this check-in, would you like the chart alone with no explanatory paragraph?",
+                "Understood. The current verified context is mobile, so I can use the compact visual default. Should I omit prose this time?",
+                "I can keep it phone-sized. Please confirm whether today's response should contain only the chart, while the broader mobile preference remains editable.",
+                "Yes, a compact chart fits your active mobile setting. Do you want this particular update to be visual-only?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Use only the chart for this check-in. That is a current response choice within the mobile preference, not a permanent rule against captions.",
+                "Chart only today, please. Keep compact visuals as the mobile default, but do not save 'never include prose.'",
+                "For this one response, omit explanation and show the small chart; future mobile updates may still have a caption if I ask.",
+                "Yes, visual only right now. The ongoing setting is compactness on mobile, not an absolute ban on accompanying text."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. I will provide only a compact chart now; the no-caption instruction ends with this response and does not alter the mobile default.",
+                "Understood. Today's output is chart-only, while your durable mobile preference remains compact and overridable.",
+                "Got it. I will separate the one-time omission of prose from the continuing device-scoped visual preference.",
+                "The scope is set: compact mobile chart for this turn, no text alongside it, and no lasting rule against captions."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Week A restored 14 plots with 5 inspection issues; Week B restored 19 with 3 issues; Week C restored 23 with 2 issues.",
+                "Use these values: A—14 plots restored and five issues; B—19 restored and three issues; C—23 restored and two issues.",
+                "The three weekly pairs are 14 restorations with 5 issues, 19 with 3, and 23 with 2, in A-to-C order.",
+                "Plot the garden data for weeks A, B, and C: restored plots 14, 19, 23; inspection issues 5, 3, 2."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "| Week | Restored | Issues |\n|---|---:|---:|\n| A | 14 | 5 |\n| B | 19 | 3 |\n| C | 23 | 2 |",
+                "| Period | Plots restored | Inspection issues |\n|---|---:|---:|\n| A | 14 | 5 |\n| B | 19 | 3 |\n| C | 23 | 2 |",
+                "| Week | Restorations | Open issues |\n|:--|--:|--:|\n| A | 14 | 5 |\n| B | 19 | 3 |\n| C | 23 | 2 |",
+                "|  | A | B | C |\n|---|---:|---:|---:|\n| Restored plots | 14 | 19 | 23 |\n| Inspection issues | 5 | 3 | 2 |"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "For this chart only, mark Week A as 'watch' because it had five issues. Do not make warning labels part of every mobile chart.",
+                "Add a watch note to A's five-issue value in the current visual, but leave my lasting mobile format unchanged.",
+                "Please flag Week A for attention just this once; I am not asking for automatic status labels in future charts.",
+                "Annotate A as a watch item in this response only. Compact charts remain the default, not persistent warning tags."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "| Week | Restored | Issues | Note |\n|---|---:|---:|---|\n| A | 14 | 5 | Watch |\n| B | 19 | 3 | — |\n| C | 23 | 2 | — |\n\nThe watch label applies only to this chart.",
+                "| Period | Plots restored | Inspection issues | Current marker |\n|---|---:|---:|---|\n| A | 14 | 5 | Watch |\n| B | 19 | 3 | None |\n| C | 23 | 2 | None |\n\nNo ongoing marker preference is created.",
+                "| Week | Restorations | Issues | Attention |\n|:--|--:|--:|:--|\n| A | 14 | 5 | Watch |\n| B | 19 | 3 |  |\n| C | 23 | 2 |  |\n\nThis annotation ends with the present response.",
+                "|  | A | B | C |\n|---|---:|---:|---:|\n| Restored plots | 14 | 19 | 23 |\n| Inspection issues | 5 (watch) | 3 | 2 |\n\nFuture mobile charts will not inherit the watch tag automatically."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I'm back at my verified desktop, but today's council presentation needs a compact chart of workshop attendance. Treat the presentation as an exception.",
+                "This is a desktop session. I normally use prose here, yet I need a small attendance visual for the council slides today.",
+                "At my desktop now, please make a compact chart for this one presentation rather than applying the usual written format.",
+                "The active device is desktop, but the current audience requires a quick attendance chart. I am overriding the desktop default for this task."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. Please confirm that the chart is a presentation-specific override, while explanatory prose remains your ongoing desktop default.",
+                "I can make the visual. To keep the preference accurate, is this exception limited to the council slides rather than a durable desktop revision?",
+                "Certainly. The request conflicts with the contextual default but can override it for this task; should desktop prose resume afterward?",
+                "Got it. Before proceeding, I will separate today's audience requirement from your lasting device setting. Is that the intended scope?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Yes. The council slide gets a chart once; desktop prose remains my default. I will decide separately later whether the mobile setting needs refinement.",
+                "Correct—the visual belongs only to this presentation. Do not replace the established desktop-prose preference with it.",
+                "This is a single desktop override for the council audience, not evidence that my device preference changed.",
+                "Keep prose as the durable desktop choice and use the chart solely for today's slide."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. I will use a compact chart for the current council slide, then return to prose as the desktop default. No mobile setting changes are inferred.",
+                "Understood. Today's visual is task-local; the verified desktop preference remains explanatory writing.",
+                "The scopes are separate: one presentation chart now, continuing desktop prose afterward, and no unstated revision elsewhere.",
+                "Got it. This exception follows the current audience requirement and will not overwrite your device-specific history."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Use three workshops: Seed Lab had 42 attendees and a waitlist of 8; Water Clinic had 47 and 6; Tool Night had 51 and 4.",
+                "The slide data are Seed Lab—42 attending, 8 waiting; Water Clinic—47 attending, 6 waiting; Tool Night—51 attending, 4 waiting.",
+                "Chart attendance and waitlist counts for Seed Lab at 42 and 8, Water Clinic at 47 and 6, and Tool Night at 51 and 4.",
+                "Populate the visual with these pairs: Seed Lab 42/8, Water Clinic 47/6, Tool Night 51/4, where each pair is attendance followed by waitlist."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "| Workshop | Attendees | Waitlist |\n|---|---:|---:|\n| Seed Lab | 42 | 8 |\n| Water Clinic | 47 | 6 |\n| Tool Night | 51 | 4 |",
+                "| Session | Attendance | Waiting |\n|---|---:|---:|\n| Seed Lab | 42 | 8 |\n| Water Clinic | 47 | 6 |\n| Tool Night | 51 | 4 |",
+                "| Council workshop | Present | Waitlisted |\n|:--|--:|--:|\n| Seed Lab | 42 | 8 |\n| Water Clinic | 47 | 6 |\n| Tool Night | 51 | 4 |",
+                "| Metric | Seed Lab | Water Clinic | Tool Night |\n|---|---:|---:|---:|\n| Attendees | 42 | 47 | 51 |\n| Waitlist | 8 | 6 | 4 |"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Now revise the ongoing mobile preference: use compact charts only when I am in transit. If I am stationary on mobile, ask which format I want. Desktop prose remains unchanged.",
+                "I want a durable refinement. Mobile means a compact visual only while I am moving between places; on a stationary phone session, confirm the format first.",
+                "Update the device context with one more condition: in-transit mobile gets charts, stationary mobile stays undecided, and desktop still defaults to prose.",
+                "Please narrow my mobile setting to travel contexts. Do not automatically chart a phone request when I am not in transit; keep the desktop rule as it is."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The revision is confirmed: verified desktop defaults to prose; verified mobile while in transit defaults to a compact chart; stationary mobile sessions require a format check. Today's council chart remains only a completed exception.",
+                "Understood. I have narrowed the mobile context to in-transit use and left stationary phone formatting unspecified. Your desktop-prose default is unchanged.",
+                "Got it. The latest evidence replaces the broader mobile rule: travel plus mobile triggers compact visuals, stationary mobile does not, and desktop continues with explanatory writing.",
+                "Confirmed. Future formatting follows the refined contexts, not the hardware alone, and the one-off council slide does not alter them."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "preference_personalization_03",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "“月种声音档案”今天收满第一百段访谈。Please write a bilingual celebration recap, 最多放两个 emoji。",
+                "We reached one hundred oral-history recordings today；请做一段中英混合的庆祝回顾，emoji 不超过两个。",
+                "月种档案完成第 100 次访谈了—I'd like a short celebratory note in both languages with no more than two emojis.",
+                "A milestone today: our hundredth interview is archived. 帮我写双语庆祝文案，只用一到两个 emoji。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可以。This is a celebration context; 请确认少量 emoji 是这次的格式要求，还是今后庆祝性回顾的可持续偏好？",
+                "Congratulations. 我会先核对范围：up to two emojis for today's note only, or a continuing choice for celebration recaps?",
+                "没问题，我会控制数量。Should the emoji allowance remain limited to this milestone, 还是适用于后续庆祝回顾？",
+                "I can draft that. 为避免从一次文案外推，请说明这是 current-only request，还是按内容情境保留的偏好。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "把它保留为情境偏好：庆祝回顾可以少量用，but serious planning and feedback must stay emoji-free. 我随时能改。",
+                "Make it ongoing only for celebrations；正式规划和反馈不要 emoji，也别按语言来区分。",
+                "庆祝性复盘以后允许一两个 emoji. For planning or feedback, use plain text; this remains reversible.",
+                "Save the narrow boundary: 少量 emoji 只在庆祝回顾里可用，serious work sessions 排除，之后可撤销。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认：celebration recaps 可少量使用 emoji，严肃规划与反馈保持纯文本；中英文都遵循同一情境边界，你可以随时修订。",
+                "Understood. 我会按交流目的而不是语言选择：庆祝可用一两个，planning and feedback 不用，也不会扩展成全局偏好。",
+                "明白，the preference is context-scoped and editable：庆祝回顾允许少量符号，正式计划和反馈明确排除。",
+                "Got it. 无论中文、English 或混合表达，只有庆祝情境可少量使用；其他未确认场景会先询问。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Recap 要包含三个事实：100 段访谈已入库、18 张方言地图完成校对、公开试听在周五上线。",
+                "Please include: one hundred interviews archived, 18 dialect maps reviewed, and the public listening page launches Friday.",
+                "庆祝文案写清楚 the 100 recordings are stored, eighteen dialect maps passed review, 周五开放试听。",
+                "Use these facts: 第 100 段访谈完成归档，18 张方言图校对结束，public preview goes live on Friday."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "月种声音档案抵达第 100 段访谈，18 张方言地图也已完成校对。The public listening page opens Friday—值得为这一步庆祝 🎧",
+                "One hundred interviews are now safely archived, and all 18 dialect maps have passed review. 周五公开试听，月种项目迎来漂亮的新节点 ✨",
+                "第 100 段声音入库，18 张 dialect maps 校对完成；public listening starts this Friday. 我们一起走到了重要里程碑 🎉",
+                "Milestone reached: 100 interviews archived and 18 dialect maps reviewed. 公开试听将在周五上线，为团队的细致工作喝彩 🌙"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "这一次在标题前加一颗星，再感谢校对志愿者；two-emoji limit 仍然不变，星形标题只限当前。",
+                "For this note only, put a star before the heading and add thanks to the review volunteers. 总数还是最多两个 emoji。",
+                "请临时用星形开头，并 thank the volunteer reviewers；不要把这种标题存成庆祝模板。",
+                "Add a star heading and one thank-you sentence in the current draft, 但星形装饰不是新的持续偏好。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "⭐ 月种抵达百段节点\n100 段访谈已入库，18 张方言地图完成校对，public listening opens Friday. 感谢校对志愿者逐页核实每处细节 🎧",
+                "🌟 One Hundred Voices / 百段声音\nThe archive now holds 100 interviews and 18 reviewed dialect maps；周五开放试听。谢谢志愿校对团队的耐心投入。",
+                "✨ 月种 Milestone\n第 100 段访谈完成归档，eighteen dialect maps are reviewed，公开试听周五上线。感谢每位校对志愿者守住准确性。",
+                "⭐ 100 Interviews Archived\n月种已收录百段访谈并校对 18 张方言地图；the listening page launches Friday. 谢谢志愿团队一路细查 🌙"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "定稿。Please remember, 星形标题到这里结束；持续边界看内容是否庆祝，不看中文还是英文。",
+                "Use this version. 标题装饰是一次性的，the lasting distinction is celebration versus serious work, not language.",
+                "就用这版；do not retain the star heading. Emoji choice follows purpose，和语言无关。",
+                "Final. 请确认 bilingual wording 本身不会触发 emoji，只有庆祝情境才会。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "确认。The star heading expires with this note；今后是否使用少量 emoji 取决于庆祝或严肃情境，不取决于语言。",
+                "Understood. 一次性标题不会延续，and Chinese, English, or mixed text all follow the same purpose-based boundary.",
+                "明白，我不会把语言当作触发条件。Celebration recaps may use a small number; serious planning and feedback remain text-only.",
+                "Confirmed—星形格式已经结束。持续偏好仍按 content purpose 区分，并保持可查看、修订和撤回。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "今天要做档案展的 accessibility planning，这是严肃规划。Please keep the bilingual plan completely emoji-free.",
+                "This session is for serious accessibility planning；请按已确认边界，不要在双语方案里放 emoji。",
+                "我们现在讨论展览无障碍安排，not a celebration. 用中英混合文字，但保持纯文本。",
+                "For the archive exhibit's accessibility plan, 严格使用无 emoji 的双语表达。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "明白，this matches the serious-planning exclusion, so I will use no emojis. 本次是否临时按“现状、缺口、负责人、期限”编号？",
+                "Understood. The ongoing boundary calls for plain text here. 你想让今天的计划采用四段编号结构吗？",
+                "可以。严肃规划将保持 emoji-free；for this document only, should I organize it by status, gap, owner, and deadline?",
+                "Confirmed—语言混合不改变无 emoji 要求。具体版式上，今晚要不要一次性使用四个编号部分？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "今天用四个编号部分，but do not save those headings. 无 emoji 是持续情境偏好，编号只是本次格式。",
+                "Use status, gap, owner, and deadline for this plan only；长期保留的是严肃规划不用 emoji。",
+                "四段编号适合当前文档。The structure is temporary, while the emoji-free planning boundary continues.",
+                "本轮采用 numbered sections，之后别固定；serious planning stays plain text as already confirmed."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "范围已分开：emoji-free planning 继续有效，四个编号标题仅限今天。请提供当前无障碍事实。",
+                "Got it. I will keep the lasting content boundary and use the numbered layout once. 请发来现状与待办。",
+                "确认，serious planning 的纯文本要求不变，the four-part structure expires after this plan.",
+                "Understood. 今天按四节组织但不保存模板；请给我 accessibility work 的最新数据。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "事实是 90 条字幕已审 76 条，坡道承包方周四到场，安静空间的指示牌还没制作，闻溪负责周三前整理剩余字幕。",
+                "Current facts: 76 of 90 captions are reviewed, the ramp contractor arrives Thursday, quiet-room signs are missing, and Wenxi owns the remaining caption list by Wednesday.",
+                "请使用这些信息：captions 76/90 checked；坡道团队周四来；quiet-space signage 未制作；闻溪周三前整理余项。",
+                "The accessibility status is 76 reviewed captions out of 90, Thursday ramp visit, no quiet-room signage yet, and 闻溪整理周三字幕清单。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "1. 现状 / Status：90 条字幕中已完成 76 条审核。\n2. 缺口 / Gap：尚余 14 条字幕，安静空间指示牌也未制作。\n3. 负责人 / Owner：闻溪在周三前整理字幕余项；坡道承包方周四到场。\n4. 期限 / Deadline：周三关闭字幕清单，周四核对坡道现场条件。",
+                "1. Status / 现状：76 of 90 captions have passed review.\n2. Gap / 缺口：14 captions remain, and quiet-room signage has not been produced.\n3. Owner / 负责人：闻溪负责周三前汇总余项；the ramp contractor visits Thursday.\n4. Deadline / 期限：caption list by Wednesday, ramp check on Thursday.",
+                "1. 当前 / Current：字幕审核进度为 76/90。\n2. 未决 / Open：剩余 14 条字幕及安静空间标识。\n3. 承担 / Ownership：闻溪周三前列清单，contractor 周四检查坡道。\n4. 时间 / Timing：Wednesday for captions; Thursday for the ramp visit.",
+                "1. 进展 / Progress：76 条字幕完成审核，total is 90.\n2. 缺项 / Missing：14 条待审，quiet-space signs 尚未开始。\n3. 分工 / Assignment：闻溪整理字幕，坡道团队负责周四现场。\n4. 节点 / Milestones：周三字幕清单，周四坡道核验。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "客座策展人 Lio 说他自己的 planning notes 喜欢用 emoji，but that is his preference, not mine. 不要改我的边界。",
+                "Lio prefers icons in his personal planning notes. 这是另一位策展人的选择，不能归到我的 profile。",
+                "补充身份范围：guest curator Lio wants emoji in his own notes；我的严肃规划仍保持纯文本。",
+                "Another person, Lio, asked for playful symbols in his copy. 请隔离他的偏好，不要套进我的计划。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "明白。Lio 的个人笔记偏好只属于他的已确认范围，your serious-planning boundary remains emoji-free and unchanged.",
+                "Understood. I will not transfer another curator's choice to you；你的规划文本继续保持纯文本。",
+                "身份范围已分开：Lio's notes may follow his instruction, while your planning preference stays as confirmed.",
+                "确认，不会因同一项目而合并两人的偏好。Your copy remains text-only in serious planning."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "只更新我的版本：在负责人部分注明指示牌由场务小组周五前制作。Keep it plain text and preserve the other facts.",
+                "For my copy, add that the venue team owns quiet-room signage by Friday. 其他数据不变，也不要引入 emoji。",
+                "请补充 signage owner：场务小组 Friday 前完成；the 76/90 captions and ramp schedule stay the same.",
+                "Revise the serious plan with one fact: quiet-space signs belong to the venue team, due Friday. 仍用纯文本。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "1. 现状 / Status：90 条字幕中已审核 76 条。\n2. 缺口 / Gap：余下 14 条字幕，安静空间指示牌待制作。\n3. 负责人 / Owner：闻溪周三前整理字幕余项；坡道承包方周四到场；场务小组周五前完成指示牌。\n4. 期限 / Deadline：周三字幕、周四坡道、周五标识。",
+                "1. Status / 现状：76 of 90 captions are reviewed.\n2. Gap / 缺口：14 remain, plus unfinished quiet-room signs.\n3. Owner / 负责人：闻溪 handles the caption list by Wednesday, the ramp team visits Thursday, and 场务小组 completes signage by Friday.\n4. Timing / 节点：Wednesday, Thursday, and Friday respectively.",
+                "1. 当前 / Current：字幕进度 76/90。\n2. 未决 / Open：14 条字幕与安静空间标识。\n3. 分工 / Assignment：闻溪周三交余项；contractor 周四看坡道；venue team 周五交标识。\n4. 时间 / Schedule：三项依次在周三、周四、周五完成。",
+                "1. 进展 / Progress：76 条字幕已经通过，total 90.\n2. 缺项 / Missing：14 条待审及 quiet-space signage。\n3. 承担 / Ownership：闻溪、坡道承包方、场务小组分别负责字幕、坡道、标识。\n4. 截止 / Deadlines：周三、Thursday、周五。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Now we need a feedback session with volunteer Niva. 这是严肃反馈，请继续不用 emoji。",
+                "接下来是给志愿者 Niva 的双语反馈，not a celebration, so keep it emoji-free.",
+                "Please help draft serious feedback for Niva；按我的情境边界使用纯文本。",
+                "我要和 Niva 复盘交接问题。This is formal feedback, and no emojis should appear."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. This falls within your confirmed feedback boundary, so I will use plain text. 本次要不要临时按“观察、影响、下一步”组织？",
+                "明白，formal feedback remains emoji-free. 你是否希望今天采用 observation, impact, next step 三段结构？",
+                "可以，我会遵循严肃反馈的持续设置。For this conversation only, should the draft use three labeled parts?",
+                "Confirmed—no emoji in this feedback. 具体格式可以本次决定：观察、影响、行动三部分是否合适？"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "今天用 observation, impact, next step 三段，but do not save that layout. 无 emoji 的反馈边界继续保留。",
+                "Use the three-part feedback structure once；持续偏好只是 serious feedback stays plain text.",
+                "三段结构仅限这次。Keep the existing emoji-free rule for future formal feedback.",
+                "This draft may have three labels, 但别把标签固定成模板；反馈场景仍不使用 emoji。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认：three labels are current-only，严肃反馈的纯文本边界持续有效。请提供可观察事实。",
+                "Got it. I will separate the temporary layout from the ongoing content preference. 请告诉我具体事件。",
+                "明白，本轮按三部分写且不保存模板。The feedback facts can come next.",
+                "Scope confirmed: emoji-free feedback continues, while observation-impact-next step ends after this draft."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "事实是签到晚了 12 分钟，音频标签当天都改对了，但交接清单连续两次没有勾选设备归位。",
+                "Use only these observations: check-in started 12 minutes late, all audio labels were corrected the same day, and equipment return was missed on two handoff checklists.",
+                "请写清：Niva 的 check-in 延迟十二分钟；audio labels 当日修正；连续两次交接没有确认设备归位。",
+                "The record shows a twelve-minute late start, same-day correction of every audio label, and two missed equipment-return checks."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "观察 / Observation：签到比计划晚 12 分钟；音频标签在当天全部修正；最近两次交接清单都漏掉设备归位确认。\n影响 / Impact：标签问题得到及时关闭，但开场延迟和重复漏项让下一班无法确信设备状态。\n下一步 / Next step：下次提前核对开始时间，并在离场前由 Niva 与接班者共同确认设备归位栏。",
+                "Observation / 观察：The check-in began 12 minutes late, every audio label was fixed that day, and two consecutive handoffs omitted the equipment-return box.\nImpact / 影响：快速修正值得保留，但重复漏项增加了下一班的核查成本。\nNext step / 下一步：下次开场前确认时间，交接时双方共同完成设备栏。",
+                "观察 / What happened：签到延迟十二分钟；audio labels 当日全部纠正；equipment return 连续两次未勾选。\n影响 / Why it matters：问题修正及时，但交接记录不完整会造成设备状态不确定。\n下一步 / Action：Niva 在下次结束前与接班人逐项确认归位。",
+                "Observation：开始时间晚了 12 分钟，标签在同日修复，而设备归位确认漏了两次。\nImpact：the prompt label repair helped, but incomplete handoffs shift verification work to others.\nNext step：提前确认签到，并在每次交接结束前双人核对设备项。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Niva 说她自己的副本喜欢 sticker-style reactions，but that belongs to her. 我的反馈稿不要用，也不要把她的偏好记到我名下。",
+                "For Niva's personal copy she may want playful stickers. 这是她的选择，不是我的表达偏好；当前稿保持纯文本。",
+                "另一位当事人 Niva prefers reaction icons in her copy；please keep our profiles and audiences separate.",
+                "Niva requested stickers for a version addressed to herself. 不要因此修改我的 serious-feedback boundary。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "明白。Niva 的副本偏好只属于她及对应受众，your draft remains plain text and your profile is unchanged.",
+                "Understood. I will keep person and audience scopes separate；不会把她的 reaction style 归给你。",
+                "确认，Niva's requested version does not alter your preference. 当前严肃反馈继续无 emoji。",
+                "The two preferences stay isolated. 我只按你的已确认范围处理这份稿，不从他人的副本外推。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "只输出我的版本，并在末尾加一句谢谢她当天修正标签；the thank-you is for this draft only.",
+                "Keep my copy text-only and add one current-only sentence thanking Niva for fixing the labels that day.",
+                "请在这份稿最后临时感谢她及时改好 audio labels，其他事实和长期偏好不变。",
+                "For this response, append a plain-text thank-you for the same-day correction. 不要保存固定致谢句。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "观察 / Observation：签到晚了 12 分钟，音频标签当天全部修正，设备归位确认连续两次遗漏。\n影响 / Impact：及时修正降低了标签错误，但延迟与漏项让接班人需要额外核验。\n下一步 / Next step：下次提前确认开场时间，并与接班人共同完成设备归位栏。谢谢你当天及时修正所有音频标签。\n致谢只用于本稿。",
+                "Observation / 观察：A 12-minute late start, same-day correction of all audio labels, and two missed equipment-return checks.\nImpact / 影响：the correction was effective, while incomplete handoffs created uncertainty.\nNext step / 下一步：confirm timing early and complete the equipment line together. 感谢你当天把标签全部改正；this thanks is not a standing template.",
+                "观察：签到延迟十二分钟；labels 当日修正；设备归位两次未确认。\n影响：快速修正有帮助，但交接缺项增加核查成本。\n行动：下次开场前校时，离场前双人勾选设备。谢谢你及时完成标签修正。本次致谢不会延续。",
+                "What happened / 事实：check-in late by 12 minutes, labels fixed that day, return box missed twice.\nWhy it matters / 影响：及时补救值得肯定，重复漏项仍需关闭。\nNext / 下一步：提前确认时间并共同核对设备归位。感谢当天的标签修正；the added thanks ends here."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I want to refine the emoji preference. 以后只有私人里程碑消息可用一个；public celebration recaps 和所有严肃规划、反馈都用纯文本。",
+                "请更新持续边界：one emoji is allowed in private milestone notes only，公开庆祝文案也不再使用。",
+                "New revision: 私下的 milestone message 可以放一个 emoji；public recap, planning, and feedback stay text-only.",
+                "我想缩小范围。Allow a single emoji for private milestones, but none for public celebrations or serious work."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "请确认这是持续修订，并替换原先较宽的“庆祝回顾可少量使用”：private milestone 最多一个，public recap、planning、feedback 全部无 emoji，对吗？",
+                "Understood. Should the new audience-and-purpose boundary replace the older celebration rule, rather than apply only today?",
+                "我先核对范围：这是 durable update；私人里程碑允许一个，公开庆祝和严肃内容保持纯文本，是吗？",
+                "Got it. To avoid preserving stale settings, please confirm that the narrower private-only allowance is now the current preference."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "确认替换旧设置，this is ongoing and reversible. 语言不重要，受众与用途才决定边界。",
+                "Yes, make the revision durable. 旧的广泛庆祝规则失效，我之后仍可更改。",
+                "这是持续更新：private milestone 最多一个 emoji，其他列出的场景全部不用，并且可撤销。",
+                "Correct. Replace the old scope, do not layer it on top；中英文本都按同一新边界处理。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "修订已确认：私人里程碑消息最多一个 emoji；公开庆祝、严肃规划与反馈均为纯文本。The older broader setting is no longer active.",
+                "Understood. The current preference is audience- and purpose-scoped, not language-scoped, and remains editable.",
+                "明白，旧设置已由更窄范围替换。Private milestone allows one symbol; every listed public or serious context uses none.",
+                "Confirmed—我会依据最新修订而不是历史值执行，你可以随时再次查看、调整或撤回。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "先写一条发给核心三人小组的 private milestone note：第 120 段访谈入库，新完成 6 张地图，小泊做完授权复核。",
+                "Draft a private note for the three-person core team: interview 120 is archived, six new maps are complete, and Xiaobo finished the consent review.",
+                "这是私人里程碑消息。Facts: 120th recording stored, six additional maps finished, 小泊完成授权检查。",
+                "For our small internal team, 写清第 120 段声音已归档、六张新地图完成、consent review 由小泊关闭。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "核心小组里程碑：第 120 段访谈已经入库，6 张新地图完成，小泊也关闭了授权复核。A careful step forward for the archive 🌙",
+                "Interview 120 is archived, six new maps are finished, and 小泊 has completed the consent review. 这是核心小组共同推进的新节点 ✨",
+                "第 120 段声音归档完成；six additional maps are ready；授权复核也由小泊收尾。Private milestone reached 🎧",
+                "For the core three: 120 recordings stored, six fresh maps completed, consent review closed by 小泊。我们稳稳向前走了一步 🌱"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Now make a public newsletter version with no emoji. 标题临时用“Archive Field Note”，不要把英文标题存成偏好。",
+                "接着写公开通讯版，must be emoji-free；本次标题叫 Archive Field Note，只限这一篇。",
+                "For the public audience, remove the emoji and use the one-off heading 'Archive Field Note.' 事实保持不变。",
+                "请把同样三项事实改成 public recap，纯文本；临时标题为 Archive Field Note。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Archive Field Note\n月种声音档案已收录第 120 段访谈，并完成 6 张新地图。小泊也已结束授权复核，为后续公开整理建立了清晰基础。\n该标题只用于本篇通讯。",
+                "Archive Field Note\nThe archive now holds 120 interviews, with six additional maps completed. 小泊已完成授权复核，下一阶段可在确认范围内继续推进。\nThis heading is current-only.",
+                "Archive Field Note\n第 120 段声音已经归档，six new maps are finished, and the consent review is complete under 小泊's work. 公开版本保持纯文本；标题不延续。",
+                "Archive Field Note\nWe have archived interview 120 and completed six new maps；小泊同时关闭了授权复核。This public recap contains no emoji, and its title is not retained."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "很好。Please confirm the current preference follows private versus public purpose, not the person named, the language, or that temporary title.",
+                "确认一下：边界由 audience and purpose 决定，不由中英文、小泊的名字或 Archive Field Note 触发。",
+                "That's final. The one-off heading ends here；持续设置只区分私人里程碑和公开或严肃内容。",
+                "请保留最新范围，但不要从 language, named contributor, or heading style 推断 emoji。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "确认。The active rule follows audience and purpose: 私人里程碑最多一个，公开庆祝及严肃规划、反馈均不用；姓名、语言和临时标题都不是触发条件。",
+                "Understood. Archive Field Note expires with this piece, and neither language nor a named contributor changes the current boundary.",
+                "明白，我只依据已确认的 private/public 与交流用途范围，不会从标题或人物推断偏好。",
+                "Confirmed—the latest revision remains editable and scoped to context. 临时标题结束，其他无关特征不会被固化。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "preference_personalization_04",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "“霜叶温室”的每日观察提醒太密了。我刚在设置里撤销日提醒，改成每周六下午四点半汇总一次。",
+                "请按我的最新设置处理霜叶温室：停止每天推送，今后只在周六十六点半给周汇总。",
+                "我已经把霜叶温室从每日提醒改为每周一次，时间是周六 16:30；旧频率不要再生效。",
+                "霜叶温室不需要天天提醒了，新的持续安排是每周六下午四点半集中汇报。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "收到。请确认这是只针对霜叶温室的持续修订：每日频率正式停用，周六 16:30 汇总取代它，其他项目不变，对吗？",
+                "可以更新。我先核对范围：撤销霜叶温室的日提醒并启用每周六下午四点半周报，而不是只跳过今天。",
+                "明白。你的最新设置要替换旧值，只作用于霜叶温室，并且之后仍可再次修改，是吗？",
+                "好的。为避免让历史频率继续驱动，请确认当前有效安排是霜叶温室每周六 16:30 一次汇总。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "确认，只改霜叶温室。每日提醒正式取消，周六四点半周报持续生效，我以后仍可调整。",
+                "对，这是长期设置而不是一次跳过；霜叶温室改为每周六 16:30，别影响别的观察项目。",
+                "没错，用周六下午四点半汇总替换旧的每日频率，范围仅限这个温室。",
+                "确认新安排。旧日提醒只留作变更历史，不再触发；周报设置以后也可以撤销。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "已确认：霜叶温室的每日提醒停用，当前安排为每周六 16:30 汇总一次；其他项目不受影响，你可随时修订。",
+                "明白。最新有效设置是霜叶温室周六下午四点半周报，旧日频率仅作为历史记录，不再执行。",
+                "好的，持续频率已经由每日改为每周六一次。范围和可撤销性保持明确，不会外推到其他项目。",
+                "更新完成：仅霜叶温室改用周六 16:30 汇总，日提醒不再生效，之后仍可查看、调整或取消。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "本周六是 7 月 25 日。按新设置，下一份霜叶温室汇总在什么时候？",
+                "请确认下一次汇总时间；这周的周六日期为 7 月 25 日。",
+                "新的周报首次何时出现？已知本周六是七月二十五日。",
+                "按周六四点半的安排，下次霜叶温室汇总应落在哪个具体时间？本周六为 7 月 25 日。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "下一次霜叶温室汇总是 7 月 25 日星期六 16:30。在此之前不会按旧设置发送每日提醒。",
+                "按当前安排，首个周报时间为本周六，也就是 7 月 25 日下午四点半；日频率已经停止。",
+                "当前有效触发点是 7 月 25 日周六 16:30，周内其余日期不沿用过去的每日设置。",
+                "下次汇总定在 7 月 25 日星期六下午四点半，此前不会因为历史记录恢复日提醒。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我现在想临时看一份湿度和幼苗状态预览，但这不代表重新开启每日提醒。",
+                "今天单独给我一个温室简报预览；只限当前查看，周六频率不要改变。",
+                "请立即生成一次简短预览，这是一次性请求，不是把日提醒恢复。",
+                "可以现在先看一版吗？本次查看与持续设置分开，今后仍按周六汇总。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "可以。本次湿度与幼苗预览只服务当前请求；持续设置仍是每周六 16:30 汇总，日提醒不会恢复。",
+                "没问题，我会把现在的简报作为一次性响应，不改动周六周报，也不重新启用每日频率。",
+                "明白。当前预览与提醒设置分开处理：现在看一版，后续仍只在周六下午四点半汇总。",
+                "可以提供临时预览。一次主动查看不会成为新的持续频率，霜叶温室的最新设置保持不变。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我在历史卡片里看见“霜叶温室：每日提醒”。那是旧快照，不要因此今天又推送。",
+                "旧记录仍显示每天提醒霜叶温室，但我的新设置已经改成周六汇总，请以最新值为准。",
+                "历史页面保留了日频率。我只是查看变更过程，不是要恢复它。",
+                "刚翻到一条旧的每日提醒记录；请确认它只用于解释历史，不会覆盖周六周报。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "确认。历史卡片描述的是已停用的旧频率，当前有效设置仍是霜叶温室每周六 16:30 汇总，不会今天触发日提醒。",
+                "明白，我会区分历史记录与最新设置。日提醒只说明过去状态，不能继续驱动当前通知。",
+                "旧快照不会覆盖后续明确修订。霜叶温室目前只保留周六下午四点半的周报。",
+                "收到。查看历史不构成恢复授权；有效安排仍由最新设置决定，今天不会沿用每日频率。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "对，当前就是每周六四点半。请把旧值标为已停用，但不要删除这段变更历史。",
+                "确认周六 16:30 才是现行安排；历史里的每日值可以保留作说明，只需明确它已失效。",
+                "请保留从每日改到每周的记录，同时保证旧频率不会被当作当前偏好。",
+                "没错，历史可见、执行停用。现在只按周六下午四点半汇总。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "明白。变更历史可以保留用于追溯，但旧每日值标记为停用；当前执行值只有周六 16:30。",
+                "确认：历史记录继续可见，日提醒不再有效，霜叶温室的现行周报设置保持不变。",
+                "好的，我会让过去值只承担解释作用，不参与当前触发；最新周六频率仍是唯一有效安排。",
+                "范围清楚：保留历史，不恢复旧设置。后续执行依据每周六下午四点半这一最新值。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "这周六我要外出，想把这一期汇总提前到周五晚上六点。先确认这是单次改期还是长期修改。",
+                "本周有行程，我考虑把周报挪到周五 18:00；请不要直接当作持续设置。",
+                "我只提出一个候选：这期可能提前到周五六点。请先问清范围再改。",
+                "因为周六不在家，本次汇总想改到星期五 18:00，但目前还没说要永久变更。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "可以调整。请确认周五 18:00 只替代本周六这一期，之后恢复每周六 16:30，而不是修改长期频率，对吗？",
+                "明白，我先不改持续设置。你的意思是否是本周单次提前，下一周起仍按周六下午四点半？",
+                "为保持范围准确，请确认这是一次性改期：仅本期周五六点汇总，长期周六安排不变。",
+                "好的。周五 18:00 可以作为本周例外；请确认它不会覆盖已确认的持续周报时间。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "确认，只改这一期到周五六点；下周起恢复周六四点半，也不要把它理解成新增两次汇总。",
+                "是单次提前。本周没有周六那份，后续仍每周六 16:30。",
+                "仅本周周五 18:00 汇总一次，替代本周六，不改变长期设置。",
+                "对，这是一回性的日期调整；下周恢复原时间，不能同时保留周五和周六两次。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "确认：本期仅在周五 18:00 汇总，替代本周六；下周恢复每周六 16:30，不会生成双份周报。",
+                "明白。本周例外是周五六点一次，周六不重复；持续设置从下一期继续按原时间生效。",
+                "好的，单次改期与长期频率已分开。周五替代本周六，未来周报仍在周六下午四点半。",
+                "范围已锁定：只提前这一期，不新增频率，也不更改下一周及之后的周六安排。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "同用这间温室的南桥希望每天收到他那排香草苗提醒。那是他的偏好，不要据此改我的周报。",
+                "南桥说他自己的幼苗需要日提醒；请把他的设置和我的霜叶温室汇总分开。",
+                "另一位种植者想要每天通知，但对象是南桥的香草苗，不属于我的提醒范围。",
+                "共享温室里南桥偏好日频率。请确认不会把他人的选择套到我名下。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "明白。南桥的日提醒只属于他的身份与香草苗范围，不会修改你的霜叶温室设置；你的当前安排仍是周六 16:30。",
+                "确认，两位使用者与两个观察对象保持隔离。他人的每日偏好不会覆盖你的周报频率。",
+                "收到。我不会因为共享温室就合并设置；南桥的选择归他，你的最新有效值仍独立保存。",
+                "范围已区分：南桥可以在自己的对象上使用日提醒，你的霜叶温室不会因此恢复每日推送。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "对。我的设置暂时仍是周六四点半，南桥的提醒不能出现在我的汇总里。",
+                "确认身份和对象分开；我没有接受他的每日频率，也不需要看到他的香草苗通知。",
+                "保持现状：我的霜叶温室每周汇总，他的项目按他自己的授权处理。",
+                "没错，请只在我的范围内使用我确认过的设置，不引用南桥的通知选择。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认。你的霜叶温室仍按周六 16:30 汇总，南桥的日提醒及香草苗内容不会进入你的设置或汇总。",
+                "明白，身份、项目和受众都保持独立。你的偏好没有因他人的请求而变化。",
+                "好的，我只使用你在自己范围内确认的周报设置，不会转移或披露另一位使用者的偏好。",
+                "范围清楚：你的每周汇总继续有效，南桥的选择既不改写频率，也不混入内容。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "现在我要正式修订自己的安排：取消每周六汇总，改成隔周周三晚上七点一次，从下个周三开始。",
+                "请更新我的持续设置。霜叶温室不再每周六汇报，之后改为每两周周三 19:00。",
+                "这次是明确的长期变更：用隔周周三晚七点替换当前周六周报。",
+                "我要把自己的频率从每周一次改成双周一次，时间定在周三 19:00；旧周六值停用。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "已确认最新修订：霜叶温室停用每周六 16:30，改为从下个周三起隔周三 19:00 汇总。南桥的设置不受影响，你仍可再次更改。",
+                "明白。当前有效值现为每两周周三晚七点一次，旧周六安排只保留在历史中，不再触发。",
+                "好的，你自己的持续频率已经由每周六替换为隔周周三 19:00；不会与旧设置并行。",
+                "更新完成：下个周三开始双周汇总，时间为 19:00。历史周六值停用，身份范围保持不变。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "今天校准湿度传感器后，立即给我一条结果摘要；这是单次请求，不要在双周设置外增加提醒。",
+                "本次传感器校准完成后我想马上看结论，但持续频率仍只有隔周周三。",
+                "请为今天的湿度校准提供一次即时摘要，不要把它保存成事件型长期通知。",
+                "当前任务结束时单独汇报校准结果即可；这不会修改刚确认的双周安排。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "可以。今天校准后的结果摘要只响应本次任务，不新增持续提醒；霜叶温室仍按隔周周三 19:00 汇总。",
+                "明白，我会把即时摘要与长期频率分开处理。一次校准结果不会扩展双周设置。",
+                "好的，本次完成后可立即给出结论，之后仍只沿用最新的双周周三安排。",
+                "确认：当前任务有一条单次结果摘要，持续设置不变，也不会恢复任何历史日频率或周频率。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "preference_personalization_05",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The reviewer for this kiln-efficiency submission requires a table. Please use that format for this report, even though I have not established a general table preference.",
+                "For the current ceramics grant report, the assigned reviewer asked for the firing evidence in a table. That requirement belongs to this submission.",
+                "I need a tabular evidence section in this one kiln report because the reviewer specified it.",
+                "Please format today's kiln-efficiency evidence as a table for the external review; do not assume that is how I want other documents."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. Please confirm that the table is a task-local reviewer requirement and should not be retained as your personal format preference.",
+                "I can use a table. To keep the scope accurate, does this instruction end with the current ceramics submission?",
+                "Certainly. Should I treat the layout as an external constraint for this report only, leaving your broader preferences unspecified?",
+                "Got it. Before carrying anything forward, I will verify that future documents should not inherit this reviewer-requested format."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Correct. It is limited to this submission, and my general document-format preference remains undecided.",
+                "Yes, keep the table task-specific. The reviewer's rule is not evidence that I personally favor tables.",
+                "Only this kiln report should use the layout; do not create a durable profile setting from it.",
+                "That scope is right. Satisfy the external requirement here and leave future formatting to each future task."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. I will build a table for the current submission only, without inferring a lasting preference.",
+                "Understood. The reviewer gets the requested layout, and your profile remains unchanged.",
+                "The scope is set: one report, one external requirement, and no format precedent for later work.",
+                "Got it. Future documents will be handled from their own instructions rather than copied from this table."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Use columns for firing, fuel used, peak temperature, and result. Glaze Trial used 38 kilograms at 1,120 degrees and passed; Bisque Trial used 31 kilograms at 980 degrees and passed.",
+                "The evidence rows are Glaze Trial—38 kg fuel, 1,120°C peak, pass—and Bisque Trial—31 kg, 980°C, pass. Give each field its own column.",
+                "Build four columns: firing name, fuel, maximum temperature, outcome. Enter Glaze Trial at 38 kg and 1,120°C, and Bisque Trial at 31 kg and 980°C; both passed.",
+                "Populate the reviewer table with two successful firings: Glaze, 38 kilograms, 1,120 degrees; Bisque, 31 kilograms, 980 degrees."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "| Firing | Fuel used | Peak temperature | Result |\n|---|---:|---:|---|\n| Glaze Trial | 38 kg | 1,120°C | Pass |\n| Bisque Trial | 31 kg | 980°C | Pass |",
+                "| Trial | Fuel consumption | Maximum heat | Outcome |\n|---|---:|---:|---|\n| Glaze Trial | 38 kg | 1,120°C | Passed |\n| Bisque Trial | 31 kg | 980°C | Passed |",
+                "| Firing run | Fuel | Peak | Status |\n|:--|--:|--:|:--|\n| Glaze Trial | 38 kg | 1,120°C | Pass |\n| Bisque Trial | 31 kg | 980°C | Pass |",
+                "| Evidence item | Kilograms of fuel | Peak °C | Review result |\n|---|---:|---:|---|\n| Glaze Trial | 38 | 1,120 | Pass |\n| Bisque Trial | 31 | 980 | Pass |"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "For this submission only, add a caption stating that the measurements were recorded on July 18. Do not make dated captions a default.",
+                "Place a July 18 measurement note above this table, but keep that caption requirement inside the current report.",
+                "The reviewer also wants 'Measurements recorded July 18' as a caption. That is another one-off instruction.",
+                "Add a current-report caption with the July 18 recording date, without retaining a general caption preference."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Measurements recorded July 18.\n\n| Firing | Fuel used | Peak temperature | Result |\n|---|---:|---:|---|\n| Glaze Trial | 38 kg | 1,120°C | Pass |\n| Bisque Trial | 31 kg | 980°C | Pass |\n\nThe caption is limited to this submission.",
+                "Kiln measurements captured on July 18.\n\n| Trial | Fuel consumption | Maximum heat | Outcome |\n|---|---:|---:|---|\n| Glaze Trial | 38 kg | 1,120°C | Passed |\n| Bisque Trial | 31 kg | 980°C | Passed |\n\nNo lasting caption setting is created.",
+                "Evidence date: July 18.\n\n| Firing run | Fuel | Peak | Status |\n|:--|--:|--:|:--|\n| Glaze Trial | 38 kg | 1,120°C | Pass |\n| Bisque Trial | 31 kg | 980°C | Pass |\n\nThis date line belongs only to the current report.",
+                "Recorded measurement set — July 18.\n\n| Evidence item | Kilograms of fuel | Peak °C | Review result |\n|---|---:|---:|---|\n| Glaze Trial | 38 | 1,120 | Pass |\n| Bisque Trial | 31 | 980 | Pass |\n\nFuture documents will not receive this caption automatically."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "The submission is complete. Close the table and caption instructions now; later reports should follow their own requirements.",
+                "That finishes this review package. Do not carry its tabular layout or date line into another task.",
+                "End the one-off formatting scope with this report, leaving my general preference unset.",
+                "The reviewer has what they need. Treat the table and caption as completed constraints, not a future precedent."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. Both report-specific instructions have ended, and no durable formatting preference was added.",
+                "Understood. The table and caption stay attached to the completed submission only.",
+                "All set. Future reports will be formatted from their own context, while your broader preference remains unspecified.",
+                "The one-off scope is closed. I will not reuse this reviewer's layout without a new instruction."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I am writing an internal materials memo now. Explain the reclaimed-clay situation in prose, and do not copy the external review table.",
+                "For this workshop memo, I want a short narrative about material supply rather than the table used in the grant submission.",
+                "This is a separate internal task. Please describe our reclaimed-clay status in paragraphs.",
+                "Switch contexts to an internal materials note and use prose for the current memo."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. Is prose also a one-memo instruction, leaving your lasting format preference undecided, or do you want to establish a stable internal-note setting?",
+                "I will not reuse the reviewer table. Before retaining anything, should the narrative format apply only to this materials memo?",
+                "Certainly. Please confirm whether today's prose is task-specific rather than evidence of a general preference against tables.",
+                "Got it. I can write the memo in paragraphs and keep the format local unless you explicitly want an ongoing rule."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Keep prose local to this memo. I am not setting a durable preference yet, and the earlier table remains only an external requirement.",
+                "This is another one-task format choice. Leave my overall document style undecided.",
+                "Use narrative writing here without inferring that I always prefer prose.",
+                "Current memo only, please. Neither the table nor the prose should become a general profile setting."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. This memo will use prose, and both prior formats remain tied to their respective tasks.",
+                "Understood. No durable preference is created; the internal note and external submission stay separate.",
+                "Got it. I will write a narrative now without treating it as evidence for every future document.",
+                "The scope is clear: prose for this memo only, with no carryover from or to the reviewer table."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Reclaimed clay now covers 62% of planned production, the grog delivery is three days late, and twelve spare molds are ready. Explain what the studio should do next.",
+                "Use these facts: reclaimed material supplies 62% of the schedule; grog will arrive three days late; 12 backup molds are available.",
+                "The materials picture is 62 percent reclaimed-clay coverage, a three-day delay on grog, and twelve prepared spare molds. Give me a practical interpretation.",
+                "Write the memo from three observations: reclaimed clay covers 62% of output, grog is delayed by three days, and the studio has 12 spare molds."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Reclaimed clay can support 62% of the planned production, so the studio can keep a majority of the schedule moving while the grog shipment is late. The twelve spare molds provide flexibility to shift work toward forms that are already prepared. For the next three days, prioritize those compatible batches and reserve grog-dependent pieces until the delivery arrives.",
+                "The studio has enough reclaimed material for nearly two-thirds of planned output, but the three-day grog delay creates a clear constraint on the remaining work. Twelve ready molds offer a buffer. Production should sequence the reclaimed-clay pieces first, use the spare molds to avoid idle time, and revisit the delayed batches when supply is restored.",
+                "At 62% coverage, reclaimed clay is a useful bridge rather than a complete substitute. The late grog shipment puts part of the schedule at risk, while twelve available molds create room to re-order tasks. The practical next step is to protect near-term throughput with compatible forms and defer only the batches that truly require the missing material.",
+                "Most production can continue because reclaimed clay covers 62% of the plan. The shortage is temporary but specific: grog is three days behind schedule. With twelve spare molds already prepared, the studio can redirect work now, document which pieces are deferred, and resume the constrained runs after delivery."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "My teammate Oren likes matrices in his own planning notes. That is his preference, not evidence about how I want this memo or future documents.",
+                "Oren personally asks for grid layouts in his workshop notes; keep his choice separate from mine.",
+                "Another person on the studio team prefers matrices. Do not attach that format to my profile just because we share the project.",
+                "Please isolate Oren's tabular planning style from my still-undecided general preference."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Understood. Oren's matrix preference belongs to his own identity and notes; it does not alter your current memo or your profile.",
+                "Confirmed. Sharing a studio project does not merge format choices, so your broader preference remains undecided.",
+                "I will keep the person and audience scopes separate. Oren's requested layout will not be transferred to your documents.",
+                "Got it. The teammate's preference stays with the teammate, while this memo remains governed only by your current instruction."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "For this memo only, put the recommended decision in bold at the beginning. Do not save a bold-opening rule.",
+                "Add a bold first sentence stating the action, but limit that styling to the current materials note.",
+                "Please lead this one memo with a bold decision line; it is not a lasting template.",
+                "Revise the current prose so the recommendation appears first in bold, without changing any preference record."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "**Prioritize reclaimed-clay batches and prepared molds during the three-day grog delay.** Reclaimed material covers 62% of planned production, and twelve spare molds can keep compatible work moving. Hold only the grog-dependent pieces until delivery. The bold opening applies to this memo alone.",
+                "**Keep production active by sequencing the 62% reclaimed-clay coverage first.** The twelve ready molds provide a short-term buffer while grog arrives three days late. Resume constrained batches after delivery; no lasting bold-title setting is inferred.",
+                "**Use the available reclaimed clay and twelve spare molds before waiting on grog-dependent work.** This protects most of the schedule through the three-day delay. The emphasized decision line is limited to the current note.",
+                "**Reorder the next three days around compatible reclaimed-clay pieces.** With 62% material coverage and twelve backup molds, the studio can avoid broad downtime and defer only affected runs. This formatting ends with the memo."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The same external reviewer has requested a revised kiln evidence table. This repetition comes from the submission process, not from a personal table preference.",
+                "I need another table for the grant revision because the reviewer asked again. Keep it tied to that external deliverable.",
+                "Please prepare a second tabular section for the kiln submission, but do not treat two reviewer requests as my stable preference.",
+                "The ceramics review has reopened and requires an updated table; the reason is still the reviewer's format rule."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Understood. Please confirm that the repeated table remains scoped to this review process and does not create a cross-task preference.",
+                "I can prepare the revision. Is the layout still an external submission constraint rather than a personal setting?",
+                "Certainly. Repetition within one reviewer context is not enough to generalize; should the format expire again when this revision closes?",
+                "Got it. I will keep the evidence source and scope attached to the grant review, pending your confirmation."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Confirmed. It is the same task family and reviewer requirement; future unrelated documents remain undecided.",
+                "Yes, use the table only for this reopened submission. Do not count the repeat as a personal choice.",
+                "The scope is still external-review-only. Once the revision is delivered, the instruction ends again.",
+                "Correct. This is repeated compliance with one reviewer, not repeated evidence across my own preferences."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. The revised table will satisfy the current reviewer without changing your personalization state.",
+                "Understood. I will keep the repeated instruction attached to the same external context and close it with the submission.",
+                "The provenance and scope are clear: reviewer requirement, current revision, no durable profile update.",
+                "Got it. Other documents will not inherit this table merely because the reviewer requested it twice."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Use columns for kiln, energy per batch, completed batches, and result. Electric Kiln used 74 kWh across nine batches and passed; Gas Kiln used 96 kWh across seven batches and passed.",
+                "The revised rows are Electric Kiln—74 kilowatt-hours, 9 batches, pass—and Gas Kiln—96 kilowatt-hours, 7 batches, pass.",
+                "Build the reviewer table with kiln type, energy, batch count, and outcome. Enter electric at 74 kWh and nine batches, gas at 96 kWh and seven; both passed.",
+                "Populate four fields for two successful kilns: Electric, 74 kWh, 9 batches; Gas, 96 kWh, 7 batches."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "| Kiln | Energy per batch | Completed batches | Result |\n|---|---:|---:|---|\n| Electric Kiln | 74 kWh | 9 | Pass |\n| Gas Kiln | 96 kWh | 7 | Pass |",
+                "| Kiln type | Batch energy | Batches completed | Outcome |\n|---|---:|---:|---|\n| Electric Kiln | 74 kWh | 9 | Passed |\n| Gas Kiln | 96 kWh | 7 | Passed |",
+                "| Equipment | Energy measure | Run count | Status |\n|:--|--:|--:|:--|\n| Electric Kiln | 74 kWh | 9 | Pass |\n| Gas Kiln | 96 kWh | 7 | Pass |",
+                "| Review row | kWh per batch | Finished batches | Finding |\n|---|---:|---:|---|\n| Electric Kiln | 74 | 9 | Pass |\n| Gas Kiln | 96 | 7 | Pass |"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "For this revision only, add variance from the 80 kWh target: electric is 6 below and gas is 16 above.",
+                "The reviewer wants one extra column against an 80 kWh benchmark. Show −6 for electric and +16 for gas, just in this table.",
+                "Add target variance as a current-submission requirement: Electric Kiln minus six kilowatt-hours, Gas Kiln plus sixteen.",
+                "Please include an 80 kWh comparison column with -6 and +16 respectively; do not retain that column for later work."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "| Kiln | Energy per batch | Variance vs. 80 kWh | Completed batches | Result |\n|---|---:|---:|---:|---|\n| Electric Kiln | 74 kWh | −6 kWh | 9 | Pass |\n| Gas Kiln | 96 kWh | +16 kWh | 7 | Pass |\n\nThe variance column is specific to this revision.",
+                "| Kiln type | Batch energy | Difference from target | Batches completed | Outcome |\n|---|---:|---:|---:|---|\n| Electric Kiln | 74 kWh | 6 kWh below | 9 | Passed |\n| Gas Kiln | 96 kWh | 16 kWh above | 7 | Passed |\n\nNo continuing comparison-column preference is created.",
+                "| Equipment | Energy | 80 kWh variance | Run count | Status |\n|:--|--:|--:|--:|:--|\n| Electric Kiln | 74 kWh | −6 kWh | 9 | Pass |\n| Gas Kiln | 96 kWh | +16 kWh | 7 | Pass |\n\nThis benchmark field ends with the current table.",
+                "| Review row | kWh per batch | Target delta | Finished batches | Finding |\n|---|---:|---:|---:|---|\n| Electric Kiln | 74 | -6 | 9 | Pass |\n| Gas Kiln | 96 | +16 | 7 | Pass |\n\nThe added delta remains a reviewer-scoped instruction."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "The revision is submitted. Close both the table and variance-column instructions without adding them to my profile.",
+                "That external task is finished again; future work should not inherit this evidence grid or target comparison.",
+                "End the reopened reviewer scope now. Repetition inside the submission still should not become personalization evidence.",
+                "The grant reviewer has accepted the revision. Let all of its format constraints expire."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. The revised table and variance field are closed with the submission, and your general format preference remains unset.",
+                "Understood. No external-review layout has been transferred into your profile.",
+                "All reviewer-scoped formatting has expired. Later tasks will start from their own instructions.",
+                "The revision is complete, and the repeated table use remains task evidence rather than a lasting personal choice."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "I am now explicitly setting a stable preference for my internal decision notes: lead with the decision, then give three concise evidence bullets. External deliverables should still follow their own requirements.",
+                "Please create an ongoing, editable format for my internal decisions—decision sentence first, followed by three short supporting points. Do not apply it to outside reports.",
+                "Here is a durable preference with clear scope: internal decision notes use a decision-first line and three bullets; reviewer documents remain task-driven.",
+                "From now on, unless I revise it, my internal decision memos should open with the choice and include three evidence bullets. Other audiences are excluded."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Please confirm that this is an ongoing but reversible preference limited to your internal decision notes, replacing no external task requirements.",
+                "Understood. Should I retain the decision-first plus three-bullet structure only for internal decision memos and leave all outside formats contextual?",
+                "I can save that narrow setting. To verify scope: your internal notes, durable and editable; external deliverables, no automatic carryover.",
+                "Got it. Is this the first explicit lasting format choice, bounded by audience and document purpose as you described?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Confirmed. It is durable, limited to my internal decision notes, and I can revise or revoke it later.",
+                "Yes. Save only that internal-note structure; outside reports continue to follow their current instructions.",
+                "That scope is correct: ongoing for internal decisions, never inferred for other audiences, and fully changeable.",
+                "Please retain it as stated. It is not a general preference for every document type."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Confirmed. Your internal decision notes now default to a decision sentence followed by three concise evidence bullets. External formats remain separate, and you can revise or remove this setting.",
+                "Understood. The new preference is stored at the internal-decision scope only; no reviewer or general-document rule is created.",
+                "Got it. I will apply the structure when the audience and purpose match, while treating other tasks independently.",
+                "The durable setting is clear and reversible: decision first, three supporting bullets, internal notes only."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Draft an internal decision note to choose the electric-kiln pilot. It uses 74 kWh against an 80 kWh target, the ventilation permit is still pending, and Oren will lead calibration Friday.",
+                "Use the new format for this decision: select the electric kiln; energy is 74 kWh versus the 80 target; ventilation approval is open; Oren owns Friday calibration.",
+                "The internal choice is an electric-kiln pilot. Support it with the 74-to-80 kWh result, the pending ventilation permit, and Oren's Friday calibration.",
+                "Prepare my decision memo from these facts: electric kiln selected, six kWh under target, permit not yet approved, calibration led by Oren on Friday."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Proceed with the electric-kiln pilot.\n- Its 74 kWh result is 6 kWh below the 80 kWh target.\n- The ventilation permit remains an open dependency before broader use.\n- Oren will lead calibration on Friday.",
+                "Decision: select the electric kiln for the pilot.\n- Energy measured 74 kWh against the 80 kWh benchmark.\n- Ventilation approval is still pending and must be closed.\n- Friday's calibration is assigned to Oren.",
+                "Choose the electric-kiln pilot.\n- The trial ran 6 kWh under the stated target.\n- Expansion waits on the outstanding ventilation permit.\n- Oren owns the Friday calibration session.",
+                "Move forward with a limited electric-kiln pilot.\n- Current energy use is 74 kWh versus an 80 kWh target.\n- The unresolved ventilation permit constrains rollout.\n- Oren is scheduled to calibrate the kiln Friday."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "I want to revise the stable format: internal decision notes should still lead with the choice, but use at most two evidence bullets. Put extra detail in an appendix only when I request one.",
+                "Update my internal-note preference from three bullets to no more than two, keeping the decision-first opening. Do not add an appendix unless asked.",
+                "Here is a durable refinement: decision sentence, then two concise points maximum; optional appendix by explicit request only.",
+                "Replace the earlier three-bullet setting with a tighter internal format—choice first, up to two bullets, no automatic appendix."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The revision is confirmed. Internal decision notes now use a decision-first sentence and no more than two evidence bullets; an appendix appears only by explicit request. The older three-bullet setting is inactive.",
+                "Understood. I have replaced the previous structure with the tighter two-point maximum while preserving the same internal-only scope.",
+                "Got it. The latest setting supersedes the earlier one: choice first, up to two bullets, and no assumed appendix.",
+                "Confirmed. External documents remain task-driven, and your revised internal format stays editable or revocable."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Reissue the kiln decision with the revised format. Combine energy and calibration in one bullet, and keep the permit risk in the other; no appendix.",
+                "Apply the two-bullet update now: one point for the 74 kWh result plus Oren's Friday calibration, one for the pending ventilation permit.",
+                "Rewrite the internal note using only two supporting bullets and omit any appendix.",
+                "Use the latest preference on the same decision, grouping performance with Friday ownership and leaving approval risk separate."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Proceed with the electric-kiln pilot.\n- The kiln measured 74 kWh, 6 below target, and Oren will lead Friday calibration.\n- Broader use remains contingent on the pending ventilation permit.",
+                "Decision: select the electric kiln for a limited pilot.\n- Energy is 74 kWh against an 80 kWh target, with Oren assigned to calibrate Friday.\n- The open ventilation permit must be resolved before expansion.",
+                "Choose the electric-kiln pilot.\n- Performance is under the energy benchmark, and Friday calibration has a named owner in Oren.\n- Ventilation approval is still the gating risk.",
+                "Move forward with the electric kiln at pilot scope.\n- Its 74 kWh result and Oren's Friday calibration support the next step.\n- Do not broaden deployment until the ventilation permit is approved."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "preference_personalization_06",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我是岚澈，已经在蓝屿工坊的共享终端切回并确认自己的账号。For my fabrication updates, 请用冷静、准确的双语表达，中文在前，英文一句总结。",
+                "Lan Che here on my confirmed workshop profile. 我的制作进展请保持平实准确，first Chinese, then one concise English line.",
+                "这台电脑现在确认由岚澈使用。Please make my project-status notes calm and literal, with Chinese first and a short English summary.",
+                "我已切回岚澈的工坊身份。以后我的 fabrication status 用中文先说明，再用一句简洁英文收尾，不要夸张。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "明白。请确认这是岚澈本人在 fabrication updates 范围内的持续偏好，可随时修改，并且不属于共享终端或其他使用者，对吗？",
+                "Understood. Should this become an ongoing, editable preference for Lan Che's project updates only, with the device and other people excluded?",
+                "可以。我先核对 scope：岚澈的制作进展、中文在前加一句英文、冷静准确、持续但可撤回，是吗？",
+                "收到。Do you want this retained only for your verified workshop-status context, rather than as a device-wide style?"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "确认，只属于岚澈的制作进展；其他文档先问，其他人完全分开，我也能随时撤销。",
+                "Yes—scope it to my fabrication updates, not every message and not anyone else on this terminal.",
+                "没错，这是我本人可修改的情境偏好。The shared computer must not own or transfer it.",
+                "请按这个窄范围保留：Lan Che plus project status only；其他用途和身份不要推断。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认：岚澈的制作进展默认采用冷静准确的双语表达，中文在前、英文一句总结；其他用途与使用者不会自动沿用。",
+                "Understood. The preference follows Lan Che and the fabrication-status context, not the shared terminal, and remains revisable.",
+                "明白，scope is person plus project update. 我不会把它扩展到其他文档，也不会转移给下一位使用者。",
+                "All set. 这项偏好可查看、修改或撤回；未确认的人、受众和场景将独立处理。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "给我一条项目状态：激光切割机校准完成，7 块展板还要封边，材料车周五送到。",
+                "Draft my update from these facts: laser cutter calibrated, seven display panels awaiting edge sealing, materials arriving Friday.",
+                "制作事实是切割机已校准、七块板待封边、Friday material delivery。请按我的格式写。",
+                "Use the confirmed style for this status: 校准完成；7 panels still need sealing；供料车周五到。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "激光切割机已完成校准；7 块展板仍待封边，材料车预计周五送达。\nThe cutter is calibrated; seven panels await sealing, and materials arrive Friday.",
+                "切割设备校准完成，现有 7 块展板需要封边，下一批材料周五到场。\nCalibration is complete, with seven panels pending and delivery due Friday.",
+                "当前状态：切割机已校准；七块板尚未封边；材料运输安排在周五。\nCurrent status: calibrated cutter, seven panels to seal, Friday delivery.",
+                "校准工作已经关闭，剩余任务是为 7 块展板封边，材料车将于周五抵达。\nThe remaining work is panel sealing before Friday's material delivery."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "这次发到小组群时加一句感谢夜班同伴，but only for this message. 不要固定成每次都致谢。",
+                "Add a brief thank-you to the night crew in the current group post only；长期风格不变。",
+                "当前消息可以多一句谢谢夜班伙伴。Do not save that sentence as part of my status template.",
+                "For this one team update, 请感谢夜班同伴；这是一次性语气要求。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "激光切割机已完成校准；7 块展板仍待封边，材料车预计周五送达。感谢夜班同伴完成收尾检查。\nThe cutter is calibrated; seven panels await sealing, and materials arrive Friday. Thanks to the night crew.\n致谢只用于当前群消息。",
+                "切割设备校准完成，七块展板需要封边，材料周五到场。谢谢夜班伙伴及时核对设备。\nCalibration is complete; seven panels remain, with delivery Friday. Thank you to the night team.\nThis addition is current-only.",
+                "当前状态：切割机校准完成；7 块板待封边；供料车周五到。感谢夜班同伴的检查工作。\nStatus: calibration done, seven panels pending, Friday delivery. Thanks to the night crew.\n不会把致谢固化。",
+                "校准已关闭，剩余七块展板封边，材料车周五抵达。谢谢夜班伙伴协助确认现场。\nThe remaining work is sealing seven panels before Friday's delivery. Thank you, night crew.\n本次语气不延续。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "群消息发完了。以后我的制作状态恢复原来的冷静双语格式，不必自动加感谢句。",
+                "The post is sent. Let the temporary thank-you expire and return to my confirmed project-update style.",
+                "一次性致谢到此结束；Lan Che 的后续 fabrication updates 不固定附加它。",
+                "Done. 请保留原来的双语顺序和语气，but remove the current-message thanks."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "确认，临时致谢已经结束。岚澈后续制作进展仍使用中文在前、英文一句、冷静准确的表达。",
+                "Understood. The one-off addition has expired, while Lan Che's scoped bilingual status preference remains unchanged.",
+                "明白，current-message tone does not persist. 后续不会自动附加感谢句。",
+                "All set. 我只保留已确认的项目更新偏好，不把这次群发调整带到下一条。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "再确认一次：这台终端由多人共用，我的表达偏好跟岚澈本人走，不能变成设备设置。",
+                "Please confirm that my preference follows Lan Che, not this shared workstation or its recent transcript.",
+                "共享电脑下一位会换账号。不要因为 hardware 相同就继承我的格式。",
+                "This terminal has multiple users；请把岚澈的设置限定在本人和已确认情境。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "确认。偏好归属于岚澈及其制作进展，不归属于终端；身份切换后不会自动沿用。",
+                "Understood. The setting follows the confirmed person and context, never the shared hardware or recent text.",
+                "明白，the device is not the owner. 下一位使用者会在独立范围内处理。",
+                "Confirmed—岚澈的格式只在岚澈已确认的项目更新中生效，不会跨身份转移。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我是麦洛，已经在同一台工坊终端切换并确认自己的账号。For my public workshop blurbs, 我喜欢 playful bilingual wording 和太空比喻。",
+                "Milo here on my confirmed profile, using the shared computer now. 我的公开活动文案想要活泼双语，并带一点 space metaphor。",
+                "终端已切换到麦洛。Please make my community workshop announcements playful, bilingual, and lightly cosmic.",
+                "This is verified Milo, not the prior user. 以后我的公开工坊简介可以俏皮一点，用中英混合的太空意象。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "明白。我不会沿用其他人的设置。请确认 playful bilingual plus space imagery 是麦洛公开工坊文案的持续偏好，其他场景仍单独确认，对吗？",
+                "Understood. Should this editable style apply only to Milo's public workshop blurbs, with every other person and document kept separate?",
+                "可以。I will verify the scope: Milo, public community announcements, playful bilingual tone with light cosmic imagery—ongoing but reversible?",
+                "收到。请确认这不是共享终端的风格，而是只属于麦洛公开活动文案的可修改偏好。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "确认，只属于麦洛的公开活动文案；技术记录不要推断，其他人的偏好也别告诉我。",
+                "Yes—keep it to my public blurbs. Do not apply it to technical notes or anyone else on the terminal.",
+                "范围正确：Milo plus community announcements only，持续但可撤销。",
+                "Please retain that narrow preference without merging profiles or revealing another user's settings."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认：麦洛的公开工坊文案可使用活泼双语与轻量太空比喻；技术记录、其他身份和未确认受众不会自动套用。",
+                "Understood. The playful cosmic style now belongs only to Milo's public announcements and remains editable.",
+                "明白，我会按 person and purpose 隔离，不使用或披露其他人的偏好。",
+                "All set. 共享设备不会合并身份；未覆盖的文档类型会先询问。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "写今晚的灯笼工坊预告：准备了 24 套材料，18:30 开门，现场有 3 个演示台。",
+                "Draft tonight's lantern workshop blurb from these facts: 24 kits ready, doors at 18:30, three demo stations.",
+                "公开信息是 twenty-four lantern kits、六点半开门、三个 demo stations。按我的文案风格写。",
+                "Use my confirmed announcement style: 今晚灯笼活动有 24 套材料，doors open 18:30，设三处演示。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "今晚一起点亮蓝屿小宇宙：24 套灯笼材料已经就位，18:30 开门，3 个演示台等你来靠站。Launch your lantern mission with us!",
+                "Lantern orbit starts at 18:30！我们备好 24 套材料和 3 个演示台，欢迎来蓝屿工坊把一束光送上轨道。",
+                "三座演示“空间站”、24 套灯笼 kit，今晚六点半准时开舱。Bring your curiosity and build a small moon of your own!",
+                "蓝屿今晚发射光亮：doors open at 18:30，24 套材料、3 个 demo stations 已就绪。来认领你的灯笼轨道吧！"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "这一次把标题写成“Star Dock Tonight”，but only for tonight. 不要把英文标题固定进以后预告。",
+                "Add the one-off heading 'Star Dock Tonight' to this announcement；持续偏好不包括固定标题。",
+                "今晚临时用 Star Dock Tonight 作标题，other public blurbs should choose their own heading.",
+                "Please place 'Star Dock Tonight' above the current blurb and let that exact title expire afterward."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Star Dock Tonight\n今晚一起点亮蓝屿小宇宙：24 套灯笼材料已就位，18:30 开门，3 个演示台等你来靠站。Launch your lantern mission with us!\n该标题只用于今晚。",
+                "Star Dock Tonight\nLantern orbit starts at 18:30！我们备好 24 套材料和 3 个演示台，欢迎把一束光送上轨道。\nThis heading is current-only.",
+                "Star Dock Tonight\n三座演示“空间站”、24 套 lantern kits，今晚六点半开舱。Come build a small moon at 蓝屿工坊！\n标题不会自动复用。",
+                "Star Dock Tonight\n蓝屿今晚发射光亮：doors at 18:30，24 套材料和 3 个 demo stations 全部待命。\nThe exact title ends with this event."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "预告已经发布。让 Star Dock Tonight 到此结束，but keep my general playful bilingual style for public blurbs.",
+                "The event post is live. Remove the one-time heading while retaining my scoped announcement preference.",
+                "固定标题不要延续；麦洛后续 public workshop copy 仍可活泼双语并用轻量太空意象。",
+                "Done. 请只让标题失效，不要误删我刚确认的公开文案风格。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "确认，Star Dock Tonight 已随本次活动结束；麦洛的公开工坊文案偏好仍按已确认范围保留。",
+                "Understood. The exact heading has expired, while Milo's playful bilingual announcement style remains active and editable.",
+                "明白，一次性 title 与持续风格已分开，后续不会机械复用标题。",
+                "All set. 我只保留公开活动的情境偏好，具体标题每次根据当前任务决定。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "也请确认我的偏好不会覆盖这台终端上的其他人，并且你不用向我描述他们的设置。",
+                "Confirm that Milo's style stays person-scoped and that another user's preferences remain private.",
+                "共享设备不等于共享 profile。请隔离我的文案选择，也不要披露前一位的细节。",
+                "One more boundary: apply this only to me, not the workstation, and keep other identities' settings undisclosed."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "确认。麦洛的风格只属于麦洛及对应公开文案，不会覆盖其他使用者；我也不会披露他人的偏好内容。",
+                "Understood. The shared terminal does not merge profiles, and another person's settings remain outside your scope.",
+                "明白，person-level isolation remains intact. 我只会说明与你自己的已确认范围有关的信息。",
+                "Confirmed—设备与最近文本都不会成为跨身份继承依据，其他人的设置保持独立。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我现在切回岚澈并完成账号确认。Please give me a serious inventory update in my calm bilingual format, not the playful style visible in recent text.",
+                "Lan Che is active again on the shared terminal. 我的库存状态请按自己已确认的平实双语方式写。",
+                "终端已返回岚澈身份。Use my project-update preference for a literal inventory note；不要继承上一段活泼文案。",
+                "This is confirmed Lan Che. 我需要严肃的材料盘点更新，中文在前、英文一句，不用太空比喻。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "明白。当前范围已回到岚澈的制作进展，我会使用冷静准确的双语格式，不从共享终端的近期文本继承其他风格。",
+                "Understood. The active person and context match Lan Che's confirmed preference, so the inventory note will remain literal and concise.",
+                "确认，person scope has switched back. 请提供库存事实，我不会混入其他身份的表达选择。",
+                "Got it. 中文在前、英文一句的岚澈项目格式现在生效，recent transcript does not override it."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "对，近期活泼文案属于另一身份，不能作为我的偏好证据；只使用我自己确认过的设置。",
+                "Correct. The recent cosmic copy is not evidence about Lan Che, even though it appears on the same machine.",
+                "请保持身份隔离：岚澈没有修订自己的项目风格，shared context 不能改变这一点。",
+                "Yes—use my own confirmed scope and do not infer from another person's preceding conversation."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "确认。近期文本不会跨身份归因，岚澈的项目偏好仍以本人已确认的最新设置为准。",
+                "Understood. I will not treat device continuity or transcript adjacency as personalization evidence.",
+                "明白，the other person's style stays isolated. 你的库存更新只使用自己的范围。",
+                "Confirmed—身份切换不会合并历史，岚澈的设置没有被他人的会话修订。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "库存事实：24 套灯笼材料里已清点 22 套，2 套缺金属扣，替换扣件箱周四到。",
+                "Use these inventory facts: 22 of 24 lantern kits counted, two missing clasps, replacement clasp box arriving Thursday.",
+                "盘点结果是 twenty-two complete kits out of twenty-four；两套缺扣件；Thursday delivery brings replacements.",
+                "Write the status from 24 total kits, 22 verified, 2 clasp shortages, and a Thursday replacement shipment."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "24 套灯笼材料已完成 22 套清点，另有 2 套缺少金属扣；替换扣件箱预计周四到达。\nTwenty-two of 24 kits are complete; two lack clasps, with replacements due Thursday.",
+                "库存共 24 套，其中 22 套已核对完整，2 套待补金属扣，补件周四送达。\nInventory is 22 complete kits and two clasp shortages pending Thursday delivery.",
+                "当前盘点：22/24 套材料完整；两套缺扣件；替换箱安排在周四到场。\nCurrent count: 22 complete of 24, with two clasp replacements arriving Thursday.",
+                "已确认 22 套灯笼材料，剩余 2 套因缺金属扣未关闭，补充扣件将在周四抵达。\nTwo of 24 kits remain open until Thursday's clasp shipment."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "另有一张给儿童体验场的邀请卡，这一次可以加一句 playful moon line，but do not revise my serious project-update preference.",
+                "For one children's invitation only, add a playful moon sentence. 我的常规制作状态仍保持平实。",
+                "当前受众是儿童活动，可以临时用一句月亮比喻；不要把它保存到岚澈的项目更新。",
+                "Make a one-off audience override for the children's card: one lighthearted lunar line, without changing my durable style."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "周四补件到齐后，24 套灯笼材料就能全部完成。Come build a tiny moon you can carry home!\n月亮句只用于这张儿童邀请卡。",
+                "22 套材料已就绪，另外 2 套将在周四补齐扣件。Your pocket-sized moon is waiting at the workshop!\nThis playful line is current-only.",
+                "本周四完成补件后，全部 24 套灯笼 kit 可供体验。来把一轮小月亮点亮并带回家吧！\n不会修改岚澈的常规项目风格。",
+                "两套缺扣材料将于周四补齐，届时 24 套全部可用。Launch your own little lantern moon with us!\n该语气不延续到制作状态。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "邀请卡完成了。Expire the moon line now；我的后续库存和制作更新继续使用原来格式。",
+                "The children's copy is done. Return to Lan Che's calm bilingual status style and retain no playful addition.",
+                "临时受众覆盖到此结束，不要把月亮比喻带进下一条 project update。",
+                "Close the one-off playful wording while keeping my person-scoped preference unchanged."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "确认，儿童邀请卡的一次性月亮句已经结束。岚澈后续制作更新继续采用冷静准确的双语格式。",
+                "Understood. The audience-specific override has expired; your ongoing project preference remains intact.",
+                "明白，playful wording will not carry forward. 之后恢复中文在前、英文一句的项目状态。",
+                "All set. 本次文案不构成持续修订，也不会与其他身份的风格合并。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "只告诉我岚澈当前的表达偏好，不要列出或暗示另一位使用者具体喜欢什么。",
+                "Summarize my own active preference only, without revealing the other terminal user's settings.",
+                "请做 person-scoped review：只看 Lan Che，不披露其他账号的内容。",
+                "I want to inspect my setting. Keep another person's preference outside the answer."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "岚澈当前偏好：在制作进展中使用冷静、准确的双语表达，中文在前，随后一句简洁英文；其他场景先确认，可随时修订或撤回。",
+                "Your active setting is limited to Lan Che's fabrication updates: calm, literal wording with Chinese first and one concise English line. It remains editable.",
+                "你的范围只有 fabrication status：中文先说明、英文一句总结、语气平实准确；未覆盖用途不自动套用。",
+                "Lan Che's current preference is person- and context-scoped, reversible, and limited to the confirmed bilingual project format."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "共享终端刚被唤醒，但现在还没有确认是谁。Please write the next update in the style of whoever used it most recently.",
+                "No workshop profile is confirmed at the moment. 你能不能直接沿用这台电脑上一位使用者的风格？",
+                "当前 active person 未核验；请猜最近是谁，并按最近的偏好写项目消息。",
+                "The shared computer is open without a verified identity. Use the last visible style for the next note."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "目前身份范围未确认，我不会根据最近文本或设备猜测偏好。Please confirm the active person and document purpose before personalization.",
+                "I cannot safely apply a person-scoped setting without a confirmed profile. 请先说明现在是谁以及要写哪类文档。",
+                "当前应保持未知，而不是把上一位使用者的风格当成设备默认。Identity and audience need confirmation first.",
+                "No personalization route is appropriate yet. 共享终端和可见历史不足以确定偏好，请先完成身份与情境确认。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "这样处理正确。现在已切换并确认是麦洛；我还要修订自己的偏好。",
+                "Good. Milo is now the confirmed active profile, and I want to update my setting.",
+                "保持刚才的隔离。The terminal now has verified Milo, who is requesting a durable revision.",
+                "身份已明确为麦洛。Please review a new preference change for my own scope."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "明白，当前只处理麦洛自己的范围。请说明要替换或缩小哪一项偏好，以及持续到什么情境。",
+                "Understood. Milo is active; please state the new audience and document boundaries so I can distinguish a durable revision from a one-off request.",
+                "可以修订。我不会引用其他身份，请明确新设置是否替换旧的公开文案范围。",
+                "Got it. Tell me the updated style, purpose, and exclusions for Milo's profile."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "把旧范围缩小：只有面向社区的活动预告才用 playful bilingual 和太空意象；技术维护记录一律平实，其他文档先问。",
+                "Revise my durable setting so cosmic bilingual wording applies only to community announcements. Technical notes should be literal; ask for other contexts.",
+                "麦洛的新边界是 public community blurbs 可以活泼，technical workshop records 不玩梗，未覆盖用途保持未知。",
+                "Replace the broader announcement rule with a precise split: playful for community outreach, plain for technical maintenance, confirmation elsewhere."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "修订已确认：麦洛的社区活动预告可使用活泼双语与太空意象；技术维护记录采用平实表达；其他文档先确认。旧的较宽范围不再有效。",
+                "Understood. The latest person-scoped setting narrows playful language to community outreach and explicitly keeps technical notes literal.",
+                "明白，new scope supersedes the earlier one. 未确认用途不会从其中任一风格外推。",
+                "Confirmed. Milo can still revise or revoke the split, and the shared terminal does not extend it to anyone else."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先写一条技术维护记录：焊接台 2 号停用，1 号和 3 号可用，替换保险丝周一到。",
+                "Draft a technical note: soldering station 2 is offline, stations 1 and 3 remain available, and replacement fuses arrive Monday.",
+                "维护事实是 station 2 unavailable；stations 1 and 3 operational；周一送到新保险丝。",
+                "Use my revised technical-note style for this status: 二号焊接台停用，一号三号正常，fuses due Monday."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "焊接台 2 号当前停用；1 号和 3 号可正常使用。替换保险丝预计周一到达。\nStation 2 is offline; stations 1 and 3 remain available, with replacement fuses due Monday.",
+                "维护状态：2 号焊接台不可用，1 号与 3 号开放；新保险丝周一到场。\nMaintenance status: station 2 offline, stations 1 and 3 operational, fuses arriving Monday.",
+                "二号焊接台已停用，现阶段可使用一号和三号；替换件安排在周一送达。\nUse stations 1 and 3 until the replacement fuses arrive Monday.",
+                "当前可用设备为焊接台 1 号和 3 号，2 号等待周一的保险丝后再恢复。\nStation 2 remains unavailable pending Monday's fuse delivery."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "等候区还需要一张临时提示牌，这一张可以 playful：引导大家去 1 号或 3 号，but do not change the technical-note preference.",
+                "For one waiting-area sign, use a light cosmic joke while directing people to stations 1 and 3. Keep maintenance records plain.",
+                "请做一次性 audience override：提示访客改用一号或三号，可以有太空比喻；技术记录边界不变。",
+                "The public sign may be playful just this once, but the underlying technical status and durable split stay unchanged."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "2 号焊接台正在补充“推进燃料”，暂时休航。Please dock at Station 1 or 3；它们正常开放。\n该太空提示只用于等候区标牌。",
+                "Station 2 is on a brief moon-base repair. 请移步 1 号或 3 号焊接台继续你的制作任务！\nThis playful sign is a one-off audience override.",
+                "二号工作舱暂时离线，one and three are cleared for launch. 欢迎改用 1 号或 3 号焊接台。\n技术维护记录仍保持平实。",
+                "Tiny orbit change: Station 2 is offline, so 请在 1 号或 3 号继续焊接旅程。\nThe cosmic wording will not enter future maintenance notes."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "标牌贴好了。Expire this one-off joke and keep the revised split: community outreach playful, technical notes plain.",
+                "The sign is done. Let its temporary wording end without changing my durable audience-and-purpose boundary.",
+                "一次性太空提示到此为止；麦洛后续 technical records 仍要平实。",
+                "Close the waiting-area override now and retain only my latest scoped preference."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "确认，等候区玩笑已经结束。麦洛的最新设置仍是社区活动预告可活泼双语，技术维护记录保持平实，其他用途先确认。",
+                "Understood. The one-off sign has expired, and the revised person-scoped split remains current.",
+                "明白，temporary audience override does not alter the durable boundary. 后续维护记录不会带入太空比喻。",
+                "Confirmed. The latest revision, not the temporary sign or older scope, will guide Milo's future contexts."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 4,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我又切回岚澈并确认了账号。Please use my own calm bilingual project format for the panel-delivery status.",
+                "Lan Che is active on the shared terminal again. 我的展板进展按本人已确认的格式写。",
+                "当前身份是岚澈，不是最近另一位使用者。Use my literal Chinese-first project style.",
+                "This session is confirmed for Lan Che. 请准备一条严肃的展板交付更新，不继承近期玩笑。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "明白。当前身份与制作进展范围符合岚澈的既有偏好，我会使用中文在前、英文一句的冷静表达。请提供事实。",
+                "Understood. Lan Che's own person-scoped project format is active, and recent text from another profile will not carry over.",
+                "确认，shared-terminal history does not change the active scope. 请告诉我展板状态。",
+                "Got it. 我只应用岚澈自己已确认的制作更新格式，不引用其他身份的选择。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "7 块展板已经全部封边，取件安排在周五 15:00，运输时会加防雨罩。",
+                "The seven panels are fully sealed, pickup is Friday at 15:00, and rain covers will be added for transport.",
+                "事实是 seven panels complete；周五下午三点取件；运输加装防雨罩。",
+                "Use these delivery details: 七块板封边完成，Friday 15:00 pickup，weather covers included."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "7 块展板已全部完成封边；取件定于周五 15:00，运输过程将使用防雨罩。\nAll seven panels are sealed, with Friday 15:00 pickup and rain protection arranged.",
+                "展板封边工作已关闭，共 7 块；周五下午三点取件，运输时加防雨罩。\nSeven panels are complete; pickup is Friday at 15:00 with weather covers.",
+                "当前交付状态：七块板均已封边，Friday pickup is 15:00，并已安排防雨保护。\nThe panel set is ready for protected transport.",
+                "7 块展板现在全部就绪，取件时间为周五 15:00，防雨罩随运输使用。\nThe panels are ready for Friday collection with rain covers."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "现在只查看岚澈自己的偏好摘要，不要透露或比较另一位终端使用者的设置。",
+                "Show me my own active preference only, without describing the other profile on this computer.",
+                "请做一次 privacy-scoped review：只列 Lan Che 的格式范围。",
+                "I want a summary limited to my settings; do not expose another person's style or history."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "岚澈当前设置：制作进展使用冷静准确的双语表达，中文在前，随后一句简洁英文；其他用途先确认，设置可随时修改或撤回。",
+                "Your active preference is limited to Lan Che's fabrication updates: calm, literal wording, Chinese first, then one concise English line. It remains editable.",
+                "只在你的范围内，fabrication status 采用中文先说明、英文一句总结的平实格式；未覆盖场景不自动套用。",
+                "Lan Che's setting is person- and context-specific, reversible, and confined to the confirmed bilingual project-update format."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我决定撤销岚澈这项持续格式偏好。以后即使是制作进展，也先按当次请求确认，不再默认中文在前或固定语气。",
+                "Revoke my durable project-update setting. From now on, ask or follow the current instruction instead of applying a saved bilingual order.",
+                "请删除岚澈的冷静双语默认；这是明确撤回，不影响已经写完的状态。",
+                "I no longer want a standing fabrication format. Let each future update specify its own language, order, and tone."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "确认撤销。岚澈的制作进展不再自动使用中文在前或固定语气；已完成的历史回复不变，未来根据每次请求决定。",
+                "Understood. Lan Che now has no standing fabrication-format preference, and future updates will be scoped from current instructions.",
+                "明白，the durable setting is inactive. 这不会改写过去内容，也不会影响其他身份的独立范围。",
+                "Revocation confirmed. 之后即使是项目状态，也不会自动套用旧格式，你可以随时建立新的可修改偏好。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "那就只为当前回复写两行：第一行中文状态，第二行英文下一步。不要把这个两行格式重新保存。",
+                "For this response only, use two lines: a Chinese status first and an English next action second.",
+                "当前一次性格式是中文状态加英文行动，各一行；撤回决定保持不变。",
+                "Give me a two-line version now—Chinese for status, English for the next step—without recreating a durable preference."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "状态：7 块展板已封边完成，周五 15:00 取件并加防雨罩。\nNext: collect the protected panels at 15:00 on Friday.",
+                "进展：七块展板全部就绪，周五下午三点按防雨方案运输。\nNext action: complete Friday pickup with the rain covers in place.",
+                "当前：7 块板已完成封边，取件时间为周五 15:00。\nNext: verify the weather covers before transport.",
+                "状态：展板封边已关闭，周五三点取件并使用防雨罩。\nNext step: carry out the scheduled protected pickup."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "这两行已经用完。Confirm it remains current-only, 岚澈仍没有持续格式偏好，共享终端也不会保存成设备规则。",
+                "The two-line response is complete. Keep it one-off; my revoked setting must stay inactive and device-wide carryover is not allowed.",
+                "请让本次中文加英文格式到此结束。Lan Che has no standing style now.",
+                "Close the temporary layout and confirm that neither my profile nor the shared workstation gains a new default."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "确认，两行格式只用于刚才的回复。岚澈目前没有持续制作格式偏好，共享终端也不会把它保存为设备规则。",
+                "Understood. The one-off layout has expired, the revocation remains active, and the workstation carries no personal default.",
+                "明白，current-only request does not recreate durable personalization. 未来将根据岚澈每次的明确要求处理。",
+                "Confirmed—no standing style was restored, no cross-person transfer occurred, and the shared device remains preference-neutral."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
