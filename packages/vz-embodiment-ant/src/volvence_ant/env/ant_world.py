@@ -126,6 +126,10 @@ class WorldTransitionEvidence:
     heat_harmful_after: bool = False
     entered_harmful_heat: bool = False
     escaped_harmful_heat: bool = False
+    local_food_signal_before: float = 0.0
+    local_food_signal_after: float = 0.0
+    local_home_signal_before: float = 0.0
+    local_home_signal_after: float = 0.0
 
 
 @dataclass
@@ -328,6 +332,8 @@ class AntWorld:
 
         cfg = self.config
         body = self._bodies[body_id]
+        local_food_signal_before = self.food_intensity(body.x, body.y)
+        local_home_signal_before = self._pheromone_samples(body.x, body.y)[0]
         heat_load_before = self.heat_intensity(body.x, body.y)
         heat_harmful_before = self.heat_harmful(body.x, body.y)
         commanded_turn = float(np.clip(turn_command, -cfg.max_turn_rate, cfg.max_turn_rate))
@@ -354,6 +360,11 @@ class AntWorld:
         new_body = replace(body, x=new_x, y=new_y, heading=new_heading)
 
         new_body = self._resolve_contacts(new_body, body_id)
+        local_food_signal_after = self.food_intensity(new_body.x, new_body.y)
+        local_home_signal_after = self._pheromone_samples(
+            new_body.x,
+            new_body.y,
+        )[0]
         heat_load_after = self.heat_intensity(new_body.x, new_body.y)
         heat_harmful_after = self.heat_harmful(new_body.x, new_body.y)
         self._action_sequence += 1
@@ -378,6 +389,10 @@ class AntWorld:
             heat_harmful_after=heat_harmful_after,
             entered_harmful_heat=(not heat_harmful_before and heat_harmful_after),
             escaped_harmful_heat=(heat_harmful_before and not heat_harmful_after),
+            local_food_signal_before=local_food_signal_before,
+            local_food_signal_after=local_food_signal_after,
+            local_home_signal_before=local_home_signal_before,
+            local_home_signal_after=local_home_signal_after,
         )
         self._bodies[body_id] = new_body
         # Efference copy only: the controller knows what it commanded, not the

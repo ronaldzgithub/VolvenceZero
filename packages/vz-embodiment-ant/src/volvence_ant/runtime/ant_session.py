@@ -90,6 +90,7 @@ class AntSessionConfig:
     allow_live_substrate_mutation: bool = False
     objective: AntObjectiveKind = AntObjectiveKind.FORAGING
     sense_schema: AntSenseSchema = AntSenseSchema.V1
+    ecology_local_valence_enabled: bool = True
 
 
 @dataclass(frozen=True)
@@ -141,6 +142,13 @@ class AntStepRecord:
     heat_harmful: bool
     entered_harmful_heat: bool
     escaped_harmful_heat: bool
+    ecology_action_payoff: float
+    local_food_delta: float
+    local_home_delta: float
+    local_cooling_delta: float
+    runtime_open_segment_transitions: int
+    runtime_closed_segments: int
+    runtime_longest_segment_length: int
 
 
 class AntSession:
@@ -291,6 +299,7 @@ class AntSession:
             prediction_id=prediction_id,
         )
         self.runner.submit_environment_outcome(environment_outcome)
+        environment_measurement = environment_outcome.measurement
         prediction_error = result.prediction_error
         temporal_snapshot = result.active_snapshots["temporal_abstraction"].value
         prediction_error_snapshot = result.active_snapshots.get("prediction_error")
@@ -358,6 +367,10 @@ class AntSession:
                     rollout.internal_rl_runtime_replay.value,
                 ),
                 (
+                    "internal_rl_runtime_segment_credit",
+                    rollout.internal_rl_runtime_segment_credit.value,
+                ),
+                (
                     "internal_rl_runtime_exploration_strength",
                     f"{rollout.internal_rl_runtime_exploration_strength:.6f}",
                 ),
@@ -374,6 +387,34 @@ class AntSession:
             heat_harmful=observation.heat_harmful,
             entered_harmful_heat=transition.entered_harmful_heat,
             escaped_harmful_heat=transition.escaped_harmful_heat,
+            ecology_action_payoff=(
+                environment_measurement.action_payoff
+                if environment_measurement is not None
+                else 0.0
+            ),
+            local_food_delta=(
+                transition.local_food_signal_after
+                - transition.local_food_signal_before
+            ),
+            local_home_delta=(
+                transition.local_home_signal_after
+                - transition.local_home_signal_before
+            ),
+            local_cooling_delta=(
+                transition.heat_load_before
+                - transition.heat_load_after
+            ),
+            runtime_open_segment_transitions=(
+                replay.open_segment_transition_count
+                if replay is not None
+                else 0
+            ),
+            runtime_closed_segments=(
+                replay.closed_segment_count if replay is not None else 0
+            ),
+            runtime_longest_segment_length=(
+                replay.longest_segment_length if replay is not None else 0
+            ),
         )
         self.holder.update(observation=observation, navigator_state=nav_state, step=self.world.tick)
         self.trajectory.append(record)
@@ -447,13 +488,13 @@ class AntSession:
             measurement=measurement,
         )
 
-    @staticmethod
     def _ecology_environment_outcome(
+        self,
         *,
         transition: WorldTransitionEvidence,
         prediction_id: str,
     ) -> EnvironmentOutcome:
-        """Publish sparse, observable ecology facts without direction shaping."""
+        """Publish owner-authored local valence without a steering direction."""
 
         facts: list[str] = []
         task_progress: float | None = None
@@ -480,6 +521,25 @@ class AntSession:
         elif transition.escaped_harmful_heat:
             facts.append("heat_exposure_ended")
             payoff += 0.35
+        food_delta = (
+            transition.local_food_signal_after
+            - transition.local_food_signal_before
+        )
+        home_delta = (
+            transition.local_home_signal_after
+            - transition.local_home_signal_before
+        )
+        cooling_delta = transition.heat_load_before - transition.heat_load_after
+        local_valence = 0.0
+        if self.config.ecology_local_valence_enabled:
+            if not transition.carrying_before and not transition.picked_up:
+                local_valence += 0.45 * math.tanh(food_delta)
+            if transition.carrying_before and not transition.delivered:
+                local_valence += 0.45 * math.tanh(home_delta)
+            local_valence += 0.7 * math.tanh(cooling_delta)
+            payoff += local_valence
+            if abs(local_valence) > 1e-9 and not facts:
+                facts.append("local_valence")
         status = "+".join(facts) if facts else "moved"
         measurement = (
             EnvironmentMeasurement(
@@ -498,11 +558,17 @@ class AntSession:
             status=status,
             summary=f"digital-ant ecology transition {status}",
             detail=(
-                "observable pickup/delivery, obstacle contact and thresholded "
-                "thermal exposure facts; no distance or steering shaping"
+                "owner-authored pickup/delivery, contact, thermal threshold and "
+                "bounded local food/home/heat deltas; no coordinates, target "
+                "direction or steering recommendation"
             ),
             prediction_id=prediction_id or None,
-            evidence=(f"ant_transition:{transition.transition_id}",),
+            evidence=(
+                f"ant_transition:{transition.transition_id}",
+                f"local_food_delta:{food_delta:.9f}",
+                f"local_home_delta:{home_delta:.9f}",
+                f"local_cooling_delta:{cooling_delta:.9f}",
+            ),
             environment_state_delta_kind=status,
             measurement=measurement,
         )

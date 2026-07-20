@@ -243,6 +243,12 @@ class FinalRolloutConfig:
     # transitions for evidence only; ACTIVE trains exclusively from settled
     # runtime replay and never falls back to synthetic samples.
     internal_rl_runtime_replay: WiringLevel = WiringLevel.DISABLED
+    # Optional long-horizon credit over real runtime transitions. ACTIVE keeps
+    # one open owner-local buffer per dual track and closes it on a beta_t
+    # switch, an environment milestone/terminal, or the bounded step cap.
+    # DISABLED preserves one-step runtime replay exactly.
+    internal_rl_runtime_segment_credit: WiringLevel = WiringLevel.DISABLED
+    internal_rl_runtime_segment_max_steps: int = 24
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the

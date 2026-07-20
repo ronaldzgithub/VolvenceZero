@@ -59,6 +59,9 @@ class KernelColonyRunner:
                     allow_live_substrate_mutation=(base_config.allow_live_substrate_mutation),
                     objective=base_config.objective,
                     sense_schema=base_config.sense_schema,
+                    ecology_local_valence_enabled=(
+                        base_config.ecology_local_valence_enabled
+                    ),
                 ),
                 body_id=body_id,
             )

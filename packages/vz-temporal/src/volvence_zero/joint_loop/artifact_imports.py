@@ -75,6 +75,18 @@ class _JointLoopArtifactImportMixin:
                 self._pending_relationship_rollouts
             ),
             runtime_replay_report=self.latest_runtime_replay_report,
+            open_task_segment_rollouts=tuple(
+                self._open_task_segment_rollouts
+            ),
+            open_relationship_segment_rollouts=tuple(
+                self._open_relationship_segment_rollouts
+            ),
+            runtime_segment_closed_count=(
+                self._runtime_segment_closed_count
+            ),
+            runtime_longest_segment_length=(
+                self._runtime_longest_segment_length
+            ),
         )
         return RareHeavyImportResult(
             artifact_id=artifact.artifact_id,
@@ -114,6 +126,18 @@ class _JointLoopArtifactImportMixin:
                 self._pending_relationship_rollouts
             ),
             runtime_replay_report=self.latest_runtime_replay_report,
+            open_task_segment_rollouts=tuple(
+                self._open_task_segment_rollouts
+            ),
+            open_relationship_segment_rollouts=tuple(
+                self._open_relationship_segment_rollouts
+            ),
+            runtime_segment_closed_count=(
+                self._runtime_segment_closed_count
+            ),
+            runtime_longest_segment_length=(
+                self._runtime_longest_segment_length
+            ),
         )
         return RareHeavyImportResult(
             artifact_id=artifact.artifact_id,
@@ -138,6 +162,20 @@ class _JointLoopArtifactImportMixin:
             self._pending_relationship_rollouts = list(
                 checkpoint.pending_relationship_rollouts
             )
+        if checkpoint.open_task_segment_rollouts is not None:
+            self._open_task_segment_rollouts = list(
+                checkpoint.open_task_segment_rollouts
+            )
+        if checkpoint.open_relationship_segment_rollouts is not None:
+            self._open_relationship_segment_rollouts = list(
+                checkpoint.open_relationship_segment_rollouts
+            )
+        self._runtime_segment_closed_count = (
+            checkpoint.runtime_segment_closed_count
+        )
+        self._runtime_longest_segment_length = (
+            checkpoint.runtime_longest_segment_length
+        )
         if checkpoint.runtime_replay_report is not None:
             replay_report = checkpoint.runtime_replay_report
             self._runtime_replay_captured_count = replay_report.captured_count

@@ -866,6 +866,12 @@ class AgentSessionRunner(
             runtime_replay_prediction_error_enabled=(
                 external_prediction_error_drive
             ),
+            runtime_replay_segment_credit=(
+                self._config.internal_rl_runtime_segment_credit
+            ),
+            runtime_replay_segment_max_steps=(
+                self._config.internal_rl_runtime_segment_max_steps
+            ),
         )
         if (
             self._joint_loop.internal_rl_runtime_replay
@@ -876,6 +882,16 @@ class AgentSessionRunner(
                 "mismatch: config="
                 f"{self._config.internal_rl_runtime_replay.value}, loop="
                 f"{self._joint_loop.internal_rl_runtime_replay.value}"
+            )
+        if (
+            self._joint_loop.runtime_replay_segment_credit
+            is not self._config.internal_rl_runtime_segment_credit
+        ):
+            raise ValueError(
+                "AgentSessionRunner config/joint-loop runtime replay segment "
+                "credit mismatch: config="
+                f"{self._config.internal_rl_runtime_segment_credit.value}, "
+                f"loop={self._joint_loop.runtime_replay_segment_credit.value}"
             )
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         self._joint_schedule = joint_schedule or JointLoopSchedule()

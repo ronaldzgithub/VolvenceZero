@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields, is_dataclass, replace
 from enum import Enum
@@ -215,6 +216,9 @@ class MetacontrollerRuntimeState:
     protocol_prior_strength: float = 0.0
     protocol_prior_applied: bool = False
     learned_update_rule_state: LearnedUpdateRuleState | None = None
+    causal_action_head_residual: tuple[float, ...] = ()
+    causal_action_head_wiring: str = "disabled"
+    causal_action_head_update_step: int = 0
     # Packet C (long-horizon-closure): optional affordance selection
     # published by the metacontroller. None when the metacontroller
     # has no opinion on affordance selection (current default — the
@@ -252,6 +256,16 @@ class FamilyOutcomeFeedback:
     session_payoff_delta: float = 0.0
     credit_record_count: int = 0
     description: str = ""
+
+
+@dataclass(frozen=True)
+class CausalZActionHeadParameters:
+    track: Track
+    rank: int
+    input_factors: tuple[tuple[float, ...], ...]
+    output_factors: tuple[tuple[float, ...], ...]
+    bias: tuple[float, ...]
+    update_step: int = 0
 
 
 @dataclass(frozen=True)
@@ -300,6 +314,7 @@ class MetacontrollerParameterSnapshot:
     learning_phase: str = "runtime"
     action_family_version: int = 0
     learned_update_rule_state: LearnedUpdateRuleState | None = None
+    causal_action_heads: tuple[CausalZActionHeadParameters, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -475,6 +490,7 @@ class MetacontrollerParameterStore:
             self.decoder_hidden = _random_mat(n_z, n_z, seed=104)
             self.action_families = _init_action_families(n_z, seed=105)
             self.track_weights = _init_track_weights(n_z, seed=106)
+        self.causal_action_heads = _init_causal_action_heads(n_z=n_z)
         self.ndim_encoder_parameters: NdimEncoderParameters | None = (
             None
             if n_z == 3
@@ -549,6 +565,214 @@ class MetacontrollerParameterStore:
         if self.ndim_encoder_parameters is None:
             return self._n_z
         return self.ndim_encoder_parameters.n_input
+
+    def causal_action_head_parameters(
+        self,
+        *,
+        track: Track,
+    ) -> CausalZActionHeadParameters:
+        return self.causal_action_heads[track]
+
+    def causal_action_head_basis(
+        self,
+        *,
+        track: Track,
+        hidden_state: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        if len(hidden_state) != self._n_z:
+            raise ValueError(
+                "causal action head hidden dimension mismatch: "
+                f"expected={self._n_z}, actual={len(hidden_state)}"
+            )
+        parameters = self.causal_action_heads[track]
+        scale = math.sqrt(max(self._n_z, 1))
+        return tuple(
+            math.tanh(
+                sum(
+                    row[index] * (hidden_state[index] * 2.0 - 1.0)
+                    for index in range(self._n_z)
+                )
+                / scale
+            )
+            for row in parameters.input_factors
+        )
+
+    def causal_action_head_residual(
+        self,
+        *,
+        track: Track,
+        hidden_state: tuple[float, ...],
+        strength: float,
+    ) -> tuple[float, ...]:
+        if not 0.0 <= strength <= 1.0:
+            raise ValueError(
+                "causal action head strength must be within [0, 1], "
+                f"got {strength!r}"
+            )
+        parameters = self.causal_action_heads[track]
+        basis = self.causal_action_head_basis(
+            track=track,
+            hidden_state=hidden_state,
+        )
+        return tuple(
+            strength
+            * math.tanh(
+                parameters.bias[index]
+                + sum(
+                    parameters.output_factors[index][rank_index]
+                    * basis[rank_index]
+                    for rank_index in range(parameters.rank)
+                )
+            )
+            for index in range(self._n_z)
+        )
+
+    def update_causal_action_head(
+        self,
+        *,
+        track: Track,
+        hidden_states: tuple[tuple[float, ...], ...],
+        action_gradients: tuple[tuple[float, ...], ...],
+        advantages: tuple[float, ...],
+    ) -> float:
+        if not (
+            len(hidden_states)
+            == len(action_gradients)
+            == len(advantages)
+        ):
+            raise ValueError(
+                "causal action head update requires aligned batches: "
+                f"hidden={len(hidden_states)}, "
+                f"action_gradients={len(action_gradients)}, "
+                f"advantages={len(advantages)}"
+            )
+        if not hidden_states:
+            return 0.0
+        parameters = self.causal_action_heads[track]
+        input_factors = [
+            list(row) for row in parameters.input_factors
+        ]
+        output_factors = [
+            list(row) for row in parameters.output_factors
+        ]
+        bias = list(parameters.bias)
+        input_delta = [
+            [0.0 for _ in range(self._n_z)]
+            for _ in range(parameters.rank)
+        ]
+        output_delta = [
+            [0.0 for _ in range(parameters.rank)]
+            for _ in range(self._n_z)
+        ]
+        bias_delta = [0.0 for _ in range(self._n_z)]
+        scale = math.sqrt(max(self._n_z, 1))
+        for hidden_state, action_gradient, advantage in zip(
+            hidden_states,
+            action_gradients,
+            advantages,
+            strict=True,
+        ):
+            if len(action_gradient) != self._n_z:
+                raise ValueError(
+                    "causal action head action-gradient dimension mismatch: "
+                    f"expected={self._n_z}, actual={len(action_gradient)}"
+                )
+            basis = self.causal_action_head_basis(
+                track=track,
+                hidden_state=hidden_state,
+            )
+            for output_index in range(self._n_z):
+                signal = advantage * action_gradient[output_index]
+                bias_delta[output_index] += signal
+                for rank_index in range(parameters.rank):
+                    output_delta[output_index][rank_index] += (
+                        signal * basis[rank_index]
+                    )
+            for rank_index in range(parameters.rank):
+                upstream = sum(
+                    advantage
+                    * action_gradient[output_index]
+                    * output_factors[output_index][rank_index]
+                    for output_index in range(self._n_z)
+                )
+                derivative = 1.0 - basis[rank_index] ** 2
+                for input_index in range(self._n_z):
+                    input_delta[rank_index][input_index] += (
+                        upstream
+                        * derivative
+                        * (hidden_state[input_index] * 2.0 - 1.0)
+                        / scale
+                    )
+        learning_rate = (
+            self.learning_rate
+            * 0.12
+            / len(hidden_states)
+        )
+        total_change = 0.0
+        for output_index in range(self._n_z):
+            bias_step = max(
+                -0.05,
+                min(0.05, learning_rate * bias_delta[output_index]),
+            )
+            bias[output_index] = max(
+                -0.5,
+                min(0.5, bias[output_index] + bias_step),
+            )
+            total_change += abs(bias_step)
+            for rank_index in range(parameters.rank):
+                step = max(
+                    -0.05,
+                    min(
+                        0.05,
+                        learning_rate
+                        * output_delta[output_index][rank_index],
+                    ),
+                )
+                output_factors[output_index][rank_index] = max(
+                    -1.5,
+                    min(
+                        1.5,
+                        output_factors[output_index][rank_index] + step,
+                    ),
+                )
+                total_change += abs(step)
+        for rank_index in range(parameters.rank):
+            for input_index in range(self._n_z):
+                step = max(
+                    -0.02,
+                    min(
+                        0.02,
+                        learning_rate
+                        * input_delta[rank_index][input_index]
+                        * 0.25,
+                    ),
+                )
+                input_factors[rank_index][input_index] = max(
+                    -1.5,
+                    min(
+                        1.5,
+                        input_factors[rank_index][input_index] + step,
+                    ),
+                )
+                total_change += abs(step)
+        self.causal_action_heads[track] = CausalZActionHeadParameters(
+            track=track,
+            rank=parameters.rank,
+            input_factors=tuple(
+                tuple(row) for row in input_factors
+            ),
+            output_factors=tuple(
+                tuple(row) for row in output_factors
+            ),
+            bias=tuple(bias),
+            update_step=parameters.update_step + 1,
+        )
+        parameter_count = (
+            parameters.rank * self._n_z
+            + self._n_z * parameters.rank
+            + self._n_z
+        )
+        return total_change / max(parameter_count, 1)
 
     @property
     def action_family_version(self) -> int:
@@ -737,6 +961,10 @@ class MetacontrollerParameterStore:
             learning_phase=self.learning_phase,
             action_family_version=self._action_family_version,
             learned_update_rule_state=self.latest_learned_update_rule_state,
+            causal_action_heads=tuple(
+                self.causal_action_heads[track]
+                for track in (Track.WORLD, Track.SELF, Track.SHARED)
+            ),
         )
 
     def restore_parameter_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> None:
@@ -764,6 +992,62 @@ class MetacontrollerParameterStore:
         self.update_steps = {
             Track(track_name): step_count for track_name, step_count in snapshot.update_steps
         }
+        if snapshot.causal_action_heads:
+            expected_tracks = {
+                Track.WORLD,
+                Track.SELF,
+                Track.SHARED,
+            }
+            actual_tracks = {
+                parameters.track
+                for parameters in snapshot.causal_action_heads
+            }
+            if actual_tracks != expected_tracks:
+                raise ValueError(
+                    "causal action head checkpoint track mismatch: "
+                    f"expected={tuple(sorted(track.value for track in expected_tracks))}, "
+                    f"actual={tuple(sorted(track.value for track in actual_tracks))}"
+                )
+            for parameters in snapshot.causal_action_heads:
+                if (
+                    parameters.rank < 1
+                    or len(parameters.input_factors) != parameters.rank
+                    or any(
+                        len(row) != self._n_z
+                        for row in parameters.input_factors
+                    )
+                    or len(parameters.output_factors) != self._n_z
+                    or any(
+                        len(row) != parameters.rank
+                        for row in parameters.output_factors
+                    )
+                    or len(parameters.bias) != self._n_z
+                    or parameters.update_step < 0
+                ):
+                    raise ValueError(
+                        "causal action head checkpoint shape mismatch for "
+                        f"track={parameters.track.value}, n_z={self._n_z}"
+                    )
+                values = (
+                    value
+                    for matrix in (
+                        parameters.input_factors,
+                        parameters.output_factors,
+                    )
+                    for row in matrix
+                    for value in row
+                )
+                if not all(math.isfinite(value) for value in values) or not all(
+                    math.isfinite(value) for value in parameters.bias
+                ):
+                    raise ValueError(
+                        "causal action head checkpoint contains non-finite "
+                        f"values for track={parameters.track.value}"
+                    )
+            self.causal_action_heads = {
+                parameters.track: parameters
+                for parameters in snapshot.causal_action_heads
+            }
         self.action_families = snapshot.action_families
         self._latest = replace(
             self._latest,
@@ -1637,6 +1921,32 @@ def _init_track_weights(n_z: int, *, seed: int) -> dict:
     return result
 
 
+def _init_causal_action_heads(
+    *,
+    n_z: int,
+) -> dict[Track, CausalZActionHeadParameters]:
+    rank = min(4, max(1, n_z // 2))
+    return {
+        track: CausalZActionHeadParameters(
+            track=track,
+            rank=rank,
+            input_factors=_random_mat(
+                rank,
+                n_z,
+                seed=211 + track_index,
+            ),
+            output_factors=tuple(
+                tuple(0.0 for _ in range(rank))
+                for _ in range(n_z)
+            ),
+            bias=tuple(0.0 for _ in range(n_z)),
+        )
+        for track_index, track in enumerate(
+            (Track.WORLD, Track.SELF, Track.SHARED)
+        )
+    }
+
+
 def _nz_zeros(n: int) -> tuple[float, ...]:
     return tuple(0.0 for _ in range(n))
 
@@ -1695,6 +2005,23 @@ def _compact_ndim_params_hash(store: MetacontrollerParameterStore) -> str:
     if decoder is not None:
         parts.append(f"dec_b1={_sum_tuple(decoder.decoder_ffn.b1):.12f}")
         parts.append(f"dec_b2={_sum_tuple(decoder.decoder_ffn.b2):.12f}")
+    for track in (Track.WORLD, Track.SELF, Track.SHARED):
+        action_head = store.causal_action_heads[track]
+        parts.append(
+            f"head_{track.value}_in="
+            f"{_sum_matrix(action_head.input_factors):.12f}"
+        )
+        parts.append(
+            f"head_{track.value}_out="
+            f"{_sum_matrix(action_head.output_factors):.12f}"
+        )
+        parts.append(
+            f"head_{track.value}_bias="
+            f"{_sum_tuple(action_head.bias):.12f}"
+        )
+        parts.append(
+            f"head_{track.value}_step={action_head.update_step}"
+        )
     parts.append(f"beta={store.beta_threshold:.12f}")
     return sha256("|".join(parts).encode("utf-8")).hexdigest()
 
@@ -2069,7 +2396,19 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
         return self._parameter_store
 
     def export_runtime_state(self) -> MetacontrollerRuntimeState:
-        return self._parameter_store.export_runtime_state(mode=self.mode.value)
+        action_head = self._parameter_store.causal_action_head_parameters(
+            track=self._causal_action_head_track
+        )
+        return replace(
+            self._parameter_store.export_runtime_state(mode=self.mode.value),
+            causal_action_head_residual=(
+                self._latest_causal_action_head_residual
+            ),
+            causal_action_head_wiring=(
+                self._causal_action_head_wiring.value
+            ),
+            causal_action_head_update_step=action_head.update_step,
+        )
 
     def export_parameters(self) -> TemporalControllerParameters:
         return self._parameter_store.export_temporal_parameters()
@@ -2280,6 +2619,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         # Generic posterior exploration, opt-in and owner-local.  The default
         # is byte-equivalent to the historical deterministic posterior.
         self._runtime_exploration_strength = 0.0
+        self._causal_action_head_wiring = WiringLevel.DISABLED
+        self._causal_action_head_track = Track.WORLD
+        self._causal_action_head_strength = 0.0
+        self._latest_causal_action_head_residual = _nz_zeros(n_z)
 
     @property
     def runtime_backend(self) -> WiringLevel:
@@ -2333,6 +2676,37 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 f"got {strength!r}"
             )
         self._runtime_exploration_strength = float(strength)
+
+    @property
+    def causal_action_head_wiring(self) -> WiringLevel:
+        return self._causal_action_head_wiring
+
+    @property
+    def causal_action_head_strength(self) -> float:
+        return self._causal_action_head_strength
+
+    @property
+    def causal_action_head_track(self) -> Track:
+        return self._causal_action_head_track
+
+    def set_causal_action_head(
+        self,
+        *,
+        wiring_level: WiringLevel,
+        track: Track,
+        strength: float,
+    ) -> None:
+        if not 0.0 <= strength <= 1.0:
+            raise ValueError(
+                "causal action head strength must be within [0, 1], "
+                f"got {strength!r}"
+            )
+        self._causal_action_head_wiring = wiring_level
+        self._causal_action_head_track = track
+        self._causal_action_head_strength = float(strength)
+        self._latest_causal_action_head_residual = _nz_zeros(
+            self._parameter_store.n_z
+        )
 
     def _runtime_exploration_noise(
         self,
@@ -2959,6 +3333,31 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             z_candidate = self._parameter_store.runtime_track_modulated_code(
                 z_candidate, strength=self._runtime_track_modulation
             )
+        self._latest_causal_action_head_residual = _nz_zeros(n_z)
+        if (
+            latent_override is None
+            and self._causal_action_head_wiring
+            is not WiringLevel.DISABLED
+        ):
+            action_head_residual = (
+                self._parameter_store.causal_action_head_residual(
+                    track=self._causal_action_head_track,
+                    hidden_state=encoded.posterior.hidden_state,
+                    strength=self._causal_action_head_strength,
+                )
+            )
+            self._latest_causal_action_head_residual = (
+                action_head_residual
+            )
+            if self._causal_action_head_wiring is WiringLevel.ACTIVE:
+                z_candidate = tuple(
+                    _clamp(value + residual)
+                    for value, residual in zip(
+                        z_candidate,
+                        action_head_residual,
+                        strict=True,
+                    )
+                )
         if binary_gate_override:
             is_switching_scalar = _should_take_binary_override(
                 previous_code=previous_code,
@@ -4167,25 +4566,4 @@ class TemporalAggregateModule(RuntimeModule[TemporalAbstractionSnapshot]):
         self_value = self_snapshot.value
         if not isinstance(world_value, TemporalAbstractionSnapshot):
             raise TypeError("world_temporal must publish TemporalAbstractionSnapshot.")
-        if not isinstance(self_value, TemporalAbstractionSnapshot):
-            raise TypeError("self_temporal must publish TemporalAbstractionSnapshot.")
-        return self.publish(
-            build_temporal_aggregate_snapshot(
-                world_snapshot=world_value,
-                self_snapshot=self_value,
-            )
-        )
-
-    async def process_standalone(self, **kwargs: Any) -> Snapshot[TemporalAbstractionSnapshot]:
-        world_snapshot = kwargs.get("world_snapshot")
-        self_snapshot = kwargs.get("self_snapshot")
-        if not isinstance(world_snapshot, TemporalAbstractionSnapshot):
-            raise TypeError("world_snapshot must be TemporalAbstractionSnapshot.")
-        if not isinstance(self_snapshot, TemporalAbstractionSnapshot):
-            raise TypeError("self_snapshot must be TemporalAbstractionSnapshot.")
-        return self.publish(
-            build_temporal_aggregate_snapshot(
-                world_snapshot=world_snapshot,
-                self_snapshot=self_snapshot,
-            )
-        )
+        if not isinstance(self_value

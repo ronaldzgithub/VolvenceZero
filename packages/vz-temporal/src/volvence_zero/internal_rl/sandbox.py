@@ -86,6 +86,9 @@ class ZTransition:
     runtime_beta_t: float | tuple[float, ...] = ()
     runtime_other_track_sum: tuple[float, ...] = ()
     lineage_matched: bool = False
+    runtime_segment_id: str = ""
+    runtime_terminal: bool = False
+    runtime_milestone: bool = False
 
 
 @dataclass(frozen=True)
@@ -1678,6 +1681,7 @@ class InternalRLSandbox:
         if abs(segment_bonus) > 1e-12:
             reward_components.append(("abstract_action_credit", segment_bonus))
         runtime_state = capture.runtime_state
+        measurement = environment_outcome.measurement
         transition = ZTransition(
             step_index=0,
             track=capture.track,
@@ -1718,6 +1722,14 @@ class InternalRLSandbox:
             runtime_beta_t=capture.runtime_beta_t,
             runtime_other_track_sum=capture.runtime_other_track_sum,
             lineage_matched=True,
+            runtime_segment_id=action_context.segment_id,
+            runtime_terminal=(
+                measurement.terminal if measurement is not None else False
+            ),
+            runtime_milestone=(
+                measurement is not None
+                and measurement.task_progress is not None
+            ),
         )
         rollout = ZRollout(
             rollout_id=(

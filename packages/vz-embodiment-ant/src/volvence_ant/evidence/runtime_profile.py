@@ -8,15 +8,26 @@ from volvence_zero.runtime import WiringLevel
 
 ANT_RUNTIME_MODULATION_STRENGTH = 0.3
 ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
+ANT_RUNTIME_SEGMENT_MAX_STEPS = 24
 
 
 def ant_runtime_replay_rollout_config(
-    *, enable_sparse_exploration: bool
+    *,
+    enable_sparse_exploration: bool,
+    enable_segment_credit: bool = True,
 ) -> FinalRolloutConfig:
     """Open real replay; enable posterior exploration only for sparse tasks."""
 
     return FinalRolloutConfig(
         internal_rl_runtime_replay=WiringLevel.ACTIVE,
+        internal_rl_runtime_segment_credit=(
+            WiringLevel.ACTIVE
+            if enable_segment_credit
+            else WiringLevel.DISABLED
+        ),
+        internal_rl_runtime_segment_max_steps=(
+            ANT_RUNTIME_SEGMENT_MAX_STEPS
+        ),
         internal_rl_runtime_modulation_strength=(
             ANT_RUNTIME_MODULATION_STRENGTH
         ),
@@ -31,5 +42,6 @@ def ant_runtime_replay_rollout_config(
 __all__ = [
     "ANT_RUNTIME_EXPLORATION_STRENGTH",
     "ANT_RUNTIME_MODULATION_STRENGTH",
+    "ANT_RUNTIME_SEGMENT_MAX_STEPS",
     "ant_runtime_replay_rollout_config",
 ]

@@ -44,6 +44,10 @@ class RuntimeReplayReport:
     staged_rollout_count: int
     drop_reasons: tuple[str, ...]
     description: str
+    segment_credit_wiring: str = "disabled"
+    open_segment_transition_count: int = 0
+    closed_segment_count: int = 0
+    longest_segment_length: int = 0
 
 
 @dataclass(frozen=True)
@@ -127,6 +131,10 @@ class RareHeavyImportCheckpoint:
     pending_relationship_rollouts: tuple[ZRollout, ...] | None = None
     runtime_replay_report: RuntimeReplayReport | None = None
     schedule_gate_state: ScheduleGateLearnerState | None = None
+    open_task_segment_rollouts: tuple[ZRollout, ...] | None = None
+    open_relationship_segment_rollouts: tuple[ZRollout, ...] | None = None
+    runtime_segment_closed_count: int = 0
+    runtime_longest_segment_length: int = 0
 
 
 @dataclass(frozen=True)

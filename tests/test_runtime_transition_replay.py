@@ -22,6 +22,7 @@ from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.internal_rl import (
     InternalRLSandbox,
     RuntimeReplayLineageError,
+    ZRollout,
     runtime_replay_policy_distribution,
 )
 from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule
@@ -442,6 +443,107 @@ def test_joint_checkpoint_round_trips_staged_and_pending_runtime_replay() -> Non
     restored = loop.latest_runtime_replay_report
     assert restored.transition_count == 2
     assert restored.staged_rollout_count == 2
+
+
+def test_runtime_replay_aggregates_real_transitions_by_beta_segment() -> None:
+    sandbox, _, _ = _sandbox_capture()
+    settlement = sandbox.settle_runtime_action(
+        next_substrate_snapshot=_substrate("segment next observation"),
+        environment_outcome=_outcome(prediction_id="prediction-1"),
+        prediction_error_snapshot=_prediction_error(
+            prediction_id="prediction-1"
+        ),
+        credit_snapshot=_credit(),
+    )
+    assert settlement.rollout is not None
+    base_transition = settlement.rollout.transitions[0]
+    world_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4)
+    )
+    loop = ETANLJointLoop(
+        world_policy=world_policy,
+        self_policy=clone_full_learned_temporal_policy(world_policy),
+        internal_rl_runtime_replay=WiringLevel.ACTIVE,
+        runtime_replay_segment_credit=WiringLevel.ACTIVE,
+        runtime_replay_segment_max_steps=8,
+    )
+
+    def paired_rollouts(
+        *,
+        turn_index: int,
+        switching: bool,
+        milestone: bool = False,
+    ) -> tuple[ZRollout, ZRollout]:
+        controller = replace(
+            base_transition.controller_state,
+            is_switching=switching,
+        )
+        world_transition = replace(
+            base_transition,
+            track=Track.WORLD,
+            controller_state=controller,
+            runtime_turn_index=turn_index,
+            runtime_milestone=milestone,
+        )
+        self_transition = replace(
+            world_transition,
+            track=Track.SELF,
+        )
+        return (
+            replace(
+                settlement.rollout,
+                rollout_id=f"world-{turn_index}",
+                track=Track.WORLD,
+                transitions=(world_transition,),
+            ),
+            replace(
+                settlement.rollout,
+                rollout_id=f"self-{turn_index}",
+                track=Track.SELF,
+                transitions=(self_transition,),
+            ),
+        )
+
+    for turn_index in (1, 2):
+        world_rollout, self_rollout = paired_rollouts(
+            turn_index=turn_index,
+            switching=False,
+        )
+        loop._stage_runtime_segment_pair(
+            world_rollout=world_rollout,
+            self_rollout=self_rollout,
+        )
+    assert loop.latest_runtime_replay_report.open_segment_transition_count == 2
+    assert loop.latest_runtime_replay_report.closed_segment_count == 0
+
+    world_rollout, self_rollout = paired_rollouts(
+        turn_index=3,
+        switching=True,
+    )
+    loop._stage_runtime_segment_pair(
+        world_rollout=world_rollout,
+        self_rollout=self_rollout,
+    )
+    assert len(loop._pending_task_rollouts) == 1
+    assert tuple(
+        item.step_index
+        for item in loop._pending_task_rollouts[0].transitions
+    ) == (0, 1)
+    assert loop.latest_runtime_replay_report.open_segment_transition_count == 1
+
+    world_rollout, self_rollout = paired_rollouts(
+        turn_index=4,
+        switching=False,
+        milestone=True,
+    )
+    loop._stage_runtime_segment_pair(
+        world_rollout=world_rollout,
+        self_rollout=self_rollout,
+    )
+    report = loop.latest_runtime_replay_report
+    assert report.open_segment_transition_count == 0
+    assert report.closed_segment_count == 2
+    assert report.longest_segment_length == 2
 
 
 def test_joint_transfer_checkpoint_omits_episode_local_runtime_replay() -> None:

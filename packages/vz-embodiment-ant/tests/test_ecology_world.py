@@ -19,7 +19,11 @@ from volvence_ant.experiments.ecology_probe import (
     EcologyProbeKind,
     run_ecology_action_probes,
 )
-from volvence_ant.runtime.ant_session import AntSession, AntSessionConfig
+from volvence_ant.runtime.ant_session import (
+    AntObjectiveKind,
+    AntSession,
+    AntSessionConfig,
+)
 from volvence_ant.substrate.navigator import AntNavigator
 from volvence_ant.substrate.sense_encode import (
     SENSE_CHANNELS_ECOLOGY_V2,
@@ -188,7 +192,60 @@ async def test_paired_ecology_channels_reach_code_and_motor_output() -> None:
     assert all(item.action_sensitive for item in probes)
 
 
-def test_ecology_outcome_uses_contacts_not_distance_or_steering() -> None:
+def test_environment_publishes_local_valence_without_target_direction() -> None:
+    world = AntWorld(
+        config=AntWorldConfig(seed=0, step_size=0.4),
+        world_objects=(
+            ButterSource(
+                object_id="butter",
+                x=2.0,
+                y=0.0,
+                strength=2.2,
+                decay=2.4,
+                radius=0.2,
+            ),
+        ),
+    )
+    world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    session = AntSession(
+        world,
+        config=AntSessionConfig(
+            objective=AntObjectiveKind.ECOLOGY,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+            ecology_local_valence_enabled=True,
+        ),
+    )
+
+    world.act(turn_command=0.0, step_command=0.4)
+    transition = world.last_transition()
+    outcome = session._ecology_environment_outcome(
+        transition=transition,
+        prediction_id="prediction-1",
+    )
+
+    assert (
+        transition.local_food_signal_after
+        > transition.local_food_signal_before
+    )
+    assert outcome.measurement is not None
+    assert outcome.measurement.action_payoff > 0.0
+    assert all("direction" not in item for item in outcome.evidence)
+
+    valence_off = AntSession(
+        world,
+        config=AntSessionConfig(
+            objective=AntObjectiveKind.ECOLOGY,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+            ecology_local_valence_enabled=False,
+        ),
+    )._ecology_environment_outcome(
+        transition=transition,
+        prediction_id="prediction-1",
+    )
+    assert valence_off.measurement is None
+
+
+def test_ecology_outcome_combines_contact_with_direction_free_valence() -> None:
     world = AntWorld(
         config=AntWorldConfig(seed=0, step_size=0.5),
         world_objects=(
@@ -202,15 +259,22 @@ def test_ecology_outcome_uses_contacts_not_distance_or_steering() -> None:
         ),
     )
     world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    session = AntSession(
+        world,
+        config=AntSessionConfig(
+            objective=AntObjectiveKind.ECOLOGY,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+        ),
+    )
     world.act(turn_command=0.0, step_command=0.5)
     transition = world.last_transition()
-    outcome = AntSession._ecology_environment_outcome(
+    outcome = session._ecology_environment_outcome(
         transition=transition,
         prediction_id="prediction-1",
     )
 
     assert outcome.status == "obstacle_contact"
     assert outcome.measurement is not None
-    assert outcome.measurement.action_payoff == -0.25
-    assert "distance" in outcome.detail
+    assert outcome.measurement.action_payoff < 0.0
+    assert "no coordinates" in outcome.detail
     assert "turn" not in outcome.evidence[0]

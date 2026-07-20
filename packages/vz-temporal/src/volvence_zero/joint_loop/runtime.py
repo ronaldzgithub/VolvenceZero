@@ -103,7 +103,7 @@ from volvence_zero.temporal import (
 
 
 _JOINT_LEARNING_OWNER_NAME = "joint_loop.learning"
-_JOINT_LEARNING_SCHEMA_VERSION = 1
+_JOINT_LEARNING_SCHEMA_VERSION = 2
 
 
 class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
@@ -153,6 +153,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         internal_rl_backend: WiringLevel = WiringLevel.DISABLED,
         internal_rl_runtime_replay: WiringLevel = WiringLevel.DISABLED,
         runtime_replay_prediction_error_enabled: bool = True,
+        runtime_replay_segment_credit: WiringLevel = WiringLevel.DISABLED,
+        runtime_replay_segment_max_steps: int = 24,
     ) -> None:
         self._world_policy = world_policy or policy or FullLearnedTemporalPolicy()
         self._self_policy = self_policy or FullLearnedTemporalPolicy(
@@ -187,9 +189,20 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._last_schedule_action = "evidence-only"
         self._last_learning_turn_index = 0
         self._rl_batch_accumulation_size = max(1, rl_batch_accumulation_size)
-        self._pending_task_rollouts: list = []
-        self._pending_relationship_rollouts: list = []
+        self._pending_task_rollouts: list[ZRollout] = []
+        self._pending_relationship_rollouts: list[ZRollout] = []
+        self._open_task_segment_rollouts: list[ZRollout] = []
+        self._open_relationship_segment_rollouts: list[ZRollout] = []
         self._internal_rl_runtime_replay = internal_rl_runtime_replay
+        self._runtime_replay_segment_credit = runtime_replay_segment_credit
+        if runtime_replay_segment_max_steps < 1:
+            raise ValueError(
+                "runtime_replay_segment_max_steps must be >= 1, "
+                f"got {runtime_replay_segment_max_steps!r}"
+            )
+        self._runtime_replay_segment_max_steps = (
+            runtime_replay_segment_max_steps
+        )
         self._runtime_replay_prediction_error_enabled = bool(
             runtime_replay_prediction_error_enabled
         )
@@ -198,6 +211,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._runtime_replay_transition_count = 0
         self._runtime_replay_lineage_match_count = 0
         self._runtime_replay_drop_reasons: list[str] = []
+        self._runtime_segment_closed_count = 0
+        self._runtime_longest_segment_length = 0
         # T3 (#88): learned SSL->RL schedule gate, report-only SHADOW.
         # The rule cascade stays the live writer; the learner's shadow
         # recommendation is published in schedule telemetry and settled
@@ -215,6 +230,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     @property
     def internal_rl_runtime_replay(self) -> WiringLevel:
         return self._internal_rl_runtime_replay
+
+    @property
+    def runtime_replay_segment_credit(self) -> WiringLevel:
+        return self._runtime_replay_segment_credit
 
     @property
     def latest_runtime_replay_report(self) -> RuntimeReplayReport:
@@ -249,8 +268,16 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 f"captured={self._runtime_replay_captured_count} "
                 f"settled={self._runtime_replay_settled_count} "
                 f"lineage_matches={self._runtime_replay_lineage_match_count} "
-                f"drops={len(self._runtime_replay_drop_reasons)}."
+                f"drops={len(self._runtime_replay_drop_reasons)} "
+                f"segment_credit={self._runtime_replay_segment_credit.value} "
+                f"closed_segments={self._runtime_segment_closed_count}."
             ),
+            segment_credit_wiring=self._runtime_replay_segment_credit.value,
+            open_segment_transition_count=len(
+                self._open_task_segment_rollouts
+            ),
+            closed_segment_count=self._runtime_segment_closed_count,
+            longest_segment_length=self._runtime_longest_segment_length,
         )
 
     def observe_runtime_transition(
@@ -324,12 +351,33 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 if len(self._runtime_replay_drop_reasons) > 20:
                     del self._runtime_replay_drop_reasons[:-20]
         if self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
-            if world_settlement.rollout is not None:
-                self._pending_task_rollouts.append(world_settlement.rollout)
-            if self_settlement.rollout is not None:
-                self._pending_relationship_rollouts.append(
-                    self_settlement.rollout
+            if (
+                world_settlement.rollout is None
+            ) != (
+                self_settlement.rollout is None
+            ):
+                raise RuntimeError(
+                    "runtime replay settlement diverged between world and self tracks"
                 )
+            if (
+                world_settlement.rollout is not None
+                and self_settlement.rollout is not None
+            ):
+                if (
+                    self._runtime_replay_segment_credit
+                    is WiringLevel.ACTIVE
+                ):
+                    self._stage_runtime_segment_pair(
+                        world_rollout=world_settlement.rollout,
+                        self_rollout=self_settlement.rollout,
+                    )
+                else:
+                    self._pending_task_rollouts.append(
+                        world_settlement.rollout
+                    )
+                    self._pending_relationship_rollouts.append(
+                        self_settlement.rollout
+                    )
             if len(self._pending_task_rollouts) != len(
                 self._pending_relationship_rollouts
             ):
@@ -337,6 +385,103 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                     "runtime replay staging diverged between world and self tracks"
                 )
         return self.latest_runtime_replay_report
+
+    def _stage_runtime_segment_pair(
+        self,
+        *,
+        world_rollout: ZRollout,
+        self_rollout: ZRollout,
+    ) -> None:
+        if (
+            len(world_rollout.transitions) != 1
+            or len(self_rollout.transitions) != 1
+        ):
+            raise ValueError(
+                "runtime segment staging requires one settled transition "
+                "per track"
+            )
+        world_transition = world_rollout.transitions[0]
+        self_transition = self_rollout.transitions[0]
+        world_boundary = world_transition.controller_state.is_switching
+        self_boundary = self_transition.controller_state.is_switching
+        if world_boundary != self_boundary:
+            raise RuntimeError(
+                "runtime segment switch boundary diverged between tracks"
+            )
+        if world_boundary and self._open_task_segment_rollouts:
+            self._close_runtime_segment(reason="beta-switch")
+        self._open_task_segment_rollouts.append(world_rollout)
+        self._open_relationship_segment_rollouts.append(self_rollout)
+        close_for_milestone = (
+            world_transition.runtime_terminal
+            or world_transition.runtime_milestone
+            or self_transition.runtime_terminal
+            or self_transition.runtime_milestone
+        )
+        close_for_bound = (
+            len(self._open_task_segment_rollouts)
+            >= self._runtime_replay_segment_max_steps
+        )
+        if close_for_milestone:
+            self._close_runtime_segment(reason="environment-milestone")
+        elif close_for_bound:
+            self._close_runtime_segment(reason="bounded-horizon")
+
+    def _close_runtime_segment(self, *, reason: str) -> None:
+        if not self._open_task_segment_rollouts:
+            return
+        if len(self._open_task_segment_rollouts) != len(
+            self._open_relationship_segment_rollouts
+        ):
+            raise RuntimeError(
+                "open runtime segment diverged between world and self tracks"
+            )
+        segment_length = len(self._open_task_segment_rollouts)
+        world_first = self._open_task_segment_rollouts[0].transitions[0]
+        world_last = self._open_task_segment_rollouts[-1].transitions[-1]
+        self_first = self._open_relationship_segment_rollouts[0].transitions[0]
+        self_last = self._open_relationship_segment_rollouts[-1].transitions[-1]
+        task_segment = self._merge_runtime_rollouts(
+            rollout_id=(
+                "runtime-segment:world:"
+                f"{world_first.runtime_turn_index}-{world_last.runtime_turn_index}"
+            ),
+            track=Track.WORLD,
+            rollouts=tuple(self._open_task_segment_rollouts),
+        )
+        relationship_segment = self._merge_runtime_rollouts(
+            rollout_id=(
+                "runtime-segment:self:"
+                f"{self_first.runtime_turn_index}-{self_last.runtime_turn_index}"
+            ),
+            track=Track.SELF,
+            rollouts=tuple(self._open_relationship_segment_rollouts),
+        )
+        self._pending_task_rollouts.append(
+            replace(
+                task_segment,
+                description=(
+                    f"Closed runtime beta_t segment ({reason}) with "
+                    f"{segment_length} real transitions."
+                ),
+            )
+        )
+        self._pending_relationship_rollouts.append(
+            replace(
+                relationship_segment,
+                description=(
+                    f"Closed runtime beta_t segment ({reason}) with "
+                    f"{segment_length} real transitions."
+                ),
+            )
+        )
+        self._runtime_segment_closed_count += 1
+        self._runtime_longest_segment_length = max(
+            self._runtime_longest_segment_length,
+            segment_length,
+        )
+        self._open_task_segment_rollouts.clear()
+        self._open_relationship_segment_rollouts.clear()
 
     @property
     def schedule_gate_learner(self):
@@ -525,6 +670,26 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 else None
             ),
             schedule_gate_state=self._schedule_gate_learner.export_state(),
+            open_task_segment_rollouts=(
+                tuple(self._open_task_segment_rollouts)
+                if include_runtime_replay
+                else ()
+            ),
+            open_relationship_segment_rollouts=(
+                tuple(self._open_relationship_segment_rollouts)
+                if include_runtime_replay
+                else ()
+            ),
+            runtime_segment_closed_count=(
+                self._runtime_segment_closed_count
+                if include_runtime_replay
+                else 0
+            ),
+            runtime_longest_segment_length=(
+                self._runtime_longest_segment_length
+                if include_runtime_replay
+                else 0
+            ),
         )
 
     def export_learning_persistence_snapshot(
@@ -639,11 +804,15 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             self._self_sandbox.reset_runtime_replay_for_episode_transfer()
             self._pending_task_rollouts = []
             self._pending_relationship_rollouts = []
+            self._open_task_segment_rollouts = []
+            self._open_relationship_segment_rollouts = []
             self._runtime_replay_captured_count = 0
             self._runtime_replay_settled_count = 0
             self._runtime_replay_transition_count = 0
             self._runtime_replay_lineage_match_count = 0
             self._runtime_replay_drop_reasons = []
+            self._runtime_segment_closed_count = 0
+            self._runtime_longest_segment_length = 0
             return operations + ("runtime-replay:episode-transfer-reset",)
         return operations
 
@@ -748,10 +917,14 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             raise ValueError(
                 f"cannot merge runtime replay rollouts across tracks for {track.value}"
             )
-        transitions = tuple(
+        flattened = tuple(
             transition
             for rollout in rollouts
             for transition in rollout.transitions
+        )
+        transitions = tuple(
+            replace(transition, step_index=index)
+            for index, transition in enumerate(flattened)
         )
         return ZRollout(
             rollout_id=rollout_id,

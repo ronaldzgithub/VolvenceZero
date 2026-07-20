@@ -241,6 +241,17 @@ promotion gate：
 - 木棍是任意方向 capsule，碰撞用连续 segment/capsule entry 求交，禁止高速穿透；火柴发布指数衰减
   热场和 owner 计算的有害半径，控制器只看局部热样本。环境 owner 自己生成渲染 description，
   App 不遍历或重建对象内部参数。
+- `WorldTransitionEvidence` 由环境 owner 发布动作前后的局部 food、home-pheromone 与 heat signal，
+  以及 pickup/delivery/contact/threshold crossing。`AntSession` 只把这些可感知变化压成有界
+  `EnvironmentMeasurement.action_payoff`：未携食时 food 改善、携食时 home signal 改善、降温/
+  逃逸/pickup/delivery 为正，升温/有害暴露/碰撞为负。该先天价态不含坐标、目标方位或推荐转向；
+  路径、绕行、回巢和逃逸动作仍必须由 learned `z_t` policy 产生。显式
+  `ecology_local_valence_enabled=False` 是 matched ablation，不得在正式 learned arm 静默关闭。
+- Digital Ant 正式 runtime profile 将 `internal_rl_runtime_segment_credit=ACTIVE`：joint-loop owner
+  把 lineage-matched one-step replay 按真实 `beta_t` switch 边界聚成 segment，并在 milestone/
+  terminal 或 24-step 上限处强制闭合；PPO/critic 对闭合 segment 的多步 transition 运行同一 GAE。
+  open segment、closed segment 和最长长度进入 owner checkpoint/rollback，但不新增 ledger 或
+  runtime slot；DISABLED 精确回到历史 one-step replay。
 - `ecology_curriculum` 按黄油 → 木棍 → 火柴 → 组合场景重建随机世界，跨 episode 仅携带
   owner-exported checkpoint；learned 与 no-optimize 从同一初始 checkpoint 分叉。
 - held-out 按黄油-only、木棍、火柴、三物体组合四类独立地图运行，使用未见位置、木棍方向和 seed；
