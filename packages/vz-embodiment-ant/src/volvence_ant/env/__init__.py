@@ -8,6 +8,7 @@ from volvence_ant.env.ant_world import (
     AntWorldConfig,
     FoodSource,
     MotorDistortionProfile,
+    WorldEcologyDiagnostics,
     WorldObservation,
     WorldTransitionEvidence,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "WoodStick",
     "WorldObjectKind",
     "WorldObjectSnapshot",
+    "WorldEcologyDiagnostics",
     "WorldObservation",
     "WorldTransitionEvidence",
 ]

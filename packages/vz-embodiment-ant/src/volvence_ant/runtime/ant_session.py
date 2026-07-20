@@ -32,7 +32,10 @@ from volvence_zero.environment import (
     EnvironmentOutcome,
 )
 from volvence_zero.integration import FinalRolloutConfig
-from volvence_zero.substrate import SyntheticOpenWeightResidualRuntime
+from volvence_zero.substrate import (
+    SubstrateSnapshot,
+    SyntheticOpenWeightResidualRuntime,
+)
 from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
 from volvence_ant.env.ant_world import (
@@ -86,6 +89,7 @@ class AntSessionConfig:
     # still runs the same SSL, rollout and optimizer evidence, then restores the
     # post-SSL/pre-RL checkpoint so no reward-driven policy update accumulates.
     joint_apply_policy_optimization: bool = True
+    joint_learning_enabled: bool = True
     temporal_policy: object | None = None
     allow_live_substrate_mutation: bool = False
     objective: AntObjectiveKind = AntObjectiveKind.FORAGING
@@ -149,6 +153,10 @@ class AntStepRecord:
     runtime_open_segment_transitions: int
     runtime_closed_segments: int
     runtime_longest_segment_length: int
+    sense_activation: tuple[tuple[str, float], ...]
+    nearest_food_distance: float | None
+    nearest_obstacle_distance: float | None
+    nearest_heat_distance: float | None
 
 
 class AntSession:
@@ -201,6 +209,7 @@ class AntSession:
             external_prediction_error_drive=self.config.external_prediction_error_drive,
             joint_apply_writeback=self.config.joint_apply_writeback,
             joint_apply_policy_optimization=(self.config.joint_apply_policy_optimization),
+            joint_learning_enabled=self.config.joint_learning_enabled,
             allow_live_substrate_mutation=self.config.allow_live_substrate_mutation,
         )
         if self.config.temporal_policy is None:
@@ -322,6 +331,28 @@ class AntSession:
         rollout = self.runner.rollout_config
         replay = result.runtime_replay_report
         body = self.world.body(self._body_id)
+        ecology_diagnostics = self.world.ecology_diagnostics(
+            self._body_id
+        )
+        substrate_snapshot = result.active_snapshots["substrate"].value
+        if not isinstance(substrate_snapshot, SubstrateSnapshot):
+            raise AntSessionError(
+                "substrate slot must carry SubstrateSnapshot for ant "
+                "diagnostics"
+            )
+        if not substrate_snapshot.residual_activations:
+            raise AntSessionError(
+                "ant substrate must publish residual activation diagnostics"
+            )
+        channels = sense_channels(self.config.sense_schema)
+        activation = (
+            substrate_snapshot.residual_activations[-1].activation
+        )
+        if len(channels) != len(activation):
+            raise AntSessionError(
+                "ant sense diagnostic width mismatch: "
+                f"channels={len(channels)}, activation={len(activation)}"
+            )
         record = AntStepRecord(
             tick=self.world.tick,
             x=body.x,
@@ -418,6 +449,18 @@ class AntSession:
             ),
             runtime_longest_segment_length=(
                 replay.longest_segment_length if replay is not None else 0
+            ),
+            sense_activation=tuple(
+                zip(channels, activation, strict=True)
+            ),
+            nearest_food_distance=(
+                ecology_diagnostics.nearest_food_distance
+            ),
+            nearest_obstacle_distance=(
+                ecology_diagnostics.nearest_obstacle_distance
+            ),
+            nearest_heat_distance=(
+                ecology_diagnostics.nearest_heat_distance
             ),
         )
         self.holder.update(observation=observation, navigator_state=nav_state, step=self.world.tick)

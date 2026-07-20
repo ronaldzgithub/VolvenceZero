@@ -55,6 +55,9 @@ class KernelColonyRunner:
                     joint_schedule=base_config.joint_schedule,
                     joint_apply_writeback=base_config.joint_apply_writeback,
                     joint_apply_policy_optimization=(base_config.joint_apply_policy_optimization),
+                    joint_learning_enabled=(
+                        base_config.joint_learning_enabled
+                    ),
                     temporal_policy=base_config.temporal_policy,
                     allow_live_substrate_mutation=(base_config.allow_live_substrate_mutation),
                     objective=base_config.objective,

@@ -252,6 +252,11 @@ promotion gate：
   terminal 或 24-step 上限处强制闭合；PPO/critic 对闭合 segment 的多步 transition 运行同一 GAE。
   open segment、closed segment 和最长长度进入 owner checkpoint/rollback，但不新增 ledger 或
   runtime slot；DISABLED 精确回到历史 one-step replay。
+- ecology evidence profile 还将通用 `internal_rl_causal_action_head=ACTIVE`：低秩 head 只把
+  posterior hidden state 映射为 bounded `z_t` residual，以补足逐维 track gain 不能表达的
+  state-conditioned 左右响应。head 不含 butter/stick/match 字段、不直接生成 turn/step；参数由
+  temporal/Internal-RL owner checkpoint、canonical archive、fingerprint 和事务 rollback 管理。
+  通用默认仍为 `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。
 - `ecology_curriculum` 按黄油 → 木棍 → 火柴 → 组合场景重建随机世界，跨 episode 仅携带
   owner-exported checkpoint；learned 与 no-optimize 从同一初始 checkpoint 分叉。
 - held-out 按黄油-only、木棍、火柴、三物体组合四类独立地图运行，使用未见位置、木棍方向和 seed；

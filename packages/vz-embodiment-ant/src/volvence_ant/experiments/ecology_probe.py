@@ -20,6 +20,9 @@ from volvence_ant.runtime import (
     AntSession,
     AntSessionConfig,
 )
+from volvence_ant.evidence.runtime_profile import (
+    ant_runtime_replay_rollout_config,
+)
 
 
 class EcologyProbeKind(str, Enum):
@@ -141,6 +144,11 @@ async def run_ecology_action_probes(
                     seed=seed,
                     heading_noise=0.0,
                     step_noise=0.0,
+                    rollout_config=(
+                        ant_runtime_replay_rollout_config(
+                            enable_sparse_exploration=False,
+                        )
+                    ),
                     objective=AntObjectiveKind.ECOLOGY,
                     sense_schema=AntSenseSchema.ECOLOGY_V2,
                 ),

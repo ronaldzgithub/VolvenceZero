@@ -132,6 +132,15 @@ class WorldTransitionEvidence:
     local_home_signal_after: float = 0.0
 
 
+@dataclass(frozen=True)
+class WorldEcologyDiagnostics:
+    """Owner-authored geometry distances for evaluation only."""
+
+    nearest_food_distance: float | None
+    nearest_obstacle_distance: float | None
+    nearest_heat_distance: float | None
+
+
 @dataclass
 class AntWorldConfig:
     nest_x: float = 0.0
@@ -205,6 +214,83 @@ class AntWorld:
 
     def body(self, body_id: int = 0) -> AntBody:
         return self._bodies[body_id]
+
+    def ecology_diagnostics(
+        self,
+        body_id: int = 0,
+    ) -> WorldEcologyDiagnostics:
+        """Describe nearest ecology objects without exposing target direction."""
+
+        body = self._bodies[body_id]
+        food_distances = [
+            max(
+                0.0,
+                math.hypot(body.x - item.x, body.y - item.y)
+                - item.radius,
+            )
+            for item in self._food
+            if item.remaining > 0.0
+        ]
+        obstacle_distances: list[float] = []
+        for obstacle in self._obstacles:
+            if isinstance(obstacle, WoodStick):
+                obstacle_distances.append(
+                    max(
+                        0.0,
+                        obstacle.distance(body.x, body.y)
+                        - obstacle.radius,
+                    )
+                )
+            else:
+                dx = max(
+                    obstacle.min_x - body.x,
+                    0.0,
+                    body.x - obstacle.max_x,
+                )
+                dy = max(
+                    obstacle.min_y - body.y,
+                    0.0,
+                    body.y - obstacle.max_y,
+                )
+                obstacle_distances.append(math.hypot(dx, dy))
+        heat_distances: list[float] = []
+        for item in self._world_objects.values():
+            if isinstance(item, ButterSource) and item.remaining > 0.0:
+                food_distances.append(
+                    max(
+                        0.0,
+                        math.hypot(body.x - item.x, body.y - item.y)
+                        - item.radius,
+                    )
+                )
+            elif isinstance(item, WoodStick):
+                obstacle_distances.append(
+                    max(
+                        0.0,
+                        item.distance(body.x, body.y) - item.radius,
+                    )
+                )
+            elif isinstance(item, BurningMatch):
+                heat_distances.append(
+                    max(
+                        0.0,
+                        math.hypot(body.x - item.x, body.y - item.y)
+                        - item.harm_radius,
+                    )
+                )
+        return WorldEcologyDiagnostics(
+            nearest_food_distance=(
+                min(food_distances) if food_distances else None
+            ),
+            nearest_obstacle_distance=(
+                min(obstacle_distances)
+                if obstacle_distances
+                else None
+            ),
+            nearest_heat_distance=(
+                min(heat_distances) if heat_distances else None
+            ),
+        )
 
     def food_sources(self) -> tuple[FoodSource, ...]:
         return tuple(self._food)

@@ -24,7 +24,7 @@ Gating (in `CausalZPolicy.optimize`):
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Sequence
 
 
@@ -449,23 +449,23 @@ def torch_causal_ppo_update(
             and head_output is not None
             and head_bias is not None
         ):
-            from dataclasses import replace
-
-            parameter_store.causal_action_heads[track] = replace(
-                head_parameters,
-                input_factors=tuple(
-                    tuple(float(value) for value in row)
-                    for row in head_input.detach().tolist()
-                ),
-                output_factors=tuple(
-                    tuple(float(value) for value in row)
-                    for row in head_output.detach().tolist()
-                ),
-                bias=tuple(
-                    float(value)
-                    for value in head_bias.detach().tolist()
-                ),
-                update_step=head_parameters.update_step + 1,
+            parameter_store.restore_causal_action_head_parameters(
+                replace(
+                    head_parameters,
+                    input_factors=tuple(
+                        tuple(float(value) for value in row)
+                        for row in head_input.detach().tolist()
+                    ),
+                    output_factors=tuple(
+                        tuple(float(value) for value in row)
+                        for row in head_output.detach().tolist()
+                    ),
+                    bias=tuple(
+                        float(value)
+                        for value in head_bias.detach().tolist()
+                    ),
+                    update_step=head_parameters.update_step + 1,
+                )
             )
         parameter_store.align_temporal_from_tracks()
 

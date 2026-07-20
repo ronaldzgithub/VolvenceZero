@@ -94,6 +94,63 @@ def _runtime_action(
     return temporal, policy.export_runtime_state()
 
 
+def test_causal_action_head_wiring_is_reversible_and_shadow_is_noop() -> None:
+    source_store = MetacontrollerParameterStore(n_z=4)
+    source_head = source_store.causal_action_head_parameters(
+        track=Track.WORLD
+    )
+    source_store.restore_causal_action_head_parameters(
+        replace(
+            source_head,
+            bias=(0.35, -0.25, 0.2, -0.15),
+            update_step=1,
+        )
+    )
+    snapshot = source_store.export_parameter_snapshot()
+
+    def configured_policy(
+        wiring_level: WiringLevel,
+    ) -> FullLearnedTemporalPolicy:
+        store = MetacontrollerParameterStore(n_z=4)
+        store.restore_parameter_snapshot(snapshot)
+        policy = FullLearnedTemporalPolicy(parameter_store=store)
+        policy.set_causal_action_head(
+            wiring_level=wiring_level,
+            track=Track.WORLD,
+            strength=0.5,
+        )
+        return policy
+
+    substrate = _substrate("paired causal action head observation")
+    disabled = configured_policy(WiringLevel.DISABLED)
+    shadow = configured_policy(WiringLevel.SHADOW)
+    active = configured_policy(WiringLevel.ACTIVE)
+
+    disabled_step = disabled.step(
+        substrate_snapshot=substrate,
+        previous_snapshot=None,
+    )
+    shadow_step = shadow.step(
+        substrate_snapshot=substrate,
+        previous_snapshot=None,
+    )
+    active_step = active.step(
+        substrate_snapshot=substrate,
+        previous_snapshot=None,
+    )
+
+    assert shadow_step.controller_state.code == (
+        disabled_step.controller_state.code
+    )
+    assert any(
+        abs(value) > 1e-9
+        for value in shadow.export_runtime_state().causal_action_head_residual
+    )
+    assert active_step.controller_state.code != (
+        disabled_step.controller_state.code
+    )
+
+
 def _outcome(*, prediction_id: str, outcome_id: str = "outcome-1") -> EnvironmentOutcome:
     return EnvironmentOutcome(
         outcome_id=outcome_id,
@@ -328,6 +385,53 @@ def test_runtime_replay_settlement_contains_real_action_and_next_substrate_effec
     )
     assert transition.reward == pytest.approx(0.31)
     assert transition.lineage_matched is True
+
+
+def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> None:
+    store = MetacontrollerParameterStore(n_z=4)
+    store.track_weights[Track.WORLD] = (0.4, 0.3, 0.2, 0.1)
+    policy = FullLearnedTemporalPolicy(parameter_store=store)
+    policy.set_runtime_track_modulation(0.3)
+    policy.set_causal_action_head(
+        wiring_level=WiringLevel.ACTIVE,
+        track=Track.WORLD,
+        strength=0.35,
+    )
+    sandbox = InternalRLSandbox(policy=policy)
+    substrate = _substrate("causal action head replay observation")
+    temporal, runtime_state = _runtime_action(policy, substrate)
+    sandbox.capture_runtime_action(
+        turn_index=1,
+        track=Track.WORLD,
+        prediction_id="prediction-1",
+        substrate_snapshot=substrate,
+        temporal_snapshot=temporal,
+        runtime_state=runtime_state,
+    )
+    settlement = sandbox.settle_runtime_action(
+        next_substrate_snapshot=_substrate(
+            "causal action head changed observation"
+        ),
+        environment_outcome=_outcome(prediction_id="prediction-1"),
+        prediction_error_snapshot=_prediction_error(
+            prediction_id="prediction-1"
+        ),
+        credit_snapshot=_credit(),
+    )
+    assert settlement.rollout is not None
+    checkpoint = sandbox.create_checkpoint()
+    before = store.causal_action_head_parameters(track=Track.WORLD)
+
+    report = sandbox.optimize(settlement.rollout)
+    after = store.causal_action_head_parameters(track=Track.WORLD)
+
+    assert report.parameter_change_norm > 0.0
+    assert after != before
+    assert after.update_step > before.update_step
+
+    sandbox.restore_checkpoint(checkpoint)
+
+    assert store.causal_action_head_parameters(track=Track.WORLD) == before
 
 
 def test_runtime_replay_lineage_mismatch_fails_loudly() -> None:

@@ -508,6 +508,7 @@ class AgentSessionRunner(
         joint_schedule: JointLoopSchedule | None = None,
         joint_apply_writeback: bool = False,
         joint_apply_policy_optimization: bool = True,
+        joint_learning_enabled: bool = True,
         temporal_bootstrap: MetacontrollerParameterSnapshot | DualTrackRareHeavySnapshot | None = None,
         rare_heavy_enabled: bool = True,
         rare_heavy_trace_window: int = 5,
@@ -908,7 +909,32 @@ class AgentSessionRunner(
                 f"loop={self._joint_loop.runtime_replay_segment_credit.value}"
             )
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
-        self._joint_schedule = joint_schedule or JointLoopSchedule()
+        if not joint_learning_enabled and joint_schedule is not None:
+            raise ValueError(
+                "joint_learning_enabled=False cannot be combined with a "
+                "custom joint_schedule"
+            )
+        self._joint_learning_enabled = joint_learning_enabled
+        self._joint_schedule = (
+            joint_schedule
+            if joint_schedule is not None
+            else (
+                JointLoopSchedule(
+                    ssl_interval=0,
+                    rl_interval=0,
+                    rl_batch_max_wait_turns=0,
+                    pe_full_cycle_threshold=1_000_000_000.0,
+                    pe_ssl_threshold=1_000_000_000.0,
+                    pe_substrate_online_fast_threshold=(
+                        1_000_000_000.0
+                    ),
+                    pe_rare_heavy_threshold=1_000_000_000.0,
+                    latent_continuation_threshold=2.0,
+                )
+                if not joint_learning_enabled
+                else JointLoopSchedule()
+            )
+        )
         self._joint_apply_writeback = joint_apply_writeback
         self._joint_apply_policy_optimization = joint_apply_policy_optimization
         self._rare_heavy_enabled = rare_heavy_enabled

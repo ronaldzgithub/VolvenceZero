@@ -573,6 +573,46 @@ class MetacontrollerParameterStore:
     ) -> CausalZActionHeadParameters:
         return self.causal_action_heads[track]
 
+    def restore_causal_action_head_parameters(
+        self,
+        parameters: CausalZActionHeadParameters,
+    ) -> None:
+        if len(parameters.input_factors) != parameters.rank:
+            raise ValueError(
+                "causal action head input rank mismatch: "
+                f"expected={parameters.rank}, "
+                f"actual={len(parameters.input_factors)}"
+            )
+        if any(
+            len(row) != self._n_z
+            for row in parameters.input_factors
+        ):
+            raise ValueError(
+                "causal action head input width mismatch: "
+                f"expected={self._n_z}"
+            )
+        if len(parameters.output_factors) != self._n_z:
+            raise ValueError(
+                "causal action head output width mismatch: "
+                f"expected={self._n_z}, "
+                f"actual={len(parameters.output_factors)}"
+            )
+        if any(
+            len(row) != parameters.rank
+            for row in parameters.output_factors
+        ):
+            raise ValueError(
+                "causal action head output rank mismatch: "
+                f"expected={parameters.rank}"
+            )
+        if len(parameters.bias) != self._n_z:
+            raise ValueError(
+                "causal action head bias width mismatch: "
+                f"expected={self._n_z}, "
+                f"actual={len(parameters.bias)}"
+            )
+        self.causal_action_heads[parameters.track] = parameters
+
     def causal_action_head_basis(
         self,
         *,
@@ -755,17 +795,19 @@ class MetacontrollerParameterStore:
                     ),
                 )
                 total_change += abs(step)
-        self.causal_action_heads[track] = CausalZActionHeadParameters(
-            track=track,
-            rank=parameters.rank,
-            input_factors=tuple(
-                tuple(row) for row in input_factors
-            ),
-            output_factors=tuple(
-                tuple(row) for row in output_factors
-            ),
-            bias=tuple(bias),
-            update_step=parameters.update_step + 1,
+        self.restore_causal_action_head_parameters(
+            CausalZActionHeadParameters(
+                track=track,
+                rank=parameters.rank,
+                input_factors=tuple(
+                    tuple(row) for row in input_factors
+                ),
+                output_factors=tuple(
+                    tuple(row) for row in output_factors
+                ),
+                bias=tuple(bias),
+                update_step=parameters.update_step + 1,
+            )
         )
         parameter_count = (
             parameters.rank * self._n_z

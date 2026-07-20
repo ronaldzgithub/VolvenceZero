@@ -742,20 +742,42 @@ class CausalZPolicy:
                 )
                 for index in range(len(hidden_state))
             )
-            return self._parameter_store.runtime_track_modulated_code(
-                base_candidate,
-                strength=self._runtime_track_modulation_strength,
-                track_override=(track, weights),
+            candidate = (
+                self._parameter_store.runtime_track_modulated_code(
+                    base_candidate,
+                    strength=self._runtime_track_modulation_strength,
+                    track_override=(track, weights),
+                )
             )
-        return tuple(
-            _clamp(
-                hidden_state[index] * 0.40
-                + surface[index] * 0.25
-                + previous_action[index] * 0.15
-                + weights[index] * 0.20
+        else:
+            candidate = tuple(
+                _clamp(
+                    hidden_state[index] * 0.40
+                    + surface[index] * 0.25
+                    + previous_action[index] * 0.15
+                    + weights[index] * 0.20
+                )
+                for index in range(len(hidden_state))
             )
-            for index in range(len(hidden_state))
-        )
+        if (
+            self._causal_action_head_wiring is WiringLevel.ACTIVE
+        ):
+            residual = (
+                self._parameter_store.causal_action_head_residual(
+                    track=track,
+                    hidden_state=hidden_state,
+                    strength=self._causal_action_head_strength,
+                )
+            )
+            return tuple(
+                _clamp(value + delta)
+                for value, delta in zip(
+                    candidate,
+                    residual,
+                    strict=True,
+                )
+            )
+        return candidate
 
     def _policy_std(
         self,
@@ -1631,11 +1653,21 @@ class InternalRLSandbox:
         policy_noise = tuple(runtime_state.posterior_sample_noise)
         hidden_state = tuple(runtime_state.posterior_hidden_state)
         sampled_candidate = tuple(runtime_state.z_tilde)
-        action_head_residual = tuple(
-            runtime_state.causal_action_head_residual
+        if runtime_state.causal_action_head_wiring != (
+            self._causal_policy.causal_action_head_wiring.value
+        ):
+            raise ValueError(
+                "runtime replay causal action head wiring mismatch: "
+                f"runtime={runtime_state.causal_action_head_wiring!r}, "
+                "sandbox="
+                f"{self._causal_policy.causal_action_head_wiring.value!r}"
+            )
+        action_head_residual = (
+            tuple(runtime_state.causal_action_head_residual)
+            if runtime_state.causal_action_head_wiring
+            == WiringLevel.ACTIVE.value
+            else tuple(0.0 for _ in range(n))
         )
-        if not action_head_residual:
-            action_head_residual = tuple(0.0 for _ in range(n))
         for name, values in (
             ("posterior_mean", base_mean),
             ("posterior_std", base_std),
