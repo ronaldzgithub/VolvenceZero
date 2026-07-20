@@ -1,7 +1,7 @@
 # Prediction Error 主链 Spec
 
 > Status: draft
-> Last updated: 2026-04-22
+> Last updated: 2026-07-20
 > 对应需求: R-PE
 
 ## 要解决的问题
@@ -168,6 +168,36 @@ debt #11 修法 (3) 方法论：先写 38-turn 长 scenario（[`packages/lifefor
 
 **快照 schema 扩展**：`PredictionError` append-only 新增 `distribution_summary: DistributionSummary | None`；`DistributionSummary` 字段 `(window_size, iqr, entropy, asymmetry, description)` 全部 frozen，未来扩展只能新增字段（不能改顺序 / 类型 / 单位）。
 
+## PE / Epistemic Value / Intrinsic Reward 三层契约（2026-07-20）
+
+来源：Google Paradigms / DeepMind, "Can In-Context Learning Support Intrinsic Curiosity?"（`arXiv:2606.19476`，负面定理）与 Friston 等 "Active Inference as Test-Time Scaling"（`arXiv:2606.22813`，正面构造）。两篇必须一起读：PE 是一级原始信号，但**只有在声明环境结构、posterior 假设和 nuisance terms 之后**，才能上升为 epistemic value 或 policy update 依据。详见 `research/frontier-sweep-2026-07-20.md` §H2 / §K1 / §4.4。
+
+### 负面定理（BAMDP 有偏性）
+
+在一般 Bayes-Adaptive MDP 中，仅用 frozen ICL predictor 的 prediction error 与反事实 context manipulation，**无法无偏恢复 Bayesian information gain**：
+
+- 部分 estimator 含不可消除的 nuisance term；
+- learning-progress 形式的 reward 根本不能由 ICL prediction error 实现；
+- 正面结果只在 Bayesian Experimental Design / active learning 等**非时间结构**问题中成立，且是长轨迹渐近逼近。
+
+**对本 owner 的直接约束**：`prediction_error` 的 mismatch（含 `epistemic_magnitude`）不自动等于 epistemic value，更不自动等于 curiosity / intrinsic reward。任何把 "预测错了" 直接当 "值得探索" 的下游用法都是契约违反。
+
+### 三层契约
+
+| 层 | 对象 | Owner | 语义 | 升级条件 |
+|---|---|---|---|---|
+| L1 raw mismatch | `PredictionError`（四轴 error、`magnitude`、`pe_decomposition`） | `prediction_error` owner | 原始预测失配 + epistemic/aleatoric 分离（Curiosity-Critic 机制，见上节） | 无条件发布（本 owner 主链） |
+| L2 epistemic value | "该失配是否可减小 / 是否值得投入学习" 的估计 | 下游 readout（如 memory PE 写门、joint-loop schedule、apprenticeship surprise） | **必须带文档化假设**：环境结构（是否近似 BED/active-learning 情形）、估计偏差来源、aleatoric 隔离方式 | 消费 L1 的 `epistemic_magnitude` 时须在自身 spec 声明假设；不得宣称无偏 information gain |
+| L3 intrinsic reward | 进入 Internal RL / credit 的探索激励 | `credit` / `internal_rl`（经 PE→credit lineage） | 有界、可回滚、带 kill 条件的 reward shaping | 每个新 L3 用法必须有 matched-control 证据（explore-on vs explore-off）+ 回滚点；禁止把 L1 mismatch 或裸 ICL loss delta 直接接成 reward |
+
+三条不变量：
+
+1. **层间不塌缩**：L1→L2→L3 每一步都是显式转换，禁止任何 consumer 把 L1 字段直接当 L3 reward 消费（现状核查：`internal_rl` 的 reward 经 credit 聚合，不直读 `magnitude`——保持此边界）。
+2. **假设可审计**：L2 消费方的 spec 必须包含"环境假设 + 偏差声明"段；缺失即为契约违反（fail loudly，不静默降级）。
+3. **PE→credit→Internal RL 分层不是多余复杂度**：它正是防止"预测错了 = 值得探索"谬误的机制载体；任何"简化直连"的提案须先反驳负面定理的适用性。
+
+Active Inference TTS 作为理论母体保留在 research motivation：PE 可以统一驱动 world model 与 policy posterior 更新，但其"同时在线改 policy/world model + free-energy 单一总目标"的用法是 R2 反例，不进 runtime。
+
 ## 真梯度 LSS（NL）与 runtime 语义 PE 的关系（Phase 5）
 
 NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂output`，并指出“用 backprop 训练一层等价于构建一个把输入映射到其 prediction error 的 associative memory”，该梯度本身就是被记忆的内容。
@@ -193,6 +223,7 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 
 ## 变更日志
 
+- 2026-07-20: 新增 §"PE / Epistemic Value / Intrinsic Reward 三层契约"。吸收 ICL Intrinsic Curiosity（`2606.19476`）BAMDP 负面定理与 Active Inference TTS（`2606.22813`）正面构造：L1 raw mismatch / L2 epistemic value / L3 intrinsic reward 三层显式转换，禁止层间塌缩；L2 消费方必须声明环境假设与偏差来源。来源 `research/frontier-sweep-2026-07-20.md` §6 同步项，不改运行时行为。
 - 2026-07-14: CP-12 第二波 settlement 覆盖（GAP-05）。
   `PredictionErrorModule._OWNER_PREDICTION_SLOTS` 扩至 9 slot（追加
   plan_intent / open_loop / belief_assumption / user_model），dependencies

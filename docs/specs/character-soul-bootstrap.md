@@ -111,6 +111,7 @@ This wheel now ships a full "novel → lived brain → saveable template → giv
 
 ## 变更日志
 
+- 2026-07-20: 首次全书烘焙落地（倚天屠龙记 40 回 → `zhang-wuji-live-through.json` template v2）。`split_source_chapters` 支持金庸版式回目标题（列首中文数字 + 全角空格 + 回目对句，如"一　天涯思君不可忘"）；chapter live-through prompt 升级 v2（`chapter_live_through.system.v2`）：主观锚点强制为命名角色本人，出生前/缺席章节必须 not-known/learned，禁止把父辈/他者视角误标为 experienced。
 - 2026-07-13: 新增逐章主观 live-through contract：`ReviewedChapterExperience` / `CharacterSemanticEventBundle` / `ChapterLiveThroughLedger` / `ChapterLiveThroughDriver`。明确 raw BOOK ingestion 不能代表主角亲历；LifeformTemplate v2 通过 owner hydration snapshot 持久化 semantic spine；operator CLI 可通过 `PROTOCOL_LLM_*` 使用外部 OpenRouter/OpenAI-compatible LLM 生成 candidate ledger，仍需人工 review。
 - 2026-05-09: Lifeform Template + Birth Pipeline 完整落地（T1-T11）。新增模块：`narrative.py` / `replay.py` / `first_person.py` / `template.py` / `template_save.py` / `template_load.py` / `extraction/profile_llm.py` / `extraction/scene_llm.py` / `evolution.py` / `rare_heavy_apply.py` / `arcs/zhang_wuji_demo_arc.py`。新增 80+ 个契约 / e2e 测试。`examples/character_full_lifecycle_demo.py` 演示完整管线。
 - 2026-05-01: 初始版本。新增 `lifeform-domain-character` vertical，落地同仓、异包、强边界的 character bootstrap 路线。

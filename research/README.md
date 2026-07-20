@@ -10,6 +10,24 @@
 
 ---
 
+## 新增重要研究：All Cognitive 106 篇详尽分析包
+
+- [`allcognitive/`](allcognitive/) — 对本轮 106 篇新增论文逐篇按统一九项模板深读，形成五卷专题（架构学习 25、安全治理 26、关系多主体 21、具身世界模型 19、脑科学 15）、跨轴综合与可审计覆盖索引，共约 3,700 行。核心结论不是“AGI 已解决”，而是 frozen/adaptive 写面、PE readout 分层、latent controllability、记忆生命周期、关系健康 veto、监控器可欺骗性和 R15 发布门都已有可直接转化为 benchmark / kill condition 的外部证据。建议从 [`allcognitive/README.md`](allcognitive/README.md) 与 [`allcognitive/06_CROSS_AXIS_SYNTHESIS.md`](allcognitive/06_CROSS_AXIS_SYNTHESIS.md) 开始阅读。
+
+---
+
+## 新增重要研究：Cognitive-Agent 2024–2026 前沿地图
+
+- [`frontier-map-2024-2026.md`](frontier-map-2024-2026.md) — 在 28 篇核心增量深读之上，再扩展 78 篇严格去重论文，形成 106 篇五轴地图：架构与学习、安全与治理、关系与多主体、具身与世界模型、脑科学与认知约束。新增的关键结论包括：latent hierarchy 需要数据支持约束，ICL prediction error 不能普遍充当 epistemic curiosity，监控器也会被战略欺骗，长期互动与高信任可能伴随依赖和真人社交替代，sleep consolidation 必须同时包含 replay 与稳态抑制。75 篇开放 PDF 位于 [`papers/frontier-map/`](papers/frontier-map/)，3 篇付费墙/下载受限论文保留官方 link-only 记录；下载脚本为 [`download_frontier_map_expansion.sh`](download_frontier_map_expansion.sh)。
+
+---
+
+## 新增重要研究：Frontier Labs 主路径横扫（第三批）
+
+- [`frontier-sweep-2026-07-20.md`](frontier-sweep-2026-07-20.md) — 严格对既有 208 篇 PDF 去重后，新增并精读 28 篇 Meta、Anthropic、OpenAI、Google DeepMind / Research / Cloud AI、Physical Intelligence、Liquid AI、Sakana AI 及直接邻接机制论文。核心增量包括：真实分布发布门（Deployment Simulation + Gram + Honeypot + ProEval）、动态记忆 owner（PAHF + SaliMory + SkillOS + EvolveMem）、功能性情绪与 artifact 几何监控（Emotion Concepts + Crosscoder Diff），以及 ICL curiosity 在一般 MDP 上无法无偏恢复 Bayesian information gain 的负面定理。HyperAgents、Fugu、token-space memory RL 则作为边界压力测试。PDF 位于 [`papers/sweep-2607/`](papers/sweep-2607/)，下载校验脚本为 [`download_frontier_sweep_2607.sh`](download_frontier_sweep_2607.sh)。
+
+---
+
 ## 新增重要研究：BOLT / Bayesian Online Learning Transformer
 
 - [`bolt-2026-07/`](bolt-2026-07/) — BOLT 专题研究包。当前未找到 `BOLT: Bayesian Online Learning Transformer` 的公开原文；本目录下载并分析 Ross M. Clarke、José Miguel Hernández-Lobato、Yichuan Zhang、Jinli Hu / Boltzbit 及相邻 PFN / Distribution Transformer / latent-context 在线学习论文。核心结论：BOLT-like 技术更适合作为 owner-local、uncertainty-aware 的 online-fast posterior updater，而不是替代 Volvence 的 CMS、多时间尺度、双轨与快照契约。

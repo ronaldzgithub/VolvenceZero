@@ -1,7 +1,7 @@
 # Evaluation Cascade Spec
 
 > Status: draft
-> Last updated: 2026-05-13
+> Last updated: 2026-07-20
 > 对应需求: R8, R12, R15（架构 packet A2 + B3）
 > 对应改造路线图: [`docs/moving forward/experiment-arch-uplift.md`](../moving%20forward/experiment-arch-uplift.md) §2 A2 + §3 B3
 > 对应 plan：架构改造 plan T2 spec-first 前置
@@ -373,6 +373,22 @@ class RuntimeModule:
 - 接入 paper-suite-small benchmark hook
 - WiringLevel SHADOW；SHADOW evidence 文档（沿用 `cms-atlas-titans-uplift-shadow-evidence-*.md` 模板）
 - Done：dialogue paper-suite PASS；mid_layer SHADOW evidence 通过 ≥5 seeds × paper-suite-small；切 ACTIVE
+
+**Step 2 进展（2026-07-20）**：
+
+- **wiring bug 修复**：`FinalRolloutConfig.level_for` 映射表此前漏登 `evaluation_mid` /
+  `evaluation_expensive` / `evaluation_cross_generation` 三个字段——config 上的级联设置被
+  静默忽略（构造点 fallback default 恰与字段默认一致，故未被察觉；把 `evaluation_mid`
+  设为 DISABLED 实际仍以 SHADOW 运行）。已补表并由
+  `tests/contracts/test_evaluation_mid_shadow_control.py::test_level_for_honors_evaluation_cascade_fields`
+  回归守门。
+- **SHADOW 对照证据首包**：`scripts/run_evaluation_mid_shadow_evidence.py` 在 synthetic
+  substrate 上做 SHADOW vs DISABLED matched-control：active 链 per-turn 语义 digest
+  逐字节一致（行为零影响）、SHADOW 臂每 turn 发布非空 mid readout、DISABLED 臂 shadow
+  面静默。artifact：`artifacts/evaluation_mid_shadow_evidence/`。契约测试
+  `test_evaluation_mid_shadow_is_behavior_neutral_with_signal` 固化三条断言。
+- **仍缺（切 ACTIVE 前）**：≥5 seeds × paper-suite-small 真跑 + 下游 consumer opt-in 审查；
+  本包只覆盖行为中立性与信号存在性。
 
 ### Step 3 (T9)：expensive_layer + aggregator
 

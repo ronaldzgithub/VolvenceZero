@@ -164,47 +164,68 @@ def _alert_pressure(evaluation_snapshot: EvaluationSnapshot | None) -> float:
     return 0.0
 
 
-def score_regimes(
+# Names exposed to the bootstrap / checkpoint ``feature_weights``
+# adjustment surface. Frozen so extending the *learner-facing* feature
+# dict (see ``compute_regime_feature_values``) cannot silently change
+# what bootstrap-supplied adjustment weights match against.
+_ADJUSTMENT_FEATURE_NAMES: tuple[str, ...] = (
+    "task_pressure",
+    "support_presence",
+    "repair_pressure",
+    "social_pressure",
+    "decision_delegation_pressure",
+    "support_before_decision_pressure",
+    "emotional_decision_pressure",
+    "mixed_support_task_pressure",
+    "task_dominance",
+    "support_dominance",
+    "low_pressure",
+    "world_tension",
+    "self_tension",
+    "cross_tension",
+    "world_presence",
+    "self_presence",
+    "world_drive",
+    "self_drive",
+    "shared_drive",
+    "switch_pressure",
+    "repair_bias",
+    "task_bias",
+    "exploration_bias",
+    "stabilize_bias",
+)
+
+
+def compute_regime_feature_values(
     *,
     memory_snapshot: MemorySnapshot | None,
     dual_track_snapshot: DualTrackSnapshot | None,
     evaluation_snapshot: EvaluationSnapshot | None,
     prediction_error_snapshot: PredictionErrorSnapshot | None = None,
-    historical_effectiveness: Mapping[str, float],
-    strategy_priors: Mapping[str, float] | None = None,
-    selection_weights: Mapping[str, float] | None = None,
-    feature_weights: Mapping[str, Mapping[str, float]] | None = None,
-    experience_regime_biases: Mapping[str, float] | None = None,
-) -> tuple[tuple[str, float], ...]:
-    regime_priors = strategy_priors or {}
-    fast_regime_biases = experience_regime_biases or {}
-    pe_task_shortfall = max(-prediction_error_snapshot.error.task_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
-    pe_relationship_shortfall = max(-prediction_error_snapshot.error.relationship_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
-    pe_regime_shortfall = max(-prediction_error_snapshot.error.regime_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
-    pe_action_shortfall = max(-prediction_error_snapshot.error.action_error, 0.0) if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap else 0.0
+) -> dict[str, float]:
+    """Single computation point for the shared per-turn regime features.
+
+    ``score_regimes`` consumes this dict for its fixed formulas and the
+    bootstrap adjustment surface; ``RegimeScoreLearner`` consumes the same
+    dict as the learned candidate's feature vector (SHADOW dual-run). Any
+    new feature must be added here, never recomputed by a consumer (SSOT).
+
+    Cold-start (``dual_track_snapshot is None``) returns only the four PE
+    shortfall features; the full set requires a dual-track snapshot.
+    """
+    pe_active = prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap
+    features: dict[str, float] = {
+        "pe_task_shortfall": max(-prediction_error_snapshot.error.task_error, 0.0) if pe_active else 0.0,
+        "pe_relationship_shortfall": max(-prediction_error_snapshot.error.relationship_error, 0.0) if pe_active else 0.0,
+        "pe_regime_shortfall": max(-prediction_error_snapshot.error.regime_error, 0.0) if pe_active else 0.0,
+        "pe_action_shortfall": max(-prediction_error_snapshot.error.action_error, 0.0) if pe_active else 0.0,
+    }
     if dual_track_snapshot is None:
-        base = 0.1
-        cold_scores = {
-            "casual_social": _clamp(base + historical_effectiveness.get("casual_social", 0.0) * 0.1 + regime_priors.get("casual_social", 0.0) + pe_relationship_shortfall * 0.03),
-            "acquaintance_building": _clamp(base + historical_effectiveness.get("acquaintance_building", 0.0) * 0.1 + regime_priors.get("acquaintance_building", 0.0) + pe_relationship_shortfall * 0.04),
-            "emotional_support": _clamp(base + historical_effectiveness.get("emotional_support", 0.0) * 0.1 + regime_priors.get("emotional_support", 0.0) + pe_relationship_shortfall * 0.20),
-            "guided_exploration": _clamp(base + historical_effectiveness.get("guided_exploration", 0.0) * 0.1 + regime_priors.get("guided_exploration", 0.0) + pe_action_shortfall * 0.10),
-            "problem_solving": _clamp(base + historical_effectiveness.get("problem_solving", 0.0) * 0.1 + regime_priors.get("problem_solving", 0.0) + pe_task_shortfall * 0.18),
-            "repair_and_deescalation": _clamp(base + historical_effectiveness.get("repair_and_deescalation", 0.0) * 0.1 + regime_priors.get("repair_and_deescalation", 0.0) + pe_relationship_shortfall * 0.22 + pe_regime_shortfall * 0.08),
-        }
-        ranked = tuple(sorted(cold_scores.items(), key=lambda item: item[1], reverse=True))
-        return ranked
+        return features
 
     world_tension = dual_track_snapshot.world_track.tension_level
     self_tension = dual_track_snapshot.self_track.tension_level
     cross_tension = dual_track_snapshot.cross_track_tension
-    # NOTE: defaults below are intentionally left at the historical 0.4 so
-    # the rest of the classifier weights stay coherent with the existing
-    # test calibration. The lifeform benchmark surfaces a real bias here
-    # ("every casual / repair / emotional input routes to problem_solving
-    # + clarify-first") but the right fix is NOT a one-off default tweak
-    # — it requires real learning over collected traces (see
-    # lifeform-evolution.TraceCollector). Tracked as todo #14b.
     task_score = _metric(evaluation_snapshot, "info_integration", default=0.4)
     task_pressure = _metric(evaluation_snapshot, "task_pressure", default=task_score)
     repair_pressure = _metric(evaluation_snapshot, "repair_pressure", default=0.0)
@@ -249,32 +270,126 @@ def score_regimes(
         and dual_track_snapshot.self_track.controller_source == "memory"
         else 0.0
     )
-    feature_values = {
-        "task_pressure": task_pressure,
-        "support_presence": support_presence,
-        "repair_pressure": repair_pressure,
-        "social_pressure": social_pressure,
-        "decision_delegation_pressure": decision_delegation_pressure,
-        "support_before_decision_pressure": support_before_decision_pressure,
-        "emotional_decision_pressure": emotional_decision_pressure,
-        "mixed_support_task_pressure": mixed_support_task_pressure,
-        "task_dominance": task_dominance,
-        "support_dominance": support_dominance,
-        "low_pressure": low_pressure,
-        "world_tension": world_tension,
-        "self_tension": self_tension,
-        "cross_tension": cross_tension,
-        "world_presence": world_presence,
-        "self_presence": self_presence,
-        "world_drive": world_drive,
-        "self_drive": self_drive,
-        "shared_drive": shared_drive,
-        "switch_pressure": switch_pressure,
-        "repair_bias": repair_bias,
-        "task_bias": task_bias,
-        "exploration_bias": exploration_bias,
-        "stabilize_bias": stabilize_bias,
-    }
+    features.update(
+        {
+            "task_pressure": task_pressure,
+            "support_presence": support_presence,
+            "repair_pressure": repair_pressure,
+            "social_pressure": social_pressure,
+            "decision_delegation_pressure": decision_delegation_pressure,
+            "support_before_decision_pressure": support_before_decision_pressure,
+            "emotional_decision_pressure": emotional_decision_pressure,
+            "mixed_support_task_pressure": mixed_support_task_pressure,
+            "task_dominance": task_dominance,
+            "support_dominance": support_dominance,
+            "low_pressure": low_pressure,
+            "world_tension": world_tension,
+            "self_tension": self_tension,
+            "cross_tension": cross_tension,
+            "world_presence": world_presence,
+            "self_presence": self_presence,
+            "world_drive": world_drive,
+            "self_drive": self_drive,
+            "shared_drive": shared_drive,
+            "switch_pressure": switch_pressure,
+            "repair_bias": repair_bias,
+            "task_bias": task_bias,
+            "exploration_bias": exploration_bias,
+            "stabilize_bias": stabilize_bias,
+            # Extras consumed by the fixed formulas and the learned
+            # candidate but deliberately NOT part of
+            # ``_ADJUSTMENT_FEATURE_NAMES`` (bootstrap surface stability).
+            "task_score": task_score,
+            "warmth": warmth,
+            "relationship_stability": relationship_stability,
+            "semantic_surface_active": semantic_surface_active,
+            "semantic_low_pressure": semantic_low_pressure,
+            "alert_pressure": alert_pressure,
+            "balance": balance,
+            "memory_task_planning_bias": memory_task_planning_bias,
+        }
+    )
+    return features
+
+
+def score_regimes(
+    *,
+    memory_snapshot: MemorySnapshot | None,
+    dual_track_snapshot: DualTrackSnapshot | None,
+    evaluation_snapshot: EvaluationSnapshot | None,
+    prediction_error_snapshot: PredictionErrorSnapshot | None = None,
+    historical_effectiveness: Mapping[str, float],
+    strategy_priors: Mapping[str, float] | None = None,
+    selection_weights: Mapping[str, float] | None = None,
+    feature_weights: Mapping[str, Mapping[str, float]] | None = None,
+    experience_regime_biases: Mapping[str, float] | None = None,
+) -> tuple[tuple[str, float], ...]:
+    regime_priors = strategy_priors or {}
+    fast_regime_biases = experience_regime_biases or {}
+    features = compute_regime_feature_values(
+        memory_snapshot=memory_snapshot,
+        dual_track_snapshot=dual_track_snapshot,
+        evaluation_snapshot=evaluation_snapshot,
+        prediction_error_snapshot=prediction_error_snapshot,
+    )
+    pe_task_shortfall = features["pe_task_shortfall"]
+    pe_relationship_shortfall = features["pe_relationship_shortfall"]
+    pe_regime_shortfall = features["pe_regime_shortfall"]
+    pe_action_shortfall = features["pe_action_shortfall"]
+    if dual_track_snapshot is None:
+        base = 0.1
+        cold_scores = {
+            "casual_social": _clamp(base + historical_effectiveness.get("casual_social", 0.0) * 0.1 + regime_priors.get("casual_social", 0.0) + pe_relationship_shortfall * 0.03),
+            "acquaintance_building": _clamp(base + historical_effectiveness.get("acquaintance_building", 0.0) * 0.1 + regime_priors.get("acquaintance_building", 0.0) + pe_relationship_shortfall * 0.04),
+            "emotional_support": _clamp(base + historical_effectiveness.get("emotional_support", 0.0) * 0.1 + regime_priors.get("emotional_support", 0.0) + pe_relationship_shortfall * 0.20),
+            "guided_exploration": _clamp(base + historical_effectiveness.get("guided_exploration", 0.0) * 0.1 + regime_priors.get("guided_exploration", 0.0) + pe_action_shortfall * 0.10),
+            "problem_solving": _clamp(base + historical_effectiveness.get("problem_solving", 0.0) * 0.1 + regime_priors.get("problem_solving", 0.0) + pe_task_shortfall * 0.18),
+            "repair_and_deescalation": _clamp(base + historical_effectiveness.get("repair_and_deescalation", 0.0) * 0.1 + regime_priors.get("repair_and_deescalation", 0.0) + pe_relationship_shortfall * 0.22 + pe_regime_shortfall * 0.08),
+        }
+        ranked = tuple(sorted(cold_scores.items(), key=lambda item: item[1], reverse=True))
+        return ranked
+
+    # NOTE: the metric defaults inside ``compute_regime_feature_values``
+    # are intentionally left at the historical 0.4 so the rest of the
+    # classifier weights stay coherent with the existing test
+    # calibration. The lifeform benchmark surfaces a real bias here
+    # ("every casual / repair / emotional input routes to problem_solving
+    # + clarify-first") but the right fix is NOT a one-off default tweak
+    # — it requires real learning over collected traces (see
+    # lifeform-evolution.TraceCollector and RegimeScoreLearner SHADOW
+    # dual-run). Tracked as todo #14b / debt #80 / #44.
+    world_tension = features["world_tension"]
+    self_tension = features["self_tension"]
+    cross_tension = features["cross_tension"]
+    task_score = features["task_score"]
+    task_pressure = features["task_pressure"]
+    repair_pressure = features["repair_pressure"]
+    social_pressure = features["social_pressure"]
+    decision_delegation_pressure = features["decision_delegation_pressure"]
+    semantic_surface_active = features["semantic_surface_active"]
+    warmth = features["warmth"]
+    support_presence = features["support_presence"]
+    relationship_stability = features["relationship_stability"]
+    alert_pressure = features["alert_pressure"]
+    balance = features["balance"]
+    world_presence = features["world_presence"]
+    self_presence = features["self_presence"]
+    task_dominance = features["task_dominance"]
+    support_dominance = features["support_dominance"]
+    emotional_decision_pressure = features["emotional_decision_pressure"]
+    mixed_support_task_pressure = features["mixed_support_task_pressure"]
+    low_pressure = features["low_pressure"]
+    semantic_low_pressure = features["semantic_low_pressure"]
+    world_drive = features["world_drive"]
+    self_drive = features["self_drive"]
+    shared_drive = features["shared_drive"]
+    switch_pressure = features["switch_pressure"]
+    repair_bias = features["repair_bias"]
+    task_bias = features["task_bias"]
+    exploration_bias = features["exploration_bias"]
+    stabilize_bias = features["stabilize_bias"]
+    memory_task_planning_bias = features["memory_task_planning_bias"]
+    feature_values = {name: features[name] for name in _ADJUSTMENT_FEATURE_NAMES}
     scores = {
         "casual_social": _clamp(
             0.16 * (1.0 - max(world_tension, self_tension))

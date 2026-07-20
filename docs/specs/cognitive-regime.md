@@ -1,7 +1,7 @@
 # 认知 Regime Spec
 
 > Status: draft
-> Last updated: 2026-04-25
+> Last updated: 2026-07-20
 > 对应需求: R14
 
 ## 要解决的问题
@@ -85,6 +85,25 @@ class RegimeIdentity:
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.6 节
 
+## 瞬时 substrate readout vs 持久 regime owner 的分层（2026-07-20）
+
+来源：Anthropic "Emotion Concepts and their Function in an LLM"（`arXiv:2604.07729`），
+见 `research/frontier-sweep-2026-07-20.md` §C / §4.3。论文证明情绪概念是残差流中可读出的
+内部方向，并对 reward hacking / blackmail / sycophancy 有因果影响——这是 R14"regime 是
+内部几何而非 prompt 标签"的强外部证据。但论文同样明确：这些方向编码的是当前 token 处理的
+**operative emotion concept**，不是持续存在的主体状态。据此固定三层分工：
+
+| 层 | 载体 | 语义 | 时间尺度 | 约束 |
+|---|---|---|---|---|
+| substrate readout | `substrate` owner 发布的 persona/emotion geometry 只读信号 | token-local 的"当前有效概念"，可用于风险预警（如 desperation↑ + calm↓ 组合监控） | 瞬时（turn 内） | **只读**；由 producer 发布 typed snapshot，消费者不自行从残差重建；禁止反向成为训练 reward（防 probe→train Goodhart，R12） |
+| regime owner（本 spec） | `RegimeSnapshot` 的持久身份 + delayed attribution | 跨 turn / 跨 session 的可训练身份状态 | session ~ longitudinal | regime 状态**不得**由 substrate 瞬时 readout 直接改写；瞬时信号只能作为 evidence 之一进入既有 scoring / delayed attribution 路径 |
+| expression 层 | 表达层消费上游 snapshot | 呈现，不推断 | turn | 不自行拼装"情绪/persona"描述（R8） |
+
+把三层合并（例如用 emotion vector 当 regime 真值标签、或用 steering 直接塑造 regime 行为）
+会重演 persona-vector 的 Goodhart 风险；该失败模式记为本 spec 的负面锚点。
+substrate 侧的 geometry readout 监控面见 Lane D 落地项与 `docs/specs/evaluation.md` 的
+`persona_geometry_drift` readout（COG-3）。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
@@ -98,6 +117,8 @@ class RegimeIdentity:
 
 ## 变更日志
 
+- 2026-07-20 (score_regimes learned 化 SHADOW 升级): `RegimeScoreLearner` SHADOW dual-run 候选从"baseline 残差 4 维"扩到消费全部共享 per-turn 特征（4+36 维）：新增 `scoring.compute_regime_feature_values` 作为特征单一计算点（`score_regimes` 固定公式与 learner 共用，行为字节不变），`_ADJUSTMENT_FEATURE_NAMES` 冻结 bootstrap 调整面，learner `_SHARED_FEATURE_ORDER` 冻结 checkpoint 权重对齐（旧 4 维 checkpoint zero-pad 兼容）。live regime 选择不读 learner；ready 门槛 settled≥50 + MAE 领先≥0.02，kill=劣化≥0.10。对应 debt #80/#44；测试 `tests/test_regime_score_learner.py`。
+- 2026-07-20: 新增 §"瞬时 substrate readout vs 持久 regime owner 的分层"（Anthropic Emotion Concepts 同步）：token-local operative concept / 持久 regime owner / expression 三层分工，geometry readout 只读、禁止反向训练。来源 `research/frontier-sweep-2026-07-20.md` §6 同步项。
 - 2026-05-02: 增加 RGM1 companion evidence gate，冻结 regime delayed attribution visibility 的自动证据口径（RegimeSnapshot delayed attribution → credit → evaluation readout）
 - 2026-04-25: 同步当前 `RegimeSnapshot` delayed payoff / sequence payoff / selection weight 字段，并补充 `experience_fast_prior` 输入与默认 `SHADOW` 接线
 - 2026-04-20: 接口契约按当前代码收敛为直接消费 `memory + dual_track + evaluation + prediction_error`；当前实现口径明确 regime owner 已直接用 PE 更新 selection bias 与 historical effectiveness

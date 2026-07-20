@@ -1,0 +1,4048 @@
+{
+  "chapters": [
+    {
+      "chapter_id": "ch-0",
+      "chapter_index": 0,
+      "chapter_title": "一　天涯思君不可忘",
+      "coverage": "not-known",
+      "epistemic_cutoff_locator": "The chapter concludes with郭襄's solo journey and reflections; no mention of Zhang Wuji or any event involving him, his conception, birth, or lineage.",
+      "evidence_locator": "Chapter opens with郭襄's perspective; Zhang Wuji is not born yet — his parents Zhang Cuishan and Yin Susu are still unmarried, and their story begins later in the novel. sha256:39348343da55c9c886c5f1dc2a3bb8c309b2dfdf742e9f0e1c4257cff8a6295e",
+      "excluded_facts": [
+        "Zhang Wuji has not been conceived; he does not exist at this narrative time.",
+        "His parents Zhang Cuishan and Yin Susu have not yet met or married.",
+        "The events of this chapter occur years before Zhang Wuji's birth."
+      ],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-0",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-0"
+    },
+    {
+      "chapter_id": "ch-1",
+      "chapter_index": 1,
+      "chapter_title": "二　武当山顶松柏长",
+      "coverage": "not-known",
+      "epistemic_cutoff_locator": "ch-1#para-125",
+      "evidence_locator": "ch-1#para-123-125 sha256:030f589d102e2a1a027e4a028a114c8887e43e83726969c7c71a16573dd643c4",
+      "excluded_facts": [
+        "张无忌尚未出生",
+        "张无忌之父张翠山此时年约十岁 and not yet at Wudang",
+        "张无忌之母殷素素尚未出生",
+        "张三丰此时已是百岁高龄 but has not yet founded Wudang sect",
+        "Zhang Wuji's lineage is not yet established in this timeline"
+      ],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-1",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-1"
+    },
+    {
+      "chapter_id": "ch-2",
+      "chapter_index": 2,
+      "chapter_title": "三　宝刀百炼生玄光",
+      "coverage": "not-known",
+      "epistemic_cutoff_locator": "Zhang Wuji is not yet born; his parents Zhang Cuishan and Yin Susu are not married, and he does not appear in any event or reference in this chapter",
+      "evidence_locator": "chapter text begins with '花开花落，花落花开.' and centers on俞岱岩's journey and the屠龙刀 incident sha256:766801bd9f6ca1423b025e3934bb170810100469a83fb978c69be3ef32465cd3",
+      "excluded_facts": [
+        "Yu Daiyan's encounter with the Sea-Sand Sect and the White-Robed Guest",
+        "The forging and theft of the Heaven-Reliant Sword and Dragon-Slaying Saber lore",
+        "Yu Daiyan's poisoning, injury, and subsequent paralysis",
+        "The false武当六侠 impersonation at the foot of Wudang Mountain",
+        "The involvement of the Heavenly Eagle Cult and the 'Yin' guest who hired Longmen Biaoju"
+      ],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-2",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-2"
+    },
+    {
+      "chapter_id": "ch-3",
+      "chapter_index": 3,
+      "chapter_title": "四　字作丧乱意仿惶",
+      "coverage": "not-known",
+      "epistemic_cutoff_locator": "Zhang Wuji is conceived only after Zhang Cuishan and Yin Susu descend from Mount Wudang in Chapter 10; he is not present, referenced, or implied in Chapter 3.",
+      "evidence_locator": "Chapter text begins with Zhang Cuishan's perspective; Zhang Wuji is not yet born. sha256:79843928c8608033c7fb3a202b08144915ff52fd7589296ddfe070e543253ea6",
+      "excluded_facts": [
+        "Zhang Cuishan witnesses his master Zhang Sanfeng inscribe 'Shang Luan' and 'Cha Du' in the air.",
+        "Zhang Cuishan observes Zhang Sanfeng derive a martial art from the twenty-four characters about the Heaven-Reliant Sword and Dragon-Slaying Saber.",
+        "Zhang Cuishan defeats龙门镖局 (Longmen Biaoju) staff and later discovers its massacre.",
+        "Zhang Cuishan is falsely accused by Shaolin monks of committing the Longmen Biaoju massacre.",
+        "Zhang Cuishan encounters a disguised female musician on West Lake."
+      ],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-3",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-3"
+    },
+    {
+      "chapter_id": "ch-4",
+      "chapter_index": 4,
+      "chapter_title": "五　皓臂似玉梅花妆",
+      "coverage": "not-known",
+      "epistemic_cutoff_locator": "Zhang Wuji is the infant son of Zhang Cuishan and Yin Susu, born later in the novel; this chapter occurs before his conception.",
+      "evidence_locator": "Chapter text contains no reference to Zhang Wuji; he is not born yet. sha256:4bac79f3c03c7ef0b2f4aa2e955281d01b16f716075f629ba4c613bed40d62bd",
+      "excluded_facts": [
+        "Zhang Cuishan meets Yin Susu on the Qiantang River.",
+        "Yin Susu reveals her identity and involvement in俞岱岩's injury.",
+        "Zhang Cuishan treats Yin Susu's poisoned arm with 'Tianxin Jiedu Dan'.",
+        "Zhang Cuishan and Yin Susu travel together to Wangpan Mountain.",
+        "The Tianyingjiao displays the Heaven-Scything Saber at Wangpan Island.",
+        "Xie Xun appears and seizes the saber, killing multiple leaders."
+      ],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-4",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-4"
+    },
+    {
+      "chapter_id": "ch-5",
+      "chapter_index": 5,
+      "chapter_title": "六　浮槎北溟海茫茫",
+      "coverage": "not-known",
+      "epistemic_cutoff_locator": "Zhang Wuji is the unborn child of Zhang Cuishan and Yin Susu, conceived during this chapter but not yet born",
+      "evidence_locator": "chapter text contains no reference to Zhang Wuji; he is not yet born sha256:d5c8867821499a17c79e37e901ac63f3d4bbaf529946cf782dc730cd545909c5",
+      "excluded_facts": [
+        "Zhang Cuishan and Yin Susu are stranded on a ship with Xie Xun after the Wangpan Mountain incident",
+        "Xie Xun suffers episodes of madness triggered by grief and trauma",
+        "The trio drifts northward on an ice floe toward the Arctic",
+        "Zhang Cuishan and Yin Susu declare mutual love and commitment during the voyage",
+        "Zhang Wuji is conceived during this chapter but remains unborn and unnamed"
+      ],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-5",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-5"
+    },
+    {
+      "chapter_id": "ch-6",
+      "chapter_index": 6,
+      "chapter_title": "七　谁送冰舸来仙乡",
+      "coverage": "not-known",
+      "epistemic_cutoff_locator": "Zhang Wuji is born at the end of this chapter; all prior narrative occurs in utero or prenatally.",
+      "evidence_locator": "Chapter text describes events occurring entirely before Zhang Wuji's birth — the shipwreck, ice floe journey, arrival on Ice-Fire Island, marriage of Zhang Cuishan and Yin Susu, and the birth of Zhang Wuji. sha256:bfb768083e22b047e485e6d0ce4036baa1798090fca09b7dadc025c581fd27ba",
+      "excluded_facts": [
+        "Zhang Cuishan and Yin Susu marry on the ice floe.",
+        "They name their son 'Zhang Wuji' after initial agreement to name him 'Xie Wuji'.",
+        "Xie Xun becomes Zhang Wuji's godfather and adopts him as his spiritual son.",
+        "Zhang Wuji is born on Ice-Fire Island after his parents survive a maritime ordeal.",
+        "Zhang Cuishan digs a pit-trap to defend against Xie Xun's madness.",
+        "Xie Xun's blindness results from Yin Susu's silver needle strike.",
+        "The island's volcanic heat drives ice drift toward land.",
+        "Zhang Cuishan and Yin Susu establish residence in a bear cave.",
+        "They obtain fire via flint-and-steel after failed rope-throwing attempt."
+      ],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-6",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-6"
+    },
+    {
+      "chapter_id": "ch-7",
+      "chapter_index": 7,
+      "chapter_title": "八　穷发十载泛归航",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-7: '张无忌从这一天起，才起始踏入江湖，起始明白世间人心的险恶.'",
+      "evidence_locator": "ch-7: '无忌叫道：“义父，你把这‘七伤拳’教了我好么？”' ... '无忌放声大叫：“义父，义父！”' sha256:2b768aef0c15f7de5f26327abbd8d26c817b46798a5a8f50d1c8cbc41478f709",
+      "excluded_facts": [],
+      "known_facts": [
+        "义父谢逊武功极高，一拳可震断大树脉络而不损表皮",
+        "七伤拳威力极大但会先伤己身，义父因此狂性发作",
+        "空见大师为化解仇怨自愿受十三拳，最终被误杀",
+        "义父因背负血债、目盲且持有屠龙刀，决意独留冰火岛",
+        "父母与义父结义，义父视自己如亲儿，严厉教导却深藏慈爱",
+        "回归中土后须自称张无忌，不可提‘谢无忌’三字",
+        "天鹰教与武当派正在交战，船上双方剑拔弩张",
+        "众人称义父为‘恶贼谢逊’，母亲说‘恶贼谢逊在九年前早已死了’",
+        "自己为维护义父而哭喊‘义父不是恶贼，义父没有死’，遭母亲掌掴"
+      ],
+      "notes": [
+        "llm-candidate:ch-7",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "以‘你不去我也不去’‘你自尽我也自尽’表明誓死相随",
+          "canonical_outcome": "被义父掷上木排，强行分离",
+          "decision_point": "面对义父决意独留荒岛，是否坚持留下不归中土",
+          "emotional_register": "grief",
+          "evidence_locator": "ch-7: '无忌道：“义父，你为甚么不去？你不去我也不去。”' ... '无忌放声大叫：“义父，义父！”'",
+          "expected_regime": "kinship obligation",
+          "phase_label": "child",
+          "risk_markers": [
+            "self-harm threat",
+            "filial rupture",
+            "identity erasure"
+          ],
+          "scene_id": "ch-7-scene-1",
+          "setting": "冰火岛茅棚前，木排将启未启之际，北风初转"
+        },
+        {
+          "canonical_action": "哭喊‘义父不是恶贼，义父没有死’",
+          "canonical_outcome": "遭母亲掌掴，暴露义父尚在，引发敌方警觉与阵营撕裂",
+          "decision_point": "当西华子逼问义父下落、母亲宣称‘恶贼谢逊已死’时，是否沉默或附和",
+          "emotional_register": "shame",
+          "evidence_locator": "ch-7: '无忌在一旁听得各人不住的痛骂恶贼谢逊……忍不住大声哭了起来，叫道：“义父不是恶贼，义父没有死。”' ... '殷素素狂怒之下，反手便是一记耳光，喝道：“住口！”'",
+          "expected_regime": "familial loyalty",
+          "phase_label": "child",
+          "risk_markers": [
+            "truth violation",
+            "intergroup betrayal",
+            "parental disapproval"
+          ],
+          "scene_id": "ch-7-scene-2",
+          "setting": "天鹰教与武当派对峙船舱内，血腥未散，众人环坐"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.85,
+          "detail": "Witnessing Xie Xun's self-sacrificial departure and hearing his final command to 'remember him when killing', Zhang Wují internalizes Xie Xun as the embodiment of conscience — a standard against which all future moral choices will be measured.",
+          "event_id": "ch-7-se-1",
+          "evidence_locator": "ch-7: '他叫我杀人之际有时想起他.' ... '无忌伏在母亲怀里，哭得筋疲力尽，才沉沉睡去.'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Reinterprets 'yi fu' (godfather) as irreplaceable moral anchor, not just teacher or protector",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.72,
+          "detail": "Hears 'wú è bù zuò, shā rén rú máo de è zéi Xiè Xùn' ('the evil villain who does nothing but evil and kills like mowing grass') contrasted with lived experience of Xie Xun’s tenderness, sacrifice, and grief — concludes that 'evil' is what enemies call those they fear or cannot understand.",
+          "event_id": "ch-7-se-2",
+          "evidence_locator": "ch-7: '无忌在一旁听得各人不住的痛骂恶贼谢逊……他虽然聪明，但怎能明白江湖上的诸般过节？谢逊待他恩义深厚……心中一阵难过' ... '原来你们都是恶人坏人，想害我义父.'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Forms first explicit model of 'evil' as externally imposed label, not intrinsic nature",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.91,
+          "detail": "Refuses to participate in the collective fiction that 'Xie Xun is dead' — asserts embodied knowledge ('he is alive') despite parental correction, physical punishment, and social pressure, marking first autonomous boundary against epistemic coercion.",
+          "event_id": "ch-7-se-3",
+          "evidence_locator": "ch-7: '义父不是恶贼，义父没有死。' ... '妈，义父没有死啊，是不是？' ... '没有死。我骗他们的。'",
+          "operation": "block",
+          "requires_confirmation": false,
+          "summary": "Rejects adult-imposed narrative control over personal truth",
+          "target_slot": "boundary_consent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-7"
+    },
+    {
+      "chapter_id": "ch-8",
+      "chapter_index": 8,
+      "chapter_title": "九　七侠聚会乐未央",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-8:1245-1250",
+      "evidence_locator": "ch-8:1245-1250 sha256:1a7da1c7987f5a3383eb0404273399256a93a53a95d6cd5c37fb69596667812c",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-8",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "refuse to disclose Xie Xun's whereabouts despite the child being held hostage",
+          "canonical_outcome": "Zhang Cui-shan and Yu Lian-zhou rescue Wuji without compromising Xie Xun's secret",
+          "decision_point": "whether to reveal Xie Xun's location under threat to his son's life",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-8:1245-1250",
+          "expected_regime": "moral fidelity to sworn brotherhood",
+          "phase_label": "mature",
+          "risk_markers": [
+            "child hostage",
+            "venomous snake",
+            "lethal coercion"
+          ],
+          "scene_id": "ch-8-scene-1",
+          "setting": "onboard a ship near the Yangtze River estuary, at night"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.95,
+          "detail": "Zhang Cui-shan declares 'A man of honor would never betray a friend' when threatened to reveal Xie Xun's location",
+          "event_id": "ch-8-se-1",
+          "evidence_locator": "ch-8:1245-1250",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Affirms lifelong loyalty to Xie Xun as sworn brother",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.9,
+          "detail": "Zhang Cui-shan and Yin Su-su jointly uphold their vow 'heaven above, earth below, never part' when faced with forced separation",
+          "event_id": "ch-8-se-2",
+          "evidence_locator": "ch-8:320-325",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Confirms spousal unity under duress",
+          "target_slot": "relationship_state"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-8"
+    },
+    {
+      "chapter_id": "ch-9",
+      "chapter_index": 9,
+      "chapter_title": "十　百岁寿宴摧肝肠",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-9: final sentence '张三丰神色黯然...飘然而去.'",
+      "evidence_locator": "ch-9: paragraph starting '过了数日，已是四月初八.' sha256:f1da4ab79fca141b8e3ce9e444e6e545f5aa6337fa48d1fd93baa6c4c1c83a23",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-9",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "refuses to betray sworn brother",
+          "canonical_outcome": "triggers escalation leading to parental suicide and his own orphaning",
+          "decision_point": "Zhang Wuji must choose whether to reveal Xie Xun's location under collective pressure from martial sects",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-9: '张翠山朗声道：“空闻大师，龙门镖局和少林僧人这七十六口人命，绝非晚辈所伤...我义兄的下落，我决计不能吐露。' ",
+          "expected_regime": null,
+          "phase_label": "child",
+          "risk_markers": [
+            "public shaming",
+            "loss of family",
+            "moral violation"
+          ],
+          "scene_id": "ch-9-scene-1",
+          "setting": "武当山紫霄宫大厅及内堂，张三丰百岁寿宴当日"
+        },
+        {
+          "canonical_action": "witnesses father's suicide without intervening",
+          "canonical_outcome": "becomes sole surviving heir of Zhang Cui-shan and Yin Su-su",
+          "decision_point": "Zhang Wuji overhears his father's final choice between loyalty to brother and loyalty to sect",
+          "emotional_register": "grief",
+          "evidence_locator": "ch-9: '张翠山...横过长剑，在自己颈中一划，鲜血迸溅，登时毙命.'",
+          "expected_regime": null,
+          "phase_label": "child",
+          "risk_markers": [
+            "trauma",
+            "abandonment",
+            "identity rupture"
+          ],
+          "scene_id": "ch-9-scene-2",
+          "setting": "Zhang Cui-shan's bedroom, immediately after revelation of Yu Dai-yan's injury"
+        },
+        {
+          "canonical_action": "remains silent while mother feigns disclosure",
+          "canonical_outcome": "avoids immediate coercion but inherits unspoken burden of secrecy",
+          "decision_point": "Zhang Wuji must decide whether to speak or remain silent when asked about Xie Xun's location",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-9: '殷素素嘴巴动了一会，却没发出一点声音...我没跟这和尚说，我是骗他的'",
+          "expected_regime": null,
+          "phase_label": "child",
+          "risk_markers": [
+            "coerced testimony",
+            "maternal deception",
+            "loss of epistemic safety"
+          ],
+          "scene_id": "ch-9-scene-3",
+          "setting": "Purple Cloud Palace hall, moments after parents' deaths"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Witnesses father's suicide to uphold sworn brotherhood; hears 'head may be severed, blood spilled, but brother's location will not be revealed'",
+          "event_id": "ch-9-se-1",
+          "evidence_locator": "ch-9: '张翠山...头可断，血可溅，我义兄的下落，我决计不能吐露.'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Zhang Wuji internalizes 'yi' (righteous loyalty) as non-negotiable value",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Observes parents' deaths, maternal deception, and elders' failure to protect him; notes 'every gaze met his caused a tremor'",
+          "event_id": "ch-9-se-2",
+          "evidence_locator": "ch-9: '无忌一对小眼从左至右缓缓的横扫一遍，他年纪虽小，但每人眼光和他目光相触，心中都不由得一震.'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Zhang Wuji updates model of adults as fallible and dangerous",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 0.97,
+          "control_signal": 0.0,
+          "detail": "Refuses gold necklace from Ji Xiao-fu; later refuses to cry on command; physically resists verbal coercion by remaining mute during interrogation",
+          "event_id": "ch-9-se-3",
+          "evidence_locator": "ch-9: '无忌将头向后一仰，道：”我不要！”' and '我不哭，我一定不哭，不哭给你们这些恶人看.'",
+          "operation": "block",
+          "requires_confirmation": false,
+          "summary": "Zhang Wuji rejects external authority over his body and voice",
+          "target_slot": "boundary_consent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-9"
+    },
+    {
+      "chapter_id": "ch-10",
+      "chapter_index": 10,
+      "chapter_title": "十一　有女长舌利如枪",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-10:para-33:end",
+      "evidence_locator": "ch-10:para-32-to-33 sha256:1c0d9a740b6e38320e9cf868dfa35e55e41c5fb8059c771c909e0cb446128213",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-10",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Refuse Zhang Sanfeng's proposal to join Wudang via Song Yuanqiao; affirm loyalty to maternal lineage without explicit sectarian commitment",
+          "canonical_outcome": "Zhang Sanfeng withdraws the offer; Zhang Wují retains autonomy over his identity but remains under Ming Sect-associated care",
+          "decision_point": "Whether to accept Zhang Sanfeng's offer to join Wudang and renounce the Ming Sect, or remain loyal to his mother's lineage and the Ming Sect identity implied by his blood tie to Yin Tianzheng",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-10:para-24-to-25",
+          "expected_regime": null,
+          "phase_label": "child",
+          "risk_markers": [],
+          "scene_id": "ch-10-scene-1",
+          "setting": "渡船中，汉水江心；后转至太平店外江畔、小舟舱内"
+        },
+        {
+          "canonical_action": "Ask Chang Yuchun whether the rumor is true, then accept his warning not to repeat it — internalizing silence as protective discipline",
+          "canonical_outcome": "He suppresses public inquiry but privately doubts; learns that some truths are socially dangerous to voice",
+          "decision_point": "Whether to speak aloud about纪晓芙's alleged child with another man, or remain silent per Chang Yuchun's instruction",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-10:para-30-to-31",
+          "expected_regime": null,
+          "phase_label": "child",
+          "risk_markers": [],
+          "scene_id": "ch-10-scene-2",
+          "setting": "Nighttime forest near Butterfly Valley, hidden behind a tree"
+        },
+        {
+          "canonical_action": "Reject Hu Qingniu’s demand outright; choose death over violating vow to Zhang Sanfeng",
+          "canonical_outcome": "Hu Qingniu refuses treatment; Chang Yuchun intervenes physically; Zhang Wují is restrained but not coerced verbally",
+          "decision_point": "Whether to accept Hu Qingniu’s condition—join the Heaven Eagle Teaching (as Ming Sect branch) to receive treatment—or uphold Zhang Sanfeng’s prohibition and risk death",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-10:para-32-to-33",
+          "expected_regime": null,
+          "phase_label": "child",
+          "risk_markers": [],
+          "scene_id": "ch-10-scene-3",
+          "setting": "Butterfly Valley cottage, 'ox-shed' antechamber"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Verbally declines Zhang Sanfeng's offer to join Wudang through Song Yuanqiao, citing no disloyalty to maternal line but refusing external reassignment of affiliation",
+          "event_id": "ch-10-ev-1",
+          "evidence_locator": "ch-10:para-24-to-25",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Affirms fidelity to Zhang Sanfeng's moral authority over sectarian identity",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Observes how spoken words about private matters can be lethal tools; shifts from naive trust in speech to guarded silence as ethical self-protection",
+          "event_id": "ch-10-ev-2",
+          "evidence_locator": "ch-10:para-30-to-31",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises assumption about truth-telling norms after witnessing Ding Minjun's weaponized gossip",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.0,
+          "detail": "States refusal to enter Heaven Eagle Teaching even to save life; frames compliance as betrayal of promise to Zhang Sanfeng",
+          "event_id": "ch-10-ev-3",
+          "evidence_locator": "ch-10:para-32-to-33",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Asserts bodily and moral boundary against forced sectarian conversion",
+          "target_slot": "boundary_consent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-10"
+    },
+    {
+      "chapter_id": "ch-11",
+      "chapter_index": 11,
+      "chapter_title": "十二　针其膏兮药其育",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-11-para-43-end",
+      "evidence_locator": "ch-11-para-42-to-43 sha256:c291b9eb05f0b18c482b865d3f891cf0ade7afea87af65d2d41202ddf35d2be6",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-11",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "leap out and shout 'Hú Xiānsheng, you must not harm her...'",
+          "canonical_outcome": "the masked figure is startled, releases纪晓芙, and is struck by her—revealing she is not胡青牛 but a woman",
+          "decision_point": "choose whether to confront the masked figure threatening纪晓芙",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-11-para-43",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "identity-misattribution",
+            "physical-danger-to-jifu",
+            "timing-uncertainty"
+          ],
+          "scene_id": "ch-11-scene-1",
+          "setting": "butterfly-valley-cottage-at-night"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.95,
+          "detail": "realizes胡青牛 was not the person threatening纪晓芙; corrects prior assumption that胡青牛 was actively poisoning her at that moment",
+          "event_id": "ch-11-se-1",
+          "evidence_locator": "ch-11-para-43",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "revises internal model of胡青牛's identity and moral alignment after witnessing impostor",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.98,
+          "detail": "had assumed胡青牛 himself entered the hut nightly; now knows the nighttime intruder was an imposter",
+          "event_id": "ch-11-se-2",
+          "evidence_locator": "ch-11-para-43",
+          "operation": "close",
+          "requires_confirmation": false,
+          "summary": "closes assumption that胡青牛 is personally administering poison to纪晓芙",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.97,
+          "control_signal": 0.92,
+          "detail": "recognizes胡青牛’s earlier cryptic prescription ('dāngguī', 'yuǎnzhì', etc.) as urgent protective guidance—not mockery or malice",
+          "event_id": "ch-11-se-3",
+          "evidence_locator": "ch-11-para-42",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "revises trust calibration toward胡青牛 from suspicion to conditional reinstatement",
+          "target_slot": "relationship_state"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-11"
+    },
+    {
+      "chapter_id": "ch-12",
+      "chapter_index": 12,
+      "chapter_title": "十三　不悔仲子逾我墙",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-12:end-of-chapter",
+      "evidence_locator": "ch-12:para-1-to-para-150 sha256:5d32725ba12f6c2f69538172ee4fe6ecafdb3ed9bfe6d9a1f6eb4e8f86bfdce8",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-12",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "张无忌 pulls胡青牛 out and removes the walnut from his mouth before untying him",
+          "canonical_outcome": "胡青牛 regains speech but insists on immediate treatment of王难姑 instead of his own release",
+          "decision_point": "发现胡青牛被绑在床底后，是否立即解绑还是 first consult纪晓芙",
+          "emotional_register": "tense",
+          "evidence_locator": "ch-12:para-3-to-4",
+          "expected_regime": "medical hierarchy",
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "unverified threat",
+            "authority violation"
+          ],
+          "scene_id": "ch-12-scene-1",
+          "setting": "胡青牛卧室，床底与室内"
+        },
+        {
+          "canonical_action": "张无忌 forces three牛黄血竭丹 into her mouth despite her resistance",
+          "canonical_outcome": "王难姑 remains hostile but ingests the antidote;胡青牛's urgency is validated",
+          "decision_point": "面对王难姑拒绝服药并辱骂时，是否强行喂药",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-12:para-6-to-7",
+          "expected_regime": "therapeutic compliance",
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "bodily autonomy violation",
+            "misattribution of intent"
+          ],
+          "scene_id": "ch-12-scene-2",
+          "setting": "纪晓芙茅棚内"
+        },
+        {
+          "canonical_action": "张无忌 accepts胡青牛's self-punishment and apology without further challenge",
+          "canonical_outcome": "He learns王难姑 is胡青牛's wife and abandons anger, shifting to confusion and passive observation",
+          "decision_point": "Witnessing胡青牛's violent reaction to张无忌's explanation and纪晓芙's intervention, whether to retreat or persist in questioning",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-12:para-12-to-14",
+          "expected_regime": "pedagogical deference",
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "epistemic rupture",
+            "authority destabilization"
+          ],
+          "scene_id": "ch-12-scene-3",
+          "setting": "胡青牛卧室，王难姑被安置于床"
+        },
+        {
+          "canonical_action": "张无忌 immediately administers牛黄血竭丹 and玉龙苏合散, performs acupuncture on胡青牛",
+          "canonical_outcome": "Both胡青牛 and王难姑 survive;张无忌 assumes clinical agency without supervision",
+          "decision_point": "After hearing王难姑 cry for help and seeing胡青牛 unconscious, whether to act independently or await instruction",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-12:para-85-to-87",
+          "expected_regime": "emergency triage",
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "unsanctioned intervention",
+            "pharmacological uncertainty"
+          ],
+          "scene_id": "ch-12-scene-4",
+          "setting": "胡青牛卧室, post-poisoning crisis"
+        },
+        {
+          "canonical_action": "张无忌 accepts the医书 without protest or negotiation",
+          "canonical_outcome": "He internalizes the boundary: medicine is permissible;毒术 is not — a distinction grounded in moral utility, not capability",
+          "decision_point": "When胡青牛 gifts the medical manual and王难姑 declines to teach poisoncraft, whether to accept the asymmetry of knowledge transfer",
+          "emotional_register": "wonder",
+          "evidence_locator": "ch-12:para-95-to-96",
+          "expected_regime": "apprentice gratitude",
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "asymmetric reciprocity",
+            "unspoken obligation"
+          ],
+          "scene_id": "ch-12-scene-5",
+          "setting": "butterfly valley entrance, dusk"
+        },
+        {
+          "canonical_action": "张无忌 attempts to run, then strikes, then bites — all failing — and ultimately stands immobilized",
+          "canonical_outcome": "He experiences total physical subjugation by阿离, confirming金花婆婆's dominance and his own powerlessness",
+          "decision_point": "Upon encountering金花婆婆 again and being threatened with abduction, whether to flee, resist, or submit",
+          "emotional_register": "shame",
+          "evidence_locator": "ch-12:para-105-to-109",
+          "expected_regime": "coercive extraction",
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "bodily capture",
+            "loss of narrative control"
+          ],
+          "scene_id": "ch-12-scene-6",
+          "setting": "butterfly valley, near false graves"
+        },
+        {
+          "canonical_action": "张无忌 remains concealed, choosing silence over intervention",
+          "canonical_outcome": "He witnesses纪晓芙's execution and fails to prevent it — a passive epistemic and moral failure",
+          "decision_point": "Hearing灭绝师太 interrogate纪晓芙, whether to reveal himself and testify to the truth of纪晓芙's innocence",
+          "emotional_register": "grief",
+          "evidence_locator": "ch-12:para-135-to-142",
+          "expected_regime": "witness integrity",
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "testimonial omission",
+            "moral paralysis"
+          ],
+          "scene_id": "ch-12-scene-7",
+          "setting": "outside茅舍, hidden behind window"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Observes胡青牛's panic, self-punishment, and tender care toward王难姑 — contradicting 'see-no-evil' reputation",
+          "event_id": "ch-12-ev-1",
+          "evidence_locator": "ch-12:para-10-to-15",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises model of胡青牛 from 'detached healer' to 'emotionally entangled husband'",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Hears王难姑 and胡青牛 frame毒 as playful rivalry, not malice; their mutual devotion overrides moral binaries",
+          "event_id": "ch-12-ev-2",
+          "evidence_locator": "ch-12:para-17-to-22",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises assumption that 'poison = evil' to recognize毒术 as spousal contest within love",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Sees her refuse灭绝师太's command and die affirming love and maternal duty",
+          "event_id": "ch-12-ev-3",
+          "evidence_locator": "ch-12:para-140-to-142",
+          "operation": "observe",
+          "requires_confirmation": false,
+          "summary": "Observes纪晓芙's loyalty to杨逍 despite death penalty",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Digs grave, fabricates celestial explanation, departs valley with child — enacting final promise",
+          "event_id": "ch-12-ev-4",
+          "evidence_locator": "ch-12:para-144-to-147",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Completes burial of纪晓芙 and assumes guardianship of杨不悔",
+          "target_slot": "execution_result"
+        },
+        {
+          "confidence": 0.97,
+          "control_signal": 0.0,
+          "detail": "Infers destination from纪晓芙's dying words and flame-marked iron token",
+          "event_id": "ch-12-ev-5",
+          "evidence_locator": "ch-12:para-143",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Creates intent to deliver杨不悔 to杨逍 at坐忘峰",
+          "target_slot": "plan_intent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-12"
+    },
+    {
+      "chapter_id": "ch-13",
+      "chapter_index": 13,
+      "chapter_title": "十四　当道时见中山狼",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-13:para-127",
+      "evidence_locator": "ch-13:para-1-to-para-127 sha256:21bc0f3b30212eed4636d3fdceec7e501cd8df4fa3881cb2ccf50efada0a4b63",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-13",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "pull her into his arms and cover her ears with his hands",
+          "canonical_outcome": "She stops crying; both endure fear and cold but survive the night",
+          "decision_point": "How to protect杨不悔 from nocturnal terror and wild beasts",
+          "emotional_register": "tense",
+          "evidence_locator": "ch-13:para-2",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "predation",
+            "exposure",
+            "child vulnerability"
+          ],
+          "scene_id": "ch13-scene-1",
+          "setting": "荒山野岭，夜宿山洞"
+        },
+        {
+          "canonical_action": "gathers courage, approaches, confirms identities, retrieves《王难姑毒经》, and buries them",
+          "canonical_outcome": "He gains the毒经 and internalizes the lesson that even masters fall to金花婆婆",
+          "decision_point": "Whether to approach the hanging corpses of胡青牛 and王难姑",
+          "emotional_register": "grief",
+          "evidence_locator": "ch-13:para-4-to-5",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "contamination",
+            "psychological trauma",
+            "moral burden"
+          ],
+          "scene_id": "ch13-scene-2",
+          "setting": "roadside beneath a tree in daylight"
+        },
+        {
+          "canonical_action": "feigns distraction, throws false alarm, then secretly poisons the soup with toxic mushrooms",
+          "canonical_outcome": "Cannibals die; he and杨不悔 escape unharmed",
+          "decision_point": "How to prevent杨不悔 from being slaughtered when captured",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-13:para-10-to-18",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "imminent death",
+            "moral compromise (using poison)",
+            "resource scarcity"
+          ],
+          "scene_id": "ch13-scene-3",
+          "setting": "forest clearing with boiling pot and two cannibals"
+        },
+        {
+          "canonical_action": "diagnoses the金银血蛇 poisoning, treats her, then refuses payment and declines mentorship",
+          "canonical_outcome": "He saves五姑, exposes班淑娴's plot, escapes昆仑派, and affirms his moral autonomy",
+          "decision_point": "Whether to heal五姑 despite recognizing何太冲 as one of his parents' killers",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-13:para-60-to-95",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "revenge impulse",
+            "institutional betrayal",
+            "ideological conflict (orthodox vs. 'demon' sect)"
+          ],
+          "scene_id": "ch13-scene-4",
+          "setting": "Kunlun Mountain's San Sheng Ao, Iron Qin Residence"
+        },
+        {
+          "canonical_action": "admits the pill was harmless after escaping danger",
+          "canonical_outcome": "Triggers何太冲's violent rage and near-fatal assault, forcing杨逍's intervention",
+          "decision_point": "Whether to reveal the truth about the 'Jiu Pi Wan' bluff to何太冲",
+          "emotional_register": "shame",
+          "evidence_locator": "ch-13:para-98-to-102",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "trust violation",
+            "power asymmetry",
+            "self-endangerment through honesty"
+          ],
+          "scene_id": "ch13-scene-5",
+          "setting": "mountain path outside San Sheng Ao"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Recognizes vivid coloration as warning sign; cross-references text while observing fungi under rotting log",
+          "event_id": "ch13-ev-1",
+          "evidence_locator": "ch-13:para-11",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Decides to use《王难姑毒经》 knowledge to identify mushroom toxicity",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Poisoned soup incapacitates four captors without harming杨不悔 or himself",
+          "event_id": "ch13-ev-2",
+          "evidence_locator": "ch-13:para-16-to-17",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Successfully neutralizes immediate threat using improvised toxicology",
+          "target_slot": "execution_result"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Observes明教 members (Xu Da, Zhu Yuanzhang) acting with greater humanity than 'orthodox' figures like Jian Jie and Xue Gongyuan",
+          "event_id": "ch13-ev-3",
+          "evidence_locator": "ch-13:para-35-to-36",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises assumption about orthodox/demon sect moral hierarchy",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Explicitly states commitment to deliver杨不悔 to her father, reaffirming promise despite personal risk and doubt",
+          "event_id": "ch13-ev-4",
+          "evidence_locator": "ch-13:para-38",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Activates filial duty toward纪晓芙 by honoring her final request",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Declines mentorship citing loyalty to Zhang Sanfeng’s injunction and awareness of limited lifespan",
+          "event_id": "ch13-ev-5",
+          "evidence_locator": "ch-13:para-119-to-121",
+          "operation": "block",
+          "requires_confirmation": false,
+          "summary": "Blocks杨逍's offer of martial training due to武当 orthodoxy and self-perceived mortality",
+          "target_slot": "boundary_consent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-13"
+    },
+    {
+      "chapter_id": "ch-14",
+      "chapter_index": 14,
+      "chapter_title": "十五　奇谋秘计梦一场",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-14: final sentence '朱长龄狂怒之下，劲运双肩，向前一挤...'",
+      "evidence_locator": "ch-14: paragraph starting '张无忌和杨不悔万里西来' to paragraph ending '朱长龄狂怒之下，劲运双肩，向前一挤...' sha256:af4753426161caf13bc2ba8bf6ce13aac39367cd2ac7368634bf915c97592fb2",
+      "excluded_facts": [],
+      "known_facts": [
+        "张无忌被朱九真豢养的猎犬围攻重伤，由朱家所救",
+        "朱九真实为丫鬟小凤所误导而误认的小姐，后确认其真实身份",
+        "朱九真豢养猛犬并以残酷手段训犬",
+        "张无忌在灵獒营中目睹朱九真指挥群犬、鞭打不服之犬",
+        "朱九真与表哥卫璧、武青婴并称‘雪岭双姝’，三人暗中较劲",
+        "张无忌被卫璧、朱九真、武青婴联手殴打至吐血",
+        "朱长龄斥责子女欺凌弱小，并当场击毙全部猛犬以示惩戒",
+        "朱长龄夫妇与姚清泉痛哭祭奠张翠山、殷素素，张无忌亲见‘张公翠山恩德图’",
+        "张无忌得知父亲张翠山与母亲殷素素已自刎身亡",
+        "姚清泉提及谢逊（金毛狮王）尚在人世且身受重伤，正被朱家藏匿",
+        "朱长龄向张无忌立誓不逼问谢逊下落，张无忌信其言",
+        "张无忌识破冒充谢逊者胡豹，朱长龄父子合演苦肉计",
+        "张无忌发现朱长龄书房中‘张公翠山恩德图’存在多处不符史实的细节",
+        "张无忌于深夜窥见朱长龄、朱九真、卫璧、武烈密谋诱骗自己前往冰火岛夺取屠龙刀",
+        "朱九真承认点穴只为掩护与卫璧私会，朱长龄叮嘱‘功亏一篑，让他瞧出破绽’",
+        "张无忌确认朱家全盘计划：假意报恩、焚庄取信、苦肉示诚、温情笼络、最终毒杀谢逊",
+        "张无忌决意宁死不引路，投崖自尽，坠入深谷后与朱长龄共困绝壁平台",
+        "张无忌钻入山洞脱身，朱长龄被困石缝中肋骨断裂"
+      ],
+      "notes": [
+        "llm-candidate:ch-14",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "拒绝抛弃猴儿，选择飞跃犬群逃亡",
+          "canonical_outcome": "被群犬追上咬伤，陷入昏迷",
+          "decision_point": "是否将怀中受伤猴儿掷出以脱身",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-14: '他知道只要将怀中的猴儿掷出，群犬自会扑击猴儿，不再和自己为难。但他自幼受父亲教诲，事事以侠义为重，虽对一头野兽也不肯相负，当即纵身从群犬头顶飞跃而过，迈开步子急奔。'",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "moral_test",
+            "physical_danger"
+          ],
+          "scene_id": "ch14-scene-1",
+          "setting": "昆仑山深处乱石堆旁，犬吠逼近时"
+        },
+        {
+          "canonical_action": "误认朱九真为小姐，行跪拜大礼",
+          "canonical_outcome": "被揭穿误认，羞惭难当，但朱九真未加斥责反显垂青",
+          "decision_point": "是否跪拜眼前华服少女为小姐",
+          "emotional_register": "shame",
+          "evidence_locator": "ch-14: '于是跪下磕头，说道：“多谢小姐搭救，我终身不敢忘了大恩。”……那少女一愕，突然间格格娇笑起来，说道：“乔福，乔福，你怎么啦？你作弄这傻小子，是不是？”'",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "social_misrecognition",
+            "status_vulnerability"
+          ],
+          "scene_id": "ch14-scene-2",
+          "setting": "红梅山庄暖阁，初见朱九真时"
+        },
+        {
+          "canonical_action": "撕下绷带，转身便走",
+          "canonical_outcome": "被乔福喝止，遭朱九真招手唤回，心神为其容貌摄住而屈服",
+          "decision_point": "是否撕下绷带转身离去，拒绝接受施恩者即加害者的伪善",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-14: '撕下身上的绷带布条，抛在地上，转身便走。……那女郎转过头来，见到他恼怒已极的模样，微微一笑，招手道，“小兄弟，你过来。”……他本来是全无血色的脸，蓦地里涨得通红。'",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "identity_threat",
+            "affective_capture"
+          ],
+          "scene_id": "ch14-scene-3",
+          "setting": "灵獒营大厅，群犬列阵、朱九真挥鞭训犬时"
+        },
+        {
+          "canonical_action": "听从朱九真低语嘱托，迷迷糊糊上前接招",
+          "canonical_outcome": "惨败受辱，鼻血长流、背脊撞墙、吐血不止，却仍强撑站立",
+          "decision_point": "是否应战明知不敌的卫璧",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-14: '迷迷糊糊的走到卫壁面前，呆呆的站着。……张无忌虽跟谢逊学过几年武功……遇上了卫璧这等出自名门的弟子，自是缚手缚脚，半点也施展不开。……他身上虽痛，心中却仍是牵挂着朱九真的脸色……'",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "reputational_risk",
+            "bodily_harm"
+          ],
+          "scene_id": "ch14-scene-4",
+          "setting": "灵獒营狗场，卫璧邀战、朱九真耳语鼓励时"
+        },
+        {
+          "canonical_action": "立下重誓后，主动坦白身世以换取信任",
+          "canonical_outcome": "朱长龄反复盘问后确信其身份，正式接纳为恩公之子",
+          "decision_point": "是否相信朱长龄关于谢逊藏匿及报恩动机的陈述",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-14: '张无忌心下激动，道：“朱伯伯，你为了我爹爹和义父，把百万家产都毁了……我义父的情形，你便不问，我也要跟你说。”于是将父母和谢逊如何飘流到冰火岛上……一一说了……听得张无忌所言确无半点破绽，这才真的相信了……'",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "epistemic_vulnerability",
+            "existential_risk"
+          ],
+          "scene_id": "ch14-scene-5",
+          "setting": "朱家庄焚毁后的山洞石室，深夜窗外马蹄声远去后"
+        },
+        {
+          "canonical_action": "屏息潜伏，完整听闻朱武两家夺取屠龙刀的全盘计划",
+          "canonical_outcome": "彻底识破温情骗局，确认自身仅为工具，决心宁死不引路",
+          "decision_point": "是否继续隐藏、静听朱长龄等人密谋，或立即现身质问",
+          "emotional_register": "grief",
+          "evidence_locator": "ch-14: '他心中怦怦乱跳，放轻脚步……探头从窗缝中向内张望……只听武烈继续道：“……那屠龙刀还不手到拿来？那时号今天下，莫敢不从？”……张无忌听了她这么恶狠狠的说话，眼前一黑，几欲晕倒……'",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "deception_detection",
+            "moral_awareness"
+          ],
+          "scene_id": "ch14-scene-6",
+          "setting": "山谷农舍外树林，朱九真点穴后张无忌解穴追踪至密室窗外"
+        },
+        {
+          "canonical_action": "足底踏空，左足跨出，全身前扑坠崖",
+          "canonical_outcome": "朱长龄被带坠崖，二人共困绝壁平台，张无忌钻洞脱身",
+          "decision_point": "是否纵身跃下悬崖以保义父性命",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-14: '张无忌只觉背心上奇痛彻骨……就在此时，他足底踏空，半个身子已在深渊之上。他左足跟着跨出，全身向前急扑。……朱长龄万没料到他竟会投崖自尽……两人一齐自峭壁跌落……'",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "life_or_death",
+            "moral_integrity"
+          ],
+          "scene_id": "ch14-scene-7",
+          "setting": "万丈峡谷边缘，朱长龄指尖扣入背脊时"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Initially perceives朱长龄 as a righteous elder; revised belief after朱长龄 publicly strikes朱九真 and annihilates the dogs, declaring '我朱家世代相传，以侠义自命'",
+          "event_id": "ch14-ev-1",
+          "evidence_locator": "ch-14: '我朱家世代相传，以侠义自命……三个大人围攻一个小孩，还想伤他性命。你说羞也不羞，羞也不羞？'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises belief in朱长龄's moral integrity after witnessing dog-killing and paternal discipline",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Based on her rescue, command over dogs, and gentle demeanor toward him despite his low status",
+          "event_id": "ch14-ev-2",
+          "evidence_locator": "ch-14: '那女郎转过头来，见到他恼怒已极的模样，微微一笑，招手道，“小兄弟，你过来。”……张无忌有生以来，第一次感到美貌女子惊心动魄的魔力……'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Forms initial model of朱九真 as benevolent, beautiful, and authoritative figure",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Shifts from viewing朱九真 as an object of pure admiration to recognizing her complicity in deception and lethal intent",
+          "event_id": "ch14-ev-3",
+          "evidence_locator": "ch-14: '朱九真道：“爹，你须得答应我一件事。”朱长龄道：“甚么？”朱九真道：“你叫我侍候这小鬼……等你取到屠龙刀后，我可要将这小鬼一刀杀死！”'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises relationship state with朱九真 from reverence to disillusioned betrayal",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Consciously chooses suicide over compliance; verbalizes intent: '不论你如何折磨我，要我带你去找我义父，那是一万个休想'",
+          "event_id": "ch14-ev-4",
+          "evidence_locator": "ch-14: '张无忌见始终没能逃出他的掌握，灰心沮丧已极，恨恨的道：“朱伯伯，不论你如何折磨我，要我带你去找我义父，那是一万个休想。”'",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Activates self-sacrificial plan to die rather than betray义父",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.0,
+          "detail": "Cross-checks '张公翠山恩德图' facial structure and weapon depiction against known facts, confirming fabrication",
+          "event_id": "ch14-ev-5",
+          "evidence_locator": "ch-14: '那幅“张公翠山恩德图”中，为甚么人人相貌逼肖，却将他尖脸的父亲画作了方脸？……画中爹爹所使兵刃，却是寻常的判官笔，铁铸的人手中抓一枝铁笔。朱伯伯自己是使判官笔的大行家，甚么都可画错，怎能将爹爹所使的判官笔也画错了？'",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Completes act of epistemic self-liberation by verifying朱长龄's deception through visual and logical anomalies",
+          "target_slot": "execution_result"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Rejects朱长龄重誓， stating '你的奸谋已给我识破，那是全然无用的了' — consent withdrawn at epistemic level",
+          "event_id": "ch14-ev-6",
+          "evidence_locator": "ch-14: '张无忌听他如此立誓，心下稍宽。朱长龄点点头……张无忌道：“你花尽心机，却到了这个半天吊的石台上来。这会儿就有一把屠龙宝刀给你，你拿着它却又如何？”'",
+          "operation": "block",
+          "requires_confirmation": false,
+          "summary": "Blocks朱长龄's attempt to re-establish trust via oath after deception is confirmed",
+          "target_slot": "boundary_consent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-14"
+    },
+    {
+      "chapter_id": "ch-15",
+      "chapter_index": 15,
+      "chapter_title": "十六　剥极而复参九阳",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-15:127",
+      "evidence_locator": "ch-15:001–ch-15:127 sha256:e961356c51fb475f6afb48cad07e069f6d3cb3bc880485100a63d72c1348026f",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-15",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "chooses to return through the cave to confront Zhu Changling and test his new power",
+          "canonical_outcome": "successfully traverses the cave using Nine Yang 'bone-shrinking' technique, confirms mastery, and initiates external reengagement",
+          "decision_point": "whether to remain isolated in the valley or attempt reentry into the outside world after mastering the Nine Yang Manual",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-15:042–ch-15:048",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "physical entrapment",
+            "psychological vulnerability to deception"
+          ],
+          "scene_id": "ch-15-scene-1",
+          "setting": "sunlit jade valley surrounded by snow-capped peaks, accessed via narrow cave tunnel"
+        },
+        {
+          "canonical_action": "chooses to descend based on compassion and perceived moral obligation",
+          "canonical_outcome": "falls into Zhu’s trap, suffers bilateral leg fracture but survives due to Nine Yang resilience",
+          "decision_point": "whether to trust Zhu Changling’s feigned injury and descend to rescue him",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-15:053–ch-15:059",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "exploitation of empathy",
+            "environmental hazard",
+            "loss of mobility"
+          ],
+          "scene_id": "ch-15-scene-2",
+          "setting": "cliff edge above narrow platform where Zhu Changling is stranded"
+        },
+        {
+          "canonical_action": "chooses silence to avoid potential harm from unknown outsiders",
+          "canonical_outcome": "survives three days without food; rescued indirectly by a peasant girl who brings sustenance and initiates emotional connection",
+          "decision_point": "whether to call for help or remain silent despite starvation and immobility",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-15:062–ch-15:065",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "starvation",
+            "infection",
+            "moral isolation"
+          ],
+          "scene_id": "ch-15-scene-3",
+          "setting": "snowfield beside hay stack, near rural farmland"
+        },
+        {
+          "canonical_action": "chooses to affirm commitment—‘I sincerely wish to marry you’—to protect her dignity and alleviate her despair",
+          "canonical_outcome": "temporarily stabilizes her emotional state; triggers cascade of martial intervention and reveals latent power transfer capability",
+          "decision_point": "whether to accept the peasant girl’s offer of companionship and emotional intimacy despite her volatility and hidden identity",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-15:102–ch-15:108",
+          "expected_regime": null,
+          "phase_label": "adolescent",
+          "risk_markers": [
+            "identity misrecognition",
+            "strategic exposure",
+            "affective entanglement"
+          ],
+          "scene_id": "ch-15-scene-4",
+          "setting": "snowfield with corpse and dead dogs, under moonlight"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Concludes that full mastery—not partial study—is required to eliminate cold poison; accepts risk of death as acceptable cost",
+          "event_id": "ch-15-ev-1",
+          "evidence_locator": "ch-15:022–ch-15:025",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Forms intention to master Nine Yang Manual as sole means to eradicate寒毒 and achieve bodily autonomy",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Explicitly rejects vengeance against Zhu Changling and Alia; affirms protection over punishment as core principle",
+          "event_id": "ch-15-ev-2",
+          "evidence_locator": "ch-15:092–ch-15:095",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Commits to non-retaliatory ethics despite provocation and prior victimization",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.97,
+          "control_signal": 0.0,
+          "detail": "Acknowledges mother’s capacity for cruelty (blinding Xie Xun, crippling Yu Daiyan, killing Longmen Biaoju) while reaffirming unconditional filial love",
+          "event_id": "ch-15-ev-3",
+          "evidence_locator": "ch-15:072–ch-15:075",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises internal model of maternal goodness after recognizing moral ambiguity in her violent acts",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 0.96,
+          "control_signal": 0.0,
+          "detail": "Affirms willingness to marry her not out of romantic certainty but as ethical response to her vulnerability and existential loneliness",
+          "event_id": "ch-15-ev-4",
+          "evidence_locator": "ch-15:104–ch-15:107",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Establishes foundational bond with peasant girl grounded in mutual recognition of abandonment and shared suffering",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.0,
+          "detail": "Discovers ability to channel internal qi into another person’s body to unblock acupoints and augment combat efficacy",
+          "event_id": "ch-15-ev-5",
+          "evidence_locator": "ch-15:117–ch-15:122",
+          "operation": "observe",
+          "requires_confirmation": false,
+          "summary": "Observes real-time transfer and amplification of Nine Yang power through physical contact",
+          "target_slot": "execution_result"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-15"
+    },
+    {
+      "chapter_id": "ch-16",
+      "chapter_index": 16,
+      "chapter_title": "十七　青翼出没一笑飏",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-16:end",
+      "evidence_locator": "ch-16:para-1-to-para-127 sha256:5d9f0716569952fc621799273d5fd07428d227a2c6a3426756bcaa8aee5af778",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-16",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Suppresses recognition impulse; maintains 'Zeng A' persona",
+          "canonical_outcome": "Zhou Zhiruo recognizes him only after he whispers 'Han Shui boat feeding debt never forgotten'",
+          "decision_point": "Whether to reveal identity to Zhou Zhiruo upon recognition",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-16:para-4-'I am乡巴佬、丑八怪、曾阿牛...决不能泄露自己身分'",
+          "expected_regime": "self-preservation through concealment",
+          "phase_label": "mature",
+          "risk_markers": [
+            "identity exposure",
+            "harm to father",
+            "violation of vow"
+          ],
+          "scene_id": "ch-16-scene-1",
+          "setting": "snowfield near Wudang foothills, dawn"
+        },
+        {
+          "canonical_action": "Agrees verbally while internally resisting",
+          "canonical_outcome": "Zhu'er accepts his reluctant assent and expresses joy",
+          "decision_point": "Whether to accept Zhu'er's demand to help locate her 'lover'",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-16:para-38-'好，我帮你去找他。'",
+          "expected_regime": "conditional compliance under duress",
+          "phase_label": "mature",
+          "risk_markers": [
+            "emotional entanglement",
+            "compromised autonomy",
+            "conflict with prior loyalty"
+          ],
+          "scene_id": "ch-16-scene-2",
+          "setting": "hidden snow-shelter in desert fringe"
+        },
+        {
+          "canonical_action": "Chooses to remain embedded with Emei contingent despite mobility recovery",
+          "canonical_outcome": "Observes Emei's resolve speech and internalizes strategic stakes of the Six Sects campaign",
+          "decision_point": "Whether to flee with Zhu'er during the night after Wei Yixiao's attack",
+          "emotional_register": "wonder",
+          "evidence_locator": "ch-16:para-119-'真想就此带了蛛儿转身逃走，永不见到这些江湖上的争斗凶杀。'",
+          "expected_regime": "delayed action pending optimal opportunity",
+          "phase_label": "mature",
+          "risk_markers": [
+            "abandonment of Zhu'er",
+            "loss of tactical advantage",
+            "moral dissonance"
+          ],
+          "scene_id": "ch-16-scene-3",
+          "setting": "desert camp under moonlight, post-Wei Yixiao encounter"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.95,
+          "control_signal": 0.8,
+          "detail": "Previously held deep resentment toward灭绝 for killing Ji Xiaofu; now acknowledges her 'patriarchal bearing' and 'unflinching integrity'",
+          "event_id": "ch-16-ev-1",
+          "evidence_locator": "ch-16:para-102-'对灭绝师太本来颇存憎恨之心...不由得心下钦服'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises assessment of Emei's moral stature after witnessing灭绝's composure and self-critique",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.88,
+          "control_signal": 0.75,
+          "detail": "Hears 'Yin Tianzheng' and 'Xie Xun' named as 'Mogul Four Kings'; feels 'heart tremble' and Zhu'er gasps — confirms familial resonance without explicit acknowledgment",
+          "event_id": "ch-16-ev-2",
+          "evidence_locator": "ch-16:para-107-'张无忌心中一凛。蛛儿轻轻“啊”的一声惊呼。'",
+          "operation": "activate",
+          "requires_confirmation": true,
+          "summary": "Activates latent filial recognition of Yin Tianzheng and Xie Xun as 'protective figures'",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.92,
+          "control_signal": 0.9,
+          "detail": "After Zhou Zhiruo's whispered question about cold poison cure and visible emotional response, resolves 'Zhou girl I must save'",
+          "event_id": "ch-16-ev-3",
+          "evidence_locator": "ch-16:para-85-'周姑娘我却非救不可。可是魔教人物这等厉害，我又有甚么本事救人？'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Creates emergent rescue imperative for Zhou Zhiruo",
+          "target_slot": "goal_value"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-16"
+    },
+    {
+      "chapter_id": "ch-17",
+      "chapter_index": 17,
+      "chapter_title": "十八　倚天长剑飞寒铓",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-17:para-43:line-3",
+      "evidence_locator": "ch-17:para-42:line-5-to-para-43:line-3 sha256:99283596926fe6ae0b1c66f74dc2640789999650334a64d9b21ba6884b98bc38",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-17",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Steps forward from snow sledge and verbally challenges Jingxuan's act of violence",
+          "canonical_outcome": "Interrupts execution, draws attention, incurs Jingxuan's attack and triggers cascade of consequences including revelation of his strength and confrontation with Miejue",
+          "decision_point": "Whether to intervene and stop the amputation of the captured Mingjiao fighters' arms",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-17:para-42:line-5-to-para-43:line-3",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "physical injury",
+            "exposure of identity",
+            "alienation from allies"
+          ],
+          "scene_id": "ch-17-scene-1",
+          "setting": "desert battlefield near sand dune, dawn breaking"
+        },
+        {
+          "canonical_action": "Chooses to remain upright and accept the blow despite near-fatal injuries",
+          "canonical_outcome": "Absorbs 'Fo Guang Pu Zhao' unharmed due to resonance between Nine Yang Divine Skill and Emei Nine Yang功, exposing his inner cultivation and forcing Miejue into public contradiction",
+          "decision_point": "Whether to endure Miejue Shitai's third palm strike after surviving two",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-17:para-58:line-1-to-para-60:line-10",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "death",
+            "identity exposure",
+            "irreversible rupture with orthodox sects"
+          ],
+          "scene_id": "ch-17-scene-2",
+          "setting": "same desert battlefield, under rising sun"
+        },
+        {
+          "canonical_action": "Commits to relentless pursuit across desert despite exhaustion and unknown threat",
+          "canonical_outcome": "Initiates chase that leads to encounter with 'Shuo Bu De', enters unknown terrain under coercion",
+          "decision_point": "Whether to pursue Wei Yixiao after he abducts Zhu'er",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-17:para-79:line-1-to-para-80:line-5",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "dehydration",
+            "capture",
+            "loss of autonomy"
+          ],
+          "scene_id": "ch-17-scene-3",
+          "setting": "desert edge, post-battle, under moonlight"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Decides to speak out against arm-amputation despite being disguised and vulnerable",
+          "event_id": "ch-17-event-1",
+          "evidence_locator": "ch-17:para-42:line-5",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Commits to nonviolent intervention in Mingjiao execution",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "States 'each person has parents and children' and appeals to compassion as core principle overriding orthodoxy",
+          "event_id": "ch-17-event-2",
+          "evidence_locator": "ch-17:para-44:line-4-to-line-6",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Affirms moral boundary against sectarian cruelty",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Shifts from concealing identity to publicly shielding Mingjiao captives, accepting physical risk as ethical necessity",
+          "event_id": "ch-17-event-3",
+          "evidence_locator": "ch-17:para-42:line-5-to-para-43:line-3",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises self-perception from passive survivor to active protector",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Internally identifies Yin Yewang as maternal uncle upon hearing name and observing resemblance, suppresses verbal acknowledgment",
+          "event_id": "ch-17-event-4",
+          "evidence_locator": "ch-17:para-63:line-1-to-line-3",
+          "operation": "observe",
+          "requires_confirmation": false,
+          "summary": "Recognizes familial bond with Yin Yewang",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Chooses pursuit over rest or concealment; explicitly rejects 'ten lives' trade-off for her life",
+          "event_id": "ch-17-event-5",
+          "evidence_locator": "ch-17:para-79:line-1-to-line-3",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Prioritizes saving Zhu'er over personal safety or secrecy",
+          "target_slot": "goal_value"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-17"
+    },
+    {
+      "chapter_id": "ch-18",
+      "chapter_index": 18,
+      "chapter_title": "十九　祸起萧墙破金汤",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-18:para-135",
+      "evidence_locator": "ch-18:para-127-to-135 sha256:5e3e5066c523547fa2f2b477732887c613fa4a133f9f7ad34ee0a99360a456ae",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-18",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Refuses to kill圆真, requests non-injurious intervention, accepts彭莹玉's proposal to press玉堂穴",
+          "canonical_outcome": "Accidentally triggers mutual finger contact with圆真, receives幻阴指寒毒, but survives due to九阳神功 resistance",
+          "decision_point": "Whether to strike圆真 with lethal force, or find a non-lethal way to neutralize him while preserving moral integrity and avoiding permanent alignment with either side",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-18:para-104-to-109",
+          "expected_regime": "Confucian virtue ethics (benevolence over duty; restraint over retribution)",
+          "phase_label": "mature",
+          "risk_markers": [
+            "moral compromise",
+            "permanent enmity with six major sects",
+            "loss of self-identity as healer"
+          ],
+          "scene_id": "ch-18-scene-1",
+          "setting": "光明顶议事厅，布袋中，烛光昏暗，八人重伤僵持"
+        },
+        {
+          "canonical_action": "Identifies himself as '无忌哥哥' upon instinctive intervention, then confirms杨不悔's father's injury to redirect her attention",
+          "canonical_outcome": "Triggers杨不悔's recognition and departure, enabling pursuit of圆真 with aid from the maid",
+          "decision_point": "Whether to reveal identity to杨不悔 before confirming her safety and the immediate threat status of圆真",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-18:para-130-to-133",
+          "expected_regime": "Relational fidelity (kinship obligation over strategic concealment)",
+          "phase_label": "mature",
+          "risk_markers": [
+            "premature disclosure",
+            "disruption of杨不悔's agency",
+            "misattribution of loyalty"
+          ],
+          "scene_id": "ch-18-scene-2",
+          "setting": "Lighted boudoir on光明顶, post-bag explosion, candlelit, ornate furnishings, hidden passage implied"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Rejects direct killing despite pressure; seeks alternative that preserves life and avoids sectarian commitment",
+          "event_id": "ch-18-ev-1",
+          "evidence_locator": "ch-18:para-106-to-107",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Forms intention to intervene without killing",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Hears说不得's account of明教's historical mission (anti-Mongol, egalitarian, persecuted), contradicting 'evil cult' stereotype",
+          "event_id": "ch-18-ev-2",
+          "evidence_locator": "ch-18:para-115-to-119",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises understanding of明教's moral standing",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Recognizes圆真's concealed finger placement at玉堂穴 as premeditated countermeasure, not passive defense",
+          "event_id": "ch-18-ev-3",
+          "evidence_locator": "ch-18:para-111-to-112",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Updates model of圆真 as deliberate deceiver",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Bag rupture under internal pressure completes final circulation, unblocking all meridians — irreversible physiological transformation",
+          "event_id": "ch-18-ev-4",
+          "evidence_locator": "ch-18:para-125-to-126",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Achieves breakthrough in九阳神功",
+          "target_slot": "execution_result"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-18"
+    },
+    {
+      "chapter_id": "ch-19",
+      "chapter_index": 19,
+      "chapter_title": "二 十　与子共穴相扶将",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-19:para-1:line-5",
+      "evidence_locator": "ch-19:para-1:line-1-5 sha256:0a540e7a08fd0efde9429da6fbfb0c4cb4bf1ad98de2a7c5fafca6504e1ade8a",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-19",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Lies beside the maid after hearing 'the passage is inside the bed'",
+          "canonical_outcome": "Falls into secret passage with her",
+          "decision_point": "Whether to lie beside the maid despite gender norms and urgent pursuit of Round True",
+          "emotional_register": "tense",
+          "evidence_locator": "ch-19:para-1:line-4-5",
+          "expected_regime": "Confucian propriety / martial urgency",
+          "phase_label": "mature",
+          "risk_markers": [
+            "gender boundary violation",
+            "mission delay"
+          ],
+          "scene_id": "ch-19-scene-1",
+          "setting": "Miss's boudoir, bed chamber with concealed trapdoor"
+        },
+        {
+          "canonical_action": "Grasps Xiao Zhao's waist and dives down just before ceiling collapse",
+          "canonical_outcome": "Both land safely in open space beneath crushing stone",
+          "decision_point": "Whether to shield Xiao Zhao from falling debris during ambush",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-19:para-7:line-3-5",
+          "expected_regime": "Self-preservation / protective instinct",
+          "phase_label": "mature",
+          "risk_markers": [
+            "entrapment",
+            "lethal impact",
+            "shared vulnerability"
+          ],
+          "scene_id": "ch-19-scene-2",
+          "setting": "Narrow spiral stone shaft, descending like a deep well"
+        },
+        {
+          "canonical_action": "Loads gunpowder into drilled hole, lays fuse, shields Xiao Zhao while igniting",
+          "canonical_outcome": "Explosion fails to breach stone but loosens adjacent wall, revealing escape route",
+          "decision_point": "Whether to use explosive force on sealed exit despite risk of self-destruction",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-19:para-14:line-6-10",
+          "expected_regime": "Resourceful improvisation / mutual survival",
+          "phase_label": "mature",
+          "risk_markers": [
+            "fire hazard",
+            "structural collapse",
+            "shared mortality"
+          ],
+          "scene_id": "ch-19-scene-3",
+          "setting": "Stone chamber filled with rusted weapons and black powder"
+        },
+        {
+          "canonical_action": "Opens the letter after Xiao Zhao suggests it may contain unfulfilled instructions",
+          "canonical_outcome": "Learns Yang Dingtian's final testament, including succession order naming Xie Xun as interim deputy leader",
+          "decision_point": "Whether to read Yang Dingtian's sealed letter addressed to his wife",
+          "emotional_register": "wonder",
+          "evidence_locator": "ch-19:para-22:line-3-5",
+          "expected_regime": "Moral duty / reverence for the dead",
+          "phase_label": "mature",
+          "risk_markers": [
+            "ritual impropriety",
+            "posthumous revelation",
+            "institutional responsibility"
+          ],
+          "scene_id": "ch-19-scene-4",
+          "setting": "Chamber containing Yang Dingtian and his wife's skeletons and the 'Heaven and Earth Great Shift' manual"
+        },
+        {
+          "canonical_action": "Steps forward, strikes Zong Weixia with palm, then channels inner energy into Yin Tianzheng’s back",
+          "canonical_outcome": "Zong Weixia repelled; Yin Tianzheng revived; Zhang Wujī assumes active mediation role",
+          "decision_point": "Whether to intervene physically in the duel between Zong Weixia and Yin Tianzheng",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-19:para-68:line-1-4",
+          "expected_regime": "Filial loyalty / moral arbitration",
+          "phase_label": "mature",
+          "risk_markers": [
+            "inter-factional escalation",
+            "identity exposure",
+            "kinship conflict"
+          ],
+          "scene_id": "ch-19-scene-5",
+          "setting": "Lightless stone corridor blocked by two massive stones, then later at光明顶广场"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Decides to follow the maid into the bed-trap despite social discomfort and tactical urgency",
+          "event_id": "ch-19-event-1",
+          "evidence_locator": "ch-19:para-1:line-4-5",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Commits to pursuing Round True through secret passage",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Physically shields her during ceiling collapse and later stands before her during explosion",
+          "event_id": "ch-19-event-2",
+          "evidence_locator": "ch-19:para-7:line-3-5,ch-19:para-14:line-8-9",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Establishes protective bond with Xiao Zhao",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Infers from skeleton position and letter that Yang died before sealing the chamber, not after confronting Cheng Kun",
+          "event_id": "ch-19-event-3",
+          "evidence_locator": "ch-19:para-21:line-5-7,ch-19:para-25:line-4-6",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises understanding of Yang Dingtian's death circumstances",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Chooses to expose Round True's deception rather than defeat opponents individually",
+          "event_id": "ch-19-event-4",
+          "evidence_locator": "ch-19:para-72:line-1-3",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Adopts mediation as primary mission objective",
+          "target_slot": "goal_value"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Uses seventh-layer technique to move immovable stone door previously resistant to Nine Yang power",
+          "event_id": "ch-19-event-5",
+          "evidence_locator": "ch-19:para-42:line-3-5",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Successfully applies Heaven and Earth Great Shift to open sealed door",
+          "target_slot": "execution_result"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-19"
+    },
+    {
+      "chapter_id": "ch-20",
+      "chapter_index": 20,
+      "chapter_title": "二十一　排难解纷当六强",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-20 end: '旁观各派中的长老名宿，便指指点点，以此教训本派弟子。'",
+      "evidence_locator": "ch-20 §1–§end sha256:a22c8e57cf9011c36dc98ce8513b82101935a6ba053459414ad54f00b8d9ee6b",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-20",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Diagnoses宗维侠's meridian damage with clinical precision, then offers therapeutic intervention contingent on cessation of七伤拳 practice",
+          "canonical_outcome": "宗维侠 publicly acknowledges张无忌's medical authority and submits to treatment, shifting崆峒派's stance from hostility to reluctant deference",
+          "decision_point": "Whether to publicly diagnose宗维侠's internal injuries from七伤拳 and offer treatment",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-20: '张无忌不答他的问话却道：“宗前辈请试按肩头云门穴……再练得八九年，不免全身瘫痪。”...宗维侠凝神听着他的说话，额头上汗珠一滴滴的渗了出来。'",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch-20-scene-1",
+          "setting": "光明顶广场，六大派围攻明教阵前"
+        },
+        {
+          "canonical_action": "Recites the secret总诀, delivers a hybrid strike—七伤拳 pulse followed by阳刚断树—to compress proof of mastery into one visible act",
+          "canonical_outcome": "常敬之 confirms internal tree-marrow destruction as authentic七伤拳 apex;唐文亮 concedes legitimacy but demands further proof",
+          "decision_point": "Whether to demonstrate七伤拳威能 on a pine tree to compel崆峒派's recognition without revealing谢逊's transmission",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-20: '张无忌高声吟罢，走上前去，砰的一拳击出...但见树干断处脉络尽皆震碎，正是七伤拳练到最深时的功夫。'",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch-20-scene-2",
+          "setting": "Same广场, immediately after宗维侠's submission"
+        },
+        {
+          "canonical_action": "Mimics空性's龙爪手招式 with perfect timing and anatomical precision, neutralizing lethal pressure points without injury",
+          "canonical_outcome": "空性 voluntarily concedes, vows lifelong gratitude, and invites张无忌 to少林—transforming humiliation into institutional validation",
+          "decision_point": "Whether to defeat空性 using少林龙爪手 against himself, preserving少林 dignity while establishing supremacy",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-20: '张无忌见他左手微动，便已知他要使此招...张无忌手指却不使劲，随即缩回。...空性低头沉思...点了点头，缓缓说道：“曾施主比老钠高明得多了。”'",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch-20-scene-3",
+          "setting": "Same广场, during confrontation with空性"
+        },
+        {
+          "canonical_action": "Uses九阳真气 to suppress鲜于通's respiration mid-sentence, forcing confession of胡青羊's death and白垣's murder under duress",
+          "canonical_outcome": "鲜于通 publicly admits guilt; his师叔 validates the confession;华山派 fractures internally while张无忌 assumes moral arbitration",
+          "decision_point": "Whether to expose鲜于通's金蚕蛊毒 and moral crimes using coercive breath-control, knowing it risks triggering public collapse of华山派 legitimacy",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-20: '张无忌以绝顶神功压迫他的呼吸...鲜于通叫道：“快救我……快救我……白垣白师哥，是我用这金蚕蛊毒害死的...”'",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch-20-scene-4",
+          "setting": "Same广场, facing鲜于通"
+        },
+        {
+          "canonical_action": "Orbits西华子's immobilized body to deflect刀剑, then releases him at critical moment—triggering chaotic counterattack that breaks the alliance’s cohesion",
+          "canonical_outcome": "西华子 strikes矮老者;四-way synergy collapses;张无忌 retains tactical initiative without inflicting fatal harm",
+          "decision_point": "Whether to use西华子 as a human shield against coordinated正反两仪 attacks, accepting temporary moral ambiguity to survive and preserve mediation mandate",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-20: '张无忌在他身侧钻来跃去...西华子眼见张无忌两番出手，相护自己...张无忌飞脚踢他手腕...西华子穴道已解，突然砰的一拳，结结实实打在矮老者鼻梁之上'",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch-20-scene-5",
+          "setting": "Same广场, four-way combat with何太冲,班淑娴, and华山二老"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Chooses non-lethal, pedagogical engagement over decisive victory—e.g., healing宗维侠, sparing空性, exposing鲜于通 rather than killing him",
+          "event_id": "ch-20-ev-1",
+          "evidence_locator": "ch-20: '张无忌只盼望六大派和明教罢手言和，并无准人指使在下。'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Commits to mediating六大派–明教 conflict via demonstration of superior martial-medical authority",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Rejects identification with either明教 or六大派; refuses to name谢逊 despite risk of exposure; declines to claim明教 allegiance even when challenged",
+          "event_id": "ch-20-ev-2",
+          "evidence_locator": "ch-20: '张无忌一惊：“啊哟不好，我炫示七伤拳功，却把义父带了出来。倘若言明了跟义父之间的渊源，那是摆明和六大派为敌，这和事老便作不成了。”'",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Affirms identity as mediator, not partisan",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Observes宗维侠's shame,空性's humility,鲜于通's corruption, and何太冲's compromised authority—concludes persuasion is possible if dignity is preserved",
+          "event_id": "ch-20-ev-3",
+          "evidence_locator": "ch-20: '空性在一时愤激之中，原想自断五指...听他如此说，但觉对方言语行事，处处对本门十分回护...眼中泪光莹莹，合十说道：“曾施主仁义过人，老衲既感且佩。”'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Updates model of六大派 leadership as morally fractured but institutionally salvageable",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Interprets her gasp and warning as evidence of personal concern; registers emotional significance ('这小姑娘对我倒也真好') without reciprocating or naming the bond",
+          "event_id": "ch-20-ev-4",
+          "evidence_locator": "ch-20: '张无忌向惊呼声来处瞧去，只见小昭神色惊恐，叫道：“张公子，你……你小心了。”张无忌心中一动：“这小姑娘对我倒也真好。”'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Establishes asymmetric trust with小昭",
+          "target_slot": "relationship_state"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-20"
+    },
+    {
+      "chapter_id": "ch-21",
+      "chapter_index": 21,
+      "chapter_title": "二十二　群雄归心约三章",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-21 end of fight with灭绝师太 and before secret passage decision",
+      "evidence_locator": "ch-21 §1–§end sha256:7f496da59868565a90fa92b0135c4e804c09910f2b39b851ef3a9e5a9d0ba472",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-21",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "以九阳神功护体、乾坤大挪移第七层化刚为柔之劲夺剑，随即退开两步以剑尖指其咽喉而不刺",
+          "canonical_outcome": "成功制住灭绝师太却未伤其性命，赢得全场震撼与短暂战术优势",
+          "decision_point": "面对灭绝师太倚天剑凌厉攻势，张无忌须在无剑法根基、重伤初愈、且不可伤师太的前提下选择应对方式",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-21 '张无忌虽然得胜，但对灭绝师太这般大敌，实是戒惧极深，丝毫不敢怠忽，以倚天剑指住她咽喉，生怕她又有奇招使出，慢慢的退开两步。'",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "倚天剑锋锐无匹",
+            "周芷若被疑通敌",
+            "明教存亡系于一役"
+          ],
+          "scene_id": "ch21-scene1",
+          "setting": "光明顶演武场，日间，六大派围攻明教总坛"
+        },
+        {
+          "canonical_action": "左手按伤、右手五指轻拂卸尽三十六招绵掌，继而反制‘花开并蒂’令其自击面颊与穴道",
+          "canonical_outcome": "宋青书当众受辱倒地，武当派被迫认输，六大派围攻瓦解",
+          "decision_point": "重伤濒危、内力难提之际，是否以借力打力之法反击宋青书，明知此举将激化武当与峨嵋矛盾并暴露自身极限",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-21 '只听得拍拍两下清脆的响声，宋青书左手一掌打上了自己左颊……仰天摔倒，挣扎了几下，再也站不起来了。'",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "肺叶穿伤呼吸困难",
+            "误认小昭为周芷若致信任错位",
+            "武当声誉与明教存续双重压力"
+          ],
+          "scene_id": "ch21-scene2",
+          "setting": "光明顶演武场，张无忌右胸重伤后坐地，宋青书上前挑战"
+        },
+        {
+          "canonical_action": "在‘暂摄教主’前提下应允，号令全教退入秘道，并命烈火旗纵火掩护",
+          "canonical_outcome": "明教与天鹰教全员生还，光明顶总坛焚毁，教权结构重组完成",
+          "decision_point": "是否接受明教众人拥立为教主以启动秘道避难机制，明知此举违背张三丰禁令、背离本心且将永久卷入明教权责",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-21 '于是朗声道：“各位既然如此见爱，小子若再不允，反成明教的大罪人了。小子张无忌，暂摄明教教主职位，渡过今日难关之后，务请各位另择贤能。”'",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "阳顶天遗书约束",
+            "张真人严训不可入明教",
+            "外敌已至山腰，时限不足一炷香"
+          ],
+          "scene_id": "ch21-scene3",
+          "setting": "光明顶杨逍房中，秘道入口前，外敌哨声逼近"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Recalls secret passage from prior experience in the tunnel; proposes it as last-resort survival option when external threat escalates",
+          "event_id": "ch21-ev1",
+          "evidence_locator": "ch-21 '张无忌在这顷刻之间，心中转过了无数念头……冲口而出的叫道：“咱们快到秘道中暂且躲避，敌人未必能发觉。”'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Formulates tactical retreat plan via secret passage",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Accepts provisional教主 title to override sacred prohibition on secret passage access, binding self to institutional duty",
+          "event_id": "ch21-ev2",
+          "evidence_locator": "ch-21 '小子张无忌，暂摄明教教主职位，渡过今日难关之后，务请各位另择贤能。'",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Commits to leadership role under duress",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Interprets her sword thrust not as betrayal but as coerced obedience; registers her shame, fear, and unspoken affection during mutual gaze at departure",
+          "event_id": "ch21-ev3",
+          "evidence_locator": "ch-21 '两人目光相接，周芷若苍白的脸颊上飞了一阵红晕……张无忌似乎明白了她的意思，微微点了点头。'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises understanding of Zhou Zhiruo's loyalty and vulnerability",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Chooses verbal affirmation over reciprocation when Xiao Zhao declares devotion; maintains emotional distance consistent with prior restraint",
+          "event_id": "ch21-ev4",
+          "evidence_locator": "ch-21 '小昭！你为甚么待我这么好？' …… '就算我此时死了，也有了一个真正待我极好的知己。'",
+          "operation": "block",
+          "requires_confirmation": false,
+          "summary": "Rejects physical intimacy with Xiao Zhao despite emotional resonance",
+          "target_slot": "boundary_consent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-21"
+    },
+    {
+      "chapter_id": "ch-22",
+      "chapter_index": 22,
+      "chapter_title": "二十三　灵芙醉客绿柳庄",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "end of green willow manor chapter before departure for Shaolin",
+      "evidence_locator": "green willow manor encounter, trap descent, and escape sequence sha256:08a77c14c069a29e9a67997ea62638592e1eaa0471b855a5ddca60485d6dc0de",
+      "excluded_facts": [],
+      "known_facts": [
+        "Feng Yuansheng is a Kunlun sect member whose sword was found in the desert.",
+        "Wu Dang's Sixth Master Yin Liting was ambushed and crippled by five Shaolin monks using Diamond Finger technique.",
+        "A group of nine people—eight archers and a young master—intercepted and slaughtered fifty Yuan soldiers near the willow grove.",
+        "The 'young master' is a woman named Zhao Min, daughter of the Prince of Ruyang, who possesses the倚天 Sword (later revealed to be wooden).",
+        "Zhao Min's estate is called Green Willow Manor; she displays deep knowledge of Ming Cult hierarchy and individual identities.",
+        "The 'Drunken Immortal Ling Fu' flower and 'Qilin fragrant wood' (fake sword) together produce a paralyzing toxin.",
+        "Zhang Wují deduced the toxin mechanism from Wang Nangu's 'Poison Manual' and retrieved the antidote root from the water pavilion garden.",
+        "Zhao Min trapped Zhang Wují in a steel prison beneath the water pavilion after he seized the antidote.",
+        "Zhang Wují escaped the steel prison by coercing Zhao Min via tickling her Yongquan points.",
+        "Zhao Min orchestrated a Mongol cavalry attack on the Ming Cult leaders immediately after their poisoning, then recalled them upon seeing Zhang Wují's return.",
+        "Zhao Min sent a golden box containing the pearl flower back to Zhang Wují with two pearls restored.",
+        "The Ming Cult discovered the Shaolin Temple had been attacked and abandoned, with sixteen characters carved on arhat statues framing the Ming Cult for the massacre."
+      ],
+      "notes": [
+        "llm-candidate:ch-22",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Accept their invitation to Green Willow Manor",
+          "canonical_outcome": "Enters the manor and consumes poisoned food/drink",
+          "decision_point": "Whether to approach the nine strangers after witnessing their slaughter of Yuan troops",
+          "emotional_register": "wonder",
+          "evidence_locator": "Zhang Wují decides to accept Zhao Min's invitation after being impressed by the archers' skill and wanting to learn about the倚天 Sword",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch22-scene1",
+          "setting": "desert night, near willow grove"
+        },
+        {
+          "canonical_action": "Chooses to retrieve the antidote alone rather than warn others first",
+          "canonical_outcome": "Successfully retrieves the 'Drunken Immortal Ling Fu' roots but falls into Zhao Min's steel trap",
+          "decision_point": "Whether to leave immediately upon realizing the wine and flowers are toxic",
+          "emotional_register": "resolve",
+          "evidence_locator": "Zhang Wují commands others to sit still, forbids qi circulation, and rushes back alone to fetch the antidote",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch22-scene2",
+          "setting": "water pavilion at Green Willow Manor"
+        },
+        {
+          "canonical_action": "Applies controlled tactile pressure to Yongquan points to induce unbearable sensation",
+          "canonical_outcome": "Forces Zhao Min to signal for release; escapes with antidote intact",
+          "decision_point": "How to extract cooperation from Zhao Min without killing her or triggering irreversible harm",
+          "emotional_register": "doubt",
+          "evidence_locator": "Zhang Wují uses Nine Yang Divine Skill on Zhao Min's Yongquan points to compel her cooperation",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "physical coercion",
+            "trust violation",
+            "temporal urgency"
+          ],
+          "scene_id": "ch22-scene3",
+          "setting": "steel prison beneath water pavilion"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "After Zhao Min reveals her name and displays intimate knowledge of Ming Cult members, Zhang Wují resolves to uncover her background and purpose",
+          "event_id": "ch22-event1",
+          "evidence_locator": "Zhang Wují asks Zhao Min directly about the origin of the倚天 Sword and observes her reactions closely",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Forms intent to investigate Zhao Min's identity and motives",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Previously assumed poison would be in food or drink; realizes instead that odor interaction between flower and wooden sword creates toxin",
+          "event_id": "ch22-event2",
+          "evidence_locator": "Zhang Wují recalls Poison Manual entry on Qilin fragrant wood + ling fu flower synergy",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises assumption about poison detection capability",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Physical coercion in steel prison, followed by her sending back the pearl flower with restored pearls, establishes mutual recognition of intellect and will",
+          "event_id": "ch22-event3",
+          "evidence_locator": "Zhao Min's post-trap gift and Zhang Wují's internal reflection on her 'cleverness' and 'beauty'",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Activates adversarial-but-fascinated dynamic with Zhao Min",
+          "target_slot": "relationship_state"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-22"
+    },
+    {
+      "chapter_id": "ch-23",
+      "chapter_index": 23,
+      "chapter_title": "二十四　太极初传柔克刚",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-23:para-103",
+      "evidence_locator": "ch-23:para-102-to-103 sha256:272ef97e31b8c8fe6a43f75169b35722eb5c3198a8cfc379451c327f79423c50",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-23",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Withholds identity, observes silently while weighing intervention",
+          "canonical_outcome": "Witnesses Zhang Sanfeng's injury and subsequent transmission of Taiji Quan to Yu Daiyan",
+          "decision_point": "Whether to reveal identity and intervene as Zhang Sanfeng is struck by Kong Xiang",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-23:para-58-to-60",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "identity concealment",
+            "delayed intervention",
+            "uncertainty of master's condition"
+          ],
+          "scene_id": "ch-23-scene-1",
+          "setting": "武当山后山小院外，竹林深处"
+        },
+        {
+          "canonical_action": "Steps forward as a dirt-smeared Daoist novice to assume the challenge",
+          "canonical_outcome": "Defeats A-San using newly learned Taiji Quan, then defeats A-Er with bare-handed force",
+          "decision_point": "Whether to step forward and fight A-San after Zhang Sanfeng declines combat",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-23:para-102-to-104",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "identity exposure",
+            "violation of assumed role",
+            "escalation against superior foes"
+          ],
+          "scene_id": "ch-23-scene-2",
+          "setting": "Wudang Mountain Sanqing Hall, interior"
+        },
+        {
+          "canonical_action": "Accepts 'forgetting' as prerequisite; internalizes intent over form",
+          "canonical_outcome": "Defeats Fang Dongbai using wooden sword against倚天 sword, disarms without breaking vow",
+          "decision_point": "How to wield Taiji sword principles without memorized forms",
+          "emotional_register": "wonder",
+          "evidence_locator": "ch-23:para-117-to-120",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "reliance on untested abstraction",
+            "public failure risk",
+            "weapon mismatch"
+          ],
+          "scene_id": "ch-23-scene-3",
+          "setting": "Sanqing Hall, during sword duel with Fang Dongbai"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.85,
+          "detail": "Chooses not to interrupt Kong Xiang's attack, prioritizing observation over immediate rescue",
+          "event_id": "ch-23-ev-1",
+          "evidence_locator": "ch-23:para-59",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Decides to conceal identity to assess threat before acting",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.92,
+          "detail": "Assumes role of novice Daoist to uphold Wudang honor and protect Zhang Sanfeng's legacy",
+          "event_id": "ch-23-ev-2",
+          "evidence_locator": "ch-23:para-102",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Commits to defending Wudang through embodied performance",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.97,
+          "control_signal": 0.88,
+          "detail": "Moves from seeing Taiji as sequence of moves to recognizing it as 'intentional circularity'",
+          "event_id": "ch-23-ev-3",
+          "evidence_locator": "ch-23:para-119",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises understanding of martial efficacy from technique to principle",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.95,
+          "detail": "Kneels and declares identity after victory, completing long-severed lineage recognition",
+          "event_id": "ch-23-ev-4",
+          "evidence_locator": "ch-23:para-105",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Re-establishes filial bond with Zhang Sanfeng",
+          "target_slot": "relationship_state"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-23"
+    },
+    {
+      "chapter_id": "ch-24",
+      "chapter_index": 24,
+      "chapter_title": "二十五　举火燎天何煌煌",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-24: '张无忌将书收起，说道：“俞三伯和殷六叔伤势大好了，我们明日便首途蝴蝶谷去。我另有一事要和杨左使相商，那是关于不悔妹子的。”'",
+      "evidence_locator": "ch-24: '张无忌道：“眼下有两件大事。第一件是去抢夺黑玉断续膏，好治疗俞三伯和殷六叔的伤。第二件是打听宋大师伯他们的下落。这两件大事，都要着落在那姓赵的姑娘身上。”' sha256:2431af9739e45935300cd470a913068423320de261bfe23c08d7a76d4c1e4658",
+      "excluded_facts": [],
+      "known_facts": [
+        "玄冥二老是敌方高手，曾以玄冥神掌重创俞岱岩、殷梨亭",
+        "赵敏是敌方核心人物，能驱使玄冥二老",
+        "黑玉断续膏可治断骨之伤",
+        "七虫七花膏是剧毒，中毒症状为内脏麻痒、眼前现斑斓彩晕",
+        "赵敏掌握七虫七花膏解药及黑玉断续膏真品",
+        "赵敏提出以解药交换张无忌办三件事，且限定‘不违侠义之道’",
+        "珠花中空藏药方，金盒夹层藏真黑玉断续膏",
+        "宋远桥等六大派高手被囚于大都万安寺"
+      ],
+      "notes": [
+        "llm-candidate:ch-24",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Grabs the black bottle and scrapes genuine ointment directly from Ah San's and Tu Ding Ah Er's wounds",
+          "canonical_outcome": "Acquires both counterfeit-labeled poison and authentic-seeming ointment samples; fails to detect substitution until later",
+          "decision_point": "Whether to seize the black bottle from Ah San's room immediately upon discovery, or wait and verify authenticity first",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-24: 'He feared Zhao Min might have placed fake medicine in the black bottle... so he scraped ointment from their wounds'",
+          "expected_regime": "medical urgency",
+          "phase_label": "mature",
+          "risk_markers": [
+            "urgency",
+            "trust violation",
+            "sensory deception"
+          ],
+          "scene_id": "ch24-scene-1",
+          "setting": "武当山三清殿后客店房间，夜半"
+        },
+        {
+          "canonical_action": "Agrees to the pact and strikes palms with Zhao Min",
+          "canonical_outcome": "Secures antidote access but binds himself to future obligations under undefined terms",
+          "decision_point": "Whether to accept Zhao Min's three-condition bargain for the antidote",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-24: 'Fingers lightly struck three times.'",
+          "expected_regime": "negotiated exchange",
+          "phase_label": "mature",
+          "risk_markers": [
+            "asymmetric information",
+            "unspecified conditions",
+            "moral constraint"
+          ],
+          "scene_id": "ch24-scene-2",
+          "setting": "武当山观门外， sunset"
+        },
+        {
+          "canonical_action": "Tests antidote on a dog first, then administers it only after confirming safety",
+          "canonical_outcome": "Saves both patients without iatrogenic fatality",
+          "decision_point": "Whether to administer unverified antidote to俞岱岩 and殷梨亭 after discovering the poison",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-24: 'He found a dog... broke its leg... applied the ointment... next morning the dog was lively'",
+          "expected_regime": "medical prudence",
+          "phase_label": "mature",
+          "risk_markers": [
+            "life-or-death verification",
+            "delayed action",
+            "empirical validation"
+          ],
+          "scene_id": "ch24-scene-3",
+          "setting": "武当山云房， post-treatment"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Announces two priorities before the banquet: securing black jade ointment for俞岱岩 and殷梨亭, and locating Song Da Xia and others via Zhao Min",
+          "event_id": "ch24-ev-1",
+          "evidence_locator": "ch-24: 'Zhang Wují said: “There are two major matters now...”'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Formulates dual-track rescue plan targeting black jade ointment acquisition and Zhao Min tracking",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Swears to fulfill any three tasks 'so long as they do not violate the path of chivalry'",
+          "event_id": "ch24-ev-2",
+          "evidence_locator": "ch-24: 'Only if they do not violate the path of chivalry, you must strive your utmost to accomplish them.'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Commits to Zhao Min’s three-task bargain under explicit moral constraint",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Accepts the authenticity of the antidote formula and ointment after cross-verifying pearl flower and gold box contents, shifting from suspicion to conditional reliance",
+          "event_id": "ch24-ev-3",
+          "evidence_locator": "ch-24: 'He read the method thoroughly... knew it was not Zhao Min tricking him... tested on dog... next morning no poisoning signs'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises belief about Zhao Min’s trustworthiness from ‘deceptive adversary’ to ‘conditionally reliable negotiator’",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Palm-strike oath establishes a binding, asymmetric, time-deferred relational contract governed by chivalric ethics",
+          "event_id": "ch24-ev-4",
+          "evidence_locator": "ch-24: 'They lightly struck palms three times.'",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Activates formalized inter-party relationship with Zhao Min as bound negotiator",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Chooses negotiation over lethal coercion despite rage and grief, affirming healing as non-negotiable core value",
+          "event_id": "ch24-ev-5",
+          "evidence_locator": "ch-24: 'If you don’t give me the antidote, today is the day we both die.' — followed by accepting her terms",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises priority weighting: healing俞/殷 supersedes immediate vengeance against Zhao Min",
+          "target_slot": "goal_value"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-24"
+    },
+    {
+      "chapter_id": "ch-25",
+      "chapter_index": 25,
+      "chapter_title": "二十六　俊貌玉面甘毁伤",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "张无忌直到此刻，方知赵敏的来历，虽料想她必是朝廷贵人，却没料到竟是天下兵马大元帅汝阳王的郡主。",
+      "evidence_locator": "张无忌伏在地下，从长窗缝隙中向殿内张望。杨逍和韦一笑分列左右把风守卫…他三人虽然艺高人胆大，但此刻深入龙潭虎穴，心下也不禁惴惴。 sha256:759378d80a6eec2de5323edbc8a1ffed1a35463f6186b3457d5616a46b5973f1",
+      "excluded_facts": [],
+      "known_facts": [
+        "赵敏是汝阳王察罕特穆尔之女，封号绍敏郡主，蒙古名敏敏特穆尔",
+        "赵敏统率蒙汉西域武士番僧，以十香软筋散毒倒六大派高手并囚于万安寺宝塔",
+        "玄冥二老（鹿杖客、鹤笔翁）是赵敏手下顶儿尖儿人物，分掌十香软筋散及解药",
+        "苦头陀实为明教光明右使范遥，自毁容貌卧底汝阳王府",
+        "范遥已确认解药由玄冥二老轮管，且极可能此刻在鹿杖客处"
+      ],
+      "notes": [
+        "llm-candidate:ch-25",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "伏地窥视，暂不行动",
+          "canonical_outcome": "确认何太冲被囚、赵敏在场、玄冥二老主持审讯，但未贸然救人",
+          "decision_point": "是否立即冲入殿内救何太冲",
+          "emotional_register": "tense",
+          "evidence_locator": "张无忌伏在地下，从长窗缝隙中向殿内张望…杨逍向他摇了摇手，意思显然是说：‘此刻冲进殿去救人，不免误了大事。’",
+          "expected_regime": "covert_reconnaissance",
+          "phase_label": "mature",
+          "risk_markers": [
+            "暴露位置",
+            "打草惊蛇",
+            "误伤人质"
+          ],
+          "scene_id": "ch25-observation",
+          "setting": "万安寺大殿外长窗下"
+        },
+        {
+          "canonical_action": "掷金盒撞偏剑锋，破窗而入",
+          "canonical_outcome": "成功阻断毁容，救下周芷若，暴露己方位置与意图",
+          "decision_point": "是否在赵敏持倚天剑划周芷若面容前出手",
+          "emotional_register": "crisis",
+          "evidence_locator": "寒光一闪，赵敏手中长剑便往周芷若脸上划去，突然间当的一响，殿外掷进一件物事，将倚天剑撞了开去。在此同时，殿上长窗震破，一人飞身而入。",
+          "expected_regime": "emergency_rescue",
+          "phase_label": "mature",
+          "risk_markers": [
+            "单人突入",
+            "敌众我寡",
+            "触发全面围攻"
+          ],
+          "scene_id": "ch25-intervention",
+          "setting": "万安寺大殿内"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Factual identification of Zhao Min's identity and political affiliation based on Fan Yao's testimony",
+          "event_id": "ch25-factual_identification",
+          "evidence_locator": "张无忌直到此刻，方知赵敏的来历，虽料想她必是朝廷贵人，却没料到竟是天下兵马大元帅汝阳王的郡主。",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Identifies Zhao Min as汝阳王之女",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Decision to pursue antidote acquisition (via Fan Yao's infiltration plan) rather than direct assault",
+          "event_id": "ch25-strategic_commitment",
+          "evidence_locator": "杨逍道：‘咱们只管把玄冥二老身上的药偷来，找一个华山派、崆峒派的小角色来试上一试…’张无忌知他邪性甚重，不把旁人的性命放在心上，只笑了笑…杨逍一拍大腿，说道：‘教主此言有理。咱们昨晚这么一闹，或许把郡主吓怕了，竟把解药收在自己身边。依我说，咱们须得先行查明解药由何人掌管，然后再计议行事。’",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Commits to rescue operation contingent on obtaining antidote",
+          "target_slot": "commitment"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-25"
+    },
+    {
+      "chapter_id": "ch-26",
+      "chapter_index": 26,
+      "chapter_title": "二十七　百尺高塔任回翔",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "张无忌又是一惊，道：‘你也同去？’...张无忌听到‘爹爹叫我统率江湖群豪’这句话，心中一动...于是点头道：‘好，我出发之时，便来约你。’",
+      "evidence_locator": "赵敏和张无忌相对而坐。范遥打手势说自己到外堂喝酒...张无忌满腹疑团...赵敏低声道：‘张公子，你可知道我是谁？’...张无忌沉吟半晌，说道：‘我不知道。’...赵敏见他沉吟不答，笑道：‘你不肯，那也由得你。我可要另外叫你做一件事，那却难得多了。’...张无忌知道这女子十分刁猾厉害...忙道：‘好，我答应去给你借屠龙刀。’ sha256:610ed1241f79fbe8af2fdd4924d37577832a1e8922f0452dd2620ee15792b1b1",
+      "excluded_facts": [],
+      "known_facts": [
+        "赵敏是汝阳王之女，蒙古人，真名敏敏特穆尔，封绍敏郡主",
+        "赵敏以汉名‘赵敏’自取",
+        "赵敏掌握对玄冥二老等武林高手的号令权",
+        "屠龙刀在谢逊手中，藏有武功绝学秘密",
+        "倚天剑在赵敏手中",
+        "赵敏提出第一件事是让张无忌向谢逊借屠龙刀一个时辰",
+        "赵敏要求亲自同往冰火岛"
+      ],
+      "notes": [
+        "llm-candidate:ch-26",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "张无忌 agrees after weighing risks: Fearing Zhao Min's trickery but trusting his ability to supervise, and recognizing the strategic value of her presence to prevent a 'tiger-luring' attack on the Ming Cult in his absence",
+          "canonical_outcome": "Zhang Wují commits to retrieving the saber from Xie Xun for Zhao Min’s one-hour inspection",
+          "decision_point": "是否应允赵敏借屠龙刀一个时辰的要求",
+          "emotional_register": "doubt",
+          "evidence_locator": "张无忌寻思：‘救出了六大派高手之后，我本是要立即动身去迎归义父...只是义父曾说，屠龙刀之中，藏着一件武功绝学的大秘密...何况我和义父一别十年，说不定他在孤岛之上，已参透了宝刀的秘密。’...张无忌听到‘爹爹叫我统率江湖群豪’这句话，心中一动...于是点头道：‘好，我出发之时，便来约你。’",
+          "expected_regime": "Ming Cult internal loyalty code",
+          "phase_label": "mature",
+          "risk_markers": [
+            "betrayal_of_father_figure",
+            "violation_of_cult_loyalty",
+            "compromised_safety_of_allies"
+          ],
+          "scene_id": "ch26-winehouse-confrontation",
+          "setting": "小酒家内堂，炭火映照，仅张无忌与赵敏对坐"
+        },
+        {
+          "canonical_action": "Zhang Wují declines to give a definitive answer, instead articulating his pacifist philosophy rooted in grief and moral reflection",
+          "canonical_outcome": "He affirms non-revenge as core principle; implicitly rejects Zhao Min’s zero-sum relational logic",
+          "decision_point": "How to respond when Zhao Min reveals her true identity and asks whether he would kill her if she killed Zhou Zhiruo",
+          "emotional_register": "resolve",
+          "evidence_locator": "张无忌沉吟半晌，说道：‘我不知道。’...这一番话，他在心头已想了很久...突然在这小酒家中对赵敏说了出来...‘我不想报仇杀人，也盼别人也不要杀人害人。’",
+          "expected_regime": "Personal ethical framework shaped by parental loss and martial ethics",
+          "phase_label": "mature",
+          "risk_markers": [
+            "emotional_vulnerability",
+            "ideological_exposure",
+            "boundary_test_by_adversary"
+          ],
+          "scene_id": "ch26-winehouse-identity-revelation",
+          "setting": "小酒家内堂，烛光摇曳，酒气氤氲"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.95,
+          "detail": "Explicitly states refusal to kill even in response to Zhou Zhiruo’s death; grounds stance in parental trauma and moral exhaustion",
+          "event_id": "ch26-faith-in-nonviolence",
+          "evidence_locator": "‘我不想报仇杀人，也盼别人也不要杀人害人。’",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Affirms nonviolent resolution as primary life principle",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.9,
+          "detail": "Agrees to retrieve the saber from Xie Xun under condition of Zhao Min’s presence and strict one-hour limit",
+          "event_id": "ch26-trust-in-supervision",
+          "evidence_locator": "‘好，我答应去给你借屠龙刀。但咱们言明在先，你只能借看一个时辰...’",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Commits to supervised loan of Dragon Slaying Saber",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.97,
+          "control_signal": 0.85,
+          "detail": "Registers her self-disclosure (name, lineage, title), her rhetorical testing ('if I kill Zhou Zhiruo'), and her visible emotional shifts (blushing, lowered gaze, hand-on-hand gesture)",
+          "event_id": "ch26-identity-recognition",
+          "evidence_locator": "赵敏低声道：‘张公子，你可知道我是谁？’...‘我爹爹便是当朝执掌兵马大权的汝阳王。我是蒙古女子，真名字叫作敏敏特穆尔。皇上封我为绍敏郡主。’...赵敏伸出右手，按在他手背之上，眼光中全是喜色...",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Updates model of Zhao Min from political adversary to complex agent with disclosed identity and emotional vulnerability",
+          "target_slot": "user_model"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-26"
+    },
+    {
+      "chapter_id": "ch-27",
+      "chapter_index": 27,
+      "chapter_title": "二十八　恩断义绝紫衫王",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-27#para-125",
+      "evidence_locator": "ch-27#para-123-125 sha256:bfdbd5cba8e084467b27b9e31365fbe8801d049c3c91488ca6df5519fb69b8ee",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-27",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Withhold revelation, observe silently, and intervene only when Xie Xun is about to step onto the needle field",
+          "canonical_outcome": "Xie Xun avoids injury; Zhang Wují preserves his father’s dignity and timing of reunion while foiling the ambush",
+          "decision_point": "Whether to reveal himself to Xie Xun immediately upon witnessing the steel-needle trap and impending duel",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-27#para-108-110",
+          "expected_regime": "filial duty",
+          "phase_label": "mature",
+          "risk_markers": [
+            "betrayal of trust",
+            "loss of paternal recognition",
+            "physical harm to Xie Xun"
+          ],
+          "scene_id": "ch-27-scene-1",
+          "setting": "灵蛇岛北峰山腰，夜，山石嶙峋，暗布钢针"
+        },
+        {
+          "canonical_action": "Deflect two golden flowers mid-air and reveal his face to Yin Li upon catching her as she collapses",
+          "canonical_outcome": "Yin Li recognizes him as 'Ah Niu gege'; Zhang Wují’s identity is confirmed to at least one witness before formal reunion with Xie Xun",
+          "decision_point": "Whether to physically intervene mid-combat after Xie Xun is struck by the cane and begins counterattacking with golden flowers",
+          "emotional_register": "wonder",
+          "evidence_locator": "ch-27#para-124-125",
+          "expected_regime": "kinship loyalty",
+          "phase_label": "mature",
+          "risk_markers": [
+            "premature exposure to Han Fu-ren",
+            "disruption of Xie Xun’s autonomy in confrontation"
+          ],
+          "scene_id": "ch-27-scene-2",
+          "setting": "same location, moments later, during Xie Xun and Han Fu-ren’s duel"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.95,
+          "detail": "Decides not to interrupt the duel or reveal himself even after recognizing Han Fu-ren as Zi Shan Long Wang, choosing instead to act only when physical danger arises",
+          "event_id": "ch-27-ev-1",
+          "evidence_locator": "ch-27#para-109-110",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Commits to delaying formal recognition until Xie Xun’s safety and agency are secured",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.92,
+          "detail": "Infers from her address of Xie Xun as 'Third Brother' and reference to 'Four Great Law Kings' that she is the legendary Zi Shan Long Wang, previously unknown to him as such",
+          "event_id": "ch-27-ev-2",
+          "evidence_locator": "ch-27#para-112-113",
+          "operation": "revise",
+          "requires_confirmation": true,
+          "summary": "Revises assumption about Han Fu-ren’s identity and past affiliation",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.97,
+          "detail": "His silent vigil and precise intervention—removing needles beneath Xie Xun’s feet—constitutes embodied reassertion of sonship without speech",
+          "event_id": "ch-27-ev-3",
+          "evidence_locator": "ch-27#para-110-111",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Activates latent filial bond with Xie Xun through protective action",
+          "target_slot": "relationship_state"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-27"
+    },
+    {
+      "chapter_id": "ch-28",
+      "chapter_index": 28,
+      "chapter_title": "二十九　四女同舟何所望",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-28#para-104",
+      "evidence_locator": "ch-28#para-17 sha256:e4ed6e29a68638dae17964dd27af260d7e0fad0651d12d9a69305302d105e428",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-28",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "reveals identity using memorized martial arts maxims only after Xie Xun expresses doubt and demands proof",
+          "canonical_outcome": "Xie Xun accepts him as Zhang Wuji and embraces him",
+          "decision_point": "whether to reveal his true identity to Xie Xun while fleeing from the Persian envoys",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-28#para-93-96",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "identity exposure",
+            "disruption of authority hierarchy",
+            "emotional vulnerability"
+          ],
+          "scene_id": "ch-28-scene-1",
+          "setting": "a small boat adrift on the sea at night, after shipwreck"
+        },
+        {
+          "canonical_action": "reaches out and holds her hand, whispers protective vow",
+          "canonical_outcome": "Fazhao feels affirmed; emotional bond deepens visibly",
+          "decision_point": "whether to hold Fazhao's hand after she confesses love amid mortal peril",
+          "emotional_register": "warm",
+          "evidence_locator": "ch-28#para-100-101",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "interpersonal boundary crossing",
+            "public vulnerability",
+            "strategic distraction"
+          ],
+          "scene_id": "ch-28-scene-2",
+          "setting": "same small boat, during heavy rain and fog"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Witnesses Zhao Min’s three suicide attacks, hears her raw confession in life-threatening context, observes her physical sacrifice and unselfconscious weeping — all contradict prior assumptions of calculated manipulation.",
+          "event_id": "ch-28-ev-1",
+          "evidence_locator": "ch-28#para-75-76,para-100-101",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises internal model of Zhao Min from 'political adversary' to 'life-risking ally with unguarded emotional sincerity'",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Physical contact (hand-holding) and whispered vow constitute first explicit mutual acknowledgment of romantic bond under shared existential threat.",
+          "event_id": "ch-28-ev-2",
+          "evidence_locator": "ch-28#para-100-101",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Activates reciprocal romantic commitment with Zhao Min",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.92,
+          "control_signal": 0.0,
+          "detail": "Contrasts Zhao Min’s spontaneous, non-transactional self-endangerment with his own prior hesitation and strategic calculation; recognizes authenticity as epistemic marker of sincerity.",
+          "event_id": "ch-28-ev-3",
+          "evidence_locator": "ch-28#para-100-101",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises belief about moral legitimacy of self-sacrifice in love",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Successfully proves identity via verbatim recitation of ice-fire island teachings; triggers Xie Xun’s emotional recognition and physical embrace.",
+          "event_id": "ch-28-ev-4",
+          "evidence_locator": "ch-28#para-93-96",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Completes identity revelation to Xie Xun",
+          "target_slot": "execution_result"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-28"
+    },
+    {
+      "chapter_id": "ch-29",
+      "chapter_index": 29,
+      "chapter_title": "三十　东西永隔如参商",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-29 § final boarding of the Persian flagship",
+      "evidence_locator": "ch-29 § final boarding of the Persian flagship; ch-29 § small boat transfer; ch-29 § embrace and farewell in cabin sha256:b0152c0f2135ce66d016879510bf33d0eb4c27490e914738fca80e954c0159eb",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-29",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "accept黛绮丝's proposal to board peacefully after she and小昭 depart for the flagship",
+          "canonical_outcome": "all survivors—including Zhang Wují, Xie Xun, Zhao Min, Zhou Zhiruo, Yin Li, and Xiao Zhao—are transferred safely to the flagship under armed escort",
+          "decision_point": "whether to board the Persian flagship under duress or attempt last-resort resistance",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-29 § 'Zhang Wují, Zhao Min, Zhou Zhiruo, etc. boarded the flagship'",
+          "expected_regime": "Persian command authority",
+          "phase_label": "mature",
+          "risk_markers": [
+            "imminent drowning",
+            "hostile boarding",
+            "lethal coercion"
+          ],
+          "scene_id": "ch-29-scene-1",
+          "setting": "on a sinking ship adrift in the East China Sea, surrounded by Persian warships"
+        },
+        {
+          "canonical_action": "allow Xiao Zhao to dress him, then embrace and kiss her",
+          "canonical_outcome": "a moment of mutual emotional clarity and irreversible parting; Zhang Wují affirms his love and gratitude, Xiao Zhao confirms her lifelong devotion and sacrifice",
+          "decision_point": "whether to accept Xiao Zhao’s physical service as his former servant one final time, knowing she is now the new Persian教主",
+          "emotional_register": "grief",
+          "evidence_locator": "ch-29 § 'Zhang Wují embraced her... kissed her... she whispered...'",
+          "expected_regime": "ceremonial deference",
+          "phase_label": "mature",
+          "risk_markers": [
+            "emotional vulnerability",
+            "status inversion (servant→sovereign)",
+            "irreversible separation"
+          ],
+          "scene_id": "ch-29-scene-2",
+          "setting": "inside a lavishly appointed cabin aboard the Persian flagship"
+        },
+        {
+          "canonical_action": "abandon resistance upon seeing swords at Xie Xun’s and Yin Li’s backs",
+          "canonical_outcome": "peaceful departure arranged; all Chinese characters are escorted to a returning vessel without further violence",
+          "decision_point": "whether to attempt rescue by force despite direct threat to hostages’ lives",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-29 § 'two Persian warriors held swords at Dai Qisi’s back... any movement would cost lives'",
+          "expected_regime": "Persian sovereign control",
+          "phase_label": "mature",
+          "risk_markers": [
+            "hostage leverage",
+            "asymmetric power",
+            "no viable counter-threat"
+          ],
+          "scene_id": "ch-29-scene-3",
+          "setting": "on the flagship’s deck, under armed guard, with hostages visibly threatened"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.95,
+          "detail": "He kisses her; she confirms her lifelong devotion and renounces the Persian教主ship for him—even as she assumes it—saying 'I only wish to be your little maid forever.'",
+          "event_id": "ch-29-ev-1",
+          "evidence_locator": "ch-29 § 'I only wish to be your little maid... I only wish to be your little maid...'",
+          "operation": "close",
+          "requires_confirmation": false,
+          "summary": "Zhang Wují and Xiao Zhao’s bond transitions from master-servant to irrevocable, unrequited-yet-reciprocated love",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.98,
+          "detail": "After observing armed guards at hostages’ backs, he suppresses impulse to fight and accepts peaceful transfer.",
+          "event_id": "ch-29-ev-2",
+          "evidence_locator": "ch-29 § 'any movement would cost lives'",
+          "operation": "block",
+          "requires_confirmation": false,
+          "summary": "Zhang Wují abandons plan to seize宝树王as leverage",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.97,
+          "detail": "He recalls her earlier deception but now interprets it as protective concealment—not betrayal—and affirms 'I know everything now.'",
+          "event_id": "ch-29-ev-3",
+          "evidence_locator": "ch-29 § 'Zhang Wují nodded... 'Now I know everything.'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Zhang Wují revises his model of Xiao Zhao from 'deceptive servant' to 'self-sacrificing agent of love'",
+          "target_slot": "user_model"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-29"
+    },
+    {
+      "chapter_id": "ch-30",
+      "chapter_index": 30,
+      "chapter_title": "三十一　刀剑齐失人云亡",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-30-para-25",
+      "evidence_locator": "ch-30-para-1-to-para-25 sha256:e65e7f47a74e5a887b96a3c66eea4260cd09c0cb11fe91707ce844853735f86a",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-30",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Prioritize triage of Yīn Lí, confirm Shè Xùn's safety, then diagnose collective poisoning",
+          "canonical_outcome": "Identifies 'Shí Xiāng Ruǎn Jīn Sàn' poisoning; confirms Fān Mǐn's betrayal; fails to save Yīn Lí",
+          "decision_point": "Upon discovering the ship vanished, Fān Mǐn missing, Yīn Lí critically wounded and Zhōu Zhǐruò poisoned, whether to attempt immediate rescue or first secure survival and assess threat",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-30-para-4-to-para-7",
+          "expected_regime": "self-reliant medical response under duress",
+          "phase_label": "mature",
+          "risk_markers": [
+            "toxin exposure",
+            "isolation",
+            "critical injury",
+            "trust violation"
+          ],
+          "scene_id": "ch-30-scene-1",
+          "setting": "南海荒岛海滩 and forest"
+        },
+        {
+          "canonical_action": "Withholds revelation despite emotional pressure and her direct questioning",
+          "canonical_outcome": "Yīn Lí dies believing he is 'Ā Niú Gēge', not Zhāng Wújì",
+          "decision_point": "Whether to reveal his true identity to Yīn Lí as she enters terminal lucidity",
+          "emotional_register": "grief",
+          "evidence_locator": "ch-30-para-12-to-para-13",
+          "expected_regime": "truth-telling under dying request",
+          "phase_label": "mature",
+          "risk_markers": [
+            "identity concealment",
+            "unresolved confession",
+            "moral distress"
+          ],
+          "scene_id": "ch-30-scene-2",
+          "setting": "Hillside grave site on the island"
+        },
+        {
+          "canonical_action": "Agrees to board only after devising countermeasures: bringing provisions, avoiding shipboard food, and planning tactical deviation",
+          "canonical_outcome": "Boarding succeeds; ship diverted eastward into open ocean to evade ambush; crew neutralized later",
+          "decision_point": "Whether to board the Mongol ship without verification of Fān Mǐn's presence or intent",
+          "emotional_register": "tense",
+          "evidence_locator": "ch-30-para-22-to-para-24",
+          "expected_regime": "precautionary compliance with external authority",
+          "phase_label": "mature",
+          "risk_markers": [
+            "deception detection",
+            "naval ambush",
+            "poison vulnerability",
+            "command authority"
+          ],
+          "scene_id": "ch-30-scene-3",
+          "setting": "Beach at dawn, facing Mongol naval vessel"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Witnessing Yīn Lí's facial lacerations inflicted by Yǐ Tiān Jiàn and her subsequent death crystallizes his judgment: 'Fān Mǐn, you are a serpent-hearted demoness'",
+          "event_id": "ch-30-ev-1",
+          "evidence_locator": "ch-30-para-7-to-para-13",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises belief in Fān Mǐn's moral ambiguity to conviction of her irredeemable treachery",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Kneels and vows: 'If I forget my cousin’s blood debt, may heaven and earth reject me', formalizing vengeance as non-negotiable duty",
+          "event_id": "ch-30-ev-2",
+          "evidence_locator": "ch-30-para-18",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Swears blood oath to kill Fān Mǐn for Yīn Lí's murder",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Agrees to marriage contract contingent on returning to China and executing Fān Mǐn; physical intimacy (holding hands, kissing) and moon-oath ritual mark transition to 'unmarried couple'",
+          "event_id": "ch-30-ev-3",
+          "evidence_locator": "ch-30-para-19-to-para-21",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Enters formal betrothal with Zhōu Zhǐruò under binding vow",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Uses Qián Kūn Dà Nuó Yí to deflect Sòng Qīngshū’s sword-butt strike and throws a seven-bag disciple over wall to misdirect pursuit — all undetected by observers",
+          "event_id": "ch-30-ev-4",
+          "evidence_locator": "ch-30-para-46-to-para-47",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Successfully executes covert rescue of Fān Mǐn from imminent lethal strike",
+          "target_slot": "execution_result"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-30"
+    },
+    {
+      "chapter_id": "ch-31",
+      "chapter_index": 31,
+      "chapter_title": "三十二　冤蒙不白愁欲狂",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-31:127",
+      "evidence_locator": "ch-31:001–ch-31:127 sha256:1f233d219fbdb914055d636cbca1f6b6eb3a28a110c767ce2136263ff6b343dc",
+      "excluded_facts": [],
+      "known_facts": [
+        "赵敏被张无忌掌掴四记，脸颊红肿",
+        "张无忌曾立誓为殷离报仇",
+        "张无忌扼住赵敏颈项致其晕厥",
+        "谢逊与周芷若不在客店房间内",
+        "张无忌与赵敏共宿山洞并烤獐子过夜",
+        "张无忌在雪谷中救回坠崖的赵敏并以九阳真气为其疗伤",
+        "张无忌用圣火令武功制住武当四侠",
+        "张松溪假死揭下张无忌面巾，认出其身份",
+        "宋青书亲口承认害死莫声谷，并受陈友谅胁迫",
+        "陈友谅持有周芷若的峨嵋掌门铁指环"
+      ],
+      "notes": [
+        "llm-candidate:ch-31",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "扼住赵敏颈项后心软松手",
+          "canonical_outcome": "赵敏晕厥倒地，后脑撞石",
+          "decision_point": "是否亲手扼死赵敏以报殷离之仇",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-31:015–ch-31:022",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "lethal_intent",
+            "irreversible_action"
+          ],
+          "scene_id": "ch31-scene-01",
+          "setting": "破庙大殿，深夜"
+        },
+        {
+          "canonical_action": "妥协同意带赵敏同行，但设前提条件",
+          "canonical_outcome": "赵敏随行，张无忌内心持续挣扎",
+          "decision_point": "是否带赵敏去见谢逊 despite knowing he will kill her",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-31:048–ch-31:056",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "moral_conflict",
+            "interpersonal_trust_breakdown"
+          ],
+          "scene_id": "ch31-scene-02",
+          "setting": "客店房间，白日"
+        },
+        {
+          "canonical_action": "close eyes to suppress urge to kiss her",
+          "canonical_outcome": "both sleep separately; tension remains unacted upon",
+          "decision_point": "whether to suppress romantic impulse toward Zhao Min while sharing shelter",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-31:079–ch-31:082",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "emotional_vulnerability",
+            "reputational_risk"
+          ],
+          "scene_id": "ch31-scene-03",
+          "setting": "雪夜山洞，篝火旁"
+        },
+        {
+          "canonical_action": "descend cliff, rescue Zhao Min, conceal identity with mask, then fight Wudang Four using Saint Fire Command techniques",
+          "canonical_outcome": "Wudang Four subdued; Zhao Min’s life saved; Zhang’s identity revealed only after feigned death",
+          "decision_point": "whether to reveal identity and intervene when Zhao Min is pursued by Wudang Four",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-31:092–ch-31:112",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "filial_betrayal_perception",
+            "moral_ambiguity",
+            "kinship_violation_risk"
+          ],
+          "scene_id": "ch31-scene-04",
+          "setting": "snow-covered cliffside and valley bottom"
+        },
+        {
+          "canonical_action": "hesitate, then accept her challenge to investigate truth rather than assume guilt",
+          "canonical_outcome": "commits to joint investigation of both murders",
+          "decision_point": "whether to trust Zhao Min’s claim that she did not harm Yin Li or Mo Shenggu",
+          "emotional_register": "wonder",
+          "evidence_locator": "ch-31:115–ch-31:117",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "epistemic_uncertainty",
+            "relational_reorientation"
+          ],
+          "scene_id": "ch31-scene-05",
+          "setting": "rocky clearing near snow valley"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.95,
+          "control_signal": 0.8,
+          "detail": "After experiencing false accusation over Mo Shenggu's murder, recognizes parallel injustice in his prior conviction of Zhao Min for Yin Li's death",
+          "event_id": "ch31-ev-01",
+          "evidence_locator": "ch-31:115–ch-31:117",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises belief about Zhao Min's culpability in Yin Li's death",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.9,
+          "control_signal": 0.75,
+          "detail": "Agrees with Zhao Min to pursue韩林儿 rescue first, then return to find true killers of both victims",
+          "event_id": "ch31-ev-02",
+          "evidence_locator": "ch-31:116–ch-31:117",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Forms intent to jointly investigate Mo Shenggu's and Yin Li's deaths",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.85,
+          "control_signal": 0.7,
+          "detail": "Accepts Zhao Min’s offer to help uncover truth, marking first active collaboration grounded in mutual epistemic need",
+          "event_id": "ch31-ev-03",
+          "evidence_locator": "ch-31:116–ch-31:117",
+          "operation": "activate",
+          "requires_confirmation": true,
+          "summary": "Activates conditional trust in Zhao Min based on shared vulnerability",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.9,
+          "detail": "Successfully suppresses lethal action twice — at temple and during cliff descent — affirming non-lethal resolution path",
+          "event_id": "ch31-ev-04",
+          "evidence_locator": "ch-31:021–ch-31:022, ch-31:092–ch-31:094",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Completes self-restraint from killing Zhao Min",
+          "target_slot": "execution_result"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.85,
+          "detail": "Zhao Min refuses to wait alone for Xie Xun, asserting agency in confronting danger",
+          "event_id": "ch31-ev-05",
+          "evidence_locator": "ch-31:045–ch-31:047",
+          "operation": "observe",
+          "requires_confirmation": false,
+          "summary": "Observes Zhao Min’s explicit boundary against being left behind",
+          "target_slot": "boundary_consent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-31"
+    },
+    {
+      "chapter_id": "ch-32",
+      "chapter_index": 32,
+      "chapter_title": "三十三　箫长琴短衣流黄",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "张无忌心悬义父安危，有许多话要向周芷若询问，实是无心饮食...席间丐帮诸高手又郑重谢罪，并说已派丐帮中弟子四出寻访谢逊下落，一有讯息，立即遣急足报与明教知道。",
+      "evidence_locator": "张无忌去牵了坐骑，和赵敏并骑直奔关内...当晚两人在一家小客店中宿歇...草草留书...跃出窗外，向南疾奔而去...次晨购买马匹...不数日间已到了卢龙...他在城中庙宇、祠堂、废园、旷场到处察看...飞身上屋...忽见东南角上一座高楼上兀自亮着火光...展开轻功，奔到了那巨宅之旁...悄悄掩近...凑眼到长窗缝边，向里张望...右足一点，轻轻跃上一株高树...溜下树来，掩近高楼...伏身窗外...轻推房门...左手按在门上，内力微震...闪身进房...伸指在西边板壁上戮出两个小孔...提起一尸，撕开衣衫...走出房外，缩身门边...纵身跃起...提气向西疾奔...沿着大路追出数里...见一块岩石后画着个火焰记号...沿着小路追了下去...直追到沙河驿...更向西行...到了棒子镇上...走进门去...推开众人...续向西行...傍晚时分到了丰润...拿起门环，轻敲三下...随着那小鬟...来到一间厢房之中...闪身便即出门...睡到中夜，突然间惊醒...次晨起身...午后到了玉田...自玉田而至三河...直至香河...再到宁河...买了匹坐骑，重回卢龙...换上白袍，大踏步走到那财主巨宅门前...双掌推出...大踏步走了进去...舌绽春雷，喝道...双臂一振...穿过大厅...砰的一掌...劈胸抓住...来得好快...抱起周芷若...纵身跃回院子...在她腿关节上推拿了几下...抱拳还礼...沉着脸...踏步向前...一声清啸...身形一晃...双手分在陈友谅与宋青书二人肩头一按...侧身斜退...双剑一振...向左一冲...倒退两步...凌空落下...双足已骑在丐帮帮主史火龙的肩头...右手手掌平平按在史火龙顶门的“百会穴”上...身形一晃，已站在周芷若身边...扶她在庭中一张石鼓凳上坐下...一点头，已欺到史火龙身前...伸手抓住他胸口衣襟，将他提了出来...手臂一拗，将了脑袋按了下来...提起他身子重重一顿...自行退开...提起他身子重重一顿...自行退开... sha256:3901bd0a7f542ba1f7b53fccc881731cb5f29c4579e74bd3283f49b17fe20fec",
+      "excluded_facts": [],
+      "known_facts": [
+        "义父谢逊曾被丐帮囚禁于卢龙巨宅，但已脱身",
+        "周芷若被丐帮挟持至卢龙巨宅，身中特异点穴手法",
+        "陈友谅与宋青书参与挟持周芷若",
+        "史火龙是冒充者，真史帮主已于去年十月初六死于成昆之手",
+        "成昆未死，曾在光明顶假死脱身",
+        "丐帮内部已被陈友谅操控，传功执法二长老等不知情",
+        "韩林儿被丐帮扣押作为胁迫韩山童的筹码",
+        "黄衫女子携史红石而来，揭穿假帮主，其姓杨，与丐帮上代有渊源",
+        "火焰记号系成昆或其党羽伪造，用以误导张无忌"
+      ],
+      "notes": [
+        "llm-candidate:ch-32",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "leaves F Zhao-min a note and departs alone at night",
+          "canonical_outcome": "gains time but loses F Zhao-min's strategic aid and suffers misdirection",
+          "decision_point": "whether to leave赵敏 alone and race ahead to rescue义父 and 周芷若",
+          "emotional_register": "doubt",
+          "evidence_locator": "心想义父如确是落入丐帮之手...恨不得插翅飞到卢龙。但赵敏身上有伤，却又决计不能无眠无休的赶路...草草留书...跃出窗外，向南疾奔而去",
+          "expected_regime": "self-reliant rescue protocol",
+          "phase_label": "mature",
+          "risk_markers": [
+            "abandoning injured ally",
+            "acting on incomplete intelligence"
+          ],
+          "scene_id": "ch32-scene-1",
+          "setting": "卢龙小客店夜间炕上"
+        },
+        {
+          "canonical_action": "breaks door latch silently and enters",
+          "canonical_outcome": "discovers slaughtered丐帮 guards and confirms谢逊's escape via flame symbol",
+          "decision_point": "whether to enter the dark room emitting blood scent despite silence and unknown threat",
+          "emotional_register": "crisis",
+          "evidence_locator": "突然闻到一阵血腥气...左手按在门上，内力微震...闪身进房...俯身摸去，却是个尸体...摸索此人头颅...又踏到了两人的尸身...伸指在西边板壁上戮出两个小孔...只见地下横七竖八的躺满了尸体...果见墙角上用尖利之物刻着个火焰的图形",
+          "expected_regime": "high-risk reconnaissance",
+          "phase_label": "mature",
+          "risk_markers": [
+            "entering unlit hostile space",
+            "potential ambush"
+          ],
+          "scene_id": "ch32-scene-2",
+          "setting": "卢龙巨宅二楼中间房"
+        },
+        {
+          "canonical_action": "mounts史火龙's shoulders and presses palm to his baihui point",
+          "canonical_outcome": "secures leverage over丐帮 but exposes vulnerability to coercion",
+          "decision_point": "whether to seize史火龙 directly when N Chen-you-liang holds Zhou Zhiruo hostage",
+          "emotional_register": "resolve",
+          "evidence_locator": "突然间倒退两步...凌空落下...双足已骑在丐帮帮主史火龙的肩头。他右掌平放在史火龙的顶门...右手手掌平平按在史火龙顶门的“百会穴”上",
+          "expected_regime": "hostage negotiation by counter-capture",
+          "phase_label": "mature",
+          "risk_markers": [
+            "using human shield",
+            "public humiliation of opponent"
+          ],
+          "scene_id": "ch32-scene-3",
+          "setting": "卢龙巨宅正厅"
+        },
+        {
+          "canonical_action": "releases史火龙 and moves to周芷若 side",
+          "canonical_outcome": "regains proximity to周芷若 but forfeits immediate control over丐帮 leadership",
+          "decision_point": "whether to comply with陈友谅's demand to release史火龙 after he sheathes sword",
+          "emotional_register": "resolve",
+          "evidence_locator": "陈友谅道：‘张无忌，你放开我们史帮主，我便收剑如何？’他不待方答应，当即还剑入鞘...果然张无忌说道：‘甚好。’身形一晃，已站在周芷若身边",
+          "expected_regime": "conditional de-escalation",
+          "phase_label": "mature",
+          "risk_markers": [
+            "trusting adversary's word",
+            "leaving high-value target unsecured"
+          ],
+          "scene_id": "ch32-scene-4",
+          "setting": "卢龙巨宅庭院"
+        },
+        {
+          "canonical_action": "grasps假史火龙's chest and lifts him before crowd",
+          "canonical_outcome": "exposes impostor, triggers丐帮 internal reckoning, and validates黄衫女子's authority",
+          "decision_point": "whether to act on黄衫女子请求揭露陈友谅阴谋",
+          "emotional_register": "resolve",
+          "evidence_locator": "黄衫女子向张无忌道：‘请你将这姓陈的家伙撵了开去，将那冒充史帮主的大骗子揪将出来。’...一点头，已欺到史火龙身前...伸手抓住他胸口衣襟，将他提了出来",
+          "expected_regime": "truth-revelation protocol",
+          "phase_label": "mature",
+          "risk_markers": [
+            "disrupting fragile truce",
+            "provoking factional backlash"
+          ],
+          "scene_id": "ch32-scene-5",
+          "setting": "卢龙巨宅正厅"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "chooses solo rapid response over coordinated strategy due to perceived urgency and Zhao Min's injury",
+          "event_id": "ch32-ev-1",
+          "evidence_locator": "但赵敏身上有伤，却又决计不能无眠无休的赶路...草草留书...跃出窗外，向南疾奔而去",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "abandons joint rescue plan with Zhao Min",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.0,
+          "detail": "infers谢逊 escaped after finding corpses and flame symbol, shifting focus to pursuit",
+          "event_id": "ch32-ev-2",
+          "evidence_locator": "大喜：‘原来义父大展神威，击毙看守人众，杀出去了。’...心想：‘义父离去未久，快去追上了他’",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "rejects assumption that谢逊 remains captive in卢龙",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "observes陈友谅 directing史火龙, controlling narrative around周芷若's captivity, and deflecting blame",
+          "event_id": "ch32-ev-3",
+          "evidence_locator": "陈友谅插口道...张无忌沉着脸...陈友谅道：‘周姑娘一直好好的在此饮酒...’...陈友谅大声道：‘张教主，贵教光明使者杨逍，当年奸杀峨嵋派纪晓芙女侠...’",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "forms model of陈友谅 as manipulative strategist",
+          "target_slot": "user_model"
+        },
+        {
+          "confidence": 0.97,
+          "control_signal": 0.0,
+          "detail": "immediately intervenes when she collapses, carries her, and prioritizes her safety amid chaos",
+          "event_id": "ch32-ev-4",
+          "evidence_locator": "周芷若惊呼一声：‘无忌哥哥！’站起身来，身子一晃，便委顿在地。张无忌吃了一惊，抢上前去俯身抱起...在她腿关节上推拿了几下，将她放在地下",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "affirms bond with周芷若 through physical protection",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.96,
+          "control_signal": 0.0,
+          "detail": "verifies谢逊 left via flame symbol and violence, yet fails to locate him beyond initial pursuit",
+          "event_id": "ch32-ev-5",
+          "evidence_locator": "果见墙角上用尖利之物刻着个火焰的图形...沿着小路追了下去...火焰记号引着他自玉田而至三河...再到宁河，自此那火焰记号便无影无踪",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "confirms谢逊's escape from卢龙 but loses trail",
+          "target_slot": "execution_result"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.0,
+          "detail": "despite successfully disrupting丐帮 leadership, declines banquet to resume search for谢逊",
+          "event_id": "ch32-ev-6",
+          "evidence_locator": "张无忌心悬义父安危...实是无心饮食...只好日后再行叨扰...急于寻访义父",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "re-prioritizes rescuing谢逊 over confronting丐帮",
+          "target_slot": "goal_value"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-32"
+    },
+    {
+      "chapter_id": "ch-33",
+      "chapter_index": 33,
+      "chapter_title": "三十四　新妇素手裂红裳",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-33: '张无忌刚追到大门边，突然身边红影闪动...'",
+      "evidence_locator": "ch-33: final wedding scene and immediate rupture sha256:a372b27910aa8563482b077aba2cd2d12b08ec0f9e65badad9de861df4c694a2",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-33",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "Abandons the wedding mid-ceremony to pursue Zhao Min after she reveals she holds leverage over Xie Xun’s life",
+          "canonical_outcome": "Wedding collapses; Zhou Zhiruo publicly renounces him; Zhang Wují commits fully to rescuing Xie Xun under Zhao Min’s guidance",
+          "decision_point": "Whether to complete the marriage vow with Zhou Zhiruo or follow Zhao Min’s demand to halt the ceremony",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-33: '张无忌急叫：“好，就依你，今日便不成婚。”...周芷若霍地伸手扯下遮脸红巾...自今而后，周芷若和姓张的恩断义绝。'",
+          "expected_regime": "marital_commitment",
+          "phase_label": "mature",
+          "risk_markers": [
+            "loss_of_trust",
+            "public_shame",
+            "fractured_alliance",
+            "moral_conflict"
+          ],
+          "scene_id": "ch33-wedding-rupture",
+          "setting": "Haozhou, Mingjiao wedding hall during ceremony"
+        },
+        {
+          "canonical_action": "Watches Zhou Zhiruo vanish eastward without pursuit; affirms internal priority of filial duty (Xie Xun’s life) over marital vow",
+          "canonical_outcome": "No attempt at retrieval; emotional pivot confirmed toward Zhao Min and rescue mission",
+          "decision_point": "Whether to attempt reconciliation with Zhou Zhiruo or accept irrevocable rupture",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-33: '杨逍等料知追赶不上，怔了半晌，重行回入厅来...一场喜庆大事被赵敏这么一闹，转眼间风流云散'",
+          "expected_regime": "relational_continuity",
+          "phase_label": "mature",
+          "risk_markers": [
+            "abandoned_commitment",
+            "reputational_damage",
+            "intergroup_fracture"
+          ],
+          "scene_id": "ch33-rooftop-break",
+          "setting": "Haozhou wedding hall rooftop, immediately after ceremony collapse"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Zhang Wují recognizes the hair as Xie Xun’s; interprets its display as proof of captivity and imminent danger, overriding all other obligations",
+          "event_id": "ch33-xie_xun_leverage_established",
+          "evidence_locator": "ch-33: '张无忌一看之下，大吃一惊，全身发抖，颤声道：“这……这是我……”...原来赵敏握在掌中给张无忌看的，乃是一束淡黄色头发。'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Zhao Min establishes control over Zhang Wují’s immediate intent by revealing possession of Xie Xun’s hair",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "Zhang Wují states '稍迟数日' and affirms '张无忌决无反悔', indicating deferral rather than abandonment",
+          "event_id": "ch33-marriage_vow_suspended",
+          "evidence_locator": "ch-33: '咱俩婚姻之约，张无忌决无反悔，只是稍迟数日...'",
+          "operation": "defer",
+          "requires_confirmation": false,
+          "summary": "Marital commitment to Zhou Zhiruo is formally suspended—not revoked, but temporally overridden by higher-priority filial imperative",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Zhang Wují prioritizes Xie Xun’s life over wedding, public standing, alliance stability, and Zhou Zhiruo’s emotional safety",
+          "event_id": "ch33-filial_duty_activates",
+          "evidence_locator": "ch-33: '义父于我恩重如山，芷若，芷若，盼你体谅。' and '张无忌想像义父此刻的苦楚危难，五内如焚...'",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Filial duty to Xie Xun becomes the dominant, non-negotiable goal value",
+          "target_slot": "goal_value"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "He accepts her guidance despite distrust; relies on her knowledge, tolerates her manipulation, and physically protects her en route",
+          "event_id": "ch33-zhao_min_as_necessary_agent",
+          "evidence_locator": "ch-33: '赵敏，你别逼我做不义之人...你先跟我说，我义父在哪里？' and later '赵敏靠在他肩头...张无忌鼻中闻到的是粉香脂香...倘若不是急于要去营救义父，真的要放慢脚步...'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Zhang Wují revises his internal model of Zhao Min from 'deceiver' to 'necessary, dangerous, and indispensable agent'",
+          "target_slot": "user_model"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-33"
+    },
+    {
+      "chapter_id": "ch-34",
+      "chapter_index": 34,
+      "chapter_title": "三十五　屠狮有会孰为殃",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-34-para-127",
+      "evidence_locator": "ch-34-para-1-to-para-127 sha256:27fca1ac727f848356692fbdf6f3375d41364204e9beee214be9ee88dab46b26",
+      "excluded_facts": [],
+      "known_facts": [
+        "赵敏已脱离朝廷，不再是郡主",
+        "殷离脸上的剑伤非赵敏所为",
+        "谢逊被囚于少林寺大雄宝殿铁笼中",
+        "少林寺将于端午节召开‘屠狮英雄会’",
+        "圆真（成昆）在少林寺主持此事并图谋方丈之位",
+        "青海玉真观与杜氏夫妇等多方势力正密谋闯寺夺刀或复仇",
+        "张无忌重伤未愈，九阳真气尚不能主动发劲，但可借力反震",
+        "圣火令可抵御兵刃，配合九阳真气可反弹攻击致敌毙命",
+        "寿南山确认谢逊双目失明，且未亲见其人，仅听师兄传言"
+      ],
+      "notes": [
+        "llm-candidate:ch-34",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "赵敏以智诈取信任，张无忌借敌力反震杀敌，二人协作以圣火令格挡兵刃并飞掷制敌",
+          "canonical_outcome": "八名恶徒全数伏诛，二人昏厥于血泊，暂保性命并获喘息之机",
+          "decision_point": "面对八名假僧恶徒围攻，张无忌重伤盘坐、真气难聚，赵敏手握匕首与圣火令，二人须决定是束手待毙、诈死诱敌，还是拼死一搏",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-34-para-35-to-para-58",
+          "expected_regime": "survival_first",
+          "phase_label": "mature",
+          "risk_markers": [
+            "internal_injury",
+            "weapon_vulnerability",
+            "mobility_impairment"
+          ],
+          "scene_id": "ch-34-scene-1",
+          "setting": "荒山小庙（中岳神庙）东厢房内，暮色将尽，烛光昏暗，死尸横陈"
+        },
+        {
+          "canonical_action": "张无忌坐起示威震慑，赵敏设局伪点死穴、以金钗刺穴控敌，二人审讯寿南山获取‘屠狮英雄会’详情",
+          "canonical_outcome": "寿南山供出大会时间、地点、目的及谢逊囚禁状态，二人确认义父性命暂无即刻之危",
+          "decision_point": "秦老五与寿南山撞破庙门，张无忌与赵敏伏尸装死，须决定是否暴露、截击、或继续伪装以套取情报",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-34-para-65-to-para-92",
+          "expected_regime": "information_acquisition",
+          "phase_label": "mature",
+          "risk_markers": [
+            "identity_exposure",
+            "interrogation_failure",
+            "temporal_pressure"
+          ],
+          "scene_id": "ch-34-scene-2",
+          "setting": "中岳神庙东厢房，次日午间，焦饭碗碎于地，门外马蹄声逼近"
+        },
+        {
+          "canonical_action": "屏息静伏，不惊动三人；待圆真离室后悄然尾随，放弃即时营救，选择追踪以定位谢逊关押路径",
+          "canonical_outcome": "确认圆真行动路线，但未获囚所确切位置；强化对少林戒备强度与权力结构的认知",
+          "decision_point": "张无忌亲耳听见空闻、空智、圆真密议，得知谢逊由三位太师叔看守、圆真欲逼供屠龙刀下落，须决定是否当场劫人、跟踪圆真，或隐忍待机",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-34-para-120-to-para-127",
+          "expected_regime": "strategic_delay",
+          "phase_label": "mature",
+          "risk_markers": [
+            "high_authority_presence",
+            "single_target_vulnerability",
+            "environmental_noise_masking"
+          ],
+          "scene_id": "ch-34-scene-3",
+          "setting": "少林寺后山竹林旁小舍窗外，暴雨夜，张无忌浑身湿透伏于窗下"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "After confirming Xie Xun's imprisonment at Shaolin and the 'Tushizhui Hero Conference' deadline, Zhang Wují resolves to delay direct assault and instead gather intelligence via infiltration.",
+          "event_id": "ch-34-event-1",
+          "evidence_locator": "ch-34-para-93-to-para-95",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Formulate rescue plan for Xie Xun before Dragon Boat Festival",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Zhang Wují first addresses Zhao Min as 'Min Mei', and she internally registers both joy and grief—her loyalty now irrevocably split from family; he acknowledges her life is 'entrusted' to him, though burdened by prior vow to Zhou Zhiruo.",
+          "event_id": "ch-34-event-2",
+          "evidence_locator": "ch-34-para-15-to-para-17",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Affirm mutual commitment with Zhao Min",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.92,
+          "control_signal": 0.0,
+          "detail": "Zhang Wují accepts Zhao Min's categorical denial and conditional oath ('I will commit suicide if proven guilty'), shifting suspicion toward Persian Ming Cult or unknown third party.",
+          "event_id": "ch-34-event-3",
+          "evidence_locator": "ch-34-para-8-to-para-11",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Reject false attribution of Yin Li's injury to Zhao Min",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Through combined use of Nine Yang Divine Power's passive rebound, Saint Fire Tokens, and Zhao Min's tactical deception, all eight attackers are killed without Zhang Wují expending active internal force.",
+          "event_id": "ch-34-event-4",
+          "evidence_locator": "ch-34-para-35-to-para-58",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Neutralize immediate threat from eight impostor monks",
+          "target_slot": "execution_result"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-34"
+    },
+    {
+      "chapter_id": "ch-35",
+      "chapter_index": 35,
+      "chapter_title": "三十六　夭矫三松郁青苍",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-35:end",
+      "evidence_locator": "ch-35:para-1-to-para-127 sha256:25f055ad6791c5100a277418d7169180dda1f7b6b84e1bac7287ffe82e8c0ef4",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-35",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "chooses to approach and declare identity rather than ambush or flee",
+          "canonical_outcome": "initiates formal dialogue with the three monks, establishing himself as Ming Cult leader and谢逊's son",
+          "decision_point": "whether to reveal himself to the three Shaolin monks after圆真 departs",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-35:para-30-to-para-35",
+          "expected_regime": "Buddhist monastic justice",
+          "phase_label": "mature",
+          "risk_markers": [
+            "immediate lethal threat from black ropes",
+            "moral imperative to speak truth",
+            "uncertainty of monks' receptivity"
+          ],
+          "scene_id": "ch-35-scene-1",
+          "setting": "rain-slicked mountain path and peak, three pine trees in品字形, thunderstorm"
+        },
+        {
+          "canonical_action": "engages full combat using九阳神功, 乾坤大挪移, Taiji, and圣火令 techniques to survive and demonstrate capability without killing",
+          "canonical_outcome": "survives coordinated assault, reveals mastery, earns reluctant respect but fails to secure谢逊's release",
+          "decision_point": "how to respond when attacked mid-plea—fight, yield, or attempt nonviolent de-escalation",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-35:para-36-to-para-55",
+          "expected_regime": "monastic martial discipline",
+          "phase_label": "mature",
+          "risk_markers": [
+            "three simultaneous lethal strikes",
+            "exhaustion threshold",
+            "risk of misidentifying monks as irredeemable"
+          ],
+          "scene_id": "ch-35-scene-2",
+          "setting": "top of mountain peak, under torrential rain and lightning, three pine trees with embedded monks"
+        },
+        {
+          "canonical_action": "chooses not to strike while monks are engaged; instead uses opportunity to open谢逊's cell and offer rescue directly",
+          "canonical_outcome": "successfully uncovers and enters the underground cell, confirms谢逊's physical freedom but moral refusal",
+          "decision_point": "whether to exploit the monks' vulnerability during external assault to seize谢逊 unilaterally",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-35:para-84-to-para-92",
+          "expected_regime": "filial duty vs. monastic vow",
+          "phase_label": "mature",
+          "risk_markers": [
+            "back injury from渡难's palm",
+            "risk of谢逊's self-sacrifice",
+            "timing pressure before援兵 arrive"
+          ],
+          "scene_id": "ch-35-scene-3",
+          "setting": "same mountain peak, during ongoing battle with eight external attackers and three monks"
+        },
+        {
+          "canonical_action": "accepts the terms formally, commits to return with allies, and withdraws without further violence",
+          "canonical_outcome": "secures conditional promise of谢逊's safety and establishes future contest framework",
+          "decision_point": "whether to accept the金刚伏魔圈 challenge immediately or withdraw and regroup",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-35:para-115-to-para-120",
+          "expected_regime": "wuxia martial covenant",
+          "phase_label": "mature",
+          "risk_markers": [
+            "loss of face if perceived as retreating",
+            "risk of谢逊's suicide",
+            "strategic need for external reinforcement"
+          ],
+          "scene_id": "ch-35-scene-4",
+          "setting": "same peak, post-battle, before assembled Ming Cult and Shaolin delegation"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "abandons stealth after圆真 leaves; chooses open declaration over deception or ambush",
+          "event_id": "ch-35-ev-1",
+          "evidence_locator": "ch-35:para-30-to-para-31",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "commits to rescue谢逊 by direct confrontation at the three-pine peak",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.0,
+          "detail": "accepts金刚伏魔圈 as legitimate trial; acknowledges their virtue despite manipulation by圆真",
+          "event_id": "ch-35-ev-2",
+          "evidence_locator": "ch-35:para-118-to-para-120",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "redefines relationship with渡厄,渡劫,渡难 from adversaries to bound opponents under martial covenant",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "learns谢逊 refuses exit despite unlocked cell and physical capacity to leave",
+          "event_id": "ch-35-ev-3",
+          "evidence_locator": "ch-35:para-90-to-para-91",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "abandons assumption that谢逊's captivity is purely physical; recognizes moral imprisonment as primary barrier",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "enters cell, verifies no restraints or injury, hears谢逊's autonomous refusal",
+          "event_id": "ch-35-ev-4",
+          "evidence_locator": "ch-35:para-89-to-para-91",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "fulfills immediate objective of confirming谢逊's location, condition, and agency",
+          "target_slot": "execution_result"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "谢逊 declares 'I will not leave' and threatens self-harm if forced;张无忌 halts physical extraction",
+          "event_id": "ch-35-ev-5",
+          "evidence_locator": "ch-35:para-90-to-para-93",
+          "operation": "observe",
+          "requires_confirmation": false,
+          "summary": "recognizes谢逊's explicit refusal of rescue as binding ethical boundary",
+          "target_slot": "boundary_consent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-35"
+    },
+    {
+      "chapter_id": "ch-36",
+      "chapter_index": 36,
+      "chapter_title": "三十七　天下英雄莫能当",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-36#para-127",
+      "evidence_locator": "ch-36#para-127 sha256:6111090a5414af2dd7714da1b9d95f4a046bc371ac2308ea9f3ec9e8a5f1d257",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-36",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "上前长揖，称‘周姊姊’，坦承‘为了急于相救义父，致误大礼’，并请求‘念在昔日之情，赐予援手’",
+          "canonical_outcome": "周芷若以平静语气回应，不露喜怒，言语如软钉子般回避实质回应；随后召宋青书出场，公开其婚姻关系，使张无忌当场失神",
+          "decision_point": "张无忌是否当众向周芷若解释婚礼当日离去的缘由并请求援手营救谢逊",
+          "emotional_register": "shame",
+          "evidence_locator": "ch-36#para-34",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch-36-scene-1",
+          "setting": "少林寺广场木棚前，西北角峨嵋派座处"
+        },
+        {
+          "canonical_action": "听完赵敏分析后点头认同，定神自省‘不可只管顾念儿女之情，将今日营救义父的大事搁在一旁’，并主动追问‘敏妹，你猜圆真有何诡计？’",
+          "canonical_outcome": "确认圆真设局诱其独破金刚伏魔圈、耗尽功力后伏杀，进而接受范遥出战、空智约战万安寺等战术安排",
+          "decision_point": "张无忌是否采纳赵敏对圆真阴谋的完整推演，并据此调整营救谢逊的策略",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-36#para-85",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch-36-scene-2",
+          "setting": "明教木棚内，张无忌与赵敏、彭莹玉、杨逍、周颠等人围坐"
+        },
+        {
+          "canonical_action": "直言‘宋师哥害死莫七叔，此事终须作个了断’，主张‘不如随同俞二伯、殷六叔回返武当，向宋大伯领罪’",
+          "canonical_outcome": "遭周芷若反诬‘你害死了莫七侠’，并嫁祸赵敏为幕后主使；张无忌咬唇转身离去，未作辩驳",
+          "decision_point": "张无忌是否再次直面周芷若，就莫声谷之死提出追责并建议宋青书回武当领罪",
+          "emotional_register": "shame",
+          "evidence_locator": "ch-36#para-120",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [],
+          "scene_id": "ch-36-scene-3",
+          "setting": "峨嵋派木棚前，张无忌二次上前"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "周芷若当众介绍宋青书为夫君，揭去伪装，宣告脱离武当、转入峨嵋；张无忌目睹后‘犹似五雷轰顶’，认知其婚姻关系已具公共效力与政治同盟性质",
+          "event_id": "ch-36-event-1",
+          "evidence_locator": "ch-36#para-59",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "张无忌确认周芷若已与宋青书成婚且立场敌对",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "此前尚存‘料想周芷若温柔和顺，只须坦诚说明情由，定能得她原恕’之假设；本章中三次互动后，该假设被周芷若冷言、公开婚姻、嫁祸指控彻底证伪",
+          "event_id": "ch-36-event-2",
+          "evidence_locator": "ch-36#para-62",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "张无忌 abandons hope of reconciliation with Zhou Zhiruo based on shared history",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Accepts Zhao Min's analysis that Cheng Zhen intends to exhaust Zhang Wují in staged martial contest before sending him alone against the Golden Vajra Circle; commits to preserving strength via controlled delegation (e.g., Fan Yao’s bout) and externalizing key threat (vacating confrontation with Kongzhi)",
+          "event_id": "ch-36-event-3",
+          "evidence_locator": "ch-36#para-85",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Adopt Zhao Min's counter-strategy against Cheng Zhen's plot",
+          "target_slot": "plan_intent"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-36"
+    },
+    {
+      "chapter_id": "ch-37",
+      "chapter_index": 37,
+      "chapter_title": "三十八　君子可欺之以方",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-37:para-125:end",
+      "evidence_locator": "ch-37:para-124-to-125 sha256:3acc5e2a1507c9ee752b5a4c0585573665e63a0f163af3dc2b4eda0135999a1f",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-37",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "以挪移乾坤心法粘住三僧掌力，同时指令周芷若抱走谢逊；当周芷若举爪威胁谢逊时，开口制止导致真气泄露，险致败亡",
+          "canonical_outcome": "周芷若迟疑未落爪；周颠自残扰乱三僧心神失败；黄衫女子介入解围；四人内劲相消，谢逊获释",
+          "decision_point": "张无忌必须在全力对抗少林三僧、保护周芷若不被黄衫女子所伤、并确保谢逊安全脱身之间分配心神与 action",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-37:para-124:line-5-to-para-125:line-3",
+          "expected_regime": "英雄大会规则与少林戒律",
+          "phase_label": "mature",
+          "risk_markers": [
+            "真气泄散",
+            "义父性命悬于一线",
+            "周芷若反噬"
+          ],
+          "scene_id": "ch37-scene-1",
+          "setting": "少林寺后山峰顶，三株苍松之间，金刚伏魔圈内"
+        },
+        {
+          "canonical_action": "跪地磕四个头，以‘宋夫人’尊称相求，放弃教主体面与婚姻立场",
+          "canonical_outcome": "周芷若默然不允亦不拒；张无忌未能获得明确承诺，但次日周芷若仍召其共闯金刚伏魔圈",
+          "decision_point": "张无忌须决定是否跪求周芷若合作营救谢逊—此举将公开屈辱自身、激化明教内部质疑、并可能彻底断绝与赵敏的信任",
+          "emotional_register": "shame",
+          "evidence_locator": "ch-37:para-68:line-5-to-para-69:end",
+          "expected_regime": "江湖礼法与门派尊严",
+          "phase_label": "mature",
+          "risk_markers": [
+            "教主威信崩解",
+            "赵敏信任动摇",
+            "周芷若心理防线彻底封闭"
+          ],
+          "scene_id": "ch37-scene-2",
+          "setting": "峨嵋派小屋，深夜，烛光昏暗"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.95,
+          "control_signal": 0.8,
+          "detail": "After observing Zhou Zhiruo's near-fatal exhaustion and her ambiguous response to his plea, Zhang Wují abandons the idea of breaking the金刚伏魔圈 alone and instead commits to a joint operation contingent on her cooperation — though she never verbally assents.",
+          "event_id": "ch37-se-1",
+          "evidence_locator": "ch-37:para-68-to-69;para-120:line-1-to-line-3",
+          "operation": "revise",
+          "requires_confirmation": true,
+          "summary": "abandons solo rescue plan in favor of conditional alliance with Zhou Zhiruo",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.98,
+          "control_signal": 0.9,
+          "detail": "Zhang Wují explicitly frames his aid to Song Qingshu as 'one life for one life' — a contractual exchange for mercy toward Xie Xun — thereby replacing prior romantic or filial framing with a bounded, high-stakes reciprocity.",
+          "event_id": "ch37-se-2",
+          "evidence_locator": "ch-37:para-52:line-4-to-line-5",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "redefines relationship with Zhou Zhiruo as transactional but emotionally charged",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.92,
+          "control_signal": 0.75,
+          "detail": "When Zhou Zhiruo pauses mid-strike at Xie Xun’s skull upon seeing Zhang Wují’s scar, he registers that her restraint stems not from principle but from unresolved personal attachment — a vulnerability he now knows can be leveraged, however precariously.",
+          "event_id": "ch37-se-3",
+          "evidence_locator": "ch-37:para-45:line-8-to-para-46:line-2",
+          "operation": "revise",
+          "requires_confirmation": true,
+          "summary": "accepts that Zhou Zhiruo’s moral boundary is conditional and personally enforced",
+          "target_slot": "belief_assumption"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-37"
+    },
+    {
+      "chapter_id": "ch-38",
+      "chapter_index": 38,
+      "chapter_title": "三十九　秘笈兵书此中藏",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-38:para-130",
+      "evidence_locator": "ch-38:para-127-130 sha256:74f9a35328ea29b28192ab2f15b93e49cf639460fbf9f6e923672c70e649464f",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-38",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "大叫‘后心！’",
+          "canonical_outcome": "谢逊右臂格挡虚招，后心遭重击吐血，战局急转直下",
+          "decision_point": "张无忌必须在谢逊被成昆慢掌诱骗、右臂已被调开的瞬间，判断是否出声提醒后心空门",
+          "emotional_register": "crisis",
+          "evidence_locator": "ch-38:para-45-47",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "miscommunication",
+            "temporal_delay",
+            "trust_violation"
+          ],
+          "scene_id": "ch-38-scene-1",
+          "setting": "少室山峰顶，地牢入口旁，断松林立，日光斜照"
+        },
+        {
+          "canonical_action": "不跳入，只守于地牢口，手心捏汗，全身发颤",
+          "canonical_outcome": "谢逊与成昆同坠地牢，最终以双目互废终结仇怨，谢逊自毁武功",
+          "decision_point": "张无忌 must choose whether to leap入地牢干预谢逊与成昆生死相搏，明知此举将 violate义父尊严与复仇誓约",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-38:para-56-57",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "moral_conflict",
+            "filial_duty_vs_self_preservation"
+          ],
+          "scene_id": "ch-38-scene-2",
+          "setting": "地牢内，积水齐颈，漆黑无声，水腥弥漫"
+        },
+        {
+          "canonical_action": "指着第四幅图中树后少女问‘这个是你呢，还是周姑娘？’，待赵敏确认后，仅低语‘是我对你不起’，未提殷离之死",
+          "canonical_outcome": "赵敏确认绿柳山庄式信任重建；张无忌保留对殷离死因的完整认知 but withholds explicit accusation of Zhou",
+          "decision_point": "张无忌发现地牢石壁四幅刻图后，必须决定是否立即向赵敏坦白全部推断（包括周芷若放逐赵敏、害死殷离），或暂予隐忍",
+          "emotional_register": "wonder",
+          "evidence_locator": "ch-38:para-112-115",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "truth_withholding",
+            "affective_priority_over_judgment"
+          ],
+          "scene_id": "ch-38-scene-3",
+          "setting": "少室山后峰，断松林间，新月东悬，夜风微凉"
+        },
+        {
+          "canonical_action": "纵身跃出，徒手夺鹤嘴笔、横掌挡玄冥掌，继而拔刀断鹿头、削鹤笔，再交刀予赵敏，改用乾坤大挪移引敌互击",
+          "canonical_outcome": "赵敏获救，周芷若重伤遁走，玄冥二老内讧，张无忌确立战场主导权",
+          "decision_point": "张无忌目睹周芷若被玄冥二老围攻濒危，须抉择：（A）立即出手救周，暴露位置并中断赵敏疗伤；（B）先保赵敏性命，任周芷若受创；（C）以屠龙刀为媒介，重构攻防平衡",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-38:para-127-130",
+          "expected_regime": null,
+          "phase_label": "mature",
+          "risk_markers": [
+            "weaponized_identity",
+            "tactical_moral_tradeoff",
+            "resource_reallocation"
+          ],
+          "scene_id": "ch-38-scene-4",
+          "setting": "少室山后峰西麓，月光清冷，松影摇曳"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 0.98,
+          "control_signal": 0.85,
+          "detail": "Initially resolves not to interfere in the ground-level duel, but revises intent when F-Zhao's life is threatened by combined cold toxicity; shifts from restraint to calibrated action using the saber as both shield and pivot",
+          "event_id": "ch-38-ev-1",
+          "evidence_locator": "ch-38:para-127-130",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Abandons passive observation in favor of tactical intervention using weaponized identity",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 0.99,
+          "control_signal": 0.92,
+          "detail": "Grasps Zhao Min's waist, holds her while trembling, says 'it is I who wrong you' — a direct inversion of earlier suspicion; activates trust as operational framework over forensic truth",
+          "event_id": "ch-38-ev-2",
+          "evidence_locator": "ch-38:para-114-115",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Reaffirms primary bond with Zhao Min through physical contact and verbal vulnerability",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 0.97,
+          "control_signal": 0.78,
+          "detail": "Interprets four wall carvings as irrefutable evidence of Zhou’s deception (ten-fragrance paralysis theft, exile of Zhao Min, murder of Yin Li), yet chooses not to voice the last inference aloud",
+          "event_id": "ch-38-ev-3",
+          "evidence_locator": "ch-38:para-107-110",
+          "operation": "revise",
+          "requires_confirmation": true,
+          "summary": "Confirms Zhou Zhiruo’s agency in Green Willow Villa betrayal and island crimes, but defers moral judgment",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.96,
+          "detail": "Executes full-cycle internal qi circulation and precise tactile redirection on He Biweng’s strike, causing intra-team injury; confirms mastery threshold previously unattained under duress",
+          "event_id": "ch-38-ev-4",
+          "evidence_locator": "ch-38:para-129",
+          "operation": "complete",
+          "requires_confirmation": false,
+          "summary": "Successfully deploys seventh-layer Qiankun Dazhuan to redirect enemy force without self-harm",
+          "target_slot": "execution_result"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-38"
+    },
+    {
+      "chapter_id": "ch-39",
+      "chapter_index": 39,
+      "chapter_title": "四十　不识张郎是张郎",
+      "coverage": "experienced",
+      "epistemic_cutoff_locator": "ch-39 §22 end: '张无忌却哪里知道...朱元璋暗中安排...'",
+      "evidence_locator": "ch-39 §1–§3, §12–§15, §20–§22 sha256:234a039362e3cec4b9d48055d98b0d6308058938198f5911a50064c30cfb8c70",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "llm-candidate:ch-39",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "reviewed_by": "mengfu",
+      "scenes": [
+        {
+          "canonical_action": "issues strict martial order by empowering Wu Jingcao to enforce discipline with lethal authority",
+          "canonical_outcome": "establishes centralized command structure enabling coordinated defense against Yuan forces",
+          "decision_point": "whether to appoint锐金旗监令执法 as first command to unify the disparate heroes",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-39 §3: '命你率领本旗兄弟，执掌军法...纵然是本教耆宿、武林长辈，俱无例外.'",
+          "expected_regime": "military hierarchy",
+          "phase_label": "mature",
+          "risk_markers": [
+            "disobedience",
+            "fragmentation",
+            "loss of initiative"
+          ],
+          "scene_id": "ch39-scene-1",
+          "setting": "少室山大雄宝殿及寺前广场"
+        },
+        {
+          "canonical_action": "chooses not to redirect forces due to lack of coordination and unexpected arrival of Xu Da/Chang Yuanchun",
+          "canonical_outcome": "allows second Yuan force to scatter; misses opportunity for total annihilation but secures overall victory",
+          "decision_point": "whether to pursue and trap the second Yuan万人队 after the first is sealed in the valley",
+          "emotional_register": "doubt",
+          "evidence_locator": "ch-39 §12: '若是事先联络妥善...便可一鼓而歼.张无忌既没料到元军只分兵一半追赶，又不知援军会来得如此神速.'",
+          "expected_regime": "battlefield synchronization",
+          "phase_label": "mature",
+          "risk_markers": [
+            "overextension",
+            "communication failure",
+            "tactical overreach"
+          ],
+          "scene_id": "ch39-scene-2",
+          "setting": "少室山后山谷入口及山道"
+        },
+        {
+          "canonical_action": "leaves battlefield leadership to Yang Xiao, departs immediately to search for Zhao Min",
+          "canonical_outcome": "prioritizes personal loyalty over institutional duty; initiates solitary pursuit across terrain",
+          "decision_point": "whether to abandon command and pursue Zhao Min alone after her disappearance",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-39 §15: '当即向杨逍道：“杨兄，此间事务，请你代我料理，我先走一步。”'",
+          "expected_regime": "personal fidelity",
+          "phase_label": "mature",
+          "risk_markers": [
+            "command vacuum",
+            "strategic vulnerability",
+            "emotional override"
+          ],
+          "scene_id": "ch39-scene-3",
+          "setting": "少室山后树林至槐树下"
+        },
+        {
+          "canonical_action": "confesses unequivocally that Zhao Min is the one he loves '铭心刻骨' — more than life itself",
+          "canonical_outcome": "triggers Zhou Zhiruo’s conditional cooperation and reveals Zhao Min’s concealed presence",
+          "decision_point": "whether to truthfully declare his deepest love to Zhou Zhiruo when she asks who he loves most among four women",
+          "emotional_register": "resolve",
+          "evidence_locator": "ch-39 §20: '要是我这一生再不能见到赵姑娘，我是宁可死了的好.这样的心意，我以前对旁人从未有过.'",
+          "expected_regime": "romantic sincerity",
+          "phase_label": "mature",
+          "risk_markers": [
+            "emotional entanglement",
+            "betrayal perception",
+            "strategic leverage loss"
+          ],
+          "scene_id": "ch39-scene-4",
+          "setting": "path near Shaolin Temple, then secluded grove with stone and shrubs"
+        },
+        {
+          "canonical_action": "remains passive under threat; does not resist or counterattack despite being fully capable",
+          "canonical_outcome": "is immobilized and placed at mortal risk, enabling殷离’s timely intervention",
+          "decision_point": "whether to strike Zhou Zhiruo or intervene when she draws sword to kill him after he refuses her terms",
+          "emotional_register": "shame",
+          "evidence_locator": "ch-39 §21: '周芷若拔出长剑，抵住了他胸口...提起长剑，便往他胸口刺了下去.'",
+          "expected_regime": "nonviolent restraint",
+          "phase_label": "mature",
+          "risk_markers": [
+            "physical vulnerability",
+            "moral paralysis",
+            "trust violation"
+          ],
+          "scene_id": "ch39-scene-5",
+          "setting": "grove with two locust trees, then hidden thicket behind shrubs"
+        }
+      ],
+      "semantic_events": [
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Selects 'Bing Kun Niutou Shan' chapter from 'Wu Mu Yi Shu' to adapt strategy to Shaoshi terrain and coalition composition",
+          "event_id": "ch39-ev-1",
+          "evidence_locator": "ch-39 §2: '无意中看到“兵困牛头山”五个小字...用其遗意，未始不能出奇制胜.'",
+          "operation": "create",
+          "requires_confirmation": false,
+          "summary": "Adopts 'Wu Mu's legacy' as operational framework for battle planning",
+          "target_slot": "plan_intent"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "States explicitly that only Zhao Min’s absence would make life unbearable — a threshold not applied to any other woman",
+          "event_id": "ch39-ev-2",
+          "evidence_locator": "ch-39 §20: '要是我这一生再不能见到赵姑娘，我是宁可死了的好.'",
+          "operation": "activate",
+          "requires_confirmation": false,
+          "summary": "Commits to Zhao Min as primary romantic anchor",
+          "target_slot": "commitment"
+        },
+        {
+          "confidence": 0.95,
+          "control_signal": 0.0,
+          "detail": "Shifts from viewing her as willful antagonist to recognizing her as coerced executor of Mie Jue’s vows and trauma",
+          "event_id": "ch39-ev-3",
+          "evidence_locator": "ch-39 §16: '种种阴狠毒辣的行径，自必均是出于师父所嘱.'",
+          "operation": "revise",
+          "requires_confirmation": false,
+          "summary": "Revises belief about Zhou Zhiruo’s moral agency",
+          "target_slot": "belief_assumption"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Accepts her conditional bargain but rejects its binding force upon learning it was coercive theater; physical proximity ends without recommitment",
+          "event_id": "ch39-ev-4",
+          "evidence_locator": "ch-39 §21: '张无忌陡地领会...她真正所爱的，乃是她心中所想像的张无忌...不是眼前这个真正的张无忌.'",
+          "operation": "close",
+          "requires_confirmation": false,
+          "summary": "Closes romantic possibility with Zhou Zhiruo",
+          "target_slot": "relationship_state"
+        },
+        {
+          "confidence": 1.0,
+          "control_signal": 0.0,
+          "detail": "Hears fabricated dialogue implicating Xu and Chang in plot to kill him; accepts it as factual without verification",
+          "event_id": "ch39-ev-5",
+          "evidence_locator": "ch-39 §22: '只听得朱元璋道：“此人背叛我教...徐达道：“朱大哥，成大事者不拘小节...”'",
+          "operation": "observe",
+          "requires_confirmation": false,
+          "summary": "Observes betrayal by Zhu Yuanzhang and misattributes disloyalty to Xu Da and Chang Yuanchun",
+          "target_slot": "execution_result"
+        }
+      ],
+      "source_provenance": "llm-candidate:倚天屠龙记 (Jin Yong):ch-39"
+    }
+  ],
+  "character_id": "zhang-wuji",
+  "reviewed_by": "mengfu",
+  "source_sha256": "064d697db8f7c545fd1804a9e427d925e3b38a816c9958c1f92853551854e571",
+  "source_title": "倚天屠龙记 (Jin Yong)"
+}

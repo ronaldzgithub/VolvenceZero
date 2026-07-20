@@ -211,11 +211,34 @@ PROTECTED_WRITE_SURFACES: tuple[str, ...] = (
     "modification_gate",
 )
 
+# HyperAgents adversarial class C ("扩大可达模型族", spec
+# docs/specs/credit-and-self-modification.md §ModificationGate 对抗模型):
+# capacity-expanding changes (new learnable parameter surfaces, new
+# backends, raised capacity limits such as n_z / adapter rank / drift
+# envelopes) must live under these declared namespaces and can only be
+# expressed with ``ModificationGate.HUMAN_REVIEW`` — which the runtime
+# gate never auto-allows. This is exact namespace matching (protocol
+# convention), not keyword inference over free text.
+CAPACITY_EXPANSION_WRITE_SURFACES: tuple[str, ...] = (
+    "temporal.capacity",
+    "substrate.capacity",
+    "memory.capacity",
+    "internal_rl.capacity",
+    "envelope",
+)
+
 
 def _is_protected_write_target(target: str) -> bool:
     return any(
         target == protected or target.startswith(f"{protected}.")
         for protected in PROTECTED_WRITE_SURFACES
+    )
+
+
+def _is_capacity_expansion_target(target: str) -> bool:
+    return any(
+        target == surface or target.startswith(f"{surface}.")
+        for surface in CAPACITY_EXPANSION_WRITE_SURFACES
     )
 
 
@@ -951,6 +974,15 @@ def _evaluation_and_structural_gate_reasons(
         reasons.append("background gate blocked by critical evaluation alert")
     if proposal.desired_gate is ModificationGate.HUMAN_REVIEW:
         reasons.append("human-review proposal cannot be auto-allowed by runtime gate")
+    if (
+        _is_capacity_expansion_target(proposal.target)
+        and proposal.desired_gate is not ModificationGate.HUMAN_REVIEW
+    ):
+        reasons.append(
+            f"capacity-expansion target {proposal.target!r} requires the "
+            "human-review gate (reachable-model-family changes cannot be "
+            "auto-allowed)"
+        )
     margin = _validation_margin_for_gate(proposal.desired_gate)
     if proposal.validation_delta < margin:
         reasons.append(

@@ -1,8 +1,8 @@
 {
   "artifact": {
     "path": "research/ant/results/phase0_route_learning.json",
-    "sha256": "2f449eb5b3e4f4d514de94e542a8c64f2489f2be3dd575ff76ecffedaeb8d512",
-    "size_bytes": 1719
+    "sha256": "3b0a7f27231f92d0740ffd3b22f75d4e4a9a5d76dd7682a030f6a73cd672ef4f",
+    "size_bytes": 1748
   },
   "externally_retainable": false,
   "inputs": [
@@ -42,7 +42,7 @@
       ]
     ],
     "git_branch": "main",
-    "git_sha": "0ba4fdb881553dd7ee3e803009cd09103140f576",
+    "git_sha": "f2989bdc3c73bf189fd154f165320493d032d97f",
     "model_fingerprint": null,
     "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
     "python_version": "3.13.5",

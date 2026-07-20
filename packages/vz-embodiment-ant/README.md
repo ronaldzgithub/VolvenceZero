@@ -53,10 +53,16 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）这几条分层原理
 - `scripts/run_ant_colony.py` — Phase 1：信息素总线群体觅食。
 - `scripts/run_ant_caste.py` — Phase 2：离线角色重编程（`allow_offline=True`）。
 - `scripts/run_ant_demos.py` — G2/G3/G4：扰动对比 / 生物学叠图 / 安全反射一票否决。
-- `scripts/run_ant_theater.py` — 蚂蚁剧场：并排「启发式 FSM 殖民地」vs「数字生命殖民地」的
-  一群蚂蚁实时行为动画（自包含 HTML + Canvas，零依赖，浏览器直接打开）；中途食物搬迁，
-  直观呈现硬编码规则僵化 vs 学习控制器持续感知改道。输出
+- `scripts/run_ant_theater.py` — 觅食剧场：并排「启发式 FSM 殖民地」vs「数字生命殖民地」的
+  一群蚂蚁实时行为动画（自包含 HTML + Canvas，零依赖，浏览器直接打开）；中途食物搬迁。
+  诚实提示：在玩具尺度下 kernel 觅食投递数不敌手写 FSM（正式 matched-control 亦如此），
+  此剧场用于展示行为，不代表 kernel 在觅食效率上胜出。输出
   `research/ant/figures/digital_ant_theater.html`。
+- `scripts/run_ant_homing_theater.py` — 回巢剧场（推荐）：展示系统被 AntBot 标度验证的**真实强项——
+  路径积分导航**。一群蚂蚁随机外出后沿内部估计方向回巢，橙色虚线箭头画出它「以为家在哪」；
+  左臂完整路径积分（含天空罗盘）信念始终指向真巢、精准回家，右臂删掉罗盘的纯死走信念漂移、迷路。
+  可选第三面板用**真内核**跑路线熟悉度：固定路线反复走，可下降新奇度（认知型 PE）随曝光下降，
+  记忆关闭对照不下降。输出 `research/ant/figures/digital_ant_homing_theater.html`。
 
 推荐从统一入口运行：
 

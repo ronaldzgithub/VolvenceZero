@@ -1,7 +1,7 @@
 # Evidence Deletion Protocol
 
 > Status: scaffold v0.1 (SHADOW)
-> Last updated: 2026-05-13
+> Last updated: 2026-07-20
 > Owner: cross-cutting-foundation-packet F-B (debt #49)
 
 ## 1. 范围
@@ -74,6 +74,26 @@ closed-alpha 已实现 `DELETE /v1/users/me/memory`（删 scoped memory），但
 | **SHADOW**（W3） | `EvidenceDeletionPolicy` + `EvidenceDeletionRecord` + `delete_evidence_files_for_scope` 落 `lifeform_service/evidence_deletion.py`；contract test 通过；本 spec v0.1 落档；DELETE endpoint scaffold 在 `protocol_routes` 加占位（fail-loud "scaffolded, not wired"） |
 | **ACTIVE**（W6） | 4 个新 DELETE endpoint 真接进 closed-alpha + DLaaS 路由；ledger 真写；闭环测试覆盖 end-user / tenant-admin 两种 actor |
 
+## 7A. 算法级删除证书与近似路径的边界（2026-07-20）
+
+来源：Forgetful Attention / SV-Attention（`arXiv:2607.12204`），见
+`research/frontier-sweep-2026-07-20.md` §K2。该论文用 one-class SVM support coefficient
+表示记忆，reserve token 权重严格为零，删除可做到与"从未训练该 token"近似等价的
+**exact unlearning 证书**。对本协议的含义与边界：
+
+1. **两级删除强度必须区分声明**：
+   - **逻辑删除（当前协议）**：删文件 + 不可删 ledger。删除的是可检索工件，
+     不宣称参数级遗忘。
+   - **算法级删除（rare-heavy 候选）**：对参数化记忆（CMS band / adapter delta）
+     的删除若要宣称"等价于从未学过"，必须走 exact-solver 路径并附证书。
+2. **证书边界（关键限定）**：论文的 exact-deletion 证书**只属于 fp64 maintained exact
+   solver**；其用于训练的 batched approximation 明确不继承证书（且慢 35.8×）。
+   任何以近似训练路径实现的删除，对外只能声称"近似删除 / 影响衰减"，**不得**声称
+   exact unlearning——违者按 R12 证据口径违规处理。
+3. **对外话术约束**：consent withdrawal / 被遗忘权响应中，删除声明必须标注删除强度级别
+   （`logical` / `approximate` / `exact-certified`）；当前系统仅支持 `logical`。
+   `exact-certified` 进入路线图前提是独立复现证书路径。
+
 ## 8. 风险
 
 | 风险 | 应对 |
@@ -84,4 +104,5 @@ closed-alpha 已实现 `DELETE /v1/users/me/memory`（删 scoped memory），但
 
 ## 变更日志
 
+- 2026-07-20: 新增 §7A "算法级删除证书与近似路径的边界"（Forgetful Attention 同步）：logical / approximate / exact-certified 三级删除强度声明，exact 证书只属 fp64 exact solver。来源 `research/frontier-sweep-2026-07-20.md` §6 同步项。
 - 2026-05-13: v0.1 SHADOW scaffold land。

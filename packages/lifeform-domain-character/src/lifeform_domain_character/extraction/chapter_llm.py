@@ -117,7 +117,7 @@ def extract_chapter_ledger_candidate(
         chapters=tuple(sorted(reviewed, key=lambda item: item.chapter_index)),
         failed_chapters=tuple(failures),
         requires_review=tuple(requires_review),
-        prompt_version="chapter_live_through.system.v1",
+        prompt_version="chapter_live_through.system.v2",
         notes=tuple(notes),
     )
 

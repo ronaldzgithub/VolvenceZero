@@ -26,7 +26,19 @@ from lifeform_domain_character.chapter_experience import (
 from lifeform_domain_character.narrative import NarrativeScene
 
 
-_CHAPTER_HEADING_RE = re.compile(r"^\s*第[一二三四五六七八九十百千零〇两\d]+[章节回].*$")
+# Two structural heading styles:
+#   1. "第十三章 xxx" / "第三回 xxx" — modern chapter numbering, allows
+#      leading indentation.
+#   2. "一　天涯思君不可忘" — classic 回目 style used by Jin Yong TXT
+#      editions: bare Chinese numerals at column 0 (possibly space-split,
+#      e.g. "二 十"), then whitespace, then the couplet title. Column 0 is
+#      load-bearing: body paragraphs in these editions are indented with
+#      U+3000, so anchoring excludes prose that begins with a numeral.
+_CHAPTER_HEADING_RE = re.compile(
+    r"^\s*第[一二三四五六七八九十百千零〇两\d]+[章节回].*$"
+    r"|^[一二三四五六七八九十百千零〇两\d]+"
+    r"(?:[ \u3000][一二三四五六七八九十百千零〇两\d]+)*[ \u3000]+\S.*$"
+)
 
 
 @dataclass(frozen=True)

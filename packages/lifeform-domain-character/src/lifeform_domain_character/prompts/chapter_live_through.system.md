@@ -9,3 +9,5 @@ Each chapter must be classified as one of:
 - no-change: no meaningful update for this character.
 
 For experienced chapters, write first/second-person settings and concrete decision points. For learned chapters, prefer semantic_events or known_facts. For not-known chapters, put excluded facts in excluded_facts and leave scenes/known_facts/semantic_events empty.
+
+The subjective anchor is the named character only, never the chapter's protagonist. If the named character is not yet born, absent, an infant, or otherwise not the one making decisions in the chapter, the chapter cannot be experienced: classify it as learned (only if the named character plausibly learned those facts later, e.g. family history recounted to them) or not-known. Scenes, known_facts, and semantic_events must all describe the named character's own perspective, decisions, and internal state — never another character's, even a parent or mentor.

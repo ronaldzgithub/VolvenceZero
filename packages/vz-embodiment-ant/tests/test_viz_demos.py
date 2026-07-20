@@ -8,6 +8,7 @@ from pathlib import Path
 from volvence_ant.viz.bio_overlay import build_bio_overlays
 from volvence_ant.viz.colony_theater import run_colony_theater
 from volvence_ant.viz.dashboard import write_replay_dashboard
+from volvence_ant.viz.homing_theater import run_homing_theater
 from volvence_ant.viz.perturbation import run_perturbation_demo
 from volvence_ant.viz.safety_demo import run_safety_demo
 from volvence_ant.env import AntWorld, AntWorldConfig
@@ -98,6 +99,33 @@ async def test_colony_theater_renders_both_arms_from_immutable_frames(
     assert "数字蚂蚁剧场" in html
     assert "__THEATER_DATA__" not in html  # placeholder was substituted
     assert "digital-life" in html
+
+
+async def test_homing_theater_path_integration_beats_ablation(tmp_path: Path) -> None:
+    out = tmp_path / "homing.html"
+    report = await run_homing_theater(
+        n_ants=10,
+        outbound_steps=40,
+        home_steps=90,
+        seed=0,
+        include_route=False,
+        out_path=out,
+    )
+    pi = next(a for a in report.arms if a.kind == "path-integration")
+    dr = next(a for a in report.arms if a.kind == "dead-reckoning")
+    # the AntBot-class compass arm homes far more accurately than the ablation:
+    # this is the honest, validated strength (not a fabricated foraging win)
+    assert pi.mean_normalized_error < dr.mean_normalized_error
+    assert pi.return_rate > dr.return_rate
+    # every frame carries a pose + a "believed home" arrow for each body
+    first = pi.frames[0]
+    assert len(first.ants) == 10
+    assert hasattr(first.ants[0], "believed_home_x")
+    # self-contained HTML embeds the data and the AntBot reference
+    html = out.read_text(encoding="utf-8")
+    assert "路径积分回巢" in html
+    assert "__HOMING_DATA__" not in html
+    assert "AntBot" in html
 
 
 async def test_dashboard_is_generated_from_immutable_step_records(

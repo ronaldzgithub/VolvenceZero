@@ -1,46 +1,46 @@
 {
-  "antbot_reference_ratio": 0.005,
+  "antbot_reference_ratio": 0.0067,
   "artifact_kind": "phase0-physical-homing",
   "curve": [
     {
-      "journey_length": 3.9898978626166723,
-      "mean_direction_error": 0.05288384495230284,
-      "mean_endpoint_error": 0.199555131333739,
-      "mean_normalized_error": 0.05001328445069301,
+      "journey_length": 3.995959145046669,
+      "mean_direction_error": 0.0032066091274109976,
+      "mean_endpoint_error": 0.02021791749699473,
+      "mean_normalized_error": 0.005062569282565966,
       "n_trials": 24
     },
     {
-      "journey_length": 7.994906356942074,
-      "mean_direction_error": 0.07114169375386366,
-      "mean_endpoint_error": 0.4868022343748417,
-      "mean_normalized_error": 0.06091075882481132,
+      "journey_length": 7.99796254277683,
+      "mean_direction_error": 0.0025015695837608356,
+      "mean_endpoint_error": 0.025074913341016178,
+      "mean_normalized_error": 0.0031337979519288454,
       "n_trials": 24
     },
     {
-      "journey_length": 16.005054240654655,
-      "mean_direction_error": 0.0707928699838144,
-      "mean_endpoint_error": 0.8521752323343718,
-      "mean_normalized_error": 0.0532250990495668,
+      "journey_length": 16.002021696261863,
+      "mean_direction_error": 0.0021364358345663894,
+      "mean_endpoint_error": 0.03225859021786697,
+      "mean_normalized_error": 0.0020153988410697484,
       "n_trials": 24
     },
     {
-      "journey_length": 31.96825923299673,
-      "mean_direction_error": 0.1413443106186043,
-      "mean_endpoint_error": 2.3424366077980516,
-      "mean_normalized_error": 0.07325258306165715,
+      "journey_length": 31.987303693198697,
+      "mean_direction_error": 0.0028884525730064428,
+      "mean_endpoint_error": 0.05512742320389156,
+      "mean_normalized_error": 0.001723385975115917,
       "n_trials": 24
     },
     {
-      "journey_length": 63.96660282008387,
-      "mean_direction_error": 0.2632815542730321,
-      "mean_endpoint_error": 4.088930437812018,
-      "mean_normalized_error": 0.06391771217008062,
+      "journey_length": 63.98664112803356,
+      "mean_direction_error": 0.005911002414102695,
+      "mean_endpoint_error": 0.07441427685083313,
+      "mean_normalized_error": 0.0011628686538182591,
       "n_trials": 24
     }
   ],
-  "description": "path-integration homing: worst normalized error=0.0733 (AntBot ref=0.0050); passes_scale=False",
+  "description": "path-integration homing: worst normalized error=0.0051 (AntBot aggregate ref=0.0067); passes_scale=True",
   "experiment": "phase0_homing_precision",
-  "passes_antbot_scale": false,
+  "passes_antbot_scale": true,
   "provenance": {
     "config_digest": "0e1f566a8302e44c2019e83a21be863b199147f30a151b2d3c9bd36aee198102",
     "dependency_versions": [
@@ -66,7 +66,7 @@
       ]
     ],
     "git_branch": "main",
-    "git_sha": "0ba4fdb881553dd7ee3e803009cd09103140f576",
+    "git_sha": "f2989bdc3c73bf189fd154f165320493d032d97f",
     "model_fingerprint": null,
     "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
     "python_version": "3.13.5",

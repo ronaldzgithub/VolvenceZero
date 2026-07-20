@@ -60,6 +60,7 @@ from volvence_zero.regime.scoring import (
     _metacontroller_action_profile,
     _track_counts,
     build_regime_identity,
+    compute_regime_feature_values,
     score_regimes,
 )
 from volvence_zero.regime.templates import (
@@ -280,6 +281,12 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             baseline_scores=candidates,
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
+            shared_features=compute_regime_feature_values(
+                memory_snapshot=memory_value,
+                dual_track_snapshot=dual_track_value,
+                evaluation_snapshot=evaluation_value,
+                prediction_error_snapshot=pe_value,
+            ),
         )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
@@ -412,6 +419,12 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             baseline_scores=candidates,
             historical_effectiveness=self._historical_effectiveness,
             strategy_priors=self._strategy_priors,
+            shared_features=compute_regime_feature_values(
+                memory_snapshot=memory_snapshot,
+                dual_track_snapshot=dual_track_snapshot,
+                evaluation_snapshot=evaluation_snapshot,
+                prediction_error_snapshot=prediction_error_snapshot,
+            ),
         )
         chosen_regime_id = candidates[0][0]
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)

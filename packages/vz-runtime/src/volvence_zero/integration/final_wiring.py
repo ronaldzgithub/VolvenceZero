@@ -239,6 +239,13 @@ class FinalRolloutConfig:
     temporal_runtime_backend: WiringLevel = WiringLevel.DISABLED
     internal_rl_backend: WiringLevel = WiringLevel.DISABLED
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
+    # autograd-owner-integration: strength of the runtime track-weight
+    # modulation that lets Internal-RL's learned ``track_weights`` reach the
+    # temporal controller's ``code`` (z_t). 0.0 (default) is the byte-stable
+    # rollback baseline where reward-driven learning is structurally
+    # disconnected from runtime behaviour (only SSL moves z_t); a small positive
+    # value (e.g. 0.3) opens the bridge. See docs/specs/temporal-abstraction.md.
+    internal_rl_runtime_modulation_strength: float = 0.0
     # Phase 2 W2.B of the EQ-owner uplift: session_post_slow_loop is
     # ACTIVE by default. The module's own ``default_wiring_level`` is
     # already ACTIVE; the previous SHADOW override was a treatment-mode
@@ -412,6 +419,9 @@ class FinalRolloutConfig:
             "apprenticeship_alignment": self.apprenticeship_alignment,
             "apprenticeship_protocol_alignment": self.apprenticeship_protocol_alignment,
             "evaluation": self.evaluation,
+            "evaluation_mid": self.evaluation_mid,
+            "evaluation_expensive": self.evaluation_expensive,
+            "evaluation_cross_generation": self.evaluation_cross_generation,
             "prediction_error": self.prediction_error,
             "regime": self.regime,
             "credit": self.credit,

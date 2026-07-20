@@ -125,7 +125,7 @@
 
 | 决策点 | 分类 | 证据 |
 |--------|------|------|
-| `score_regimes`（6 regime 固定系数线性公式；注释 "requires real learning over collected traces"） | `should-be-learned-but-hand-crafted` | `regime/scoring.py:201-404` |
+| `score_regimes`（6 regime 固定系数线性公式；live 路径仍手写。2026-07-20 起 SHADOW dual-run 候选升级：`RegimeScoreLearner` 特征面从 4 维（baseline/historical/prior/bias）扩到 4+36 维——经 `compute_regime_feature_values`（scoring 侧单一特征 SSOT，score_regimes 与 learner 共用）消费全部共享 per-turn 特征，per-regime 权重即固定系数表的 learned 候选；delayed attribution outcome settle，`RegimeSnapshot.learned_score_shadow` report-only 发布 ready/kill/blocking readout；旧 4 维 checkpoint zero-pad 兼容） | live=`hand-crafted`；SHADOW 候选=`bounded-learned`（settled≥50 + MAE 领先≥0.02 才 ready；ACTIVE flip 待真 trace 证据，#44 SYS-1） | `regime/scoring.py`（`compute_regime_feature_values` / `_ADJUSTMENT_FEATURE_NAMES`）· `regime/score_learner.py`（`_SHARED_FEATURE_ORDER`）· `regime/identity.py`（dual-run + settle）· `tests/test_regime_score_learner.py` |
 | 最终 regime 选择（最高分 wins）+ hold/switch | `hand-crafted` | `regime/identity.py:247-248,788-806` |
 | 在线 historical_effectiveness / selection_weights 更新（`*0.7+*0.3`，lr=0.02） | `hand-crafted` | `regime/identity.py:439-465,146` |
 | `apply_metacontroller_evidence`（2026-07-16 起查 `templates.py` 的 `metacontroller_evidence_affinity` 表，identity.py 零硬编码 regime_id，AST 契约守门） | `hand-crafted`（表驱动；learned head 待 #44 SYS-1） | `regime/templates.py`（`metacontroller_evidence_deltas`）· `regime/identity.py`（`_apply_evidence_signal`）· `tests/contracts/test_regime_no_hardcoded_evidence_mapping.py` |

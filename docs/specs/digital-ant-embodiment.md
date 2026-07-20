@@ -54,7 +54,16 @@ controller 自由学习「感知特征 → egocentric 动作」的映射；`moto
 `semantic_*_pull` 只表示 substrate 发布的感觉/动机预测通道，不能冒充环境任务结果。正式行为学习链路为：
 `AntWorld` 发布 typed、不可变且只含可观察事实的 `EnvironmentOutcome.measurement`；runtime facade 保留
 event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形成 signed mismatch，credit 再将其
-归因给 β segment，Internal RL 只读 PE/credit。pickup 是 lineage，delivery 是默认稀疏终局事实。
+归因给 β segment，Internal RL 只读 PE/credit。
+
+觅食有且只有两个真实、离散、可观察的里程碑：**pickup**（`carrying_food` False→True）与 **delivery**
+（终局回巢投递）。`AntSession._environment_outcome` 只在这两个事件上发布 measurement——pickup 给部分
+`task_progress=0.5`（非终局），delivery 给 `task_progress=1.0`（终局）。**明确禁止**发布任何"到食物距离
+越近奖励越高"的连续势能塑形（potential-based / distance shaping）：连续的 `closer=better` 信号等于把
+FSM 手写的梯度跟随答案直接喂给控制器，而"如何朝食物走"恰是控制器**必须自己学**的技能。历史上曾短暂
+引入过基于 `food_center` / `eval_home_distance` 的连续势能塑形，已移除（既有泄露方向策略的风险，且经点火
+探针验证：即便 credit 变密，运行时 z_t 仍零变化，塑形无助于点火——断点在内核"学习→运行时控制输出"应用
+路径，不在此接缝的信号密度）。
 
 禁止 `AntWorld` 直接传 reward 给 temporal/Internal RL，禁止 evaluation 反灌 reward，禁止 runtime
 另建 mismatch slot。历史上只依赖 drive PE 的结果可以保留为机制 smoke，但不是 learned foraging 证据。
@@ -101,14 +110,26 @@ event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形�
   - **G4 正式**：alarm 通过完整 `AntSession` 闭环验证；直接调用 actuator 只作 unit smoke。
   - 统一脚本 `scripts/run_ant_demos.py` → `research/ant/results/g{2,3,4}_*.json` +
     `research/ant/figures/*.png`（matplotlib 为可选 `viz` extra；缺失时仅跳过图，仍产 JSON）。
-  - **蚂蚁剧场（`volvence_ant.viz.colony_theater`）**：面向直观演示的并排 colony 动画，
+  - **觅食剧场（`volvence_ant.viz.colony_theater`）**：面向直观演示的并排 colony 动画，
     左臂启发式 `FixedRuleAnt` 硬编码 FSM，右臂数字生命 kernel `AntSession`，共享同一
     `ColonyWorld` 信息素总线，中途食物搬迁。渲染为自包含 HTML+Canvas（零依赖，非
     matplotlib）。它只消费已发布的不可变事实——body 几何来自 `AntWorld` 公开 getter、
     信息素来自 bus 快照、行为标签来自各 controller 自己 record 上的 `mode`/`abstract_action`——
     不重建任何内核 owner 私有状态，不成为第二 owner，也不作为学习源。脚本
     `scripts/run_ant_theater.py` → `research/ant/figures/digital_ant_theater.html`；此
-    lane 仅供演示，不产出正式 verdict。
+    lane 仅供演示，不产出正式 verdict。**诚实边界**：玩具尺度下 kernel 觅食投递数不敌手写
+    FSM（与正式 matched-control 一致：`learned` 交付≈0、`fixed_rule`>0），此剧场展示行为而非
+    宣称 kernel 觅食效率胜出。
+  - **回巢剧场（`volvence_ant.viz.homing_theater`）**：展示被 AntBot 标度验证的诚实强项——
+    路径积分导航（对齐 Phase 0 `homing_precision_experiment`，`passes_antbot_scale`）。并排两臂
+    共享同一套外出随机游走，唯一差别是 `AntNavigator.compass_gain` 消融：完整路径积分（含天空
+    罗盘）归一化回家误差 ≤ AntBot 0.67% 参照、几乎全员回巢；无罗盘死走朝向估计随步数漂移、
+    回家信念偏离、迷路。每只蚂蚁画出「它以为家在哪」的信念箭头（把 navigator 的 egocentric
+    home 投影到真朝向，纯几何、无位置读取）。可选第三面板复用**真内核**
+    `route_learning_experiment`：固定路线反复走，可下降新奇度（认知型 PE）随曝光下降，记忆关闭
+    对照不下降——这是记忆/PE 主链而非硬编码。脚本 `scripts/run_ant_homing_theater.py` →
+    `research/ant/figures/digital_ant_homing_theater.html`；导航臂纯冻结 substrate（快），
+    路线面板走内核（慢，`--no-route` 可跳过）。仅供演示，不改变正式 verdict。
 
 ### 7.1 公平训练与 checkpoint
 
@@ -139,6 +160,23 @@ event/prediction/action lineage，并在下一 turn 只交给 PE owner；PE 形�
 - stage verdict 为 `BLOCK` 不妨碍 resume：恢复只表示该计算完整可信，不代表 claim 通过。
 - 可视化只消费不可变 `AntStepRecord` replay；位置、`z_t`、`β_t`、PE、credit、writeback 与
   backend wiring 均来自正式 turn 结果，不成为新的 runtime owner 或学习源。
+
+### 7.3 NE-Dreamer next-embedding rare-heavy 对照（2026-07-20）
+
+来源：NE-Dreamer（`arXiv:2603.02765`），见 `research/frontier-sweep-2026-07-20.md` §G1。
+next-embedding prediction（预测下一 encoder embedding 而非重建当前感知）在 matched 参数量下
+超过 DreamerV3，对"潜在状态应为未来可预测性服务"是直接支持——与本 spec 的 R-PE / R3
+路线同向。据此登记一条 **rare-heavy 对照臂**（不改 runtime）：
+
+- **定位**：`next-embedding` objective 只能作为 rare-heavy baseline arm 进入 matched-control
+  矩阵，与既有 learned / PE-off / ETA-off / FixedRule / E2E-RL 臂同地图、同 seed、同预算对比；
+  目的是回答"frozen encoder + bounded controller 是否保留 NE-Dreamer 式收益"。
+- **硬边界**：NE-Dreamer 原文端到端联合训练 encoder / world model / actor-critic，直接照搬
+  违反 R2 冻结基底；对照臂必须保持 `sense_encode` / `motor_decode` 冻结，next-embedding loss
+  只允许训练 bounded controller 侧组件。
+- **不得绕过 lineage**：next-embedding loss 不等于 task outcome PE；该臂的任何"学习发生了"
+  claim 仍必须经 outcome → PE → credit lineage 结算，不得以 embedding-loss 下降直接冒充
+  foraging 增益（对齐 §6 kill condition "reward 旁路 PE/credit"）。
 
 ## 8. 回滚
 

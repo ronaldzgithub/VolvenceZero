@@ -578,10 +578,13 @@ class AgentSessionRunner(
         # backend (DISABLED default = pure rollback baseline). Reversible via
         # FinalRolloutConfig.temporal_runtime_backend.
         _runtime_backend = self._config.temporal_runtime_backend
+        _track_modulation = self._config.internal_rl_runtime_modulation_strength
         if isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
             self._world_temporal_policy.set_runtime_backend(_runtime_backend)
+            self._world_temporal_policy.set_runtime_track_modulation(_track_modulation)
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy.set_runtime_backend(_runtime_backend)
+            self._self_temporal_policy.set_runtime_track_modulation(_track_modulation)
         self._evaluation_backbone = EvaluationBackbone()
         self._application_rare_heavy_state = ApplicationRareHeavyState()
         domain_backend = None

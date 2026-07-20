@@ -9,6 +9,7 @@ formula.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Mapping
 
 from volvence_zero.regime.contracts import RegimeLearnedScoreShadow
 
@@ -17,6 +18,50 @@ _MAE_MARGIN = 0.02
 _KILL_DEGRADATION = 0.10
 _LR = 0.06
 _WEIGHT_LIMIT = 1.5
+
+# Frozen order for the shared per-turn features produced by
+# ``scoring.compute_regime_feature_values``. The learner's checkpoint
+# weight vectors are aligned to ``(base 4) + this tuple``; appending new
+# names at the END is backward compatible (``_align`` zero-pads old
+# checkpoints), reordering or inserting is NOT.
+_SHARED_FEATURE_ORDER: tuple[str, ...] = (
+    "pe_task_shortfall",
+    "pe_relationship_shortfall",
+    "pe_regime_shortfall",
+    "pe_action_shortfall",
+    "task_pressure",
+    "support_presence",
+    "repair_pressure",
+    "social_pressure",
+    "decision_delegation_pressure",
+    "support_before_decision_pressure",
+    "emotional_decision_pressure",
+    "mixed_support_task_pressure",
+    "task_dominance",
+    "support_dominance",
+    "low_pressure",
+    "world_tension",
+    "self_tension",
+    "cross_tension",
+    "world_presence",
+    "self_presence",
+    "world_drive",
+    "self_drive",
+    "shared_drive",
+    "switch_pressure",
+    "repair_bias",
+    "task_bias",
+    "exploration_bias",
+    "stabilize_bias",
+    "task_score",
+    "warmth",
+    "relationship_stability",
+    "semantic_surface_active",
+    "semantic_low_pressure",
+    "alert_pressure",
+    "balance",
+    "memory_task_planning_bias",
+)
 
 
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
@@ -37,12 +82,17 @@ class RegimeScoreLearner:
     """Bounded linear head over baseline regime candidates.
 
     Feature vector per candidate:
-    ``(baseline_score, historical_effectiveness, strategy_prior, bias)``.
-    This keeps the first SHADOW slice grounded in the existing scorer while
-    letting delayed outcome payoff move the candidate toward observed wins.
+    ``(baseline_score, historical_effectiveness, strategy_prior, bias)``
+    followed by the shared per-turn features from
+    ``scoring.compute_regime_feature_values`` in ``_SHARED_FEATURE_ORDER``.
+    Per-regime weights over the shared features are the learned candidate
+    for the fixed per-regime coefficient tables in ``score_regimes``
+    (debt #80 / #44). The learner stays SHADOW dual-run: the live regime
+    choice never reads it.
     """
 
-    _FEATURE_DIM = 4
+    _BASE_FEATURE_DIM = 4
+    _FEATURE_DIM = _BASE_FEATURE_DIM + len(_SHARED_FEATURE_ORDER)
 
     def __init__(self) -> None:
         self._weights: dict[str, list[float]] = {}
@@ -60,8 +110,11 @@ class RegimeScoreLearner:
         baseline_scores: tuple[tuple[str, float], ...],
         historical_effectiveness: dict[str, float],
         strategy_priors: dict[str, float],
+        shared_features: Mapping[str, float] | None = None,
     ) -> RegimeLearnedScoreShadow:
         baseline_by_id = {regime_id: score for regime_id, score in baseline_scores}
+        shared = shared_features or {}
+        shared_vector = tuple(float(shared.get(name, 0.0)) for name in _SHARED_FEATURE_ORDER)
         learned: list[tuple[str, float]] = []
         features_by_id: dict[str, tuple[float, ...]] = {}
         for regime_id, baseline in baseline_scores:
@@ -70,7 +123,7 @@ class RegimeScoreLearner:
                 _clamp(historical_effectiveness.get(regime_id, 0.5)),
                 max(-0.5, min(0.5, strategy_priors.get(regime_id, 0.0))),
                 1.0,
-            )
+            ) + shared_vector
             features_by_id[regime_id] = features
             learned.append((regime_id, round(self._predict(regime_id, features, baseline), 4)))
         learned.sort(key=lambda item: item[1], reverse=True)

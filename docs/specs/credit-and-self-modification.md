@@ -1,8 +1,8 @@
 # 信用分配与自修改 Spec
 
 > Status: draft
-> Last updated: 2026-04-25
-> 对应需求: R-PE, R9, R10
+> Last updated: 2026-07-20
+> 对应需求: R-PE, R9, R10, R15
 
 ## 要解决的问题
 
@@ -172,6 +172,63 @@ PE-first / credit / evaluation 的所有权边界：
 与 ModificationGate”建成小 scope 有限状态机，穷举可达状态验证 single-path 无旁路，
 再用真实 trace conformance 绑定规格与代码。该证明只覆盖协调骨架，不宣称验证学习组件本身。
 
+### R15 四层可证伪发布门证据链（2026-07-20）
+
+来源：`arXiv:2607.13070`（Falsifiable Release Gates）与 2026-07-20 第三批扫读
+（OpenAI Deployment Simulation `2607.07184`、DeepMind Gram `2605.30322` /
+Realistic Honeypots `2605.29729` / ProEval `2604.23099`）的合并结论，见
+`research/frontier-sweep-2026-07-20.md` §4.1。上节 teeth 纪律定义"gate 本身必须可证伪"；
+本节定义 gate 的**证据来源必须覆盖四层**，任何 rare-heavy artifact / ACTIVE flip 的
+发布决策不得只依赖其中一层：
+
+| 层 | 内容 | 证据形态 | 外部方法参照 |
+|---|---|---|---|
+| L1 固定不变量门 | 预声明的机器可检性质与不可放松边界（teeth 纪律 + deliberately-broken fixture） | contract tests（`test_gate_teeth_discipline.py` 等） | Falsifiable Release Gates |
+| L2 主动失败发现 | 在 epistemic 高不确定区与高风险区主动选样找失败，而非只跑固定套件 | 离线采样器 readout（评估 sampling 优化，结果不回灌学习，R12） | ProEval（Bayesian quadrature + superlevel-set sampling） |
+| L3 真实分布模拟 | 固定历史生产 prefix 重放候选 artifact，预测上线后行为频率（predicted incidence） | promotion artifact 内的 `predicted_incidence` 字段 + 复现脚本 | Deployment Simulation |
+| L4 失败反例化 + 发布后核验 | 动态发现的失败固化为最小可复现静态环境；发布后对 predicted vs realized incidence 做偏差检查，偏差超限触发 rollback | 反例包（静态 fixture）+ post-release verification artifact | Gram（动态→静态复现）/ Honeypot |
+
+实施约束：
+
+- **本节是 spec-level 要求，不是本轮 wiring**：当前 promotion 路径（如
+  `evaluate_learned_backend_promotion.py`）先补 L3 的 `predicted_incidence` 声明位与
+  L4 的 post-release 核验位；L2 采样器是独立离线工具候选。
+- 评估四层全部 read-only（R12）：L2 的主动选样只优化"测哪里"，不得把 eval 结果变成
+  在线 reward；L4 的反例包进 CI fixture，不进训练数据。
+- "未触发 honeypot / 反例"不构成安全证据（Honeypot 论文关键否定）；L4 必须同时报告
+  elicitation pressure 与 evaluation awareness 维度（与 `evaluation.md` 四维拆分对齐）。
+- 发布后核验失败（realized 与 predicted 偏差超过预注册阈值）等同一次 rollback drill
+  失败：立即退回上一 promotion 阶段并写 known-debt。
+
+### ModificationGate 对抗模型：HyperAgents 三类必拒提案（2026-07-20）
+
+来源：Meta FAIR HyperAgents / DGM-H（`arXiv:2603.19461`），
+`research/frontier-sweep-2026-07-20.md` §A。该论文把 task agent 与 meta agent 合成
+同一可编辑程序并追求任意部分可修改——是 R10 有界自修改的直接反例压力测试。
+把它当 ModificationGate 的**对抗模型**：门必须能拒绝以下三类提案，且拒绝必须发生在
+**构造期或 gate 评估期 fail-loudly**，不能依赖运行时软回退：
+
+| 类别 | 提案形态 | 现有防线 | 要求 |
+|---|---|---|---|
+| A. 修改写面本身 | proposal target 指向 gate / proposal schema / `PROTECTED_WRITE_SURFACES` 自身 | `ModificationProposal` 构造期 fail-loudly（teeth 纪律第 5 条） | 保护面覆盖"修改保护清单"这一动作本身；增删清单必须走人审 + spec 同步 |
+| B. 修改 evaluator | proposal target 指向 evaluation / acceptance gate 阈值 / judge 配置 / promotion criteria | `PROTECTED_WRITE_SURFACES` 含 `evaluation` / `gate` 命名空间 | 阈值预注册纪律（上节第 2 条）延伸：观察窗口内任何改阈值提案一律 BLOCK，不论 validation_delta |
+| C. 扩大可达模型族 | proposal 引入新的可学参数面 / 新 backend / 提升 capacity 上限（如 `n_z`、adapter rank、envelope 边界） | Two-Gate capacity_cost 检查（部分） | capacity 类变更不可由在线 proposal 路径表达；只能走 rare-heavy + 人审（R10 分层表"基础模型结构变更"行），且必须附带新 capacity 下的 VC-dim/包络分析 |
+
+配套契约测试要求（Lane D 落地项，**2026-07-20 已落地**）：三类各至少一个对抗 fixture，
+CI 证明 gate 会以**精确的、可定位的理由**拒绝（对齐 teeth 纪律第 4 条"只证明好样本通过
+不构成发布证据"）。落点：
+
+- `tests/contracts/test_gate_adversarial_proposals.py`：A/B 类构造期不可表达
+  （含"修改保护清单本身"与 evaluator 阈值/judge 配置目标）；C 类经新增
+  `CAPACITY_EXPANSION_WRITE_SURFACES` 命名空间（`temporal.capacity` /
+  `substrate.capacity` / `memory.capacity` / `internal_rl.capacity` / `envelope`）
+  在 ONLINE/BACKGROUND/OFFLINE 三个自动 gate 上一律 BLOCK（即使 validation/capacity
+  证据完美），仅 HUMAN_REVIEW 可表达且 runtime gate 永不自动放行。
+- 两张命名空间表（PROTECTED = 构造期不可表达；CAPACITY = 仅人审可表达）语义不同、
+  互不重叠，由测试守门；增删任一表须同步本 spec。
+- capacity 类目标的**命名约定**是本节的一部分：凡扩大可达模型族的提案 target 必须落在
+  上述声明命名空间内；在其它命名空间伪装 capacity 变更属于契约违反（审计发现即回滚）。
+
 ## 接口契约
 
 **消费的输入**：
@@ -221,6 +278,8 @@ PE-first / credit / evaluation 的所有权边界：
 
 ## 变更日志
 
+- 2026-07-20 (Lane D 落地): HyperAgents 对抗提案三类必拒进入代码：新增 `CAPACITY_EXPANSION_WRITE_SURFACES` + gate reason "capacity-expansion target ... requires the human-review gate"（`credit/gate.py`）；对抗 fixture 套件 `tests/contracts/test_gate_adversarial_proposals.py`（A/B 构造期不可表达 + C 自动 gate 全 BLOCK + 命名空间不重叠守门）。
+- 2026-07-20 (第三批扫读同步): 新增 §"R15 四层可证伪发布门证据链"（L1 固定不变量 / L2 ProEval 式主动失败发现 / L3 Deployment Simulation 式 predicted incidence / L4 Gram/Honeypot 式反例化 + 发布后核验）与 §"ModificationGate 对抗模型：HyperAgents 三类必拒提案"（改写面 / 改 evaluator / 扩可达模型族）。spec-level 要求；C 类 capacity 对抗 fixture 标记为契约测试缺口。来源 `research/frontier-sweep-2026-07-20.md` §4.1 / §A / §5。
 - 2026-07-20: 引入 `arXiv:2607.13070` 的可证伪发布门纪律：新增 gate-before-code、
   阈值预注册、preservative gate、teeth fixture 与保护写面约束；代码侧
   `ModificationProposal` 禁止指向评判机器命名空间，新增 gate 单不变量破坏矩阵和

@@ -158,6 +158,96 @@ def test_runtime_ndim_shadow_compare_reports_parity() -> None:
         assert 0.0 <= value <= report.tolerance
 
 
+# ---------------------------------------------------------------------------
+# 3b. Internal-RL -> runtime code bridge (autograd-owner-integration)
+#
+# Regression guard for the diagnosed structural break: reward-driven learning
+# writes ``track_weights``, but the ndim runtime forward produced ``code`` from
+# the encoder/switch params only, so RL never reached z_t. The gated runtime
+# track modulation opens that bridge while keeping strength 0 an exact no-op.
+# ---------------------------------------------------------------------------
+
+
+def _skewed_track_weights(n_z: int) -> dict:
+    """A non-uniform, normalized per-track mixture (what RL would settle to)."""
+
+    skew = tuple((1.0 if i == 0 else 0.02) for i in range(n_z))
+    total = sum(skew)
+    normalized = tuple(v / total for v in skew)
+    return {track: normalized for track in (Track.WORLD, Track.SELF, Track.SHARED)}
+
+
+def _first_code(policy: FullLearnedTemporalPolicy, snapshot: object) -> tuple[float, ...]:
+    return policy.step(
+        substrate_snapshot=snapshot, previous_snapshot=None
+    ).controller_state.code
+
+
+def test_runtime_track_modulation_zero_is_exact_noop() -> None:
+    """strength 0: mutating track_weights must NOT change code (rollback)."""
+
+    snapshot = _trace_step_snapshot(_trace())
+
+    baseline = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    code_default = _first_code(baseline, snapshot)
+
+    mutated = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    mutated.parameter_store.track_weights = _skewed_track_weights(_NDIM)
+    code_mutated = _first_code(mutated, snapshot)
+
+    # With modulation off (default), track_weights are irrelevant to code.
+    assert code_default == code_mutated
+
+
+def test_runtime_track_modulation_lets_track_weights_reach_code() -> None:
+    """strength > 0: different track_weights -> different code (bridge open)."""
+
+    snapshot = _trace_step_snapshot(_trace())
+
+    uniform = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    uniform.set_runtime_track_modulation(0.5)
+    uniform.parameter_store.track_weights = {
+        track: tuple(1.0 / _NDIM for _ in range(_NDIM))
+        for track in (Track.WORLD, Track.SELF, Track.SHARED)
+    }
+    code_uniform = _first_code(uniform, snapshot)
+
+    skewed = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    skewed.set_runtime_track_modulation(0.5)
+    skewed.parameter_store.track_weights = _skewed_track_weights(_NDIM)
+    code_skewed = _first_code(skewed, snapshot)
+
+    # A uniform mixture is a no-op even at strength>0; a skewed (RL-learned)
+    # mixture must move code. This is the reward->code bridge.
+    assert code_uniform != code_skewed
+    # And the uniform-mixture code must equal the strength-0 baseline (uniform
+    # deviates from itself by nothing, so the gain is identity).
+    baseline = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    baseline.parameter_store.track_weights = {
+        track: tuple(1.0 / _NDIM for _ in range(_NDIM))
+        for track in (Track.WORLD, Track.SELF, Track.SHARED)
+    }
+    assert code_uniform == _first_code(baseline, snapshot)
+
+
+def test_runtime_track_modulation_rejects_negative_strength() -> None:
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    with pytest.raises(ValueError, match="must be >= 0"):
+        policy.set_runtime_track_modulation(-0.1)
+
+
 def _trace_step_snapshot(trace: object) -> object:
     """Substrate-like view over one trace step (what the runtime encoder reads)."""
 

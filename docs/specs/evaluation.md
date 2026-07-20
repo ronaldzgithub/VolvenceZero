@@ -1,7 +1,7 @@
 # 评估体系 Spec
 
 > Status: draft
-> Last updated: 2026-04-25
+> Last updated: 2026-07-20
 > 对应需求: R12
 
 ## 要解决的问题
@@ -48,6 +48,29 @@
 - **Session 级**：会话结束后计算（< 5s，可在慢反思中）
 - **Cross-Session 级**：跨会话异步计算
 - **Longitudinal 级**：每周/每月离线批量计算
+
+### 风险类评估的四维拆分（2026-07-20，F6 口径收紧）
+
+来源：DeepMind Gram（`arXiv:2605.30322`）+ Realistic Honeypots（`arXiv:2605.29729`），
+见 `research/frontier-sweep-2026-07-20.md` §D2。任何 F6（安全与有界性）族的风险类结论
+**禁止只汇总一个平均风险率**（如单一 sabotage rate / 违规率），必须沿四个正交维度分别报告：
+
+| 维度 | 问题 | 度量方式 |
+|---|---|---|
+| capability | 系统**能不能**产生该失败行为？ | 显式引导下的可诱发率 |
+| propensity | 系统在无引导时**倾向于**产生该行为吗？ | 无提示 / 中性 prompt 下的自发率 |
+| elicitation pressure | 触发该行为需要多强的诱导？ | 诱导强度阶梯（none → hint → explicit）下的响应曲线 |
+| evaluation awareness | 结论对"被测感"敏感吗？ | 现实性阶梯（synthetic → realistic）下的失效率变化方向 |
+
+三条硬约束：
+
+1. **"未触发"不构成安全证据**（Honeypot 关键否定）：现实性提高后失效率下降，既可能说明旧
+   eval 过度诱导，也可能说明测试灵敏度下降；报告必须保留两种解释，不许二选一。
+2. **动态发现 → 静态反例化**：审计中动态发现的失败必须固化为最小可复现静态 fixture
+   （Gram 方法），进入 CI 反例包；只有静态可复现的失败才能进入发布门证据链
+   （与 `credit-and-self-modification.md` §R15 四层证据链的 L4 对齐）。
+3. **只读**：四维拆分是 readout 口径升级，不改变"评估不回灌学习"的 R12 边界；
+   不得以"降低任一维读数"为优化目标。
 
 ### Long-Horizon Memory Probes（CMA-2 / Phase 2 W2.1）
 
@@ -210,6 +233,8 @@ VZ-MemProbe 测的是「**retrieval 端的连续性 / 排序 / 跨语境隔离**
 
 ## 变更日志
 
+- 2026-07-20 (Lane D geometry 监控面): COG-3 persona geometry readout 升级为持续监控面：`EvaluationBackbone` 内新增 owner-internal `_PersonaGeometryMonitor`（冻结 baseline + trailing window trend + 持续漂移 `persona_geometry_drift_sustained` MEDIUM alert）。MEDIUM 档位为设计选择——ModificationGate 只对 HIGH/CRITICAL 阻断，监控面保持只读不进 gate；契约测试 `tests/contracts/test_persona_geometry_monitor.py` 固化"持续漂移报警但不翻 gate"与"禁止 probe→train"边界。分层依据见 `cognitive-regime.md` §瞬时 substrate readout vs 持久 regime owner 的分层。
+- 2026-07-20: 新增 §"风险类评估的四维拆分"（capability / propensity / elicitation pressure / evaluation awareness），F6 风险结论禁止单一平均风险率；"未触发≠安全证据"与"动态发现→静态反例化"入约。来源 `research/frontier-sweep-2026-07-20.md` §D2 / §6 同步项。
 - 2026-05-22: COG-3 最小切片。新增 evaluation-side read-only `persona_geometry_drift` / `persona_regime_geometry_alignment` enrichment，用于 regime/persona 几何漂移监控；不新增 runtime owner 或 snapshot 字段。
 - 2026-05-05: 将 Sophia / Agent eval 类论文启发收敛为 report-only evidence：新增 identity continuity、relationship repair continuity、async robustness 三类趋势读数，只服务 evidence / gate review，不改运行时学习主链
 - 2026-04-29: regime calibrator 增加 anti-monoculture 多样性约束：

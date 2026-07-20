@@ -1,0 +1,17 @@
+{
+  "schema_version": "evaluation-mid-shadow-evidence-manifest.v1",
+  "artifacts": [
+    {
+      "path": "artifacts/evaluation_mid_shadow_evidence/evaluation_mid_shadow_evidence.json",
+      "sha256": "f44dac86a040fa2d1714fe9b4f37a7f66571683d2f37058840b983a6075a393c",
+      "size_bytes": 116415
+    }
+  ],
+  "provenance": {
+    "git_sha": "f2989bdc3c73bf189fd154f165320493d032d97f",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.5",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O"
+  }
+}

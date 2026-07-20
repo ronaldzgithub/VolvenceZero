@@ -3,14 +3,677 @@
     {
       "chapter_id": "ch-0",
       "chapter_index": 0,
-      "chapter_title": "Document",
+      "chapter_title": "一　天涯思君不可忘",
       "coverage": "no-change",
       "epistemic_cutoff_locator": "ch-0",
-      "evidence_locator": "ch-0 sha256:f1578618574a7a0ad6d125735da8d95eb6e792c3323472a70c733edd137e4164",
+      "evidence_locator": "ch-0 sha256:39348343da55c9c886c5f1dc2a3bb8c309b2dfdf742e9f0e1c4257cff8a6295e",
       "excluded_facts": [],
       "known_facts": [],
       "notes": [
-        "review-required: 994101 chars"
+        "review-required: 27934 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-1",
+      "chapter_index": 1,
+      "chapter_title": "二　武当山顶松柏长",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-1",
+      "evidence_locator": "ch-1 sha256:030f589d102e2a1a027e4a028a114c8887e43e83726969c7c71a16573dd643c4",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 13369 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-2",
+      "chapter_index": 2,
+      "chapter_title": "三　宝刀百炼生玄光",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-2",
+      "evidence_locator": "ch-2 sha256:766801bd9f6ca1423b025e3934bb170810100469a83fb978c69be3ef32465cd3",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 30439 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-3",
+      "chapter_index": 3,
+      "chapter_title": "四　字作丧乱意仿惶",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-3",
+      "evidence_locator": "ch-3 sha256:79843928c8608033c7fb3a202b08144915ff52fd7589296ddfe070e543253ea6",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 14766 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-4",
+      "chapter_index": 4,
+      "chapter_title": "五　皓臂似玉梅花妆",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-4",
+      "evidence_locator": "ch-4 sha256:4bac79f3c03c7ef0b2f4aa2e955281d01b16f716075f629ba4c613bed40d62bd",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 30382 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-5",
+      "chapter_index": 5,
+      "chapter_title": "六　浮槎北溟海茫茫",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-5",
+      "evidence_locator": "ch-5 sha256:d5c8867821499a17c79e37e901ac63f3d4bbaf529946cf782dc730cd545909c5",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 16275 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-6",
+      "chapter_index": 6,
+      "chapter_title": "七　谁送冰舸来仙乡",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-6",
+      "evidence_locator": "ch-6 sha256:bfb768083e22b047e485e6d0ce4036baa1798090fca09b7dadc025c581fd27ba",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 19781 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-7",
+      "chapter_index": 7,
+      "chapter_title": "八　穷发十载泛归航",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-7",
+      "evidence_locator": "ch-7 sha256:2b768aef0c15f7de5f26327abbd8d26c817b46798a5a8f50d1c8cbc41478f709",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 20153 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-8",
+      "chapter_index": 8,
+      "chapter_title": "九　七侠聚会乐未央",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-8",
+      "evidence_locator": "ch-8 sha256:1a7da1c7987f5a3383eb0404273399256a93a53a95d6cd5c37fb69596667812c",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 37224 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-9",
+      "chapter_index": 9,
+      "chapter_title": "十　百岁寿宴摧肝肠",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-9",
+      "evidence_locator": "ch-9 sha256:f1da4ab79fca141b8e3ce9e444e6e545f5aa6337fa48d1fd93baa6c4c1c83a23",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 29268 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-10",
+      "chapter_index": 10,
+      "chapter_title": "十一　有女长舌利如枪",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-10",
+      "evidence_locator": "ch-10 sha256:1c0d9a740b6e38320e9cf868dfa35e55e41c5fb8059c771c909e0cb446128213",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 20001 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-11",
+      "chapter_index": 11,
+      "chapter_title": "十二　针其膏兮药其育",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-11",
+      "evidence_locator": "ch-11 sha256:c291b9eb05f0b18c482b865d3f891cf0ade7afea87af65d2d41202ddf35d2be6",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 25394 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-12",
+      "chapter_index": 12,
+      "chapter_title": "十三　不悔仲子逾我墙",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-12",
+      "evidence_locator": "ch-12 sha256:5d32725ba12f6c2f69538172ee4fe6ecafdb3ed9bfe6d9a1f6eb4e8f86bfdce8",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 18409 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-13",
+      "chapter_index": 13,
+      "chapter_title": "十四　当道时见中山狼",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-13",
+      "evidence_locator": "ch-13 sha256:21bc0f3b30212eed4636d3fdceec7e501cd8df4fa3881cb2ccf50efada0a4b63",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 29039 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-14",
+      "chapter_index": 14,
+      "chapter_title": "十五　奇谋秘计梦一场",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-14",
+      "evidence_locator": "ch-14 sha256:af4753426161caf13bc2ba8bf6ce13aac39367cd2ac7368634bf915c97592fb2",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 31621 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-15",
+      "chapter_index": 15,
+      "chapter_title": "十六　剥极而复参九阳",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-15",
+      "evidence_locator": "ch-15 sha256:e961356c51fb475f6afb48cad07e069f6d3cb3bc880485100a63d72c1348026f",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 24995 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-16",
+      "chapter_index": 16,
+      "chapter_title": "十七　青翼出没一笑飏",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-16",
+      "evidence_locator": "ch-16 sha256:5d9f0716569952fc621799273d5fd07428d227a2c6a3426756bcaa8aee5af778",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 17714 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-17",
+      "chapter_index": 17,
+      "chapter_title": "十八　倚天长剑飞寒铓",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-17",
+      "evidence_locator": "ch-17 sha256:99283596926fe6ae0b1c66f74dc2640789999650334a64d9b21ba6884b98bc38",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 26668 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-18",
+      "chapter_index": 18,
+      "chapter_title": "十九　祸起萧墙破金汤",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-18",
+      "evidence_locator": "ch-18 sha256:5e3e5066c523547fa2f2b477732887c613fa4a133f9f7ad34ee0a99360a456ae",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 25258 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-19",
+      "chapter_index": 19,
+      "chapter_title": "二 十　与子共穴相扶将",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-19",
+      "evidence_locator": "ch-19 sha256:0a540e7a08fd0efde9429da6fbfb0c4cb4bf1ad98de2a7c5fafca6504e1ade8a",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 24590 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-20",
+      "chapter_index": 20,
+      "chapter_title": "二十一　排难解纷当六强",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-20",
+      "evidence_locator": "ch-20 sha256:a22c8e57cf9011c36dc98ce8513b82101935a6ba053459414ad54f00b8d9ee6b",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 25709 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-21",
+      "chapter_index": 21,
+      "chapter_title": "二十二　群雄归心约三章",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-21",
+      "evidence_locator": "ch-21 sha256:7f496da59868565a90fa92b0135c4e804c09910f2b39b851ef3a9e5a9d0ba472",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 28956 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-22",
+      "chapter_index": 22,
+      "chapter_title": "二十三　灵芙醉客绿柳庄",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-22",
+      "evidence_locator": "ch-22 sha256:08a77c14c069a29e9a67997ea62638592e1eaa0471b855a5ddca60485d6dc0de",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 23855 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-23",
+      "chapter_index": 23,
+      "chapter_title": "二十四　太极初传柔克刚",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-23",
+      "evidence_locator": "ch-23 sha256:272ef97e31b8c8fe6a43f75169b35722eb5c3198a8cfc379451c327f79423c50",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 27644 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-24",
+      "chapter_index": 24,
+      "chapter_title": "二十五　举火燎天何煌煌",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-24",
+      "evidence_locator": "ch-24 sha256:2431af9739e45935300cd470a913068423320de261bfe23c08d7a76d4c1e4658",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 18551 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-25",
+      "chapter_index": 25,
+      "chapter_title": "二十六　俊貌玉面甘毁伤",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-25",
+      "evidence_locator": "ch-25 sha256:759378d80a6eec2de5323edbc8a1ffed1a35463f6186b3457d5616a46b5973f1",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 28335 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-26",
+      "chapter_index": 26,
+      "chapter_title": "二十七　百尺高塔任回翔",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-26",
+      "evidence_locator": "ch-26 sha256:610ed1241f79fbe8af2fdd4924d37577832a1e8922f0452dd2620ee15792b1b1",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 22955 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-27",
+      "chapter_index": 27,
+      "chapter_title": "二十八　恩断义绝紫衫王",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-27",
+      "evidence_locator": "ch-27 sha256:bfdbd5cba8e084467b27b9e31365fbe8801d049c3c91488ca6df5519fb69b8ee",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 34446 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-28",
+      "chapter_index": 28,
+      "chapter_title": "二十九　四女同舟何所望",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-28",
+      "evidence_locator": "ch-28 sha256:e4ed6e29a68638dae17964dd27af260d7e0fad0651d12d9a69305302d105e428",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 15194 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-29",
+      "chapter_index": 29,
+      "chapter_title": "三十　东西永隔如参商",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-29",
+      "evidence_locator": "ch-29 sha256:b0152c0f2135ce66d016879510bf33d0eb4c27490e914738fca80e954c0159eb",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 26660 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-30",
+      "chapter_index": 30,
+      "chapter_title": "三十一　刀剑齐失人云亡",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-30",
+      "evidence_locator": "ch-30 sha256:e65e7f47a74e5a887b96a3c66eea4260cd09c0cb11fe91707ce844853735f86a",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 30103 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-31",
+      "chapter_index": 31,
+      "chapter_title": "三十二　冤蒙不白愁欲狂",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-31",
+      "evidence_locator": "ch-31 sha256:1f233d219fbdb914055d636cbca1f6b6eb3a28a110c767ce2136263ff6b343dc",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 21290 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-32",
+      "chapter_index": 32,
+      "chapter_title": "三十三　箫长琴短衣流黄",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-32",
+      "evidence_locator": "ch-32 sha256:3901bd0a7f542ba1f7b53fccc881731cb5f29c4579e74bd3283f49b17fe20fec",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 18870 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-33",
+      "chapter_index": 33,
+      "chapter_title": "三十四　新妇素手裂红裳",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-33",
+      "evidence_locator": "ch-33 sha256:a372b27910aa8563482b077aba2cd2d12b08ec0f9e65badad9de861df4c694a2",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 29973 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-34",
+      "chapter_index": 34,
+      "chapter_title": "三十五　屠狮有会孰为殃",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-34",
+      "evidence_locator": "ch-34 sha256:27fca1ac727f848356692fbdf6f3375d41364204e9beee214be9ee88dab46b26",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 24166 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-35",
+      "chapter_index": 35,
+      "chapter_title": "三十六　夭矫三松郁青苍",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-35",
+      "evidence_locator": "ch-35 sha256:25f055ad6791c5100a277418d7169180dda1f7b6b84e1bac7287ffe82e8c0ef4",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 24395 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-36",
+      "chapter_index": 36,
+      "chapter_title": "三十七　天下英雄莫能当",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-36",
+      "evidence_locator": "ch-36 sha256:6111090a5414af2dd7714da1b9d95f4a046bc371ac2308ea9f3ec9e8a5f1d257",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 25791 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-37",
+      "chapter_index": 37,
+      "chapter_title": "三十八　君子可欺之以方",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-37",
+      "evidence_locator": "ch-37 sha256:3acc5e2a1507c9ee752b5a4c0585573665e63a0f163af3dc2b4eda0135999a1f",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 23840 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-38",
+      "chapter_index": 38,
+      "chapter_title": "三十九　秘笈兵书此中藏",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-38",
+      "evidence_locator": "ch-38 sha256:74f9a35328ea29b28192ab2f15b93e49cf639460fbf9f6e923672c70e649464f",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 24784 chars"
+      ],
+      "reviewed_by": "operator-review-required",
+      "scenes": [],
+      "semantic_events": [],
+      "source_provenance": "data/novels/倚天屠龙记.TXT encoding:utf-8-sig"
+    },
+    {
+      "chapter_id": "ch-39",
+      "chapter_index": 39,
+      "chapter_title": "四 十　不识张郎是张郎",
+      "coverage": "no-change",
+      "epistemic_cutoff_locator": "ch-39",
+      "evidence_locator": "ch-39 sha256:234a039362e3cec4b9d48055d98b0d6308058938198f5911a50064c30cfb8c70",
+      "excluded_facts": [],
+      "known_facts": [],
+      "notes": [
+        "review-required: 25550 chars"
       ],
       "reviewed_by": "operator-review-required",
       "scenes": [],
@@ -20,6 +683,6 @@
   ],
   "character_id": "zhang-wuji",
   "reviewed_by": "operator-review-required",
-  "source_sha256": "ae1b51097b5941f5fe3b64b468f96d3adc0293f00321107b5a0247df7062d23e",
+  "source_sha256": "064d697db8f7c545fd1804a9e427d925e3b38a816c9958c1f92853551854e571",
   "source_title": "倚天屠龙记 (Jin Yong)"
 }

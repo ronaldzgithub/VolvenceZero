@@ -310,16 +310,25 @@ class AntSession:
         picked_up: bool,
         prediction_id: str,
     ) -> EnvironmentOutcome:
+        # Observable task facts (NOT rewards; the PE owner compares them with
+        # prior predictions). Foraging has exactly two genuine, discrete,
+        # observable milestones: picking food up (carrying False->True) and
+        # delivering it home (terminal). We publish a partial task_progress on
+        # pickup and full on delivery. We deliberately do NOT emit any
+        # distance-to-food shaping: a continuous "closer = better" signal would
+        # hand the controller the gradient-following answer the FSM hardcodes,
+        # which is exactly the skill the controller is supposed to LEARN.
         status = "delivered" if delivered else ("picked_up" if picked_up else "moved")
-        measurement = (
-            EnvironmentMeasurement(
-                task_progress=1.0,
-                action_payoff=1.0,
-                terminal=True,
+        if delivered:
+            measurement = EnvironmentMeasurement(
+                task_progress=1.0, action_payoff=1.0, terminal=True
             )
-            if delivered
-            else None
-        )
+        elif picked_up:
+            measurement = EnvironmentMeasurement(
+                task_progress=0.5, action_payoff=0.5, terminal=False
+            )
+        else:
+            measurement = None
         return EnvironmentOutcome(
             outcome_id=f"{transition_id}:outcome",
             event_id=transition_id,
@@ -327,7 +336,7 @@ class AntSession:
             action_id=transition_id,
             status=status,
             summary=f"digital-ant transition {status}",
-            detail="observable AntWorld pickup/delivery transition",
+            detail="observable AntWorld pickup/delivery milestone",
             prediction_id=prediction_id or None,
             evidence=(f"ant_transition:{transition_id}",),
             environment_state_delta_kind=status,

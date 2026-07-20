@@ -1,7 +1,7 @@
 # 连续记忆系统 Spec
 
 > Status: draft
-> Last updated: 2026-04-25
+> Last updated: 2026-07-20
 > 对应需求: R5, R6
 
 ## 要解决的问题
@@ -233,6 +233,55 @@ NL 重新定义"记忆 = 任何由输入引起的神经更新"（附录 A.8）�
 
 当前 `DATA_CONTRACT.md` 3.3 已同步 `CMSState.tower_profile`、`tower_depth`、`continuum_profile`、`update_rule_state` 与 `hope_self_modification_state`；本 spec 的连续谱 contract 以这些公共字段为读数入口，不能要求 consumer 读取 `CMSMemoryCore` 私有结构。
 
+## 时间定位、证据区间与记忆 claim 的行为证据阶梯（2026-07-20）
+
+来源：Meta S-EMBER（`arXiv:2607.02689`）与 CMU/MBZUAI Beyond Perplexity（`arXiv:2607.00368`），
+见 `research/frontier-sweep-2026-07-20.md` §B1 / §H4 / §4.5。本节是 spec motivation +
+评估口径要求，**不改 schema**；任何新增字段仍须先进 `docs/DATA_CONTRACT.md`。
+
+### 时间定位与证据区间（S-EMBER）
+
+S-EMBER 的关键结果：模型规模 / context 长度提升能改善"发生了什么"，却不能改善"**何时**发生"
+（grounding precision 长期 < 3%，recall 随证据间隔十分钟内从 ~50% 衰减到 ~22%）。对本 owner 的含义：
+
+- 情景记忆（episodic stratum）的评估必须把"**回答正确**"和"**证据定位正确**"拆成两个只读指标：
+  后者要求检索结果能给出时间定位（哪个 session / 哪个 turn 区间）与证据区间（支持该记忆的
+  原始 entry lineage）。
+- R5/R6 不能退化为"大 context + 向量检索"：`MemoryEntry` 的 lineage / provenance 字段
+  是时间定位能力的载体，retrieval readout 评估应覆盖 temporal localization 命中率
+  （VZ-MemProbe 的 `mp.temporal.*` 是现有起点，缺"证据区间正确性"维度）。
+
+### 记忆 claim 的行为证据阶梯（Beyond Perplexity）
+
+任何"系统学会记住 / 个性化 / 持续学习"的对外 claim，必须区分三层且不得互相冒充：
+
+1. stream/domain adaptation（loss/perplexity 下降）——**不构成记忆证据**；
+2. bridge internalization（内部表征吸收）——中间证据；
+3. deployment-time behavioral learning（行为级）——唯一可对外引用层，至少要求：
+   **later recall**（延迟自由回忆）、**paraphrase robustness**（改写鲁棒）、**retention**（保持）、
+   **locality**（不污染无关知识）、**conflict handling**（冲突更新），且配 matched
+   explicit-memory baseline 对照。
+
+该阶梯是 R12/R15 的证据门：防止把 TTT / CMS band 更新的 loss 改善升格为
+"CMS / relationship learning 成立"的 claim。落地位置为评估侧（readout-only），
+见 `docs/specs/evaluation.md` 与 Lane C 记忆行为证据阶梯工件。
+
+**首包已落地（2026-07-20）**：`tests/longitudinal/test_memory_behavior_ladder.py`
+以 VZ-MemProbe 同款 deterministic 协议实现五级 `mb.*` 探针（later_recall /
+paraphrase / retention / locality / conflict）。当前结果：retrieval 机制侧
+6/7 PASS；**`mb.paraphrase.top1_semantic`（零词面重叠改写）strict xfail**——
+默认 hash-stub 语义嵌入下改写查询输给共享表面 token 的干扰项，需真实
+substrate-backed `SemanticEmbeddingBackend`（#91 真 substrate 增益证据）才能翻绿。
+诚实边界：本套探针只覆盖"模拟 consolidation + 检索机制"层；对外 deployment-memory
+claim 还需真实 turn-flow 写入路径 + matched explicit-memory baseline 对照臂。
+
+### retrieval policy 版本化（spec motivation）
+
+PAHF / SkillOS / EvolveMem 共同说明：记忆 owner 不只拥有内容，还拥有 retrieval / retention
+policy 本身，且 policy 也会老化。未来 memory snapshot 至少应能发布：retrieval policy 的
+版本与 wiring level、最近一次 gated change 与回退点。**本节不扩 schema**；若落地，
+新字段先进 `DATA_CONTRACT.md` 3.3。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
@@ -248,6 +297,7 @@ NL 重新定义"记忆 = 任何由输入引起的神经更新"（附录 A.8）�
 
 ## 变更日志
 
+- 2026-07-20: 新增 §"时间定位、证据区间与记忆 claim 的行为证据阶梯"：S-EMBER 时间定位/证据区间双指标要求、Beyond Perplexity 三层行为证据阶梯（loss↓ 不构成记忆 claim）、retrieval policy 版本化 motivation。不改 schema；来源 `research/frontier-sweep-2026-07-20.md` §6 同步项。
 - 2026-07-17: G4 reflection consolidation learned SHADOW 候选（反思沉淀节）。新增 `vz-cognition.reflection.consolidation_learner.ConsolidationScoreLearner`：有界线性残差 head，输入为既有 consolidation 特征（memory_pressure / cross_tension / alert_pressure / positive・negative credit / pe_penalty），固定公式 = 初始化 + 回滚点；session-held（`AgentSessionRunner` 持有，经 final wiring 注入 per-turn `ReflectionEngine`），`ConsolidationScore.learned_promotion_score`（默认 None）report-only 发布；settlement 用下一 turn realized PE magnitude（一 turn 窗口，gate-learner 语义）。promote / decay / writeback gate 全部不读 learner。测试：`tests/test_reflection_consolidation_learner.py`。
 - 2026-05-06: Phase 1.C 上线 substrate-feature retrieval embedding 与 owner-internal `MemoryAttributeReadout`；新 `MemorySnapshot.attribute_summary` 字段，`MemoryEntry` schema 不动；明确 A-Mem / HippoRAG 2 不进路线图，Titans / ATLAS update-rule 子集走 `cms-atlas-titans-uplift.md` 中期专项。
 - 2026-04-25: 与 `DATA_CONTRACT.md` 3.3 对齐，明确 continuum / tower / learned-update 字段已经是 public `cms_state` 读数，不是 consumer 侧推断

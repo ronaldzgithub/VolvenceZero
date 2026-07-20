@@ -1259,6 +1259,39 @@ class MetacontrollerParameterStore:
         )
         self.switch_bias = _clamp(1.0 - self.persistence)
 
+    def runtime_track_modulated_code(
+        self, code: tuple[float, ...], *, strength: float
+    ) -> tuple[float, ...]:
+        """Modulate a candidate latent by the learned per-dim track mixture.
+
+        This is the runtime bridge that lets Internal-RL (which writes
+        ``track_weights``) actually influence ``code``. Each track's weights sum
+        to 1, so their per-dim mean is ~``1/n_z``; scaling that by ``n_z`` gives a
+        gain centred on 1.0. ``gain_i = 1 + strength * (mean_i * n_z - 1)``, then
+        bounded to ``[0.5, 1.5]`` so no single dim can dominate. ``strength == 0``
+        returns the input unchanged (exact rollback); a uniform mixture is also a
+        no-op regardless of strength. The learning signal is the *deviation from
+        uniform* that RL discovers.
+        """
+
+        if strength <= 0.0 or not code:
+            return code
+        world = self.track_weights[Track.WORLD]
+        self_track = self.track_weights[Track.SELF]
+        shared = self.track_weights[Track.SHARED]
+        n = len(code)
+        modulated: list[float] = []
+        for i in range(n):
+            mean_i = (
+                (world[i] if i < len(world) else 0.0)
+                + (self_track[i] if i < len(self_track) else 0.0)
+                + (shared[i] if i < len(shared) else 0.0)
+            ) / 3.0
+            gain = 1.0 + strength * (mean_i * self._n_z - 1.0)
+            gain = max(0.5, min(1.5, gain))
+            modulated.append(_clamp(code[i] * gain))
+        return tuple(modulated)
+
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
@@ -2171,6 +2204,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._thinking_advisory_switch_pressure_delta = 0.0
         self._thinking_advisory_applied = False
         self._thinking_advisory_evidence: tuple[str, ...] = ()
+        # autograd-owner-integration: strength of the runtime track-weight
+        # modulation that lets Internal-RL reach ``code``. 0.0 == byte-stable
+        # rollback baseline (RL disconnected, historical behaviour).
+        self._runtime_track_modulation = 0.0
 
     @property
     def runtime_backend(self) -> WiringLevel:
@@ -2186,6 +2223,24 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._runtime_backend = wiring_level
         self._backend_ndim_mc = None
         self._latest_runtime_shadow_report = None
+
+    @property
+    def runtime_track_modulation(self) -> float:
+        return self._runtime_track_modulation
+
+    def set_runtime_track_modulation(self, strength: float) -> None:
+        """Set how strongly learned track weights modulate the runtime latent.
+
+        ``0.0`` (default) is the exact byte-stable rollback baseline where
+        Internal-RL's ``track_weights`` never reach ``code``; a positive value
+        lets reward-driven learning shape the runtime controller output. The
+        per-dim gain is centred on 1.0 (identity) so a freshly-initialised,
+        near-uniform track mixture stays close to the baseline.
+        """
+
+        if strength < 0.0:
+            raise ValueError(f"runtime_track_modulation must be >= 0, got {strength!r}")
+        self._runtime_track_modulation = float(strength)
 
     def _resolve_backend_ndim_mc(self):
         """Return the ACTIVE torch ndim metacontroller, or None for pure path."""
@@ -2705,6 +2760,18 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             beta_threshold=self._parameter_store.beta_threshold,
         )
         z_candidate = latent_override or encoded.z_tilde
+        # autograd-owner-integration: let reward-driven track weights actually
+        # reach the runtime latent. Previously Internal-RL only wrote
+        # ``track_weights`` (+ ``align_temporal_from_tracks`` into the legacy 3-d
+        # ``temporal_weights``), none of which this ndim forward consumed, so RL
+        # was structurally disconnected from ``code`` (only SSL, which trains the
+        # ndim encoder, moved z_t). This applies a bounded, per-dim modulation of
+        # the candidate latent by the learned track weights. Strength 0 is an
+        # exact byte-stable no-op (instant rollback); >0 lets RL shape ``code``.
+        if self._runtime_track_modulation > 0.0:
+            z_candidate = self._parameter_store.runtime_track_modulated_code(
+                z_candidate, strength=self._runtime_track_modulation
+            )
         if binary_gate_override:
             is_switching_scalar = _should_take_binary_override(
                 previous_code=previous_code,

@@ -12,6 +12,13 @@ from volvence_ant.viz.colony_theater import (
     write_colony_theater_html,
 )
 from volvence_ant.viz.dashboard import LiveAntDashboard, write_replay_dashboard
+from volvence_ant.viz.homing_theater import (
+    HomingArmReplay,
+    HomingTheaterReport,
+    RouteFamiliarityPanel,
+    run_homing_theater,
+    write_homing_theater_html,
+)
 from volvence_ant.viz.dual_substrate import (
     DualSubstrateReport,
     SubstrateProbe,
@@ -41,6 +48,11 @@ __all__ = [
     "TheaterRoundFrame",
     "run_colony_theater",
     "write_colony_theater_html",
+    "HomingArmReplay",
+    "HomingTheaterReport",
+    "RouteFamiliarityPanel",
+    "run_homing_theater",
+    "write_homing_theater_html",
     "DualSubstrateReport",
     "LiveAntDashboard",
     "write_replay_dashboard",

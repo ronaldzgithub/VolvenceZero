@@ -1,7 +1,7 @@
 # Rollback Drill Cadence
 
 > Status: scaffold v0.1 (SHADOW)
-> Last updated: 2026-05-13
+> Last updated: 2026-07-20
 > Owner: cross-cutting-foundation-packet F-D (debt #50)
 
 ## 1. 范围
@@ -73,6 +73,25 @@ artifact 留存：每月归档到客户访问的 `evidence_root_dir/rollback_dri
 | audit chain append-only | `lifeform_domain_figure.audit` 的现有契约（debt #23 闭合）+ 本 spec § 4 失败处置 |
 | rollback 不破 frozen base 字节稳定 | F-D test + drill script step 7 |
 
+## 7A. 发布前预测 → 发布后核验 → 偏差触发 rollback（2026-07-20）
+
+来源：OpenAI Deployment Simulation（`arXiv:2607.07184`）+ Falsifiable Release Gates
+（`arXiv:2607.13070`）合并要求，见 `research/frontier-sweep-2026-07-20.md` §4.1 / §6。
+rollback drill 不只覆盖"能不能回滚"，还必须覆盖"什么时候必须回滚"：
+
+1. **发布前**：任何 rare-heavy artifact / ACTIVE flip 的 promotion artifact 必须声明
+   `predicted_incidence`——在固定历史 trace / 模拟分布上测得的关键行为频率预测
+   （至少覆盖该变更声称改善的指标 + 安全与有界性 family 的一个哨兵指标），阈值预注册。
+2. **发布后**：在预注册的观察窗口内测 `realized_incidence`，与预测做偏差检查；
+   核验 artifact 落 `artifacts/rollback_drill/post_release/<change-id>.json`。
+3. **偏差触发**：偏差超过预注册阈值 = 一次 drill 失败，按 §4 处置——立即回滚到
+   promotion 前 checkpoint，写 known-debt，新阈值只能开新观察窗口。
+
+约束：realized incidence 的测量方法必须与 predicted 相同（同一 measurement harness），
+否则偏差不可归因；本节是 spec-level 要求，工具位先挂 promotion evaluator
+（`scripts/evaluate_learned_backend_promotion.py`）payload 的声明字段，真实生产分布
+回放待 DLaaS 侧 trace 留存就绪。
+
 ## 8. 退出标准
 
 | 阶段 | 标准 |
@@ -82,4 +101,5 @@ artifact 留存：每月归档到客户访问的 `evidence_root_dir/rollback_dri
 
 ## 变更日志
 
+- 2026-07-20: 新增 §7A "发布前预测 → 发布后核验 → 偏差触发 rollback"（Deployment Simulation + Falsifiable Release Gates 合并要求；`frontier-sweep-2026-07-20.md` §6 同步项）。
 - 2026-05-13: v0.1 SHADOW scaffold land。
