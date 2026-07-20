@@ -65,6 +65,10 @@ data/figure_corpus/
 data/encoder/
 runs/encoder/
 
+# Unified synthetic experience corpus: generated master shards, object store,
+# projections, live-through snapshots, journals, and audit reports.
+data/synthetic/unified_v1/
+
 # External benchmark harnesses + their run artefacts (debt #29).
 # The eqbench3 / empathybench harnesses are cloned (or git-submoduled
 # in a future packet) into external/<harness>/ so we keep our

@@ -42,6 +42,7 @@ dependencies = [
     "lifeform-domain-digital-employee==0.1.*",
     "lifeform-service==0.1.*",
     "lifeform-evolution==0.1.*",
+    "lifeform-synthetic-data==0.1.*",
     "lifeform-openai-compat==0.1.*",
     "lifeform-protocol-runtime==0.1.*",
     "lifeform-mcp-bridge==0.1.*",
@@ -92,6 +93,7 @@ lifeform-domain-growth-advisor = { workspace = true }
 lifeform-domain-digital-employee = { workspace = true }
 lifeform-service    = { workspace = true }
 lifeform-evolution  = { workspace = true }
+lifeform-synthetic-data = { workspace = true }
 lifeform-openai-compat = { workspace = true }
 lifeform-protocol-runtime = { workspace = true }
 lifeform-mcp-bridge       = { workspace = true }

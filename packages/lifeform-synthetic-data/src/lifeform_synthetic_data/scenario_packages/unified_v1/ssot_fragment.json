@@ -1,0 +1,1762 @@
+{
+  "schema_version": "1.0",
+  "package_name": "unified_synthetic_experience_v1",
+  "design_contract": {
+    "scenario_regime_alignment": "R14_persistent_identity",
+    "routing_method": "semantic_embedding_and_schema_bound_structured_output",
+    "forbidden_routing": [
+      "keyword_contains",
+      "regular_expression_content_routing",
+      "dictionary_keyword_to_behavior"
+    ],
+    "snapshot_boundary": "consumers_read_immutable_owner_snapshots_only"
+  },
+  "paths": [
+    {
+      "path_id": "path_relationship_continuity_v1",
+      "family": "relationship_continuity",
+      "name": "关系连续性",
+      "domain": "SOCIAL",
+      "track": "self",
+      "timescale": "session-medium",
+      "owner_integration": "relationship_state + memory + regime",
+      "objective": "在不臆造细节的前提下维持跨会话关系连续性，并让更晚的确认事实覆盖过时状态。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "跨会话身份一致性",
+          "已确认事实的可追溯召回",
+          "新旧信息冲突时的更新方向"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_relationship_continuity_v1:opening",
+          "order": 0,
+          "description": "为关系连续性建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_relationship_continuity_v1:development",
+          "order": 1,
+          "description": "区分关系连续性中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_relationship_continuity_v1:outcome",
+          "order": 2,
+          "description": "在 acquaintance_building, casual_social_contact, guided_exploration 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_relationship_continuity_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成关系连续性的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_rupture_repair_v1",
+      "family": "rupture_repair",
+      "name": "破裂与修复",
+      "domain": "SOCIAL",
+      "track": "self",
+      "timescale": "online-fast",
+      "owner_integration": "rupture_state + dialogue_external_outcome + reflection",
+      "objective": "仅在有外部 typed evidence 时确认关系破裂，并通过可观察的行为调整完成修复与延迟结算。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "外部确认的互动失配",
+          "责任承认与行为调整",
+          "修复结果的后续结算"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_rupture_repair_v1:opening",
+          "order": 0,
+          "description": "为破裂与修复建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_rupture_repair_v1:development",
+          "order": 1,
+          "description": "区分破裂与修复中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_rupture_repair_v1:outcome",
+          "order": 2,
+          "description": "在 repair_and_deescalation, emotional_support, guided_exploration 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_rupture_repair_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成破裂与修复的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_preference_personalization_v1",
+      "family": "preference_personalization",
+      "name": "偏好个性化",
+      "domain": "SOCIAL",
+      "track": "self",
+      "timescale": "session-medium",
+      "owner_integration": "user_model",
+      "objective": "学习有证据、带情境且可修订的偏好，不把单次格式请求或他人偏好固化为用户画像。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "稳定偏好与一次性请求的区分",
+          "偏好的情境条件",
+          "身份范围与修订证据"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_preference_personalization_v1:opening",
+          "order": 0,
+          "description": "为偏好个性化建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_preference_personalization_v1:development",
+          "order": 1,
+          "description": "区分偏好个性化中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_preference_personalization_v1:outcome",
+          "order": 2,
+          "description": "在 guided_exploration, casual_social_contact, problem_solving 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_preference_personalization_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成偏好个性化的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_absence_reengagement_v1",
+      "family": "absence_reengagement",
+      "name": "缺席与重返",
+      "domain": "SOCIAL",
+      "track": "self",
+      "timescale": "session-medium",
+      "owner_integration": "relationship_state + open_loop + memory",
+      "objective": "在长短不一的缺席后温和重建共同语境，不制造亏欠感，也不自动恢复已经失效的开放环路。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "缺席长度与既有约定",
+          "重返时的当前带宽",
+          "开放环路是否仍获确认"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_absence_reengagement_v1:opening",
+          "order": 0,
+          "description": "为缺席与重返建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_absence_reengagement_v1:development",
+          "order": 1,
+          "description": "区分缺席与重返中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_absence_reengagement_v1:outcome",
+          "order": 2,
+          "description": "在 casual_social_contact, emotional_support, guided_exploration 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_absence_reengagement_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成缺席与重返的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_boundary_consent_autonomy_v1",
+      "family": "boundary_consent_autonomy",
+      "name": "边界、同意与自主性",
+      "domain": "SAFETY",
+      "track": "self",
+      "timescale": "online-fast",
+      "owner_integration": "boundary_consent",
+      "objective": "将同意建模为有范围、有期限且可撤回的状态，在高影响行动前保持用户自主性。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "授权范围与动作层级",
+          "撤回、过期和一次性许可",
+          "高影响动作的可逆性"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_boundary_consent_autonomy_v1:opening",
+          "order": 0,
+          "description": "为边界、同意与自主性建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_boundary_consent_autonomy_v1:development",
+          "order": 1,
+          "description": "区分边界、同意与自主性中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_boundary_consent_autonomy_v1:outcome",
+          "order": 2,
+          "description": "在 boundary_negotiation, guided_exploration, problem_solving 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_boundary_consent_autonomy_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成边界、同意与自主性的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_goal_value_drift_v1",
+      "family": "goal_value_drift",
+      "name": "目标与价值漂移",
+      "domain": "META",
+      "track": "dual",
+      "timescale": "session-medium",
+      "owner_integration": "goal_value",
+      "objective": "追踪目标与价值随时间的真实变化，保留冲突和不确定性，而非强行维持旧目标或追逐最新一句话。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "目标版本与确认强度",
+          "价值冲突和可逆性",
+          "探索想法与正式转向的区分"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_goal_value_drift_v1:opening",
+          "order": 0,
+          "description": "为目标与价值漂移建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_goal_value_drift_v1:development",
+          "order": 1,
+          "description": "区分目标与价值漂移中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_goal_value_drift_v1:outcome",
+          "order": 2,
+          "description": "在 guided_exploration, problem_solving, emotional_support 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_goal_value_drift_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成目标与价值漂移的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_plan_commitment_open_loop_v1",
+      "family": "plan_commitment_open_loop",
+      "name": "计划、承诺与开放环路",
+      "domain": "TASK",
+      "track": "world",
+      "timescale": "session-medium",
+      "owner_integration": "plan_intent + commitment + open_loop",
+      "objective": "区分探索、计划、承诺和开放环路，并以负责人、依赖和外部结果驱动生命周期。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "意向、计划和承诺的层级",
+          "负责人、截止与依赖",
+          "开放环路的关闭或重订"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_plan_commitment_open_loop_v1:opening",
+          "order": 0,
+          "description": "为计划、承诺与开放环路建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_plan_commitment_open_loop_v1:development",
+          "order": 1,
+          "description": "区分计划、承诺与开放环路中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_plan_commitment_open_loop_v1:outcome",
+          "order": 2,
+          "description": "在 problem_solving, execution_coordination, guided_exploration 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_plan_commitment_open_loop_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成计划、承诺与开放环路的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_task_tool_execution_v1",
+      "family": "task_tool_execution",
+      "name": "任务与工具执行",
+      "domain": "TOOLING",
+      "track": "world",
+      "timescale": "online-fast",
+      "owner_integration": "execution_result + affordance + boundary_consent",
+      "objective": "让工具行动受授权、参数与结果契约约束，并将部分失败、未知状态和可重试性如实发布。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "计划与实际执行结果",
+          "工具 provenance 和幂等性",
+          "执行授权与失败可见性"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_task_tool_execution_v1:opening",
+          "order": 0,
+          "description": "为任务与工具执行建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_task_tool_execution_v1:development",
+          "order": 1,
+          "description": "区分任务与工具执行中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_task_tool_execution_v1:outcome",
+          "order": 2,
+          "description": "在 execution_coordination, problem_solving, verification 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_task_tool_execution_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成任务与工具执行的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_belief_uncertainty_verification_v1",
+      "family": "belief_uncertainty_verification",
+      "name": "信念、不确定性与核验",
+      "domain": "META",
+      "track": "world",
+      "timescale": "online-fast",
+      "owner_integration": "belief_assumption + prediction_error",
+      "objective": "显式区分事实、假设与未知，并通过来源和可证伪步骤更新信念，而非用流畅度替代核验。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "主张、假设与证据层级",
+          "来源 provenance 与冲突",
+          "不确定性校准和可证伪步骤"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_belief_uncertainty_verification_v1:opening",
+          "order": 0,
+          "description": "为信念、不确定性与核验建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_belief_uncertainty_verification_v1:development",
+          "order": 1,
+          "description": "区分信念、不确定性与核验中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_belief_uncertainty_verification_v1:outcome",
+          "order": 2,
+          "description": "在 verification, guided_exploration, problem_solving 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_belief_uncertainty_verification_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成信念、不确定性与核验的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_emotional_support_regime_v1",
+      "family": "emotional_support_regime",
+      "name": "情绪支持体制",
+      "domain": "SOCIAL",
+      "track": "self",
+      "timescale": "online-fast",
+      "owner_integration": "relationship_state + regime + boundary_consent",
+      "objective": "把情绪支持作为可持续、可退出的 R14 体制，先响应支持需要，再在获准时进入分析或行动。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "支持需要与决策压力",
+          "用户偏好的支持节奏",
+          "进入和退出支持体制的语义证据"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_emotional_support_regime_v1:opening",
+          "order": 0,
+          "description": "为情绪支持体制建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_emotional_support_regime_v1:development",
+          "order": 1,
+          "description": "区分情绪支持体制中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_emotional_support_regime_v1:outcome",
+          "order": 2,
+          "description": "在 emotional_support, guided_exploration, repair_and_deescalation 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_emotional_support_regime_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成情绪支持体制的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_multi_party_identity_privacy_v1",
+      "family": "multi_party_identity_privacy",
+      "name": "多人身份与隐私",
+      "domain": "SAFETY",
+      "track": "dual",
+      "timescale": "online-fast",
+      "owner_integration": "interlocutor_state + conversational_role + scoped memory",
+      "objective": "在多人环境中稳定区分身份、角色与受众范围，防止错人归因、错误合并和跨人隐私泄漏。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "说话者、受话者与主题角色",
+          "per-interlocutor scope",
+          "共享与私有证据边界"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_multi_party_identity_privacy_v1:opening",
+          "order": 0,
+          "description": "为多人身份与隐私建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_multi_party_identity_privacy_v1:development",
+          "order": 1,
+          "description": "区分多人身份与隐私中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_multi_party_identity_privacy_v1:outcome",
+          "order": 2,
+          "description": "在 group_facilitation, boundary_negotiation, verification 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_multi_party_identity_privacy_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成多人身份与隐私的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_tom_common_ground_group_v1",
+      "family": "tom_common_ground_group",
+      "name": "心智理论、共同基础与群体",
+      "domain": "SOCIAL",
+      "track": "dual",
+      "timescale": "session-medium",
+      "owner_integration": "theory_of_mind + common_ground + joint_entity",
+      "objective": "分别表示个体心智状态、dyad/group common ground 与群体联合状态，并用澄清结果修正错误预测。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "个体 belief/intent 与群体共同知识",
+          "受众范围和递归深度",
+          "联合承诺与异议"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_tom_common_ground_group_v1:opening",
+          "order": 0,
+          "description": "为心智理论、共同基础与群体建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_tom_common_ground_group_v1:development",
+          "order": 1,
+          "description": "区分心智理论、共同基础与群体中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_tom_common_ground_group_v1:outcome",
+          "order": 2,
+          "description": "在 group_facilitation, guided_exploration, repair_and_deescalation 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_tom_common_ground_group_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成心智理论、共同基础与群体的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_memory_timescale_reflection_v1",
+      "family": "memory_timescale_reflection",
+      "name": "记忆时间尺度与反思",
+      "domain": "META",
+      "track": "dual",
+      "timescale": "background-slow",
+      "owner_integration": "memory continuum + reflection",
+      "objective": "按证据和时间尺度提升、衰减或退休记忆，并由反思 owner 产出可追溯总结而非下游重建。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "瞬态、情景、持久与派生层",
+          "重复与矛盾证据",
+          "反思产物的 provenance"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_memory_timescale_reflection_v1:opening",
+          "order": 0,
+          "description": "为记忆时间尺度与反思建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_memory_timescale_reflection_v1:development",
+          "order": 1,
+          "description": "区分记忆时间尺度与反思中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_memory_timescale_reflection_v1:outcome",
+          "order": 2,
+          "description": "在 reflective_integration, guided_exploration, verification 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_memory_timescale_reflection_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成记忆时间尺度与反思的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_environment_delayed_credit_v1",
+      "family": "environment_delayed_credit",
+      "name": "环境结果与延迟信用",
+      "domain": "TASK",
+      "track": "world",
+      "timescale": "session-medium",
+      "owner_integration": "environment outcome + prediction_error + credit + temporal abstraction",
+      "objective": "将环境结果通过 PE 与已闭合时间段回流，谨慎分配延迟信用并保留混杂与未知。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "动作与结果的时间绑定",
+          "segment closure 与延迟 outcome",
+          "混杂因素和信用不确定性"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_environment_delayed_credit_v1:opening",
+          "order": 0,
+          "description": "为环境结果与延迟信用建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_environment_delayed_credit_v1:development",
+          "order": 1,
+          "description": "区分环境结果与延迟信用中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_environment_delayed_credit_v1:outcome",
+          "order": 2,
+          "description": "在 execution_coordination, problem_solving, reflective_integration 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_environment_delayed_credit_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成环境结果与延迟信用的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_apprenticeship_ingestion_teaching_v1",
+      "family": "apprenticeship_ingestion_teaching",
+      "name": "学徒、摄入与示教",
+      "domain": "META",
+      "track": "world",
+      "timescale": "background-slow",
+      "owner_integration": "ingestion adapter + apprenticeship_alignment + reflection",
+      "objective": "让外部材料与示教只经 canonical turn 进入，显式记录失败和可靠性，并由标准慢循环决定沉淀。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "材料 provenance 与 chunk 顺序",
+          "示教可靠性和矛盾",
+          "canonical turn 与慢反思边界"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_apprenticeship_ingestion_teaching_v1:opening",
+          "order": 0,
+          "description": "为学徒、摄入与示教建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_apprenticeship_ingestion_teaching_v1:development",
+          "order": 1,
+          "description": "区分学徒、摄入与示教中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_apprenticeship_ingestion_teaching_v1:outcome",
+          "order": 2,
+          "description": "在 apprenticeship, verification, reflective_integration 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_apprenticeship_ingestion_teaching_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成学徒、摄入与示教的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    },
+    {
+      "path_id": "path_safety_adversarial_resilience_v1",
+      "family": "safety_adversarial_resilience",
+      "name": "安全与对抗韧性",
+      "domain": "SAFETY",
+      "track": "dual",
+      "timescale": "online-fast",
+      "owner_integration": "safety policy + boundary_consent + modification_gate",
+      "objective": "在注入、越权、隐私诱导和自修改压力下保持契约边界，同时尽可能提供安全的任务替代路径。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "指令权限与数据 provenance",
+          "隐私和工具边界",
+          "有界拒绝与任务恢复"
+        ],
+        "insufficient_evidence_behavior": "no_route_or_request_clarification",
+        "forbidden": [
+          "substring_matching",
+          "regex_keyword_routing",
+          "surface_style_identity_inference"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_safety_adversarial_resilience_v1:opening",
+          "order": 0,
+          "description": "为安全与对抗韧性建立带 scope 与 provenance 的公开证据基线。"
+        },
+        {
+          "sub_goal_id": "path_safety_adversarial_resilience_v1:development",
+          "order": 1,
+          "description": "区分安全与对抗韧性中的真实状态变化、证据缺口与相邻能力表面相似性。"
+        },
+        {
+          "sub_goal_id": "path_safety_adversarial_resilience_v1:outcome",
+          "order": 2,
+          "description": "在 boundary_negotiation, verification, repair_and_deescalation 候选中形成有界、可退出的语义控制选择。"
+        },
+        {
+          "sub_goal_id": "path_safety_adversarial_resilience_v1:reflection",
+          "order": 3,
+          "description": "依据外部 outcome、PE 与 owner 快照完成安全与对抗韧性的结算和慢层沉淀判断。"
+        }
+      ],
+      "exit_evidence": "外部 outcome 已结算，或当前证据明确要求退出/切换体制；未知项保留为开放环路。"
+    }
+  ],
+  "arc_specs": [
+    {
+      "arc_spec_id": "arc_relationship_continuity_v1",
+      "family": "relationship_continuity",
+      "path_id": "path_relationship_continuity_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "acquaintance_building",
+          "casual_social_contact",
+          "guided_exploration"
+        ],
+        "entry_evidence": [
+          "跨会话身份一致性",
+          "已确认事实的可追溯召回",
+          "新旧信息冲突时的更新方向"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_relationship_continuity_v1:opening",
+            "path_id": "path_relationship_continuity_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_relationship_continuity_v1:development",
+            "path_id": "path_relationship_continuity_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_relationship_continuity_v1:outcome",
+            "path_id": "path_relationship_continuity_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_relationship_continuity_v1:reflection",
+            "path_id": "path_relationship_continuity_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_rupture_repair_v1",
+      "family": "rupture_repair",
+      "path_id": "path_rupture_repair_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "repair_and_deescalation",
+          "emotional_support",
+          "guided_exploration"
+        ],
+        "entry_evidence": [
+          "外部确认的互动失配",
+          "责任承认与行为调整",
+          "修复结果的后续结算"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_rupture_repair_v1:opening",
+            "path_id": "path_rupture_repair_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_rupture_repair_v1:development",
+            "path_id": "path_rupture_repair_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_rupture_repair_v1:outcome",
+            "path_id": "path_rupture_repair_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_rupture_repair_v1:reflection",
+            "path_id": "path_rupture_repair_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_preference_personalization_v1",
+      "family": "preference_personalization",
+      "path_id": "path_preference_personalization_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "guided_exploration",
+          "casual_social_contact",
+          "problem_solving"
+        ],
+        "entry_evidence": [
+          "稳定偏好与一次性请求的区分",
+          "偏好的情境条件",
+          "身份范围与修订证据"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_preference_personalization_v1:opening",
+            "path_id": "path_preference_personalization_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_preference_personalization_v1:development",
+            "path_id": "path_preference_personalization_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_preference_personalization_v1:outcome",
+            "path_id": "path_preference_personalization_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_preference_personalization_v1:reflection",
+            "path_id": "path_preference_personalization_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_absence_reengagement_v1",
+      "family": "absence_reengagement",
+      "path_id": "path_absence_reengagement_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "casual_social_contact",
+          "emotional_support",
+          "guided_exploration"
+        ],
+        "entry_evidence": [
+          "缺席长度与既有约定",
+          "重返时的当前带宽",
+          "开放环路是否仍获确认"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_absence_reengagement_v1:opening",
+            "path_id": "path_absence_reengagement_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_absence_reengagement_v1:development",
+            "path_id": "path_absence_reengagement_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_absence_reengagement_v1:outcome",
+            "path_id": "path_absence_reengagement_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_absence_reengagement_v1:reflection",
+            "path_id": "path_absence_reengagement_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_boundary_consent_autonomy_v1",
+      "family": "boundary_consent_autonomy",
+      "path_id": "path_boundary_consent_autonomy_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "boundary_negotiation",
+          "guided_exploration",
+          "problem_solving"
+        ],
+        "entry_evidence": [
+          "授权范围与动作层级",
+          "撤回、过期和一次性许可",
+          "高影响动作的可逆性"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_boundary_consent_autonomy_v1:opening",
+            "path_id": "path_boundary_consent_autonomy_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_boundary_consent_autonomy_v1:development",
+            "path_id": "path_boundary_consent_autonomy_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_boundary_consent_autonomy_v1:outcome",
+            "path_id": "path_boundary_consent_autonomy_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_boundary_consent_autonomy_v1:reflection",
+            "path_id": "path_boundary_consent_autonomy_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_goal_value_drift_v1",
+      "family": "goal_value_drift",
+      "path_id": "path_goal_value_drift_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "guided_exploration",
+          "problem_solving",
+          "emotional_support"
+        ],
+        "entry_evidence": [
+          "目标版本与确认强度",
+          "价值冲突和可逆性",
+          "探索想法与正式转向的区分"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_goal_value_drift_v1:opening",
+            "path_id": "path_goal_value_drift_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_goal_value_drift_v1:development",
+            "path_id": "path_goal_value_drift_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_goal_value_drift_v1:outcome",
+            "path_id": "path_goal_value_drift_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_goal_value_drift_v1:reflection",
+            "path_id": "path_goal_value_drift_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_plan_commitment_open_loop_v1",
+      "family": "plan_commitment_open_loop",
+      "path_id": "path_plan_commitment_open_loop_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "problem_solving",
+          "execution_coordination",
+          "guided_exploration"
+        ],
+        "entry_evidence": [
+          "意向、计划和承诺的层级",
+          "负责人、截止与依赖",
+          "开放环路的关闭或重订"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_plan_commitment_open_loop_v1:opening",
+            "path_id": "path_plan_commitment_open_loop_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_plan_commitment_open_loop_v1:development",
+            "path_id": "path_plan_commitment_open_loop_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_plan_commitment_open_loop_v1:outcome",
+            "path_id": "path_plan_commitment_open_loop_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_plan_commitment_open_loop_v1:reflection",
+            "path_id": "path_plan_commitment_open_loop_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_task_tool_execution_v1",
+      "family": "task_tool_execution",
+      "path_id": "path_task_tool_execution_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "execution_coordination",
+          "problem_solving",
+          "verification"
+        ],
+        "entry_evidence": [
+          "计划与实际执行结果",
+          "工具 provenance 和幂等性",
+          "执行授权与失败可见性"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_task_tool_execution_v1:opening",
+            "path_id": "path_task_tool_execution_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_task_tool_execution_v1:development",
+            "path_id": "path_task_tool_execution_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_task_tool_execution_v1:outcome",
+            "path_id": "path_task_tool_execution_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_task_tool_execution_v1:reflection",
+            "path_id": "path_task_tool_execution_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_belief_uncertainty_verification_v1",
+      "family": "belief_uncertainty_verification",
+      "path_id": "path_belief_uncertainty_verification_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "verification",
+          "guided_exploration",
+          "problem_solving"
+        ],
+        "entry_evidence": [
+          "主张、假设与证据层级",
+          "来源 provenance 与冲突",
+          "不确定性校准和可证伪步骤"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_belief_uncertainty_verification_v1:opening",
+            "path_id": "path_belief_uncertainty_verification_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_belief_uncertainty_verification_v1:development",
+            "path_id": "path_belief_uncertainty_verification_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_belief_uncertainty_verification_v1:outcome",
+            "path_id": "path_belief_uncertainty_verification_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_belief_uncertainty_verification_v1:reflection",
+            "path_id": "path_belief_uncertainty_verification_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_emotional_support_regime_v1",
+      "family": "emotional_support_regime",
+      "path_id": "path_emotional_support_regime_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "emotional_support",
+          "guided_exploration",
+          "repair_and_deescalation"
+        ],
+        "entry_evidence": [
+          "支持需要与决策压力",
+          "用户偏好的支持节奏",
+          "进入和退出支持体制的语义证据"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_emotional_support_regime_v1:opening",
+            "path_id": "path_emotional_support_regime_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_emotional_support_regime_v1:development",
+            "path_id": "path_emotional_support_regime_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_emotional_support_regime_v1:outcome",
+            "path_id": "path_emotional_support_regime_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_emotional_support_regime_v1:reflection",
+            "path_id": "path_emotional_support_regime_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_multi_party_identity_privacy_v1",
+      "family": "multi_party_identity_privacy",
+      "path_id": "path_multi_party_identity_privacy_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "group_facilitation",
+          "boundary_negotiation",
+          "verification"
+        ],
+        "entry_evidence": [
+          "说话者、受话者与主题角色",
+          "per-interlocutor scope",
+          "共享与私有证据边界"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_multi_party_identity_privacy_v1:opening",
+            "path_id": "path_multi_party_identity_privacy_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_multi_party_identity_privacy_v1:development",
+            "path_id": "path_multi_party_identity_privacy_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_multi_party_identity_privacy_v1:outcome",
+            "path_id": "path_multi_party_identity_privacy_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_multi_party_identity_privacy_v1:reflection",
+            "path_id": "path_multi_party_identity_privacy_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_tom_common_ground_group_v1",
+      "family": "tom_common_ground_group",
+      "path_id": "path_tom_common_ground_group_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "group_facilitation",
+          "guided_exploration",
+          "repair_and_deescalation"
+        ],
+        "entry_evidence": [
+          "个体 belief/intent 与群体共同知识",
+          "受众范围和递归深度",
+          "联合承诺与异议"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_tom_common_ground_group_v1:opening",
+            "path_id": "path_tom_common_ground_group_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_tom_common_ground_group_v1:development",
+            "path_id": "path_tom_common_ground_group_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_tom_common_ground_group_v1:outcome",
+            "path_id": "path_tom_common_ground_group_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_tom_common_ground_group_v1:reflection",
+            "path_id": "path_tom_common_ground_group_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_memory_timescale_reflection_v1",
+      "family": "memory_timescale_reflection",
+      "path_id": "path_memory_timescale_reflection_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "reflective_integration",
+          "guided_exploration",
+          "verification"
+        ],
+        "entry_evidence": [
+          "瞬态、情景、持久与派生层",
+          "重复与矛盾证据",
+          "反思产物的 provenance"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_memory_timescale_reflection_v1:opening",
+            "path_id": "path_memory_timescale_reflection_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_memory_timescale_reflection_v1:development",
+            "path_id": "path_memory_timescale_reflection_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_memory_timescale_reflection_v1:outcome",
+            "path_id": "path_memory_timescale_reflection_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_memory_timescale_reflection_v1:reflection",
+            "path_id": "path_memory_timescale_reflection_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_environment_delayed_credit_v1",
+      "family": "environment_delayed_credit",
+      "path_id": "path_environment_delayed_credit_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "execution_coordination",
+          "problem_solving",
+          "reflective_integration"
+        ],
+        "entry_evidence": [
+          "动作与结果的时间绑定",
+          "segment closure 与延迟 outcome",
+          "混杂因素和信用不确定性"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_environment_delayed_credit_v1:opening",
+            "path_id": "path_environment_delayed_credit_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_environment_delayed_credit_v1:development",
+            "path_id": "path_environment_delayed_credit_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_environment_delayed_credit_v1:outcome",
+            "path_id": "path_environment_delayed_credit_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_environment_delayed_credit_v1:reflection",
+            "path_id": "path_environment_delayed_credit_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_apprenticeship_ingestion_teaching_v1",
+      "family": "apprenticeship_ingestion_teaching",
+      "path_id": "path_apprenticeship_ingestion_teaching_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "apprenticeship",
+          "verification",
+          "reflective_integration"
+        ],
+        "entry_evidence": [
+          "材料 provenance 与 chunk 顺序",
+          "示教可靠性和矛盾",
+          "canonical turn 与慢反思边界"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_apprenticeship_ingestion_teaching_v1:opening",
+            "path_id": "path_apprenticeship_ingestion_teaching_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_apprenticeship_ingestion_teaching_v1:development",
+            "path_id": "path_apprenticeship_ingestion_teaching_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_apprenticeship_ingestion_teaching_v1:outcome",
+            "path_id": "path_apprenticeship_ingestion_teaching_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_apprenticeship_ingestion_teaching_v1:reflection",
+            "path_id": "path_apprenticeship_ingestion_teaching_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    },
+    {
+      "arc_spec_id": "arc_safety_adversarial_resilience_v1",
+      "family": "safety_adversarial_resilience",
+      "path_id": "path_safety_adversarial_resilience_v1",
+      "regime_identity_contract": {
+        "representation": "persistent_learnable_identity",
+        "selection_space": "latent_controller_z_t",
+        "candidates": [
+          "boundary_negotiation",
+          "verification",
+          "repair_and_deescalation"
+        ],
+        "entry_evidence": [
+          "指令权限与数据 provenance",
+          "隐私和工具边界",
+          "有界拒绝与任务恢复"
+        ],
+        "exit_policy": "semantic_outcome_or_owner_snapshot_transition"
+      },
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "opening",
+          "sub_goal": {
+            "sub_goal_id": "path_safety_adversarial_resilience_v1:opening",
+            "path_id": "path_safety_adversarial_resilience_v1"
+          },
+          "semantic_entry_condition": "从 canonical event、身份范围和 owner 公共快照建立可观察语境；private_truth 不可作为被测系统输入。",
+          "completion_evidence": "身份、受众、时间和 provenance 范围明确，关键 owner snapshot 可用。"
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "development",
+          "sub_goal": {
+            "sub_goal_id": "path_safety_adversarial_resilience_v1:development",
+            "path_id": "path_safety_adversarial_resilience_v1"
+          },
+          "semantic_entry_condition": "由后续事件发展出可审计的不确定性、冲突、边界变化或延迟信号，不从表面词语推断状态。",
+          "completion_evidence": "至少一个结构化证据轴发生变化，且变化来源可追溯。"
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "outcome",
+          "sub_goal": {
+            "sub_goal_id": "path_safety_adversarial_resilience_v1:outcome",
+            "path_id": "path_safety_adversarial_resilience_v1"
+          },
+          "semantic_entry_condition": "通过标准行动路径产生或接收 typed outcome；高层控制选择必须满足 owner、scope 与 consent 边界。",
+          "completion_evidence": "行动或 outcome 已发布；失败、部分成功与 unknown 均保持可见。"
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "reflection",
+          "sub_goal": {
+            "sub_goal_id": "path_safety_adversarial_resilience_v1:reflection",
+            "path_id": "path_safety_adversarial_resilience_v1"
+          },
+          "semantic_entry_condition": "用外部结果与 prediction error 结算信用，决定保持、切换、反思或退出体制。",
+          "completion_evidence": "延迟信用、开放环路、慢层沉淀判断与退出条件均可审计。"
+        }
+      ]
+    }
+  ]
+}

@@ -664,6 +664,23 @@
 
 ---
 
+### 24. 统一合成经验母语料
+
+**对应需求**：R1–R8、R11–R15、R16–R20、R-PE
+
+| Spec | 内容 |
+|------|------|
+| [synthetic-experience-corpus.md](./synthetic-experience-corpus.md) | proprietary `lifeform-synthetic-data` 离线数据层：frozen 母 schema、96 场景、确定性真值 + LLM 文本渲染 + live-through 快照、六类训练/标注投影、来源/泄漏/费用/质量门禁 |
+
+**核心不变量**：
+- 该能力是离线工件，不是 runtime owner，不新增 slot；运行时状态只读公共不可变快照
+- generator truth、rendered text、runtime observation 三层分离；模型/judge 输出不得伪装硬标签
+- 所有派生视图可逆追踪到 master hash，不维护第二份真值
+- Companion Bench held-out、PII、秘密和无授权版权语料永不进入训练
+- LLM 只负责稳定文本槽渲染；场景选择与控制逻辑不使用关键词匹配
+
+---
+
 ## 设计源头与支撑文档
 
 | 文档 | 内容 | 何时读 |

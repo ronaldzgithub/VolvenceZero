@@ -1,0 +1,31 @@
+name: unified_synthetic_experience_v1
+version: '1.0'
+description: 统一合成经验母语料 v1：覆盖关系、任务、社会认知、记忆、环境信用、示教与安全的多会话原创场景。
+domain: META
+author: Volvence Zero Contributors
+components:
+  ssot_fragment: ssot_fragment.json
+  scenes: scenes.yaml
+  test_suite: test_suite.yaml
+content_origin:
+  kind: original_synthetic
+  contains_real_person_data: false
+  contains_copyrighted_text: false
+  private_truth_visibility: simulator_and_judge_only
+dataset_contract:
+  family_count: 16
+  scenes_per_family: 6
+  scene_count: 96
+  split_per_family:
+    train: 4
+    val: 1
+    test: 1
+  split_isolation:
+  - persona_id
+  - latent_arc_id
+explanation: |
+  本包把十六类长期交互能力统一到同一份合成经验母语料中。路径设计以能力 owner 的职责边界为骨架：每个 family 只有一条规范 path，路径从可观察事实和已发布快照开始，经语义张力、受约束适应，再到外部结果与预测误差结算；适配器和消费者不得越权重建其他模块内部状态。
+  弧线设计为四个连续 phase，phase_order 从 0 开始，分别承担建立语境、形成张力、选择并执行适应、依据结果结算与退出；每个 phase 都引用所属 path 的 sub_goal，因此 path、arc 与 scene 可以双向审计，且没有孤儿引用。
+  场景检测不读取固定词表，也不使用字符串包含或正则路由，而是结合语义嵌入相似度、schema-bound LLM 结构化输出、身份与受众范围、时间关系、授权状态、外部 outcome provenance 等证据轴进行分类；证据不足时允许 no-route 或请求澄清。
+  与核心系统的集成点包括九类 semantic owner、连续记忆与反思、社会认知 owner、Environment Outcome、Prediction Error、credit、ETA metacontroller、Affordance 与 ModificationGate，所有训练标签来自合成真值，评估保持只读。
+  R14 体制身份在本包中不是 prompt 标签：scene 只提供候选体制和可观察进入/退出证据，真正选择由高层控制在潜在控制器空间完成；所选体制可跨轮次保持、从历史效果召回，并由延迟结果修正。每族严格划分四个 train、一个 val、一个 test，persona 与 latent arc 在 split 间完全隔离；全部人物、项目、组织和文本均为原创虚构内容。

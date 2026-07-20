@@ -560,6 +560,33 @@ def test_lifeform_does_not_import_other_lifeform_directly(
             )
 
 
+def test_synthetic_data_wheel_reads_only_public_offline_facades() -> None:
+    """The master-corpus owner must not couple to eval/held-out/runtime internals."""
+
+    source_root = PACKAGES_ROOT / "lifeform-synthetic-data" / "src"
+    if not source_root.exists():
+        pytest.skip("lifeform-synthetic-data has not landed yet")
+    forbidden_prefixes = (
+        "companion_bench",
+        "companion_trajgen",
+        "companion_encoder",
+        "lifeform_evolution",
+        "lifeform_service",
+        "dlaas_platform_",
+        "volvence_zero",
+    )
+    for py_file in _python_files(source_root):
+        for module in _module_level_imports(py_file):
+            for prefix in forbidden_prefixes:
+                if module == prefix or module.startswith(prefix + "."):
+                    pytest.fail(
+                        f"{py_file.relative_to(REPO_ROOT)} imports '{module}': "
+                        "lifeform-synthetic-data may consume only "
+                        "companion-standard and the lifeform-core public facade; "
+                        "held-out/evaluation/kernel internals are forbidden."
+                    )
+
+
 def test_application_and_memory_use_temporal_contract_types_not_owner_package() -> None:
     """Consumers may validate temporal snapshots without depending on vz-temporal."""
 

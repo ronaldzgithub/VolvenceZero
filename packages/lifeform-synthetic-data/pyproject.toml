@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifeform-synthetic-data"
+version = "0.1.0"
+description = "Proprietary synthetic experience corpus: deterministic truth, LLM rendering, runtime snapshot replay, and task projections."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "companion-standard==0.1.*",
+    "lifeform-core==0.1.*",
+    "vz-contracts==0.1.*",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+parquet = ["pyarrow>=16.0"]
+test = [
+    "companion-encoder[train]==0.1.*",
+    "pytest>=8.0",
+]
+
+[project.scripts]
+lifeform-synthetic-data = "lifeform_synthetic_data.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lifeform_synthetic_data*"]
+
+[tool.setuptools.package-data]
+lifeform_synthetic_data = [
+    "prompts/*.md",
+    "schemas/*.json",
+    "scenario_packages/**/*.yaml",
+    "scenario_packages/**/*.json",
+]
