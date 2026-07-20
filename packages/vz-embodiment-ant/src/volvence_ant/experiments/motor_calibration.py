@@ -26,6 +26,9 @@ from volvence_ant.runtime import (
     AntSessionConfig,
 )
 
+_MIN_LATE_ERROR_ADVANTAGE = 0.02
+_MIN_RECOVERY_ADVANTAGE = 0.01
+
 
 @dataclass(frozen=True)
 class MotorCalibrationArm:
@@ -50,6 +53,7 @@ class MotorCalibrationReport:
     switched_turn_bias: float
     arms: tuple[MotorCalibrationArm, ...]
     learned_late_error_advantage: float
+    learned_recovery_advantage: float
     learned_recovers_better: bool
     description: str
 
@@ -153,8 +157,10 @@ async def run_motor_calibration_experiment(
         seed=seed,
     )
     late_advantage = no_optimize.mean_error_late - learned.mean_error_late
+    recovery_advantage = learned.recovery - no_optimize.recovery
     recovers_better = (
-        late_advantage > 0.0 and learned.recovery > no_optimize.recovery
+        late_advantage >= _MIN_LATE_ERROR_ADVANTAGE
+        and recovery_advantage >= _MIN_RECOVERY_ADVANTAGE
     )
     return MotorCalibrationReport(
         seed=seed,
@@ -164,12 +170,14 @@ async def run_motor_calibration_experiment(
         switched_turn_bias=switched_turn_bias,
         arms=(learned, no_optimize),
         learned_late_error_advantage=late_advantage,
+        learned_recovery_advantage=recovery_advantage,
         learned_recovers_better=recovers_better,
         description=(
             "hidden motor calibration: "
             f"learned late_error={learned.mean_error_late:.4f}, "
             f"no_optimize late_error={no_optimize.mean_error_late:.4f}, "
             f"advantage={late_advantage:.4f}, "
+            f"recovery_advantage={recovery_advantage:.4f}, "
             f"learned_recovers_better={recovers_better}"
         ),
     )

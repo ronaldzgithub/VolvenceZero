@@ -1681,22 +1681,32 @@ def extract_abstract_action_credit_bonus(
     bonus_weight: float = 0.1,
     pe_magnitude: float = 0.0,
 ) -> dict[str, float]:
-    """Aggregate abstract-action credit into per-family bonus signals.
+    """Aggregate abstract-action credit into owner-described bonus signals.
 
     Returns a dict mapping source_event (family/action name) to a
     weighted credit bonus suitable for injecting into the RL environment
-    via ``set_evaluation_signals``.
+    via ``set_evaluation_signals``.  ``abstract_action_credit_bonus`` is the
+    signed aggregate consumed by Internal-RL; per-source entries remain for
+    audit/backward compatibility.
     """
     family_credits: dict[str, list[float]] = {}
     for record in credit_snapshot.recent_credits:
-        if record.level != "abstract_action":
+        if record.level not in {"abstract_action", "abstract_action_segment"}:
             continue
         family_credits.setdefault(record.source_event, []).append(record.credit_value)
     result: dict[str, float] = {}
+    all_values: list[float] = []
     for family, values in family_credits.items():
         mean_credit = sum(values) / len(values) if values else 0.0
         magnitude_boost = 1.0 + max(0.0, pe_magnitude)
         result[family] = _clamp(mean_credit * bonus_weight * magnitude_boost)
+        all_values.extend(values)
+    if all_values:
+        result["abstract_action_credit_bonus"] = _clamp(
+            (sum(all_values) / len(all_values))
+            * bonus_weight
+            * (1.0 + max(0.0, pe_magnitude))
+        )
     return result
 
 

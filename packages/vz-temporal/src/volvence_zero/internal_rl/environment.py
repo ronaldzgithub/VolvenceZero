@@ -372,6 +372,12 @@ class InternalRLEnvironment:
     ) -> tuple[tuple[str, float], ...]:
         prediction_error_reward = self._primary_prediction_error_signal()
         prediction_error_readout = self._prediction_error_readout_signal()
+        abstract_action_credit = _clamp(
+            self._evaluation_family_signals.get(
+                "abstract_action_credit_bonus",
+                0.0,
+            )
+        )
         has_primary_pe = abs(prediction_error_reward) > 1e-8
         has_readout_pe = abs(prediction_error_readout) > 1e-8
         primary_weight = min(abs(prediction_error_reward), 1.0)
@@ -388,6 +394,8 @@ class InternalRLEnvironment:
         ]
         if has_primary_pe:
             components.append(("primary_prediction_error", prediction_error_reward * (0.85 + primary_weight * 0.10)))
+        if abs(abstract_action_credit) > 1e-8:
+            components.append(("abstract_action_credit", abstract_action_credit))
         if not self._evaluation_family_signals:
             return tuple(components)
         task_delta = self._family_delta("task")
@@ -702,6 +710,7 @@ class InternalRLEnvironment:
             {
                 "primary_prediction_error",
                 "prediction_error_readout",
+                "abstract_action_credit",
                 "proof_subgoal_complete",
                 "proof_terminal_success",
             }

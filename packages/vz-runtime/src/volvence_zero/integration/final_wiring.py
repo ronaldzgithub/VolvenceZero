@@ -1368,7 +1368,11 @@ def _prediction_action_context_from_upstream(
         and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
         else None
     )
-    segment = next(iter(temporal_value.closed_segments), None) if temporal_value else None
+    segment = (
+        temporal_value.closed_segments[-1]
+        if temporal_value is not None and temporal_value.closed_segments
+        else None
+    )
     regime_snapshot = (
         upstream_snapshots.get("regime")
         if upstream_snapshots is not None

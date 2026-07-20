@@ -2,13 +2,24 @@ from __future__ import annotations
 
 from dataclasses import fields
 
+import pytest
+
 from volvence_zero.agent import (
     AgentSessionRunner,
     DialogueBenchmarkReport,
     build_dialogue_option_discovery_report,
 )
-from volvence_zero.credit.gate import derive_segment_closure_credit_records
+from volvence_zero.credit.gate import (
+    CreditRecord,
+    CreditSnapshot,
+    derive_segment_closure_credit_records,
+    extract_abstract_action_credit_bonus,
+)
 from volvence_zero.environment import EnvironmentEventKind, EnvironmentOutcome
+from volvence_zero.integration.final_wiring import (
+    _prediction_action_context_from_upstream,
+)
+from volvence_zero.memory import Track
 from volvence_zero.prediction import (
     ActualOutcome,
     PredictedOutcome,
@@ -21,6 +32,7 @@ from volvence_zero.temporal import (
     TemporalAbstractionSnapshot,
     TemporalSegmentClosure,
 )
+from volvence_zero.runtime import Snapshot
 
 
 def test_no_action_outcome_trace_runtime_slot_is_declared() -> None:
@@ -64,6 +76,84 @@ def test_segment_closure_context_is_temporal_owned() -> None:
 
     assert snapshot.closed_segments[0].segment_id == "segment-1"
     assert snapshot.closed_segments[0].abstract_action_id == "clarify-before-act"
+
+
+def test_prediction_action_context_binds_latest_closed_segment() -> None:
+    first = TemporalSegmentClosure(
+        segment_id="segment-old",
+        open_turn_index=1,
+        close_turn_index=2,
+        abstract_action_id="old-action",
+        z_t_digest=(0.1, 0.2),
+        beta_open_digest=0.6,
+        beta_close_digest=0.8,
+    )
+    latest = TemporalSegmentClosure(
+        segment_id="segment-latest",
+        open_turn_index=3,
+        close_turn_index=4,
+        abstract_action_id="latest-action",
+        z_t_digest=(0.7, 0.8),
+        beta_open_digest=0.7,
+        beta_close_digest=0.9,
+    )
+    temporal = TemporalAbstractionSnapshot(
+        controller_state=ControllerState(
+            code=(0.7, 0.8),
+            code_dim=2,
+            switch_gate=0.9,
+            is_switching=True,
+            steps_since_switch=0,
+        ),
+        active_abstract_action="next-action",
+        controller_params_hash="hash",
+        description="two closed segments",
+        closed_segments=(first, latest),
+    )
+
+    context = _prediction_action_context_from_upstream(
+        upstream_snapshots={
+            "temporal_abstraction": Snapshot(
+                slot_name="temporal_abstraction",
+                owner="TemporalAggregateModule",
+                version=1,
+                timestamp_ms=1,
+                value=temporal,
+            )
+        },
+        environment_event=None,
+    )
+
+    assert context.segment_id == "segment-latest"
+    assert context.abstract_action_id == "latest-action"
+    assert context.z_t_digest == (0.7, 0.8)
+
+
+def test_segment_credit_enters_internal_rl_bonus() -> None:
+    credit = CreditSnapshot(
+        recent_credits=(
+            CreditRecord(
+                record_id="segment-credit",
+                level="abstract_action_segment",
+                track=Track.SHARED,
+                source_event="segment:segment-1",
+                credit_value=0.5,
+                context="PE-derived segment credit",
+                timestamp_ms=1,
+            ),
+        ),
+        recent_modifications=(),
+        cumulative_credit_by_level=(("abstract_action_segment", 0.5),),
+    )
+
+    bonus = extract_abstract_action_credit_bonus(
+        credit,
+        bonus_weight=0.2,
+        pe_magnitude=0.5,
+    )
+
+    assert bonus["segment:segment-1"] == pytest.approx(0.15)
+    assert bonus["abstract_action_credit_bonus"] == pytest.approx(0.15)
 
 
 def test_segment_credit_is_derived_from_prediction_error_snapshot_only() -> None:

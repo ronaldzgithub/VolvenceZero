@@ -80,6 +80,23 @@ FSM 手写的梯度跟随答案直接喂给控制器，而"如何朝食物走"�
 | 基因表达程序（窗口期，离线） | rare-heavy artifact refresh | Phase 2 角色重编程离线循环，产出个体倾向性初始化参数，运行时不可触发 |
 | 突触可塑性（在线） | online-fast controller | `z_t` / `β_t` + CMS 在线学习（内核承担） |
 
+### 5.1 隐藏电机扰动校准（experimental / BLOCK）
+
+`MotorDistortionProfile` 是环境 owner 的不可变 actuator transfer：
+`applied_turn = clamp(gain·commanded_turn + bias)`，可在 `switch_tick` 一次性切到另一组
+gain/bias；空 profile 是严格 identity，单 profile 可广播、多 profile 必须与 body 数一致。公开
+`WorldTransitionEvidence` 只增加外部可观察的 `commanded_turn / applied_turn`，不泄露 profile 参数。
+
+`AntObjectiveKind.HEADING_STABILITY` 把初始天空罗盘航向作为 typed task target，每拍只发布归一化
+heading deviation 与前后误差改善形成的 `EnvironmentMeasurement`；它不告诉 controller 补偿方向，
+仍经 outcome→PE→credit→Internal-RL。matched learned/no-opt 共享 distortion、seed、SSL/PE/rollout、
+reflection writeback 与 reward→code bridge，只隔离 policy optimization 持久化。
+
+预冻结 gate：`no_opt_late_error - learned_late_error >= 0.02` 且
+`learned_recovery - no_opt_recovery >= 0.01`。2026-07-20 首个短预算
+（18 ticks、tick 9 bias `+0.18→-0.18`）结果为 late advantage `0.0003`，两臂 recovery 均为负，
+故诚实 verdict = **BLOCK**。不得把正号噪声写成恢复成功；在 gate 通过前不做宣传型 dashboard。
+
 ## 6. 冻结 claims 与 kill conditions
 
 | 正式 claim | required arms / 最低证据 | kill condition |
