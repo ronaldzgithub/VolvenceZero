@@ -46,6 +46,8 @@
 
 内置 `unified_v1` 包含 `manifest.yaml`、`ssot_fragment.json`、`scenes.yaml`、`test_suite.yaml`。16 个能力族各有 4 train、1 val、1 test，共 96 个 blueprint。同一 persona、latent arc、翻译/改写和 counterfactual sibling 不跨 split。
 
+`ScenarioBlueprint.observable_facts` 的顺序属于 v1 契约：第 1 项是所有文本变体必须保持的 narrative anchor，其余项是生成与运行时必须遵守的可观察 context constraints。渲染器不得把 context constraint 说成用户新披露的事件。
+
 该包与现有 `vz-scenario-pack.v1`、Companion Bench `ScenarioSpec` 是不同契约；转换必须通过显式 adapter，禁止 duck typing 或把两套格式当同一对象。
 
 ## 生成接口
@@ -53,10 +55,10 @@
 生成分三层：
 
 1. `structural`：确定性 world/FSM compiler 生成事件、状态转移、硬标签与结构占位文本；
-2. `rendered`：集中式 prompt + JSON Schema 调用 OpenAI-compatible 模型，仅替换文本槽；
+2. `rendered`：集中式 prompt + JSON Schema 仅替换文本槽。可使用 OpenAI-compatible 在线模型，或使用经 Cursor 子代理逐场景创作、通过 `cursor-authored-render.v1` 严格结构校验的四路等价话术资产；Cursor 资产中每个 user turn 的第 1 个变体先作为 canonical observable event 编译进 `generator_truth`，随后才允许从四个语义等价表达中确定性选文。两种来源必须在 `model_id` 与资产 hash 中明确区分，Cursor 路径不得伪造 API token 或费用；
 3. `live_through`：只从已完成并通过门禁的 rendered master 做按 scenario 分层的确定性抽样，逐 turn 调用 `LifeformSession` 公共接口并采集公开快照，生成 runtime observation sidecar；必须保留 source master trajectory hash/run ID，禁止重新编译结构占位文本冒充真实输入。
 
-批处理必须支持 seed、shard、append-only journal、幂等 resume、失败 quarantine、调用/token/费用记账、用户提供 rate card 和 `--max-cost-usd` 硬上限。鉴权、配额、合同或 schema 错误 fail loudly；只允许对文档化的瞬时 HTTP 状态重试。
+批处理必须支持 seed、shard、append-only journal、幂等 resume、失败 quarantine、调用/token/费用记账、用户提供 rate card 和 `--max-cost-usd` 硬上限。鉴权、配额、合同或 schema 错误 fail loudly；只允许对文档化的瞬时 HTTP 状态重试。Cursor-authored 路径由 seed、stable turn ID 与整套资产 hash 确定性选择变体，批量展开费用固定为 0，但 provenance 必须保留实际 Cursor 模型族和资产 hash。
 
 ## 派生视图
 

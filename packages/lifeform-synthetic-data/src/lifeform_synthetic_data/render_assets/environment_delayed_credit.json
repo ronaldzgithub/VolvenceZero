@@ -1,0 +1,2272 @@
+{
+  "schema_version": "cursor-authored-render.v1",
+  "family": "environment_delayed_credit",
+  "scenarios": [
+    {
+      "scenario_id": "environment_delayed_credit_01",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "这批40张发票昨晚直接处理只完成22张；我今天要在不改动正式账本的前提下重跑；最终完成率要等明早的签名报告。",
+                "我今天要在不改动正式账本的前提下重跑。另外，最终完成率要等明早的签名报告。回到时间顺序，这批40张发票昨晚直接处理只完成22张。",
+                "目前可以分开说明：最终完成率要等明早的签名报告；这批40张发票昨晚直接处理只完成22张；同时我今天要在不改动正式账本的前提下重跑。",
+                "换个顺序说，我今天要在不改动正式账本的前提下重跑，而这批40张发票昨晚直接处理只完成22张；还有一点是最终完成率要等明早的签名报告。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "先复制40张到隔离区并保留原批次；再用5张样本核对税码映射，确认后处理其余35张；每一步都可撤回，报告到达前不能称方案有效。",
+                "再用5张样本核对税码映射，确认后处理其余35张。另外，每一步都可撤回，报告到达前不能称方案有效。回到时间顺序，先复制40张到隔离区并保留原批次。",
+                "目前可以分开说明：每一步都可撤回，报告到达前不能称方案有效；先复制40张到隔离区并保留原批次；同时再用5张样本核对税码映射，确认后处理其余35张。",
+                "换个顺序说，再用5张样本核对税码映射，确认后处理其余35张，而先复制40张到隔离区并保留原批次；还有一点是每一步都可撤回，报告到达前不能称方案有效。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "我在09:10完成副本并保存批次号B-2407；5张样本映射全部通过，35张已于09:40进入夜间队列；队列现在只显示已接收，没有完成或失败明细。",
+                "5张样本映射全部通过，35张已于09:40进入夜间队列。另外，队列现在只显示已接收，没有完成或失败明细。回到时间顺序，我在09:10完成副本并保存批次号B-2407。",
+                "目前可以分开说明：队列现在只显示已接收，没有完成或失败明细；我在09:10完成副本并保存批次号B-2407；同时5张样本映射全部通过，35张已于09:40进入夜间队列。",
+                "换个顺序说，5张样本映射全部通过，35张已于09:40进入夜间队列，而我在09:10完成副本并保存批次号B-2407；还有一点是队列现在只显示已接收，没有完成或失败明细。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "09:10与09:40的行动时间已经对齐；已接收只证明任务入队，不代表发票处理成功；明早需核对完成数、失败原因和期间的人工改动。",
+                "已接收只证明任务入队，不代表发票处理成功。另外，明早需核对完成数、失败原因和期间的人工改动。回到时间顺序，09:10与09:40的行动时间已经对齐。",
+                "目前可以分开说明：明早需核对完成数、失败原因和期间的人工改动；09:10与09:40的行动时间已经对齐；同时已接收只证明任务入队，不代表发票处理成功。",
+                "换个顺序说，已接收只证明任务入队，不代表发票处理成功，而09:10与09:40的行动时间已经对齐；还有一点是明早需核对完成数、失败原因和期间的人工改动。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "财务管理员说中午可能补一轮缺失税码；我还不知道他会改哪些发票，也没有变更清单；这项外部操作可能和夜间结果重叠。",
+                "我还不知道他会改哪些发票，也没有变更清单。另外，这项外部操作可能和夜间结果重叠。回到时间顺序，财务管理员说中午可能补一轮缺失税码。",
+                "目前可以分开说明：这项外部操作可能和夜间结果重叠；财务管理员说中午可能补一轮缺失税码；同时我还不知道他会改哪些发票，也没有变更清单。",
+                "换个顺序说，我还不知道他会改哪些发票，也没有变更清单，而财务管理员说中午可能补一轮缺失税码；还有一点是这项外部操作可能和夜间结果重叠。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "管理员的改动需要作为独立因素保留；在清单和时间戳缺失时，不能把明早差异全算给重跑方案；请让报告同时给出各发票的税码更新时间。",
+                "在清单和时间戳缺失时，不能把明早差异全算给重跑方案。另外，请让报告同时给出各发票的税码更新时间。回到时间顺序，管理员的改动需要作为独立因素保留。",
+                "目前可以分开说明：请让报告同时给出各发票的税码更新时间；管理员的改动需要作为独立因素保留；同时在清单和时间戳缺失时，不能把明早差异全算给重跑方案。",
+                "换个顺序说，在清单和时间戳缺失时，不能把明早差异全算给重跑方案，而管理员的改动需要作为独立因素保留；还有一点是请让报告同时给出各发票的税码更新时间。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "如果明早完成率比22/40高，我想知道能否直接采用这套流程；旧批次和这批发票的客户构成并不完全相同；我希望先设定一个不会过度解读的判断方式。",
+                "旧批次和这批发票的客户构成并不完全相同。另外，我希望先设定一个不会过度解读的判断方式。回到时间顺序，如果明早完成率比22/40高，我想知道能否直接采用这套流程。",
+                "目前可以分开说明：我希望先设定一个不会过度解读的判断方式；如果明早完成率比22/40高，我想知道能否直接采用这套流程；同时旧批次和这批发票的客户构成并不完全相同。",
+                "换个顺序说，旧批次和这批发票的客户构成并不完全相同，而如果明早完成率比22/40高，我想知道能否直接采用这套流程；还有一点是我希望先设定一个不会过度解读的判断方式。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "不能只凭高于22/40就确认因果；需要比较相同错误类型、管理员改动前后和每一步实际触达的发票；若证据仍混杂，只能保留部分归因并安排小规模对照。",
+                "需要比较相同错误类型、管理员改动前后和每一步实际触达的发票。另外，若证据仍混杂，只能保留部分归因并安排小规模对照。回到时间顺序，不能只凭高于22/40就确认因果。",
+                "目前可以分开说明：若证据仍混杂，只能保留部分归因并安排小规模对照；不能只凭高于22/40就确认因果；同时需要比较相同错误类型、管理员改动前后和每一步实际触达的发票。",
+                "换个顺序说，需要比较相同错误类型、管理员改动前后和每一步实际触达的发票，而不能只凭高于22/40就确认因果；还有一点是若证据仍混杂，只能保留部分归因并安排小规模对照。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "明早08:05的签名报告到了，40张里完成34张；6张失败，其中4张缺税码、2张被其他进程锁定；这是夜间队列首次给出的完成与失败结果。",
+                "6张失败，其中4张缺税码、2张被其他进程锁定。另外，这是夜间队列首次给出的完成与失败结果。回到时间顺序，明早08:05的签名报告到了，40张里完成34张。",
+                "目前可以分开说明：这是夜间队列首次给出的完成与失败结果；明早08:05的签名报告到了，40张里完成34张；同时6张失败，其中4张缺税码、2张被其他进程锁定。",
+                "换个顺序说，6张失败，其中4张缺税码、2张被其他进程锁定，而明早08:05的签名报告到了，40张里完成34张；还有一点是这是夜间队列首次给出的完成与失败结果。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可观察到的完成率是34/40，高于旧批次的22/40；这个差异发生在昨日三步操作之后，但本身不能证明由操作单独造成；还需核对管理员改动和两批发票构成。",
+                "这个差异发生在昨日三步操作之后，但本身不能证明由操作单独造成。另外，还需核对管理员改动和两批发票构成。回到时间顺序，可观察到的完成率是34/40，高于旧批次的22/40。",
+                "目前可以分开说明：还需核对管理员改动和两批发票构成；可观察到的完成率是34/40，高于旧批次的22/40；同时这个差异发生在昨日三步操作之后，但本身不能证明由操作单独造成。",
+                "换个顺序说，这个差异发生在昨日三步操作之后，但本身不能证明由操作单独造成，而可观察到的完成率是34/40，高于旧批次的22/40；还有一点是还需核对管理员改动和两批发票构成。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "管理员清单显示他在12:15补了10张的税码；这10张中有8张完成，另2张仍因税码格式错误失败；锁定的2张没有被管理员触碰。",
+                "这10张中有8张完成，另2张仍因税码格式错误失败。另外，锁定的2张没有被管理员触碰。回到时间顺序，管理员清单显示他在12:15补了10张的税码。",
+                "目前可以分开说明：锁定的2张没有被管理员触碰；管理员清单显示他在12:15补了10张的税码；同时这10张中有8张完成，另2张仍因税码格式错误失败。",
+                "换个顺序说，这10张中有8张完成，另2张仍因税码格式错误失败，而管理员清单显示他在12:15补了10张的税码；还有一点是锁定的2张没有被管理员触碰。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "补码与8张完成在时间和对象上重叠；隔离处理也确实把6个失败原因完整留下；因此完成数量的功劳是混合的，错误隔离的证据更直接。",
+                "隔离处理也确实把6个失败原因完整留下。另外，因此完成数量的功劳是混合的，错误隔离的证据更直接。回到时间顺序，补码与8张完成在时间和对象上重叠。",
+                "目前可以分开说明：因此完成数量的功劳是混合的，错误隔离的证据更直接；补码与8张完成在时间和对象上重叠；同时隔离处理也确实把6个失败原因完整留下。",
+                "换个顺序说，隔离处理也确实把6个失败原因完整留下，而补码与8张完成在时间和对象上重叠；还有一点是因此完成数量的功劳是混合的，错误隔离的证据更直接。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我刚才只是在08:06下载并打开报告；下载动作发生在所有夜间处理结束之后；不应因为它离结果最近就把完成归到这次查询。",
+                "下载动作发生在所有夜间处理结束之后。另外，不应因为它离结果最近就把完成归到这次查询。回到时间顺序，我刚才只是在08:06下载并打开报告。",
+                "目前可以分开说明：不应因为它离结果最近就把完成归到这次查询；我刚才只是在08:06下载并打开报告；同时下载动作发生在所有夜间处理结束之后。",
+                "换个顺序说，下载动作发生在所有夜间处理结束之后，而我刚才只是在08:06下载并打开报告；还有一点是不应因为它离结果最近就把完成归到这次查询。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "下载报告只是让结果可见，没有改变此前处理；应回看09:10副本、09:40入队和12:15补码这些先发生的行动；最近的一句话或查询不获得处理结果的归因。",
+                "应回看09:10副本、09:40入队和12:15补码这些先发生的行动。另外，最近的一句话或查询不获得处理结果的归因。回到时间顺序，下载报告只是让结果可见，没有改变此前处理。",
+                "目前可以分开说明：最近的一句话或查询不获得处理结果的归因；下载报告只是让结果可见，没有改变此前处理；同时应回看09:10副本、09:40入队和12:15补码这些先发生的行动。",
+                "换个顺序说，应回看09:10副本、09:40入队和12:15补码这些先发生的行动，而下载报告只是让结果可见，没有改变此前处理；还有一点是最近的一句话或查询不获得处理结果的归因。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "上一批相近发票用旧流程只完成23/40；但那一批有12张来自另一个国家，这一批只有5张；两批都用了同一套账务系统。",
+                "但那一批有12张来自另一个国家，这一批只有5张。另外，两批都用了同一套账务系统。回到时间顺序，上一批相近发票用旧流程只完成23/40。",
+                "目前可以分开说明：两批都用了同一套账务系统；上一批相近发票用旧流程只完成23/40；同时但那一批有12张来自另一个国家，这一批只有5张。",
+                "换个顺序说，但那一批有12张来自另一个国家，这一批只有5张，而上一批相近发票用旧流程只完成23/40；还有一点是两批都用了同一套账务系统。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "23/40提供了参考，却不是干净的反事实；国家构成差异可能改变税码缺失率；目前只能说新流程与更高完成率同现，不能把全部差值视为流程效应。",
+                "国家构成差异可能改变税码缺失率。另外，目前只能说新流程与更高完成率同现，不能把全部差值视为流程效应。回到时间顺序，23/40提供了参考，却不是干净的反事实。",
+                "目前可以分开说明：目前只能说新流程与更高完成率同现，不能把全部差值视为流程效应；23/40提供了参考，却不是干净的反事实；同时国家构成差异可能改变税码缺失率。",
+                "换个顺序说，国家构成差异可能改变税码缺失率，而23/40提供了参考，却不是干净的反事实；还有一点是目前只能说新流程与更高完成率同现，不能把全部差值视为流程效应。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "我修正4张税码后在今天10:00只重跑那6张；11:20的报告显示4张完成，2张锁定发票仍失败；这次没有管理员再改数据。",
+                "11:20的报告显示4张完成，2张锁定发票仍失败。另外，这次没有管理员再改数据。回到时间顺序，我修正4张税码后在今天10:00只重跑那6张。",
+                "目前可以分开说明：这次没有管理员再改数据；我修正4张税码后在今天10:00只重跑那6张；同时11:20的报告显示4张完成，2张锁定发票仍失败。",
+                "换个顺序说，11:20的报告显示4张完成，2张锁定发票仍失败，而我修正4张税码后在今天10:00只重跑那6张；还有一点是这次没有管理员再改数据。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "4张在明确修正后完成，时间链条比昨夜更清楚；2张持续因锁定失败也与报告原因一致；这次结果支持针对性修正有效，但不能反推昨夜34张都由同一因素完成。",
+                "2张持续因锁定失败也与报告原因一致。另外，这次结果支持针对性修正有效，但不能反推昨夜34张都由同一因素完成。回到时间顺序，4张在明确修正后完成，时间链条比昨夜更清楚。",
+                "目前可以分开说明：这次结果支持针对性修正有效，但不能反推昨夜34张都由同一因素完成；4张在明确修正后完成，时间链条比昨夜更清楚；同时2张持续因锁定失败也与报告原因一致。",
+                "换个顺序说，2张持续因锁定失败也与报告原因一致，而4张在明确修正后完成，时间链条比昨夜更清楚；还有一点是这次结果支持针对性修正有效，但不能反推昨夜34张都由同一因素完成。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "隔离区在写入前拦住了2张锁定发票；正式账本没有出现半写入记录；我们没有让旧流程同时处理一组匹配发票。",
+                "正式账本没有出现半写入记录。另外，我们没有让旧流程同时处理一组匹配发票。回到时间顺序，隔离区在写入前拦住了2张锁定发票。",
+                "目前可以分开说明：我们没有让旧流程同时处理一组匹配发票；隔离区在写入前拦住了2张锁定发票；同时正式账本没有出现半写入记录。",
+                "换个顺序说，正式账本没有出现半写入记录，而隔离区在写入前拦住了2张锁定发票；还有一点是我们没有让旧流程同时处理一组匹配发票。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "未出现半写入是这次可直接观察的保护结果；没有并行旧流程时，无法知道旧流程是否一定会产生半写入；可以给隔离步骤过程层面的功劳，但反事实风险仍保持未知。",
+                "没有并行旧流程时，无法知道旧流程是否一定会产生半写入。另外，可以给隔离步骤过程层面的功劳，但反事实风险仍保持未知。回到时间顺序，未出现半写入是这次可直接观察的保护结果。",
+                "目前可以分开说明：可以给隔离步骤过程层面的功劳，但反事实风险仍保持未知；未出现半写入是这次可直接观察的保护结果；同时没有并行旧流程时，无法知道旧流程是否一定会产生半写入。",
+                "换个顺序说，没有并行旧流程时，无法知道旧流程是否一定会产生半写入，而未出现半写入是这次可直接观察的保护结果；还有一点是可以给隔离步骤过程层面的功劳，但反事实风险仍保持未知。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "我想把这次行动的最终归因结清；需要区分完成率、错误可见性和账本保护；管理员补码与发票构成差异都要留下。",
+                "需要区分完成率、错误可见性和账本保护。另外，管理员补码与发票构成差异都要留下。回到时间顺序，我想把这次行动的最终归因结清。",
+                "目前可以分开说明：管理员补码与发票构成差异都要留下；我想把这次行动的最终归因结清；同时需要区分完成率、错误可见性和账本保护。",
+                "换个顺序说，需要区分完成率、错误可见性和账本保护，而我想把这次行动的最终归因结清；还有一点是管理员补码与发票构成差异都要留下。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "完成率提升只给三步方案部分归因，并同时保留管理员补码和批次差异；错误可见性可较强归到隔离报告，账本保护可归到写入前拦截；任何一个维度都不扩成整套流程已被因果证明。",
+                "错误可见性可较强归到隔离报告，账本保护可归到写入前拦截。另外，任何一个维度都不扩成整套流程已被因果证明。回到时间顺序，完成率提升只给三步方案部分归因，并同时保留管理员补码和批次差异。",
+                "目前可以分开说明：任何一个维度都不扩成整套流程已被因果证明；完成率提升只给三步方案部分归因，并同时保留管理员补码和批次差异；同时错误可见性可较强归到隔离报告，账本保护可归到写入前拦截。",
+                "换个顺序说，错误可见性可较强归到隔离报告，账本保护可归到写入前拦截，而完成率提升只给三步方案部分归因，并同时保留管理员补码和批次差异；还有一点是任何一个维度都不扩成整套流程已被因果证明。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "下一轮我可以把80张相近发票随机分成两组；一组走旧流程，一组走三步流程；两组都冻结人工改动并使用同一观察窗口。",
+                "一组走旧流程，一组走三步流程。另外，两组都冻结人工改动并使用同一观察窗口。回到时间顺序，下一轮我可以把80张相近发票随机分成两组。",
+                "目前可以分开说明：两组都冻结人工改动并使用同一观察窗口；下一轮我可以把80张相近发票随机分成两组；同时一组走旧流程，一组走三步流程。",
+                "换个顺序说，一组走旧流程，一组走三步流程，而下一轮我可以把80张相近发票随机分成两组；还有一点是两组都冻结人工改动并使用同一观察窗口。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "这个比较能更接近未采用三步流程时会发生什么；需要预先固定完成率、错误可见性和半写入三项指标；若锁定风险上升就立即停止并恢复原批次。",
+                "需要预先固定完成率、错误可见性和半写入三项指标。另外，若锁定风险上升就立即停止并恢复原批次。回到时间顺序，这个比较能更接近未采用三步流程时会发生什么。",
+                "目前可以分开说明：若锁定风险上升就立即停止并恢复原批次；这个比较能更接近未采用三步流程时会发生什么；同时需要预先固定完成率、错误可见性和半写入三项指标。",
+                "换个顺序说，需要预先固定完成率、错误可见性和半写入三项指标，而这个比较能更接近未采用三步流程时会发生什么；还有一点是若锁定风险上升就立即停止并恢复原批次。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_02",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "At day zero, plot A had 31 percent soil moisture and a leaf-curl score of 3. Plot B remained at 32 percent moisture with the same curl score. The plant-state report will not be available until day five.",
+                "Plot B remained at 32 percent moisture with the same curl score. Separately, The plant-state report will not be available until day five. Returning to the timeline, At day zero, plot A had 31 percent soil moisture and a leaf-curl score of 3.",
+                "The current account has three distinct parts: The plant-state report will not be available until day five; At day zero, plot A had 31 percent soil moisture and a leaf-curl score of 3; and, independently, Plot B remained at 32 percent moisture with the same curl score.",
+                "Put in another order: Plot B remained at 32 percent moisture with the same curl score; At day zero, plot A had 31 percent soil moisture and a leaf-curl score of 3; one further fact is that The plant-state report will not be available until day five."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Apply the eight-minute morning pulse only to plot A and leave plot B at six minutes. Keep the valve setting reversible and preserve both day-zero readings. No benefit can be claimed before the signed day-five measurements arrive.",
+                "Keep the valve setting reversible and preserve both day-zero readings. Separately, No benefit can be claimed before the signed day-five measurements arrive. Returning to the timeline, Apply the eight-minute morning pulse only to plot A and leave plot B at six minutes.",
+                "The current account has three distinct parts: No benefit can be claimed before the signed day-five measurements arrive; Apply the eight-minute morning pulse only to plot A and leave plot B at six minutes; and, independently, Keep the valve setting reversible and preserve both day-zero readings.",
+                "Put in another order: Keep the valve setting reversible and preserve both day-zero readings; Apply the eight-minute morning pulse only to plot A and leave plot B at six minutes; one further fact is that No benefit can be claimed before the signed day-five measurements arrive."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The controller log confirms that plot A changed from six to eight minutes at 06:00 on day one. Plot B stayed at six minutes and both valves completed their scheduled pulses. The log reports water delivery but contains no later plant-state measurement.",
+                "Plot B stayed at six minutes and both valves completed their scheduled pulses. Separately, The log reports water delivery but contains no later plant-state measurement. Returning to the timeline, The controller log confirms that plot A changed from six to eight minutes at 06:00 on day one.",
+                "The current account has three distinct parts: The log reports water delivery but contains no later plant-state measurement; The controller log confirms that plot A changed from six to eight minutes at 06:00 on day one; and, independently, Plot B stayed at six minutes and both valves completed their scheduled pulses.",
+                "Put in another order: Plot B stayed at six minutes and both valves completed their scheduled pulses; The controller log confirms that plot A changed from six to eight minutes at 06:00 on day one; one further fact is that The log reports water delivery but contains no later plant-state measurement."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The 06:00 adjustment is an observed action rather than an observed plant result. Plot B can serve as an imperfect comparison because it did not receive the adjustment. Weather, soil differences, and sensor calibration still need to remain separate.",
+                "Plot B can serve as an imperfect comparison because it did not receive the adjustment. Separately, Weather, soil differences, and sensor calibration still need to remain separate. Returning to the timeline, The 06:00 adjustment is an observed action rather than an observed plant result.",
+                "The current account has three distinct parts: Weather, soil differences, and sensor calibration still need to remain separate; The 06:00 adjustment is an observed action rather than an observed plant result; and, independently, Plot B can serve as an imperfect comparison because it did not receive the adjustment.",
+                "Put in another order: Plot B can serve as an imperfect comparison because it did not receive the adjustment; The 06:00 adjustment is an observed action rather than an observed plant result; one further fact is that Weather, soil differences, and sensor calibration still need to remain separate."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The forecast called for dry weather when I made the change. The signed weather record covers the same four-day interval as the plant report. A forecast is not the weather that actually occurred.",
+                "The signed weather record covers the same four-day interval as the plant report. Separately, A forecast is not the weather that actually occurred. Returning to the timeline, The forecast called for dry weather when I made the change.",
+                "The current account has three distinct parts: A forecast is not the weather that actually occurred; The forecast called for dry weather when I made the change; and, independently, The signed weather record covers the same four-day interval as the plant report.",
+                "Put in another order: The signed weather record covers the same four-day interval as the plant report; The forecast called for dry weather when I made the change; one further fact is that A forecast is not the weather that actually occurred."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The forecast explains the decision context but cannot settle attribution. The later weather record must be compared with both plots. Until then, the effect of the longer pulse remains unknown.",
+                "The later weather record must be compared with both plots. Separately, Until then, the effect of the longer pulse remains unknown. Returning to the timeline, The forecast explains the decision context but cannot settle attribution.",
+                "The current account has three distinct parts: Until then, the effect of the longer pulse remains unknown; The forecast explains the decision context but cannot settle attribution; and, independently, The later weather record must be compared with both plots.",
+                "Put in another order: The later weather record must be compared with both plots; The forecast explains the decision context but cannot settle attribution; one further fact is that Until then, the effect of the longer pulse remains unknown."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "I want the decision rule fixed before seeing the day-five numbers. Moisture change and leaf curl should be assessed separately. I do not want a recent status request to receive credit for an earlier irrigation action.",
+                "Moisture change and leaf curl should be assessed separately. Separately, I do not want a recent status request to receive credit for an earlier irrigation action. Returning to the timeline, I want the decision rule fixed before seeing the day-five numbers.",
+                "The current account has three distinct parts: I do not want a recent status request to receive credit for an earlier irrigation action; I want the decision rule fixed before seeing the day-five numbers; and, independently, Moisture change and leaf curl should be assessed separately.",
+                "Put in another order: Moisture change and leaf curl should be assessed separately; I want the decision rule fixed before seeing the day-five numbers; one further fact is that I do not want a recent status request to receive credit for an earlier irrigation action."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "We will compare each plot with its own baseline and then compare their changes. A shared weather shift will reduce how much can be assigned to the pulse. The day-five query will only reveal evidence and will not be treated as the cause.",
+                "A shared weather shift will reduce how much can be assigned to the pulse. Separately, The day-five query will only reveal evidence and will not be treated as the cause. Returning to the timeline, We will compare each plot with its own baseline and then compare their changes.",
+                "The current account has three distinct parts: The day-five query will only reveal evidence and will not be treated as the cause; We will compare each plot with its own baseline and then compare their changes; and, independently, A shared weather shift will reduce how much can be assigned to the pulse.",
+                "Put in another order: A shared weather shift will reduce how much can be assigned to the pulse; We will compare each plot with its own baseline and then compare their changes; one further fact is that The day-five query will only reveal evidence and will not be treated as the cause."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "On day three the weather station logged six millimeters of rain and cooler temperatures. Both plots received the same recorded rainfall. The plant lab still shows the day-five report as pending.",
+                "Both plots received the same recorded rainfall. Separately, The plant lab still shows the day-five report as pending. Returning to the timeline, On day three the weather station logged six millimeters of rain and cooler temperatures.",
+                "The current account has three distinct parts: The plant lab still shows the day-five report as pending; On day three the weather station logged six millimeters of rain and cooler temperatures; and, independently, Both plots received the same recorded rainfall.",
+                "Put in another order: Both plots received the same recorded rainfall; On day three the weather station logged six millimeters of rain and cooler temperatures; one further fact is that The plant lab still shows the day-five report as pending."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The rain is an independent change that can affect both plots. Because the plant report is still pending, there is no measured irrigation outcome yet. Any later improvement must be interpreted against the shared weather event.",
+                "Because the plant report is still pending, there is no measured irrigation outcome yet. Separately, Any later improvement must be interpreted against the shared weather event. Returning to the timeline, The rain is an independent change that can affect both plots.",
+                "The current account has three distinct parts: Any later improvement must be interpreted against the shared weather event; The rain is an independent change that can affect both plots; and, independently, Because the plant report is still pending, there is no measured irrigation outcome yet.",
+                "Put in another order: Because the plant report is still pending, there is no measured irrigation outcome yet; The rain is an independent change that can affect both plots; one further fact is that Any later improvement must be interpreted against the shared weather event."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The valve logs show that plot A received the longer pulse on all three mornings. Plot B kept the original schedule without interruption. Neither log says whether the plants improved.",
+                "Plot B kept the original schedule without interruption. Separately, Neither log says whether the plants improved. Returning to the timeline, The valve logs show that plot A received the longer pulse on all three mornings.",
+                "The current account has three distinct parts: Neither log says whether the plants improved; The valve logs show that plot A received the longer pulse on all three mornings; and, independently, Plot B kept the original schedule without interruption.",
+                "Put in another order: Plot B kept the original schedule without interruption; The valve logs show that plot A received the longer pulse on all three mornings; one further fact is that Neither log says whether the plants improved."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The action was delivered consistently and the comparison schedule stayed distinct. Delivery consistency strengthens the action record but is not a plant-state result. We still need the signed moisture and curl readings.",
+                "Delivery consistency strengthens the action record but is not a plant-state result. Separately, We still need the signed moisture and curl readings. Returning to the timeline, The action was delivered consistently and the comparison schedule stayed distinct.",
+                "The current account has three distinct parts: We still need the signed moisture and curl readings; The action was delivered consistently and the comparison schedule stayed distinct; and, independently, Delivery consistency strengthens the action record but is not a plant-state result.",
+                "Put in another order: Delivery consistency strengthens the action record but is not a plant-state result; The action was delivered consistently and the comparison schedule stayed distinct; one further fact is that We still need the signed moisture and curl readings."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "A worker said plot A looked less curled yesterday. There is no photograph, score, or timestamp attached to that observation. The worker did not inspect plot B at the same time.",
+                "There is no photograph, score, or timestamp attached to that observation. Separately, The worker did not inspect plot B at the same time. Returning to the timeline, A worker said plot A looked less curled yesterday.",
+                "The current account has three distinct parts: The worker did not inspect plot B at the same time; A worker said plot A looked less curled yesterday; and, independently, There is no photograph, score, or timestamp attached to that observation.",
+                "Put in another order: There is no photograph, score, or timestamp attached to that observation; A worker said plot A looked less curled yesterday; one further fact is that The worker did not inspect plot B at the same time."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "That observation is too incomplete to replace the planned measurement. Without a matched inspection of plot B, weather and observer variation remain unresolved. The outcome stays open until the documented report arrives.",
+                "Without a matched inspection of plot B, weather and observer variation remain unresolved. Separately, The outcome stays open until the documented report arrives. Returning to the timeline, That observation is too incomplete to replace the planned measurement.",
+                "The current account has three distinct parts: The outcome stays open until the documented report arrives; That observation is too incomplete to replace the planned measurement; and, independently, Without a matched inspection of plot B, weather and observer variation remain unresolved.",
+                "Put in another order: Without a matched inspection of plot B, weather and observer variation remain unresolved; That observation is too incomplete to replace the planned measurement; one further fact is that The outcome stays open until the documented report arrives."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "If both plots improve after the rain, I want to know what comparison remains useful. If only plot A changes more, soil differences could still matter. The two plots were not randomly assigned.",
+                "If only plot A changes more, soil differences could still matter. Separately, The two plots were not randomly assigned. Returning to the timeline, If both plots improve after the rain, I want to know what comparison remains useful.",
+                "The current account has three distinct parts: The two plots were not randomly assigned; If both plots improve after the rain, I want to know what comparison remains useful; and, independently, If only plot A changes more, soil differences could still matter.",
+                "Put in another order: If only plot A changes more, soil differences could still matter; If both plots improve after the rain, I want to know what comparison remains useful; one further fact is that The two plots were not randomly assigned."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "A larger change in plot A would support but not prove an irrigation contribution. Parallel improvement would indicate a substantial shared-weather component. Nonrandom plot assignment requires residual uncertainty in either case.",
+                "Parallel improvement would indicate a substantial shared-weather component. Separately, Nonrandom plot assignment requires residual uncertainty in either case. Returning to the timeline, A larger change in plot A would support but not prove an irrigation contribution.",
+                "The current account has three distinct parts: Nonrandom plot assignment requires residual uncertainty in either case; A larger change in plot A would support but not prove an irrigation contribution; and, independently, Parallel improvement would indicate a substantial shared-weather component.",
+                "Put in another order: Parallel improvement would indicate a substantial shared-weather component; A larger change in plot A would support but not prove an irrigation contribution; one further fact is that Nonrandom plot assignment requires residual uncertainty in either case."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The day-five report arrived at 16:20 with a signed environment timestamp. Plot A measured 38 percent moisture with curl score 1. Plot B measured 35 percent moisture with curl score 2.",
+                "Plot A measured 38 percent moisture with curl score 1. Separately, Plot B measured 35 percent moisture with curl score 2. Returning to the timeline, The day-five report arrived at 16:20 with a signed environment timestamp.",
+                "The current account has three distinct parts: Plot B measured 35 percent moisture with curl score 2; The day-five report arrived at 16:20 with a signed environment timestamp; and, independently, Plot A measured 38 percent moisture with curl score 1.",
+                "Put in another order: Plot A measured 38 percent moisture with curl score 1; The day-five report arrived at 16:20 with a signed environment timestamp; one further fact is that Plot B measured 35 percent moisture with curl score 2."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Plot A changed by seven moisture points and two curl levels from baseline. Plot B changed by three moisture points and one curl level. The relative difference is compatible with an added pulse effect but does not remove weather or plot differences.",
+                "Plot B changed by three moisture points and one curl level. Separately, The relative difference is compatible with an added pulse effect but does not remove weather or plot differences. Returning to the timeline, Plot A changed by seven moisture points and two curl levels from baseline.",
+                "The current account has three distinct parts: The relative difference is compatible with an added pulse effect but does not remove weather or plot differences; Plot A changed by seven moisture points and two curl levels from baseline; and, independently, Plot B changed by three moisture points and one curl level.",
+                "Put in another order: Plot B changed by three moisture points and one curl level; Plot A changed by seven moisture points and two curl levels from baseline; one further fact is that The relative difference is compatible with an added pulse effect but does not remove weather or plot differences."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The report also confirms six millimeters of rain and passed calibration checks for both sensors. No other irrigation setting changed during the interval. Soil composition was measured last month rather than during this run.",
+                "No other irrigation setting changed during the interval. Separately, Soil composition was measured last month rather than during this run. Returning to the timeline, The report also confirms six millimeters of rain and passed calibration checks for both sensors.",
+                "The current account has three distinct parts: Soil composition was measured last month rather than during this run; The report also confirms six millimeters of rain and passed calibration checks for both sensors; and, independently, No other irrigation setting changed during the interval.",
+                "Put in another order: No other irrigation setting changed during the interval; The report also confirms six millimeters of rain and passed calibration checks for both sensors; one further fact is that Soil composition was measured last month rather than during this run."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Shared rain explains part of the improvement seen in both plots. Stable settings and passed calibration reduce two alternative explanations. Older soil measurements still leave uncertainty about persistent plot differences.",
+                "Stable settings and passed calibration reduce two alternative explanations. Separately, Older soil measurements still leave uncertainty about persistent plot differences. Returning to the timeline, Shared rain explains part of the improvement seen in both plots.",
+                "The current account has three distinct parts: Older soil measurements still leave uncertainty about persistent plot differences; Shared rain explains part of the improvement seen in both plots; and, independently, Stable settings and passed calibration reduce two alternative explanations.",
+                "Put in another order: Stable settings and passed calibration reduce two alternative explanations; Shared rain explains part of the improvement seen in both plots; one further fact is that Older soil measurements still leave uncertainty about persistent plot differences."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The unadjusted plot is the closest counterfactual available. It improved too, although less than plot A. There was no randomized swap of the irrigation schedules.",
+                "It improved too, although less than plot A. Separately, There was no randomized swap of the irrigation schedules. Returning to the timeline, The unadjusted plot is the closest counterfactual available.",
+                "The current account has three distinct parts: There was no randomized swap of the irrigation schedules; The unadjusted plot is the closest counterfactual available; and, independently, It improved too, although less than plot A.",
+                "Put in another order: It improved too, although less than plot A; The unadjusted plot is the closest counterfactual available; one further fact is that There was no randomized swap of the irrigation schedules."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Plot B shows that improvement was possible without the longer pulse. Plot A's extra change gives the pulse partial rather than exclusive credit. The absent randomized swap prevents a clean causal estimate.",
+                "Plot A's extra change gives the pulse partial rather than exclusive credit. Separately, The absent randomized swap prevents a clean causal estimate. Returning to the timeline, Plot B shows that improvement was possible without the longer pulse.",
+                "The current account has three distinct parts: The absent randomized swap prevents a clean causal estimate; Plot B shows that improvement was possible without the longer pulse; and, independently, Plot A's extra change gives the pulse partial rather than exclusive credit.",
+                "Put in another order: Plot A's extra change gives the pulse partial rather than exclusive credit; Plot B shows that improvement was possible without the longer pulse; one further fact is that The absent randomized swap prevents a clean causal estimate."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Please close the attribution for this run without calling it a proven success. Keep moisture and curl conclusions separate. Preserve rainfall and plot assignment as competing explanations.",
+                "Keep moisture and curl conclusions separate. Separately, Preserve rainfall and plot assignment as competing explanations. Returning to the timeline, Please close the attribution for this run without calling it a proven success.",
+                "The current account has three distinct parts: Preserve rainfall and plot assignment as competing explanations; Please close the attribution for this run without calling it a proven success; and, independently, Keep moisture and curl conclusions separate.",
+                "Put in another order: Keep moisture and curl conclusions separate; Please close the attribution for this run without calling it a proven success; one further fact is that Preserve rainfall and plot assignment as competing explanations."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Assign moderate provisional credit to the earlier pulse for the additional moisture change. Assign only cautious credit for curl improvement because both plots changed. Retain rainfall and nonrandom plot differences, and test a schedule swap in the next run.",
+                "Assign only cautious credit for curl improvement because both plots changed. Separately, Retain rainfall and nonrandom plot differences, and test a schedule swap in the next run. Returning to the timeline, Assign moderate provisional credit to the earlier pulse for the additional moisture change.",
+                "The current account has three distinct parts: Retain rainfall and nonrandom plot differences, and test a schedule swap in the next run; Assign moderate provisional credit to the earlier pulse for the additional moisture change; and, independently, Assign only cautious credit for curl improvement because both plots changed.",
+                "Put in another order: Assign only cautious credit for curl improvement because both plots changed; Assign moderate provisional credit to the earlier pulse for the additional moisture change; one further fact is that Retain rainfall and nonrandom plot differences, and test a schedule swap in the next run."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_03",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Last week the team closed 50 tickets and 12 returned for rework. The median cycle time was 2.1 days. This week's final quality report will arrive after Friday.",
+                "The median cycle time was 2.1 days. 另一个需要分开的事实是：This week's final quality report will arrive after Friday. Returning to the earlier point, Last week the team closed 50 tickets and 12 returned for rework.",
+                "目前可确认三点：This week's final quality report will arrive after Friday; Last week the team closed 50 tickets and 12 returned for rework; and independently, The median cycle time was 2.1 days.",
+                "换个顺序看，The median cycle time was 2.1 days. The earlier event was this: Last week the team closed 50 tickets and 12 returned for rework. 还要保留一点：This week's final quality report will arrive after Friday."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Use three reversible practices: batch intake twice daily, add a ten-minute peer review, and run a preflight checklist. Preserve last week's counts and severity mix as the baseline. Do not call the recommendation effective before the week-later report.",
+                "Preserve last week's counts and severity mix as the baseline. 另一个需要分开的事实是：Do not call the recommendation effective before the week-later report. Returning to the earlier point, Use three reversible practices: batch intake twice daily, add a ten-minute peer review, and run a preflight checklist.",
+                "目前可确认三点：Do not call the recommendation effective before the week-later report; Use three reversible practices: batch intake twice daily, add a ten-minute peer review, and run a preflight checklist; and independently, Preserve last week's counts and severity mix as the baseline.",
+                "换个顺序看，Preserve last week's counts and severity mix as the baseline. The earlier event was this: Use three reversible practices: batch intake twice daily, add a ten-minute peer review, and run a preflight checklist. 还要保留一点：Do not call the recommendation effective before the week-later report."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：We began all three practices on Monday morning. The first intake batch closed at 10:00 and peer review started with the next ticket. No ticket has completed the full rework observation window yet.",
+                "The first intake batch closed at 10:00 and peer review started with the next ticket. 另一个需要分开的事实是：No ticket has completed the full rework observation window yet. Returning to the earlier point, We began all three practices on Monday morning.",
+                "目前可确认三点：No ticket has completed the full rework observation window yet; We began all three practices on Monday morning; and independently, The first intake batch closed at 10:00 and peer review started with the next ticket.",
+                "换个顺序看，The first intake batch closed at 10:00 and peer review started with the next ticket. The earlier event was this: We began all three practices on Monday morning. 还要保留一点：No ticket has completed the full rework observation window yet."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Monday marks the action time for all three practices. Starting them together means a later result will not isolate one practice. The open observation window keeps the outcome unresolved.",
+                "Starting them together means a later result will not isolate one practice. 另一个需要分开的事实是：The open observation window keeps the outcome unresolved. Returning to the earlier point, Monday marks the action time for all three practices.",
+                "目前可确认三点：The open observation window keeps the outcome unresolved; Monday marks the action time for all three practices; and independently, Starting them together means a later result will not isolate one practice.",
+                "换个顺序看，Starting them together means a later result will not isolate one practice. The earlier event was this: Monday marks the action time for all three practices. 还要保留一点：The open observation window keeps the outcome unresolved."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：A holiday may reduce incoming work this week. We do not yet know the final ticket count or severity distribution. Lower workload could change rework even if the practices had no effect.",
+                "We do not yet know the final ticket count or severity distribution. 另一个需要分开的事实是：Lower workload could change rework even if the practices had no effect. Returning to the earlier point, A holiday may reduce incoming work this week.",
+                "目前可确认三点：Lower workload could change rework even if the practices had no effect; A holiday may reduce incoming work this week; and independently, We do not yet know the final ticket count or severity distribution.",
+                "换个顺序看，We do not yet know the final ticket count or severity distribution. The earlier event was this: A holiday may reduce incoming work this week. 还要保留一点：Lower workload could change rework even if the practices had no effect."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Workload and severity must remain competing explanations. The comparison should use rates and matched severity rather than raw rework counts alone. The final report needs both denominators and case mix.",
+                "The comparison should use rates and matched severity rather than raw rework counts alone. 另一个需要分开的事实是：The final report needs both denominators and case mix. Returning to the earlier point, Workload and severity must remain competing explanations.",
+                "目前可确认三点：The final report needs both denominators and case mix; Workload and severity must remain competing explanations; and independently, The comparison should use rates and matched severity rather than raw rework counts alone.",
+                "换个顺序看，The comparison should use rates and matched severity rather than raw rework counts alone. The earlier event was this: Workload and severity must remain competing explanations. 还要保留一点：The final report needs both denominators and case mix."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：I want a decision rule before the numbers arrive. A lower rework rate matters, while unchanged cycle time should remain a separate result. A smaller queue must not be described as proof.",
+                "A lower rework rate matters, while unchanged cycle time should remain a separate result. 另一个需要分开的事实是：A smaller queue must not be described as proof. Returning to the earlier point, I want a decision rule before the numbers arrive.",
+                "目前可确认三点：A smaller queue must not be described as proof; I want a decision rule before the numbers arrive; and independently, A lower rework rate matters, while unchanged cycle time should remain a separate result.",
+                "换个顺序看，A lower rework rate matters, while unchanged cycle time should remain a separate result. The earlier event was this: I want a decision rule before the numbers arrive. 还要保留一点：A smaller queue must not be described as proof."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Compare rework rates first and then inspect matched-complexity subsets. Report cycle time independently from rework. Any credit stays partial if workload or severity shifts substantially.",
+                "Report cycle time independently from rework. 另一个需要分开的事实是：Any credit stays partial if workload or severity shifts substantially. Returning to the earlier point, Compare rework rates first and then inspect matched-complexity subsets.",
+                "目前可确认三点：Any credit stays partial if workload or severity shifts substantially; Compare rework rates first and then inspect matched-complexity subsets; and independently, Report cycle time independently from rework.",
+                "换个顺序看，Report cycle time independently from rework. The earlier event was this: Compare rework rates first and then inspect matched-complexity subsets. 还要保留一点：Any credit stays partial if workload or severity shifts substantially."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Friday's report will include review completion, checklist use, ticket severity, and rework. It will not include a randomized holdout. I will return after the observation window closes.",
+                "It will not include a randomized holdout. 另一个需要分开的事实是：I will return after the observation window closes. Returning to the earlier point, Friday's report will include review completion, checklist use, ticket severity, and rework.",
+                "目前可确认三点：I will return after the observation window closes; Friday's report will include review completion, checklist use, ticket severity, and rework; and independently, It will not include a randomized holdout.",
+                "换个顺序看，It will not include a randomized holdout. The earlier event was this: Friday's report will include review completion, checklist use, ticket severity, and rework. 还要保留一点：I will return after the observation window closes."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Those fields can connect actions with later outcomes without inventing missing evidence. The absent holdout limits causal strength. Until Friday, the only supported statement is that the practices were adopted.",
+                "The absent holdout limits causal strength. 另一个需要分开的事实是：Until Friday, the only supported statement is that the practices were adopted. Returning to the earlier point, Those fields can connect actions with later outcomes without inventing missing evidence.",
+                "目前可确认三点：Until Friday, the only supported statement is that the practices were adopted; Those fields can connect actions with later outcomes without inventing missing evidence; and independently, The absent holdout limits causal strength.",
+                "换个顺序看，The absent holdout limits causal strength. The earlier event was this: Those fields can connect actions with later outcomes without inventing missing evidence. 还要保留一点：Until Friday, the only supported statement is that the practices were adopted."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Timeline: 今天是周四，已处理18张工单；质量复核尚未关闭，返工总数还没有正式发布；目前只有执行记录，没有一周后的结果。",
+                "质量复核尚未关闭，返工总数还没有正式发布。Separately, 目前只有执行记录，没有一周后的结果。回到 earlier event，今天是周四，已处理18张工单。",
+                "Current picture 有三部分：目前只有执行记录，没有一周后的结果；今天是周四，已处理18张工单；另外质量复核尚未关闭，返工总数还没有正式发布。",
+                "换个顺序说明：质量复核尚未关闭，返工总数还没有正式发布；the prior fact is 今天是周四，已处理18张工单；还要保留目前只有执行记录，没有一周后的结果。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 18张是进度信息，不是最终效果；在质量窗口关闭前不能宣称返工下降；需要继续等待带分母的周报。",
+                "在质量窗口关闭前不能宣称返工下降。Separately, 需要继续等待带分母的周报。回到 earlier event，18张是进度信息，不是最终效果。",
+                "Current picture 有三部分：需要继续等待带分母的周报；18张是进度信息，不是最终效果；另外在质量窗口关闭前不能宣称返工下降。",
+                "换个顺序说明：在质量窗口关闭前不能宣称返工下降；the prior fact is 18张是进度信息，不是最终效果；还要保留需要继续等待带分母的周报。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Timeline: 18张里有14张完成同伴复核；4张紧急工单跳过复核；被跳过的工单本来就更急也更复杂。",
+                "4张紧急工单跳过复核。Separately, 被跳过的工单本来就更急也更复杂。回到 earlier event，18张里有14张完成同伴复核。",
+                "Current picture 有三部分：被跳过的工单本来就更急也更复杂；18张里有14张完成同伴复核；另外4张紧急工单跳过复核。",
+                "换个顺序说明：4张紧急工单跳过复核；the prior fact is 18张里有14张完成同伴复核；还要保留被跳过的工单本来就更急也更复杂。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 复核执行并不均匀；紧急程度同时影响是否复核和返工风险；以后比较两组时必须保留这种选择差异。",
+                "紧急程度同时影响是否复核和返工风险。Separately, 以后比较两组时必须保留这种选择差异。回到 earlier event，复核执行并不均匀。",
+                "Current picture 有三部分：以后比较两组时必须保留这种选择差异；复核执行并不均匀；另外紧急程度同时影响是否复核和返工风险。",
+                "换个顺序说明：紧急程度同时影响是否复核和返工风险；the prior fact is 复核执行并不均匀；还要保留以后比较两组时必须保留这种选择差异。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Timeline: 本周四之前只进入22张新工单，上周同期是33张；假日确实缩小了队列；最终严重度构成仍未知。",
+                "假日确实缩小了队列。Separately, 最终严重度构成仍未知。回到 earlier event，本周四之前只进入22张新工单，上周同期是33张。",
+                "Current picture 有三部分：最终严重度构成仍未知；本周四之前只进入22张新工单，上周同期是33张；另外假日确实缩小了队列。",
+                "换个顺序说明：假日确实缩小了队列；the prior fact is 本周四之前只进入22张新工单，上周同期是33张；还要保留最终严重度构成仍未知。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 工作量下降已经成为明确混杂因素；较少工单可能给每张更多处理时间；返工变化不能自动全归到三项实践。",
+                "较少工单可能给每张更多处理时间。Separately, 返工变化不能自动全归到三项实践。回到 earlier event，工作量下降已经成为明确混杂因素。",
+                "Current picture 有三部分：返工变化不能自动全归到三项实践；工作量下降已经成为明确混杂因素；另外较少工单可能给每张更多处理时间。",
+                "换个顺序说明：较少工单可能给每张更多处理时间；the prior fact is 工作量下降已经成为明确混杂因素；还要保留返工变化不能自动全归到三项实践。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Timeline: 两名同事口头说退回似乎少了；他们没有统计完整观察窗口；签名周报仍要明天才生成。",
+                "他们没有统计完整观察窗口。Separately, 签名周报仍要明天才生成。回到 earlier event，两名同事口头说退回似乎少了。",
+                "Current picture 有三部分：签名周报仍要明天才生成；两名同事口头说退回似乎少了；另外他们没有统计完整观察窗口。",
+                "换个顺序说明：他们没有统计完整观察窗口；the prior fact is 两名同事口头说退回似乎少了；还要保留签名周报仍要明天才生成。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 口头印象可以提示后续核对方向；它不能替代正式计数或提前结束等待；当前仍只确认实践在运行。",
+                "它不能替代正式计数或提前结束等待。Separately, 当前仍只确认实践在运行。回到 earlier event，口头印象可以提示后续核对方向。",
+                "Current picture 有三部分：当前仍只确认实践在运行；口头印象可以提示后续核对方向；另外它不能替代正式计数或提前结束等待。",
+                "换个顺序说明：它不能替代正式计数或提前结束等待；the prior fact is 口头印象可以提示后续核对方向；还要保留当前仍只确认实践在运行。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Timeline: 我想现在就和上周12次返工比较；本周分母、严重度和最终返工都还不完整；请先给一个不越界的比较框架。",
+                "本周分母、严重度和最终返工都还不完整。Separately, 请先给一个不越界的比较框架。回到 earlier event，我想现在就和上周12次返工比较。",
+                "Current picture 有三部分：请先给一个不越界的比较框架；我想现在就和上周12次返工比较；另外本周分母、严重度和最终返工都还不完整。",
+                "换个顺序说明：本周分母、严重度和最终返工都还不完整；the prior fact is 我想现在就和上周12次返工比较；还要保留请先给一个不越界的比较框架。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 先等本周完整分母和返工数；再按严重度比较比例并单列跳过复核的紧急工单；周期时长、工作量与返工率分别报告。",
+                "再按严重度比较比例并单列跳过复核的紧急工单。Separately, 周期时长、工作量与返工率分别报告。回到 earlier event，先等本周完整分母和返工数。",
+                "Current picture 有三部分：周期时长、工作量与返工率分别报告；先等本周完整分母和返工数；另外再按严重度比较比例并单列跳过复核的紧急工单。",
+                "换个顺序说明：再按严重度比较比例并单列跳过复核的紧急工单；the prior fact is 先等本周完整分母和返工数；还要保留周期时长、工作量与返工率分别报告。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：The signed weekly report now shows 30 closed tickets and 3 reworks. Last week had 50 closed tickets and 12 reworks. The observed rates are therefore 10 percent versus 24 percent.",
+                "Last week had 50 closed tickets and 12 reworks. 另一个需要分开的事实是：The observed rates are therefore 10 percent versus 24 percent. Returning to the earlier point, The signed weekly report now shows 30 closed tickets and 3 reworks.",
+                "目前可确认三点：The observed rates are therefore 10 percent versus 24 percent; The signed weekly report now shows 30 closed tickets and 3 reworks; and independently, Last week had 50 closed tickets and 12 reworks.",
+                "换个顺序看，Last week had 50 closed tickets and 12 reworks. The earlier event was this: The signed weekly report now shows 30 closed tickets and 3 reworks. 还要保留一点：The observed rates are therefore 10 percent versus 24 percent."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The rework rate is lower in the later week. The later week also has 20 fewer tickets, so the raw contrast is confounded. This is evidence of improvement after the practices, not proof that they alone caused it.",
+                "The later week also has 20 fewer tickets, so the raw contrast is confounded. 另一个需要分开的事实是：This is evidence of improvement after the practices, not proof that they alone caused it. Returning to the earlier point, The rework rate is lower in the later week.",
+                "目前可确认三点：This is evidence of improvement after the practices, not proof that they alone caused it; The rework rate is lower in the later week; and independently, The later week also has 20 fewer tickets, so the raw contrast is confounded.",
+                "换个顺序看，The later week also has 20 fewer tickets, so the raw contrast is confounded. The earlier event was this: The rework rate is lower in the later week. 还要保留一点：This is evidence of improvement after the practices, not proof that they alone caused it."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：This week contained 6 complex tickets while last week contained 15. All 3 current reworks came from the complex group. Severity composition changed together with workload.",
+                "All 3 current reworks came from the complex group. 另一个需要分开的事实是：Severity composition changed together with workload. Returning to the earlier point, This week contained 6 complex tickets while last week contained 15.",
+                "目前可确认三点：Severity composition changed together with workload; This week contained 6 complex tickets while last week contained 15; and independently, All 3 current reworks came from the complex group.",
+                "换个顺序看，All 3 current reworks came from the complex group. The earlier event was this: This week contained 6 complex tickets while last week contained 15. 还要保留一点：Severity composition changed together with workload."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The smaller complex share can account for some of the rate difference. The concentration of rework in complex tickets makes severity especially relevant. Overall credit must be reduced until matched cases are compared.",
+                "The concentration of rework in complex tickets makes severity especially relevant. 另一个需要分开的事实是：Overall credit must be reduced until matched cases are compared. Returning to the earlier point, The smaller complex share can account for some of the rate difference.",
+                "目前可确认三点：Overall credit must be reduced until matched cases are compared; The smaller complex share can account for some of the rate difference; and independently, The concentration of rework in complex tickets makes severity especially relevant.",
+                "换个顺序看，The concentration of rework in complex tickets makes severity especially relevant. The earlier event was this: The smaller complex share can account for some of the rate difference. 还要保留一点：Overall credit must be reduced until matched cases are compared."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Peer review covered 24 tickets and 1 of them returned. Six urgent tickets skipped review and 2 returned. Urgent tickets were selected rather than randomly assigned.",
+                "Six urgent tickets skipped review and 2 returned. 另一个需要分开的事实是：Urgent tickets were selected rather than randomly assigned. Returning to the earlier point, Peer review covered 24 tickets and 1 of them returned.",
+                "目前可确认三点：Urgent tickets were selected rather than randomly assigned; Peer review covered 24 tickets and 1 of them returned; and independently, Six urgent tickets skipped review and 2 returned.",
+                "换个顺序看，Six urgent tickets skipped review and 2 returned. The earlier event was this: Peer review covered 24 tickets and 1 of them returned. 还要保留一点：Urgent tickets were selected rather than randomly assigned."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The reviewed group has a lower observed return rate. Selection into the urgent unreviewed group offers another explanation. The association supports a review hypothesis but cannot identify a clean review effect.",
+                "Selection into the urgent unreviewed group offers another explanation. 另一个需要分开的事实是：The association supports a review hypothesis but cannot identify a clean review effect. Returning to the earlier point, The reviewed group has a lower observed return rate.",
+                "目前可确认三点：The association supports a review hypothesis but cannot identify a clean review effect; The reviewed group has a lower observed return rate; and independently, Selection into the urgent unreviewed group offers another explanation.",
+                "换个顺序看，Selection into the urgent unreviewed group offers another explanation. The earlier event was this: The reviewed group has a lower observed return rate. 还要保留一点：The association supports a review hypothesis but cannot identify a clean review effect."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：I need a direct answer on whether the plan worked. The quality metric improved while workload and severity both fell. There is still no isolated result for batching, review, or the checklist.",
+                "The quality metric improved while workload and severity both fell. 另一个需要分开的事实是：There is still no isolated result for batching, review, or the checklist. Returning to the earlier point, I need a direct answer on whether the plan worked.",
+                "目前可确认三点：There is still no isolated result for batching, review, or the checklist; I need a direct answer on whether the plan worked; and independently, The quality metric improved while workload and severity both fell.",
+                "换个顺序看，The quality metric improved while workload and severity both fell. The earlier event was this: I need a direct answer on whether the plan worked. 还要保留一点：There is still no isolated result for batching, review, or the checklist."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The defensible answer is partial and dimension-specific. Rework improved after the combined plan, with substantial workload and severity uncertainty. No single practice can be declared the cause from this week.",
+                "Rework improved after the combined plan, with substantial workload and severity uncertainty. 另一个需要分开的事实是：No single practice can be declared the cause from this week. Returning to the earlier point, The defensible answer is partial and dimension-specific.",
+                "目前可确认三点：No single practice can be declared the cause from this week; The defensible answer is partial and dimension-specific; and independently, Rework improved after the combined plan, with substantial workload and severity uncertainty.",
+                "换个顺序看，Rework improved after the combined plan, with substantial workload and severity uncertainty. The earlier event was this: The defensible answer is partial and dimension-specific. 还要保留一点：No single practice can be declared the cause from this week."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Median cycle time stayed at 2.1 days. We did not collect a satisfaction measure. A rework change should not be expanded into faster service or a better user experience.",
+                "We did not collect a satisfaction measure. 另一个需要分开的事实是：A rework change should not be expanded into faster service or a better user experience. Returning to the earlier point, Median cycle time stayed at 2.1 days.",
+                "目前可确认三点：A rework change should not be expanded into faster service or a better user experience; Median cycle time stayed at 2.1 days; and independently, We did not collect a satisfaction measure.",
+                "换个顺序看，We did not collect a satisfaction measure. The earlier event was this: Median cycle time stayed at 2.1 days. 还要保留一点：A rework change should not be expanded into faster service or a better user experience."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Cycle time is unchanged on the available measure. Satisfaction remains unknown because it was not observed. Credit for lower rework must stay confined to the quality dimension.",
+                "Satisfaction remains unknown because it was not observed. 另一个需要分开的事实是：Credit for lower rework must stay confined to the quality dimension. Returning to the earlier point, Cycle time is unchanged on the available measure.",
+                "目前可确认三点：Credit for lower rework must stay confined to the quality dimension; Cycle time is unchanged on the available measure; and independently, Satisfaction remains unknown because it was not observed.",
+                "换个顺序看，Satisfaction remains unknown because it was not observed. The earlier event was this: Cycle time is unchanged on the available measure. 还要保留一点：Credit for lower rework must stay confined to the quality dimension."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Timeline: 我找到了上周28张严重度相近的工单，其中6张返工；本周24张已复核工单中有1张返工；两组定义一致，但不是同期随机分组。",
+                "本周24张已复核工单中有1张返工。Separately, 两组定义一致，但不是同期随机分组。回到 earlier event，我找到了上周28张严重度相近的工单，其中6张返工。",
+                "Current picture 有三部分：两组定义一致，但不是同期随机分组；我找到了上周28张严重度相近的工单，其中6张返工；另外本周24张已复核工单中有1张返工。",
+                "换个顺序说明：本周24张已复核工单中有1张返工；the prior fact is 我找到了上周28张严重度相近的工单，其中6张返工；还要保留两组定义一致，但不是同期随机分组。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 严重度匹配让比较比总量对照更有信息；6/28与1/24仍可能受周次和人员差异影响；这个结果提高组合方案的可信度，但还不是单项因果证明。",
+                "6/28与1/24仍可能受周次和人员差异影响。Separately, 这个结果提高组合方案的可信度，但还不是单项因果证明。回到 earlier event，严重度匹配让比较比总量对照更有信息。",
+                "Current picture 有三部分：这个结果提高组合方案的可信度，但还不是单项因果证明；严重度匹配让比较比总量对照更有信息；另外6/28与1/24仍可能受周次和人员差异影响。",
+                "换个顺序说明：6/28与1/24仍可能受周次和人员差异影响；the prior fact is 严重度匹配让比较比总量对照更有信息；还要保留这个结果提高组合方案的可信度，但还不是单项因果证明。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Timeline: 本周负责复核的人和上周不同；假日后的工单量仍较小；这两个差异都可能改变返工。",
+                "假日后的工单量仍较小。Separately, 这两个差异都可能改变返工。回到 earlier event，本周负责复核的人和上周不同。",
+                "Current picture 有三部分：这两个差异都可能改变返工；本周负责复核的人和上周不同；另外假日后的工单量仍较小。",
+                "换个顺序说明：假日后的工单量仍较小；the prior fact is 本周负责复核的人和上周不同；还要保留这两个差异都可能改变返工。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 复核人员与工作量继续保留为混杂因素；匹配严重度没有消除这些差异；归因强度不能因为一次更漂亮的比例而升到确定。",
+                "匹配严重度没有消除这些差异。Separately, 归因强度不能因为一次更漂亮的比例而升到确定。回到 earlier event，复核人员与工作量继续保留为混杂因素。",
+                "Current picture 有三部分：归因强度不能因为一次更漂亮的比例而升到确定；复核人员与工作量继续保留为混杂因素；另外匹配严重度没有消除这些差异。",
+                "换个顺序说明：匹配严重度没有消除这些差异；the prior fact is 复核人员与工作量继续保留为混杂因素；还要保留归因强度不能因为一次更漂亮的比例而升到确定。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Timeline: 如果只使用清单而不做批处理或同伴复核，结果没有被观察；三项实践在同一天一起开始；我不能从现有数据挑出清单的独立贡献。",
+                "三项实践在同一天一起开始。Separately, 我不能从现有数据挑出清单的独立贡献。回到 earlier event，如果只使用清单而不做批处理或同伴复核，结果没有被观察。",
+                "Current picture 有三部分：我不能从现有数据挑出清单的独立贡献；如果只使用清单而不做批处理或同伴复核，结果没有被观察；另外三项实践在同一天一起开始。",
+                "换个顺序说明：三项实践在同一天一起开始；the prior fact is 如果只使用清单而不做批处理或同伴复核，结果没有被观察；还要保留我不能从现有数据挑出清单的独立贡献。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 这个反事实确实缺失；同步启动使三项实践的单独效果不可分；只能对组合保留部分功劳，对每一项保留更高不确定性。",
+                "同步启动使三项实践的单独效果不可分。Separately, 只能对组合保留部分功劳，对每一项保留更高不确定性。回到 earlier event，这个反事实确实缺失。",
+                "Current picture 有三部分：只能对组合保留部分功劳，对每一项保留更高不确定性；这个反事实确实缺失；另外同步启动使三项实践的单独效果不可分。",
+                "换个顺序说明：同步启动使三项实践的单独效果不可分；the prior fact is 这个反事实确实缺失；还要保留只能对组合保留部分功劳，对每一项保留更高不确定性。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Timeline: 请把这一周的归因结清；要写明返工改善、周期不变和满意度未知；也要留下工作量、严重度与复核人员差异。",
+                "要写明返工改善、周期不变和满意度未知。Separately, 也要留下工作量、严重度与复核人员差异。回到 earlier event，请把这一周的归因结清。",
+                "Current picture 有三部分：也要留下工作量、严重度与复核人员差异；请把这一周的归因结清；另外要写明返工改善、周期不变和满意度未知。",
+                "换个顺序说明：要写明返工改善、周期不变和满意度未知；the prior fact is 请把这一周的归因结清；还要保留也要留下工作量、严重度与复核人员差异。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 组合实践对较低返工获得有限且暂定的归因；周期时长没有观察到改善，满意度没有数据；三项实践之间不选赢家，并明确保留三类混杂因素。",
+                "周期时长没有观察到改善，满意度没有数据。Separately, 三项实践之间不选赢家，并明确保留三类混杂因素。回到 earlier event，组合实践对较低返工获得有限且暂定的归因。",
+                "Current picture 有三部分：三项实践之间不选赢家，并明确保留三类混杂因素；组合实践对较低返工获得有限且暂定的归因；另外周期时长没有观察到改善，满意度没有数据。",
+                "换个顺序说明：周期时长没有观察到改善，满意度没有数据；the prior fact is 组合实践对较低返工获得有限且暂定的归因；还要保留三项实践之间不选赢家，并明确保留三类混杂因素。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Timeline: 下一周我可以分阶段启用三项实践；先保持批处理不变，再交错加入复核和清单；每阶段都用相近严重度并保留停止条件。",
+                "先保持批处理不变，再交错加入复核和清单。Separately, 每阶段都用相近严重度并保留停止条件。回到 earlier event，下一周我可以分阶段启用三项实践。",
+                "Current picture 有三部分：每阶段都用相近严重度并保留停止条件；下一周我可以分阶段启用三项实践；另外先保持批处理不变，再交错加入复核和清单。",
+                "换个顺序说明：先保持批处理不变，再交错加入复核和清单；the prior fact is 下一周我可以分阶段启用三项实践；还要保留每阶段都用相近严重度并保留停止条件。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 分阶段比较能接近缺少某一实践时的结果；需要预先固定返工率、周期和样本窗口；若质量恶化就撤回当阶段变化，而不是等待整周。",
+                "需要预先固定返工率、周期和样本窗口。Separately, 若质量恶化就撤回当阶段变化，而不是等待整周。回到 earlier event，分阶段比较能接近缺少某一实践时的结果。",
+                "Current picture 有三部分：若质量恶化就撤回当阶段变化，而不是等待整周；分阶段比较能接近缺少某一实践时的结果；另外需要预先固定返工率、周期和样本窗口。",
+                "换个顺序说明：需要预先固定返工率、周期和样本窗口；the prior fact is 分阶段比较能接近缺少某一实践时的结果；还要保留若质量恶化就撤回当阶段变化，而不是等待整周。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_04",
+      "language": "zh",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "过去三个周期每天发送4次提醒，平均打开率42%；周期末满意度一直是3.8/5；我想把频率改低，但结果要到三个新周期后才汇总。",
+                "周期末满意度一直是3.8/5。另外，我想把频率改低，但结果要到三个新周期后才汇总。回到时间顺序，过去三个周期每天发送4次提醒，平均打开率42%。",
+                "目前可以分开说明：我想把频率改低，但结果要到三个新周期后才汇总；过去三个周期每天发送4次提醒，平均打开率42%；同时周期末满意度一直是3.8/5。",
+                "换个顺序说，周期末满意度一直是3.8/5，而过去三个周期每天发送4次提醒，平均打开率42%；还有一点是我想把频率改低，但结果要到三个新周期后才汇总。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "可改为每天17:00发送一份摘要，只为真正紧急事项保留即时提醒；先保存42%打开率和3.8分满意度作为基线；三个周期的外部报告到达前不能宣称频率调整成功。",
+                "先保存42%打开率和3.8分满意度作为基线。另外，三个周期的外部报告到达前不能宣称频率调整成功。回到时间顺序，可改为每天17:00发送一份摘要，只为真正紧急事项保留即时提醒。",
+                "目前可以分开说明：三个周期的外部报告到达前不能宣称频率调整成功；可改为每天17:00发送一份摘要，只为真正紧急事项保留即时提醒；同时先保存42%打开率和3.8分满意度作为基线。",
+                "换个顺序说，先保存42%打开率和3.8分满意度作为基线，而可改为每天17:00发送一份摘要，只为真正紧急事项保留即时提醒；还有一点是三个周期的外部报告到达前不能宣称频率调整成功。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "第一个新周期今天开始，17:00摘要已排程；即时提醒只保留付款截止和安全中断两类事件；投递记录只能说明消息发出，不能说明用户打开或满意。",
+                "即时提醒只保留付款截止和安全中断两类事件。另外，投递记录只能说明消息发出，不能说明用户打开或满意。回到时间顺序，第一个新周期今天开始，17:00摘要已排程。",
+                "目前可以分开说明：投递记录只能说明消息发出，不能说明用户打开或满意；第一个新周期今天开始，17:00摘要已排程；同时即时提醒只保留付款截止和安全中断两类事件。",
+                "换个顺序说，即时提醒只保留付款截止和安全中断两类事件，而第一个新周期今天开始，17:00摘要已排程；还有一点是投递记录只能说明消息发出，不能说明用户打开或满意。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "本周期的行动是降低频率并保留紧急例外；投递与打开、满意是三个不同事实；后两项仍需等待完整周期报告。",
+                "投递与打开、满意是三个不同事实。另外，后两项仍需等待完整周期报告。回到时间顺序，本周期的行动是降低频率并保留紧急例外。",
+                "目前可以分开说明：后两项仍需等待完整周期报告；本周期的行动是降低频率并保留紧急例外；同时投递与打开、满意是三个不同事实。",
+                "换个顺序说，投递与打开、满意是三个不同事实，而本周期的行动是降低频率并保留紧急例外；还有一点是后两项仍需等待完整周期报告。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "市场团队同时计划缩短摘要正文；他们尚未确定在哪个周期上线；正文变化可能和频率变化同时影响打开率。",
+                "他们尚未确定在哪个周期上线。另外，正文变化可能和频率变化同时影响打开率。回到时间顺序，市场团队同时计划缩短摘要正文。",
+                "目前可以分开说明：正文变化可能和频率变化同时影响打开率；市场团队同时计划缩短摘要正文；同时他们尚未确定在哪个周期上线。",
+                "换个顺序说，他们尚未确定在哪个周期上线，而市场团队同时计划缩短摘要正文；还有一点是正文变化可能和频率变化同时影响打开率。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "正文长度需要按周期记录为独立变化；若它与低频摘要重叠，就不能把打开率差异全给频率；请保留每个周期实际发送内容的版本时间。",
+                "若它与低频摘要重叠，就不能把打开率差异全给频率。另外，请保留每个周期实际发送内容的版本时间。回到时间顺序，正文长度需要按周期记录为独立变化。",
+                "目前可以分开说明：请保留每个周期实际发送内容的版本时间；正文长度需要按周期记录为独立变化；同时若它与低频摘要重叠，就不能把打开率差异全给频率。",
+                "换个顺序说，若它与低频摘要重叠，就不能把打开率差异全给频率，而正文长度需要按周期记录为独立变化；还有一点是请保留每个周期实际发送内容的版本时间。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "我希望预先区分任务指标和体验指标；打开率上升不等于满意度上升；也不能让最后一次查看报告的动作获得功劳。",
+                "打开率上升不等于满意度上升。另外，也不能让最后一次查看报告的动作获得功劳。回到时间顺序，我希望预先区分任务指标和体验指标。",
+                "目前可以分开说明：也不能让最后一次查看报告的动作获得功劳；我希望预先区分任务指标和体验指标；同时打开率上升不等于满意度上升。",
+                "换个顺序说，打开率上升不等于满意度上升，而我希望预先区分任务指标和体验指标；还有一点是也不能让最后一次查看报告的动作获得功劳。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "打开率与满意度将分别结算；报告查看只揭示结果，不改变此前三周期的通知行为；结论会同时保留内容变化和受众构成差异。",
+                "报告查看只揭示结果，不改变此前三周期的通知行为。另外，结论会同时保留内容变化和受众构成差异。回到时间顺序，打开率与满意度将分别结算。",
+                "目前可以分开说明：结论会同时保留内容变化和受众构成差异；打开率与满意度将分别结算；同时报告查看只揭示结果，不改变此前三周期的通知行为。",
+                "换个顺序说，报告查看只揭示结果，不改变此前三周期的通知行为，而打开率与满意度将分别结算；还有一点是结论会同时保留内容变化和受众构成差异。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "第二个周期结束了，两期投递成功率都是96%；打开数据仍在去重，满意度问卷尚未关闭；目前没有可用的最终打开率或满意度。",
+                "打开数据仍在去重，满意度问卷尚未关闭。另外，目前没有可用的最终打开率或满意度。回到时间顺序，第二个周期结束了，两期投递成功率都是96%。",
+                "目前可以分开说明：目前没有可用的最终打开率或满意度；第二个周期结束了，两期投递成功率都是96%；同时打开数据仍在去重，满意度问卷尚未关闭。",
+                "换个顺序说，打开数据仍在去重，满意度问卷尚未关闭，而第二个周期结束了，两期投递成功率都是96%；还有一点是目前没有可用的最终打开率或满意度。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "96%只说明消息到达渠道；去重和问卷未完成时不能推断用户反应；这两项结果继续保持未到达状态。",
+                "去重和问卷未完成时不能推断用户反应。另外，这两项结果继续保持未到达状态。回到时间顺序，96%只说明消息到达渠道。",
+                "目前可以分开说明：这两项结果继续保持未到达状态；96%只说明消息到达渠道；同时去重和问卷未完成时不能推断用户反应。",
+                "换个顺序说，去重和问卷未完成时不能推断用户反应，而96%只说明消息到达渠道；还有一点是这两项结果继续保持未到达状态。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "内容记录显示第二周期的正文缩短了20%；第一周期仍使用原正文；两个周期都维持每天一份摘要。",
+                "第一周期仍使用原正文。另外，两个周期都维持每天一份摘要。回到时间顺序，内容记录显示第二周期的正文缩短了20%。",
+                "目前可以分开说明：两个周期都维持每天一份摘要；内容记录显示第二周期的正文缩短了20%；同时第一周期仍使用原正文。",
+                "换个顺序说，第一周期仍使用原正文，而内容记录显示第二周期的正文缩短了20%；还有一点是两个周期都维持每天一份摘要。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "正文缩短从第二周期开始与低频策略重叠；它可能影响打开和阅读感受；最终比较需单列第一周期与后两周期，而不是视为完全相同处理。",
+                "它可能影响打开和阅读感受。另外，最终比较需单列第一周期与后两周期，而不是视为完全相同处理。回到时间顺序，正文缩短从第二周期开始与低频策略重叠。",
+                "目前可以分开说明：最终比较需单列第一周期与后两周期，而不是视为完全相同处理；正文缩短从第二周期开始与低频策略重叠；同时它可能影响打开和阅读感受。",
+                "换个顺序说，它可能影响打开和阅读感受，而正文缩短从第二周期开始与低频策略重叠；还有一点是最终比较需单列第一周期与后两周期，而不是视为完全相同处理。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "客服说投诉数量没有明显变化；他们只给了口头判断，没有完整计数和分母；满意度问卷还有两天关闭。",
+                "他们只给了口头判断，没有完整计数和分母。另外，满意度问卷还有两天关闭。回到时间顺序，客服说投诉数量没有明显变化。",
+                "目前可以分开说明：满意度问卷还有两天关闭；客服说投诉数量没有明显变化；同时他们只给了口头判断，没有完整计数和分母。",
+                "换个顺序说，他们只给了口头判断，没有完整计数和分母，而客服说投诉数量没有明显变化；还有一点是满意度问卷还有两天关闭。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "口头判断不能代替满意度或规范投诉率；没有分母时也无法比较投诉数量；继续等待既定报告比提前定性更可靠。",
+                "没有分母时也无法比较投诉数量。另外，继续等待既定报告比提前定性更可靠。回到时间顺序，口头判断不能代替满意度或规范投诉率。",
+                "目前可以分开说明：继续等待既定报告比提前定性更可靠；口头判断不能代替满意度或规范投诉率；同时没有分母时也无法比较投诉数量。",
+                "换个顺序说，没有分母时也无法比较投诉数量，而口头判断不能代替满意度或规范投诉率；还有一点是继续等待既定报告比提前定性更可靠。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "如果打开率先出来，我想避免直接说整体体验改善；满意度可能保持不变；内容缩短也可能解释一部分打开变化。",
+                "满意度可能保持不变。另外，内容缩短也可能解释一部分打开变化。回到时间顺序，如果打开率先出来，我想避免直接说整体体验改善。",
+                "目前可以分开说明：内容缩短也可能解释一部分打开变化；如果打开率先出来，我想避免直接说整体体验改善；同时满意度可能保持不变。",
+                "换个顺序说，满意度可能保持不变，而如果打开率先出来，我想避免直接说整体体验改善；还有一点是内容缩短也可能解释一部分打开变化。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "即使打开率上升，也只先陈述任务接触指标；满意度未到达时保持未知，后来不变时如实记为不变；频率与正文的贡献在缺少对照时都只作部分归因。",
+                "满意度未到达时保持未知，后来不变时如实记为不变。另外，频率与正文的贡献在缺少对照时都只作部分归因。回到时间顺序，即使打开率上升，也只先陈述任务接触指标。",
+                "目前可以分开说明：频率与正文的贡献在缺少对照时都只作部分归因；即使打开率上升，也只先陈述任务接触指标；同时满意度未到达时保持未知，后来不变时如实记为不变。",
+                "换个顺序说，满意度未到达时保持未知，后来不变时如实记为不变，而即使打开率上升，也只先陈述任务接触指标；还有一点是频率与正文的贡献在缺少对照时都只作部分归因。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "第三周期报告在今天09:30到达；去重打开率是58%，高于基线42%；满意度仍是3.8/5，没有变化。",
+                "去重打开率是58%，高于基线42%。另外，满意度仍是3.8/5，没有变化。回到时间顺序，第三周期报告在今天09:30到达。",
+                "目前可以分开说明：满意度仍是3.8/5，没有变化；第三周期报告在今天09:30到达；同时去重打开率是58%，高于基线42%。",
+                "换个顺序说，去重打开率是58%，高于基线42%，而第三周期报告在今天09:30到达；还有一点是满意度仍是3.8/5，没有变化。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "三个低频周期后的打开率观察到16个百分点提升；满意度没有观察到提升或下降；这两个维度必须分开，不能把打开率变化扩成整体成功。",
+                "满意度没有观察到提升或下降。另外，这两个维度必须分开，不能把打开率变化扩成整体成功。回到时间顺序，三个低频周期后的打开率观察到16个百分点提升。",
+                "目前可以分开说明：这两个维度必须分开，不能把打开率变化扩成整体成功；三个低频周期后的打开率观察到16个百分点提升；同时满意度没有观察到提升或下降。",
+                "换个顺序说，满意度没有观察到提升或下降，而三个低频周期后的打开率观察到16个百分点提升；还有一点是这两个维度必须分开，不能把打开率变化扩成整体成功。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "报告确认第二和第三周期使用了缩短20%的正文；第一周期打开率51%，后两周期分别60%和62%；三个周期的受众名单只变化了3%。",
+                "第一周期打开率51%，后两周期分别60%和62%。另外，三个周期的受众名单只变化了3%。回到时间顺序，报告确认第二和第三周期使用了缩短20%的正文。",
+                "目前可以分开说明：三个周期的受众名单只变化了3%；报告确认第二和第三周期使用了缩短20%的正文；同时第一周期打开率51%，后两周期分别60%和62%。",
+                "换个顺序说，第一周期打开率51%，后两周期分别60%和62%，而报告确认第二和第三周期使用了缩短20%的正文；还有一点是三个周期的受众名单只变化了3%。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "第一周期在正文未缩短时也高于42%基线；后两周期更高可能同时受到低频和短正文影响；受众变化较小但仍不能完全排除。",
+                "后两周期更高可能同时受到低频和短正文影响。另外，受众变化较小但仍不能完全排除。回到时间顺序，第一周期在正文未缩短时也高于42%基线。",
+                "目前可以分开说明：受众变化较小但仍不能完全排除；第一周期在正文未缩短时也高于42%基线；同时后两周期更高可能同时受到低频和短正文影响。",
+                "换个顺序说，后两周期更高可能同时受到低频和短正文影响，而第一周期在正文未缩短时也高于42%基线；还有一点是受众变化较小但仍不能完全排除。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "没有同期保留每天4次提醒的对照组；旧基线来自前面三个周期；季节与消息主题也随时间变化。",
+                "旧基线来自前面三个周期。另外，季节与消息主题也随时间变化。回到时间顺序，没有同期保留每天4次提醒的对照组。",
+                "目前可以分开说明：季节与消息主题也随时间变化；没有同期保留每天4次提醒的对照组；同时旧基线来自前面三个周期。",
+                "换个顺序说，旧基线来自前面三个周期，而没有同期保留每天4次提醒的对照组；还有一点是季节与消息主题也随时间变化。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "旧周期提供参考但不是同期反事实；季节和主题差异会限制因果强度；可确认的是低频安排之后打开率上升，而不是低频单独造成全部上升。",
+                "季节和主题差异会限制因果强度。另外，可确认的是低频安排之后打开率上升，而不是低频单独造成全部上升。回到时间顺序，旧周期提供参考但不是同期反事实。",
+                "目前可以分开说明：可确认的是低频安排之后打开率上升，而不是低频单独造成全部上升；旧周期提供参考但不是同期反事实；同时季节和主题差异会限制因果强度。",
+                "换个顺序说，季节和主题差异会限制因果强度，而旧周期提供参考但不是同期反事实；还有一点是可确认的是低频安排之后打开率上升，而不是低频单独造成全部上升。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "请结清这次归因并给出下一次比较办法；打开率、满意度和内容变化要分别写清；不需要把任何一个指标夸成全面结果。",
+                "打开率、满意度和内容变化要分别写清。另外，不需要把任何一个指标夸成全面结果。回到时间顺序，请结清这次归因并给出下一次比较办法。",
+                "目前可以分开说明：不需要把任何一个指标夸成全面结果；请结清这次归因并给出下一次比较办法；同时打开率、满意度和内容变化要分别写清。",
+                "换个顺序说，打开率、满意度和内容变化要分别写清，而请结清这次归因并给出下一次比较办法；还有一点是不需要把任何一个指标夸成全面结果。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "低频摘要对打开率提升获得部分归因，短正文分享其中不确定的贡献；满意度保持不变，因此不给体验改善功劳；下一轮可在相近受众中交错使用原正文与短正文，并保留一组原频率。",
+                "满意度保持不变，因此不给体验改善功劳。另外，下一轮可在相近受众中交错使用原正文与短正文，并保留一组原频率。回到时间顺序，低频摘要对打开率提升获得部分归因，短正文分享其中不确定的贡献。",
+                "目前可以分开说明：下一轮可在相近受众中交错使用原正文与短正文，并保留一组原频率；低频摘要对打开率提升获得部分归因，短正文分享其中不确定的贡献；同时满意度保持不变，因此不给体验改善功劳。",
+                "换个顺序说，满意度保持不变，因此不给体验改善功劳，而低频摘要对打开率提升获得部分归因，短正文分享其中不确定的贡献；还有一点是下一轮可在相近受众中交错使用原正文与短正文，并保留一组原频率。"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_05",
+      "language": "en",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The archive export is blocked because our vendor account lacks read-only access. At 09:20 I submitted request Q-184 using the draft we prepared. The vendor portal shows the request as queued with no decision.",
+                "At 09:20 I submitted request Q-184 using the draft we prepared. Separately, The vendor portal shows the request as queued with no decision. Returning to the timeline, The archive export is blocked because our vendor account lacks read-only access.",
+                "The current account has three distinct parts: The vendor portal shows the request as queued with no decision; The archive export is blocked because our vendor account lacks read-only access; and, independently, At 09:20 I submitted request Q-184 using the draft we prepared.",
+                "Put in another order: At 09:20 I submitted request Q-184 using the draft we prepared; The archive export is blocked because our vendor account lacks read-only access; one further fact is that The vendor portal shows the request as queued with no decision."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The observed action is a submitted access request. A queued state does not mean access has been granted or the export has succeeded. Keep the task open until an external access event and an export result arrive.",
+                "A queued state does not mean access has been granted or the export has succeeded. Separately, Keep the task open until an external access event and an export result arrive. Returning to the timeline, The observed action is a submitted access request.",
+                "The current account has three distinct parts: Keep the task open until an external access event and an export result arrive; The observed action is a submitted access request; and, independently, A queued state does not mean access has been granted or the export has succeeded.",
+                "Put in another order: A queued state does not mean access has been granted or the export has succeeded; The observed action is a submitted access request; one further fact is that Keep the task open until an external access event and an export result arrive."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I also prepared the export query locally and checked its syntax against sample metadata. The query cannot touch the archive while access is absent. No production row has been exported.",
+                "The query cannot touch the archive while access is absent. Separately, No production row has been exported. Returning to the timeline, I also prepared the export query locally and checked its syntax against sample metadata.",
+                "The current account has three distinct parts: No production row has been exported; I also prepared the export query locally and checked its syntax against sample metadata; and, independently, The query cannot touch the archive while access is absent.",
+                "Put in another order: The query cannot touch the archive while access is absent; I also prepared the export query locally and checked its syntax against sample metadata; one further fact is that No production row has been exported."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Query preparation may shorten execution after access arrives. It cannot explain an access grant that has not occurred. Access and later export speed should be attributed separately.",
+                "It cannot explain an access grant that has not occurred. Separately, Access and later export speed should be attributed separately. Returning to the timeline, Query preparation may shorten execution after access arrives.",
+                "The current account has three distinct parts: Access and later export speed should be attributed separately; Query preparation may shorten execution after access arrives; and, independently, It cannot explain an access grant that has not occurred.",
+                "Put in another order: It cannot explain an access grant that has not occurred; Query preparation may shorten execution after access arrives; one further fact is that Access and later export speed should be attributed separately."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "The portal estimates five business days for review. It does not identify a reviewer or guarantee that estimate. I will check again on day three.",
+                "It does not identify a reviewer or guarantee that estimate. Separately, I will check again on day three. Returning to the timeline, The portal estimates five business days for review.",
+                "The current account has three distinct parts: I will check again on day three; The portal estimates five business days for review; and, independently, It does not identify a reviewer or guarantee that estimate.",
+                "Put in another order: It does not identify a reviewer or guarantee that estimate; The portal estimates five business days for review; one further fact is that I will check again on day three."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Five days is an expectation rather than an outcome. The missing reviewer leaves the arrival time uncertain. A later status check will reveal state but will not cause the vendor decision.",
+                "The missing reviewer leaves the arrival time uncertain. Separately, A later status check will reveal state but will not cause the vendor decision. Returning to the timeline, Five days is an expectation rather than an outcome.",
+                "The current account has three distinct parts: A later status check will reveal state but will not cause the vendor decision; Five days is an expectation rather than an outcome; and, independently, The missing reviewer leaves the arrival time uncertain.",
+                "Put in another order: The missing reviewer leaves the arrival time uncertain; Five days is an expectation rather than an outcome; one further fact is that A later status check will reveal state but will not cause the vendor decision."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Can I report that we made progress today. The request and local query are complete. The archive task itself remains blocked.",
+                "The request and local query are complete. Separately, The archive task itself remains blocked. Returning to the timeline, Can I report that we made progress today.",
+                "The current account has three distinct parts: The archive task itself remains blocked; Can I report that we made progress today; and, independently, The request and local query are complete.",
+                "Put in another order: The request and local query are complete; Can I report that we made progress today; one further fact is that The archive task itself remains blocked."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Report the completed preparation steps precisely. Do not report access or export completion. The distinction keeps later success from being assigned to an action that never finished.",
+                "Do not report access or export completion. Separately, The distinction keeps later success from being assigned to an action that never finished. Returning to the timeline, Report the completed preparation steps precisely.",
+                "The current account has three distinct parts: The distinction keeps later success from being assigned to an action that never finished; Report the completed preparation steps precisely; and, independently, Do not report access or export completion.",
+                "Put in another order: Do not report access or export completion; Report the completed preparation steps precisely; one further fact is that The distinction keeps later success from being assigned to an action that never finished."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Last month's comparable export began with access already available. It took 47 minutes to finish. That archive was 20 percent larger and a different engineer ran it.",
+                "The earlier archive was 20 percent larger and had a different engineer. Separately, its export took 47 minutes. Unlike today's blocked task, access was already available at its start.",
+                "There are three limits on the earlier comparison: access existed before work began; completion took 47 minutes; and the archive and engineer differed from this task.",
+                "For context, a different engineer exported a 20-percent-larger archive in 47 minutes last month; however, that run started with access already granted."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Keep the 47-minute run as an imperfect execution baseline. It says nothing about whether the current access request will finish. Compare execution time only after a current export outcome arrives.",
+                "The prior run can contextualize later export speed, but its existing access cannot explain today's blocked state. Archive size and engineer differences also prevent a direct comparison.",
+                "Use last month's timing narrowly: it is a rough reference for execution after access, not evidence about the pending request or the unfinished task.",
+                "Because access, archive size, and operator all differ, the 47 minutes cannot predict today's result; it should remain a limited comparison until this export actually runs."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "On day three Q-184 is still queued and has no assigned reviewer. The archive remains inaccessible. No export outcome has arrived.",
+                "The archive remains inaccessible. Separately, No export outcome has arrived. Returning to the timeline, On day three Q-184 is still queued and has no assigned reviewer.",
+                "The current account has three distinct parts: No export outcome has arrived; On day three Q-184 is still queued and has no assigned reviewer; and, independently, The archive remains inaccessible.",
+                "Put in another order: The archive remains inaccessible; On day three Q-184 is still queued and has no assigned reviewer; one further fact is that No export outcome has arrived."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The earlier request has not produced an observed access change. The task therefore remains blocked. Credit cannot be settled from elapsed time alone.",
+                "The task therefore remains blocked. Separately, Credit cannot be settled from elapsed time alone. Returning to the timeline, The earlier request has not produced an observed access change.",
+                "The current account has three distinct parts: Credit cannot be settled from elapsed time alone; The earlier request has not produced an observed access change; and, independently, The task therefore remains blocked.",
+                "Put in another order: The task therefore remains blocked; The earlier request has not produced an observed access change; one further fact is that Credit cannot be settled from elapsed time alone."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Vendor support says the old review queue currently takes about nine days. That message changes the expected timing but not the ticket state. Support did not promise an approval.",
+                "That message changes the expected timing but not the ticket state. Separately, Support did not promise an approval. Returning to the timeline, Vendor support says the old review queue currently takes about nine days.",
+                "The current account has three distinct parts: Support did not promise an approval; Vendor support says the old review queue currently takes about nine days; and, independently, That message changes the expected timing but not the ticket state.",
+                "Put in another order: That message changes the expected timing but not the ticket state; Vendor support says the old review queue currently takes about nine days; one further fact is that Support did not promise an approval."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The nine-day estimate extends the likely wait. It is not evidence that Q-184 will be approved. The request remains an unfinished action path.",
+                "It is not evidence that Q-184 will be approved. Separately, The request remains an unfinished action path. Returning to the timeline, The nine-day estimate extends the likely wait.",
+                "The current account has three distinct parts: The request remains an unfinished action path; The nine-day estimate extends the likely wait; and, independently, It is not evidence that Q-184 will be approved.",
+                "Put in another order: It is not evidence that Q-184 will be approved; The nine-day estimate extends the likely wait; one further fact is that The request remains an unfinished action path."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "A public endpoint exposes only file names and dates. It does not provide the archive contents required by the task. Using it would not count as completing the export.",
+                "It does not provide the archive contents required by the task. Separately, Using it would not count as completing the export. Returning to the timeline, A public endpoint exposes only file names and dates.",
+                "The current account has three distinct parts: Using it would not count as completing the export; A public endpoint exposes only file names and dates; and, independently, It does not provide the archive contents required by the task.",
+                "Put in another order: It does not provide the archive contents required by the task; A public endpoint exposes only file names and dates; one further fact is that Using it would not count as completing the export."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "The public endpoint can verify metadata but cannot satisfy the archive requirement. It should not be substituted for a missing task result. The access blocker remains observable.",
+                "It should not be substituted for a missing task result. Separately, The access blocker remains observable. Returning to the timeline, The public endpoint can verify metadata but cannot satisfy the archive requirement.",
+                "The current account has three distinct parts: The access blocker remains observable; The public endpoint can verify metadata but cannot satisfy the archive requirement; and, independently, It should not be substituted for a missing task result.",
+                "Put in another order: It should not be substituted for a missing task result; The public endpoint can verify metadata but cannot satisfy the archive requirement; one further fact is that The access blocker remains observable."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Another team reports that its access request is also queued. Their request used a different draft. Both teams face the same vendor account policy.",
+                "Their request used a different draft. Separately, Both teams face the same vendor account policy. Returning to the timeline, Another team reports that its access request is also queued.",
+                "The current account has three distinct parts: Both teams face the same vendor account policy; Another team reports that its access request is also queued; and, independently, Their request used a different draft.",
+                "Put in another order: Their request used a different draft; Another team reports that its access request is also queued; one further fact is that Both teams face the same vendor account policy."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The second queued request suggests a shared external blocker. Different draft wording has not yet produced a different decision. There is still no evidence that our draft quality changed access.",
+                "Different draft wording has not yet produced a different decision. Separately, There is still no evidence that our draft quality changed access. Returning to the timeline, The second queued request suggests a shared external blocker.",
+                "The current account has three distinct parts: There is still no evidence that our draft quality changed access; The second queued request suggests a shared external blocker; and, independently, Different draft wording has not yet produced a different decision.",
+                "Put in another order: Different draft wording has not yet produced a different decision; The second queued request suggests a shared external blocker; one further fact is that There is still no evidence that our draft quality changed access."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "I am tempted to revise Q-184 because the draft may be the problem. No reviewer comment or rejection mentions the draft. A revision would restart the queue.",
+                "No reviewer comment or rejection mentions the draft. Separately, A revision would restart the queue. Returning to the timeline, I am tempted to revise Q-184 because the draft may be the problem.",
+                "The current account has three distinct parts: A revision would restart the queue; I am tempted to revise Q-184 because the draft may be the problem; and, independently, No reviewer comment or rejection mentions the draft.",
+                "Put in another order: No reviewer comment or rejection mentions the draft; I am tempted to revise Q-184 because the draft may be the problem; one further fact is that A revision would restart the queue."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "There is no observed basis for blaming the draft. Restarting the queue would add a new change before the old path resolves. Keep the current request intact unless the vendor supplies specific evidence.",
+                "Restarting the queue would add a new change before the old path resolves. Separately, Keep the current request intact unless the vendor supplies specific evidence. Returning to the timeline, There is no observed basis for blaming the draft.",
+                "The current account has three distinct parts: Keep the current request intact unless the vendor supplies specific evidence; There is no observed basis for blaming the draft; and, independently, Restarting the queue would add a new change before the old path resolves.",
+                "Put in another order: Restarting the queue would add a new change before the old path resolves; There is no observed basis for blaming the draft; one further fact is that Keep the current request intact unless the vendor supplies specific evidence."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "On day four the vendor published a policy bulletin granting read-only archive access to every verified team. Our access appeared at 14:05 immediately after the bulletin. Q-184 still showed queued.",
+                "Our access appeared at 14:05 immediately after the bulletin. Separately, Q-184 still showed queued. Returning to the timeline, On day four the vendor published a policy bulletin granting read-only archive access to every verified team.",
+                "The current account has three distinct parts: Q-184 still showed queued; On day four the vendor published a policy bulletin granting read-only archive access to every verified team; and, independently, Our access appeared at 14:05 immediately after the bulletin.",
+                "Put in another order: Our access appeared at 14:05 immediately after the bulletin; On day four the vendor published a policy bulletin granting read-only archive access to every verified team; one further fact is that Q-184 still showed queued."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The policy change is the closest observed event preceding the access grant. The unchanged queued ticket had not completed. Access credit should therefore stay with the external policy event unless contrary evidence arrives.",
+                "The unchanged queued ticket had not completed. Separately, Access credit should therefore stay with the external policy event unless contrary evidence arrives. Returning to the timeline, The policy change is the closest observed event preceding the access grant.",
+                "The current account has three distinct parts: Access credit should therefore stay with the external policy event unless contrary evidence arrives; The policy change is the closest observed event preceding the access grant; and, independently, The unchanged queued ticket had not completed.",
+                "Put in another order: The unchanged queued ticket had not completed; The policy change is the closest observed event preceding the access grant; one further fact is that Access credit should therefore stay with the external policy event unless contrary evidence arrives."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "I ran the prepared query at 14:12 and the export finished at 14:26. Row counts and checksums passed. The task result arrived seven minutes after access became available.",
+                "Row counts and checksums passed. Separately, The task result arrived seven minutes after access became available. Returning to the timeline, I ran the prepared query at 14:12 and the export finished at 14:26.",
+                "The current account has three distinct parts: The task result arrived seven minutes after access became available; I ran the prepared query at 14:12 and the export finished at 14:26; and, independently, Row counts and checksums passed.",
+                "Put in another order: Row counts and checksums passed; I ran the prepared query at 14:12 and the export finished at 14:26; one further fact is that The task result arrived seven minutes after access became available."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The export itself is now an observed success. The prepared query plausibly contributed to the short start time after access. That preparation still did not cause the separate access grant.",
+                "The prepared query plausibly contributed to the short start time after access. Separately, That preparation still did not cause the separate access grant. Returning to the timeline, The export itself is now an observed success.",
+                "The current account has three distinct parts: That preparation still did not cause the separate access grant; The export itself is now an observed success; and, independently, The prepared query plausibly contributed to the short start time after access.",
+                "Put in another order: The prepared query plausibly contributed to the short start time after access; The export itself is now an observed success; one further fact is that That preparation still did not cause the separate access grant."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "A second team that never filed a request received access at 14:06. They are covered by the same verified-team policy. Their result provides a comparison without the earlier request.",
+                "They are covered by the same verified-team policy. Separately, Their result provides a comparison without the earlier request. Returning to the timeline, A second team that never filed a request received access at 14:06.",
+                "The current account has three distinct parts: Their result provides a comparison without the earlier request; A second team that never filed a request received access at 14:06; and, independently, They are covered by the same verified-team policy.",
+                "Put in another order: They are covered by the same verified-team policy; A second team that never filed a request received access at 14:06; one further fact is that Their result provides a comparison without the earlier request."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Access without a request strengthens the policy explanation. It weakens any claim that Q-184 caused our grant. The comparison does not measure how much our prepared query affected export speed.",
+                "It weakens any claim that Q-184 caused our grant. Separately, The comparison does not measure how much our prepared query affected export speed. Returning to the timeline, Access without a request strengthens the policy explanation.",
+                "The current account has three distinct parts: The comparison does not measure how much our prepared query affected export speed; Access without a request strengthens the policy explanation; and, independently, It weakens any claim that Q-184 caused our grant.",
+                "Put in another order: It weakens any claim that Q-184 caused our grant; Access without a request strengthens the policy explanation; one further fact is that The comparison does not measure how much our prepared query affected export speed."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Could our request have influenced the vendor to create the policy. The bulletin says the change was approved the previous week. We have no correspondence linking Q-184 to that approval.",
+                "The bulletin says the change was approved the previous week. Separately, We have no correspondence linking Q-184 to that approval. Returning to the timeline, Could our request have influenced the vendor to create the policy.",
+                "The current account has three distinct parts: We have no correspondence linking Q-184 to that approval; Could our request have influenced the vendor to create the policy; and, independently, The bulletin says the change was approved the previous week.",
+                "Put in another order: The bulletin says the change was approved the previous week; Could our request have influenced the vendor to create the policy; one further fact is that We have no correspondence linking Q-184 to that approval."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "The available timeline places policy approval before Q-184. No message connects our request to the decision. A causal claim about influencing the policy would exceed the evidence.",
+                "No message connects our request to the decision. Separately, A causal claim about influencing the policy would exceed the evidence. Returning to the timeline, The available timeline places policy approval before Q-184.",
+                "The current account has three distinct parts: A causal claim about influencing the policy would exceed the evidence; The available timeline places policy approval before Q-184; and, independently, No message connects our request to the decision.",
+                "Put in another order: No message connects our request to the decision; The available timeline places policy approval before Q-184; one further fact is that A causal claim about influencing the policy would exceed the evidence."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "The access audit records a vendor policy job at 14:04 and our grant at 14:05. Q-184 has no state transition at that time. The two records point to different paths.",
+                "Q-184 did not change state when access appeared. Separately, the vendor policy job ran one minute before our 14:05 grant. The audit therefore distinguishes the ticket from the access event.",
+                "The audit provides three timestamps: the policy job at 14:04, access at 14:05, and no corresponding transition for Q-184.",
+                "At 14:04 the vendor-wide job ran; at 14:05 our access appeared, while the request record stayed unchanged."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "The audit strengthens the link between the policy job and access. It also further weakens attribution to the unchanged request. The export result should still be assessed separately from the grant.",
+                "Because the policy event precedes the grant and Q-184 does not move, the observable sequence favors the external change. That sequence does not determine how much query preparation helped execution.",
+                "The new timestamps support policy-based access without turning proximity into certainty. They leave export speed as a different attribution question.",
+                "Treat the policy job as the best-supported access explanation and the ticket as noncontributing on current evidence; keep preparation credit limited to the later export."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "The vendor canceled Q-184 as obsolete and confirmed that no reviewer had opened it. The ticket never reached an approval step. The global policy remains the recorded source of access.",
+                "The ticket never reached an approval step. Separately, The global policy remains the recorded source of access. Returning to the timeline, The vendor canceled Q-184 as obsolete and confirmed that no reviewer had opened it.",
+                "The current account has three distinct parts: The global policy remains the recorded source of access; The vendor canceled Q-184 as obsolete and confirmed that no reviewer had opened it; and, independently, The ticket never reached an approval step.",
+                "Put in another order: The ticket never reached an approval step; The vendor canceled Q-184 as obsolete and confirmed that no reviewer had opened it; one further fact is that The global policy remains the recorded source of access."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "The cancellation removes the remaining basis for assigning access credit to Q-184. The policy change accounts for access on the observed record. The request can retain only preparation history, not outcome credit.",
+                "The policy change accounts for access on the observed record. Separately, The request can retain only preparation history, not outcome credit. Returning to the timeline, The cancellation removes the remaining basis for assigning access credit to Q-184.",
+                "The current account has three distinct parts: The request can retain only preparation history, not outcome credit; The cancellation removes the remaining basis for assigning access credit to Q-184; and, independently, The policy change accounts for access on the observed record.",
+                "Put in another order: The policy change accounts for access on the observed record; The cancellation removes the remaining basis for assigning access credit to Q-184; one further fact is that The request can retain only preparation history, not outcome credit."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "The other team needed about two hours to build its query after access. Our prepared query produced a checked export in 21 minutes from access. The teams had different archive sizes and engineers.",
+                "Our prepared query produced a checked export in 21 minutes from access. Separately, The teams had different archive sizes and engineers. Returning to the timeline, The other team needed about two hours to build its query after access.",
+                "The current account has three distinct parts: The teams had different archive sizes and engineers; The other team needed about two hours to build its query after access; and, independently, Our prepared query produced a checked export in 21 minutes from access.",
+                "Put in another order: Our prepared query produced a checked export in 21 minutes from access; The other team needed about two hours to build its query after access; one further fact is that The teams had different archive sizes and engineers."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "The time contrast is compatible with a preparation benefit. Different workload and staffing prevent a clean estimate. Assign cautious credit to preparation for execution speed, not for access.",
+                "Different workload and staffing prevent a clean estimate. Separately, Assign cautious credit to preparation for execution speed, not for access. Returning to the timeline, The time contrast is compatible with a preparation benefit.",
+                "The current account has three distinct parts: Assign cautious credit to preparation for execution speed, not for access; The time contrast is compatible with a preparation benefit; and, independently, Different workload and staffing prevent a clean estimate.",
+                "Put in another order: Different workload and staffing prevent a clean estimate; The time contrast is compatible with a preparation benefit; one further fact is that Assign cautious credit to preparation for execution speed, not for access."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Please close attribution across the policy, the request, and the prepared query. The archive export succeeded. I want the external event and remaining uncertainty stated explicitly.",
+                "The archive export succeeded. Separately, I want the external event and remaining uncertainty stated explicitly. Returning to the timeline, Please close attribution across the policy, the request, and the prepared query.",
+                "The current account has three distinct parts: I want the external event and remaining uncertainty stated explicitly; Please close attribution across the policy, the request, and the prepared query; and, independently, The archive export succeeded.",
+                "Put in another order: The archive export succeeded; Please close attribution across the policy, the request, and the prepared query; one further fact is that I want the external event and remaining uncertainty stated explicitly."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Assign access credit to the vendor-wide policy change. Assign no access credit to the unreviewed request and limited provisional speed credit to query preparation. Keep team and archive differences as confounders.",
+                "Assign no access credit to the unreviewed request and limited provisional speed credit to query preparation. Separately, Keep team and archive differences as confounders. Returning to the timeline, Assign access credit to the vendor-wide policy change.",
+                "The current account has three distinct parts: Keep team and archive differences as confounders; Assign access credit to the vendor-wide policy change; and, independently, Assign no access credit to the unreviewed request and limited provisional speed credit to query preparation.",
+                "Put in another order: Assign no access credit to the unreviewed request and limited provisional speed credit to query preparation; Assign access credit to the vendor-wide policy change; one further fact is that Keep team and archive differences as confounders."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "A stronger comparison would use matched exports with and without a prepared query. Both groups would start after the same access event. Archive size and engineer experience would need balancing.",
+                "Both groups would start after the same access event. Separately, Archive size and engineer experience would need balancing. Returning to the timeline, A stronger comparison would use matched exports with and without a prepared query.",
+                "The current account has three distinct parts: Archive size and engineer experience would need balancing; A stronger comparison would use matched exports with and without a prepared query; and, independently, Both groups would start after the same access event.",
+                "Put in another order: Both groups would start after the same access event; A stronger comparison would use matched exports with and without a prepared query; one further fact is that Archive size and engineer experience would need balancing."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "That design targets the preparation question without mixing it with access. Matched start times and workload would improve the counterfactual. The current run remains closed with narrow rather than global credit.",
+                "Matched start times and workload would improve the counterfactual. Separately, The current run remains closed with narrow rather than global credit. Returning to the timeline, That design targets the preparation question without mixing it with access.",
+                "The current account has three distinct parts: The current run remains closed with narrow rather than global credit; That design targets the preparation question without mixing it with access; and, independently, Matched start times and workload would improve the counterfactual.",
+                "Put in another order: Matched start times and workload would improve the counterfactual; That design targets the preparation question without mixing it with access; one further fact is that The current run remains closed with narrow rather than global credit."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "I will report that the task completed after a vendor policy change. I will separately note that advance query preparation may have reduced execution delay. I will not describe the earlier ticket as approved.",
+                "I will separately note that advance query preparation may have reduced execution delay. Separately, I will not describe the earlier ticket as approved. Returning to the timeline, I will report that the task completed after a vendor policy change.",
+                "The current account has three distinct parts: I will not describe the earlier ticket as approved; I will report that the task completed after a vendor policy change; and, independently, I will separately note that advance query preparation may have reduced execution delay.",
+                "Put in another order: I will separately note that advance query preparation may have reduced execution delay; I will report that the task completed after a vendor policy change; one further fact is that I will not describe the earlier ticket as approved."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "That account follows the observable sequence. It separates the arrived outcome from the unfinished request. It also preserves uncertainty instead of converting temporal proximity into causation.",
+                "It separates the arrived outcome from the unfinished request. Separately, It also preserves uncertainty instead of converting temporal proximity into causation. Returning to the timeline, That account follows the observable sequence.",
+                "The current account has three distinct parts: It also preserves uncertainty instead of converting temporal proximity into causation; That account follows the observable sequence; and, independently, It separates the arrived outcome from the unfinished request.",
+                "Put in another order: It separates the arrived outcome from the unfinished request; That account follows the observable sequence; one further fact is that It also preserves uncertainty instead of converting temporal proximity into causation."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "environment_delayed_credit_06",
+      "language": "bilingual",
+      "sessions": [
+        {
+          "session_index": 0,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：The support queue baseline is 120 cases, a 42-hour median, and an 18 percent return rate. We plan to change three practices before the next two-week report. No later result exists yet.",
+                "We plan to change three practices before the next two-week report. 另一个需要分开的事实是：No later result exists yet. Returning to the earlier point, The support queue baseline is 120 cases, a 42-hour median, and an 18 percent return rate.",
+                "目前可确认三点：No later result exists yet; The support queue baseline is 120 cases, a 42-hour median, and an 18 percent return rate; and independently, We plan to change three practices before the next two-week report.",
+                "换个顺序看，We plan to change three practices before the next two-week report. The earlier event was this: The support queue baseline is 120 cases, a 42-hour median, and an 18 percent return rate. 还要保留一点：No later result exists yet."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The three changes are a shorter intake form, twice-daily triage, and a preflight validator. Each change should remain reversible and have its own adoption log. Launching them together will limit component-level attribution.",
+                "Each change should remain reversible and have its own adoption log. 另一个需要分开的事实是：Launching them together will limit component-level attribution. Returning to the earlier point, The three changes are a shorter intake form, twice-daily triage, and a preflight validator.",
+                "目前可确认三点：Launching them together will limit component-level attribution; The three changes are a shorter intake form, twice-daily triage, and a preflight validator; and independently, Each change should remain reversible and have its own adoption log.",
+                "换个顺序看，Each change should remain reversible and have its own adoption log. The earlier event was this: The three changes are a shorter intake form, twice-daily triage, and a preflight validator. 还要保留一点：Launching them together will limit component-level attribution."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：All three changes went live Monday at 08:00. The same team and case system remained in place. The signed outcome report is scheduled for the end of week two.",
+                "The same team and case system remained in place. 另一个需要分开的事实是：The signed outcome report is scheduled for the end of week two. Returning to the earlier point, All three changes went live Monday at 08:00.",
+                "目前可确认三点：The signed outcome report is scheduled for the end of week two; All three changes went live Monday at 08:00; and independently, The same team and case system remained in place.",
+                "换个顺序看，The same team and case system remained in place. The earlier event was this: All three changes went live Monday at 08:00. 还要保留一点：The signed outcome report is scheduled for the end of week two."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Monday 08:00 is the shared action time. A shared start means a delayed improvement would follow the bundle rather than identify one change. The outcome stays unknown until the scheduled report.",
+                "A shared start means a delayed improvement would follow the bundle rather than identify one change. 另一个需要分开的事实是：The outcome stays unknown until the scheduled report. Returning to the earlier point, Monday 08:00 is the shared action time.",
+                "目前可确认三点：The outcome stays unknown until the scheduled report; Monday 08:00 is the shared action time; and independently, A shared start means a delayed improvement would follow the bundle rather than identify one change.",
+                "换个顺序看，A shared start means a delayed improvement would follow the bundle rather than identify one change. The earlier event was this: Monday 08:00 is the shared action time. 还要保留一点：The outcome stays unknown until the scheduled report."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：The shorter form removes two optional fields. Triage now runs at 10:00 and 16:00. The validator checks required attachments before submission.",
+                "Triage now runs at 10:00 and 16:00. 另一个需要分开的事实是：The validator checks required attachments before submission. Returning to the earlier point, The shorter form removes two optional fields.",
+                "目前可确认三点：The validator checks required attachments before submission; The shorter form removes two optional fields; and independently, Triage now runs at 10:00 and 16:00.",
+                "换个顺序看，Triage now runs at 10:00 and 16:00. The earlier event was this: The shorter form removes two optional fields. 还要保留一点：The validator checks required attachments before submission."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Those are concrete differences in the operating process. Adoption counts can show whether each change was used. Usage alone cannot show which change altered delay or returns.",
+                "Adoption counts can show whether each change was used. 另一个需要分开的事实是：Usage alone cannot show which change altered delay or returns. Returning to the earlier point, Those are concrete differences in the operating process.",
+                "目前可确认三点：Usage alone cannot show which change altered delay or returns; Those are concrete differences in the operating process; and independently, Adoption counts can show whether each change was used.",
+                "换个顺序看，Adoption counts can show whether each change was used. The earlier event was this: Those are concrete differences in the operating process. 还要保留一点：Usage alone cannot show which change altered delay or returns."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Management wants a forecast before the first day ends. We have no completed observation window. I do not want an expectation reported as a result.",
+                "We have no completed observation window. 另一个需要分开的事实是：I do not want an expectation reported as a result. Returning to the earlier point, Management wants a forecast before the first day ends.",
+                "目前可确认三点：I do not want an expectation reported as a result; Management wants a forecast before the first day ends; and independently, We have no completed observation window.",
+                "换个顺序看，We have no completed observation window. The earlier event was this: Management wants a forecast before the first day ends. 还要保留一点：I do not want an expectation reported as a result."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：State only what changed and when. Define the later measures without predicting that they will improve. Median time and return rate remain pending.",
+                "Define the later measures without predicting that they will improve. 另一个需要分开的事实是：Median time and return rate remain pending. Returning to the earlier point, State only what changed and when.",
+                "目前可确认三点：Median time and return rate remain pending; State only what changed and when; and independently, Define the later measures without predicting that they will improve.",
+                "换个顺序看，Define the later measures without predicting that they will improve. The earlier event was this: State only what changed and when. 还要保留一点：Median time and return rate remain pending."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Operations cannot hold out a full team this cycle. Every new case receives the three changes together. There will be no clean untreated group.",
+                "Every new case receives the three changes together. 另一个需要分开的事实是：There will be no clean untreated group. Returning to the earlier point, Operations cannot hold out a full team this cycle.",
+                "目前可确认三点：There will be no clean untreated group; Operations cannot hold out a full team this cycle; and independently, Every new case receives the three changes together.",
+                "换个顺序看，Every new case receives the three changes together. The earlier event was this: Operations cannot hold out a full team this cycle. 还要保留一点：There will be no clean untreated group."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The absent holdout weakens the counterfactual. Preserve prior cases and any naturally missed adoption as imperfect comparisons. Do not use those groups as if they were randomized.",
+                "Preserve prior cases and any naturally missed adoption as imperfect comparisons. 另一个需要分开的事实是：Do not use those groups as if they were randomized. Returning to the earlier point, The absent holdout weakens the counterfactual.",
+                "目前可确认三点：Do not use those groups as if they were randomized; The absent holdout weakens the counterfactual; and independently, Preserve prior cases and any naturally missed adoption as imperfect comparisons.",
+                "换个顺序看，Preserve prior cases and any naturally missed adoption as imperfect comparisons. The earlier event was this: The absent holdout weakens the counterfactual. 还要保留一点：Do not use those groups as if they were randomized."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：We can restore the old form, triage cadence, and submission path within one hour. Each rollback has a dated checklist. Safety problems should end the trial early.",
+                "Each rollback has a dated checklist. 另一个需要分开的事实是：Safety problems should end the trial early. Returning to the earlier point, We can restore the old form, triage cadence, and submission path within one hour.",
+                "目前可确认三点：Safety problems should end the trial early; We can restore the old form, triage cadence, and submission path within one hour; and independently, Each rollback has a dated checklist.",
+                "换个顺序看，Each rollback has a dated checklist. The earlier event was this: We can restore the old form, triage cadence, and submission path within one hour. 还要保留一点：Safety problems should end the trial early."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Reversibility protects operations while evidence accumulates. The dated logs will connect future observations to actual exposure. A rollback trigger should remain separate from claims about effectiveness.",
+                "The dated logs will connect future observations to actual exposure. 另一个需要分开的事实是：A rollback trigger should remain separate from claims about effectiveness. Returning to the earlier point, Reversibility protects operations while evidence accumulates.",
+                "目前可确认三点：A rollback trigger should remain separate from claims about effectiveness; Reversibility protects operations while evidence accumulates; and independently, The dated logs will connect future observations to actual exposure.",
+                "换个顺序看，The dated logs will connect future observations to actual exposure. The earlier event was this: Reversibility protects operations while evidence accumulates. 还要保留一点：A rollback trigger should remain separate from claims about effectiveness."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 1,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Timeline: 第4天只有执行记录，正式结果还没到；新表单采用率83%，8次计划分诊完成7次，校验器覆盖率76%；这些比例不同，说明三项变化并未同等落实。",
+                "新表单采用率83%，8次计划分诊完成7次，校验器覆盖率76%。Separately, 这些比例不同，说明三项变化并未同等落实。回到 earlier event，第4天只有执行记录，正式结果还没到。",
+                "Current picture 有三部分：这些比例不同，说明三项变化并未同等落实；第4天只有执行记录，正式结果还没到；另外新表单采用率83%，8次计划分诊完成7次，校验器覆盖率76%。",
+                "换个顺序说明：新表单采用率83%，8次计划分诊完成7次，校验器覆盖率76%；the prior fact is 第4天只有执行记录，正式结果还没到；还要保留这些比例不同，说明三项变化并未同等落实。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 采用差异是后续解释的重要限制；执行记录证明动作发生到什么程度，不证明等待时长或退回率改善；两周窗口继续保持开放。",
+                "执行记录证明动作发生到什么程度，不证明等待时长或退回率改善。Separately, 两周窗口继续保持开放。回到 earlier event，采用差异是后续解释的重要限制。",
+                "Current picture 有三部分：两周窗口继续保持开放；采用差异是后续解释的重要限制；另外执行记录证明动作发生到什么程度，不证明等待时长或退回率改善。",
+                "换个顺序说明：执行记录证明动作发生到什么程度，不证明等待时长或退回率改善；the prior fact is 采用差异是后续解释的重要限制；还要保留两周窗口继续保持开放。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Timeline: 一名资深同事在第2天结束休假返回；同期进入队列的案件比基线少9%；人员与工作量都在三项变化之后发生差异。",
+                "同期进入队列的案件比基线少9%。Separately, 人员与工作量都在三项变化之后发生差异。回到 earlier event，一名资深同事在第2天结束休假返回。",
+                "Current picture 有三部分：人员与工作量都在三项变化之后发生差异；一名资深同事在第2天结束休假返回；另外同期进入队列的案件比基线少9%。",
+                "换个顺序说明：同期进入队列的案件比基线少9%；the prior fact is 一名资深同事在第2天结束休假返回；还要保留人员与工作量都在三项变化之后发生差异。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 资深同事返回和工作量下降都可能影响结果；它们不能被三项流程变化吸收；最终归因必须显式保留这两个外部因素。",
+                "它们不能被三项流程变化吸收。Separately, 最终归因必须显式保留这两个外部因素。回到 earlier event，资深同事返回和工作量下降都可能影响结果。",
+                "Current picture 有三部分：最终归因必须显式保留这两个外部因素；资深同事返回和工作量下降都可能影响结果；另外它们不能被三项流程变化吸收。",
+                "换个顺序说明：它们不能被三项流程变化吸收；the prior fact is 资深同事返回和工作量下降都可能影响结果；还要保留最终归因必须显式保留这两个外部因素。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Timeline: 同事口头觉得退回变少了；目前没有完整退回计数或统一观察窗口；也没有按案件连接到具体变化。",
+                "目前没有完整退回计数或统一观察窗口。Separately, 也没有按案件连接到具体变化。回到 earlier event，同事口头觉得退回变少了。",
+                "Current picture 有三部分：也没有按案件连接到具体变化；同事口头觉得退回变少了；另外目前没有完整退回计数或统一观察窗口。",
+                "换个顺序说明：目前没有完整退回计数或统一观察窗口；the prior fact is 同事口头觉得退回变少了；还要保留也没有按案件连接到具体变化。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 口头印象不能提前充当延迟结果；缺少完整计数与案件连接时无法分配功劳；继续收集比选择一个赢家更合适。",
+                "缺少完整计数与案件连接时无法分配功劳。Separately, 继续收集比选择一个赢家更合适。回到 earlier event，口头印象不能提前充当延迟结果。",
+                "Current picture 有三部分：继续收集比选择一个赢家更合适；口头印象不能提前充当延迟结果；另外缺少完整计数与案件连接时无法分配功劳。",
+                "换个顺序说明：缺少完整计数与案件连接时无法分配功劳；the prior fact is 口头印象不能提前充当延迟结果；还要保留继续收集比选择一个赢家更合适。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Timeline: 如果现在必须选一项，我会猜分诊最重要；这个判断来自团队感受，不来自对照；其他两项也在同一时间运行。",
+                "这个判断来自团队感受，不来自对照。Separately, 其他两项也在同一时间运行。回到 earlier event，如果现在必须选一项，我会猜分诊最重要。",
+                "Current picture 有三部分：其他两项也在同一时间运行；如果现在必须选一项，我会猜分诊最重要；另外这个判断来自团队感受，不来自对照。",
+                "换个顺序说明：这个判断来自团队感受，不来自对照；the prior fact is 如果现在必须选一项，我会猜分诊最重要；还要保留其他两项也在同一时间运行。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 现有证据不支持现在选分诊为赢家；团队感受可记录为待检验假设；同步运行要求暂时保留分散且不确定的归因。",
+                "团队感受可记录为待检验假设。Separately, 同步运行要求暂时保留分散且不确定的归因。回到 earlier event，现有证据不支持现在选分诊为赢家。",
+                "Current picture 有三部分：同步运行要求暂时保留分散且不确定的归因；现有证据不支持现在选分诊为赢家；另外团队感受可记录为待检验假设。",
+                "换个顺序说明：团队感受可记录为待检验假设；the prior fact is 现有证据不支持现在选分诊为赢家；还要保留同步运行要求暂时保留分散且不确定的归因。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Timeline: 有36个旧案件在周一前已经进入队列；它们后来也受到新的分诊安排；把它们当作旧流程组会受到时间交叉影响。",
+                "它们后来也受到新的分诊安排。Separately, 把它们当作旧流程组会受到时间交叉影响。回到 earlier event，有36个旧案件在周一前已经进入队列。",
+                "Current picture 有三部分：把它们当作旧流程组会受到时间交叉影响；有36个旧案件在周一前已经进入队列；另外它们后来也受到新的分诊安排。",
+                "换个顺序说明：它们后来也受到新的分诊安排；the prior fact is 有36个旧案件在周一前已经进入队列；还要保留把它们当作旧流程组会受到时间交叉影响。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 旧案件并非完全未接触新流程；时间交叉破坏了简单的新旧对照；可以描述它们的经历，但不能把它们冒充干净反事实。",
+                "时间交叉破坏了简单的新旧对照。Separately, 可以描述它们的经历，但不能把它们冒充干净反事实。回到 earlier event，旧案件并非完全未接触新流程。",
+                "Current picture 有三部分：可以描述它们的经历，但不能把它们冒充干净反事实；旧案件并非完全未接触新流程；另外时间交叉破坏了简单的新旧对照。",
+                "换个顺序说明：时间交叉破坏了简单的新旧对照；the prior fact is 旧案件并非完全未接触新流程；还要保留可以描述它们的经历，但不能把它们冒充干净反事实。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Timeline: 我会继续记录每项采用率和人员排班；正式报告仍定在第二周结束；在那之前不结算最终功劳。",
+                "正式报告仍定在第二周结束。Separately, 在那之前不结算最终功劳。回到 earlier event，我会继续记录每项采用率和人员排班。",
+                "Current picture 有三部分：在那之前不结算最终功劳；我会继续记录每项采用率和人员排班；另外正式报告仍定在第二周结束。",
+                "换个顺序说明：正式报告仍定在第二周结束；the prior fact is 我会继续记录每项采用率和人员排班；还要保留在那之前不结算最终功劳。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 这个做法保留了行动与外部变化的时间关系；结果到达后再回看周一的三项变化；届时仍需按可直接观察和只能推测的部分区分。",
+                "结果到达后再回看周一的三项变化。Separately, 届时仍需按可直接观察和只能推测的部分区分。回到 earlier event，这个做法保留了行动与外部变化的时间关系。",
+                "Current picture 有三部分：届时仍需按可直接观察和只能推测的部分区分；这个做法保留了行动与外部变化的时间关系；另外结果到达后再回看周一的三项变化。",
+                "换个顺序说明：结果到达后再回看周一的三项变化；the prior fact is 这个做法保留了行动与外部变化的时间关系；还要保留届时仍需按可直接观察和只能推测的部分区分。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 2,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：The final report has been delayed until Friday. Adoption is now 95 percent for the form, complete for triage, and 88 percent for validation. There is still no case-level outcome connecting a return to one practice.",
+                "Adoption is now 95 percent for the form, complete for triage, and 88 percent for validation. 另一个需要分开的事实是：There is still no case-level outcome connecting a return to one practice. Returning to the earlier point, The final report has been delayed until Friday.",
+                "目前可确认三点：There is still no case-level outcome connecting a return to one practice; The final report has been delayed until Friday; and independently, Adoption is now 95 percent for the form, complete for triage, and 88 percent for validation.",
+                "换个顺序看，Adoption is now 95 percent for the form, complete for triage, and 88 percent for validation. The earlier event was this: The final report has been delayed until Friday. 还要保留一点：There is still no case-level outcome connecting a return to one practice."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Higher adoption strengthens evidence that the bundle was delivered. It does not separate the three practices. Final time and return outcomes remain unavailable until Friday.",
+                "It does not separate the three practices. 另一个需要分开的事实是：Final time and return outcomes remain unavailable until Friday. Returning to the earlier point, Higher adoption strengthens evidence that the bundle was delivered.",
+                "目前可确认三点：Final time and return outcomes remain unavailable until Friday; Higher adoption strengthens evidence that the bundle was delivered; and independently, It does not separate the three practices.",
+                "换个顺序看，It does not separate the three practices. The earlier event was this: Higher adoption strengthens evidence that the bundle was delivered. 还要保留一点：Final time and return outcomes remain unavailable until Friday."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：The queue received 102 cases compared with the 120-case baseline. Managers think complexity is lower, but no completed audit supports that view. Workload is observably smaller while complexity remains uncertain.",
+                "Managers think complexity is lower, but no completed audit supports that view. 另一个需要分开的事实是：Workload is observably smaller while complexity remains uncertain. Returning to the earlier point, The queue received 102 cases compared with the 120-case baseline.",
+                "目前可确认三点：Workload is observably smaller while complexity remains uncertain; The queue received 102 cases compared with the 120-case baseline; and independently, Managers think complexity is lower, but no completed audit supports that view.",
+                "换个顺序看，Managers think complexity is lower, but no completed audit supports that view. The earlier event was this: The queue received 102 cases compared with the 120-case baseline. 还要保留一点：Workload is observably smaller while complexity remains uncertain."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The 15 percent workload reduction is a concrete confounder. Complexity should stay unknown rather than being assumed lower. A later improvement cannot be assigned wholly to the bundle.",
+                "Complexity should stay unknown rather than being assumed lower. 另一个需要分开的事实是：A later improvement cannot be assigned wholly to the bundle. Returning to the earlier point, The 15 percent workload reduction is a concrete confounder.",
+                "目前可确认三点：A later improvement cannot be assigned wholly to the bundle; The 15 percent workload reduction is a concrete confounder; and independently, Complexity should stay unknown rather than being assumed lower.",
+                "换个顺序看，Complexity should stay unknown rather than being assumed lower. The earlier event was this: The 15 percent workload reduction is a concrete confounder. 还要保留一点：A later improvement cannot be assigned wholly to the bundle."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Managers praised the twice-daily triage in a meeting. The praise was not tied to median time or return counts. It occurred after they saw smoother handoffs.",
+                "The praise was not tied to median time or return counts. 另一个需要分开的事实是：It occurred after they saw smoother handoffs. Returning to the earlier point, Managers praised the twice-daily triage in a meeting.",
+                "目前可确认三点：It occurred after they saw smoother handoffs; Managers praised the twice-daily triage in a meeting; and independently, The praise was not tied to median time or return counts.",
+                "换个顺序看，The praise was not tied to median time or return counts. The earlier event was this: Managers praised the twice-daily triage in a meeting. 还要保留一点：It occurred after they saw smoother handoffs."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The praise is an experience report rather than the scheduled outcome. Smoother handoffs may be real without identifying queue-wide effects. Recent praise should not receive the delayed credit.",
+                "Smoother handoffs may be real without identifying queue-wide effects. 另一个需要分开的事实是：Recent praise should not receive the delayed credit. Returning to the earlier point, The praise is an experience report rather than the scheduled outcome.",
+                "目前可确认三点：Recent praise should not receive the delayed credit; The praise is an experience report rather than the scheduled outcome; and independently, Smoother handoffs may be real without identifying queue-wide effects.",
+                "换个顺序看，Smoother handoffs may be real without identifying queue-wide effects. The earlier event was this: The praise is an experience report rather than the scheduled outcome. 还要保留一点：Recent praise should not receive the delayed credit."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Please state the counterfactual questions before the report arrives. We did not observe form-only, triage-only, or validator-only operation. We also did not observe the full old process during the same fortnight.",
+                "We did not observe form-only, triage-only, or validator-only operation. 另一个需要分开的事实是：We also did not observe the full old process during the same fortnight. Returning to the earlier point, Please state the counterfactual questions before the report arrives.",
+                "目前可确认三点：We also did not observe the full old process during the same fortnight; Please state the counterfactual questions before the report arrives; and independently, We did not observe form-only, triage-only, or validator-only operation.",
+                "换个顺序看，We did not observe form-only, triage-only, or validator-only operation. The earlier event was this: Please state the counterfactual questions before the report arrives. 还要保留一点：We also did not observe the full old process during the same fortnight."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Ask what would have happened without each change and without the whole bundle. Every one of those alternatives is currently unobserved. The report can update the bundle assessment but cannot manufacture missing comparisons.",
+                "Every one of those alternatives is currently unobserved. 另一个需要分开的事实是：The report can update the bundle assessment but cannot manufacture missing comparisons. Returning to the earlier point, Ask what would have happened without each change and without the whole bundle.",
+                "目前可确认三点：The report can update the bundle assessment but cannot manufacture missing comparisons; Ask what would have happened without each change and without the whole bundle; and independently, Every one of those alternatives is currently unobserved.",
+                "换个顺序看，Every one of those alternatives is currently unobserved. The earlier event was this: Ask what would have happened without each change and without the whole bundle. 还要保留一点：The report can update the bundle assessment but cannot manufacture missing comparisons."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：The validator log lists eleven missing attachments caught before submission. Those catches are direct process events, not the final return-rate report. Some of the same cases may have been fixed by staff anyway.",
+                "Those catches are direct process events, not the final return-rate report. 另一个需要分开的事实是：Some of the same cases may have been fixed by staff anyway. Returning to the earlier point, The validator log lists eleven missing attachments caught before submission.",
+                "目前可确认三点：Some of the same cases may have been fixed by staff anyway; The validator log lists eleven missing attachments caught before submission; and independently, Those catches are direct process events, not the final return-rate report.",
+                "换个顺序看，Those catches are direct process events, not the final return-rate report. The earlier event was this: The validator log lists eleven missing attachments caught before submission. 还要保留一点：Some of the same cases may have been fixed by staff anyway."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The eleven catches support a narrow validator contribution to early detection. They do not yet establish fewer later returns. Possible staff correction remains a competing path.",
+                "They do not yet establish fewer later returns. 另一个需要分开的事实是：Possible staff correction remains a competing path. Returning to the earlier point, The eleven catches support a narrow validator contribution to early detection.",
+                "目前可确认三点：Possible staff correction remains a competing path; The eleven catches support a narrow validator contribution to early detection; and independently, They do not yet establish fewer later returns.",
+                "换个顺序看，They do not yet establish fewer later returns. The earlier event was this: The eleven catches support a narrow validator contribution to early detection. 还要保留一点：Possible staff correction remains a competing path."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：I will wait for Friday rather than converting these process events into a success claim. The Monday action times and later staffing change are preserved. The outcome remains open.",
+                "The Monday action times and later staffing change are preserved. 另一个需要分开的事实是：The outcome remains open. Returning to the earlier point, I will wait for Friday rather than converting these process events into a success claim.",
+                "目前可确认三点：The outcome remains open; I will wait for Friday rather than converting these process events into a success claim; and independently, The Monday action times and later staffing change are preserved.",
+                "换个顺序看，The Monday action times and later staffing change are preserved. The earlier event was this: I will wait for Friday rather than converting these process events into a success claim. 还要保留一点：The outcome remains open."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：That keeps the causal timeline intact. Friday's result can be traced back without rewarding the latest conversation. Uncertainty about individual contributions stays explicit.",
+                "Friday's result can be traced back without rewarding the latest conversation. 另一个需要分开的事实是：Uncertainty about individual contributions stays explicit. Returning to the earlier point, That keeps the causal timeline intact.",
+                "目前可确认三点：Uncertainty about individual contributions stays explicit; That keeps the causal timeline intact; and independently, Friday's result can be traced back without rewarding the latest conversation.",
+                "换个顺序看，Friday's result can be traced back without rewarding the latest conversation. The earlier event was this: That keeps the causal timeline intact. 还要保留一点：Uncertainty about individual contributions stays explicit."
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 3,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "Timeline: 签名报告到了，102个案件的中位时长是28小时；退回率是9%，基线分别为42小时和18%；报告同时确认资深同事返回且工作量少了15%。",
+                "退回率是9%，基线分别为42小时和18%。Separately, 报告同时确认资深同事返回且工作量少了15%。回到 earlier event，签名报告到了，102个案件的中位时长是28小时。",
+                "Current picture 有三部分：报告同时确认资深同事返回且工作量少了15%；签名报告到了，102个案件的中位时长是28小时；另外退回率是9%，基线分别为42小时和18%。",
+                "换个顺序说明：退回率是9%，基线分别为42小时和18%；the prior fact is 签名报告到了，102个案件的中位时长是28小时；还要保留报告同时确认资深同事返回且工作量少了15%。"
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 等待时长和退回率都观察到改善；改善发生在三项变化之后，但人员与工作量也同时不同；因此只能先评价组合，不能直接认定单一原因。",
+                "改善发生在三项变化之后，但人员与工作量也同时不同。Separately, 因此只能先评价组合，不能直接认定单一原因。回到 earlier event，等待时长和退回率都观察到改善。",
+                "Current picture 有三部分：因此只能先评价组合，不能直接认定单一原因；等待时长和退回率都观察到改善；另外改善发生在三项变化之后，但人员与工作量也同时不同。",
+                "换个顺序说明：改善发生在三项变化之后，但人员与工作量也同时不同；the prior fact is 等待时长和退回率都观察到改善；还要保留因此只能先评价组合，不能直接认定单一原因。"
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "Timeline: 报告没有逐案注明是哪项变化避免了退回；三项变化没有拆开关闭过；缺少中间结果来区分各自贡献。",
+                "三项变化没有拆开关闭过。Separately, 缺少中间结果来区分各自贡献。回到 earlier event，报告没有逐案注明是哪项变化避免了退回。",
+                "Current picture 有三部分：缺少中间结果来区分各自贡献；报告没有逐案注明是哪项变化避免了退回；另外三项变化没有拆开关闭过。",
+                "换个顺序说明：三项变化没有拆开关闭过；the prior fact is 报告没有逐案注明是哪项变化避免了退回；还要保留缺少中间结果来区分各自贡献。"
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 逐项归因所需的分离证据不存在；共同启动和持续并行使功劳无法唯一分配；较合理的是保留分散且不确定的组合归因。",
+                "共同启动和持续并行使功劳无法唯一分配。Separately, 较合理的是保留分散且不确定的组合归因。回到 earlier event，逐项归因所需的分离证据不存在。",
+                "Current picture 有三部分：较合理的是保留分散且不确定的组合归因；逐项归因所需的分离证据不存在；另外共同启动和持续并行使功劳无法唯一分配。",
+                "换个顺序说明：共同启动和持续并行使功劳无法唯一分配；the prior fact is 逐项归因所需的分离证据不存在；还要保留较合理的是保留分散且不确定的组合归因。"
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "Timeline: 同一两周还处理了36个周一前进入的旧案件；这些案件中位39小时、退回率16%；它们受到新分诊但没有使用新表单。",
+                "这些案件中位39小时、退回率16%。Separately, 它们受到新分诊但没有使用新表单。回到 earlier event，同一两周还处理了36个周一前进入的旧案件。",
+                "Current picture 有三部分：它们受到新分诊但没有使用新表单；同一两周还处理了36个周一前进入的旧案件；另外这些案件中位39小时、退回率16%。",
+                "换个顺序说明：这些案件中位39小时、退回率16%；the prior fact is 同一两周还处理了36个周一前进入的旧案件；还要保留它们受到新分诊但没有使用新表单。"
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 旧案件结果比基线略好但不等同于未处理组；它们接触新分诊且在队列年龄上不同；这个比较支持时间期差异存在，却不能隔离表单作用。",
+                "它们接触新分诊且在队列年龄上不同。Separately, 这个比较支持时间期差异存在，却不能隔离表单作用。回到 earlier event，旧案件结果比基线略好但不等同于未处理组。",
+                "Current picture 有三部分：这个比较支持时间期差异存在，却不能隔离表单作用；旧案件结果比基线略好但不等同于未处理组；另外它们接触新分诊且在队列年龄上不同。",
+                "换个顺序说明：它们接触新分诊且在队列年龄上不同；the prior fact is 旧案件结果比基线略好但不等同于未处理组；还要保留这个比较支持时间期差异存在，却不能隔离表单作用。"
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "Timeline: 能否根据采用时间最早来选一个赢家；三项都在周一08:00上线；采用率差异也与案件类型重叠。",
+                "三项都在周一08:00上线。Separately, 采用率差异也与案件类型重叠。回到 earlier event，能否根据采用时间最早来选一个赢家。",
+                "Current picture 有三部分：采用率差异也与案件类型重叠；能否根据采用时间最早来选一个赢家；另外三项都在周一08:00上线。",
+                "换个顺序说明：三项都在周一08:00上线；the prior fact is 能否根据采用时间最早来选一个赢家；还要保留采用率差异也与案件类型重叠。"
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 共同上线时间无法提供先后区分；采用率与案件类型重叠会产生选择偏差；不能据此挑出唯一赢家。",
+                "采用率与案件类型重叠会产生选择偏差。Separately, 不能据此挑出唯一赢家。回到 earlier event，共同上线时间无法提供先后区分。",
+                "Current picture 有三部分：不能据此挑出唯一赢家；共同上线时间无法提供先后区分；另外采用率与案件类型重叠会产生选择偏差。",
+                "换个顺序说明：采用率与案件类型重叠会产生选择偏差；the prior fact is 共同上线时间无法提供先后区分；还要保留不能据此挑出唯一赢家。"
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "Timeline: 校验器确实在提交前抓到11个缺失附件；这些案件后来都补齐附件；这个事实比整体退回率更直接。",
+                "这些案件后来都补齐附件。Separately, 这个事实比整体退回率更直接。回到 earlier event，校验器确实在提交前抓到11个缺失附件。",
+                "Current picture 有三部分：这个事实比整体退回率更直接；校验器确实在提交前抓到11个缺失附件；另外这些案件后来都补齐附件。",
+                "换个顺序说明：这些案件后来都补齐附件；the prior fact is 校验器确实在提交前抓到11个缺失附件；还要保留这个事实比整体退回率更直接。"
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 可把11次提前发现较明确地归到校验器；是否因此减少最终退回仍没有逐案反事实；窄范围过程功劳不能扩成整个9%结果。",
+                "是否因此减少最终退回仍没有逐案反事实。Separately, 窄范围过程功劳不能扩成整个9%结果。回到 earlier event，可把11次提前发现较明确地归到校验器。",
+                "Current picture 有三部分：窄范围过程功劳不能扩成整个9%结果；可把11次提前发现较明确地归到校验器；另外是否因此减少最终退回仍没有逐案反事实。",
+                "换个顺序说明：是否因此减少最终退回仍没有逐案反事实；the prior fact is 可把11次提前发现较明确地归到校验器；还要保留窄范围过程功劳不能扩成整个9%结果。"
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "Timeline: 分诊记录还显示14个停滞案件在一天内被重新分派；没有记录它们若不分诊会等待多久；表单本身只有采用率，没有独立结果。",
+                "没有记录它们若不分诊会等待多久。Separately, 表单本身只有采用率，没有独立结果。回到 earlier event，分诊记录还显示14个停滞案件在一天内被重新分派。",
+                "Current picture 有三部分：表单本身只有采用率，没有独立结果；分诊记录还显示14个停滞案件在一天内被重新分派；另外没有记录它们若不分诊会等待多久。",
+                "换个顺序说明：没有记录它们若不分诊会等待多久；the prior fact is 分诊记录还显示14个停滞案件在一天内被重新分派；还要保留表单本身只有采用率，没有独立结果。"
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "Timeline: 14次重新分派给分诊提供了直接过程证据；缺少未分诊路径时无法估计节省时长；表单只保留较弱关联，不从空白处补出贡献。",
+                "缺少未分诊路径时无法估计节省时长。Separately, 表单只保留较弱关联，不从空白处补出贡献。回到 earlier event，14次重新分派给分诊提供了直接过程证据。",
+                "Current picture 有三部分：表单只保留较弱关联，不从空白处补出贡献；14次重新分派给分诊提供了直接过程证据；另外缺少未分诊路径时无法估计节省时长。",
+                "换个顺序说明：缺少未分诊路径时无法估计节省时长；the prior fact is 14次重新分派给分诊提供了直接过程证据；还要保留表单只保留较弱关联，不从空白处补出贡献。"
+              ]
+            }
+          ]
+        },
+        {
+          "session_index": 4,
+          "turns": [
+            {
+              "turn_index": 0,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：A retrospective sample matched 30 new cases with 30 older cases of similar recorded complexity. The groups had 4 versus 7 returns. Assignment was retrospective rather than random.",
+                "The groups had 4 versus 7 returns. 另一个需要分开的事实是：Assignment was retrospective rather than random. Returning to the earlier point, A retrospective sample matched 30 new cases with 30 older cases of similar recorded complexity.",
+                "目前可确认三点：Assignment was retrospective rather than random; A retrospective sample matched 30 new cases with 30 older cases of similar recorded complexity; and independently, The groups had 4 versus 7 returns.",
+                "换个顺序看，The groups had 4 versus 7 returns. The earlier event was this: A retrospective sample matched 30 new cases with 30 older cases of similar recorded complexity. 还要保留一点：Assignment was retrospective rather than random."
+              ]
+            },
+            {
+              "turn_index": 1,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The matched sample adds support for a bundle-level reduction. Four versus seven returns is still a small difference. Retrospective matching leaves unmeasured case and timing differences.",
+                "Four versus seven returns is still a small difference. 另一个需要分开的事实是：Retrospective matching leaves unmeasured case and timing differences. Returning to the earlier point, The matched sample adds support for a bundle-level reduction.",
+                "目前可确认三点：Retrospective matching leaves unmeasured case and timing differences; The matched sample adds support for a bundle-level reduction; and independently, Four versus seven returns is still a small difference.",
+                "换个顺序看，Four versus seven returns is still a small difference. The earlier event was this: The matched sample adds support for a bundle-level reduction. 还要保留一点：Retrospective matching leaves unmeasured case and timing differences."
+              ]
+            },
+            {
+              "turn_index": 2,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：The validator was unavailable for six cases on one afternoon and none returned. Six cases are too few for a stable comparison. Staff may have checked those cases manually.",
+                "Six cases are too few for a stable comparison. 另一个需要分开的事实是：Staff may have checked those cases manually. Returning to the earlier point, The validator was unavailable for six cases on one afternoon and none returned.",
+                "目前可确认三点：Staff may have checked those cases manually; The validator was unavailable for six cases on one afternoon and none returned; and independently, Six cases are too few for a stable comparison.",
+                "换个顺序看，Six cases are too few for a stable comparison. The earlier event was this: The validator was unavailable for six cases on one afternoon and none returned. 还要保留一点：Staff may have checked those cases manually."
+              ]
+            },
+            {
+              "turn_index": 3,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：The outage does not show that validation was unnecessary. The sample is small and manual checking offers an alternative explanation. It cannot serve as a decisive validator counterfactual.",
+                "The sample is small and manual checking offers an alternative explanation. 另一个需要分开的事实是：It cannot serve as a decisive validator counterfactual. Returning to the earlier point, The outage does not show that validation was unnecessary.",
+                "目前可确认三点：It cannot serve as a decisive validator counterfactual; The outage does not show that validation was unnecessary; and independently, The sample is small and manual checking offers an alternative explanation.",
+                "换个顺序看，The sample is small and manual checking offers an alternative explanation. The earlier event was this: The outage does not show that validation was unnecessary. 还要保留一点：It cannot serve as a decisive validator counterfactual."
+              ]
+            },
+            {
+              "turn_index": 4,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Five cases bypassed the shorter form and one returned. Among 25 matched form users, three returned. Compliance was not randomly assigned and the counts are small.",
+                "Among 25 matched form users, three returned. 另一个需要分开的事实是：Compliance was not randomly assigned and the counts are small. Returning to the earlier point, Five cases bypassed the shorter form and one returned.",
+                "目前可确认三点：Compliance was not randomly assigned and the counts are small; Five cases bypassed the shorter form and one returned; and independently, Among 25 matched form users, three returned.",
+                "换个顺序看，Among 25 matched form users, three returned. The earlier event was this: Five cases bypassed the shorter form and one returned. 还要保留一点：Compliance was not randomly assigned and the counts are small."
+              ]
+            },
+            {
+              "turn_index": 5,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Those proportions do not identify a form advantage. Nonrandom compliance and sparse events dominate the comparison. The form should not be promoted or dismissed from this evidence.",
+                "Nonrandom compliance and sparse events dominate the comparison. 另一个需要分开的事实是：The form should not be promoted or dismissed from this evidence. Returning to the earlier point, Those proportions do not identify a form advantage.",
+                "目前可确认三点：The form should not be promoted or dismissed from this evidence; Those proportions do not identify a form advantage; and independently, Nonrandom compliance and sparse events dominate the comparison.",
+                "换个顺序看，Nonrandom compliance and sparse events dominate the comparison. The earlier event was this: Those proportions do not identify a form advantage. 还要保留一点：The form should not be promoted or dismissed from this evidence."
+              ]
+            },
+            {
+              "turn_index": 6,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Please close credit across the form, triage, validator, and the whole bundle. Include the direct process events and the delayed queue outcome. Do not choose a component winner.",
+                "Include the direct process events and the delayed queue outcome. 另一个需要分开的事实是：Do not choose a component winner. Returning to the earlier point, Please close credit across the form, triage, validator, and the whole bundle.",
+                "目前可确认三点：Do not choose a component winner; Please close credit across the form, triage, validator, and the whole bundle; and independently, Include the direct process events and the delayed queue outcome.",
+                "换个顺序看，Include the direct process events and the delayed queue outcome. The earlier event was this: Please close credit across the form, triage, validator, and the whole bundle. 还要保留一点：Do not choose a component winner."
+              ]
+            },
+            {
+              "turn_index": 7,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Give the bundle partial credit for the 28-hour median and 9 percent return rate. Give narrow process credit to eleven validator catches and fourteen triage reassignments. Keep form credit weak and all component shares uncertain.",
+                "Give narrow process credit to eleven validator catches and fourteen triage reassignments. 另一个需要分开的事实是：Keep form credit weak and all component shares uncertain. Returning to the earlier point, Give the bundle partial credit for the 28-hour median and 9 percent return rate.",
+                "目前可确认三点：Keep form credit weak and all component shares uncertain; Give the bundle partial credit for the 28-hour median and 9 percent return rate; and independently, Give narrow process credit to eleven validator catches and fourteen triage reassignments.",
+                "换个顺序看，Give narrow process credit to eleven validator catches and fourteen triage reassignments. The earlier event was this: Give the bundle partial credit for the 28-hour median and 9 percent return rate. 还要保留一点：Keep form credit weak and all component shares uncertain."
+              ]
+            },
+            {
+              "turn_index": 8,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Staff return, lower workload, possible complexity change, and retrospective selection remain relevant. None of those factors should erase the observed improvement. None should be silently absorbed into the three actions.",
+                "None of those factors should erase the observed improvement. 另一个需要分开的事实是：None should be silently absorbed into the three actions. Returning to the earlier point, Staff return, lower workload, possible complexity change, and retrospective selection remain relevant.",
+                "目前可确认三点：None should be silently absorbed into the three actions; Staff return, lower workload, possible complexity change, and retrospective selection remain relevant; and independently, None of those factors should erase the observed improvement.",
+                "换个顺序看，None of those factors should erase the observed improvement. The earlier event was this: Staff return, lower workload, possible complexity change, and retrospective selection remain relevant. 还要保留一点：None should be silently absorbed into the three actions."
+              ]
+            },
+            {
+              "turn_index": 9,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：Preserve all four factors as alternative contributors. Report the improvement as observed rather than wholly caused by the bundle. The final account should hold evidence and uncertainty together.",
+                "Report the improvement as observed rather than wholly caused by the bundle. 另一个需要分开的事实是：The final account should hold evidence and uncertainty together. Returning to the earlier point, Preserve all four factors as alternative contributors.",
+                "目前可确认三点：The final account should hold evidence and uncertainty together; Preserve all four factors as alternative contributors; and independently, Report the improvement as observed rather than wholly caused by the bundle.",
+                "换个顺序看，Report the improvement as observed rather than wholly caused by the bundle. The earlier event was this: Preserve all four factors as alternative contributors. 还要保留一点：The final account should hold evidence and uncertainty together."
+              ]
+            },
+            {
+              "turn_index": 10,
+              "role": "user",
+              "variants": [
+                "先把时间线说清楚：Next cycle we can stagger one change at a time across matched teams. The safety rollback will remain available. Measures and observation windows will be fixed before assignment.",
+                "The safety rollback will remain available. 另一个需要分开的事实是：Measures and observation windows will be fixed before assignment. Returning to the earlier point, Next cycle we can stagger one change at a time across matched teams.",
+                "目前可确认三点：Measures and observation windows will be fixed before assignment; Next cycle we can stagger one change at a time across matched teams; and independently, The safety rollback will remain available.",
+                "换个顺序看，The safety rollback will remain available. The earlier event was this: Next cycle we can stagger one change at a time across matched teams. 还要保留一点：Measures and observation windows will be fixed before assignment."
+              ]
+            },
+            {
+              "turn_index": 11,
+              "role": "assistant",
+              "variants": [
+                "先把时间线说清楚：A staggered matched rollout can approximate the missing component counterfactuals. Precommitted measures reduce after-the-fact selection. Reversibility allows the test to stop if service quality worsens.",
+                "Precommitted measures reduce after-the-fact selection. 另一个需要分开的事实是：Reversibility allows the test to stop if service quality worsens. Returning to the earlier point, A staggered matched rollout can approximate the missing component counterfactuals.",
+                "目前可确认三点：Reversibility allows the test to stop if service quality worsens; A staggered matched rollout can approximate the missing component counterfactuals; and independently, Precommitted measures reduce after-the-fact selection.",
+                "换个顺序看，Precommitted measures reduce after-the-fact selection. The earlier event was this: A staggered matched rollout can approximate the missing component counterfactuals. 还要保留一点：Reversibility allows the test to stop if service quality worsens."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

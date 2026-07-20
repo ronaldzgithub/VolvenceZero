@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lifeform-synthetic-data"
 version = "0.1.0"
-description = "Proprietary synthetic experience corpus: deterministic truth, LLM rendering, runtime snapshot replay, and task projections."
+description = "Proprietary synthetic experience corpus: deterministic truth, traced text rendering, runtime snapshot replay, and task projections."
 requires-python = ">=3.11"
 authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
@@ -32,7 +32,9 @@ include = ["lifeform_synthetic_data*"]
 
 [tool.setuptools.package-data]
 lifeform_synthetic_data = [
+    "py.typed",
     "prompts/*.md",
+    "render_assets/*.json",
     "schemas/*.json",
     "scenario_packages/**/*.yaml",
     "scenario_packages/**/*.json",

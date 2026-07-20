@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import math
 import re
 from collections import Counter, defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -171,6 +173,19 @@ def audit_trajectories(
     )
 
     transcript_by_id = {item.trajectory_id: _transcript_text(item) for item in trajectories}
+    duplicate_transcript_hashes = _duplicates(
+        hashlib.sha256(text.encode("utf-8")).hexdigest() for text in transcript_by_id.values()
+    )
+    checks.append(
+        _check(
+            "exact_transcript_uniqueness",
+            passed=not duplicate_transcript_hashes,
+            hard_gate=True,
+            observed=len(duplicate_transcript_hashes),
+            expected="0 exact transcript duplicates",
+            details={"duplicate_hashes": duplicate_transcript_hashes},
+        )
+    )
     exact_cross_split = _exact_cross_split_duplicates(
         trajectories,
         transcript_by_id=transcript_by_id,
@@ -277,6 +292,289 @@ def audit_trajectories(
     )
 
 
+def audit_run_streaming(
+    run_root: Path,
+    *,
+    expected_count: int | None = None,
+    expected_scenario_count: int = 96,
+) -> tuple[AuditReport, Counter[str]]:
+    """Audit a sharded run while retaining at most one trajectory's payload."""
+
+    shard_paths = tuple(sorted((run_root / "master").glob("shard-*.jsonl.gz")))
+    if not shard_paths:
+        raise FileNotFoundError(f"no master shards under {run_root / 'master'}")
+
+    trajectory_count = 0
+    run_ids: set[str] = set()
+    scenario_ids: set[str] = set()
+    hashes: list[str] = []
+    trajectory_id_counts: Counter[str] = Counter()
+    trajectory_hash_counts: Counter[str] = Counter()
+    transcript_hash_counts: Counter[str] = Counter()
+    transcript_seen: dict[str, tuple[str, str]] = {}
+    exact_cross_split: list[dict[str, str]] = []
+    near_buckets: dict[int, list[tuple[str, str, int]]] = defaultdict(list)
+    round_trip_failures: list[str] = []
+    lineage_violations: list[str] = []
+    split_lineage: dict[tuple[str, str], set[str]] = defaultdict(set)
+    pii_secret_hits: list[dict[str, str]] = []
+    provenance_violations: list[str] = []
+    rendered_slot_violations: list[str] = []
+    snapshot_violations: list[str] = []
+    split_counts: Counter[str] = Counter()
+    language_counts: Counter[str] = Counter()
+    family_counts: Counter[str] = Counter()
+    tier_counts: Counter[str] = Counter()
+    annotation_label_counts: Counter[str] = Counter()
+    model_counts: Counter[str] = Counter()
+    turn_lengths: list[int] = []
+    rendered_count = 0
+    live_count = 0
+
+    for shard_path in shard_paths:
+        with gzip.open(shard_path, "rt", encoding="utf-8") as source:
+            for line_number, line in enumerate(source, start=1):
+                payload = line.strip()
+                if not payload:
+                    continue
+                try:
+                    trajectory = trajectory_from_json(payload)
+                except (TypeError, ValueError) as error:
+                    raise ValueError(f"invalid trajectory in {shard_path.name}:{line_number}") from error
+
+                trajectory_count += 1
+                run_ids.add(trajectory.provenance.run_id)
+                scenario_ids.add(trajectory.scenario_ref)
+                trajectory_id_counts[trajectory.trajectory_id] += 1
+                digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+                hashes.append(digest)
+                trajectory_hash_counts[digest] += 1
+                if canonical_json(trajectory) != payload:
+                    round_trip_failures.append(trajectory.trajectory_id)
+
+                lineage_violations.extend(_annotation_lineage_violations((trajectory,)))
+                metadata = {item.key: item.value for item in trajectory.metadata}
+                for key in ("persona_id", "latent_arc_id"):
+                    value = metadata.get(key, "<missing>")
+                    split_lineage[(key, value)].add(trajectory.split.value)
+
+                transcript = _transcript_text(trajectory)
+                transcript_hash = hashlib.sha256(transcript.encode("utf-8")).hexdigest()
+                transcript_hash_counts[transcript_hash] += 1
+                previous = transcript_seen.get(transcript_hash)
+                if previous is not None and previous[1] != trajectory.split.value:
+                    exact_cross_split.append(
+                        {
+                            "left": previous[0],
+                            "right": trajectory.trajectory_id,
+                            "hash": transcript_hash,
+                        }
+                    )
+                elif previous is None:
+                    transcript_seen[transcript_hash] = (
+                        trajectory.trajectory_id,
+                        trajectory.split.value,
+                    )
+
+                if trajectory.generation_tier is GenerationTier.RENDERED:
+                    rendered_count += 1
+                    signature = _simhash(transcript)
+                    near_buckets[signature >> 48].append(
+                        (
+                            trajectory.trajectory_id,
+                            trajectory.split.value,
+                            signature,
+                        )
+                    )
+                    rendered_slot_violations.extend(_rendered_slot_violations((trajectory,)))
+                elif trajectory.generation_tier is GenerationTier.LIVE_THROUGH:
+                    live_count += 1
+                    snapshot_violations.extend(_snapshot_lineage_violations((trajectory,)))
+
+                pii_secret_hits.extend(_pii_secret_hits((trajectory,)))
+                provenance_violations.extend(_provenance_violations((trajectory,)))
+                split_counts[trajectory.split.value] += 1
+                language_counts[trajectory.language] += 1
+                family_counts[trajectory.family] += 1
+                tier_counts[trajectory.generation_tier.value] += 1
+                annotation_label_counts.update(annotation.label_key for annotation in trajectory.annotations)
+                model_counts[trajectory.provenance.model_id or "none"] += 1
+                turn_lengths.extend(len(turn.text) for session in trajectory.sessions for turn in session.turns)
+
+    if trajectory_count == 0:
+        raise ValueError("cannot audit an empty trajectory set")
+    if len(run_ids) != 1:
+        raise ValueError(f"audit input mixes run ids: {sorted(run_ids)}")
+
+    split_violations = [
+        f"{key}:{value}:{sorted(splits)}"
+        for (key, value), splits in sorted(split_lineage.items())
+        if len(splits) > 1 or value == "<missing>"
+    ]
+    near_cross_split: list[dict[str, object]] = []
+    for entries in near_buckets.values():
+        for left_index, left in enumerate(entries):
+            for right in entries[left_index + 1 :]:
+                if left[1] == right[1]:
+                    continue
+                similarity = 1.0 - ((left[2] ^ right[2]).bit_count() / 64.0)
+                if similarity >= 0.94:
+                    near_cross_split.append(
+                        {
+                            "left": left[0],
+                            "right": right[0],
+                            "similarity": round(similarity, 6),
+                        }
+                    )
+
+    distribution = {
+        "split": dict(sorted(split_counts.items())),
+        "language": dict(sorted(language_counts.items())),
+        "family": dict(sorted(family_counts.items())),
+        "generation_tier": dict(sorted(tier_counts.items())),
+        "annotation_label": dict(sorted(annotation_label_counts.items())),
+        "turn_length": {
+            "min": min(turn_lengths),
+            "max": max(turn_lengths),
+            "mean": sum(turn_lengths) / len(turn_lengths),
+            "p95": _percentile(turn_lengths, 0.95),
+        },
+    }
+    distribution_violations = _distribution_violations(distribution)
+    duplicate_ids = sorted(value for value, count in trajectory_id_counts.items() if count > 1)
+    duplicate_hashes = sorted(value for value, count in trajectory_hash_counts.items() if count > 1)
+    duplicate_transcript_hashes = sorted(value for value, count in transcript_hash_counts.items() if count > 1)
+    checks = (
+        _check(
+            "trajectory_count",
+            passed=(expected_count is None or trajectory_count == expected_count),
+            hard_gate=expected_count is not None,
+            observed=trajectory_count,
+            expected=("declared expected_count" if expected_count is not None else "informational"),
+            details={"expected_count": expected_count},
+        ),
+        _check(
+            "scenario_coverage",
+            passed=len(scenario_ids) == expected_scenario_count,
+            hard_gate=True,
+            observed=len(scenario_ids),
+            expected=str(expected_scenario_count),
+            details={"scenario_ids": sorted(scenario_ids)},
+        ),
+        _check(
+            "schema_round_trip_hash",
+            passed=not round_trip_failures,
+            hard_gate=True,
+            observed=len(round_trip_failures),
+            expected="0 failures",
+            details={"failures": round_trip_failures},
+        ),
+        _check(
+            "trajectory_identity_uniqueness",
+            passed=not duplicate_ids and not duplicate_hashes,
+            hard_gate=True,
+            observed=len(duplicate_ids) + len(duplicate_hashes),
+            expected="0 duplicate ids and 0 duplicate full records",
+            details={
+                "duplicate_ids": duplicate_ids,
+                "duplicate_hashes": duplicate_hashes,
+            },
+        ),
+        _check(
+            "annotation_lineage_policy",
+            passed=not lineage_violations,
+            hard_gate=True,
+            observed=len(lineage_violations),
+            expected="0 source/training-use violations",
+            details={"violations": lineage_violations},
+        ),
+        _check(
+            "split_lineage_zero_leakage",
+            passed=not split_violations,
+            hard_gate=True,
+            observed=len(split_violations),
+            expected="0 persona/latent-arc cross-split overlaps",
+            details={"violations": split_violations},
+        ),
+        _check(
+            "exact_transcript_uniqueness",
+            passed=not duplicate_transcript_hashes,
+            hard_gate=True,
+            observed=len(duplicate_transcript_hashes),
+            expected="0 exact transcript duplicates",
+            details={"duplicate_hashes": duplicate_transcript_hashes},
+        ),
+        _check(
+            "exact_transcript_cross_split",
+            passed=not exact_cross_split,
+            hard_gate=True,
+            observed=len(exact_cross_split),
+            expected="0 exact cross-split transcript duplicates",
+            details={"pairs": exact_cross_split},
+        ),
+        _check(
+            "near_duplicate_cross_split",
+            passed=not near_cross_split,
+            hard_gate=rendered_count > 0,
+            observed=len(near_cross_split),
+            expected=("0 rendered cross-split pairs with similarity >= 0.94"),
+            details={"pairs": near_cross_split},
+        ),
+        _check(
+            "pii_secret_scan",
+            passed=not pii_secret_hits,
+            hard_gate=True,
+            observed=len(pii_secret_hits),
+            expected="0 high-confidence PII/secret patterns",
+            details={"hits": pii_secret_hits},
+        ),
+        _check(
+            "heldout_copyright_source_isolation",
+            passed=not provenance_violations,
+            hard_gate=True,
+            observed=len(provenance_violations),
+            expected="fully synthetic proprietary provenance only",
+            details={"violations": provenance_violations},
+        ),
+        _check(
+            "rendered_text_slot_integrity",
+            passed=not rendered_slot_violations,
+            hard_gate=rendered_count > 0,
+            observed=len(rendered_slot_violations),
+            expected="no structural placeholders in rendered trajectories",
+            details={"violations": rendered_slot_violations},
+        ),
+        _check(
+            "runtime_snapshot_lineage",
+            passed=not snapshot_violations,
+            hard_gate=live_count > 0,
+            observed=len(snapshot_violations),
+            expected="all live turns reference hash-valid public snapshots",
+            details={"violations": snapshot_violations},
+        ),
+        _check(
+            "distribution_coverage",
+            passed=not distribution_violations,
+            hard_gate=True,
+            observed=len(distribution_violations),
+            expected="all splits/languages/families represented",
+            details={"violations": distribution_violations},
+        ),
+    )
+    hard_failure_count = sum(1 for check in checks if check.hard_gate and not check.passed)
+    report = AuditReport(
+        schema_version=AUDIT_SCHEMA_VERSION,
+        run_id=next(iter(run_ids)),
+        trajectory_count=trajectory_count,
+        passed=hard_failure_count == 0,
+        hard_failure_count=hard_failure_count,
+        checks=checks,
+        trajectory_hashes=tuple(sorted(hashes)),
+        distribution_json=canonical_json(distribution),
+    )
+    return report, model_counts
+
+
 def audit_projection_records(
     records: tuple[ProjectionRecord, ...],
 ) -> tuple[AuditCheck, ...]:
@@ -331,6 +629,7 @@ def write_audit_bundle(
     actual_cost_usd: float = 0.0,
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
+    model_distribution: Mapping[str, int] | None = None,
 ) -> tuple[Path, ...]:
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "audit-report.json"
@@ -369,7 +668,7 @@ def write_audit_bundle(
                 "# Field Dictionary",
                 "",
                 "- `truth_frames`: generator-owned observable/private world state and response contract.",
-                "- `sessions[].turns[].text`: structural or LLM-rendered expression only.",
+                ("- `sessions[].turns[].text`: structural or source-traced rendered expression only."),
                 "- `snapshot_frames`: immutable public runtime observations with payload hash.",
                 "- `annotations`: ontology/version/source/training-use/evidence lineage.",
                 "- `artifacts`: content-addressed external references; no embedded mutable objects.",
@@ -402,7 +701,11 @@ def write_audit_bundle(
         encoding="utf-8",
     )
     cost_path = output_dir / "cost-model-report.json"
-    model_counts = Counter(item.provenance.model_id or "none" for item in trajectories)
+    model_counts = (
+        Counter(model_distribution)
+        if model_distribution is not None
+        else Counter(item.provenance.model_id or "none" for item in trajectories)
+    )
     cost_path.write_text(
         json.dumps(
             {
@@ -560,8 +863,10 @@ def _provenance_violations(
         if provenance.source_kind not in {
             "synthetic_world_fsm",
             "synthetic_world_fsm_plus_llm_render",
+            "synthetic_world_fsm_plus_text_render",
             "synthetic_world_fsm_plus_live_through",
             "synthetic_world_fsm_plus_llm_render_plus_live_through",
+            "synthetic_world_fsm_plus_text_render_plus_live_through",
         }:
             violations.append(trajectory.trajectory_id + ":source-kind")
         if any(
@@ -714,6 +1019,7 @@ __all__ = [
     "AuditCheck",
     "AuditReport",
     "audit_projection_records",
+    "audit_run_streaming",
     "audit_trajectories",
     "write_audit_bundle",
 ]

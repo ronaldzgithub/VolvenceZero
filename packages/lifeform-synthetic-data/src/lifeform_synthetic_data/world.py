@@ -106,9 +106,15 @@ def compile_structural_trajectory(
             turn_id = f"{trajectory_id}:session:{session_index}:turn:{turn_index}"
             if turn_index % 2 == 0:
                 phase = _phase_for(user_turn_ordinal, total_user_turns)
-                fact = _select(
-                    blueprint.observable_facts,
-                    user_turn_ordinal + rng.randrange(len(blueprint.observable_facts)),
+                fact = blueprint.observable_facts[0]
+                context_facts = (
+                    blueprint.observable_facts[1:]
+                    if len(blueprint.observable_facts) > 1
+                    else blueprint.observable_facts
+                )
+                context_fact = _select(
+                    context_facts,
+                    user_turn_ordinal + rng.randrange(len(context_facts)),
                 )
                 private_fact = _select(
                     blueprint.private_truth,
@@ -156,6 +162,11 @@ def compile_structural_trajectory(
                     event_kind="world_event",
                     observable_facts=(
                         KeyValue(key="fact", value=fact),
+                        KeyValue(key="context_constraint", value=context_fact),
+                        KeyValue(
+                            key="event_ordinal",
+                            value=str(user_turn_ordinal),
+                        ),
                         KeyValue(key="session_index", value=str(session_index)),
                     ),
                     private_facts=(
@@ -307,7 +318,7 @@ def replace_rendered_text(
         sessions=rendered_sessions,
         provenance=replace(
             trajectory.provenance,
-            source_kind="synthetic_world_fsm_plus_llm_render",
+            source_kind="synthetic_world_fsm_plus_text_render",
             model_id=model_id,
             prompt_hash=prompt_hash,
         ),

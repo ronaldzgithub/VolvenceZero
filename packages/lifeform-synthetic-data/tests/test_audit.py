@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import gzip
 from dataclasses import replace
 from pathlib import Path
 
 from lifeform_synthetic_data.audit import (
     audit_projection_records,
+    audit_run_streaming,
     audit_trajectories,
     write_audit_bundle,
 )
+from lifeform_synthetic_data.canonical import canonical_json
 from lifeform_synthetic_data.contracts import TrainingUse
 from lifeform_synthetic_data.projections import (
     PROJECTION_SCHEMA_VERSION,
@@ -66,6 +69,36 @@ def test_provenance_violation_fails_loud_hard_gate() -> None:
     assert not report.passed
     failed = {check.check_id for check in report.checks if not check.passed}
     assert "heldout_copyright_source_isolation" in failed
+
+
+def test_streaming_audit_matches_in_memory_hard_gates(
+    tmp_path: Path,
+) -> None:
+    trajectories = _golden96()
+    master_root = tmp_path / "master"
+    master_root.mkdir()
+    with gzip.open(
+        master_root / "shard-00000.jsonl.gz",
+        "wt",
+        encoding="utf-8",
+    ) as sink:
+        for trajectory in trajectories:
+            sink.write(canonical_json(trajectory) + "\n")
+
+    streaming, model_counts = audit_run_streaming(
+        tmp_path,
+        expected_count=96,
+    )
+    in_memory = audit_trajectories(
+        trajectories,
+        expected_count=96,
+    )
+
+    assert streaming.passed == in_memory.passed
+    assert {(check.check_id, check.passed, check.hard_gate) for check in streaming.checks} == {
+        (check.check_id, check.passed, check.hard_gate) for check in in_memory.checks
+    }
+    assert model_counts == {"none": 96}
 
 
 def test_projection_audit_blocks_eval_record_as_training_target() -> None:
