@@ -4,7 +4,14 @@ from dataclasses import dataclass, replace
 import math
 import os
 
-from volvence_zero.credit.gate import CreditRecord, GateDecision, ModificationGate, SelfModificationRecord
+from volvence_zero.credit.gate import (
+    CreditRecord,
+    CreditSnapshot,
+    GateDecision,
+    ModificationGate,
+    SelfModificationRecord,
+)
+from volvence_zero.environment import EnvironmentOutcome
 from volvence_zero.internal_rl.environment import (
     InternalRLDelayedCreditAssignment,
     InternalRLEnvStep,
@@ -13,6 +20,7 @@ from volvence_zero.internal_rl.environment import (
     InternalRLProofProgress,
 )
 from volvence_zero.memory import Track
+from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.tensor_backend import is_torch_available
@@ -24,6 +32,7 @@ from volvence_zero.temporal import (
     LearnedLiteTemporalPolicy,
     MetacontrollerParameterSnapshot,
     MetacontrollerParameterStore,
+    MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
 )
 from volvence_zero.temporal.metacontroller_components import (
@@ -67,6 +76,16 @@ class ZTransition:
     proof_subgoal_completed: bool = False
     proof_terminal_success: bool = False
     active_family_id: str | None = None
+    transition_source: str = "synthetic"
+    runtime_turn_index: int = 0
+    prediction_id: str = ""
+    environment_outcome_id: str = ""
+    runtime_base_mean: tuple[float, ...] = ()
+    runtime_base_std: tuple[float, ...] = ()
+    runtime_previous_code: tuple[float, ...] = ()
+    runtime_beta_t: float = 0.0
+    runtime_other_track_sum: tuple[float, ...] = ()
+    lineage_matched: bool = False
 
 
 @dataclass(frozen=True)
@@ -111,11 +130,58 @@ class CausalPolicyParameters:
     critic_bias: float = 0.0
 
 
+class RuntimeReplayLineageError(RuntimeError):
+    """A runtime outcome/PE lineage does not match the captured action."""
+
+
+@dataclass(frozen=True)
+class RuntimeActionCapture:
+    capture_id: str
+    turn_index: int
+    track: Track
+    prediction_id: str
+    substrate_snapshot: SubstrateSnapshot
+    temporal_snapshot: TemporalAbstractionSnapshot
+    runtime_state: MetacontrollerRuntimeState
+    previous_code: tuple[float, ...]
+    observation_signature: tuple[float, ...]
+    policy_action: tuple[float, ...]
+    policy_mean: tuple[float, ...]
+    policy_std: tuple[float, ...]
+    policy_noise: tuple[float, ...]
+    log_prob: float
+    value_estimate: float
+    runtime_base_mean: tuple[float, ...]
+    runtime_base_std: tuple[float, ...]
+    runtime_beta_t: float
+    runtime_other_track_sum: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class RuntimeReplaySettlement:
+    capture_id: str
+    rollout: ZRollout | None
+    lineage_matched: bool
+    environment_outcome_id: str = ""
+    drop_reason: str = ""
+
+
+@dataclass(frozen=True)
+class RuntimeReplayCheckpoint:
+    pending_capture: RuntimeActionCapture | None
+    previous_code: tuple[float, ...]
+    captured_count: int
+    settled_count: int
+    dropped_count: int
+    last_drop_reason: str
+
+
 @dataclass(frozen=True)
 class CausalPolicyCheckpoint:
     checkpoint_id: str
     parameters_by_track: tuple[CausalPolicyParameters, ...]
     metacontroller_snapshot: MetacontrollerParameterSnapshot
+    runtime_replay: RuntimeReplayCheckpoint | None = None
 
 
 @dataclass(frozen=True)
@@ -180,6 +246,84 @@ class PolicyOptimizationResult:
 
 def _clamp(value: float) -> float:
     return max(-1.0, min(1.0, value))
+
+
+def runtime_replay_policy_distribution(
+    *,
+    base_mean: tuple[float, ...],
+    base_std: tuple[float, ...],
+    previous_code: tuple[float, ...],
+    beta_t: float,
+    track_weights: tuple[float, ...],
+    other_track_sum: tuple[float, ...],
+    modulation_strength: float,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Reconstruct the ndim runtime behavior distribution.
+
+    The posterior is the stochastic source used by the real runtime forward.
+    Track modulation is applied before the captured beta gate blends the
+    candidate with the previous code.  Pure and torch PPO mirror this formula;
+    synthetic transitions never enter it.
+    """
+
+    n = len(base_mean)
+    lengths = {
+        len(base_std),
+        len(previous_code),
+        len(track_weights),
+        len(other_track_sum),
+    }
+    if n == 0 or lengths != {n}:
+        raise ValueError(
+            "runtime replay distribution requires aligned non-empty vectors: "
+            f"mean={n}, std={len(base_std)}, previous={len(previous_code)}, "
+            f"weights={len(track_weights)}, other_sum={len(other_track_sum)}"
+        )
+    if not 0.0 <= beta_t <= 1.0:
+        raise ValueError(f"runtime replay beta_t must be within [0, 1], got {beta_t!r}")
+    if modulation_strength < 0.0:
+        raise ValueError(
+            "runtime replay modulation_strength must be >= 0, "
+            f"got {modulation_strength!r}"
+        )
+    aggregate_weights = tuple(
+        (track_weights[index] + other_track_sum[index]) / 3.0
+        for index in range(n)
+    )
+    gains = tuple(
+        max(
+            0.5,
+            min(
+                1.5,
+                1.0
+                + modulation_strength
+                * (aggregate_weights[index] * n - 1.0),
+            ),
+        )
+        for index in range(n)
+    )
+    modulated_mean = tuple(
+        _clamp(base_mean[index] * gains[index])
+        for index in range(n)
+    )
+    policy_mean = tuple(
+        _clamp(
+            beta_t * modulated_mean[index]
+            + (1.0 - beta_t) * previous_code[index]
+        )
+        for index in range(n)
+    )
+    policy_std = tuple(
+        max(
+            0.02,
+            min(
+                0.5,
+                abs(beta_t * base_std[index] * gains[index] * 0.5),
+            ),
+        )
+        for index in range(n)
+    )
+    return policy_mean, policy_std
 
 
 def _surface_signature(substrate_snapshot: SubstrateSnapshot, n_z: int = 3) -> tuple[float, ...]:
@@ -641,10 +785,38 @@ class CausalZPolicy:
         accum = [0.0 for _ in range(dims)]
         track_weights = self._project_track_weights(track=track, n=dims)
         for transition, advantage in zip(transitions, advantages, strict=True):
+            if transition.transition_source not in {"synthetic", "runtime-replay"}:
+                raise ValueError(
+                    "unsupported Internal-RL transition source "
+                    f"{transition.transition_source!r}"
+                )
             for index, value in enumerate(transition.observation_signature):
                 variance = max(transition.policy_std[index] ** 2, 1e-6)
                 score_term = (transition.policy_action[index] - transition.policy_mean[index]) / variance
-                if self._runtime_track_modulation_strength > 0.0:
+                if transition.transition_source == "runtime-replay":
+                    aggregate_weight = (
+                        track_weights[index]
+                        + transition.runtime_other_track_sum[index]
+                    ) / 3.0
+                    raw_gain = 1.0 + self._runtime_track_modulation_strength * (
+                        aggregate_weight * dims - 1.0
+                    )
+                    gain = max(0.5, min(1.5, raw_gain))
+                    unbounded_mean = transition.runtime_base_mean[index] * gain
+                    if (
+                        gain != raw_gain
+                        or not -1.0 < unbounded_mean < 1.0
+                    ):
+                        policy_sensitivity = 0.0
+                    else:
+                        policy_sensitivity = (
+                            transition.runtime_beta_t
+                            * transition.runtime_base_mean[index]
+                            * self._runtime_track_modulation_strength
+                            * dims
+                            / 3.0
+                        )
+                elif self._runtime_track_modulation_strength > 0.0:
                     base_candidate = _clamp(
                         transition.hidden_state[index] * 0.50
                         + value * 0.30
@@ -687,19 +859,35 @@ class CausalZPolicy:
         kl_terms: list[float] = []
         replacement_effects: list[float] = []
         for transition, advantage in zip(transitions, advantages, strict=True):
-            new_mean = self._policy_mean(
-                track=transition.track,
-                hidden_state=transition.hidden_state,
-                surface=transition.observation_signature,
-                previous_action=transition.policy_action,
-                weights=new_weights,
-            )
-            new_std = self._policy_std(
-                hidden_state=transition.hidden_state,
-                surface=transition.observation_signature,
-                previous_action=transition.policy_action,
-                policy_mean=new_mean,
-            )
+            if transition.transition_source == "runtime-replay":
+                new_mean, new_std = runtime_replay_policy_distribution(
+                    base_mean=transition.runtime_base_mean,
+                    base_std=transition.runtime_base_std,
+                    previous_code=transition.runtime_previous_code,
+                    beta_t=transition.runtime_beta_t,
+                    track_weights=new_weights,
+                    other_track_sum=transition.runtime_other_track_sum,
+                    modulation_strength=self._runtime_track_modulation_strength,
+                )
+            elif transition.transition_source == "synthetic":
+                new_mean = self._policy_mean(
+                    track=transition.track,
+                    hidden_state=transition.hidden_state,
+                    surface=transition.observation_signature,
+                    previous_action=transition.policy_action,
+                    weights=new_weights,
+                )
+                new_std = self._policy_std(
+                    hidden_state=transition.hidden_state,
+                    surface=transition.observation_signature,
+                    previous_action=transition.policy_action,
+                    policy_mean=new_mean,
+                )
+            else:
+                raise ValueError(
+                    "unsupported Internal-RL transition source "
+                    f"{transition.transition_source!r}"
+                )
             new_log_prob = self._log_prob(
                 policy_action=transition.policy_action,
                 policy_mean=new_mean,
@@ -718,19 +906,23 @@ class CausalZPolicy:
                 objective_terms.append(min(unclipped_objective, clipped_objective))
             else:
                 objective_terms.append(max(unclipped_objective, clipped_objective))
-            old_mean = self._policy_mean(
-                track=transition.track,
-                hidden_state=transition.hidden_state,
-                surface=transition.observation_signature,
-                previous_action=transition.policy_action,
-                weights=old_weights,
-            )
-            old_std = self._policy_std(
-                hidden_state=transition.hidden_state,
-                surface=transition.observation_signature,
-                previous_action=transition.policy_action,
-                policy_mean=old_mean,
-            )
+            if transition.transition_source == "runtime-replay":
+                old_mean = transition.policy_mean
+                old_std = transition.policy_std
+            else:
+                old_mean = self._policy_mean(
+                    track=transition.track,
+                    hidden_state=transition.hidden_state,
+                    surface=transition.observation_signature,
+                    previous_action=transition.policy_action,
+                    weights=old_weights,
+                )
+                old_std = self._policy_std(
+                    hidden_state=transition.hidden_state,
+                    surface=transition.observation_signature,
+                    previous_action=transition.policy_action,
+                    policy_mean=old_mean,
+                )
             kl_terms.append(
                 self._gaussian_kl(
                     old_mean=old_mean,
@@ -932,6 +1124,16 @@ class CausalZPolicy:
                 ),
                 updated_rollouts=normalized_rollouts,
             )
+        transition_sources = {
+            transition.transition_source
+            for selected_rollout in filtered_rollouts
+            for transition in selected_rollout.transitions
+        }
+        if len(transition_sources) != 1:
+            raise ValueError(
+                "Internal-RL batches cannot mix transition sources, got "
+                f"{tuple(sorted(transition_sources))}"
+            )
         track = filtered_rollouts[0].track
         updated_rollouts, transitions, advantages, mean_return, value_loss = self._aggregate_batch_targets(
             rollouts=filtered_rollouts,
@@ -1123,6 +1325,14 @@ class InternalRLSandbox:
         self._latest_optimization_report: (
             DualTrackOptimizationReport | OptimizationReport | None
         ) = None
+        self._pending_runtime_capture: RuntimeActionCapture | None = None
+        self._runtime_previous_code: tuple[float, ...] = tuple(
+            0.0 for _ in range(self._causal_policy.n_z)
+        )
+        self._runtime_captured_count = 0
+        self._runtime_settled_count = 0
+        self._runtime_dropped_count = 0
+        self._runtime_last_drop_reason = ""
 
     @property
     def latest_optimization_report(
@@ -1136,6 +1346,338 @@ class InternalRLSandbox:
         """Switch the causal-policy PPO backend (reversible to DISABLED)."""
 
         self._causal_policy.set_rl_backend(wiring_level)
+
+    @property
+    def runtime_replay_checkpoint(self) -> RuntimeReplayCheckpoint:
+        """Immutable owner-state readout used only by bounded checkpoints."""
+
+        return RuntimeReplayCheckpoint(
+            pending_capture=self._pending_runtime_capture,
+            previous_code=self._runtime_previous_code,
+            captured_count=self._runtime_captured_count,
+            settled_count=self._runtime_settled_count,
+            dropped_count=self._runtime_dropped_count,
+            last_drop_reason=self._runtime_last_drop_reason,
+        )
+
+    def restore_runtime_replay_checkpoint(
+        self,
+        checkpoint: RuntimeReplayCheckpoint,
+    ) -> None:
+        if len(checkpoint.previous_code) != self._causal_policy.n_z:
+            raise ValueError(
+                "runtime replay checkpoint latent dimension mismatch: "
+                f"expected={self._causal_policy.n_z}, "
+                f"actual={len(checkpoint.previous_code)}"
+            )
+        self._pending_runtime_capture = checkpoint.pending_capture
+        self._runtime_previous_code = checkpoint.previous_code
+        self._runtime_captured_count = checkpoint.captured_count
+        self._runtime_settled_count = checkpoint.settled_count
+        self._runtime_dropped_count = checkpoint.dropped_count
+        self._runtime_last_drop_reason = checkpoint.last_drop_reason
+
+    def capture_runtime_action(
+        self,
+        *,
+        turn_index: int,
+        track: Track,
+        prediction_id: str,
+        substrate_snapshot: SubstrateSnapshot,
+        temporal_snapshot: TemporalAbstractionSnapshot,
+        runtime_state: MetacontrollerRuntimeState,
+    ) -> RuntimeActionCapture:
+        """Capture one real runtime action before its environment settles."""
+
+        if self._pending_runtime_capture is not None:
+            raise RuntimeError(
+                "runtime replay capture must be settled or explicitly dropped "
+                "before the next action is captured"
+            )
+        if not prediction_id:
+            raise RuntimeReplayLineageError(
+                "runtime replay capture requires a PE-owner prediction_id"
+            )
+        n = self._causal_policy.n_z
+        action = tuple(temporal_snapshot.controller_state.code)
+        if len(action) != n:
+            raise ValueError(
+                "runtime replay action latent dimension mismatch: "
+                f"expected={n}, actual={len(action)}"
+            )
+        base_mean = tuple(runtime_state.posterior_mean)
+        base_std = tuple(runtime_state.posterior_std)
+        policy_noise = tuple(runtime_state.posterior_sample_noise)
+        hidden_state = tuple(runtime_state.posterior_hidden_state)
+        for name, values in (
+            ("posterior_mean", base_mean),
+            ("posterior_std", base_std),
+            ("posterior_sample_noise", policy_noise),
+            ("posterior_hidden_state", hidden_state),
+        ):
+            if len(values) != n:
+                raise ValueError(
+                    f"runtime replay {name} dimension mismatch: "
+                    f"expected={n}, actual={len(values)}"
+                )
+        track_parameters = dict(runtime_state.track_parameters)
+        required_tracks = {member.value for member in (Track.WORLD, Track.SELF, Track.SHARED)}
+        if set(track_parameters) != required_tracks:
+            raise ValueError(
+                "runtime replay requires world/self/shared track parameters, "
+                f"got={tuple(sorted(track_parameters))}"
+            )
+        for track_name, values in track_parameters.items():
+            if len(values) != n:
+                raise ValueError(
+                    f"runtime replay track {track_name!r} dimension mismatch: "
+                    f"expected={n}, actual={len(values)}"
+                )
+        other_track_sum = tuple(
+            sum(
+                track_parameters[other.value][index]
+                for other in (Track.WORLD, Track.SELF, Track.SHARED)
+                if other is not track
+            )
+            for index in range(n)
+        )
+        track_weights = tuple(track_parameters[track.value])
+        beta_t = float(runtime_state.latest_switch_gate)
+        policy_mean, policy_std = runtime_replay_policy_distribution(
+            base_mean=base_mean,
+            base_std=base_std,
+            previous_code=self._runtime_previous_code,
+            beta_t=beta_t,
+            track_weights=track_weights,
+            other_track_sum=other_track_sum,
+            modulation_strength=self._causal_policy.runtime_track_modulation_strength,
+        )
+        observation_signature = _surface_signature(substrate_snapshot, n)
+        log_prob = self._causal_policy._log_prob(
+            policy_action=action,
+            policy_mean=policy_mean,
+            policy_std=policy_std,
+        )
+        value_estimate = self._causal_policy._value_estimate(
+            track=track,
+            hidden_state=hidden_state,
+            surface=observation_signature,
+        )
+        capture = RuntimeActionCapture(
+            capture_id=f"runtime:{track.value}:turn-{turn_index}:{prediction_id}",
+            turn_index=turn_index,
+            track=track,
+            prediction_id=prediction_id,
+            substrate_snapshot=substrate_snapshot,
+            temporal_snapshot=temporal_snapshot,
+            runtime_state=runtime_state,
+            previous_code=self._runtime_previous_code,
+            observation_signature=observation_signature,
+            policy_action=action,
+            policy_mean=policy_mean,
+            policy_std=policy_std,
+            policy_noise=policy_noise,
+            log_prob=log_prob,
+            value_estimate=value_estimate,
+            runtime_base_mean=base_mean,
+            runtime_base_std=base_std,
+            runtime_beta_t=beta_t,
+            runtime_other_track_sum=other_track_sum,
+        )
+        self._pending_runtime_capture = capture
+        self._runtime_previous_code = action
+        self._runtime_captured_count += 1
+        return capture
+
+    def settle_runtime_action(
+        self,
+        *,
+        next_substrate_snapshot: SubstrateSnapshot,
+        environment_outcome: EnvironmentOutcome | None,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+        credit_snapshot: CreditSnapshot | None,
+    ) -> RuntimeReplaySettlement:
+        """Settle the prior action using only matching PE-first evidence."""
+
+        capture = self._pending_runtime_capture
+        if capture is None:
+            return RuntimeReplaySettlement(
+                capture_id="",
+                rollout=None,
+                lineage_matched=False,
+                drop_reason="no-pending-capture",
+            )
+        if environment_outcome is None:
+            self._pending_runtime_capture = None
+            self._runtime_dropped_count += 1
+            self._runtime_last_drop_reason = "missing-environment-outcome"
+            return RuntimeReplaySettlement(
+                capture_id=capture.capture_id,
+                rollout=None,
+                lineage_matched=False,
+                drop_reason=self._runtime_last_drop_reason,
+            )
+        if prediction_error_snapshot is None or credit_snapshot is None:
+            raise RuntimeReplayLineageError(
+                "runtime replay settlement with an EnvironmentOutcome requires "
+                "matching prediction_error and credit snapshots"
+            )
+        evaluated_prediction = prediction_error_snapshot.evaluated_prediction
+        action_context = prediction_error_snapshot.action_context
+        lineage_values = {
+            "environment_outcome.prediction_id": environment_outcome.prediction_id or "",
+            "prediction_error.evaluated_prediction.prediction_id": (
+                evaluated_prediction.prediction_id
+                if evaluated_prediction is not None
+                else ""
+            ),
+            "prediction_error.action_context.prediction_id": action_context.prediction_id,
+        }
+        mismatched = tuple(
+            f"{name}={value!r}"
+            for name, value in lineage_values.items()
+            if value != capture.prediction_id
+        )
+        if action_context.environment_outcome_id != environment_outcome.outcome_id:
+            mismatched = mismatched + (
+                "prediction_error.action_context.environment_outcome_id="
+                f"{action_context.environment_outcome_id!r}",
+            )
+        if mismatched:
+            raise RuntimeReplayLineageError(
+                "runtime replay lineage mismatch for "
+                f"{capture.capture_id}: expected prediction_id="
+                f"{capture.prediction_id!r}, outcome_id="
+                f"{environment_outcome.outcome_id!r}; actual={mismatched}"
+            )
+        segment_records = tuple(
+            record
+            for record in credit_snapshot.recent_credits
+            if (
+                record.level == "abstract_action_segment"
+                and action_context.segment_id
+                and record.source_event == f"segment:{action_context.segment_id}"
+            )
+        )
+        segment_bonus = 0.0
+        if segment_records:
+            segment_bonus = _clamp(
+                (
+                    sum(record.credit_value for record in segment_records)
+                    / len(segment_records)
+                )
+                * 0.1
+                * (1.0 + max(0.0, prediction_error_snapshot.error.magnitude))
+            )
+        pe_reward = _clamp(prediction_error_snapshot.error.signed_reward)
+        reward = _clamp(pe_reward + segment_bonus)
+        next_signature = _surface_signature(
+            next_substrate_snapshot,
+            self._causal_policy.n_z,
+        )
+        downstream_effect = tuple(
+            _clamp(next_signature[index] - capture.observation_signature[index])
+            for index in range(self._causal_policy.n_z)
+        )
+        reward_components = [("prediction_error", pe_reward)]
+        if abs(segment_bonus) > 1e-12:
+            reward_components.append(("abstract_action_credit", segment_bonus))
+        runtime_state = capture.runtime_state
+        transition = ZTransition(
+            step_index=0,
+            track=capture.track,
+            abstract_action=capture.temporal_snapshot.active_abstract_action,
+            controller_state=capture.temporal_snapshot.controller_state,
+            observation_signature=capture.observation_signature,
+            policy_action=capture.policy_action,
+            latent_code=capture.policy_action,
+            decoder_output=runtime_state.decoder_control,
+            applied_control=runtime_state.decoder_applied_control,
+            downstream_effect=downstream_effect,
+            hidden_state=runtime_state.posterior_hidden_state,
+            policy_score=runtime_state.policy_replacement_score,
+            log_prob=capture.log_prob,
+            reward=reward,
+            raw_reward=pe_reward,
+            policy_replacement_quality=1.0,
+            backend_name="runtime-replay",
+            backend_fidelity=1.0,
+            policy_mean=capture.policy_mean,
+            policy_std=capture.policy_std,
+            policy_noise=capture.policy_noise,
+            value_estimate=capture.value_estimate,
+            replacement_effect_delta=self._mean_abs_tuple(
+                capture.observation_signature,
+                next_signature,
+            ),
+            reward_components=tuple(reward_components),
+            reward_mode="runtime-replay",
+            active_family_id=runtime_state.active_label,
+            transition_source="runtime-replay",
+            runtime_turn_index=capture.turn_index,
+            prediction_id=capture.prediction_id,
+            environment_outcome_id=environment_outcome.outcome_id,
+            runtime_base_mean=capture.runtime_base_mean,
+            runtime_base_std=capture.runtime_base_std,
+            runtime_previous_code=capture.previous_code,
+            runtime_beta_t=capture.runtime_beta_t,
+            runtime_other_track_sum=capture.runtime_other_track_sum,
+            lineage_matched=True,
+        )
+        rollout = ZRollout(
+            rollout_id=(
+                f"{capture.capture_id}:outcome:{environment_outcome.outcome_id}"
+            ),
+            track=capture.track,
+            transitions=(transition,),
+            total_reward=reward,
+            description=(
+                "Real runtime replay settled from next substrate dynamics and "
+                f"PE-first credit for prediction {capture.prediction_id}."
+            ),
+            replacement_mode="runtime-replay",
+            reward_mode="runtime-replay",
+        )
+        self._pending_runtime_capture = None
+        self._runtime_settled_count += 1
+        self._runtime_last_drop_reason = ""
+        return RuntimeReplaySettlement(
+            capture_id=capture.capture_id,
+            rollout=rollout,
+            lineage_matched=True,
+            environment_outcome_id=environment_outcome.outcome_id,
+        )
+
+    def observe_runtime_transition(
+        self,
+        *,
+        turn_index: int,
+        track: Track,
+        prediction_id: str,
+        substrate_snapshot: SubstrateSnapshot,
+        temporal_snapshot: TemporalAbstractionSnapshot,
+        runtime_state: MetacontrollerRuntimeState,
+        environment_outcome: EnvironmentOutcome | None,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+        credit_snapshot: CreditSnapshot | None,
+    ) -> tuple[RuntimeReplaySettlement, RuntimeActionCapture]:
+        """Settle the previous action, then capture the current runtime action."""
+
+        settlement = self.settle_runtime_action(
+            next_substrate_snapshot=substrate_snapshot,
+            environment_outcome=environment_outcome,
+            prediction_error_snapshot=prediction_error_snapshot,
+            credit_snapshot=credit_snapshot,
+        )
+        capture = self.capture_runtime_action(
+            turn_index=turn_index,
+            track=track,
+            prediction_id=prediction_id,
+            substrate_snapshot=substrate_snapshot,
+            temporal_snapshot=temporal_snapshot,
+            runtime_state=runtime_state,
+        )
+        return settlement, capture
 
     @property
     def policy(self) -> FullLearnedTemporalPolicy | LearnedLiteTemporalPolicy:
@@ -1604,11 +2146,26 @@ class InternalRLSandbox:
             ),
         )
 
-    def create_checkpoint(self, *, checkpoint_id: str) -> CausalPolicyCheckpoint:
-        return self._causal_policy.create_checkpoint(checkpoint_id=checkpoint_id)
+    def create_checkpoint(
+        self,
+        *,
+        checkpoint_id: str,
+        include_runtime_replay: bool = False,
+    ) -> CausalPolicyCheckpoint:
+        checkpoint = self._causal_policy.create_checkpoint(
+            checkpoint_id=checkpoint_id
+        )
+        if not include_runtime_replay:
+            return checkpoint
+        return replace(
+            checkpoint,
+            runtime_replay=self.runtime_replay_checkpoint,
+        )
 
     def restore_checkpoint(self, checkpoint: CausalPolicyCheckpoint) -> None:
         self._causal_policy.restore_checkpoint(checkpoint)
+        if checkpoint.runtime_replay is not None:
+            self.restore_runtime_replay_checkpoint(checkpoint.runtime_replay)
 
     def optimize(
         self,
