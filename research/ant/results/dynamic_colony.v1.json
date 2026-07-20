@@ -8,7 +8,7 @@
     "torch": "2.10.0"
   },
   "experiment": "dynamic_stigmergy_regime_shift_v1",
-  "implementation_digest": "cbc26900940ffe24a8fd4b2d77200d6ab17f53fb0a182fa71609d9c827d3e0df",
+  "implementation_digest": "5998b180ddc9a253f0eeac00ec3584ced89865974df42fc33ba734e73b21ceff",
   "n_ants": 1,
   "perturbations": [
     "obstacle_block",
@@ -18,7 +18,7 @@
   "post_shift_rounds": 5,
   "pre_shift_rounds": 2,
   "provenance": {
-    "config_digest": "316d68dbe9246c1189822fe397972c497015f4204649ed6a4a86faf9f5c244e5",
+    "config_digest": "320d3f3adbfd3a6f1f63110780db4ba41eeffe817e90c0edc8f434e762e1ceda",
     "dependency_versions": [
       [
         "vz-contracts",
@@ -42,14 +42,14 @@
       ]
     ],
     "git_branch": "main",
-    "git_sha": "2c99d9d85ef1a3700a9648562a6c8a95241f6a3c",
+    "git_sha": "2758c9d81906025cbf44a996184e61f0617d682c",
     "model_fingerprint": null,
     "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
     "python_version": "3.13.5",
     "seed_schedule": [
       0
     ],
-    "working_tree_dirty": true
+    "working_tree_dirty": false
   },
   "recovery_window": 1,
   "report_schema_version": "dynamic-colony-report.v4",
@@ -289,6 +289,9 @@
         {
           "arms": [
             {
+              "adaptation_start_policy_fingerprints": [
+                "5ccb7e9727fa482db1a6bb6bdf4c621a81e3d7a8ea5dc4cfe01d4672fa27809d"
+              ],
               "arm": "learned_bus",
               "bus_enabled": true,
               "controller_kind": "kernel",
@@ -308,7 +311,7 @@
                 "a2982285b8fc4e2d5e7ea574a02112170ec7aeaa6512a491d56ab074e04209b0"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -332,13 +335,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -399,6 +402,9 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [
+                "1f357bf504c29ffbb9431748d3059ed7dd00ef708c8cec3fd01d6b293089b8dd"
+              ],
               "arm": "learned_no_bus",
               "bus_enabled": false,
               "controller_kind": "kernel",
@@ -418,7 +424,7 @@
                 "470a563d0f67fe310787933935b9c0ce4699d67551f0a21002d6136dc1cf04b6"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -442,13 +448,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -509,6 +515,9 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
               "arm": "no_optimize_bus",
               "bus_enabled": true,
               "controller_kind": "kernel",
@@ -528,7 +537,7 @@
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -552,13 +561,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -619,6 +628,9 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [
+                "ed27c5c372d9f3ec36f9045da2ee2b884a6a03b0eb23e2461a86fb720156420f"
+              ],
               "arm": "pe_off_bus",
               "bus_enabled": true,
               "controller_kind": "kernel",
@@ -638,7 +650,7 @@
                 "f0c4ba2f6104f045e05e2e47962aba451563d685b5d171bef21d95f83ef5d8d2"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -662,13 +674,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -729,6 +741,7 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [],
               "arm": "fixed_rule_bus",
               "bus_enabled": true,
               "controller_kind": "fixed_rule",
@@ -811,6 +824,7 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [],
               "arm": "fixed_rule_no_bus",
               "bus_enabled": false,
               "controller_kind": "fixed_rule",
@@ -893,6 +907,7 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [],
               "arm": "random_no_bus",
               "bus_enabled": false,
               "controller_kind": "random",
@@ -1226,6 +1241,9 @@
         {
           "arms": [
             {
+              "adaptation_start_policy_fingerprints": [
+                "5ccb7e9727fa482db1a6bb6bdf4c621a81e3d7a8ea5dc4cfe01d4672fa27809d"
+              ],
               "arm": "learned_bus",
               "bus_enabled": true,
               "controller_kind": "kernel",
@@ -1245,7 +1263,7 @@
                 "62dc294d2e2bb90b0cd1172b4a6732aca0d88a175df6f444dfbfe4a29b0a378e"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -1269,13 +1287,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -1336,6 +1354,9 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [
+                "1f357bf504c29ffbb9431748d3059ed7dd00ef708c8cec3fd01d6b293089b8dd"
+              ],
               "arm": "learned_no_bus",
               "bus_enabled": false,
               "controller_kind": "kernel",
@@ -1355,7 +1376,7 @@
                 "8b323e5d65a7b781ab974594503d047c69b64df514aa86b802a88db6deb5878b"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -1379,13 +1400,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -1446,6 +1467,9 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
               "arm": "no_optimize_bus",
               "bus_enabled": true,
               "controller_kind": "kernel",
@@ -1465,7 +1489,7 @@
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -1489,13 +1513,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -1556,6 +1580,9 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [
+                "ed27c5c372d9f3ec36f9045da2ee2b884a6a03b0eb23e2461a86fb720156420f"
+              ],
               "arm": "pe_off_bus",
               "bus_enabled": true,
               "controller_kind": "kernel",
@@ -1575,7 +1602,7 @@
                 "a3e04bed6560479d425124d646275c98ed82924bb41cd059d60bb6d71a775539"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -1599,13 +1626,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -1666,6 +1693,7 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [],
               "arm": "fixed_rule_bus",
               "bus_enabled": true,
               "controller_kind": "fixed_rule",
@@ -1748,6 +1776,7 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [],
               "arm": "fixed_rule_no_bus",
               "bus_enabled": false,
               "controller_kind": "fixed_rule",
@@ -1830,6 +1859,7 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [],
               "arm": "random_no_bus",
               "bus_enabled": false,
               "controller_kind": "random",
@@ -2163,6 +2193,9 @@
         {
           "arms": [
             {
+              "adaptation_start_policy_fingerprints": [
+                "5ccb7e9727fa482db1a6bb6bdf4c621a81e3d7a8ea5dc4cfe01d4672fa27809d"
+              ],
               "arm": "learned_bus",
               "bus_enabled": true,
               "controller_kind": "kernel",
@@ -2182,7 +2215,7 @@
                 "bb25035d47f68315d360d09720bc3f2393b1e9c185e2a380e5bc314a3f4dc75f"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -2206,13 +2239,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -2273,6 +2306,9 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [
+                "1f357bf504c29ffbb9431748d3059ed7dd00ef708c8cec3fd01d6b293089b8dd"
+              ],
               "arm": "learned_no_bus",
               "bus_enabled": false,
               "controller_kind": "kernel",
@@ -2292,7 +2328,7 @@
                 "8874427807cdd7ad60fe0e783024324bbe56fa0885cf11e969f5427d91f8ea36"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -2316,13 +2352,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -2383,6 +2419,9 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [
+                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+              ],
               "arm": "no_optimize_bus",
               "bus_enabled": true,
               "controller_kind": "kernel",
@@ -2402,7 +2441,7 @@
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -2426,13 +2465,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -2493,6 +2532,9 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [
+                "ed27c5c372d9f3ec36f9045da2ee2b884a6a03b0eb23e2461a86fb720156420f"
+              ],
               "arm": "pe_off_bus",
               "bus_enabled": true,
               "controller_kind": "kernel",
@@ -2512,7 +2554,7 @@
                 "a4f47b48a8e492b61b0dfbfd0e5ca0933d4434ea3cf0ce26b547aaac22d83b18"
               ],
               "initial_checkpoint_fingerprints": [
-                "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
+                "9eeee966506fa7cefd36f163684735434f442f545613ea15793df04aa26aa020"
               ],
               "n_ants": 1,
               "obstacle_contacts": 0,
@@ -2536,13 +2578,13 @@
               "post_shift_rounds": 5,
               "post_shift_runtime_replay_per_ant": [
                 {
-                  "captured": 10,
+                  "captured": 8,
                   "drop_reasons": [],
                   "lineage_coverage": 1.0,
-                  "lineage_matches": 10,
-                  "settled": 10,
+                  "lineage_matches": 8,
+                  "settled": 8,
                   "settlement_coverage": 1.0,
-                  "transitions": 10
+                  "transitions": 8
                 }
               ],
               "post_shift_throughput_per_1k_actions": 0.0,
@@ -2603,6 +2645,7 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [],
               "arm": "fixed_rule_bus",
               "bus_enabled": true,
               "controller_kind": "fixed_rule",
@@ -2685,6 +2728,7 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [],
               "arm": "fixed_rule_no_bus",
               "bus_enabled": false,
               "controller_kind": "fixed_rule",
@@ -2767,6 +2811,7 @@
               "training_rounds": 0
             },
             {
+              "adaptation_start_policy_fingerprints": [],
               "arm": "random_no_bus",
               "bus_enabled": false,
               "controller_kind": "random",
