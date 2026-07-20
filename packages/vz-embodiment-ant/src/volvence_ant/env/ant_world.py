@@ -35,6 +35,22 @@ class FoodSource:
 
 
 @dataclass(frozen=True)
+class MotorDistortionProfile:
+    """Hidden actuator transfer function, optionally switching once at runtime."""
+
+    turn_gain: float = 1.0
+    turn_bias: float = 0.0
+    switch_tick: int | None = None
+    switched_turn_gain: float = 1.0
+    switched_turn_bias: float = 0.0
+
+    def at_tick(self, tick: int) -> tuple[float, float]:
+        if self.switch_tick is not None and tick >= self.switch_tick:
+            return (self.switched_turn_gain, self.switched_turn_bias)
+        return (self.turn_gain, self.turn_bias)
+
+
+@dataclass(frozen=True)
 class AntBody:
     x: float = 0.0
     y: float = 0.0
@@ -80,6 +96,8 @@ class WorldTransitionEvidence:
     delivered: bool
     carrying_before: bool
     carrying_after: bool
+    commanded_turn: float
+    applied_turn: float
 
 
 @dataclass
@@ -93,6 +111,9 @@ class AntWorldConfig:
     max_turn_rate: float = math.radians(45.0)
     food_pickup_radius: float = 1.2
     seed: int = 0
+    # Empty = identity actuator. One profile broadcasts to every body; otherwise
+    # the tuple must contain exactly one immutable profile per body.
+    motor_distortions: tuple[MotorDistortionProfile, ...] = ()
 
 
 class AntWorld:
@@ -111,6 +132,15 @@ class AntWorld:
         n_bodies: int = 1,
     ) -> None:
         self.config = config or AntWorldConfig()
+        if self.config.motor_distortions and len(self.config.motor_distortions) not in {
+            1,
+            max(1, n_bodies),
+        }:
+            raise ValueError(
+                "motor_distortions must be empty, a single broadcast profile, "
+                f"or one profile per body; got {len(self.config.motor_distortions)} "
+                f"profiles for {max(1, n_bodies)} bodies"
+            )
         self._rng = np.random.default_rng(self.config.seed)
         self._food: list[FoodSource] = list(food_sources) or [
             FoodSource(x=8.0, y=0.0, strength=1.0, decay=6.0)
@@ -236,8 +266,18 @@ class AntWorld:
 
         cfg = self.config
         body = self._bodies[body_id]
-        turn = float(np.clip(turn_command, -cfg.max_turn_rate, cfg.max_turn_rate))
-        new_heading = (body.heading + turn) % TWO_PI
+        commanded_turn = float(
+            np.clip(turn_command, -cfg.max_turn_rate, cfg.max_turn_rate)
+        )
+        gain, bias = self._motor_distortion(body_id).at_tick(self.tick)
+        applied_turn = float(
+            np.clip(
+                commanded_turn * gain + bias,
+                -cfg.max_turn_rate,
+                cfg.max_turn_rate,
+            )
+        )
+        new_heading = (body.heading + applied_turn) % TWO_PI
         step = float(np.clip(step_command, 0.0, cfg.step_size))
         new_x = body.x + step * math.cos(new_heading)
         new_y = body.y + step * math.sin(new_heading)
@@ -254,15 +294,23 @@ class AntWorld:
             delivered=body.carrying_food and not new_body.carrying_food,
             carrying_before=body.carrying_food,
             carrying_after=new_body.carrying_food,
+            commanded_turn=commanded_turn,
+            applied_turn=applied_turn,
         )
         self._bodies[body_id] = new_body
-        self._last_turn[body_id] = turn
+        self._last_turn[body_id] = applied_turn
         self._on_body_moved(body_id, new_body)
         if body_id == self.n_bodies - 1:
             self.tick += 1
             self._decay_alarm()
             self._on_round_complete()
         return self.observe(body_id)
+
+    def _motor_distortion(self, body_id: int) -> MotorDistortionProfile:
+        profiles = self.config.motor_distortions
+        if not profiles:
+            return MotorDistortionProfile()
+        return profiles[0] if len(profiles) == 1 else profiles[body_id]
 
     def _resolve_contacts(self, body: AntBody, body_id: int) -> AntBody:
         cfg = self.config

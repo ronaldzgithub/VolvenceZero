@@ -81,6 +81,12 @@ def _soak_evidence(payload: dict, *, path: Path) -> dict[str, object]:
     return {
         "real_trace_turns": int(gate["real_trace_turns"]),
         "validation_delta": float(gate["validation_delta"]),
+        # Observation-window versioning (threshold pre-registration):
+        # propagate the soak's declared gate version + v2 readout so the
+        # promotion evaluator judges the artifact under the criterion its
+        # window was opened with. Pre-v2 soaks carry no marker -> "v1".
+        "validation_gate_version": str(gate.get("validation_gate_version", "v1")),
+        "validation_delta_v2": gate.get("validation_delta_v2"),
         "strict_eta_gate_passed": bool(payload["strict_eta_gate"]["gate_passed"]),
         "rollback_drill_passed": int(cp11["checkpoint_round_trips_verified"]) > 0,
         "latency_slo_ok": bool(gate["latency_slo_ok"]),
@@ -231,7 +237,11 @@ def main(argv: list[str] | None = None) -> int:
         "soak_summary": soak,
         "component_controls": control,
         "cms_ab_evidence": cms,
-        "learned_active_gate": {"evidence": rows},
+        "learned_active_gate": {
+            "evidence": rows,
+            "validation_gate_version": soak["validation_gate_version"],
+            "validation_delta_v2": soak["validation_delta_v2"],
+        },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

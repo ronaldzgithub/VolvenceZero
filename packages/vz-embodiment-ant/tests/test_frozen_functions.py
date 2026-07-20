@@ -70,9 +70,19 @@ def test_motor_decode_empty_code_goes_straight() -> None:
 
 def test_motor_decode_direction_sign() -> None:
     left = motor_decode((0.1, 0.5), max_turn_rate=1.5, step_size=0.4)
-    right = motor_decode((0.1, -0.5), max_turn_rate=1.5, step_size=0.4)
-    assert left.turn_command > 0  # positive y -> turn left
+    right = motor_decode((0.5, 0.1), max_turn_rate=1.5, step_size=0.4)
+    straight = motor_decode((0.3, 0.3), max_turn_rate=1.5, step_size=0.4)
+    assert left.turn_command > 0  # left evidence dominates
     assert right.turn_command < 0
+    assert straight.turn_command == 0.0
+
+
+def test_motor_decode_near_zero_code_only_turns_slightly() -> None:
+    tiny = motor_decode((0.01, 0.0), max_turn_rate=1.5, step_size=0.4)
+    large = motor_decode((0.5, 0.0), max_turn_rate=1.5, step_size=0.4)
+    assert tiny.turn_command < 0
+    assert abs(tiny.turn_command) < 0.05
+    assert abs(large.turn_command) > abs(tiny.turn_command)
 
 
 def test_navigator_path_integration_roundtrip() -> None:

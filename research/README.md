@@ -12,7 +12,7 @@
 
 ## 新增重要研究：All Cognitive 106 篇详尽分析包
 
-- [`allcognitive/`](allcognitive/) — 对本轮 106 篇新增论文逐篇按统一九项模板深读，形成五卷专题（架构学习 25、安全治理 26、关系多主体 21、具身世界模型 19、脑科学 15）、跨轴综合与可审计覆盖索引，共约 3,700 行。核心结论不是“AGI 已解决”，而是 frozen/adaptive 写面、PE readout 分层、latent controllability、记忆生命周期、关系健康 veto、监控器可欺骗性和 R15 发布门都已有可直接转化为 benchmark / kill condition 的外部证据。建议从 [`allcognitive/README.md`](allcognitive/README.md) 与 [`allcognitive/06_CROSS_AXIS_SYNTHESIS.md`](allcognitive/06_CROSS_AXIS_SYNTHESIS.md) 开始阅读。
+- [`allcognitive/`](allcognitive/) — 对本轮 106 篇新增论文逐篇按统一九项模板深读，形成五卷专题（架构学习 25、安全治理 26、关系多主体 21、具身世界模型 19、脑科学 15）、跨轴综合与可审计覆盖索引，共约 3,700 行。核心结论不是“AGI 已解决”，而是 frozen/adaptive 写面、PE readout 分层、latent controllability、记忆生命周期、关系健康 veto、监控器可欺骗性和 R15 发布门都已有可直接转化为 benchmark / kill condition 的外部证据。建议从 [`allcognitive/README.md`](allcognitive/README.md)、[`allcognitive/06_CROSS_AXIS_SYNTHESIS.md`](allcognitive/06_CROSS_AXIS_SYNTHESIS.md) 与单独的 [`allcognitive/08_VOLVENCE_IMPLICATIONS.md`](allcognitive/08_VOLVENCE_IMPLICATIONS.md) 开始阅读。
 
 ---
 

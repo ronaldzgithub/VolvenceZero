@@ -16,6 +16,7 @@ Torch-dependent tests SKIP when torch is missing (never silently pass).
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
 import pytest
@@ -248,6 +249,62 @@ def test_runtime_track_modulation_rejects_negative_strength() -> None:
         policy.set_runtime_track_modulation(-0.1)
 
 
+def test_sandbox_policy_mean_uses_live_runtime_track_modulation() -> None:
+    """Sandbox policy distribution and live code share one modulation rule."""
+
+    from volvence_zero.internal_rl.sandbox import InternalRLSandbox
+
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    strength = 0.5
+    policy = FullLearnedTemporalPolicy(parameter_store=store)
+    policy.set_runtime_track_modulation(strength)
+    causal = InternalRLSandbox(policy=policy).causal_policy
+    assert causal.runtime_track_modulation_strength == strength
+    hidden = tuple(0.1 + i * 0.01 for i in range(_NDIM))
+    surface = tuple(0.2 + i * 0.005 for i in range(_NDIM))
+    previous = tuple(0.05 for _ in range(_NDIM))
+    weights = _skewed_track_weights(_NDIM)[Track.WORLD]
+    base_candidate = tuple(
+        min(
+            1.0,
+            hidden[i] * 0.50 + surface[i] * 0.30 + previous[i] * 0.20,
+        )
+        for i in range(_NDIM)
+    )
+    expected = store.runtime_track_modulated_code(
+        base_candidate,
+        strength=strength,
+        track_override=(Track.WORLD, weights),
+    )
+
+    actual = causal._policy_mean(
+        track=Track.WORLD,
+        hidden_state=hidden,
+        surface=surface,
+        previous_action=previous,
+        weights=weights,
+    )
+    assert actual == expected
+
+
+def test_causal_override_is_not_runtime_modulated_twice() -> None:
+    """Sandbox emits a final modulated candidate; live override consumes it once."""
+
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    policy.set_runtime_track_modulation(0.5)
+    override = tuple(0.8 for _ in range(_NDIM))
+    step = policy.step_with_causal_override(
+        substrate_snapshot=_trace_step_snapshot(_trace()),
+        previous_snapshot=None,
+        latent_override=override,
+        policy_replacement_score=1.0,
+        binary_gate_override=True,
+    )
+    assert step.controller_state.code == override
+
+
 def _trace_step_snapshot(trace: object) -> object:
     """Substrate-like view over one trace step (what the runtime encoder reads)."""
 
@@ -275,6 +332,7 @@ def _trace_step_snapshot(trace: object) -> object:
 @dataclass(frozen=True)
 class _MiniTransition:
     observation_signature: tuple[float, ...]
+    hidden_state: tuple[float, ...]
     policy_action: tuple[float, ...]
     advantage_estimate: float
     return_estimate: float
@@ -286,6 +344,10 @@ def _transitions(n_z: int) -> tuple[_MiniTransition, ...]:
         _MiniTransition(
             observation_signature=tuple(
                 min(1.0, 0.1 + 0.05 * ((i + j) % 7)) for j in range(n_z)
+            ),
+            hidden_state=tuple(
+                min(1.0, 0.15 + 0.03 * ((i + j * 2) % 7))
+                for j in range(n_z)
             ),
             policy_action=tuple(
                 min(1.0, 0.2 + 0.04 * ((i * 3 + j) % 5)) for j in range(n_z)
@@ -328,3 +390,71 @@ def test_torch_causal_ppo_write_back_gate(write_back: bool) -> None:
     else:
         assert store.track_weights[Track.WORLD] == before_weights
         assert value_weights[Track.WORLD] == before_critic
+
+
+@torch_only
+def test_torch_causal_ppo_update_changes_live_runtime_code_when_bridge_open() -> None:
+    """End-to-end regression: PPO writeback must move the real ndim ``code``."""
+
+    from volvence_zero.internal_rl.torch_causal_ppo import torch_causal_ppo_update
+
+    snapshot = _trace_step_snapshot(_trace())
+    strength = 0.5
+
+    baseline_store = MetacontrollerParameterStore(n_z=_NDIM)
+    baseline_policy = FullLearnedTemporalPolicy(parameter_store=baseline_store)
+    baseline_policy.set_runtime_track_modulation(strength)
+    before_code = _first_code(baseline_policy, snapshot)
+
+    learned_store = MetacontrollerParameterStore(n_z=_NDIM)
+    value_weights = {Track.WORLD: tuple(0.1 for _ in range(_NDIM))}
+    value_bias = {Track.WORLD: 0.05}
+    report = torch_causal_ppo_update(
+        parameter_store=learned_store,
+        value_weights=value_weights,
+        value_bias=value_bias,
+        track=Track.WORLD,
+        transitions=_transitions(_NDIM),
+        n_z=_NDIM,
+        write_back=True,
+        runtime_track_modulation_strength=strength,
+    )
+    learned_policy = FullLearnedTemporalPolicy(parameter_store=learned_store)
+    learned_policy.set_runtime_track_modulation(strength)
+    after_code = _first_code(learned_policy, snapshot)
+
+    assert report.wrote_back is True
+    assert report.parameters_changed > 0
+    assert learned_store.track_weights[Track.WORLD] != baseline_store.track_weights[
+        Track.WORLD
+    ]
+    assert after_code != before_code
+
+
+def test_joint_loop_no_optimize_reports_but_does_not_persist_rl_update() -> None:
+    """Matched control runs the optimizer but restores its policy/critic write."""
+
+    from volvence_zero.joint_loop import ETANLJointLoop
+
+    trace = _trace("joint-no-optimize")
+    enabled = ETANLJointLoop()
+    enabled_report = asyncio.run(
+        enabled.run_cycle(
+            cycle_index=1,
+            trace=trace,
+            apply_policy_optimization=True,
+        )
+    )
+    disabled = ETANLJointLoop()
+    disabled_report = asyncio.run(
+        disabled.run_cycle(
+            cycle_index=1,
+            trace=trace,
+            apply_policy_optimization=False,
+        )
+    )
+
+    assert enabled_report.policy_objective != 0.0
+    assert disabled_report.policy_objective != 0.0
+    assert enabled_report.policy_update_applied is True
+    assert disabled_report.policy_update_applied is False

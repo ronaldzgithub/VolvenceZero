@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import math
 
-from volvence_ant.env.ant_world import AntWorld, AntWorldConfig, FoodSource
+from volvence_ant.env.ant_world import (
+    AntWorld,
+    AntWorldConfig,
+    FoodSource,
+    MotorDistortionProfile,
+)
 
 
 def test_food_field_peaks_at_source() -> None:
@@ -72,3 +77,36 @@ def test_observation_eval_fields_present() -> None:
     obs = world.observe(0)
     assert obs.eval_home_distance >= 0.0
     assert -math.pi <= obs.eval_home_bearing <= math.pi
+
+
+def test_motor_distortion_is_hidden_inside_world_transition() -> None:
+    profile = MotorDistortionProfile(
+        turn_gain=1.0,
+        turn_bias=0.2,
+        switch_tick=1,
+        switched_turn_gain=1.0,
+        switched_turn_bias=-0.2,
+    )
+    world = AntWorld(
+        config=AntWorldConfig(
+            seed=0,
+            max_turn_rate=1.0,
+            motor_distortions=(profile,),
+        )
+    )
+    world.act(turn_command=0.0, step_command=0.0)
+    first = world.last_transition()
+    world.act(turn_command=0.0, step_command=0.0)
+    second = world.last_transition()
+
+    assert first.commanded_turn == 0.0
+    assert math.isclose(first.applied_turn, 0.2)
+    assert math.isclose(second.applied_turn, -0.2)
+    assert math.isclose(world.observe().last_turn_command, -0.2)
+
+
+def test_default_motor_transfer_is_identity() -> None:
+    world = AntWorld(config=AntWorldConfig(seed=0, max_turn_rate=1.0))
+    world.act(turn_command=0.3, step_command=0.0)
+    transition = world.last_transition()
+    assert transition.commanded_turn == transition.applied_turn == 0.3

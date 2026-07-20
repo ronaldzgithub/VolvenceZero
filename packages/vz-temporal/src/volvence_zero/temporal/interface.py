@@ -1260,7 +1260,11 @@ class MetacontrollerParameterStore:
         self.switch_bias = _clamp(1.0 - self.persistence)
 
     def runtime_track_modulated_code(
-        self, code: tuple[float, ...], *, strength: float
+        self,
+        code: tuple[float, ...],
+        *,
+        strength: float,
+        track_override: tuple[Track, tuple[float, ...]] | None = None,
     ) -> tuple[float, ...]:
         """Modulate a candidate latent by the learned per-dim track mixture.
 
@@ -1276,9 +1280,13 @@ class MetacontrollerParameterStore:
 
         if strength <= 0.0 or not code:
             return code
-        world = self.track_weights[Track.WORLD]
-        self_track = self.track_weights[Track.SELF]
-        shared = self.track_weights[Track.SHARED]
+        weights_by_track = dict(self.track_weights)
+        if track_override is not None:
+            override_track, override_weights = track_override
+            weights_by_track[override_track] = override_weights
+        world = weights_by_track[Track.WORLD]
+        self_track = weights_by_track[Track.SELF]
+        shared = weights_by_track[Track.SHARED]
         n = len(code)
         modulated: list[float] = []
         for i in range(n):
@@ -2766,9 +2774,11 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         # ``temporal_weights``), none of which this ndim forward consumed, so RL
         # was structurally disconnected from ``code`` (only SSL, which trains the
         # ndim encoder, moved z_t). This applies a bounded, per-dim modulation of
-        # the candidate latent by the learned track weights. Strength 0 is an
-        # exact byte-stable no-op (instant rollback); >0 lets RL shape ``code``.
-        if self._runtime_track_modulation > 0.0:
+        # the candidate latent by the learned track weights. Causal overrides
+        # are already produced with this same modulation inside the sandbox and
+        # therefore bypass a second application here. Strength 0 is an exact
+        # byte-stable no-op (instant rollback); >0 lets RL shape ``code``.
+        if latent_override is None and self._runtime_track_modulation > 0.0:
             z_candidate = self._parameter_store.runtime_track_modulated_code(
                 z_candidate, strength=self._runtime_track_modulation
             )

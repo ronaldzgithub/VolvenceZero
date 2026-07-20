@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from enum import Enum
 
 from volvence_zero.agent.session import (
     AgentLearningCheckpoint,
@@ -47,6 +48,11 @@ class AntSessionError(RuntimeError):
 AntLearningCheckpoint = AgentLearningCheckpoint
 
 
+class AntObjectiveKind(str, Enum):
+    FORAGING = "foraging"
+    HEADING_STABILITY = "heading_stability"
+
+
 @dataclass
 class AntSessionConfig:
     temporal_latent_dim: int = 4
@@ -70,8 +76,13 @@ class AntSessionConfig:
     # in orchestration scripts construct it and pass it here as an object.
     joint_schedule: object | None = None
     joint_apply_writeback: bool = False
+    # Matched-control gate for Internal-RL policy/critic persistence. False
+    # still runs the same SSL, rollout and optimizer evidence, then restores the
+    # post-SSL/pre-RL checkpoint so no reward-driven policy update accumulates.
+    joint_apply_policy_optimization: bool = True
     temporal_policy: object | None = None
     allow_live_substrate_mutation: bool = False
+    objective: AntObjectiveKind = AntObjectiveKind.FORAGING
 
 
 @dataclass(frozen=True)
@@ -93,6 +104,8 @@ class AntStepRecord:
     abstract_action: str
     homing_direction_error: float
     homing_distance_error: float
+    heading_stability_error: float
+    motor_execution_error: float
     environment_outcome_id: str
     prediction_id: str
     pe_magnitude: float
@@ -131,6 +144,8 @@ class AntSession:
             seed=self.config.seed,
         )
         observation = world.observe(body_id)
+        self._heading_stability_target = observation.eval_true_heading
+        self._previous_heading_stability_error = 0.0
         self.navigator.reset(initial_heading=observation.eval_true_heading)
         self.holder = AntSenseHolder(
             observation=observation,
@@ -157,6 +172,9 @@ class AntSession:
             rare_heavy_enabled=self.config.rare_heavy_enabled,
             external_prediction_error_drive=self.config.external_prediction_error_drive,
             joint_apply_writeback=self.config.joint_apply_writeback,
+            joint_apply_policy_optimization=(
+                self.config.joint_apply_policy_optimization
+            ),
             allow_live_substrate_mutation=self.config.allow_live_substrate_mutation,
         )
         if self.config.joint_schedule is not None:
@@ -222,6 +240,9 @@ class AntSession:
             transition_id=transition.transition_id,
             delivered=transition.delivered,
             picked_up=transition.picked_up,
+            observation=observation,
+            commanded_turn=transition.commanded_turn,
+            applied_turn=transition.applied_turn,
             prediction_id=prediction_id,
         )
         self.runner.submit_environment_outcome(environment_outcome)
@@ -266,6 +287,10 @@ class AntSession:
             abstract_action=abstract_action,
             homing_direction_error=self._homing_direction_error(observation, nav_state),
             homing_distance_error=abs(nav_state.home_distance - observation.eval_home_distance),
+            heading_stability_error=self._heading_stability_error(observation),
+            motor_execution_error=abs(
+                transition.applied_turn - transition.commanded_turn
+            ),
             environment_outcome_id=environment_outcome.outcome_id,
             prediction_id=prediction_id,
             pe_magnitude=prediction_error.magnitude if prediction_error is not None else 0.0,
@@ -302,14 +327,46 @@ class AntSession:
         self.trajectory.append(record)
         return record
 
-    @staticmethod
     def _environment_outcome(
+        self,
         *,
         transition_id: str,
         delivered: bool,
         picked_up: bool,
+        observation: WorldObservation,
+        commanded_turn: float,
+        applied_turn: float,
         prediction_id: str,
     ) -> EnvironmentOutcome:
+        if self.config.objective is AntObjectiveKind.HEADING_STABILITY:
+            heading_error = self._heading_stability_error(observation)
+            task_progress = max(0.0, min(1.0, 1.0 - heading_error))
+            payoff = max(
+                -1.0,
+                min(1.0, self._previous_heading_stability_error - heading_error),
+            )
+            self._previous_heading_stability_error = heading_error
+            return EnvironmentOutcome(
+                outcome_id=f"{transition_id}:outcome",
+                event_id=transition_id,
+                outcome_kind=EnvironmentEventKind.SCENE_EVENT,
+                action_id=transition_id,
+                status="heading_stability_observed",
+                summary="digital-ant heading stability transition",
+                detail=(
+                    "observable sky-compass heading deviation and actuator "
+                    f"execution delta={applied_turn - commanded_turn:.6f}"
+                ),
+                prediction_id=prediction_id or None,
+                evidence=(f"ant_transition:{transition_id}",),
+                environment_state_delta_kind="heading_stability",
+                measurement=EnvironmentMeasurement(
+                    task_progress=task_progress,
+                    action_payoff=payoff,
+                    terminal=False,
+                ),
+            )
+
         # Observable task facts (NOT rewards; the PE owner compares them with
         # prior predictions). Foraging has exactly two genuine, discrete,
         # observable milestones: picking food up (carrying False->True) and
@@ -342,6 +399,18 @@ class AntSession:
             environment_state_delta_kind=status,
             measurement=measurement,
         )
+
+    def _heading_stability_error(self, observation: WorldObservation) -> float:
+        error = abs(
+            (
+                observation.eval_true_heading
+                - self._heading_stability_target
+                + math.pi
+            )
+            % (2.0 * math.pi)
+            - math.pi
+        )
+        return error / math.pi
 
     @staticmethod
     def _homing_direction_error(

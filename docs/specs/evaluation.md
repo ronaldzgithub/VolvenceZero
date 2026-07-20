@@ -150,6 +150,11 @@ VZ-MemProbe 测的是「**retrieval 端的连续性 / 排序 / 跨语境隔离**
 - 当前 session report 已补充 longitudinal trends：`relationship_continuity`、`learning_quality`、`abstraction_reuse`
 - 当前 `EvaluationBackbone.run_replay_suite()` 已提供固定 replay/scenario gate，可作为后续 widening 的证据入口
 - 当前 `EvaluationBackbone` 已提供 default evolution benchmark 与 `judge_evolution_candidate()`，把 replay suite + session trend 显式映射到 `promote / hold / rollback`
+- joint-loop 的在线安全 rollback 只消费 typed `HIGH/CRITICAL` structured alerts；禁止把 F6
+  异质 metric 的 family mean 当统一健康概率再做固定阈值。原因：部分 F6 metric 是有符号 trend
+  （例如 persona geometry drift trend=0 表示稳定），与 `[0,1]` health score 混合平均会把安全中性
+  基线算成 `2/3<0.85`，导致所有 SSL/RL cycle 被错误回滚。KL、negative surrogate、
+  metacontroller drift、relationship-critical 与 reward regression 等独立 gate 保留。
 - 当前 `evaluation` 已会对 family monopoly/collapse 输出显式 alert，并把这类 abstraction 竞争风险返回给 reflection / judge / rollout gate 使用
 - 当前 `evaluation` 已开始直接读取 memory owner 发布的 runtime-grounded learning evidence：如 `runtime_backbone_signal_quality`、`runtime_backbone_signal_strength`、`fast_memory_signal_norm`、`fast_memory_runtime_alignment`；tower telemetry 仍保留，但默认退到辅助 readout
 - 当前 `volvence_zero.agent.dialogue` 已新增 fixed scripted dialogue proof harness：它不改变 `evaluation` snapshot schema，而是按 case 聚合 `prediction_error`、`joint_schedule_action`、`abstract_action`、`regime`、`switch_gate` 与 F4/F5/F2 相关 metrics，用于判断 PE 是否真的驱动 temporal abstraction 与后段改善

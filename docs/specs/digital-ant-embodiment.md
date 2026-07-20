@@ -32,7 +32,11 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）是否**独立于语�
 | `sense_encode` | `WorldObservation` + `NavigatorState` | 固定维感知向量（`SENSE_CHANNELS`） | 纯 numpy，无可学习参数 |
 | `motor_decode` | `z_t`（`ControllerState.code`, len n_z） | `(turn_command, step_command)` | 纯 numpy，无可学习参数 |
 
-`z_t` 契约（egocentric 抽象动作）：`z[0],z[1]` → egocentric 期望朝向单位向量；`z[2]` → 期望速度（squash）。
+`z_t` 契约（egocentric 抽象动作）：ndim controller 的 code 被界在 `[0,1]`，因此 `z[0],z[1]`
+采用非负 opponent residual steering 编码：`forward=1+z0+z1`、`left=z1-z0`；
+固定 forward baseline 让 near-zero code 只产生 near-zero turn，避免在巢边形成 ±45° 小圆；
+相等时直行、`z1>z0` 左转、`z0>z1` 右转；`z[2]` → 期望速度（squash）。历史直接
+`atan2(z1,z0)` 会让非负 controller 结构性无法右转，已移除。
 controller 自由学习「感知特征 → egocentric 动作」的映射；`motor_decode` 只做有界转换。**策略在可学习的内核，plant 冻结在此。**
 
 `AntNavigator`（body 侧，冻结）维护环形吸引子朝向估计 ĥ 与路径积分回巢向量（对应中央复合体）。
@@ -95,6 +99,11 @@ FSM 手写的梯度跟随答案直接喂给控制器，而"如何朝食物走"�
 
 - **Matched-control（Workstream E）**：正式矩阵为全学习 / no-optimize / PE-off / ETA-off /
   FixedRule / end-to-end RL，random 仅作 floor。所有 arm 共享地图、seed、episode budget 与初始 checkpoint。
+  `no-optimize` 必须是真实 Internal-RL 消融：与 learned 共享 PE/SSL schedule、rollout、reflection
+  writeback 与 `internal_rl_runtime_modulation_strength`，只把
+  `joint_apply_policy_optimization=False`，由 joint loop 在 SSL 后/RL 前 checkpoint、optimizer 后
+  restore policy+critic；禁止再用 `joint_apply_writeback=False` 冒充 no-optimize（该开关只控制
+  reflection/memory/regime consolidation，历史实现因此让两个 arm 都实际跑了 PPO）。
 - **ant-active-evidence lane（Workstream F）**：复用 `evaluate_learned_active_candidate` gate 形态；
   替换 HF 绑定为 `:ant:` real-trace 定义与蚂蚁对照臂；产出
   `digital-ant-evidence-bundle.v2.json` + manifest。旧

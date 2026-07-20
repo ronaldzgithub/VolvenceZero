@@ -7,8 +7,13 @@ channels (the PE seam), with no kernel changes.
 
 from __future__ import annotations
 
-from volvence_ant.env.ant_world import AntWorld, AntWorldConfig, FoodSource
-from volvence_ant.runtime import AntSession, AntSessionConfig
+from volvence_ant.env.ant_world import (
+    AntWorld,
+    AntWorldConfig,
+    FoodSource,
+    MotorDistortionProfile,
+)
+from volvence_ant.runtime import AntObjectiveKind, AntSession, AntSessionConfig
 
 
 def _world(seed: int = 3) -> AntWorld:
@@ -92,3 +97,32 @@ async def test_learning_checkpoint_round_trip_restores_owner_state() -> None:
     session.restore_learning_checkpoint(checkpoint)
     restored = session.export_learning_checkpoint(checkpoint_id="shared-initial")
     assert restored.fingerprint == checkpoint.fingerprint
+
+
+async def test_heading_stability_objective_publishes_dense_motor_facts() -> None:
+    world = AntWorld(
+        config=AntWorldConfig(
+            seed=3,
+            motor_distortions=(
+                MotorDistortionProfile(turn_bias=0.2),
+            ),
+        )
+    )
+    session = AntSession(
+        world,
+        config=AntSessionConfig(
+            temporal_latent_dim=4,
+            seed=3,
+            objective=AntObjectiveKind.HEADING_STABILITY,
+        ),
+    )
+    first = await session.step()
+    settled = await session.runner.run_turn("settle-heading-stability")
+
+    assert first.heading_stability_error > 0.0
+    assert first.motor_execution_error > 0.0
+    assert settled.actual_outcome is not None
+    assert 0.0 <= settled.actual_outcome.task_progress <= 1.0
+    assert settled.actual_outcome.action_context.environment_outcome_id == (
+        first.environment_outcome_id
+    )

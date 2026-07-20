@@ -38,8 +38,11 @@ import time
 from pathlib import Path
 
 from volvence_zero.agent.learned_active_gate import (
+    VALIDATION_GATE_V2_WINDOW_ID,
     LearnedActiveEvidence,
     LearnedBackendComponent,
+    ValidationDeltaV2Readout,
+    compute_validation_delta_v2,
     evaluate_learned_active_candidate,
 )
 from volvence_zero.agent.learned_shadow_evidence import (
@@ -190,8 +193,16 @@ def _gate_verdicts(
     rollback_drill_passed: bool,
     pe_off_control_direction_correct: bool = False,
     eta_off_control_direction_correct: bool = False,
+    validation_delta_v2: "ValidationDeltaV2Readout | None" = None,
+    validation_gate_version: str = "v2",
 ) -> list[dict[str, object]]:
-    """Evaluate all four components with honest lane evidence."""
+    """Evaluate all four components with honest lane evidence.
+
+    New soak runs open observation windows under the pre-registered v2
+    validation gate (``cp11-validation-v2-2026-07-20``); the v1 absolute
+    delta stays in the payload for continuity but no longer gates new
+    windows.
+    """
 
     verdicts: list[dict[str, object]] = []
     for component in LearnedBackendComponent:
@@ -205,13 +216,17 @@ def _gate_verdicts(
             rollback_drill_passed=rollback_drill_passed,
             latency_slo_ok=latency_slo_ok,
             safety_gate_ok=safety_gate_ok,
+            validation_delta_v2=validation_delta_v2,
         )
-        verdict = evaluate_learned_active_candidate(evidence)
+        verdict = evaluate_learned_active_candidate(
+            evidence, validation_gate_version=validation_gate_version
+        )
         verdicts.append(
             {
                 "component": component.value,
                 "real_trace_turns": real_trace_turns,
                 "validation_delta": validation_delta,
+                "validation_gate_version": verdict.validation_gate_version,
                 "strict_eta_gate_passed": strict_eta_gate_passed,
                 "pe_off_control_direction_correct": pe_off_control_direction_correct,
                 "eta_off_control_direction_correct": eta_off_control_direction_correct,
@@ -538,6 +553,22 @@ async def main(
                 float(last_readout["self_improvement"]),
             )
             validation_delta_basis = f"cumulative-window-unfilled-{window_count}"
+    # Pre-registered v2 validation readout (relative-to-persistence,
+    # near-constant axes excluded). New soak runs open observation windows
+    # under v2; the v1 absolute delta stays in the payload for continuity.
+    validation_delta_v2: ValidationDeltaV2Readout | None = None
+    if head_readout_series:
+        last_readout = head_readout_series[-1]
+        window_filled = int(last_readout["window_sample_count"]) >= int(
+            last_readout["window_size"]
+        )
+        if "window_axis_learned_maes" in last_readout:
+            validation_delta_v2 = compute_validation_delta_v2(
+                window_filled=window_filled,
+                axis_learned_maes=dict(last_readout["window_axis_learned_maes"]),
+                axis_persistence_maes=dict(last_readout["window_persistence_maes"]),
+                axis_target_stds=dict(last_readout["window_target_stds"]),
+            )
     payload["learned_active_gate"] = {
         "note": (
             "Soak lane evidence. ACTIVE promotion additionally requires "
@@ -550,6 +581,24 @@ async def main(
         "real_trace_turns": real_trace_turns,
         "validation_delta": validation_delta,
         "validation_delta_basis": validation_delta_basis,
+        "validation_gate_version": "v2",
+        "validation_gate_window_id": VALIDATION_GATE_V2_WINDOW_ID,
+        "validation_delta_v2": (
+            None
+            if validation_delta_v2 is None
+            else {
+                "window_filled": validation_delta_v2.window_filled,
+                "informative_axes": list(validation_delta_v2.informative_axes),
+                "excluded_axes": list(validation_delta_v2.excluded_axes),
+                "per_axis_relative_improvement": [
+                    list(item)
+                    for item in validation_delta_v2.per_axis_relative_improvement
+                ],
+                "min_relative_improvement": validation_delta_v2.min_relative_improvement,
+                "blocking_reasons": list(validation_delta_v2.blocking_reasons),
+                "passed": validation_delta_v2.passed,
+            }
+        ),
         "verdicts": _gate_verdicts(
             real_trace_turns=real_trace_turns,
             validation_delta=validation_delta,
@@ -557,6 +606,8 @@ async def main(
             latency_slo_ok=latency_slo_ok,
             strict_eta_gate_passed=bool(strict_eta["gate_passed"]),
             rollback_drill_passed=checkpoint_round_trips > 0,
+            validation_delta_v2=validation_delta_v2,
+            validation_gate_version="v2",
         ),
     }
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from volvence_ant.runtime.ant_session import (
     AntLearningCheckpoint,
+    AntObjectiveKind,
     AntSession,
     AntSessionConfig,
     AntStepRecord,
@@ -12,6 +13,7 @@ from volvence_ant.runtime.colony_runner import ColonyRoundRecord, KernelColonyRu
 
 __all__ = [
     "AntLearningCheckpoint",
+    "AntObjectiveKind",
     "AntSession",
     "AntSessionConfig",
     "AntStepRecord",

@@ -7,6 +7,7 @@ from volvence_ant.env.ant_world import (
     AntWorld,
     AntWorldConfig,
     FoodSource,
+    MotorDistortionProfile,
     WorldObservation,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "AntWorld",
     "AntWorldConfig",
     "FoodSource",
+    "MotorDistortionProfile",
     "WorldObservation",
 ]

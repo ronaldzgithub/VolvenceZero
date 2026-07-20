@@ -436,6 +436,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         wave_id: str | None = None,
         prior_session_reports: tuple[EvaluationReport, ...] = (),
         apply_writeback: bool = True,
+        apply_policy_optimization: bool = True,
     ) -> JointCycleReport:
         world_cycle_checkpoint = self._world_sandbox.create_checkpoint(
             checkpoint_id=f"joint-cycle-{cycle_index}:world"
@@ -450,6 +451,16 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         substrate_snapshots = tuple(self._snapshot_from_trace_step(step, trace) for step in trace.steps)
         self._world_policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
         self._self_policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
+        # Matched no-optimize control: checkpoint AFTER SSL and BEFORE RL so the
+        # arm observes the same trace, SSL schedule, rollout, PE and optimizer
+        # report, but cannot persist policy/critic changes. This is separate
+        # from ``apply_writeback``, which gates reflection/memory consolidation.
+        world_pre_rl_checkpoint = self._world_sandbox.create_checkpoint(
+            checkpoint_id=f"joint-cycle-{cycle_index}:world-pre-rl"
+        )
+        self_pre_rl_checkpoint = self._self_sandbox.create_checkpoint(
+            checkpoint_id=f"joint-cycle-{cycle_index}:self-pre-rl"
+        )
         self._world_sandbox.configure_runtime_backend(source_text=trace.source_text)
         self._self_sandbox.configure_runtime_backend(source_text=trace.source_text)
         eval_signals = dict(self._previous_family_signals)
@@ -490,6 +501,9 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             relationship_batch = tuple(self._pending_relationship_rollouts)
             task_report = self._world_sandbox.optimize(task_batch)
             relationship_report = self._self_sandbox.optimize(relationship_batch)
+            if not apply_policy_optimization:
+                self._world_sandbox.restore_checkpoint(world_pre_rl_checkpoint)
+                self._self_sandbox.restore_checkpoint(self_pre_rl_checkpoint)
             self._pending_task_rollouts.clear()
             self._pending_relationship_rollouts.clear()
             rl_batch_rollout_count = len(task_batch)
@@ -978,6 +992,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         prior_session_reports: tuple[EvaluationReport, ...] = (),
         schedule: JointLoopSchedule | None = None,
         apply_writeback: bool = True,
+        apply_policy_optimization: bool = True,
     ) -> ScheduledJointLoopResult:
         self._world_policy.parameter_store.set_learning_phase("runtime")
         self._self_policy.parameter_store.set_learning_phase("runtime")
@@ -1066,6 +1081,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 wave_id=wave_id,
                 prior_session_reports=prior_session_reports,
                 apply_writeback=apply_writeback,
+                apply_policy_optimization=apply_policy_optimization,
             )
             self._record_schedule_outcome(
                 turn_index=turn_index,
@@ -1252,8 +1268,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     ) -> tuple[str, ...]:
         reasons: list[str] = []
         family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
-        if family_signals.get("safety", 1.0) < 0.85:
-            reasons.append("safety-degraded")
+        # Do not threshold the aggregate safety-family mean. Safety metrics are
+        # heterogeneous readouts (for example, a persona drift *trend* of 0 is
+        # healthy, not a 0/1 health score), so averaging them and requiring
+        # >=0.85 caused every learning cycle to roll back at the neutral 2/3
+        # baseline. Typed HIGH/CRITICAL structured alerts below are the
+        # authoritative safety blockers.
         if family_signals.get("relationship", 1.0) < 0.3:
             reasons.append("relationship-critical")
         if any(

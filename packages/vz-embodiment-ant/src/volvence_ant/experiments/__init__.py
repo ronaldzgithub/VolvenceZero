@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from volvence_ant.experiments.motor_calibration import (
+    MotorCalibrationArm,
+    MotorCalibrationReport,
+    run_motor_calibration_experiment,
+)
 from volvence_ant.experiments.phase0 import (
     HomingCurvePoint,
     HomingPrecisionResult,
@@ -23,9 +28,12 @@ __all__ = [
     "HomingPrecisionResult",
     "KernelColonyArm",
     "KernelColonyReport",
+    "MotorCalibrationArm",
+    "MotorCalibrationReport",
     "RouteLearningResult",
     "colony_foraging_experiment",
     "homing_precision_experiment",
     "kernel_colony_foraging_experiment",
+    "run_motor_calibration_experiment",
     "route_learning_experiment",
 ]

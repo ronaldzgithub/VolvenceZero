@@ -54,7 +54,8 @@ async def test_multiseed_matrix_reports_real_no_optimize_effect() -> None:
                 seed=seed,
                 external_prediction_error_drive=True,
                 joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=3),
-                joint_apply_writeback=False,
+                joint_apply_writeback=True,
+                joint_apply_policy_optimization=False,
             )
         }
 
@@ -101,6 +102,26 @@ def test_spawn_seed_workers_match_serial_and_preserve_seed_order() -> None:
     )
     assert parallel_aggregate == serial_aggregate
     assert tuple(report.seed for report in parallel_aggregate.reports) == seeds
+
+
+def test_formal_no_optimize_is_a_real_policy_update_ablation() -> None:
+    from scripts.run_ant_matched_control import (
+        _ANT_RL_RUNTIME_MODULATION_STRENGTH,
+        _learned_config,
+        _schedule_gated_arms,
+    )
+
+    learned = _learned_config(seed=0, n_z=16)
+    no_optimize = _schedule_gated_arms(seed=0, n_z=16)["no_optimize"]
+
+    assert learned.joint_apply_policy_optimization is True
+    assert no_optimize.joint_apply_policy_optimization is False
+    assert learned.joint_apply_writeback is no_optimize.joint_apply_writeback
+    assert (
+        learned.rollout_config.internal_rl_runtime_modulation_strength
+        == no_optimize.rollout_config.internal_rl_runtime_modulation_strength
+        == _ANT_RL_RUNTIME_MODULATION_STRENGTH
+    )
 
 
 @pytest.mark.skipif(not _HAS_TORCH, reason="E2E PPO baseline requires torch")

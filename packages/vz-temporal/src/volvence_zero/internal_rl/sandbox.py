@@ -256,9 +256,18 @@ class CausalZPolicy:
         *,
         parameter_store: MetacontrollerParameterStore,
         rl_backend: WiringLevel = WiringLevel.DISABLED,
+        runtime_track_modulation_strength: float = 0.0,
     ) -> None:
         self._parameter_store = parameter_store
         self._rl_backend = rl_backend
+        if runtime_track_modulation_strength < 0.0:
+            raise ValueError(
+                "runtime_track_modulation_strength must be >= 0, "
+                f"got {runtime_track_modulation_strength!r}"
+            )
+        self._runtime_track_modulation_strength = float(
+            runtime_track_modulation_strength
+        )
         self._value_weights: dict[Track, tuple[float, ...]] = {
             track: tuple(weight * 0.8 for weight in parameter_store.track_weights[track])
             for track in (Track.WORLD, Track.SELF, Track.SHARED)
@@ -277,6 +286,12 @@ class CausalZPolicy:
         """Switch the PPO backend (DISABLED <-> SHADOW <-> ACTIVE); reversible."""
 
         self._rl_backend = wiring_level
+
+    @property
+    def runtime_track_modulation_strength(self) -> float:
+        """Owner-local evidence that sandbox and live forward share one bridge."""
+
+        return self._runtime_track_modulation_strength
 
     @property
     def n_z(self) -> int:
@@ -328,6 +343,7 @@ class CausalZPolicy:
         )
         weights = self._project_track_weights(track=state.track, n=n)
         policy_mean = self._policy_mean(
+            track=state.track,
             hidden_state=hidden_state,
             surface=surface,
             previous_action=state.previous_action,
@@ -483,11 +499,26 @@ class CausalZPolicy:
     def _policy_mean(
         self,
         *,
+        track: Track,
         hidden_state: tuple[float, ...],
         surface: tuple[float, ...],
         previous_action: tuple[float, ...],
         weights: tuple[float, ...],
     ) -> tuple[float, ...]:
+        if self._runtime_track_modulation_strength > 0.0:
+            base_candidate = tuple(
+                _clamp(
+                    hidden_state[index] * 0.50
+                    + surface[index] * 0.30
+                    + previous_action[index] * 0.20
+                )
+                for index in range(len(hidden_state))
+            )
+            return self._parameter_store.runtime_track_modulated_code(
+                base_candidate,
+                strength=self._runtime_track_modulation_strength,
+                track_override=(track, weights),
+            )
         return tuple(
             _clamp(
                 hidden_state[index] * 0.40
@@ -613,10 +644,31 @@ class CausalZPolicy:
             for index, value in enumerate(transition.observation_signature):
                 variance = max(transition.policy_std[index] ** 2, 1e-6)
                 score_term = (transition.policy_action[index] - transition.policy_mean[index]) / variance
+                if self._runtime_track_modulation_strength > 0.0:
+                    base_candidate = _clamp(
+                        transition.hidden_state[index] * 0.50
+                        + value * 0.30
+                        + transition.policy_action[index] * 0.20
+                    )
+                    policy_sensitivity = max(
+                        base_candidate
+                        * self._runtime_track_modulation_strength
+                        * dims
+                        / 3.0,
+                        1e-3,
+                    )
+                else:
+                    policy_sensitivity = (
+                        max(
+                            value * 0.6
+                            + transition.hidden_state[index] * 0.4,
+                            1e-3,
+                        )
+                        * (0.55 + track_weights[index] * 0.45)
+                    )
                 accum[index] += (
                     score_term
-                    * max(value * 0.6 + transition.hidden_state[index] * 0.4, 1e-3)
-                    * (0.55 + track_weights[index] * 0.45)
+                    * policy_sensitivity
                     * advantage
                 )
         scale = 1.0 / max(len(transitions), 1)
@@ -636,6 +688,7 @@ class CausalZPolicy:
         replacement_effects: list[float] = []
         for transition, advantage in zip(transitions, advantages, strict=True):
             new_mean = self._policy_mean(
+                track=transition.track,
                 hidden_state=transition.hidden_state,
                 surface=transition.observation_signature,
                 previous_action=transition.policy_action,
@@ -666,6 +719,7 @@ class CausalZPolicy:
             else:
                 objective_terms.append(max(unclipped_objective, clipped_objective))
             old_mean = self._policy_mean(
+                track=transition.track,
                 hidden_state=transition.hidden_state,
                 surface=transition.observation_signature,
                 previous_action=transition.policy_action,
@@ -1026,6 +1080,7 @@ class CausalZPolicy:
             write_back=write_back,
             learning_rate=self._parameter_store.learning_rate,
             clip_epsilon=self._parameter_store.clip_epsilon,
+            runtime_track_modulation_strength=self._runtime_track_modulation_strength,
         )
         return {
             "backend": self._rl_backend.value,
@@ -1049,8 +1104,15 @@ class InternalRLSandbox:
         rl_backend: WiringLevel = WiringLevel.DISABLED,
     ) -> None:
         self._policy = policy or FullLearnedTemporalPolicy()
+        runtime_track_modulation_strength = (
+            self._policy.runtime_track_modulation
+            if isinstance(self._policy, FullLearnedTemporalPolicy)
+            else 0.0
+        )
         self._causal_policy = CausalZPolicy(
-            parameter_store=self._policy.parameter_store, rl_backend=rl_backend
+            parameter_store=self._policy.parameter_store,
+            rl_backend=rl_backend,
+            runtime_track_modulation_strength=runtime_track_modulation_strength,
         )
         self._env = env or InternalRLEnvironment()
         self._residual_runtime = residual_runtime

@@ -17,8 +17,31 @@ import sys
 from volvence_zero.agent.learned_active_gate import (
     LearnedActiveEvidence,
     LearnedBackendComponent,
+    ValidationDeltaV2Readout,
     evaluate_learned_active_candidate,
 )
+
+
+def _v2_readout_from_payload(
+    payload: dict[str, object] | None,
+) -> ValidationDeltaV2Readout | None:
+    """Rebuild the frozen v2 readout from an artifact's JSON block."""
+
+    if payload is None:
+        return None
+    return ValidationDeltaV2Readout(
+        window_filled=bool(payload["window_filled"]),
+        informative_axes=tuple(str(axis) for axis in payload["informative_axes"]),
+        excluded_axes=tuple(str(axis) for axis in payload["excluded_axes"]),
+        per_axis_relative_improvement=tuple(
+            (str(axis), float(value))
+            for axis, value in payload["per_axis_relative_improvement"]
+        ),
+        min_relative_improvement=float(payload["min_relative_improvement"]),
+        blocking_reasons=tuple(
+            str(reason) for reason in payload["blocking_reasons"]
+        ),
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -37,7 +60,12 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _evidence_from_payload(component: str, payload: dict[str, object]) -> LearnedActiveEvidence:
+def _evidence_from_payload(
+    component: str,
+    payload: dict[str, object],
+    *,
+    validation_delta_v2: ValidationDeltaV2Readout | None = None,
+) -> LearnedActiveEvidence:
     return LearnedActiveEvidence(
         component=LearnedBackendComponent(component),
         real_trace_turns=int(payload["real_trace_turns"]),
@@ -57,6 +85,7 @@ def _evidence_from_payload(component: str, payload: dict[str, object]) -> Learne
             payload.get("cms_retention_non_degrading", True)
         ),
         cms_absorption_improved=bool(payload.get("cms_absorption_improved", True)),
+        validation_delta_v2=validation_delta_v2,
     )
 
 
@@ -90,18 +119,34 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(rows, list):
         raise SystemExit("learned_active_gate must contain evidence or verdicts list")
 
+    # Observation-window versioning (threshold pre-registration): the
+    # artifact declares which validation gate its window was opened under.
+    # Pre-v2 artifacts carry no marker and are judged under v1 forever.
+    gate_version = str(gate.get("validation_gate_version", "v1"))
+    v2_readout = _v2_readout_from_payload(gate.get("validation_delta_v2"))
+    if gate_version == "v2" and v2_readout is None:
+        raise SystemExit(
+            "artifact declares validation_gate_version=v2 but lacks the "
+            "validation_delta_v2 readout block"
+        )
+
     reports: list[dict[str, object]] = []
     for row in rows:
         if not isinstance(row, dict):
             raise SystemExit("learned_active_gate rows must be objects")
         component = str(row["component"])
         evidence_payload = row if "real_trace_turns" in row else _candidate_payload_from_soak(row)
-        evidence = _evidence_from_payload(component, evidence_payload)
-        verdict = evaluate_learned_active_candidate(evidence)
+        evidence = _evidence_from_payload(
+            component, evidence_payload, validation_delta_v2=v2_readout
+        )
+        verdict = evaluate_learned_active_candidate(
+            evidence, validation_gate_version=gate_version
+        )
         reports.append(
             {
                 "component": verdict.component.value,
                 "eligible": verdict.eligible,
+                "validation_gate_version": verdict.validation_gate_version,
                 "missing_gates": list(verdict.missing_gates),
                 "description": verdict.description,
                 "recommended_env": (
@@ -115,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     payload = {
         "schema_version": "learned-backend-promotion-report.v1",
         "source_artifact": str(args.artifact),
+        "validation_gate_version": gate_version,
         "reports": reports,
         "all_eligible": all(report["eligible"] for report in reports),
     }

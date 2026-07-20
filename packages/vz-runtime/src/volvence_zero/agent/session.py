@@ -496,6 +496,7 @@ class AgentSessionRunner(
         joint_loop: ETANLJointLoop | None = None,
         joint_schedule: JointLoopSchedule | None = None,
         joint_apply_writeback: bool = False,
+        joint_apply_policy_optimization: bool = True,
         temporal_bootstrap: MetacontrollerParameterSnapshot | DualTrackRareHeavySnapshot | None = None,
         rare_heavy_enabled: bool = True,
         rare_heavy_trace_window: int = 5,
@@ -822,6 +823,7 @@ class AgentSessionRunner(
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         self._joint_schedule = joint_schedule or JointLoopSchedule()
         self._joint_apply_writeback = joint_apply_writeback
+        self._joint_apply_policy_optimization = joint_apply_policy_optimization
         self._rare_heavy_enabled = rare_heavy_enabled
         self._rare_heavy_trace_window = max(1, rare_heavy_trace_window)
         self._rare_heavy_min_traces = max(1, min(rare_heavy_min_traces, self._rare_heavy_trace_window))
@@ -1204,6 +1206,7 @@ class AgentSessionRunner(
                 prior_session_reports=self.completed_session_reports,
                 schedule=self._joint_schedule,
                 apply_writeback=self._joint_apply_writeback,
+                apply_policy_optimization=self._joint_apply_policy_optimization,
             )
             pending_semantic_events = self._drain_pending_semantic_events()
             environment_outcome = self._consume_pending_environment_outcome()

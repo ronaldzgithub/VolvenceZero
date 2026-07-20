@@ -67,6 +67,7 @@ def torch_causal_ppo_update(
     learning_rate: float = 0.02,
     entropy_coef: float = 0.005,
     value_coef: float = 0.5,
+    runtime_track_modulation_strength: float = 0.0,
 ) -> TorchPPOReport:
     """One real-autograd PPO update over a live ZTransition batch.
 
@@ -96,6 +97,11 @@ def torch_causal_ppo_update(
 
     obs = torch.stack([vec(t.observation_signature, n_z) for t in usable])
     actions = torch.stack([vec(t.policy_action, n_z) for t in usable])
+    hidden = (
+        torch.stack([vec(t.hidden_state, n_z) for t in usable])
+        if runtime_track_modulation_strength > 0.0
+        else None
+    )
     advantages = torch.tensor([float(t.advantage_estimate) for t in usable], dtype=dtype)
     returns = torch.tensor([float(t.return_estimate) for t in usable], dtype=dtype)
     if advantages.abs().sum() == 0:
@@ -113,8 +119,43 @@ def torch_causal_ppo_update(
     cb = torch.tensor([float(value_bias.get(track, 0.0))], dtype=dtype, requires_grad=True)
 
     def policy_mean(weights: Any) -> Any:
-        # elementwise parametric mean in [0,1]; matches the obs/action arity.
-        return torch.clamp(weights.unsqueeze(0) * obs, 0.0, 1.0)
+        if runtime_track_modulation_strength <= 0.0:
+            # Byte-compatible historical rollback lane.
+            return torch.clamp(weights.unsqueeze(0) * obs, 0.0, 1.0)
+
+        # Match CausalZPolicy._policy_mean and the live ndim forward:
+        # construct an unmodulated causal candidate, then apply the exact same
+        # aggregate track gain. Only ``track`` is trainable in this PPO step;
+        # the other two owner-local track vectors are frozen context.
+        if hidden is None:
+            raise RuntimeError(
+                "runtime track modulation requires transition hidden_state"
+            )
+        base_candidate = torch.clamp(
+            hidden * 0.50 + obs * 0.30 + actions * 0.20,
+            0.0,
+            1.0,
+        )
+        other_tracks = [
+            other_track
+            for other_track in parameter_store.track_weights
+            if other_track != track
+        ]
+        if len(other_tracks) != 2:
+            raise RuntimeError(
+                "runtime track modulation requires exactly world/self/shared "
+                f"tracks, got {tuple(parameter_store.track_weights)}"
+            )
+        other_sum = (
+            vec(parameter_store.track_weights[other_tracks[0]], n_z)
+            + vec(parameter_store.track_weights[other_tracks[1]], n_z)
+        )
+        mean_weights = (weights + other_sum) / 3.0
+        gain = 1.0 + runtime_track_modulation_strength * (
+            mean_weights * n_z - 1.0
+        )
+        gain = torch.clamp(gain, 0.5, 1.5)
+        return torch.clamp(base_candidate * gain.unsqueeze(0), 0.0, 1.0)
 
     def log_prob(mean: Any, ls: Any) -> Any:
         std = torch.exp(ls)

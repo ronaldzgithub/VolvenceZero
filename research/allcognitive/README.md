@@ -22,13 +22,15 @@
    范围、九项逐篇模板、证据强度与 VZ 边界。
 2. [`06_CROSS_AXIS_SYNTHESIS.md`](06_CROSS_AXIS_SYNTHESIS.md)  
    先读这一卷：统一方程、跨轴冲突、20 条 kill conditions、P0/P1/P2 裁决。
-3. 五个专题卷  
+3. [`08_VOLVENCE_IMPLICATIONS.md`](08_VOLVENCE_IMPLICATIONS.md)
+   单独回答“对我们有什么启发”：按 package / owner 给出确认、收紧项、P0/P1/P2、明确不做事项与行动顺序。
+4. 五个专题卷
    - [`01_ARCHITECTURE_LEARNING.md`](01_ARCHITECTURE_LEARNING.md) — 25 篇
    - [`02_SAFETY_GOVERNANCE.md`](02_SAFETY_GOVERNANCE.md) — 26 篇
    - [`03_SOCIAL_RELATIONSHIP.md`](03_SOCIAL_RELATIONSHIP.md) — 21 篇
    - [`04_EMBODIMENT_WORLD_MODELS.md`](04_EMBODIMENT_WORLD_MODELS.md) — 19 篇
    - [`05_NEURO_COGNITIVE_SCIENCE.md`](05_NEURO_COGNITIVE_SCIENCE.md) — 15 篇
-4. [`07_COVERAGE_INDEX.md`](07_COVERAGE_INDEX.md)  
+5. [`07_COVERAGE_INDEX.md`](07_COVERAGE_INDEX.md)
    106 篇唯一主归属、PDF 状态、成熟度、P/R 映射与章节锚点。
 
 ## 覆盖

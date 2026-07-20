@@ -108,11 +108,64 @@ no-optimize 0.0`、CMS `old_knowledge_retention 0.9997`），而不是让四个�
 4. **［校准检查，随 1 一起］** 下一 soak 读 `window_target_stds` / `window_persistence_maes`，
    决定绝对 vs 相对门槛。
 
-## 7. 诚实边界
+## 7. 复测结果（2026-07-20 深夜，18 维特征 + trailing window，MPS lane）
 
-- 本 RCA 全部基于既有 artifact 的只读分析与当前代码核对，未跑新实验；
-  trailing-window 估计（§2）是累计 MAE 的差分近似，非直接测量。
-- 结论 1（特征贫困）有两条独立证据（平台化 + 负相关）但仍待 18 维 real-trace 复测证实；
-  在复测前不得宣称"差距已定位并解决"。
+RCA §6 建议 1 的决定性测量已执行：510-turn real-trace soak
+（Qwen2.5-1.5B，MPS，`artifacts/lane_c_soak_mps_510/real_soak/`），
+使用已落库的 18 维特征与 `trailing-window-200` 口径。结果：
+
+| 指标 | 旧 artifact（7 维/累计/CUDA） | 新 artifact（18 维/窗口/MPS） |
+|---|---|---|
+| validation_delta | 0.0139（cumulative self） | **0.0067**（window world） |
+| prediction_target_correlation（64 窗） | **−0.354**（病态负相关） | **−0.044**（≈0，病灶消除） |
+| window_target_stds | 缺失 | 0.0059–0.032（四轴） |
+| persistence baseline | 缺失 | 已发布（见下） |
+
+**逐轴分解（window-200 MAE）**——这是 RCA §5 要的校准数据：
+
+| 轴 | learned | baseline | persistence | target_std | 判读 |
+|---|---|---|---|---|---|
+| task_progress | 0.0268 | 0.0366 | 0.0419 | 0.032 | learned 明显最优（−27% vs baseline） |
+| action_payoff | 0.0249 | 0.0386 | 0.0391 | 0.031 | learned 明显最优（−35%） |
+| relationship_delta | 0.0098 | 0.0121 | 0.0119 | 0.011 | learned 小幅最优 |
+| regime_stability | **0.0124** | 0.009 | 0.009 | **0.0059** | learned **有害**；目标近常数，预测常数即最优 |
+
+### 复测结论（更新 §0）
+
+1. **特征贫困病灶已被证实并消除**：AR 滞后特征把 target 相关性从 −0.354 拉回 −0.044，
+   task/action 轴 learned 大幅优于 baseline 与 persistence——head 现在真的在捕捉信号。
+2. **剩余差距的根因转为门槛校准（RCA §5 假设成立）**：0.02 是绝对 MAE 改善门槛，而
+   目标本身的 std 只有 0.006–0.032。task_progress 轴 learned 已拿到相对 baseline 27%、
+   相对 persistence 36% 的改善，绝对值却只有 0.0098——**在这个目标尺度上 0.02 绝对
+   门槛在数学上几乎不可达**（它要求吃掉超过目标总变差一半的误差）。
+3. **新的次要病灶：regime_stability 轴**。该轴目标近常数（std 0.0059），learned head
+   在其上过拟合噪声（0.0124 vs 常数预测 0.009），拖累聚合指标。修法：per-axis 门控
+   （对 target_std 低于阈值的轴退化为 persistence，或 per-axis shrinkage）。
+4. **latency SLO fail 是本机 artifact**：MPS lane 与蚂蚁 matched-control 并发共享
+   本机，均值超 5s SLO；CUDA lane 3.7s/turn 已多次达标，不构成真实门槛证据。
+
+### 修正后的行动清单（替代 §6）
+
+1. **门槛 v2 预注册**（操作者决策，遵守阈值预注册纪律——新阈值 = 新观察窗口）：
+   建议 `validation_delta_v2 = window learned MAE 相对 persistence baseline 的相对
+   改善 ≥ 15%（排除 target_std < 0.01 的轴）`。以本次数据回读：task 36% / action
+   36% / relationship 18% → **v2 口径下三轴全过**。禁止在旧窗口内直接改阈值。
+2. **per-axis 门控**（代码，小改）：`_WorldPredictiveHead` 对 near-constant 轴
+   （window_target_std < 阈值）发布 persistence 退化位，聚合改善只计 informative 轴。
+3. **capacity ladder 重设计**（§6.2 不变）。
+4. **闲置 CUDA/Linux 机器复测 latency SLO**（排除本机并发污染）。
+
+## 8. 诚实边界
+
+- §2–§5 基于旧 artifact 的只读分析（trailing-window 估计是累计 MAE 的差分近似）；
+  §7 复测已用 18 维特征在真 trace 上直接测量，特征贫困结论**已证实并消除**。
+- §7 的门槛 v2 建议已于 2026-07-20 **正式预注册**（operator 批准）：窗口 id
+  `cp11-validation-v2-2026-07-20`，实现见 `learned_active_gate.compute_validation_delta_v2`
+  与 `tests/contracts/test_validation_delta_v2_gate.py`；spec 登记见
+  `docs/specs/learned-vs-heuristic-coverage.md` §7/变更日志。**v2 verdict 只能来自
+  预注册之后新开的观察窗口**；本文件 §7 对旧窗口的回读仍只是 what-if，不得宣称
+  "promotion 已达标"。
+- MPS lane 的 latency SLO fail 与并发负载混杂，不作为 SLO 证据；正式 SLO 判定
+  仍以专用 CUDA lane 为准。
 - promotion 仍 BLOCKED 的另两个 missing gate（`pe_off_control` / `eta_off_control`）
-  属于 #87 同基底消融范畴，不在本 RCA 范围内。
+  属于 #87 同基底消融范畴（P1 真跑），不在本 RCA 范围内。

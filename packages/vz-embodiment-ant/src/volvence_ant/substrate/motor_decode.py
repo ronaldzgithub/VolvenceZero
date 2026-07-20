@@ -6,8 +6,15 @@ advance path integration. Pure deterministic algebra, no learnable parameters.
 
 Contract on ``z_t`` (egocentric abstract action):
 
-- ``z[0], z[1]`` -> desired heading unit vector in the body's egocentric frame
-  (x = forward, y = left). ``atan2(z1, z0)`` is the desired turn.
+- ``z[0], z[1]`` -> non-negative opponent-coded steering evidence
+  (right/forward vs left/forward). The frozen plant converts it to an
+  egocentric residual vector ``forward = 1 + z0 + z1``,
+  ``left = z1 - z0``. The fixed forward baseline makes near-zero latent codes
+  produce near-zero turns instead of ±45° circles. Equal channels mean
+  straight; either channel can dominate, so a controller whose latent is
+  bounded to ``[0, 1]`` can still turn both left and right. The historical
+  direct ``atan2(z1, z0)`` mapping made non-negative controllers structurally
+  incapable of right turns.
 - ``z[2]`` (if present) -> desired speed via a squashing function.
 
 The controller is free to learn any mapping from sensory features to this
@@ -57,8 +64,10 @@ def motor_decode(
             desired_egocentric_angle=0.0,
             desired_speed_unit=1.0,
         )
-    zx = code[0] * code_gain
-    zy = code[1] * code_gain if len(code) > 1 else 0.0
+    right_evidence = code[0] * code_gain
+    left_evidence = code[1] * code_gain if len(code) > 1 else right_evidence
+    zx = 1.0 + right_evidence + left_evidence
+    zy = left_evidence - right_evidence
     norm = math.hypot(zx, zy)
     if norm < 1e-6:
         desired_angle = 0.0

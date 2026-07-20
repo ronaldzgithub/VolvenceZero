@@ -39,9 +39,21 @@ from volvence_ant.proofs import (
     run_single_seed_matched_control,
 )
 from volvence_ant.runtime.ant_session import AntSessionConfig
+from volvence_zero.integration import FinalRolloutConfig
 
 _RESULTS_DIR = Path("research/ant/results")
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+_ANT_RL_RUNTIME_MODULATION_STRENGTH = 0.3
+
+
+def _ant_rollout_config() -> FinalRolloutConfig:
+    """Open the bounded reward→code bridge for every matched kernel arm."""
+
+    return FinalRolloutConfig(
+        internal_rl_runtime_modulation_strength=(
+            _ANT_RL_RUNTIME_MODULATION_STRENGTH
+        )
+    )
 
 
 def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
@@ -56,13 +68,18 @@ def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
     frozen = JointLoopSchedule(ssl_interval=0, rl_interval=0)
     active = JointLoopSchedule(ssl_interval=1, rl_interval=3)
     return {
-        # no_optimize observes the same PE/SSL schedule but forbids owner writeback.
+        # no_optimize observes the same PE/SSL schedule, rollout and optimizer
+        # report, but restores the post-SSL/pre-RL checkpoint so reward-driven
+        # policy/critic updates cannot accumulate. Reflection writeback remains
+        # matched to learned; this arm isolates Internal-RL optimization only.
         "no_optimize": AntSessionConfig(
             temporal_latent_dim=n_z,
             seed=seed,
             external_prediction_error_drive=True,
             joint_schedule=active,
-            joint_apply_writeback=False,
+            joint_apply_writeback=True,
+            joint_apply_policy_optimization=False,
+            rollout_config=_ant_rollout_config(),
         ),
         # ETA-off retains the same substrate/world while disabling learned
         # latent replacement/switching and SSL/RL.
@@ -72,6 +89,8 @@ def _schedule_gated_arms(*, seed: int, n_z: int) -> dict[str, AntSessionConfig]:
             external_prediction_error_drive=True,
             joint_schedule=frozen,
             joint_apply_writeback=False,
+            joint_apply_policy_optimization=False,
+            rollout_config=_ant_rollout_config(),
             temporal_policy=LearnedLiteTemporalPolicy(
                 parameter_store=MetacontrollerParameterStore(n_z=n_z)
             ),
@@ -88,6 +107,8 @@ def _learned_config(seed: int, n_z: int) -> AntSessionConfig:
         external_prediction_error_drive=True,
         joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=3),
         joint_apply_writeback=True,
+        joint_apply_policy_optimization=True,
+        rollout_config=_ant_rollout_config(),
     )
 
 
@@ -100,6 +121,8 @@ def _pe_off_config(seed: int, n_z: int) -> AntSessionConfig:
         external_prediction_error_drive=False,
         joint_schedule=JointLoopSchedule(ssl_interval=1, rl_interval=3),
         joint_apply_writeback=True,
+        joint_apply_policy_optimization=True,
+        rollout_config=_ant_rollout_config(),
     )
 
 
@@ -189,6 +212,9 @@ async def main(
         "n_z": n_z,
         "with_latent": with_latent,
         "include_e2e_rl": include_e2e_rl,
+        "internal_rl_runtime_modulation_strength": (
+            _ANT_RL_RUNTIME_MODULATION_STRENGTH
+        ),
     }
     if resume and _final_artifact_matches(config=config):
         print("[matched-control] resumed complete final artifact")
