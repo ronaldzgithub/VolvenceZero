@@ -415,7 +415,23 @@ class MetacontrollerParameterStore:
         "rare-heavy-import",
     )
 
-    def __init__(self, *, n_z: int = 3) -> None:
+    def __init__(
+        self,
+        *,
+        n_z: int = 3,
+        n_input: int | None = None,
+    ) -> None:
+        resolved_input_dim = n_z if n_input is None else n_input
+        if resolved_input_dim < 1:
+            raise ValueError(
+                "metacontroller input dimension must be >= 1, "
+                f"got {resolved_input_dim!r}"
+            )
+        if n_z == 3 and resolved_input_dim != 3:
+            raise ValueError(
+                "legacy 3-d temporal policy requires n_input=3; "
+                f"got {resolved_input_dim!r}"
+            )
         self._n_z = n_z
         self.temporal_weights: dict[str, float] = {
             "residual": 0.65,
@@ -460,7 +476,13 @@ class MetacontrollerParameterStore:
             self.action_families = _init_action_families(n_z, seed=105)
             self.track_weights = _init_track_weights(n_z, seed=106)
         self.ndim_encoder_parameters: NdimEncoderParameters | None = (
-            None if n_z == 3 else build_ndim_encoder_parameters(n_z=n_z, seed=42)
+            None
+            if n_z == 3
+            else build_ndim_encoder_parameters(
+                n_z=n_z,
+                n_input=resolved_input_dim,
+                seed=42,
+            )
         )
         self.ndim_switch_parameters: NdimSwitchParameters | None = (
             None if n_z == 3 else build_ndim_switch_parameters(n_z=n_z, seed=42)
@@ -521,6 +543,12 @@ class MetacontrollerParameterStore:
     @property
     def n_z(self) -> int:
         return self._n_z
+
+    @property
+    def n_input(self) -> int:
+        if self.ndim_encoder_parameters is None:
+            return self._n_z
+        return self.ndim_encoder_parameters.n_input
 
     @property
     def action_family_version(self) -> int:
@@ -1630,6 +1658,13 @@ def _sum_tuple(values: tuple[float, ...]) -> float:
     return total
 
 
+def _sum_matrix(values: tuple[tuple[float, ...], ...]) -> float:
+    total = 0.0
+    for row in values:
+        total += _sum_tuple(row)
+    return total
+
+
 def _compact_ndim_params_hash(store: MetacontrollerParameterStore) -> str:
     """Cheap per-step parameter fingerprint for ndim runtime telemetry.
 
@@ -1642,8 +1677,15 @@ def _compact_ndim_params_hash(store: MetacontrollerParameterStore) -> str:
     encoder = store.ndim_encoder_parameters
     switch = store.ndim_switch_parameters
     decoder = store.ndim_decoder_parameters
-    parts: list[str] = [f"mode=ndim", f"n_z={store.n_z}"]
+    parts: list[str] = [
+        "mode=ndim",
+        f"n_z={store.n_z}",
+        f"n_input={store.n_input}",
+    ]
     if encoder is not None:
+        parts.append(f"enc_wz={_sum_matrix(encoder.gru.W_z):.12f}")
+        parts.append(f"enc_wr={_sum_matrix(encoder.gru.W_r):.12f}")
+        parts.append(f"enc_wh={_sum_matrix(encoder.gru.W_h):.12f}")
         parts.append(f"enc_bz={_sum_tuple(encoder.gru.b_z):.12f}")
         parts.append(f"enc_br={_sum_tuple(encoder.gru.b_r):.12f}")
         parts.append(f"enc_bh={_sum_tuple(encoder.gru.b_h):.12f}")

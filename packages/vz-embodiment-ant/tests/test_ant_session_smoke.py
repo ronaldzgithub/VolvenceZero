@@ -25,6 +25,7 @@ from volvence_ant.env.ant_world import (
 )
 from volvence_ant.env.colony import ColonyWorld
 from volvence_ant.runtime import (
+    AntLearningCheckpoint,
     AntObjectiveKind,
     AntSession,
     AntSessionConfig,
@@ -200,12 +201,14 @@ def test_json_learning_archive_rejects_owner_fingerprint_mismatch() -> None:
     assert after.info.state_fingerprint == valid.info.state_fingerprint
 
 
-async def test_colony_archive_failure_rolls_back_every_body() -> None:
+async def test_colony_archive_failure_rolls_back_attempted_prefix_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     runner = KernelColonyRunner(
         ColonyWorld(
             config=AntWorldConfig(seed=3),
             food_sources=(FoodSource(x=8.0, y=0.0, strength=1.0, decay=6.0),),
-            n_bodies=2,
+            n_bodies=4,
         ),
         base_config=AntSessionConfig(temporal_latent_dim=4, seed=3),
     )
@@ -213,9 +216,13 @@ async def test_colony_archive_failure_rolls_back_every_body() -> None:
     targets = runner.export_learning_checkpoint_archives(
         checkpoint_prefix="targets"
     )
-    second = decode_agent_learning_archive(targets[1])
-    invalid_second = encode_agent_learning_archive(
-        checkpoint_id=second.info.checkpoint_id,
+    target_fingerprints = tuple(
+        decode_agent_learning_archive(item).info.state_fingerprint
+        for item in targets
+    )
+    third = decode_agent_learning_archive(targets[2])
+    invalid_third = encode_agent_learning_archive(
+        checkpoint_id=third.info.checkpoint_id,
         owner_snapshots=tuple(
             replace(
                 snapshot,
@@ -223,11 +230,11 @@ async def test_colony_archive_failure_rolls_back_every_body() -> None:
             )
             if snapshot.owner_name == "reflection.consolidation_score"
             else snapshot
-            for snapshot in second.owner_snapshots
+            for snapshot in third.owner_snapshots
         ),
-        policy_fingerprint=second.info.policy_fingerprint,
-        temporal_fingerprint=second.info.temporal_fingerprint,
-        memory_fingerprint=second.info.memory_fingerprint,
+        policy_fingerprint=third.info.policy_fingerprint,
+        temporal_fingerprint=third.info.temporal_fingerprint,
+        memory_fingerprint=third.info.memory_fingerprint,
     )
 
     await runner.run(2)
@@ -237,13 +244,35 @@ async def test_colony_archive_failure_rolls_back_every_body() -> None:
             checkpoint_prefix="before"
         )
     )
+    assert target_fingerprints[0] != before[0]
+    assert target_fingerprints[1] != before[1]
+
+    rollback_order: list[int] = []
+    for body_id, session in enumerate(runner.sessions):
+        restore = session.restore_learning_checkpoint
+
+        def tracked_restore(
+            checkpoint: AntLearningCheckpoint,
+            *,
+            _body_id: int = body_id,
+            _restore=restore,
+        ) -> None:
+            rollback_order.append(_body_id)
+            _restore(checkpoint)
+
+        monkeypatch.setattr(
+            session,
+            "restore_learning_checkpoint",
+            tracked_restore,
+        )
+
     with pytest.raises(ValueError, match="body mapping mismatch"):
         runner.restore_learning_checkpoint_archives(
-            (targets[1], targets[0])
+            (targets[1], targets[0], targets[2], targets[3])
         )
     with pytest.raises(HydrationPayloadInvalidError):
         runner.restore_learning_checkpoint_archives(
-            (targets[0], invalid_second)
+            (targets[0], targets[1], invalid_third, targets[3])
         )
     after = tuple(
         decode_agent_learning_archive(item).info.state_fingerprint
@@ -252,6 +281,7 @@ async def test_colony_archive_failure_rolls_back_every_body() -> None:
         )
     )
 
+    assert rollback_order == [2, 1, 0]
     assert after == before
 
 

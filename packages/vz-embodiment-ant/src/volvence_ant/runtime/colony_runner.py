@@ -89,12 +89,19 @@ class KernelColonyRunner:
             checkpoint_prefix="colony:rollback-preimage",
             include_runtime_replay=True,
         )
+        attempted_count = 0
         try:
             for session, checkpoint in zip(self.sessions, checkpoints, strict=True):
+                attempted_count += 1
                 session.restore_learning_checkpoint(checkpoint)
         except Exception as restore_error:
             rollback_errors: list[Exception] = []
-            for session, preimage in zip(self.sessions, preimages, strict=True):
+            attempted = zip(
+                self.sessions[:attempted_count],
+                preimages[:attempted_count],
+                strict=True,
+            )
+            for session, preimage in reversed(tuple(attempted)):
                 try:
                     session.restore_learning_checkpoint(preimage)
                 except Exception as rollback_error:
@@ -143,12 +150,19 @@ class KernelColonyRunner:
             checkpoint_prefix="colony:archive-rollback-preimage",
             include_runtime_replay=True,
         )
+        attempted_count = 0
         try:
             for session, archive in zip(self.sessions, archives, strict=True):
+                attempted_count += 1
                 session.restore_learning_checkpoint_archive(archive)
         except Exception as restore_error:
             rollback_errors: list[Exception] = []
-            for session, preimage in zip(self.sessions, preimages, strict=True):
+            attempted = zip(
+                self.sessions[:attempted_count],
+                preimages[:attempted_count],
+                strict=True,
+            )
+            for session, preimage in reversed(tuple(attempted)):
                 try:
                     session.restore_learning_checkpoint(preimage)
                 except Exception as rollback_error:

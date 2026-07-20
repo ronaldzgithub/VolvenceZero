@@ -182,7 +182,8 @@ temporal/Internal-RL、memory、PE、credit、regime、dual-track gate 与 refle
 - 禁止 pickle、动态 class tag、object hook 和宽松默认值；重复 key、未知/缺失字段、NaN/Infinity、
   owner/version/digest 不匹配均 fail loudly。
 - 恢复前保存完整 preimage；晚期 owner hydration 或重导出 fingerprint 不一致时回滚全部 owner。
-  colony 编排还必须跨 body 原子化，禁止部分恢复。
+  colony 编排还必须跨 body 原子化，禁止部分恢复；失败时仅逆序回滚 attempted body prefix，
+  不得对尚未尝试的 suffix 调用 restore。
 - out-of-turn artifact 固定排除 pending capture、staged rollout 等 episode-local runtime replay；
   同 episode 的内存 checkpoint 可显式包含 replay，但不能落入该持久格式。
 

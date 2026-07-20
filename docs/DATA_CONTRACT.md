@@ -822,9 +822,9 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 | 信息素快照总线（Phase 1） | 同上 | embodiment 内部 colony 总线，多写者只追加带衰减；`PheromoneField` 自己发布 home/trail mass + normalized entropy；**不**进入 §3/§6 kernel 注册表 |
 | 障碍几何与碰撞证据 | 同上 | `AxisAlignedObstacle` 由 environment owner 持有；substrate 只见局部左右触角/contact，`WorldTransitionEvidence` 发布 blocked/applied-step 审计事实；**不**新增 kernel slot |
 | ecology-v2 对象快照 | 同上 | frozen `ButterSource / WoodStick / BurningMatch` 由 `AntWorld` 唯一持有；仅发布 `WorldObjectSnapshot`（几何、owner 计算的 effect radius、description）给 App |
-| `ant-sense.ecology-v2` | 同上 | 保留 `ant-sense.v1` 14 维前缀并追加 5 个局部热感通道；对象坐标、木棍方向和推荐动作不进入 controller |
+| `ant-sense.ecology-v2` | 同上 | 保留 `ant-sense.v1` 14 维前缀并追加 5 个局部热感通道；runtime facade 将完整 19 维声明为 temporal `n_input`，由 encoder 压缩到独立的 latent `n_z`，禁止按 `n_z` 截断；对象坐标、木棍方向和推荐动作不进入 controller |
 | typed task measurement | `vz-contracts` / PE owner | `EnvironmentOutcome.measurement` 仅含环境可观察事实；runtime 保留 lineage，PE 是唯一 mismatch owner |
-| opaque learning archive | `vz-runtime` facade | owner 发布 `OwnerPersistenceSnapshot`；`agent-learning-archive.v2` 以 strict canonical JSON 绑定逐 owner schema/payload sha256、整体 state fingerprint，`agent-learning-checkpoint-collection.v1` 再绑定 sense schema / latent dim / ant count；禁止 pickle/object hook，跨 episode 显式排除未结算 runtime replay，embodiment 只存取 bytes |
+| opaque learning archive | `vz-runtime` facade | owner 发布 `OwnerPersistenceSnapshot`；`agent-learning-archive.v2` 以 strict canonical JSON 绑定逐 owner schema/payload sha256、整体 state fingerprint，`agent-learning-checkpoint-collection.v1` 再绑定 sense schema / input dim / latent dim / ant count，外层 ecology bundle 为 `digital-ant-ecology-checkpoint.v2`；禁止 pickle/object hook，跨 episode 显式排除未结算 runtime replay，embodiment 只存取 bytes |
 | `ColonyRareHeavyBundle` | `vz-embodiment-ant` | per-individual artifact digest/provenance/gate verdict；不含 temporal state、不新增 slot |
 | evidence manifest | `vz-embodiment-ant` | `digital-ant-manifest.v2` sidecar 绑定 artifact/input digest 与运行 provenance |
 | realtime app DTO | `vz-embodiment-ant` | `digital-ant-app.v2` 的 frozen config/frame/status/command/disturbance；新增 typed object upsert/move/remove、`AppFrame.objects` 和 checkpoint provenance；**不**进入 §3/§6 slot 注册表 |
@@ -860,7 +860,8 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
   demo checkpoint；BLOCK candidate 仍可留作诊断 artifact，但 loader 必须拒绝。
 - learning archive 恢复必须是事务式：所有外层 schema、owner set/version、part digest 先通过后才能
   触发 owner hydration；任何 owner 恢复或重导出 fingerprint 校验失败时，runtime 必须恢复完整
-  preimage。colony 中任一 body 失败时，先前已恢复的 body 也必须回滚，禁止部分应用。
+  preimage。colony 中任一 body 失败时，按逆序回滚截至该 body 的 attempted prefix，禁止部分应用；
+  尚未尝试的 suffix 不得调用 restore，以免无故清空 owner 的瞬态窗口。
 - collection 中每个 agent archive 的 checkpoint id 必须按位置绑定 `body:{index}` 且不可重复；
   artifact loader 与 colony runner 都在恢复前校验该映射，禁止交换个体状态或静默截断。
 

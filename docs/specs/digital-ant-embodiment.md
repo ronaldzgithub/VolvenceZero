@@ -56,6 +56,10 @@ controller 自由学习「感知特征 → egocentric 动作」的映射；`moto
 `ant-sense.ecology-v2` 只追加 `heat_left / heat_right / heat_diff / heat_center /
 heat_harmful`。热值来自触角和身体位置的局部采样；对象坐标、火柴方位、逃离方向和木棍几何均不进入
 substrate。`ant-sense.v1` 继续绑定原 14 维 `SENSE_CHANNELS_V1`，历史 evidence 不得静默升级。
+`AntSession` 必须通过 runtime facade 把当前 sense schema 的完整宽度声明为 temporal `n_input`；
+ecology-v2 因此以 19 维进入 ndim encoder，再压缩到独立的 latent `n_z`。不得把 `n_input` 绑定到
+`n_z` 或截断携食、障碍、热感等尾部通道；archive compatibility 同时绑定 sense schema、input dim
+与 latent dim。
 
 ## 4. Outcome → PE 接缝（正式证据）
 
@@ -338,10 +342,12 @@ artifact：`research/ant/results/ecology_checkpoint_smoke.v2.json` + manifest；
 - 持久化使用 `agent-learning-archive.v2` 单体 archive +
   `agent-learning-checkpoint-collection.v1` 多 ant envelope：每个 owner 先发布自己的
   `OwnerPersistenceSnapshot`，runtime facade 只做 strict canonical UTF-8 JSON、逐 part sha256、
-  整体 state fingerprint 与有序 compatibility（sense schema / latent dim / ant count）绑定。
+  整体 state fingerprint 与有序 compatibility（sense schema / input dim / latent dim / ant count）绑定。
   格式禁止 pickle、动态类型名、object hook、未知字段、缺失字段、重复 JSON key 与非有限数。
   恢复时先完整校验 envelope/owner set/version，再经 owner hydration API 应用；任一晚期 owner 失败时
   单 ant 和 colony 都恢复 preimage 并复核 fingerprint，rollback 失败则同时抛出原错误与回滚错误。
+  colony 仅按逆序回滚截至失败 body 的 attempted prefix，尚未尝试的 suffix 不得执行 restore 或清空
+  owner 的瞬态窗口。
   colony archive 的 checkpoint id 必须与有序 `body:{index}` 映射一致且全局唯一，交换、重复或数量
   不符均在任何 owner 变更前拒绝。
   sha256 只提供完整性而非来源认证；HTTP 仍不提供 archive 上传入口，若未来开放外部导入必须在 JSON

@@ -15,7 +15,11 @@ from volvence_ant.env import (
     WoodStick,
     WorldObjectKind,
 )
-from volvence_ant.runtime.ant_session import AntSession
+from volvence_ant.experiments.ecology_probe import (
+    EcologyProbeKind,
+    run_ecology_action_probes,
+)
+from volvence_ant.runtime.ant_session import AntSession, AntSessionConfig
 from volvence_ant.substrate.navigator import AntNavigator
 from volvence_ant.substrate.sense_encode import (
     SENSE_CHANNELS_ECOLOGY_V2,
@@ -155,6 +159,33 @@ def test_ecology_sense_schema_appends_heat_without_changing_v1() -> None:
     assert tuple(v2[: len(v1)]) == pytest.approx(tuple(v1))
     heat_diff = SENSE_CHANNELS_ECOLOGY_V2.index("heat_diff")
     assert v2[heat_diff] == pytest.approx(observation.heat_left - observation.heat_right)
+
+
+def test_ant_session_declares_full_ecology_input_width_to_runtime() -> None:
+    session = AntSession(
+        AntWorld(),
+        config=AntSessionConfig(
+            temporal_latent_dim=4,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+        ),
+    )
+
+    assert session.runner.temporal_input_dim == len(SENSE_CHANNELS_ECOLOGY_V2)
+    assert (
+        session.runner._world_temporal_policy.parameter_store.n_z
+        == session.config.temporal_latent_dim
+    )
+
+
+async def test_paired_ecology_channels_reach_code_and_motor_output() -> None:
+    probes = await run_ecology_action_probes(
+        temporal_latent_dim=8,
+        seed=9,
+    )
+
+    assert tuple(item.kind for item in probes) == tuple(EcologyProbeKind)
+    assert all(item.input_reachable for item in probes)
+    assert all(item.action_sensitive for item in probes)
 
 
 def test_ecology_outcome_uses_contacts_not_distance_or_steering() -> None:

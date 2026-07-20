@@ -102,6 +102,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 第二阶段 runtime 已补充一个独立的参数化 causal z-policy sandbox，支持 dual-track rollout、checkpoint/rollback 和 trajectory-level clipped surrogate objective；当前其 online owner 由 `ETANLJointLoop` 承担，offline/batch owner 由 `SSLRLTrainingPipeline` 承担
 - `learned-lite temporal` 与 causal z-policy 当前共享同一控制器参数 store，但 owner 侧已引入显式 `learning_phase` / `structure_frozen` 边界：SSL 阶段允许 discovered action family 更新，RL/runtime 阶段默认冻结结构层，仅在 owner API 内做受限策略更新
 - 当前 ndim metacontroller 已收敛到**单一 owner 参数面**：SSL trainer、runtime policy、internal RL、rare-heavy snapshot/export/import 共享同一个 `MetacontrollerParameterStore` 可见的 encoder/switch/decoder 权重，不再允许 ndim 路径在 trainer/runtime 内各自持有私有网络参数
+- ndim encoder 的 `n_input` 与 latent `n_z` 是两个独立契约：`n_input` 必须等于 substrate 发布的完整残差宽度，GRU 再把它压缩为低维 `n_z`。runtime facade 负责在构造时声明并校验 `n_input`；禁止按 `n_z` 截断后部感知通道。encoder checkpoint 与 compact parameter fingerprint 均绑定 `n_input`。
 - 当前 `TemporalModule` 默认以 `full-learned` 作为 runtime owner policy，并可通过 owner API 导出 machine-readable metacontroller runtime state；这条导出链不改变 `temporal_abstraction` 公共 snapshot schema
 - 当前 temporal owner 已支持显式消费 `experience_fast_prior`：它不会直接接收 session-post 对私有参数的写穿，而是把 public fast prior 转成 owner-side continuation bias 与 switch-pressure delta，再在 `step()` 内部作用于 action family continuation 和 switch unit
 - 当前这条 owner-side fast-prior consumption 已进一步前推到 action-family discovery / competition：public fast prior 不直接指定 family，而是作为 owner 内部的 `reuse/create/split/competition` 偏置，影响当前 active family 的 continuation、competition score、monopoly / stagnation 调节

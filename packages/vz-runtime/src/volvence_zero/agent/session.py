@@ -484,6 +484,7 @@ class AgentSessionRunner(
         world_temporal_policy: FullLearnedTemporalPolicy | None = None,
         self_temporal_policy: FullLearnedTemporalPolicy | None = None,
         temporal_latent_dim: int = 3,
+        temporal_input_dim: int | None = None,
         domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
         case_memory_store: ApplicationCaseMemoryStore | None = None,
         domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
@@ -529,6 +530,10 @@ class AgentSessionRunner(
             raise ValueError(
                 f"temporal_latent_dim must be >= 3, got {temporal_latent_dim!r}"
             )
+        if temporal_input_dim is not None and temporal_input_dim < 1:
+            raise ValueError(
+                f"temporal_input_dim must be >= 1, got {temporal_input_dim!r}"
+            )
         self._session_id = session_id
         self._dialogue_pe_continued_evidence_enabled = dialogue_pe_continued_evidence_enabled
         self._dialogue_commitment_outcome_evidence_enabled = dialogue_commitment_outcome_evidence_enabled
@@ -571,7 +576,8 @@ class AgentSessionRunner(
         else:
             self._world_temporal_policy = FullLearnedTemporalPolicy(
                 parameter_store=MetacontrollerParameterStore(
-                    n_z=temporal_latent_dim
+                    n_z=temporal_latent_dim,
+                    n_input=temporal_input_dim,
                 )
             )
         if self_temporal_policy is not None:
@@ -585,6 +591,26 @@ class AgentSessionRunner(
         else:
             self._self_temporal_policy = self._world_temporal_policy
         self._temporal_policy = self._world_temporal_policy
+        if temporal_input_dim is not None:
+            for track_name, policy in (
+                ("world", self._world_temporal_policy),
+                ("self", self._self_temporal_policy),
+            ):
+                if not isinstance(policy, FullLearnedTemporalPolicy):
+                    raise ValueError(
+                        "temporal_input_dim requires a FullLearnedTemporalPolicy "
+                        f"for the {track_name} track"
+                    )
+                actual_input_dim = policy.parameter_store.n_input
+                if actual_input_dim != temporal_input_dim:
+                    raise ValueError(
+                        f"{track_name} temporal policy input dimension mismatch: "
+                        f"expected {temporal_input_dim}, got {actual_input_dim}"
+                    )
+        if isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
+            self._temporal_input_dim = self._world_temporal_policy.parameter_store.n_input
+        else:
+            self._temporal_input_dim = temporal_input_dim
         # autograd-owner-integration: apply the configured runtime metacontroller
         # backend (DISABLED default = pure rollback baseline). Reversible via
         # FinalRolloutConfig.temporal_runtime_backend.
@@ -1289,6 +1315,10 @@ class AgentSessionRunner(
     @property
     def session_id(self) -> str:
         return self._session_id
+
+    @property
+    def temporal_input_dim(self) -> int | None:
+        return self._temporal_input_dim
 
     @property
     def owner_hydration_store(self) -> "OwnerHydrationStore | None":

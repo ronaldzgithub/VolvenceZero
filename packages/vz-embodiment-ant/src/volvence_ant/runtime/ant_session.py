@@ -43,7 +43,7 @@ from volvence_ant.env.ant_world import (
 from volvence_ant.substrate.ant_actuator import AntActuator, AntMotorCommand
 from volvence_ant.substrate.ant_adapter import AntSenseHolder, AntSubstrateAdapter
 from volvence_ant.substrate.navigator import AntNavigator, NavigatorState
-from volvence_ant.substrate.sense_encode import AntSenseSchema
+from volvence_ant.substrate.sense_encode import AntSenseSchema, sense_channels
 
 
 class AntSessionError(RuntimeError):
@@ -195,6 +195,10 @@ class AntSession:
             joint_apply_policy_optimization=(self.config.joint_apply_policy_optimization),
             allow_live_substrate_mutation=self.config.allow_live_substrate_mutation,
         )
+        if self.config.temporal_policy is None:
+            runner_kwargs["temporal_input_dim"] = len(
+                sense_channels(self.config.sense_schema)
+            )
         if self.config.joint_schedule is not None:
             runner_kwargs["joint_schedule"] = self.config.joint_schedule
         if self.config.temporal_policy is not None:

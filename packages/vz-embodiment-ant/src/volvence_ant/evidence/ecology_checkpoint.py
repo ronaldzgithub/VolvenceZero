@@ -30,6 +30,7 @@ from volvence_ant.experiments.ecology_curriculum import (
     EcologyCurriculumConfig,
 )
 from volvence_ant.runtime import AntSenseSchema
+from volvence_ant.substrate.sense_encode import sense_channels
 
 
 ECOLOGY_CHECKPOINT_BUNDLE_KIND = "digital-ant-ecology-checkpoint.v2"
@@ -50,6 +51,7 @@ def ecology_checkpoint_compatibility(
     return (
         ("artifact_kind", ECOLOGY_CHECKPOINT_BUNDLE_KIND),
         ("sense_schema", AntSenseSchema.ECOLOGY_V2.value),
+        ("input_dim", str(len(sense_channels(AntSenseSchema.ECOLOGY_V2)))),
         ("latent_dim", str(config.temporal_latent_dim)),
         ("n_ants", str(config.n_ants)),
         ("runtime_replay", "excluded"),

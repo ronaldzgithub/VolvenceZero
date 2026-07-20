@@ -180,7 +180,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
             # Strict owner-authored checkpoint payload codec (vz-contracts).
-            "canonical_json",
+            "canonical_json", "owner_hydration",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",

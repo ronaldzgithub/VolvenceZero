@@ -12,6 +12,12 @@ from __future__ import annotations
 import pytest
 
 from volvence_zero.brain import TEMPORAL_PROFILE_LATENT_DIMS, BrainConfig
+from volvence_zero.substrate import (
+    ResidualActivation,
+    ResidualSequenceStep,
+    SubstrateSnapshot,
+    SurfaceKind,
+)
 from volvence_zero.temporal import FullLearnedTemporalPolicy, MetacontrollerParameterStore
 from volvence_zero.temporal.metacontroller_components import (
     NdimSwitchUnit,
@@ -61,6 +67,64 @@ def test_parameter_store_beta_threshold_reaches_full_learned_dispatch() -> None:
     store.beta_threshold = 0.10
     policy = FullLearnedTemporalPolicy(parameter_store=store)
     assert policy.parameter_store.beta_threshold == 0.10
+
+
+def _sensor_snapshot(values: tuple[float, ...]) -> SubstrateSnapshot:
+    activation = ResidualActivation(
+        layer_index=0,
+        activation=values,
+        step=0,
+    )
+    sequence_step = ResidualSequenceStep(
+        step=0,
+        token="<sensor-probe>",
+        feature_surface=(),
+        residual_activations=(activation,),
+        description="paired sensor reachability probe",
+    )
+    return SubstrateSnapshot(
+        model_id="sensor-probe",
+        is_frozen=True,
+        surface_kind=SurfaceKind.RESIDUAL_STREAM,
+        token_logits=(),
+        feature_surface=(),
+        residual_activations=(activation,),
+        residual_sequence=(sequence_step,),
+        unavailable_fields=(),
+        description="paired sensor reachability probe",
+    )
+
+
+def test_ndim_policy_keeps_full_input_width_separate_from_latent_width() -> None:
+    store = MetacontrollerParameterStore(n_z=4, n_input=19)
+
+    assert store.n_z == 4
+    assert store.n_input == 19
+    assert store.ndim_encoder_parameters is not None
+    assert len(store.ndim_encoder_parameters.gru.W_z[0]) == 19
+
+
+def test_last_sensor_channel_is_reachable_and_changes_controller_code() -> None:
+    base = tuple(0.0 for _ in range(19))
+    left = base[:-1] + (-1.0,)
+    right = base[:-1] + (1.0,)
+    left_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4, n_input=19)
+    )
+    right_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4, n_input=19)
+    )
+
+    left_step = left_policy.step(
+        substrate_snapshot=_sensor_snapshot(left),
+        previous_snapshot=None,
+    )
+    right_step = right_policy.step(
+        substrate_snapshot=_sensor_snapshot(right),
+        previous_snapshot=None,
+    )
+
+    assert left_step.controller_state.code != right_step.controller_state.code
 
 
 def test_temporal_profile_resolves_learned_ndim_capacity() -> None:

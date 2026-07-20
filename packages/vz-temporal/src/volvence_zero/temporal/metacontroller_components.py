@@ -1391,7 +1391,11 @@ def build_ndim_encoder_parameters(
     n_input: int | None = None,
     seed: int = 42,
 ) -> NdimEncoderParameters:
-    input_dim = n_input or n_z
+    input_dim = n_z if n_input is None else n_input
+    if input_dim < 1:
+        raise ValueError(
+            f"ndim encoder input dimension must be >= 1, got {input_dim!r}"
+        )
     params = init_gru_params(input_dim, n_z, seed=seed)
     return NdimEncoderParameters(
         n_input=input_dim,
@@ -1497,7 +1501,14 @@ class NdimSequenceEncoder:
         hidden_history: list[Vec] = []
         for step_vec in step_vectors:
             if cms_context is not None:
-                aug = vec_add(vec_scale(step_vec, 0.8), vec_scale(cms_context, 0.2))
+                projected_context = _project_to_ndim(
+                    cms_context,
+                    active_params.n_input,
+                )
+                aug = vec_add(
+                    vec_scale(step_vec, 0.8),
+                    vec_scale(projected_context, 0.2),
+                )
             else:
                 aug = step_vec
             h = gru_cell(
