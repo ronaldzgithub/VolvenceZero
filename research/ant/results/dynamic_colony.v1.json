@@ -1,18 +1,24 @@
 {
   "artifact_kind": "digital-ant-dynamic-colony",
   "benchmark_version": "dynamic-stigmergy-regime-shift.v1",
+  "execution_environment": {
+    "numpy": "2.3.3",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 11:23:37) [Clang 14.0.6 ]",
+    "torch": "2.10.0"
+  },
   "experiment": "dynamic_stigmergy_regime_shift_v1",
-  "implementation_digest": "8eec9defeb98f2e47be1326d3bbaa030b61f0eef1ed694f34791f672526f2234",
+  "implementation_digest": "cbc26900940ffe24a8fd4b2d77200d6ab17f53fb0a182fa71609d9c827d3e0df",
   "n_ants": 1,
   "perturbations": [
     "obstacle_block",
     "food_relocation",
     "motor_bias"
   ],
-  "post_shift_rounds": 1,
-  "pre_shift_rounds": 1,
+  "post_shift_rounds": 5,
+  "pre_shift_rounds": 2,
   "provenance": {
-    "config_digest": "fbcd451bbf212f378fff2e421aa0bccf916d45a4b680a26090cecc8c2a7d4db9",
+    "config_digest": "316d68dbe9246c1189822fe397972c497015f4204649ed6a4a86faf9f5c244e5",
     "dependency_versions": [
       [
         "vz-contracts",
@@ -36,7 +42,7 @@
       ]
     ],
     "git_branch": "main",
-    "git_sha": "79d0b9dbc2f9869d27da98f95d5f1af93e90e4cd",
+    "git_sha": "2c99d9d85ef1a3700a9648562a6c8a95241f6a3c",
     "model_fingerprint": null,
     "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
     "python_version": "3.13.5",
@@ -46,7 +52,7 @@
     "working_tree_dirty": true
   },
   "recovery_window": 1,
-  "report_schema_version": "dynamic-colony-report.v3",
+  "report_schema_version": "dynamic-colony-report.v4",
   "runtime_exploration_strength": 1.0,
   "runtime_modulation_strength": 0.3,
   "runtime_replay": "active",
@@ -153,13 +159,13 @@
         },
         {
           "gate_name": "formal_pre_shift_budget",
-          "observed": 1.0,
+          "observed": 2.0,
           "passed": false,
           "threshold": ">=50 rounds"
         },
         {
           "gate_name": "formal_post_shift_budget",
-          "observed": 1.0,
+          "observed": 5.0,
           "passed": false,
           "threshold": ">=100 rounds"
         },
@@ -194,7 +200,7 @@
           "threshold": "mean>=0.02 and ci95.low>0"
         },
         {
-          "gate_name": "policy_optimization_causal_effect",
+          "gate_name": "policy_optimization_lifecycle_effect",
           "observed": 0.0,
           "passed": false,
           "threshold": "mean>=0.02 and ci95.low>0"
@@ -231,9 +237,9 @@
         },
         {
           "gate_name": "runtime_replay_lineage",
-          "observed": 0.0,
+          "observed": 0.8333333333333334,
           "passed": false,
-          "threshold": "every kernel arm ACTIVE with transitions>0 and 0<=matches<=settled<=captured and coverage>=0.99"
+          "threshold": "every kernel arm/ant full+post slice ACTIVE, transitions>0, 0<=matches<=settled<=captured, both coverages>=0.99, no drops"
         },
         {
           "gate_name": "checkpoint_cardinality",
@@ -249,8 +255,8 @@
         },
         {
           "gate_name": "learned_policy_diverged",
-          "observed": 0.0,
-          "passed": false,
+          "observed": 1.0,
+          "passed": true,
           "threshold": "==1"
         },
         {
@@ -261,8 +267,8 @@
         },
         {
           "gate_name": "learned_post_shift_policy_diverged",
-          "observed": 0.0,
-          "passed": false,
+          "observed": 1.0,
+          "passed": true,
           "threshold": "==1"
         },
         {
@@ -289,12 +295,17 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "learned_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
               "diagnostic_breakpoint": "static-qualification-no-food-contact",
               "final_policy_fingerprints": [
-                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+                "a2982285b8fc4e2d5e7ea574a02112170ec7aeaa6512a491d56ab074e04209b0"
               ],
               "initial_checkpoint_fingerprints": [
                 "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
@@ -305,40 +316,77 @@
               "perturbation": "obstacle_block",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
-              "policy_parameters_changed": false,
+              "policy_parameters_changed": true,
               "post_shift_delivered": 0,
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
-              "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_policy_parameters_changed": true,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.4260424929418677,
+              "total_applied_distance": 1.5477345657760886,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -357,12 +405,17 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "learned_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
               "diagnostic_breakpoint": "static-qualification-no-food-contact",
               "final_policy_fingerprints": [
-                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+                "470a563d0f67fe310787933935b9c0ce4699d67551f0a21002d6136dc1cf04b6"
               ],
               "initial_checkpoint_fingerprints": [
                 "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
@@ -373,40 +426,77 @@
               "perturbation": "obstacle_block",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
-              "policy_parameters_changed": false,
+              "policy_parameters_changed": true,
               "post_shift_delivered": 0,
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
-              "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_policy_parameters_changed": true,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.4260424735576106,
+              "total_applied_distance": 1.6285079235031072,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -425,6 +515,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "no_optimize_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -441,6 +536,11 @@
               "perturbation": "obstacle_block",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -449,32 +549,64 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.4260424929418677,
+              "total_applied_distance": 1.709146596425978,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -493,12 +625,17 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "pe_off_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
               "diagnostic_breakpoint": "static-qualification-no-food-contact",
               "final_policy_fingerprints": [
-                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+                "f0c4ba2f6104f045e05e2e47962aba451563d685b5d171bef21d95f83ef5d8d2"
               ],
               "initial_checkpoint_fingerprints": [
                 "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
@@ -509,40 +646,77 @@
               "perturbation": "obstacle_block",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
-              "policy_parameters_changed": false,
+              "policy_parameters_changed": true,
               "post_shift_delivered": 0,
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
-              "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_policy_parameters_changed": true,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.4260424929418677,
+              "total_applied_distance": 1.6641603344584615,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -561,6 +735,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "fixed_rule_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -573,6 +752,11 @@
               "perturbation": "obstacle_block",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -581,11 +765,12 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
@@ -593,18 +778,29 @@
               "runtime_replay_captured": 0,
               "runtime_replay_lineage_coverage": 0.0,
               "runtime_replay_lineage_matches": 0,
+              "runtime_replay_per_ant": [],
               "runtime_replay_settled": 0,
               "runtime_replay_transitions": 0,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [],
-              "total_applied_distance": 0.8,
+              "total_applied_distance": 2.8,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -621,6 +817,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "fixed_rule_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -633,6 +834,11 @@
               "perturbation": "obstacle_block",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -641,11 +847,12 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
@@ -653,18 +860,29 @@
               "runtime_replay_captured": 0,
               "runtime_replay_lineage_coverage": 0.0,
               "runtime_replay_lineage_matches": 0,
+              "runtime_replay_per_ant": [],
               "runtime_replay_settled": 0,
               "runtime_replay_transitions": 0,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [],
-              "total_applied_distance": 0.8,
+              "total_applied_distance": 2.8,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -681,6 +899,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "random_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -693,6 +916,11 @@
               "perturbation": "obstacle_block",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -701,11 +929,12 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
@@ -713,18 +942,29 @@
               "runtime_replay_captured": 0,
               "runtime_replay_lineage_coverage": 0.0,
               "runtime_replay_lineage_matches": 0,
+              "runtime_replay_per_ant": [],
               "runtime_replay_settled": 0,
               "runtime_replay_transitions": 0,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [],
-              "total_applied_distance": 0.8,
+              "total_applied_distance": 2.8,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -737,8 +977,8 @@
           ],
           "config": {
             "n_ants": 1,
-            "post_shift_rounds": 1,
-            "pre_shift_rounds": 1,
+            "post_shift_rounds": 5,
+            "pre_shift_rounds": 2,
             "recovery_window": 1,
             "temporal_latent_dim": 4,
             "training_rounds": 0
@@ -856,13 +1096,13 @@
         },
         {
           "gate_name": "formal_pre_shift_budget",
-          "observed": 1.0,
+          "observed": 2.0,
           "passed": false,
           "threshold": ">=50 rounds"
         },
         {
           "gate_name": "formal_post_shift_budget",
-          "observed": 1.0,
+          "observed": 5.0,
           "passed": false,
           "threshold": ">=100 rounds"
         },
@@ -897,7 +1137,7 @@
           "threshold": "mean>=0.02 and ci95.low>0"
         },
         {
-          "gate_name": "policy_optimization_causal_effect",
+          "gate_name": "policy_optimization_lifecycle_effect",
           "observed": 0.0,
           "passed": false,
           "threshold": "mean>=0.02 and ci95.low>0"
@@ -934,9 +1174,9 @@
         },
         {
           "gate_name": "runtime_replay_lineage",
-          "observed": 0.0,
+          "observed": 0.8333333333333334,
           "passed": false,
-          "threshold": "every kernel arm ACTIVE with transitions>0 and 0<=matches<=settled<=captured and coverage>=0.99"
+          "threshold": "every kernel arm/ant full+post slice ACTIVE, transitions>0, 0<=matches<=settled<=captured, both coverages>=0.99, no drops"
         },
         {
           "gate_name": "checkpoint_cardinality",
@@ -952,8 +1192,8 @@
         },
         {
           "gate_name": "learned_policy_diverged",
-          "observed": 0.0,
-          "passed": false,
+          "observed": 1.0,
+          "passed": true,
           "threshold": "==1"
         },
         {
@@ -964,8 +1204,8 @@
         },
         {
           "gate_name": "learned_post_shift_policy_diverged",
-          "observed": 0.0,
-          "passed": false,
+          "observed": 1.0,
+          "passed": true,
           "threshold": "==1"
         },
         {
@@ -992,12 +1232,17 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "learned_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
               "diagnostic_breakpoint": "static-qualification-no-food-contact",
               "final_policy_fingerprints": [
-                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+                "62dc294d2e2bb90b0cd1172b4a6732aca0d88a175df6f444dfbfe4a29b0a378e"
               ],
               "initial_checkpoint_fingerprints": [
                 "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
@@ -1008,40 +1253,77 @@
               "perturbation": "food_relocation",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
-              "policy_parameters_changed": false,
+              "policy_parameters_changed": true,
               "post_shift_delivered": 0,
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
-              "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_policy_parameters_changed": true,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.426058706900553,
+              "total_applied_distance": 1.6991556528811742,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1060,12 +1342,17 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "learned_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
               "diagnostic_breakpoint": "static-qualification-no-food-contact",
               "final_policy_fingerprints": [
-                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+                "8b323e5d65a7b781ab974594503d047c69b64df514aa86b802a88db6deb5878b"
               ],
               "initial_checkpoint_fingerprints": [
                 "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
@@ -1076,40 +1363,77 @@
               "perturbation": "food_relocation",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
-              "policy_parameters_changed": false,
+              "policy_parameters_changed": true,
               "post_shift_delivered": 0,
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
-              "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_policy_parameters_changed": true,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.42605868800382873,
+              "total_applied_distance": 1.6883988225841637,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1128,6 +1452,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "no_optimize_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -1144,6 +1473,11 @@
               "perturbation": "food_relocation",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -1152,32 +1486,64 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.426058706900553,
+              "total_applied_distance": 1.5446738342912074,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1196,12 +1562,17 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "pe_off_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
               "diagnostic_breakpoint": "static-qualification-no-food-contact",
               "final_policy_fingerprints": [
-                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+                "a3e04bed6560479d425124d646275c98ed82924bb41cd059d60bb6d71a775539"
               ],
               "initial_checkpoint_fingerprints": [
                 "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
@@ -1212,40 +1583,77 @@
               "perturbation": "food_relocation",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
-              "policy_parameters_changed": false,
+              "policy_parameters_changed": true,
               "post_shift_delivered": 0,
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
-              "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_policy_parameters_changed": true,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.426058706900553,
+              "total_applied_distance": 1.61898831934446,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1264,6 +1672,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "fixed_rule_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -1276,6 +1689,11 @@
               "perturbation": "food_relocation",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -1284,11 +1702,12 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
@@ -1296,18 +1715,29 @@
               "runtime_replay_captured": 0,
               "runtime_replay_lineage_coverage": 0.0,
               "runtime_replay_lineage_matches": 0,
+              "runtime_replay_per_ant": [],
               "runtime_replay_settled": 0,
               "runtime_replay_transitions": 0,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [],
-              "total_applied_distance": 0.8,
+              "total_applied_distance": 2.8,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1324,6 +1754,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "fixed_rule_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -1336,6 +1771,11 @@
               "perturbation": "food_relocation",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -1344,11 +1784,12 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
@@ -1356,18 +1797,29 @@
               "runtime_replay_captured": 0,
               "runtime_replay_lineage_coverage": 0.0,
               "runtime_replay_lineage_matches": 0,
+              "runtime_replay_per_ant": [],
               "runtime_replay_settled": 0,
               "runtime_replay_transitions": 0,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [],
-              "total_applied_distance": 0.8,
+              "total_applied_distance": 2.8,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1384,6 +1836,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "random_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -1396,6 +1853,11 @@
               "perturbation": "food_relocation",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -1404,11 +1866,12 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
@@ -1416,18 +1879,29 @@
               "runtime_replay_captured": 0,
               "runtime_replay_lineage_coverage": 0.0,
               "runtime_replay_lineage_matches": 0,
+              "runtime_replay_per_ant": [],
               "runtime_replay_settled": 0,
               "runtime_replay_transitions": 0,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [],
-              "total_applied_distance": 0.8,
+              "total_applied_distance": 2.8,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1440,8 +1914,8 @@
           ],
           "config": {
             "n_ants": 1,
-            "post_shift_rounds": 1,
-            "pre_shift_rounds": 1,
+            "post_shift_rounds": 5,
+            "pre_shift_rounds": 2,
             "recovery_window": 1,
             "temporal_latent_dim": 4,
             "training_rounds": 0
@@ -1559,13 +2033,13 @@
         },
         {
           "gate_name": "formal_pre_shift_budget",
-          "observed": 1.0,
+          "observed": 2.0,
           "passed": false,
           "threshold": ">=50 rounds"
         },
         {
           "gate_name": "formal_post_shift_budget",
-          "observed": 1.0,
+          "observed": 5.0,
           "passed": false,
           "threshold": ">=100 rounds"
         },
@@ -1600,7 +2074,7 @@
           "threshold": "mean>=0.02 and ci95.low>0"
         },
         {
-          "gate_name": "policy_optimization_causal_effect",
+          "gate_name": "policy_optimization_lifecycle_effect",
           "observed": 0.0,
           "passed": false,
           "threshold": "mean>=0.02 and ci95.low>0"
@@ -1637,9 +2111,9 @@
         },
         {
           "gate_name": "runtime_replay_lineage",
-          "observed": 0.0,
+          "observed": 0.8333333333333334,
           "passed": false,
-          "threshold": "every kernel arm ACTIVE with transitions>0 and 0<=matches<=settled<=captured and coverage>=0.99"
+          "threshold": "every kernel arm/ant full+post slice ACTIVE, transitions>0, 0<=matches<=settled<=captured, both coverages>=0.99, no drops"
         },
         {
           "gate_name": "checkpoint_cardinality",
@@ -1655,8 +2129,8 @@
         },
         {
           "gate_name": "learned_policy_diverged",
-          "observed": 0.0,
-          "passed": false,
+          "observed": 1.0,
+          "passed": true,
           "threshold": "==1"
         },
         {
@@ -1667,8 +2141,8 @@
         },
         {
           "gate_name": "learned_post_shift_policy_diverged",
-          "observed": 0.0,
-          "passed": false,
+          "observed": 1.0,
+          "passed": true,
           "threshold": "==1"
         },
         {
@@ -1695,12 +2169,17 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "learned_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
               "diagnostic_breakpoint": "static-qualification-no-food-contact",
               "final_policy_fingerprints": [
-                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+                "bb25035d47f68315d360d09720bc3f2393b1e9c185e2a380e5bc314a3f4dc75f"
               ],
               "initial_checkpoint_fingerprints": [
                 "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
@@ -1711,40 +2190,77 @@
               "perturbation": "motor_bias",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
-              "policy_parameters_changed": false,
+              "policy_parameters_changed": true,
               "post_shift_delivered": 0,
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
-              "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_policy_parameters_changed": true,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.4260424929418677,
+              "total_applied_distance": 1.5344938898424503,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1763,12 +2279,17 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "learned_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
               "diagnostic_breakpoint": "static-qualification-no-food-contact",
               "final_policy_fingerprints": [
-                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+                "8874427807cdd7ad60fe0e783024324bbe56fa0885cf11e969f5427d91f8ea36"
               ],
               "initial_checkpoint_fingerprints": [
                 "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
@@ -1779,40 +2300,77 @@
               "perturbation": "motor_bias",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
-              "policy_parameters_changed": false,
+              "policy_parameters_changed": true,
               "post_shift_delivered": 0,
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
-              "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_policy_parameters_changed": true,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.4260424735576106,
+              "total_applied_distance": 1.757673541090968,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1831,6 +2389,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "no_optimize_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -1847,6 +2410,11 @@
               "perturbation": "motor_bias",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -1855,32 +2423,64 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.4260424929418677,
+              "total_applied_distance": 1.728074498544896,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1899,12 +2499,17 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "pe_off_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
               "diagnostic_breakpoint": "static-qualification-no-food-contact",
               "final_policy_fingerprints": [
-                "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
+                "a4f47b48a8e492b61b0dfbfd0e5ca0933d4434ea3cf0ce26b547aaac22d83b18"
               ],
               "initial_checkpoint_fingerprints": [
                 "6b966e67900040e212fd07e91375fd7796a340c194fe881f7deb24ce7000fbf6"
@@ -1915,40 +2520,77 @@
               "perturbation": "motor_bias",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
-              "policy_parameters_changed": false,
+              "policy_parameters_changed": true,
               "post_shift_delivered": 0,
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
-              "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_policy_parameters_changed": true,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [
+                {
+                  "captured": 10,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 1.0,
+                  "transitions": 10
+                }
+              ],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
               "runtime_replay_active": true,
-              "runtime_replay_captured": 2,
-              "runtime_replay_lineage_coverage": 0.0,
-              "runtime_replay_lineage_matches": 0,
-              "runtime_replay_settled": 0,
-              "runtime_replay_transitions": 0,
+              "runtime_replay_captured": 12,
+              "runtime_replay_lineage_coverage": 1.0,
+              "runtime_replay_lineage_matches": 10,
+              "runtime_replay_per_ant": [
+                {
+                  "captured": 12,
+                  "drop_reasons": [],
+                  "lineage_coverage": 1.0,
+                  "lineage_matches": 10,
+                  "settled": 10,
+                  "settlement_coverage": 0.8333333333333334,
+                  "transitions": 10
+                }
+              ],
+              "runtime_replay_settled": 10,
+              "runtime_replay_transitions": 10,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [
                 "b2599bdafdff626651c4f1696f43f3e8e2346bef58a256d64cf843d8669920d2"
               ],
-              "total_applied_distance": 0.4260424929418677,
+              "total_applied_distance": 1.6780821447143597,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -1967,6 +2609,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "fixed_rule_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -1979,6 +2626,11 @@
               "perturbation": "motor_bias",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -1987,11 +2639,12 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
@@ -1999,18 +2652,29 @@
               "runtime_replay_captured": 0,
               "runtime_replay_lineage_coverage": 0.0,
               "runtime_replay_lineage_matches": 0,
+              "runtime_replay_per_ant": [],
               "runtime_replay_settled": 0,
               "runtime_replay_transitions": 0,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [],
-              "total_applied_distance": 0.8,
+              "total_applied_distance": 2.8,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -2027,6 +2691,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "fixed_rule_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -2039,6 +2708,11 @@
               "perturbation": "motor_bias",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -2047,11 +2721,12 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
@@ -2059,18 +2734,29 @@
               "runtime_replay_captured": 0,
               "runtime_replay_lineage_coverage": 0.0,
               "runtime_replay_lineage_matches": 0,
+              "runtime_replay_per_ant": [],
               "runtime_replay_settled": 0,
               "runtime_replay_transitions": 0,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [],
-              "total_applied_distance": 0.8,
+              "total_applied_distance": 2.8,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -2087,6 +2773,11 @@
               "delivered": 0,
               "delivery_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "description": "random_no_bus: pre=0.0000/1k-actions, post=0.0000/1k-actions, recovery=None, oracle_shortfall=0.0714",
@@ -2099,6 +2790,11 @@
               "perturbation": "motor_bias",
               "pickup_curve": [
                 0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0
               ],
               "pickups": 0,
@@ -2107,11 +2803,12 @@
               "post_shift_delivery_auc": 0.0,
               "post_shift_pickups": 0,
               "post_shift_policy_parameters_changed": false,
-              "post_shift_rounds": 1,
+              "post_shift_rounds": 5,
+              "post_shift_runtime_replay_per_ant": [],
               "post_shift_throughput_per_1k_actions": 0.0,
               "pre_shift_delivered": 0,
               "pre_shift_pickups": 0,
-              "pre_shift_rounds": 1,
+              "pre_shift_rounds": 2,
               "pre_shift_throughput_per_1k_actions": 0.0,
               "recovery_rounds": null,
               "route_stretch": null,
@@ -2119,18 +2816,29 @@
               "runtime_replay_captured": 0,
               "runtime_replay_lineage_coverage": 0.0,
               "runtime_replay_lineage_matches": 0,
+              "runtime_replay_per_ant": [],
               "runtime_replay_settled": 0,
               "runtime_replay_transitions": 0,
               "shift_overlap_count": 0,
               "shift_policy_fingerprints": [],
-              "total_applied_distance": 0.8,
+              "total_applied_distance": 2.8,
               "trail_entropy": null,
               "trail_entropy_curve": [
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
               ],
               "trail_mass": 0.0,
               "trail_mass_curve": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0
               ],
@@ -2143,8 +2851,8 @@
           ],
           "config": {
             "n_ants": 1,
-            "post_shift_rounds": 1,
-            "pre_shift_rounds": 1,
+            "post_shift_rounds": 5,
+            "pre_shift_rounds": 2,
             "recovery_window": 1,
             "temporal_latent_dim": 4,
             "training_rounds": 0

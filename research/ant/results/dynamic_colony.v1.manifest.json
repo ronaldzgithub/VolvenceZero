@@ -1,13 +1,13 @@
 {
   "artifact": {
     "path": "research/ant/results/dynamic_colony.v1.json",
-    "sha256": "5d3f4057e8737dacc65238305975b93790b89c29ae3d9e883838bd596decf3f1",
-    "size_bytes": 74874
+    "sha256": "b803eed1e50297ef82d50ecc1b563a91ced0817416478c856451be221c8cbe41",
+    "size_bytes": 93753
   },
   "externally_retainable": false,
   "inputs": [],
   "provenance": {
-    "config_digest": "fbcd451bbf212f378fff2e421aa0bccf916d45a4b680a26090cecc8c2a7d4db9",
+    "config_digest": "316d68dbe9246c1189822fe397972c497015f4204649ed6a4a86faf9f5c244e5",
     "dependency_versions": [
       [
         "vz-contracts",
@@ -31,7 +31,7 @@
       ]
     ],
     "git_branch": "main",
-    "git_sha": "79d0b9dbc2f9869d27da98f95d5f1af93e90e4cd",
+    "git_sha": "2c99d9d85ef1a3700a9648562a6c8a95241f6a3c",
     "model_fingerprint": null,
     "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
     "python_version": "3.13.5",

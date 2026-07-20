@@ -17,10 +17,13 @@ import asyncio
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict
 import hashlib
+from importlib.metadata import PackageNotFoundError, version
 import json
 import multiprocessing
 import os
+import platform
 from pathlib import Path
+import sys
 
 from volvence_ant.evidence import (
     ANT_RUNTIME_EXPLORATION_STRENGTH,
@@ -39,6 +42,7 @@ from volvence_ant.experiments import (
     DynamicColonyConfig,
     DynamicColonySeedReport,
     DynamicPerturbationKind,
+    RuntimeReplayCoverage,
     aggregate_dynamic_colony_reports,
     run_dynamic_colony_seed,
 )
@@ -48,7 +52,7 @@ _RESULTS_DIR = Path("research/ant/results")
 _ARTIFACT_PATH = _RESULTS_DIR / "dynamic_colony.v1.json"
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _BENCHMARK_VERSION = "dynamic-stigmergy-regime-shift.v1"
-_REPORT_SCHEMA_VERSION = "dynamic-colony-report.v3"
+_REPORT_SCHEMA_VERSION = "dynamic-colony-report.v4"
 
 
 def _implementation_digest() -> str:
@@ -56,6 +60,8 @@ def _implementation_digest() -> str:
         _REPO_ROOT / "packages/vz-contracts/src",
         _REPO_ROOT / "packages/vz-substrate/src",
         _REPO_ROOT / "packages/vz-cognition/src",
+        _REPO_ROOT / "packages/vz-memory/src",
+        _REPO_ROOT / "packages/vz-application/src",
         _REPO_ROOT / "packages/vz-temporal/src",
         _REPO_ROOT / "packages/vz-runtime/src",
         _REPO_ROOT / "packages/vz-embodiment-ant/src",
@@ -68,6 +74,20 @@ def _implementation_digest() -> str:
         digest.update(str(path.relative_to(_REPO_ROOT)).encode("utf-8"))
         digest.update(path.read_bytes())
     return digest.hexdigest()
+
+
+def _execution_environment() -> dict[str, str]:
+    dependencies: dict[str, str] = {}
+    for name in ("numpy", "torch"):
+        try:
+            dependencies[name] = version(name)
+        except PackageNotFoundError:
+            dependencies[name] = "not-installed"
+    return {
+        "python": sys.version,
+        "platform": platform.platform(),
+        **dependencies,
+    }
 
 
 def _configure_worker_threads() -> None:
@@ -124,14 +144,17 @@ def _run_seed_worker(
     seed: int,
     perturbation_value: str,
     config_payload: dict,
+    expected_implementation_digest: str,
 ) -> DynamicColonySeedReport:
     _configure_worker_threads()
+    if _implementation_digest() != expected_implementation_digest:
+        raise RuntimeError("implementation changed before worker execution")
     config = DynamicColonyConfig(**config_payload)
     learned, no_optimize, pe_off = _kernel_configs(
         seed=seed,
         n_z=config.temporal_latent_dim,
     )
-    return asyncio.run(
+    report = asyncio.run(
         run_dynamic_colony_seed(
             seed=seed,
             perturbation=DynamicPerturbationKind(perturbation_value),
@@ -141,6 +164,9 @@ def _run_seed_worker(
             pe_off_config=pe_off,
         )
     )
+    if _implementation_digest() != expected_implementation_digest:
+        raise RuntimeError("implementation changed during worker execution")
+    return report
 
 
 def _report_from_dict(payload: dict) -> DynamicColonySeedReport:
@@ -150,13 +176,36 @@ def _report_from_dict(payload: dict) -> DynamicColonySeedReport:
         raise ValueError("dynamic-colony partial config must be an object")
     if not isinstance(arms, list):
         raise ValueError("dynamic-colony partial arms must be a list")
+
+    def arm_from_dict(arm_payload: dict) -> DynamicColonyArm:
+        values = dict(arm_payload)
+        for field_name in (
+            "runtime_replay_per_ant",
+            "post_shift_runtime_replay_per_ant",
+        ):
+            entries = values[field_name]
+            if not isinstance(entries, list):
+                raise ValueError(
+                    f"dynamic-colony arm {field_name} must be a list"
+                )
+            values[field_name] = tuple(
+                RuntimeReplayCoverage(
+                    **{
+                        **entry,
+                        "drop_reasons": tuple(entry["drop_reasons"]),
+                    }
+                )
+                for entry in entries
+            )
+        return DynamicColonyArm(**values)
+
     return DynamicColonySeedReport(
         seed=int(payload["seed"]),
         training_world_seed=int(payload["training_world_seed"]),
         evaluation_world_seed=int(payload["evaluation_world_seed"]),
         perturbation=str(payload["perturbation"]),
         config=DynamicColonyConfig(**config),
-        arms=tuple(DynamicColonyArm(**arm) for arm in arms),
+        arms=tuple(arm_from_dict(arm) for arm in arms),
     )
 
 
@@ -180,11 +229,14 @@ async def _run_scenario(
     seeds: tuple[int, ...],
     workers: int,
     resume: bool,
+    implementation_digest: str,
+    execution_environment: dict[str, str],
 ) -> DynamicColonyAggregateReport:
     semantic_config = {
         "benchmark_version": _BENCHMARK_VERSION,
         "report_schema_version": _REPORT_SCHEMA_VERSION,
-        "implementation_digest": _implementation_digest(),
+        "implementation_digest": implementation_digest,
+        "execution_environment": execution_environment,
         "perturbation": perturbation.value,
         **asdict(config),
         "seeds": seeds,
@@ -210,6 +262,10 @@ async def _run_scenario(
     config_payload = asdict(config)
     if workers == 1:
         for seed in remaining:
+            if _implementation_digest() != implementation_digest:
+                raise RuntimeError(
+                    "implementation changed before local seed execution"
+                )
             learned, no_optimize, pe_off = _kernel_configs(
                 seed=seed,
                 n_z=config.temporal_latent_dim,
@@ -222,6 +278,10 @@ async def _run_scenario(
                 no_optimize_config=no_optimize,
                 pe_off_config=pe_off,
             )
+            if _implementation_digest() != implementation_digest:
+                raise RuntimeError(
+                    "implementation changed during local seed execution"
+                )
             partials.commit(seed=seed, report=asdict(report))
             reports_by_seed[seed] = report
             print(
@@ -239,6 +299,7 @@ async def _run_scenario(
                     seed,
                     perturbation.value,
                     config_payload,
+                    implementation_digest,
                 ): seed
                 for seed in remaining
             }
@@ -248,6 +309,10 @@ async def _run_scenario(
                 if report.seed != seed:
                     raise ValueError(
                         f"worker seed mismatch: expected={seed}, actual={report.seed}"
+                    )
+                if _implementation_digest() != implementation_digest:
+                    raise RuntimeError(
+                        "implementation changed before partial commit"
                     )
                 partials.commit(seed=seed, report=asdict(report))
                 reports_by_seed[seed] = report
@@ -281,10 +346,13 @@ async def main(
     if workers < 1:
         raise ValueError("workers must be >= 1")
     _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    implementation_digest = _implementation_digest()
+    execution_environment = _execution_environment()
     semantic_config = {
         "benchmark_version": _BENCHMARK_VERSION,
         "report_schema_version": _REPORT_SCHEMA_VERSION,
-        "implementation_digest": _implementation_digest(),
+        "implementation_digest": implementation_digest,
+        "execution_environment": execution_environment,
         "perturbations": tuple(item.value for item in perturbations),
         **asdict(config),
         "seeds": seeds,
@@ -305,6 +373,8 @@ async def main(
                 seeds=seeds,
                 workers=workers,
                 resume=resume,
+                implementation_digest=implementation_digest,
+                execution_environment=execution_environment,
             )
         )
     required_perturbations = set(DynamicPerturbationKind)
@@ -326,6 +396,10 @@ async def main(
         "suite_complete": suite_complete,
         "verdict": overall_verdict,
     }
+    if _implementation_digest() != implementation_digest:
+        raise RuntimeError("implementation changed before final artifact write")
+    if _execution_environment() != execution_environment:
+        raise RuntimeError("execution environment changed during benchmark")
     manifest = write_ant_artifact_bundle(
         artifact_path=_ARTIFACT_PATH,
         payload=payload,

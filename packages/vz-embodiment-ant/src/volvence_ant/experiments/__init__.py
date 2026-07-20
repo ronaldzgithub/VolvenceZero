@@ -11,6 +11,7 @@ from volvence_ant.experiments.dynamic_colony import (
     DynamicColonyGate,
     DynamicColonySeedReport,
     DynamicPerturbationKind,
+    RuntimeReplayCoverage,
     aggregate_dynamic_colony_reports,
     run_dynamic_colony_seed,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "MotorCalibrationArm",
     "MotorCalibrationReport",
     "RouteLearningResult",
+    "RuntimeReplayCoverage",
     "aggregate_dynamic_colony_reports",
     "colony_foraging_experiment",
     "homing_precision_experiment",

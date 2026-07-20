@@ -27,6 +27,7 @@ from volvence_ant.env.pheromone_field import PheromoneBus
 from volvence_ant.runtime import (
     AntLearningCheckpoint,
     AntSessionConfig,
+    AntStepRecord,
     KernelColonyRunner,
 )
 
@@ -76,6 +77,17 @@ class DynamicColonyConfig:
 
 
 @dataclass(frozen=True)
+class RuntimeReplayCoverage:
+    captured: int
+    settled: int
+    transitions: int
+    lineage_matches: int
+    settlement_coverage: float
+    lineage_coverage: float
+    drop_reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class DynamicColonyArm:
     arm: str
     controller_kind: str
@@ -121,6 +133,8 @@ class DynamicColonyArm:
     runtime_replay_lineage_matches: int
     runtime_replay_lineage_coverage: float
     runtime_replay_active: bool
+    runtime_replay_per_ant: tuple[RuntimeReplayCoverage, ...]
+    post_shift_runtime_replay_per_ant: tuple[RuntimeReplayCoverage, ...]
     diagnostic_breakpoint: str
     description: str
 
@@ -244,8 +258,16 @@ def _apply_perturbation(
         world.set_obstacles((_BLOCKING_OBSTACLE,))
         return overlap_count
     if perturbation is DynamicPerturbationKind.FOOD_RELOCATION:
+        overlap_count = sum(
+            math.hypot(
+                world.body(body_id).x - _RELOCATED_FOOD[0],
+                world.body(body_id).y - _RELOCATED_FOOD[1],
+            )
+            <= world.config.food_pickup_radius
+            for body_id in range(world.n_bodies)
+        )
         world.move_food(x=_RELOCATED_FOOD[0], y=_RELOCATED_FOOD[1])
-        return 0
+        return overlap_count
     if perturbation is DynamicPerturbationKind.MOTOR_BIAS:
         for body_id in range(0, world.n_bodies, 2):
             world.set_motor_distortion(
@@ -258,6 +280,44 @@ def _apply_perturbation(
 
 def _phase_throughput(*, delivered: int, n_ants: int, rounds: int) -> float:
     return 1000.0 * delivered / (n_ants * rounds)
+
+
+def _runtime_replay_coverage(
+    record: AntStepRecord,
+    *,
+    previous: AntStepRecord | None = None,
+) -> RuntimeReplayCoverage:
+    previous_captured = (
+        previous.runtime_replay_captured if previous is not None else 0
+    )
+    previous_settled = (
+        previous.runtime_replay_settled if previous is not None else 0
+    )
+    previous_transitions = (
+        previous.runtime_replay_transitions if previous is not None else 0
+    )
+    previous_lineage = (
+        previous.runtime_replay_lineage_matches if previous is not None else 0
+    )
+    captured = record.runtime_replay_captured - previous_captured
+    settled = record.runtime_replay_settled - previous_settled
+    transitions = record.runtime_replay_transitions - previous_transitions
+    lineage_matches = (
+        record.runtime_replay_lineage_matches - previous_lineage
+    )
+    return RuntimeReplayCoverage(
+        captured=captured,
+        settled=settled,
+        transitions=transitions,
+        lineage_matches=lineage_matches,
+        settlement_coverage=(
+            settled / captured if captured > 0 else 0.0
+        ),
+        lineage_coverage=(
+            lineage_matches / settled if settled > 0 else 0.0
+        ),
+        drop_reasons=record.runtime_replay_drop_reasons,
+    )
 
 
 def _recovery_rounds(
@@ -349,6 +409,8 @@ def _build_arm(
     runtime_replay_transitions: int = 0,
     runtime_replay_lineage_matches: int = 0,
     runtime_replay_active: bool = False,
+    runtime_replay_per_ant: tuple[RuntimeReplayCoverage, ...] = (),
+    post_shift_runtime_replay_per_ant: tuple[RuntimeReplayCoverage, ...] = (),
 ) -> DynamicColonyArm:
     pre_delivered = delivery_curve[config.pre_shift_rounds - 1]
     pre_pickups = pickup_curve[config.pre_shift_rounds - 1]
@@ -511,6 +573,10 @@ def _build_arm(
         runtime_replay_lineage_matches=runtime_replay_lineage_matches,
         runtime_replay_lineage_coverage=lineage_coverage,
         runtime_replay_active=runtime_replay_active,
+        runtime_replay_per_ant=runtime_replay_per_ant,
+        post_shift_runtime_replay_per_ant=(
+            post_shift_runtime_replay_per_ant
+        ),
         diagnostic_breakpoint=breakpoint,
         description=(
             f"{arm.value}: pre={pre_throughput:.4f}/1k-actions, "
@@ -580,6 +646,9 @@ async def _run_kernel_arm(
     )
     rounds = tuple(runner.rounds)
     latest_records = rounds[-1].ant_steps if rounds else ()
+    shift_records = (
+        rounds[config.pre_shift_rounds - 1].ant_steps if rounds else ()
+    )
     return _build_arm(
         arm=arm,
         controller_kind="kernel",
@@ -622,6 +691,18 @@ async def _run_kernel_arm(
             dict(record.backend_wiring)["internal_rl_runtime_replay"]
             == "active"
             for record in latest_records
+        ),
+        runtime_replay_per_ant=tuple(
+            _runtime_replay_coverage(record)
+            for record in latest_records
+        ),
+        post_shift_runtime_replay_per_ant=tuple(
+            _runtime_replay_coverage(record, previous=shift_record)
+            for record, shift_record in zip(
+                latest_records,
+                shift_records,
+                strict=True,
+            )
         ),
     )
 
@@ -1139,20 +1220,53 @@ def aggregate_dynamic_colony_reports(
     fixed_pre_pickup_seed_rate = float(
         np.mean([arm.pre_shift_pickups > 0 for arm in fixed_arms])
     )
+    replay_slices = tuple(
+        coverage
+        for arm in kernel_arms
+        for coverage in (
+            *arm.runtime_replay_per_ant,
+            *arm.post_shift_runtime_replay_per_ant,
+        )
+    )
     replay_coverage = min(
-        (arm.runtime_replay_lineage_coverage for arm in kernel_arms),
+        (
+            min(
+                coverage.settlement_coverage,
+                coverage.lineage_coverage,
+            )
+            for coverage in replay_slices
+        ),
         default=0.0,
     )
+
+    def replay_slice_valid(coverage: RuntimeReplayCoverage) -> bool:
+        return bool(
+            coverage.transitions > 0
+            and 0
+            <= coverage.lineage_matches
+            <= coverage.settled
+            <= coverage.captured
+            and coverage.settlement_coverage >= 0.99
+            and coverage.lineage_coverage >= 0.99
+            and not coverage.drop_reasons
+        )
+
     replay_integrity = float(
         bool(kernel_arms)
         and all(
             arm.runtime_replay_active
-            and arm.runtime_replay_transitions > 0
-            and 0
-            <= arm.runtime_replay_lineage_matches
-            <= arm.runtime_replay_settled
-            <= arm.runtime_replay_captured
-            and arm.runtime_replay_lineage_coverage >= 0.99
+            and len(arm.runtime_replay_per_ant)
+            == benchmark_config.n_ants
+            and len(arm.post_shift_runtime_replay_per_ant)
+            == benchmark_config.n_ants
+            and all(
+                replay_slice_valid(coverage)
+                for coverage in arm.runtime_replay_per_ant
+            )
+            and all(
+                replay_slice_valid(coverage)
+                for coverage in arm.post_shift_runtime_replay_per_ant
+            )
             for arm in kernel_arms
         )
     )
@@ -1289,7 +1403,7 @@ def aggregate_dynamic_colony_reports(
             threshold="mean>=0.02 and ci95.low>0",
         ),
         DynamicColonyGate(
-            gate_name="policy_optimization_causal_effect",
+            gate_name="policy_optimization_lifecycle_effect",
             passed=no_opt_effect.mean >= 0.02 and no_opt_effect.ci95[0] > 0.0,
             observed=no_opt_effect.mean,
             threshold="mean>=0.02 and ci95.low>0",
@@ -1344,8 +1458,8 @@ def aggregate_dynamic_colony_reports(
             passed=bool(replay_integrity),
             observed=replay_coverage,
             threshold=(
-                "every kernel arm ACTIVE with transitions>0 and "
-                "0<=matches<=settled<=captured and coverage>=0.99"
+                "every kernel arm/ant full+post slice ACTIVE, transitions>0, "
+                "0<=matches<=settled<=captured, both coverages>=0.99, no drops"
             ),
         ),
         DynamicColonyGate(
@@ -1418,6 +1532,7 @@ __all__ = [
     "DynamicColonyGate",
     "DynamicColonySeedReport",
     "DynamicPerturbationKind",
+    "RuntimeReplayCoverage",
     "aggregate_dynamic_colony_reports",
     "run_dynamic_colony_seed",
 ]

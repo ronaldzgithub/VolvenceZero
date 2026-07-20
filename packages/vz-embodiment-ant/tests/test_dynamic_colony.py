@@ -10,9 +10,12 @@ from volvence_ant.experiments.dynamic_colony import (
     DynamicColonyArmKind,
     DynamicColonyConfig,
     DynamicPerturbationKind,
+    RuntimeReplayCoverage,
     aggregate_dynamic_colony_reports,
+    _apply_perturbation,
     run_dynamic_colony_seed,
 )
+from volvence_ant.env import AntWorld
 from volvence_ant.runtime import AntSessionConfig
 
 
@@ -82,6 +85,18 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
         shared_fingerprints = tuple(
             f"shared:{seed}:body:{body_id}" for body_id in range(8)
         )
+        replay_coverage = tuple(
+            RuntimeReplayCoverage(
+                captured=100,
+                settled=100,
+                transitions=100,
+                lineage_matches=100,
+                settlement_coverage=1.0,
+                lineage_coverage=1.0,
+                drop_reasons=(),
+            )
+            for _ in range(8)
+        )
         learned = replace(
             formalize(
                 template_by_arm[DynamicColonyArmKind.LEARNED_BUS.value]
@@ -109,6 +124,8 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             runtime_replay_lineage_matches=100,
             runtime_replay_lineage_coverage=1.0,
             runtime_replay_active=True,
+            runtime_replay_per_ant=replay_coverage,
+            post_shift_runtime_replay_per_ant=replay_coverage,
         )
         learned_no_bus = replace(
             formalize(
@@ -134,6 +151,8 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             runtime_replay_lineage_matches=100,
             runtime_replay_lineage_coverage=1.0,
             runtime_replay_active=True,
+            runtime_replay_per_ant=replay_coverage,
+            post_shift_runtime_replay_per_ant=replay_coverage,
         )
         no_optimize = replace(
             formalize(
@@ -160,6 +179,8 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             runtime_replay_lineage_matches=100,
             runtime_replay_lineage_coverage=1.0,
             runtime_replay_active=True,
+            runtime_replay_per_ant=replay_coverage,
+            post_shift_runtime_replay_per_ant=replay_coverage,
         )
         pe_off = replace(
             formalize(template_by_arm[DynamicColonyArmKind.PE_OFF_BUS.value]),
@@ -181,6 +202,8 @@ async def test_dynamic_colony_runs_frozen_seven_arm_matrix() -> None:
             runtime_replay_lineage_matches=100,
             runtime_replay_lineage_coverage=1.0,
             runtime_replay_active=True,
+            runtime_replay_per_ant=replay_coverage,
+            post_shift_runtime_replay_per_ant=replay_coverage,
         )
         fixed = replace(
             formalize(
@@ -261,3 +284,15 @@ async def test_real_tiny_dynamic_colony_remains_honestly_blocked() -> None:
     assert next(
         gate for gate in aggregate.gates if gate.gate_name == "formal_seed_count"
     ).passed is False
+
+
+def test_food_relocation_reports_body_overlap() -> None:
+    world = AntWorld()
+    world.set_body_pose(x=-5.0, y=0.0, heading=0.0)
+
+    overlap = _apply_perturbation(
+        world,
+        perturbation=DynamicPerturbationKind.FOOD_RELOCATION,
+    )
+
+    assert overlap == 1

@@ -72,6 +72,12 @@ FSM 手写的梯度跟随答案直接喂给控制器，而"如何朝食物走"�
 禁止 `AntWorld` 直接传 reward 给 temporal/Internal RL，禁止 evaluation 反灌 reward，禁止 runtime
 另建 mismatch slot。历史上只依赖 drive PE 的结果可以保留为机制 smoke，但不是 learned foraging 证据。
 
+这里的“只有两个 task milestone”不等于系统其余 PE 必须为零：局部 food/pheromone/heading 感知仍会
+产生 substrate prediction mismatch，Internal-RL 可把它作为内在 PE 信号。它不读取食物坐标或全局距离，
+不是 task shaping；但因此 learned-vs-PE-off 只能证明“含内在 PE 的完整架构贡献”，不能写成
+“pickup/delivery 奖励单独导致学习”。若未来需要 milestone-only RL 因果结论，必须新增 typed reward
+eligibility 并逐条审计 nonzero reward 的 outcome lineage，不能在 evaluation 侧靠文本/数值猜测。
+
 数字蚂蚁实验显式设置 `internal_rl_runtime_replay=ACTIVE`，把每拍真实 substrate、实际 `z_t`、下一拍
 substrate effect 与匹配的 outcome→PE→credit lineage 结算成 Internal-RL batch。该开关只选择 transition
 source，不选择 pure/torch optimizer；生产默认仍为 `DISABLED`。ACTIVE 样本不足时必须报告
@@ -163,6 +169,12 @@ training/evaluation world seed 分别由公开的不同派生函数产生；cont
 必须对齐，learned 的 shift→final policy fingerprint 必须变化而 no-optimize 保持不变；否则 post-shift
 差异不能归因为在线适应。
 
+当前 `no_optimize` 从 training 起即关闭 policy optimization，因此它严格支持的是
+**learning-lifecycle contribution**，不是“在同一个 shift 世界状态处分叉”的单点因果结论。
+pre-shift performance alignment + shift→final fingerprint 只负责排除最明显混淆；若要声称
+“post-shift update 本身导致恢复”，必须另加 environment/bus/navigator/runtime 全状态
+checkpoint 后的 frozen-at-shift arm，未落地前不得扩大口径。
+
 每个 regime shift 独立成 episode，禁止把多个变化混在主效应判断中。v1 包含：
 `obstacle_block`（新障碍阻断原路线）、`food_relocation`、`motor_bias`；动态 pheromone decay 与
 sensor drift 留给 v2 单独收敛包。信息素的“未携带铺 home / 携带铺 trail”仍是公共 frozen physiology，
@@ -183,15 +195,18 @@ promotion gate：
 2. **静态资格**：learned pre-shift throughput ≥ fixed-rule 的 80%，且至少 80% seeds 发生 pickup；
 3. **群体因果**：`learned_bus - learned_no_bus` 的 post-shift throughput effect ≥ 0.02/千
    ant-action，CI 下界 > 0；
-4. **在线学习因果**：learned 相对 no-optimize 和 PE-off 的 post-shift throughput effect 均
-   ≥ 0.02/千 ant-action，CI 下界 > 0；
+4. **学习生命周期贡献**：learned 相对 no-optimize 和 PE-off 的 post-shift throughput effect 均
+   ≥ 0.02/千 ant-action，CI 下界 > 0，且 learned/no-optimize 的 pre-shift throughput CI 对齐；
 5. **适应优势**：learned 相对 fixed-rule 的 recovery time 至少缩短 20%、相对考虑
    nest/pickup contact radius 的 optimistic oracle delivery shortfall 至少降低 15%、
    post-shift throughput 至少提高 10%，三个 paired CI 均排除 0；
 6. **完整性**：runtime replay settled/lineage coverage ≥ 0.99，arms 的初始 checkpoint
    fingerprint 数量等于 ant 数且逐 body 对齐；每个 kernel arm 满足
-   `0 ≤ lineage_matches ≤ settled ≤ captured`、存在真实 transition、wiring=ACTIVE；learned 的
-   shift→final policy fingerprint 分叉、no-optimize 不分叉。
+   `0 ≤ lineage_matches ≤ settled ≤ captured`、`settled/captured ≥ 0.99`、
+   `lineage_matches/settled ≥ 0.99`，且 full episode 与 post-shift slice 都逐 ant 检查、
+   drop reasons 为空、存在真实 transition、wiring=ACTIVE；learned 的
+   shift→final policy fingerprint 分叉、no-optimize 不分叉；障碍激活区域或食物迁移后的 pickup
+   radius 不得与任何 arm 的 body 重叠。
 
 任一静态资格失败，整体直接 **BLOCK**，不得用后续偶然效果宣称“优于 FSM”。v1 的 dashboard/theater
 只消费 artifact/replay；在正式 gate 通过前必须显示 BLOCK。resume fingerprint 还必须折入 benchmark
