@@ -117,3 +117,5 @@ artifacts/companion_bench_smoke/*
 !/tests/contracts/test_gate_teeth_discipline.py
 !/tests/test_runtime_transition_replay.py
 *.pyc
+/.venv-ant
+/.conda-volvence-gpu

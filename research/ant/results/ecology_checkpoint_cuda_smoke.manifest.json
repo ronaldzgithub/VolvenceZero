@@ -1,0 +1,50 @@
+{
+  "artifact": {
+    "path": "research\\ant\\results\\ecology_checkpoint_cuda_smoke.json",
+    "sha256": "3b0e74a223df5a8d3628d6331fa84da4904cd6e076dfb88960aebdb61bb106bf",
+    "size_bytes": 75781
+  },
+  "externally_retainable": false,
+  "inputs": [
+    {
+      "path": "research\\ant\\results\\ecology_checkpoint_cuda_smoke.vzac",
+      "sha256": "e12bfb5f96d99012d86dbc8fec9b97432bc66d257d7e68fa84731eb766282c34",
+      "size_bytes": 1088442
+    }
+  ],
+  "provenance": {
+    "config_digest": "34a1cd9eff7df16af52948912bf50b71d65f5898c39fc2cbefdd78d20f0a84df",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.0.1"
+      ],
+      [
+        "torch",
+        "2.6.0+cu124"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "f3dbf0e8057725b11102ee8aef0eb7f3ef800c7a",
+    "model_fingerprint": "92237e523dab2c555111d2e92676491b8028c31bcaaf24779e794e3af10e9865",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.12.3",
+    "seed_schedule": [
+      101
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}

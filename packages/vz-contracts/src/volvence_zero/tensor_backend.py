@@ -366,11 +366,16 @@ class PurePythonBackend(TensorBackend):
 
 
 class TorchBackend(TensorBackend):
-    """Real autograd backend. CPU + float64 + deterministic for parity."""
+    """Real autograd backend.
+
+    CPU remains the deterministic parity default.  Operators can explicitly
+    select CUDA for an ACTIVE training run with ``VZ_TENSOR_DEVICE=cuda``;
+    this is deliberately opt-in so SHADOW comparisons stay byte-stable.
+    """
 
     kind = BackendKind.TORCH
 
-    def __init__(self, *, dtype: str = "float64") -> None:
+    def __init__(self, *, dtype: str = "float64", device: str | None = None) -> None:
         try:
             import torch
         except ImportError as exc:  # pragma: no cover - guarded by resolve_backend
@@ -380,7 +385,10 @@ class TorchBackend(TensorBackend):
                 "(WiringLevel.DISABLED)."
             ) from exc
         self._torch = torch
-        self._device = torch.device("cpu")
+        requested_device = device or os.environ.get("VZ_TENSOR_DEVICE", "cpu")
+        self._device = torch.device(requested_device)
+        if self._device.type == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("VZ_TENSOR_DEVICE requests CUDA but CUDA is unavailable")
         # float64 keeps the torch path numerically close to the pure-Python
         # baseline so SHADOW parity comparisons use a tight tolerance.
         self._dtype = getattr(torch, dtype)

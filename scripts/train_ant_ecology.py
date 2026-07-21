@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 from pathlib import Path
 
 from volvence_ant.evidence.ecology_checkpoint import (
@@ -91,9 +92,19 @@ def main() -> int:
         default=[101, 211, 307, 401, 503],
     )
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--device",
+        choices=("cpu", "cuda"),
+        default="cpu",
+        help="Tensor runtime device. CUDA enables the ant temporal runtime on GPU.",
+    )
     parser.add_argument("--archive", type=Path, default=_DEFAULT_ARCHIVE)
     parser.add_argument("--report", type=Path, default=_DEFAULT_REPORT)
     args = parser.parse_args()
+    if args.device == "cuda":
+        os.environ["VZ_TENSOR_DEVICE"] = "cuda"
+    else:
+        os.environ.pop("VZ_TENSOR_DEVICE", None)
     return asyncio.run(_run(args))
 
 

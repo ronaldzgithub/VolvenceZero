@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.runtime import WiringLevel
 
@@ -19,7 +21,14 @@ def ant_runtime_replay_rollout_config(
 ) -> FinalRolloutConfig:
     """Open real replay; enable posterior exploration only for sparse tasks."""
 
+    use_cuda_runtime = os.environ.get("VZ_TENSOR_DEVICE", "cpu").strip().lower().startswith("cuda")
     return FinalRolloutConfig(
+        # The ecological body has a CUDA-capable ndarray runtime path.  Keep
+        # CPU as the reproducible default; the training CLI sets
+        # VZ_TENSOR_DEVICE=cuda only for an explicit --device cuda run.
+        temporal_runtime_backend=(
+            WiringLevel.ACTIVE if use_cuda_runtime else WiringLevel.DISABLED
+        ),
         internal_rl_runtime_replay=WiringLevel.ACTIVE,
         internal_rl_runtime_segment_credit=(
             WiringLevel.ACTIVE

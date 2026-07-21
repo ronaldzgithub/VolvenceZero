@@ -1,0 +1,50 @@
+{
+  "artifact": {
+    "path": "research\\ant\\results\\ecology_checkpoint_preflight.json",
+    "sha256": "ce3d3d2b8d10c410c99bff1e5ea051caedc4d95b46e5a5d3b8c9070d4f3ad46b",
+    "size_bytes": 80863
+  },
+  "externally_retainable": false,
+  "inputs": [
+    {
+      "path": "research\\ant\\results\\ecology_checkpoint_preflight.vzac",
+      "sha256": "85a4a6bd577efce910c8731efb0e55c46fc897eb495b8f75179d035ff15f37f7",
+      "size_bytes": 1137570
+    }
+  ],
+  "provenance": {
+    "config_digest": "3bbaa8682b296090f4fff413b22c9de19dd35b734694d4b663c71dd86bf5f686",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.5.1"
+      ],
+      [
+        "torch",
+        "not-installed"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "4cc778a1755b572bcba9c5558b1a0f15e46473aa",
+    "model_fingerprint": "2a0bfd06a3272308c923a3afa907899b25a850375381d4698dcefcaa6e4d40a5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.12.3",
+    "seed_schedule": [
+      101
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}

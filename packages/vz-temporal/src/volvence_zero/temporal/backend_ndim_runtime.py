@@ -54,6 +54,20 @@ def _gru_params(backend: TensorBackend, enc: NdimEncoderParameters) -> GruParams
     )
 
 
+def _fit_cms_context(context: tuple[float, ...], width: int) -> tuple[float, ...]:
+    """Adapt a published CMS snapshot to the encoder's fixed input width.
+
+    Ecology v2 exposes a 14-channel body observation while the shared CMS
+    owner commonly has a 16-dimensional latent.  The old torch runtime added
+    the two tensors directly and crashed.  The pure encoder's contract is a
+    fixed-width input, so retain the leading shared channels and never invent
+    values; shorter contexts are zero-padded.
+    """
+
+    clipped = tuple(float(value) for value in context[:width])
+    return clipped + (0.0,) * max(width - len(clipped), 0)
+
+
 class BackendNdimMetacontroller:
     """Drop-in ndim encode/switch/decode on a chosen TensorBackend."""
 
@@ -84,7 +98,11 @@ class BackendNdimMetacontroller:
             h = b.vector(prev) if prev is not None else b.zeros(n)
             hidden_sum = b.zeros(n)
             count = 0
-            cms_vec = b.vector(cms_context) if cms_context is not None else None
+            cms_vec = (
+                b.vector(_fit_cms_context(cms_context, params.n_input))
+                if cms_context is not None
+                else None
+            )
             for step_vec in step_vectors:
                 x = b.vector(step_vec)
                 if cms_vec is not None:
