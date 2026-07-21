@@ -181,6 +181,39 @@ def test_ant_session_declares_full_ecology_input_width_to_runtime() -> None:
     )
 
 
+async def test_ecology_step_publishes_owner_authored_diagnostics() -> None:
+    world = AntWorld(
+        world_objects=(
+            ButterSource(object_id="butter", x=1.5, y=0.0),
+            WoodStick(
+                object_id="stick",
+                start_x=0.8,
+                start_y=-0.5,
+                end_x=0.8,
+                end_y=0.5,
+            ),
+            BurningMatch(object_id="match", x=1.2, y=0.5),
+        )
+    )
+    session = AntSession(
+        world,
+        config=AntSessionConfig(
+            temporal_latent_dim=8,
+            objective=AntObjectiveKind.ECOLOGY,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+        ),
+    )
+
+    record = await session.step()
+
+    assert tuple(name for name, _ in record.sense_activation) == (
+        SENSE_CHANNELS_ECOLOGY_V2
+    )
+    assert record.nearest_food_distance is not None
+    assert record.nearest_obstacle_distance is not None
+    assert record.nearest_heat_distance is not None
+
+
 async def test_paired_ecology_channels_reach_code_and_motor_output() -> None:
     probes = await run_ecology_action_probes(
         temporal_latent_dim=8,

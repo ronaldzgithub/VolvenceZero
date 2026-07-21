@@ -187,6 +187,7 @@ class CausalPolicyCheckpoint:
     parameters_by_track: tuple[CausalPolicyParameters, ...]
     metacontroller_snapshot: MetacontrollerParameterSnapshot
     policy_optimization_fingerprint: str = ""
+    temporal_learning_fingerprint: str = ""
     runtime_replay: RuntimeReplayCheckpoint | None = None
 
 
@@ -668,6 +669,9 @@ class CausalZPolicy:
             metacontroller_snapshot=self._parameter_store.export_parameter_snapshot(),
             policy_optimization_fingerprint=stable_value_hash(
                 optimization_state
+            ),
+            temporal_learning_fingerprint=(
+                self._parameter_store.learning_parameter_fingerprint()
             ),
         )
 

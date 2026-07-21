@@ -1524,8 +1524,30 @@ def build_final_runtime_modules(
     _runtime_backend = config.temporal_runtime_backend
     if isinstance(resolved_world_temporal_policy, FullLearnedTemporalPolicy):
         resolved_world_temporal_policy.set_runtime_backend(_runtime_backend)
+        resolved_world_temporal_policy.set_runtime_track_modulation(
+            config.internal_rl_runtime_modulation_strength
+        )
+        resolved_world_temporal_policy.set_runtime_exploration(
+            config.internal_rl_runtime_exploration_strength
+        )
+        resolved_world_temporal_policy.set_causal_action_head(
+            wiring_level=config.internal_rl_causal_action_head,
+            track=Track.WORLD,
+            strength=config.internal_rl_causal_action_head_strength,
+        )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
+        resolved_self_temporal_policy.set_runtime_track_modulation(
+            config.internal_rl_runtime_modulation_strength
+        )
+        resolved_self_temporal_policy.set_runtime_exploration(
+            config.internal_rl_runtime_exploration_strength
+        )
+        resolved_self_temporal_policy.set_causal_action_head(
+            wiring_level=config.internal_rl_causal_action_head,
+            track=Track.SELF,
+            strength=config.internal_rl_causal_action_head_strength,
+        )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded
     # protocol switch-pressure prior reach beta_t. SHADOW records evidence
     # only; DISABLED keeps the byte-equivalent baseline. Setting the flag

@@ -233,6 +233,7 @@ class AgentLearningCheckpoint:
     temporal_fingerprint: str
     memory_fingerprint: str
     fingerprint: str
+    temporal_learning_fingerprint: str = ""
 
 
 @dataclass(frozen=True)
@@ -1021,6 +1022,14 @@ class AgentSessionRunner(
                 )
             ).encode("utf-8")
         ).hexdigest()
+        temporal_learning_fingerprint = hashlib.sha256(
+            repr(
+                (
+                    joint_state.world_policy_checkpoint.temporal_learning_fingerprint,
+                    joint_state.self_policy_checkpoint.temporal_learning_fingerprint,
+                )
+            ).encode("utf-8")
+        ).hexdigest()
         memory_fingerprint = hashlib.sha256(
             repr(joint_state.memory_checkpoint).encode("utf-8")
         ).hexdigest()
@@ -1060,6 +1069,9 @@ class AgentSessionRunner(
             temporal_fingerprint=temporal_fingerprint,
             memory_fingerprint=memory_fingerprint,
             fingerprint=fingerprint,
+            temporal_learning_fingerprint=(
+                temporal_learning_fingerprint
+            ),
         )
 
     def export_learning_checkpoint_archive(

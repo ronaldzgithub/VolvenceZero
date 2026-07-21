@@ -16,8 +16,8 @@ from volvence_ant.experiments.ecology_curriculum import (
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_ARCHIVE = Path("research/ant/results/ecology_checkpoint.v2.vzac")
-_DEFAULT_REPORT = Path("research/ant/results/ecology_checkpoint.v2.json")
+_DEFAULT_ARCHIVE = Path("research/ant/results/ecology_checkpoint.v3.vzac")
+_DEFAULT_REPORT = Path("research/ant/results/ecology_checkpoint.v3.json")
 
 
 def _repo_path(path: Path) -> Path:
@@ -32,6 +32,16 @@ async def _run(args: argparse.Namespace) -> int:
         temporal_latent_dim=args.temporal_latent_dim,
         stage_rounds=args.stage_rounds,
         stage_episodes=args.stage_episodes,
+        mastery_min_episodes=args.mastery_min_episodes,
+        mastery_min_pickups=args.mastery_min_pickups,
+        mastery_min_deliveries=args.mastery_min_deliveries,
+        mastery_min_obstacle_contacts=(
+            args.mastery_min_obstacle_contacts
+        ),
+        mastery_min_heat_events=args.mastery_min_heat_events,
+        interleave_every=args.interleave_every,
+        validation_rounds=args.validation_rounds,
+        validation_seeds=tuple(args.validation_seeds),
         heldout_rounds=args.heldout_rounds,
         heldout_seeds=tuple(args.heldout_seeds),
         seed=args.seed,
@@ -59,7 +69,28 @@ def main() -> int:
     parser.add_argument("--n-ants", type=int, default=8)
     parser.add_argument("--temporal-latent-dim", type=int, default=16)
     parser.add_argument("--stage-rounds", type=int, default=80)
-    parser.add_argument("--stage-episodes", type=int, default=3)
+    parser.add_argument("--stage-episodes", type=int, default=4)
+    parser.add_argument("--mastery-min-episodes", type=int, default=3)
+    parser.add_argument("--mastery-min-pickups", type=int, default=2)
+    parser.add_argument("--mastery-min-deliveries", type=int, default=1)
+    parser.add_argument(
+        "--mastery-min-obstacle-contacts",
+        type=int,
+        default=2,
+    )
+    parser.add_argument(
+        "--mastery-min-heat-events",
+        type=int,
+        default=2,
+    )
+    parser.add_argument("--interleave-every", type=int, default=2)
+    parser.add_argument("--validation-rounds", type=int, default=80)
+    parser.add_argument(
+        "--validation-seeds",
+        type=int,
+        nargs="+",
+        default=[43, 59],
+    )
     parser.add_argument("--heldout-rounds", type=int, default=120)
     parser.add_argument(
         "--heldout-seeds",

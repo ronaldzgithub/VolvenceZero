@@ -419,7 +419,9 @@ def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> No
         credit_snapshot=_credit(),
     )
     assert settlement.rollout is not None
-    checkpoint = sandbox.create_checkpoint()
+    checkpoint = sandbox.create_checkpoint(
+        checkpoint_id="causal-action-head-before"
+    )
     before = store.causal_action_head_parameters(track=Track.WORLD)
 
     report = sandbox.optimize(settlement.rollout)

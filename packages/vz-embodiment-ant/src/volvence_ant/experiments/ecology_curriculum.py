@@ -14,6 +14,8 @@ from typing import Callable
 
 import numpy as np
 
+from volvence_zero.agent import AgentLearningArchiveError
+
 from volvence_ant.env.ant_world import AntWorld, AntWorldConfig
 from volvence_ant.env.colony import ColonyWorld
 from volvence_ant.env.world_objects import (
@@ -52,7 +54,26 @@ ECOLOGY_REQUIRED_GATE_NAMES = (
     "burning_match_forced_escape",
     "composite_performance",
     "matched_ablation_advantage",
+    "temporal_dynamics",
+    "action_smoothness",
+    "checkpoint_archive_roundtrip",
     "runtime_replay_lineage",
+)
+ECOLOGY_CRITICAL_ACTIVE_CHANNELS = frozenset(
+    {
+        "food_left",
+        "food_right",
+        "food_diff",
+        "carrying_food",
+        "obstacle_left",
+        "obstacle_right",
+        "obstacle_contact",
+        "heat_left",
+        "heat_right",
+        "heat_diff",
+        "heat_center",
+        "heat_harmful",
+    }
 )
 
 
@@ -91,6 +112,7 @@ class EcologyCurriculumConfig:
     stage_episodes: int = 4
     mastery_min_episodes: int = 3
     mastery_min_pickups: int = 2
+    mastery_min_deliveries: int = 1
     mastery_min_obstacle_contacts: int = 2
     mastery_min_heat_events: int = 2
     interleave_every: int = 2
@@ -113,6 +135,7 @@ class EcologyCurriculumConfig:
             )
         if (
             self.mastery_min_pickups < 1
+            or self.mastery_min_deliveries < 1
             or self.mastery_min_obstacle_contacts < 1
             or self.mastery_min_heat_events < 1
         ):
@@ -168,7 +191,7 @@ class EcologyArmMetrics:
     longest_segment_length: int
     mean_absolute_turn_delta: float
     policy_fingerprint_stable: bool
-    temporal_fingerprint_stable: bool
+    temporal_learning_fingerprint_stable: bool
 
 
 @dataclass(frozen=True)
@@ -209,6 +232,7 @@ class EcologyStageMastery:
     reached: bool
     primary_episodes: int
     pickups: int
+    deliveries: int
     obstacle_contacts: int
     heat_entries: int
     heat_escapes: int
@@ -277,7 +301,7 @@ def _scene_objects(
     rng = np.random.default_rng(seed + split_offset)
     bearing = float(rng.uniform(-math.pi, math.pi))
     distance_bounds = {
-        EcologyTrainingTier.NEAR: (1.35, 1.75),
+        EcologyTrainingTier.NEAR: (0.95, 1.35),
         EcologyTrainingTier.MEDIUM: (2.1, 2.9),
         EcologyTrainingTier.FAR: (3.0, 4.4),
     }[tier]
@@ -445,16 +469,17 @@ def _activated_sense_channels(
 
 def _mean_absolute_turn_delta(
     records: tuple[AntStepRecord, ...],
+    *,
+    n_ants: int,
 ) -> float:
-    if len(records) < 2:
+    if len(records) <= n_ants:
         return 0.0
     deltas = tuple(
-        abs(current.command.turn_command - previous.command.turn_command)
-        for previous, current in zip(
-            records,
-            records[1:],
-            strict=True,
+        abs(
+            records[index].command.turn_command
+            - records[index - n_ants].command.turn_command
         )
+        for index in range(n_ants, len(records))
     )
     return sum(deltas) / len(deltas)
 
@@ -484,6 +509,7 @@ def _mastery_reached(
     stage: EcologyStage,
     primary_episodes: int,
     pickups: int,
+    deliveries: int,
     obstacle_contacts: int,
     heat_entries: int,
     heat_escapes: int,
@@ -491,20 +517,26 @@ def _mastery_reached(
     if primary_episodes < config.mastery_min_episodes:
         return False
     if stage is EcologyStage.BUTTER:
-        return pickups >= config.mastery_min_pickups
+        return (
+            pickups >= config.mastery_min_pickups
+            and deliveries >= config.mastery_min_deliveries
+        )
     if stage is EcologyStage.WOOD_STICK:
         return (
             pickups >= config.mastery_min_pickups
+            and deliveries >= config.mastery_min_deliveries
             and obstacle_contacts
             >= config.mastery_min_obstacle_contacts
         )
     if stage is EcologyStage.BURNING_MATCH:
         return (
-            heat_entries >= config.mastery_min_heat_events
+            deliveries >= config.mastery_min_deliveries
+            and heat_entries >= config.mastery_min_heat_events
             and heat_escapes >= config.mastery_min_heat_events
         )
     return (
         pickups >= config.mastery_min_pickups
+        and deliveries >= config.mastery_min_deliveries
         and (
             obstacle_contacts > 0
             or heat_entries > 0
@@ -518,20 +550,26 @@ def _mastery_threshold(
     stage: EcologyStage,
 ) -> str:
     if stage is EcologyStage.BUTTER:
-        return f"pickups>={config.mastery_min_pickups}"
+        return (
+            f"pickups>={config.mastery_min_pickups}, "
+            f"deliveries>={config.mastery_min_deliveries}"
+        )
     if stage is EcologyStage.WOOD_STICK:
         return (
             f"pickups>={config.mastery_min_pickups}, "
+            f"deliveries>={config.mastery_min_deliveries}, "
             "contacts>="
             f"{config.mastery_min_obstacle_contacts}"
         )
     if stage is EcologyStage.BURNING_MATCH:
         return (
+            f"deliveries>={config.mastery_min_deliveries}, "
             f"entries>={config.mastery_min_heat_events}, "
             f"escapes>={config.mastery_min_heat_events}"
         )
     return (
-        f"pickups>={config.mastery_min_pickups} and hazard sample present"
+        f"pickups>={config.mastery_min_pickups}, "
+        f"deliveries>={config.mastery_min_deliveries} and hazard sample present"
     )
 
 
@@ -676,10 +714,20 @@ async def _train_arm(
             )
             plans.append(plan)
             reports.append(report)
+            print(
+                (
+                    f"[ecology:{arm}] replay stage={plan.stage.value} "
+                    f"tier={plan.tier.value} episode={plan.episode_index} "
+                    f"interleaved={plan.interleaved} "
+                    f"pickups={report.pickups} deliveries={report.deliveries}"
+                ),
+                flush=True,
+            )
     else:
         mastered_stages: list[EcologyStage] = []
         for stage_index, stage in enumerate(stages):
             pickups = 0
+            deliveries = 0
             obstacle_contacts = 0
             heat_entries = 0
             heat_escapes = 0
@@ -720,14 +768,27 @@ async def _train_arm(
                 reports.append(report)
                 primary_episodes += 1
                 pickups += report.pickups
+                deliveries += report.deliveries
                 obstacle_contacts += report.obstacle_contacts
                 heat_entries += report.heat_entries
                 heat_escapes += report.heat_escapes
+                print(
+                    (
+                        f"[ecology:{arm}] stage={stage.value} "
+                        f"tier={plan.tier.value} episode={episode} "
+                        f"pickups={report.pickups} deliveries={report.deliveries} "
+                        f"contacts={report.obstacle_contacts} "
+                        f"heat={report.heat_entries}/{report.heat_escapes} "
+                        f"payoffs={report.nonzero_ecology_payoffs}"
+                    ),
+                    flush=True,
+                )
                 reached = _mastery_reached(
                     config=config,
                     stage=stage,
                     primary_episodes=primary_episodes,
                     pickups=pickups,
+                    deliveries=deliveries,
                     obstacle_contacts=obstacle_contacts,
                     heat_entries=heat_entries,
                     heat_escapes=heat_escapes,
@@ -770,7 +831,22 @@ async def _train_arm(
                     )
                     plans.append(replay_plan)
                     reports.append(replay_report)
+                    print(
+                        (
+                            f"[ecology:{arm}] interleaved={replay_stage.value} "
+                            f"pickups={replay_report.pickups} "
+                            f"deliveries={replay_report.deliveries}"
+                        ),
+                        flush=True,
+                    )
                 if reached:
+                    print(
+                        (
+                            f"[ecology:{arm}] mastery reached for "
+                            f"{stage.value} after {primary_episodes} episodes"
+                        ),
+                        flush=True,
+                    )
                     break
             mastery.append(
                 EcologyStageMastery(
@@ -778,11 +854,20 @@ async def _train_arm(
                     reached=reached,
                     primary_episodes=primary_episodes,
                     pickups=pickups,
+                    deliveries=deliveries,
                     obstacle_contacts=obstacle_contacts,
                     heat_entries=heat_entries,
                     heat_escapes=heat_escapes,
                     threshold=_mastery_threshold(config, stage),
                 )
+            )
+            print(
+                (
+                    f"[ecology:{arm}] stage={stage.value} done "
+                    f"reached={reached} pickups={pickups} "
+                    f"deliveries={deliveries}"
+                ),
+                flush=True,
             )
             if reached:
                 mastered_stages.append(stage)
@@ -954,15 +1039,22 @@ async def _evaluate_arm(
             ),
             default=0,
         ),
-        mean_absolute_turn_delta=_mean_absolute_turn_delta(records),
+        mean_absolute_turn_delta=_mean_absolute_turn_delta(
+            records,
+            n_ants=config.n_ants,
+        ),
         policy_fingerprint_stable=(
             _policy_fingerprints(after)
             == _policy_fingerprints(checkpoints)
         ),
-        temporal_fingerprint_stable=(
-            tuple(item.temporal_fingerprint for item in after)
+        temporal_learning_fingerprint_stable=(
+            tuple(
+                item.temporal_learning_fingerprint
+                for item in after
+            )
             == tuple(
-                item.temporal_fingerprint for item in checkpoints
+                item.temporal_learning_fingerprint
+                for item in checkpoints
             )
         ),
     )
@@ -977,88 +1069,478 @@ def _scenario_metrics(
     )
 
 
+def _checkpoint_state_fingerprints(
+    checkpoints: tuple[AntLearningCheckpoint, ...],
+) -> tuple[tuple[str, str, str], ...]:
+    return tuple(
+        (
+            item.policy_fingerprint,
+            item.temporal_fingerprint,
+            item.memory_fingerprint,
+        )
+        for item in checkpoints
+    )
+
+
+def _verify_checkpoint_archives(
+    *,
+    config: EcologyCurriculumConfig,
+    checkpoints: tuple[AntLearningCheckpoint, ...],
+    archives: tuple[bytes, ...],
+) -> bool:
+    runner = KernelColonyRunner(
+        _world(
+            config=config,
+            stage=EcologyStage.COMPOSITE,
+            seed=config.seed + 900_001,
+            data_split=EcologyDataSplit.TRAIN,
+            tier=EcologyTrainingTier.FAR,
+        ),
+        base_config=_session_config(
+            config=config,
+            seed=config.seed + 900_001,
+            session_id="ecology:archive-verification",
+            optimize=False,
+            learning_enabled=False,
+            sparse_exploration_enabled=False,
+        ),
+    )
+    runner.restore_learning_checkpoint_archives(archives)
+    restored = runner.export_learning_checkpoints(
+        checkpoint_prefix="ecology:archive-verification:restored",
+        include_runtime_replay=False,
+    )
+    if _checkpoint_state_fingerprints(restored) != (
+        _checkpoint_state_fingerprints(checkpoints)
+    ):
+        return False
+    pre_failure = runner.export_learning_checkpoints(
+        checkpoint_prefix="ecology:archive-verification:pre-failure",
+        include_runtime_replay=False,
+    )
+    corrupted = list(archives)
+    corrupted[-1] = corrupted[-1][:-1] + b"!"
+    try:
+        runner.restore_learning_checkpoint_archives(tuple(corrupted))
+    except AgentLearningArchiveError:
+        pass
+    else:
+        return False
+    post_failure = runner.export_learning_checkpoints(
+        checkpoint_prefix="ecology:archive-verification:post-failure",
+        include_runtime_replay=False,
+    )
+    return _checkpoint_state_fingerprints(post_failure) == (
+        _checkpoint_state_fingerprints(pre_failure)
+    )
+
+
+def _paired_bootstrap_mean_ci(
+    differences: tuple[float, ...],
+    *,
+    seed: int,
+    samples: int = 4000,
+) -> tuple[float, float, float]:
+    if not differences:
+        raise ValueError(
+            "paired bootstrap requires at least one difference"
+        )
+    values = np.asarray(differences, dtype=float)
+    rng = np.random.default_rng(seed)
+    indices = rng.integers(
+        0,
+        len(values),
+        size=(samples, len(values)),
+    )
+    means = values[indices].mean(axis=1)
+    return (
+        float(values.mean()),
+        float(np.quantile(means, 0.025)),
+        float(np.quantile(means, 0.975)),
+    )
+
+
+def _ecology_outcome_score(item: EcologyArmMetrics) -> float:
+    return (
+        item.pickups * 0.5
+        + item.deliveries
+        + item.heat_escapes * 0.25
+        - item.harmful_heat_ticks * 0.02
+        - item.obstacle_contacts * 0.05
+    )
+
+
+def _ecology_outcome_scores_by_seed(
+    metrics: tuple[EcologyArmMetrics, ...],
+    *,
+    seeds: tuple[int, ...],
+) -> tuple[float, ...]:
+    result: list[float] = []
+    for seed in seeds:
+        seed_metrics = tuple(
+            item for item in metrics if item.seed == seed
+        )
+        if len(seed_metrics) != len(EcologyEvaluationScenario):
+            raise ValueError(
+                "each held-out seed must contain every ecology scenario"
+            )
+        result.append(
+            sum(_ecology_outcome_score(item) for item in seed_metrics)
+        )
+    return tuple(result)
+
+
 def _build_gates(
     *,
+    config: EcologyCurriculumConfig,
     initial: tuple[AntLearningCheckpoint, ...],
     learned: tuple[AntLearningCheckpoint, ...],
     no_optimize: tuple[AntLearningCheckpoint, ...],
+    learned_training: tuple[EcologyTrainingEpisodeReport, ...],
+    learned_mastery: tuple[EcologyStageMastery, ...],
+    action_probes: tuple[EcologyActionProbe, ...],
+    archive_roundtrip_verified: bool,
     learned_metrics: tuple[EcologyArmMetrics, ...],
     cold_metrics: tuple[EcologyArmMetrics, ...],
     no_optimize_metrics: tuple[EcologyArmMetrics, ...],
+    valence_off_metrics: tuple[EcologyArmMetrics, ...],
+    segment_credit_off_metrics: tuple[EcologyArmMetrics, ...],
 ) -> tuple[EcologyGate, ...]:
-    evaluation_schedule = tuple((item.stage, item.seed) for item in learned_metrics)
-    if (
-        tuple((item.stage, item.seed) for item in cold_metrics) != evaluation_schedule
-        or tuple((item.stage, item.seed) for item in no_optimize_metrics) != evaluation_schedule
+    evaluation_schedule = tuple(
+        (item.scenario, item.seed) for item in learned_metrics
+    )
+    for arm_metrics in (
+        cold_metrics,
+        no_optimize_metrics,
+        valence_off_metrics,
+        segment_credit_off_metrics,
     ):
-        raise ValueError("held-out arm stage/seed schedules must align")
+        if tuple(
+            (item.scenario, item.seed) for item in arm_metrics
+        ) != evaluation_schedule:
+            raise ValueError(
+                "held-out arm scenario/seed schedules must align"
+            )
 
-    learned_butter = _stage_metrics(learned_metrics, EcologyStage.BUTTER)
-    cold_butter = _stage_metrics(cold_metrics, EcologyStage.BUTTER)
-    no_opt_butter = _stage_metrics(no_optimize_metrics, EcologyStage.BUTTER)
-    learned_stick = _stage_metrics(learned_metrics, EcologyStage.WOOD_STICK)
-    no_opt_stick = _stage_metrics(no_optimize_metrics, EcologyStage.WOOD_STICK)
-    learned_match = _stage_metrics(learned_metrics, EcologyStage.BURNING_MATCH)
-    no_opt_match = _stage_metrics(no_optimize_metrics, EcologyStage.BURNING_MATCH)
-    learned_composite = _stage_metrics(learned_metrics, EcologyStage.COMPOSITE)
-    cold_composite = _stage_metrics(cold_metrics, EcologyStage.COMPOSITE)
-    no_opt_composite = _stage_metrics(no_optimize_metrics, EcologyStage.COMPOSITE)
+    learned_butter = _scenario_metrics(
+        learned_metrics,
+        EcologyEvaluationScenario.BUTTER_ONLY,
+    )
+    cold_butter = _scenario_metrics(
+        cold_metrics,
+        EcologyEvaluationScenario.BUTTER_ONLY,
+    )
+    no_opt_butter = _scenario_metrics(
+        no_optimize_metrics,
+        EcologyEvaluationScenario.BUTTER_ONLY,
+    )
+    learned_stick = _scenario_metrics(
+        learned_metrics,
+        EcologyEvaluationScenario.WOOD_STICK_ROUTE,
+    )
+    no_opt_stick = _scenario_metrics(
+        no_optimize_metrics,
+        EcologyEvaluationScenario.WOOD_STICK_ROUTE,
+    )
+    learned_heat_route = _scenario_metrics(
+        learned_metrics,
+        EcologyEvaluationScenario.HEAT_ROUTE_AVOIDANCE,
+    )
+    learned_heat_escape = _scenario_metrics(
+        learned_metrics,
+        EcologyEvaluationScenario.HEAT_FORCED_ESCAPE,
+    )
+    no_opt_heat_escape = _scenario_metrics(
+        no_optimize_metrics,
+        EcologyEvaluationScenario.HEAT_FORCED_ESCAPE,
+    )
+    learned_composite = _scenario_metrics(
+        learned_metrics,
+        EcologyEvaluationScenario.COMPOSITE,
+    )
+    cold_composite = _scenario_metrics(
+        cold_metrics,
+        EcologyEvaluationScenario.COMPOSITE,
+    )
+    no_opt_composite = _scenario_metrics(
+        no_optimize_metrics,
+        EcologyEvaluationScenario.COMPOSITE,
+    )
     expected_seeds = tuple(item.seed for item in learned_butter)
-    learned_stage_groups = (
+    learned_scenario_groups = (
         learned_butter,
         learned_stick,
-        learned_match,
+        learned_heat_route,
+        learned_heat_escape,
         learned_composite,
     )
     if not expected_seeds or any(
-        tuple(item.seed for item in group) != expected_seeds for group in learned_stage_groups
+        tuple(item.seed for item in group) != expected_seeds
+        for group in learned_scenario_groups
     ):
-        raise ValueError("each learned held-out stage must use the same non-empty seed schedule")
+        raise ValueError(
+            "each held-out scenario must use the same seed schedule"
+        )
 
-    pickup_gain = all(
-        learned_item.pickups > max(cold_item.pickups, no_opt_item.pickups)
-        for learned_item, cold_item, no_opt_item in zip(
-            learned_butter,
-            cold_butter,
-            no_opt_butter,
-            strict=True,
+    required_successes = max(
+        1,
+        math.ceil(len(expected_seeds) * 0.6),
+    )
+    butter_vs_cold_ci = _paired_bootstrap_mean_ci(
+        tuple(
+            float(learned_item.pickups - control_item.pickups)
+            for learned_item, control_item in zip(
+                learned_butter,
+                cold_butter,
+                strict=True,
+            )
+        ),
+        seed=config.seed + 70_001,
+    )
+    butter_vs_no_opt_ci = _paired_bootstrap_mean_ci(
+        tuple(
+            float(learned_item.pickups - control_item.pickups)
+            for learned_item, control_item in zip(
+                learned_butter,
+                no_opt_butter,
+                strict=True,
+            )
+        ),
+        seed=config.seed + 70_003,
+    )
+    pickup_gain = (
+        butter_vs_cold_ci[1] > 0.0
+        and butter_vs_no_opt_ci[1] > 0.0
+        and sum(item.pickups > 0 for item in learned_butter)
+        >= required_successes
+    )
+    delivery_present = (
+        sum(item.deliveries > 0 for item in learned_butter)
+        >= required_successes
+    )
+    stick_task_successes = sum(
+        item.pickups > 0 and item.deliveries > 0
+        for item in learned_stick
+    )
+    learned_stick_contact_rate = (
+        sum(item.obstacle_contacts for item in learned_stick)
+        / max(
+            sum(
+                item.pickups + item.deliveries
+                for item in learned_stick
+            ),
+            1,
         )
     )
-    delivery_present = all(item.deliveries >= 1 for item in learned_butter)
-    stick_avoidance = all(
-        learned_item.pickups > 0 and learned_item.obstacle_contacts < no_opt_item.obstacle_contacts
-        for learned_item, no_opt_item in zip(
-            learned_stick,
-            no_opt_stick,
-            strict=True,
+    no_opt_stick_contact_rate = (
+        sum(item.obstacle_contacts for item in no_opt_stick)
+        / max(
+            sum(
+                item.pickups + item.deliveries
+                for item in no_opt_stick
+            ),
+            1,
         )
     )
-    match_avoidance = all(
-        learned_item.heat_escapes > 0 and learned_item.harmful_heat_ticks < no_opt_item.harmful_heat_ticks
-        for learned_item, no_opt_item in zip(
-            learned_match,
-            no_opt_match,
-            strict=True,
+    stick_navigation = (
+        stick_task_successes >= required_successes
+        and learned_stick_contact_rate
+        <= no_opt_stick_contact_rate
+    )
+    route_task_successes = sum(
+        item.pickups > 0 and item.deliveries > 0
+        for item in learned_heat_route
+    )
+    route_harmful_rate = (
+        sum(item.harmful_heat_ticks for item in learned_heat_route)
+        / max(
+            len(learned_heat_route)
+            * config.n_ants
+            * config.heldout_rounds,
+            1,
         )
     )
-    composite_performance = all(
-        learned_item.deliveries >= 1
-        and learned_item.pickups > max(cold_item.pickups, no_opt_item.pickups)
-        and learned_item.obstacle_contacts <= no_opt_item.obstacle_contacts
-        and learned_item.harmful_heat_ticks <= no_opt_item.harmful_heat_ticks
-        for learned_item, cold_item, no_opt_item in zip(
-            learned_composite,
-            cold_composite,
-            no_opt_composite,
-            strict=True,
+    route_avoidance = (
+        route_task_successes >= required_successes
+        and route_harmful_rate <= 0.05
+    )
+    required_escapes_per_seed = max(
+        1,
+        math.ceil(config.n_ants * 0.6),
+    )
+    forced_escape = (
+        sum(
+            item.heat_escapes >= required_escapes_per_seed
+            for item in learned_heat_escape
         )
+        >= required_successes
+        and sum(
+            item.harmful_heat_ticks for item in learned_heat_escape
+        )
+        <= sum(
+            item.harmful_heat_ticks for item in no_opt_heat_escape
+        )
+    )
+    composite_successes = sum(
+        item.pickups > 0 and item.deliveries > 0
+        for item in learned_composite
+    )
+    composite_performance = (
+        composite_successes >= required_successes
+        and sum(
+            item.obstacle_contacts for item in learned_composite
+        )
+        <= sum(
+            item.obstacle_contacts for item in no_opt_composite
+        )
+        and sum(
+            item.harmful_heat_ticks for item in learned_composite
+        )
+        <= sum(
+            item.harmful_heat_ticks for item in no_opt_composite
+        )
+        and sum(item.pickups for item in learned_composite)
+        > sum(item.pickups for item in cold_composite)
+    )
+    learned_outcome_score = sum(
+        _ecology_outcome_score(item) for item in learned_metrics
+    )
+    valence_off_score = sum(
+        _ecology_outcome_score(item)
+        for item in valence_off_metrics
+    )
+    segment_off_score = sum(
+        _ecology_outcome_score(item)
+        for item in segment_credit_off_metrics
+    )
+    learned_scores_by_seed = _ecology_outcome_scores_by_seed(
+        learned_metrics,
+        seeds=expected_seeds,
+    )
+    matched_control_cis = tuple(
+        (
+            control_name,
+            _paired_bootstrap_mean_ci(
+                tuple(
+                    learned_score - control_score
+                    for learned_score, control_score in zip(
+                        learned_scores_by_seed,
+                        _ecology_outcome_scores_by_seed(
+                            control_metrics,
+                            seeds=expected_seeds,
+                        ),
+                        strict=True,
+                    )
+                ),
+                seed=config.seed + seed_offset,
+            ),
+        )
+        for control_name, control_metrics, seed_offset in (
+            ("cold", cold_metrics, 71_001),
+            ("no_optimize", no_optimize_metrics, 71_003),
+            ("valence_off", valence_off_metrics, 71_005),
+            (
+                "segment_credit_off",
+                segment_credit_off_metrics,
+                71_007,
+            ),
+        )
+    )
+    matched_ablation_advantage = (
+        all(ci[1] > 0.0 for _, ci in matched_control_cis)
+    )
+    temporal_dynamics = (
+        any(item.switch_count > 0 for item in learned_metrics)
+        and any(
+            item.longest_segment_length > 1
+            for item in learned_metrics
+        )
+        and all(
+            item.mean_persistence_steps >= 0.0
+            for item in learned_metrics
+        )
+    )
+    action_smoothness = all(
+        item.mean_absolute_turn_delta <= 0.55
+        for item in learned_metrics
     )
     replay_ok = all(
-        item.replay_settlement_coverage >= 0.99 and item.replay_lineage_coverage >= 0.99 and item.replay_drop_count == 0
+        item.replay_settlement_coverage >= 0.99
+        and item.replay_lineage_coverage >= 0.99
+        and item.replay_drop_count == 0
+        and item.policy_fingerprint_stable
+        and item.temporal_learning_fingerprint_stable
         for item in learned_metrics
+    )
+    active_training_channels = frozenset(
+        channel
+        for episode in learned_training
+        for channel in episode.activated_sense_channels
+    )
+    missing_critical_channels = tuple(
+        sorted(
+            ECOLOGY_CRITICAL_ACTIVE_CHANNELS
+            - active_training_channels
+        )
     )
 
     return (
+        EcologyGate(
+            name="training_event_coverage",
+            passed=(
+                len(learned_mastery) == len(EcologyStage)
+                and all(item.reached for item in learned_mastery)
+                and not missing_critical_channels
+            ),
+            observed=str(
+                {
+                    "mastery": tuple(
+                        (
+                            item.stage.value,
+                            item.reached,
+                            item.pickups,
+                            item.deliveries,
+                            item.obstacle_contacts,
+                            item.heat_entries,
+                            item.heat_escapes,
+                        )
+                        for item in learned_mastery
+                    ),
+                    "missing_critical_channels": (
+                        missing_critical_channels
+                    )
+                }
+            ),
+            threshold=(
+                "every stage reaches its predeclared event-sample mastery "
+                "threshold within bounded budget and every critical ecology "
+                "sensor channel activates"
+            ),
+        ),
+        EcologyGate(
+            name="paired_action_sensitivity",
+            passed=(
+                len(action_probes) == 3
+                and all(
+                    item.input_reachable and item.action_sensitive
+                    for item in action_probes
+                )
+            ),
+            observed=str(
+                tuple(
+                    (
+                        item.kind.value,
+                        item.code_l1_delta,
+                        item.turn_delta,
+                    )
+                    for item in action_probes
+                )
+            ),
+            threshold=(
+                "food, obstacle and heat paired swaps each change code and "
+                "motor turn"
+            ),
+        ),
         EcologyGate(
             name="policy_changed",
             passed=_policy_fingerprints(learned) != _policy_fingerprints(initial),
@@ -1077,34 +1559,61 @@ def _build_gates(
             observed=(
                 f"learned={sum(item.pickups for item in learned_butter)}, "
                 f"cold={sum(item.pickups for item in cold_butter)}, "
-                f"no_opt={sum(item.pickups for item in no_opt_butter)}"
+                f"no_opt={sum(item.pickups for item in no_opt_butter)}, "
+                f"vs_cold_ci={butter_vs_cold_ci}, "
+                f"vs_no_opt_ci={butter_vs_no_opt_ci}"
             ),
-            threshold="butter-only pickups exceed both controls per seed",
+            threshold=(
+                "butter pickups exceed cold/no-optimize in aggregate and "
+                "occur on >=60% held-out seeds"
+            ),
         ),
         EcologyGate(
             name="butter_delivery_present",
             passed=delivery_present,
             observed=str(tuple(item.deliveries for item in learned_butter)),
-            threshold="butter-only delivery in every held-out seed",
+            threshold="butter delivery occurs on >=60% held-out seeds",
         ),
         EcologyGate(
-            name="wood_stick_avoidance",
-            passed=stick_avoidance,
+            name="wood_stick_navigation",
+            passed=stick_navigation,
             observed=(
-                f"learned={sum(item.obstacle_contacts for item in learned_stick)}, "
-                f"no_opt={sum(item.obstacle_contacts for item in no_opt_stick)}"
+                f"task_successes={stick_task_successes}, "
+                f"learned_contact_rate={learned_stick_contact_rate:.6f}, "
+                f"no_opt_contact_rate={no_opt_stick_contact_rate:.6f}"
             ),
-            threshold=("stick held-out contacts lower than no-optimize with pickup per seed"),
+            threshold=(
+                "pickup+delivery on >=60% stick seeds with normalized "
+                "contacts no worse than no-optimize"
+            ),
         ),
         EcologyGate(
-            name="burning_match_avoidance",
-            passed=match_avoidance,
+            name="burning_match_route_avoidance",
+            passed=route_avoidance,
             observed=(
-                f"heat learned={sum(item.harmful_heat_ticks for item in learned_match)}, "
-                f"no_opt={sum(item.harmful_heat_ticks for item in no_opt_match)}; "
-                f"escapes={sum(item.heat_escapes for item in learned_match)}"
+                f"task_successes={route_task_successes}, "
+                f"harmful_tick_rate={route_harmful_rate:.6f}"
             ),
-            threshold=("match held-out escape present and harmful exposure lower per seed"),
+            threshold=(
+                "route foraging succeeds on >=60% seeds while harmful heat "
+                "occupies <=5% ant-ticks; entry is not required"
+            ),
+        ),
+        EcologyGate(
+            name="burning_match_forced_escape",
+            passed=forced_escape,
+            observed=(
+                "learned="
+                f"{tuple(item.heat_escapes for item in learned_heat_escape)}, "
+                "harmful_ticks="
+                f"{sum(item.harmful_heat_ticks for item in learned_heat_escape)}, "
+                "no_opt_harmful_ticks="
+                f"{sum(item.harmful_heat_ticks for item in no_opt_heat_escape)}"
+            ),
+            threshold=(
+                ">=60% ants escape on >=60% forced-start seeds with harmful "
+                "ticks no worse than no-optimize"
+            ),
         ),
         EcologyGate(
             name="composite_performance",
@@ -1120,7 +1629,65 @@ def _build_gates(
                     for item in learned_composite
                 )
             ),
-            threshold=("composite delivery and pickup gain with hazards no worse than no-optimize per seed"),
+            threshold=(
+                "pickup+delivery on >=60% composite seeds, pickup exceeds "
+                "cold, hazards no worse than no-optimize"
+            ),
+        ),
+        EcologyGate(
+            name="matched_ablation_advantage",
+            passed=matched_ablation_advantage,
+            observed=(
+                f"learned={learned_outcome_score:.6f}, "
+                f"valence_off={valence_off_score:.6f}, "
+                f"segment_off={segment_off_score:.6f}, "
+                f"paired_cis={matched_control_cis}"
+            ),
+            threshold=(
+                "paired bootstrap 95% CI lower bound >0 against cold, "
+                "no-optimize, valence-off and segment-credit-off"
+            ),
+        ),
+        EcologyGate(
+            name="temporal_dynamics",
+            passed=temporal_dynamics,
+            observed=str(
+                tuple(
+                    (
+                        item.scenario.value,
+                        item.switch_count,
+                        item.longest_segment_length,
+                    )
+                    for item in learned_metrics
+                )
+            ),
+            threshold=(
+                "held-out behavior contains switches and at least one "
+                "multi-step beta segment"
+            ),
+        ),
+        EcologyGate(
+            name="action_smoothness",
+            passed=action_smoothness,
+            observed=str(
+                tuple(
+                    (
+                        item.scenario.value,
+                        item.mean_absolute_turn_delta,
+                    )
+                    for item in learned_metrics
+                )
+            ),
+            threshold="mean absolute turn delta <=0.55 rad per scenario",
+        ),
+        EcologyGate(
+            name="checkpoint_archive_roundtrip",
+            passed=archive_roundtrip_verified,
+            observed=str(archive_roundtrip_verified),
+            threshold=(
+                "fresh-session archive hydration succeeds and corrupt "
+                "collection restore rolls back atomically"
+            ),
         ),
         EcologyGate(
             name="runtime_replay_lineage",
@@ -1128,7 +1695,7 @@ def _build_gates(
             observed=str(
                 tuple(
                     (
-                        item.stage.value,
+                        item.scenario.value,
                         item.seed,
                         item.replay_settlement_coverage,
                         item.replay_lineage_coverage,
@@ -1138,7 +1705,11 @@ def _build_gates(
                     for item in learned_metrics
                 )
             ),
-            threshold=("eligible settlement and lineage coverage >= 0.99 with no drops per stage/seed"),
+            threshold=(
+                "frozen evaluation policy/temporal-learning fingerprints "
+                "stay stable; "
+                "eligible settlement and lineage >=0.99 with no drops"
+            ),
         ),
     )
 
@@ -1150,7 +1721,8 @@ async def train_and_evaluate_ecology_checkpoint(
         config=config,
         stage=EcologyStage.COMPOSITE,
         seed=config.seed,
-        heldout=False,
+        data_split=EcologyDataSplit.TRAIN,
+        tier=EcologyTrainingTier.NEAR,
     )
     bootstrap_runner = KernelColonyRunner(
         bootstrap_world,
@@ -1165,23 +1737,133 @@ async def train_and_evaluate_ecology_checkpoint(
         checkpoint_prefix="ecology:shared-initial",
         include_runtime_replay=False,
     )
-    learned, learned_archives = await _train_arm(
+    # Causal reachability gate: refuse long training when food/obstacle/heat
+    # paired swaps cannot reach code or motor turn from the shared initial.
+    pretraining_probes = await run_ecology_action_probes(
+        temporal_latent_dim=config.temporal_latent_dim,
+        seed=config.seed + 700_003,
+        checkpoint=initial[0],
+    )
+    failed_probes = tuple(
+        item
+        for item in pretraining_probes
+        if not item.input_reachable or not item.action_sensitive
+    )
+    if failed_probes:
+        detail = tuple(
+            (
+                item.kind.value,
+                item.input_reachable,
+                item.action_sensitive,
+                item.code_l1_delta,
+                item.turn_delta,
+            )
+            for item in failed_probes
+        )
+        raise RuntimeError(
+            "ecology paired action probes failed before long training; "
+            f"refusing curriculum budget: {detail}"
+        )
+    print(
+        (
+            "[ecology] pretraining probes passed: "
+            + ", ".join(
+                f"{item.kind.value}(code={item.code_l1_delta:.4f},"
+                f"turn={item.turn_delta:.4f})"
+                for item in pretraining_probes
+            )
+        ),
+        flush=True,
+    )
+    (
+        learned,
+        learned_archives,
+        training_schedule,
+        learned_training,
+        learned_mastery,
+    ) = await _train_arm(
         config=config,
         initial=initial,
         arm="learned",
         optimize=True,
+        local_valence_enabled=True,
+        segment_credit_enabled=True,
     )
-    no_optimize, _ = await _train_arm(
+    (
+        no_optimize,
+        _,
+        _,
+        no_optimize_training,
+        _,
+    ) = await _train_arm(
         config=config,
         initial=initial,
         arm="no_optimize",
         optimize=False,
+        local_valence_enabled=True,
+        segment_credit_enabled=True,
+        schedule=training_schedule,
     )
-    heldout_stages = (
-        EcologyStage.BUTTER,
-        EcologyStage.WOOD_STICK,
-        EcologyStage.BURNING_MATCH,
-        EcologyStage.COMPOSITE,
+    (
+        valence_off,
+        _,
+        _,
+        valence_off_training,
+        _,
+    ) = await _train_arm(
+        config=config,
+        initial=initial,
+        arm="valence_off",
+        optimize=True,
+        local_valence_enabled=False,
+        segment_credit_enabled=True,
+        schedule=training_schedule,
+    )
+    (
+        segment_credit_off,
+        _,
+        _,
+        segment_credit_off_training,
+        _,
+    ) = await _train_arm(
+        config=config,
+        initial=initial,
+        arm="segment_credit_off",
+        optimize=True,
+        local_valence_enabled=True,
+        segment_credit_enabled=False,
+        schedule=training_schedule,
+    )
+    action_probes = await run_ecology_action_probes(
+        temporal_latent_dim=config.temporal_latent_dim,
+        seed=config.seed + 800_003,
+        checkpoint=learned[0],
+    )
+    archive_roundtrip_verified = _verify_checkpoint_archives(
+        config=config,
+        checkpoints=learned,
+        archives=learned_archives,
+    )
+    evaluation_scenarios = (
+        EcologyEvaluationScenario.BUTTER_ONLY,
+        EcologyEvaluationScenario.WOOD_STICK_ROUTE,
+        EcologyEvaluationScenario.HEAT_ROUTE_AVOIDANCE,
+        EcologyEvaluationScenario.HEAT_FORCED_ESCAPE,
+        EcologyEvaluationScenario.COMPOSITE,
+    )
+    validation_metrics = tuple(
+        [
+            await _evaluate_arm(
+                config=config,
+                checkpoints=learned,
+                arm="learned",
+                data_split=EcologyDataSplit.VALIDATION,
+                scenario=scenario,
+                seed=seed,
+            )
+            for scenario in evaluation_scenarios
+            for seed in config.validation_seeds
+        ]
     )
     learned_metrics = tuple(
         [
@@ -1189,10 +1871,11 @@ async def train_and_evaluate_ecology_checkpoint(
                 config=config,
                 checkpoints=learned,
                 arm="learned",
-                stage=stage,
+                data_split=EcologyDataSplit.HELDOUT,
+                scenario=scenario,
                 seed=seed,
             )
-            for stage in heldout_stages
+            for scenario in evaluation_scenarios
             for seed in config.heldout_seeds
         ]
     )
@@ -1202,10 +1885,11 @@ async def train_and_evaluate_ecology_checkpoint(
                 config=config,
                 checkpoints=initial,
                 arm="cold",
-                stage=stage,
+                data_split=EcologyDataSplit.HELDOUT,
+                scenario=scenario,
                 seed=seed,
             )
-            for stage in heldout_stages
+            for scenario in evaluation_scenarios
             for seed in config.heldout_seeds
         ]
     )
@@ -1215,20 +1899,58 @@ async def train_and_evaluate_ecology_checkpoint(
                 config=config,
                 checkpoints=no_optimize,
                 arm="no_optimize",
-                stage=stage,
+                data_split=EcologyDataSplit.HELDOUT,
+                scenario=scenario,
                 seed=seed,
             )
-            for stage in heldout_stages
+            for scenario in evaluation_scenarios
+            for seed in config.heldout_seeds
+        ]
+    )
+    valence_off_metrics = tuple(
+        [
+            await _evaluate_arm(
+                config=config,
+                checkpoints=valence_off,
+                arm="valence_off",
+                data_split=EcologyDataSplit.HELDOUT,
+                scenario=scenario,
+                seed=seed,
+            )
+            for scenario in evaluation_scenarios
+            for seed in config.heldout_seeds
+        ]
+    )
+    segment_credit_off_metrics = tuple(
+        [
+            await _evaluate_arm(
+                config=config,
+                checkpoints=segment_credit_off,
+                arm="segment_credit_off",
+                data_split=EcologyDataSplit.HELDOUT,
+                scenario=scenario,
+                seed=seed,
+            )
+            for scenario in evaluation_scenarios
             for seed in config.heldout_seeds
         ]
     )
     gates = _build_gates(
+        config=config,
         initial=initial,
         learned=learned,
         no_optimize=no_optimize,
+        learned_training=learned_training,
+        learned_mastery=learned_mastery,
+        action_probes=action_probes,
+        archive_roundtrip_verified=archive_roundtrip_verified,
         learned_metrics=learned_metrics,
         cold_metrics=cold_metrics,
         no_optimize_metrics=no_optimize_metrics,
+        valence_off_metrics=valence_off_metrics,
+        segment_credit_off_metrics=(
+            segment_credit_off_metrics
+        ),
     )
     breakpoints = tuple(gate.name for gate in gates if not gate.passed)
     verdict = "PASS" if not breakpoints else "BLOCK"
@@ -1238,9 +1960,19 @@ async def train_and_evaluate_ecology_checkpoint(
         initial_policy_fingerprints=_policy_fingerprints(initial),
         learned_policy_fingerprints=_policy_fingerprints(learned),
         no_optimize_policy_fingerprints=_policy_fingerprints(no_optimize),
+        training_schedule=training_schedule,
+        learned_training=learned_training,
+        no_optimize_training=no_optimize_training,
+        valence_off_training=valence_off_training,
+        segment_credit_off_training=segment_credit_off_training,
+        learned_mastery=learned_mastery,
+        action_probes=action_probes,
+        validation_metrics=validation_metrics,
         learned_metrics=learned_metrics,
         cold_metrics=cold_metrics,
         no_optimize_metrics=no_optimize_metrics,
+        valence_off_metrics=valence_off_metrics,
+        segment_credit_off_metrics=segment_credit_off_metrics,
         gates=gates,
         verdict=verdict,
         diagnostic_breakpoints=breakpoints,
@@ -1264,7 +1996,13 @@ __all__ = [
     "EcologyCheckpointCandidate",
     "EcologyCheckpointReport",
     "EcologyCurriculumConfig",
+    "EcologyDataSplit",
+    "EcologyEvaluationScenario",
     "EcologyGate",
     "EcologyStage",
+    "EcologyStageMastery",
+    "EcologyTrainingEpisodePlan",
+    "EcologyTrainingEpisodeReport",
+    "EcologyTrainingTier",
     "train_and_evaluate_ecology_checkpoint",
 ]

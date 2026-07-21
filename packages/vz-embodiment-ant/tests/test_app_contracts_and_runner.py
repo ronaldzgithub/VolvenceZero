@@ -236,6 +236,120 @@ async def test_live_frame_backpressure_preserves_audit_events() -> None:
     await manager.close()
 
 
+async def test_learned_ecology_drag_drop_three_objects_keeps_kernel_arm() -> None:
+    """Runtime drag/drop of butter, stick, and match must stay on learned kernel."""
+
+    bootstrap = AntSession(
+        AntWorld(world_objects=(ButterSource(object_id="butter", x=2.0, y=0.0),)),
+        config=AntSessionConfig(
+            temporal_latent_dim=4,
+            objective=AntObjectiveKind.ECOLOGY,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+        ),
+    )
+    checkpoint_archive = bootstrap.export_learning_checkpoint_archive(
+        checkpoint_id="ecology-drag-demo"
+    )
+    checkpoint_info = decode_agent_learning_archive(checkpoint_archive).info
+    loaded = LoadedEcologyCheckpoint(
+        checkpoint_archives=(checkpoint_archive,),
+        fingerprint=checkpoint_info.state_fingerprint,
+        verdict="PASS",
+        config=EcologyCurriculumConfig(
+            n_ants=1,
+            temporal_latent_dim=4,
+            stage_rounds=1,
+            stage_episodes=1,
+            mastery_min_episodes=1,
+            heldout_rounds=1,
+            heldout_seeds=(1,),
+        ),
+        report_path="local-drag-demo",
+    )
+    manager = AntAppManager(ecology_checkpoint=loaded)
+    run = await manager.create_run(
+        AppExperimentConfig(
+            objective=AppObjective.ECOLOGY,
+            arm=AppArm.LEARNED,
+            temporal_latent_dim=4,
+            autostart=False,
+            tick_interval_ms=0,
+            max_ticks=6,
+        ),
+        run_id="drag-three-objects",
+    )
+    assert run.config.arm is AppArm.LEARNED
+
+    await run.queue_disturbance(
+        AppDisturbance(
+            event_id="place-butter",
+            kind=AppDisturbanceKind.UPSERT_WORLD_OBJECT,
+            object_id="butter-demo",
+            object_kind=WorldObjectKind.BUTTER,
+            x=3.5,
+            y=-1.2,
+        )
+    )
+    await run.queue_disturbance(
+        AppDisturbance(
+            event_id="place-stick",
+            kind=AppDisturbanceKind.UPSERT_WORLD_OBJECT,
+            object_id="stick-demo",
+            object_kind=WorldObjectKind.WOOD_STICK,
+            start_x=1.2,
+            start_y=-1.5,
+            end_x=1.2,
+            end_y=1.5,
+        )
+    )
+    await run.queue_disturbance(
+        AppDisturbance(
+            event_id="place-match",
+            kind=AppDisturbanceKind.UPSERT_WORLD_OBJECT,
+            object_id="match-demo",
+            object_kind=WorldObjectKind.BURNING_MATCH,
+            x=-2.4,
+            y=1.8,
+        )
+    )
+    await run.apply_command(
+        AppCommand(command_id="place-step", kind=AppCommandKind.STEP)
+    )
+    await _wait_for_tick(run, 1)
+
+    object_ids = {
+        item.object_id for item in run.world.world_object_snapshots()
+    }
+    assert {"butter-demo", "stick-demo", "match-demo"} <= object_ids
+
+    await run.queue_disturbance(
+        AppDisturbance(
+            event_id="nudge-butter",
+            kind=AppDisturbanceKind.MOVE_WORLD_OBJECT,
+            object_id="butter-demo",
+            delta_x=-1.0,
+            delta_y=0.5,
+        )
+    )
+    await run.apply_command(
+        AppCommand(command_id="nudge-step", kind=AppCommandKind.STEP)
+    )
+    await _wait_for_tick(run, 2)
+
+    frame_event = next(
+        event for event in run.events_after(0) if event.kind.value == "frame"
+    )
+    frame = json.loads(frame_event.payload_json)
+    assert frame["evidence"]["checkpoint_loaded"] is True
+    assert frame["evidence"]["checkpoint_verdict"] == "PASS"
+    assert frame["evidence"]["checkpoint_fingerprint"] == (
+        checkpoint_info.state_fingerprint
+    )
+    assert run.config.arm is AppArm.LEARNED
+    assert run.config.arm is not AppArm.FIXED_RULE
+    await manager.close()
+
+
 async def test_promoted_ecology_checkpoint_is_restored_and_projected() -> None:
     bootstrap = AntSession(
         AntWorld(world_objects=(ButterSource(object_id="butter", x=2.0, y=0.0),)),
@@ -254,6 +368,7 @@ async def test_promoted_ecology_checkpoint_is_restored_and_projected() -> None:
         temporal_latent_dim=4,
         stage_rounds=1,
         stage_episodes=1,
+        mastery_min_episodes=1,
         heldout_rounds=1,
         heldout_seeds=(1,),
     )

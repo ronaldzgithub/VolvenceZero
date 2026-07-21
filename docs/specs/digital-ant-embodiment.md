@@ -257,11 +257,21 @@ promotion gate：
   state-conditioned 左右响应。head 不含 butter/stick/match 字段、不直接生成 turn/step；参数由
   temporal/Internal-RL owner checkpoint、canonical archive、fingerprint 和事务 rollback 管理。
   通用默认仍为 `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。
-- `ecology_curriculum` 按黄油 → 木棍 → 火柴 → 组合场景重建随机世界，跨 episode 仅携带
-  owner-exported checkpoint；learned 与 no-optimize 从同一初始 checkpoint 分叉。
-- held-out 按黄油-only、木棍、火柴、三物体组合四类独立地图运行，使用未见位置、木棍方向和 seed；
-  分别冻结 policy change、黄油 pickup/delivery、木棍碰撞降低、火柴有害暴露降低且真实脱离、
-  组合投递/危害不劣化、runtime replay settled/lineage ≥ 0.99 等 gate。
+- `ecology_curriculum` 对黄油、木棍、火柴、组合四阶段分别执行 near → medium → far mastery：
+  每阶段达到预声明 pickup/contact/heat-entry/escape 样本量且满足最少 episode 后才提前晋级，未达到则在
+  最大预算处显式 BLOCK；已经掌握的阶段按固定频率交错回放。跨 episode 仅携带 owner-exported
+  checkpoint。learned、no-optimize、local-valence-off 与 segment-credit-off 从同一初始 checkpoint
+  分叉，并重放 learned 冻结下来的完全相同训练布局/seed 日程。长训练启动前必须先通过 food/
+  obstacle/heat 成对探针（输入可达且转向可区分）；探针失败时拒绝投入后续预算。
+- training、validation、正式 held-out 使用三个不重叠的 seed/布局命名空间。held-out 拆成
+  butter-only、wood-stick route、burning-match route avoidance、burning-match forced escape 和
+  composite 五类：主动避热不要求先进入热区；强制逃逸从有害区内的受控起点单独测 escape/harmful
+  ticks。评估将 joint learning 完全切到 evidence-only，policy 与 temporal-learning fingerprint
+  必须全程不变（PE 驱动的 turn-local mixture 不计入 temporal-learning fingerprint）。
+- 正式 gates 还冻结完整 19 维 channel activation、最近对象距离、首次事件 tick、局部 ecology payoff
+  数、switch/persistence、闭合 segment 长度、成对左右 action sensitivity、动作平滑度、archive
+  roundtrip/事务 rollback 以及 runtime replay settled/lineage ≥ 0.99。外层 bundle/report schema 为
+  `digital-ant-ecology-checkpoint.v3` / `digital-ant-ecology-curriculum.v2`。
   settlement coverage 的分母是 `captured - pending_capture_count`；episode 尾部尚无下一状态的
   capture 被明确发布为 pending，不得误报为 drop，也不得借此忽略真实 drop reason。
   任一失败即 `BLOCK`；不得加载为 demo checkpoint，也不得用 `FixedRuleAnt` 或 Canvas 脚本伪装通过。

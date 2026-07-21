@@ -315,6 +315,9 @@ class MetacontrollerParameterSnapshot:
     action_family_version: int = 0
     learned_update_rule_state: LearnedUpdateRuleState | None = None
     causal_action_heads: tuple[CausalZActionHeadParameters, ...] = ()
+    family_match_weights: FamilyMatchWeights = (
+        DEFAULT_FAMILY_MATCH_WEIGHTS
+    )
 
 
 @dataclass(frozen=True)
@@ -565,6 +568,67 @@ class MetacontrollerParameterStore:
         if self.ndim_encoder_parameters is None:
             return self._n_z
         return self.ndim_encoder_parameters.n_input
+
+    def learning_parameter_fingerprint(self) -> str:
+        """Hash owned learning parameters while excluding turn-local adaptation.
+
+        PE consolidation may retune the residual/memory/reflection mixture every
+        turn via ``fit_from_signals``; that online-fast mixing is not part of the
+        checkpointed SSL / Internal-RL / causal-head learning surface, so it is
+        omitted here. Frozen held-out arms use this hash to prove encoder,
+        decoder, track, optimizer, and causal-head ownership did not write.
+        """
+
+        return _hash_payload(
+            {
+                "track_parameters": tuple(
+                    (
+                        track.value,
+                        self.track_weights[track],
+                        self.update_steps[track],
+                    )
+                    for track in (
+                        Track.WORLD,
+                        Track.SELF,
+                        Track.SHARED,
+                    )
+                ),
+                "legacy_encoder": (
+                    self.encoder_weights,
+                    self.encoder_recurrence,
+                ),
+                "legacy_switch": (
+                    self.switch_weights,
+                    self.beta_threshold,
+                ),
+                "legacy_decoder": (
+                    self.decoder_matrix,
+                    self.decoder_hidden,
+                ),
+                "ndim_encoder": self.ndim_encoder_parameters,
+                "ndim_switch": self.ndim_switch_parameters,
+                "ndim_decoder": self.ndim_decoder_parameters,
+                "persistence": self.persistence,
+                "family_match_weights": self.family_match_weights,
+                "learned_update_rule_state": (
+                    self.latest_learned_update_rule_state
+                ),
+                "encoder_optimizer_state": (
+                    self.latest_encoder_optimizer_state
+                ),
+                "decoder_optimizer_state": (
+                    self.latest_decoder_optimizer_state
+                ),
+                "causal_action_heads": tuple(
+                    self.causal_action_heads[track]
+                    for track in (
+                        Track.WORLD,
+                        Track.SELF,
+                        Track.SHARED,
+                    )
+                ),
+            }
+        )
 
     def causal_action_head_parameters(
         self,
@@ -1007,6 +1071,7 @@ class MetacontrollerParameterStore:
                 self.causal_action_heads[track]
                 for track in (Track.WORLD, Track.SELF, Track.SHARED)
             ),
+            family_match_weights=self.family_match_weights,
         )
 
     def restore_parameter_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> None:
@@ -1126,6 +1191,7 @@ class MetacontrollerParameterStore:
             self._latest = replace(
                 self._latest, learned_update_rule_state=snapshot.learned_update_rule_state
             )
+        self.family_match_weights = snapshot.family_match_weights
 
     def record_runtime_observation(
         self,

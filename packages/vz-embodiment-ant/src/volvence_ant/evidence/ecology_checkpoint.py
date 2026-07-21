@@ -33,7 +33,7 @@ from volvence_ant.runtime import AntSenseSchema
 from volvence_ant.substrate.sense_encode import sense_channels
 
 
-ECOLOGY_CHECKPOINT_BUNDLE_KIND = "digital-ant-ecology-checkpoint.v2"
+ECOLOGY_CHECKPOINT_BUNDLE_KIND = "digital-ant-ecology-checkpoint.v3"
 
 
 @dataclass(frozen=True)
@@ -179,6 +179,22 @@ def _config_from_report(payload: dict[str, object]) -> EcologyCurriculumConfig:
         temporal_latent_dim=int(raw_config["temporal_latent_dim"]),
         stage_rounds=int(raw_config["stage_rounds"]),
         stage_episodes=int(raw_config["stage_episodes"]),
+        mastery_min_episodes=int(raw_config["mastery_min_episodes"]),
+        mastery_min_pickups=int(raw_config["mastery_min_pickups"]),
+        mastery_min_deliveries=int(
+            raw_config["mastery_min_deliveries"]
+        ),
+        mastery_min_obstacle_contacts=int(
+            raw_config["mastery_min_obstacle_contacts"]
+        ),
+        mastery_min_heat_events=int(
+            raw_config["mastery_min_heat_events"]
+        ),
+        interleave_every=int(raw_config["interleave_every"]),
+        validation_rounds=int(raw_config["validation_rounds"]),
+        validation_seeds=tuple(
+            int(value) for value in raw_config["validation_seeds"]
+        ),
         heldout_rounds=int(raw_config["heldout_rounds"]),
         heldout_seeds=tuple(int(value) for value in raw_config["heldout_seeds"]),
         seed=int(raw_config["seed"]),
