@@ -652,6 +652,118 @@ def test_runtime_replay_aggregates_real_transitions_by_beta_segment() -> None:
     assert report.longest_segment_length == 2
 
 
+def test_runtime_segment_closes_on_single_track_beta_switch() -> None:
+    """World/self metacontrollers switch independently; a boundary on either
+    track closes the open segment instead of raising."""
+
+    sandbox, _, _ = _sandbox_capture()
+    settlement = sandbox.settle_runtime_action(
+        next_substrate_snapshot=_substrate("divergent segment observation"),
+        environment_outcome=_outcome(prediction_id="prediction-1"),
+        prediction_error_snapshot=_prediction_error(
+            prediction_id="prediction-1"
+        ),
+        credit_snapshot=_credit(),
+    )
+    assert settlement.rollout is not None
+    base_transition = settlement.rollout.transitions[0]
+    world_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4)
+    )
+    loop = ETANLJointLoop(
+        world_policy=world_policy,
+        self_policy=clone_full_learned_temporal_policy(world_policy),
+        internal_rl_runtime_replay=WiringLevel.ACTIVE,
+        runtime_replay_segment_credit=WiringLevel.ACTIVE,
+        runtime_replay_segment_max_steps=8,
+    )
+
+    def divergent_rollouts(
+        *,
+        turn_index: int,
+        world_switching: bool,
+        self_switching: bool,
+    ) -> tuple[ZRollout, ZRollout]:
+        world_transition = replace(
+            base_transition,
+            track=Track.WORLD,
+            controller_state=replace(
+                base_transition.controller_state,
+                is_switching=world_switching,
+            ),
+            runtime_turn_index=turn_index,
+            runtime_milestone=False,
+            runtime_terminal=False,
+        )
+        self_transition = replace(
+            base_transition,
+            track=Track.SELF,
+            controller_state=replace(
+                base_transition.controller_state,
+                is_switching=self_switching,
+            ),
+            runtime_turn_index=turn_index,
+            runtime_milestone=False,
+            runtime_terminal=False,
+        )
+        return (
+            replace(
+                settlement.rollout,
+                rollout_id=f"world-{turn_index}",
+                track=Track.WORLD,
+                transitions=(world_transition,),
+            ),
+            replace(
+                settlement.rollout,
+                rollout_id=f"self-{turn_index}",
+                track=Track.SELF,
+                transitions=(self_transition,),
+            ),
+        )
+
+    for turn_index in (1, 2):
+        world_rollout, self_rollout = divergent_rollouts(
+            turn_index=turn_index,
+            world_switching=False,
+            self_switching=False,
+        )
+        loop._stage_runtime_segment_pair(
+            world_rollout=world_rollout,
+            self_rollout=self_rollout,
+        )
+    assert loop.latest_runtime_replay_report.open_segment_transition_count == 2
+
+    # World switches while self does not: the open segment closes and the
+    # divergent-boundary transition starts a fresh segment on both tracks.
+    world_rollout, self_rollout = divergent_rollouts(
+        turn_index=3,
+        world_switching=True,
+        self_switching=False,
+    )
+    loop._stage_runtime_segment_pair(
+        world_rollout=world_rollout,
+        self_rollout=self_rollout,
+    )
+    assert len(loop._pending_task_rollouts) == 1
+    assert len(loop._pending_relationship_rollouts) == 1
+    assert loop.latest_runtime_replay_report.open_segment_transition_count == 1
+    assert loop.latest_runtime_replay_report.closed_segment_count == 1
+
+    # Self-only switch is an equally valid boundary.
+    world_rollout, self_rollout = divergent_rollouts(
+        turn_index=4,
+        world_switching=False,
+        self_switching=True,
+    )
+    loop._stage_runtime_segment_pair(
+        world_rollout=world_rollout,
+        self_rollout=self_rollout,
+    )
+    assert len(loop._pending_task_rollouts) == 2
+    assert len(loop._pending_relationship_rollouts) == 2
+    assert loop.latest_runtime_replay_report.closed_segment_count == 2
+
+
 def test_joint_transfer_checkpoint_omits_episode_local_runtime_replay() -> None:
     world_policy = FullLearnedTemporalPolicy(
         parameter_store=MetacontrollerParameterStore(n_z=4)

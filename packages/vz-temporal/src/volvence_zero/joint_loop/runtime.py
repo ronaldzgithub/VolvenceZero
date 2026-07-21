@@ -402,13 +402,15 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             )
         world_transition = world_rollout.transitions[0]
         self_transition = self_rollout.transitions[0]
-        world_boundary = world_transition.controller_state.is_switching
-        self_boundary = self_transition.controller_state.is_switching
-        if world_boundary != self_boundary:
-            raise RuntimeError(
-                "runtime segment switch boundary diverged between tracks"
-            )
-        if world_boundary and self._open_task_segment_rollouts:
+        # World and self metacontrollers switch independently, so a segment
+        # boundary is a beta_t switch on either track (matching the OR
+        # semantics milestone/terminal closure already uses below). Segments
+        # stay pairwise aligned; a divergent switch only shortens them.
+        boundary = (
+            world_transition.controller_state.is_switching
+            or self_transition.controller_state.is_switching
+        )
+        if boundary and self._open_task_segment_rollouts:
             self._close_runtime_segment(reason="beta-switch")
         self._open_task_segment_rollouts.append(world_rollout)
         self._open_relationship_segment_rollouts.append(self_rollout)

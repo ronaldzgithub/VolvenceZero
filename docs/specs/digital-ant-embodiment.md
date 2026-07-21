@@ -250,6 +250,8 @@ promotion gate：
 - Digital Ant 正式 runtime profile 将 `internal_rl_runtime_segment_credit=ACTIVE`：joint-loop owner
   把 lineage-matched one-step replay 按真实 `beta_t` switch 边界聚成 segment，并在 milestone/
   terminal 或 24-step 上限处强制闭合；PPO/critic 对闭合 segment 的多步 transition 运行同一 GAE。
+  World/Self 两轨 metacontroller 独立切换，segment 边界取**任一轨** `beta_t` switch（与 milestone/
+  terminal 闭合的 OR 语义一致）；分叉切换只会让 segment 更短，两轨打包保持逐拍成对对齐。
   open segment、closed segment 和最长长度进入 owner checkpoint/rollback，但不新增 ledger 或
   runtime slot；DISABLED 精确回到历史 one-step replay。
 - ecology evidence profile 还将通用 `internal_rl_causal_action_head=ACTIVE`：低秩 head 只把
