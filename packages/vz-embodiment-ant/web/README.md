@@ -22,7 +22,7 @@ Python server 会自动托管 `web/dist`。可用
 
 ```bash
 digital-ant-app \
-  --ecology-checkpoint-report research/ant/results/ecology_checkpoint.v3.json
+  --ecology-checkpoint-report research/ant/results/ecology_checkpoint.v4.json
 ```
 
 loader 会验证 manifest、archive sha256、`ecology-v2` 感知、latent dim、蚂蚁数和 owner

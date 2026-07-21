@@ -1,0 +1,19 @@
+[ecology] pretraining probes passed: food(code=0.0835,turn=0.0035), obstacle(code=0.2449,turn=0.0145), heat(code=0.1375,turn=0.0117)
+[ecology:learned] stage=butter tier=near episode=0 pickups=8 deliveries=7 contacts=0 heat=0/0 payoffs=567
+[ecology:learned] stage=butter tier=medium episode=1 pickups=1 deliveries=0 contacts=0 heat=0/0 payoffs=572
+[ecology:learned] stage=butter tier=far episode=2 pickups=2 deliveries=0 contacts=0 heat=0/0 payoffs=512
+[ecology:learned] mastery reached for butter after 3 episodes
+[ecology:learned] stage=butter done reached=True pickups=11 deliveries=7
+[ecology:learned] stage=wood_stick tier=near episode=0 pickups=0 deliveries=0 contacts=0 heat=0/0 payoffs=640
+[ecology:learned] stage=wood_stick tier=medium episode=1 pickups=0 deliveries=0 contacts=89 heat=0/0 payoffs=640
+[ecology:learned] interleaved=butter pickups=1 deliveries=0
+[ecology:learned] stage=wood_stick tier=far episode=2 pickups=0 deliveries=0 contacts=19 heat=0/0 payoffs=640
+[ecology:learned] stage=wood_stick tier=far episode=3 pickups=0 deliveries=0 contacts=85 heat=0/0 payoffs=640
+[ecology:learned] interleaved=butter pickups=2 deliveries=0
+[ecology:learned] stage=wood_stick done reached=False pickups=0 deliveries=0
+[ecology:learned] stage=burning_match tier=near episode=0 pickups=10 deliveries=4 contacts=0 heat=0/8 payoffs=640
+[ecology:learned] stage=burning_match tier=medium episode=1 pickups=0 deliveries=0 contacts=0 heat=2/2 payoffs=640
+[ecology:learned] interleaved=butter pickups=0 deliveries=0
+[ecology:learned] stage=burning_match tier=far episode=2 pickups=0 deliveries=0 contacts=0 heat=1/1 payoffs=640
+[ecology:learned] mastery reached for burning_match after 3 episodes
+[ecology:learned] stage=burning_match done reached=True pickups=10 deliveries=4

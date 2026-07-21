@@ -238,15 +238,22 @@ promotion gate：
 - `AntWorld` 是黄油、木棍和燃烧火柴的唯一 owner。`ButterSource`、`WoodStick`、
   `BurningMatch` 及其 `WorldObjectSnapshot` 均为 frozen value；增删、平移和替换只在完整
   tick/round 边界原子应用。
+- **三物体价态语义（冻结）**：黄油是 appetitive（趋近/拾取/交付产生正学习信号）；燃烧火柴是
+  aversive（有害热暴露产生负学习信号，脱离/降温为正）；木棍是 **neutral 物理约束**——仍不可
+  穿越、仍进入 obstacle 感知通道，但接触**不产生任何 payoff/valence**，绕行不是学习目标，
+  contact 计数只作诊断。三种预期行为都必须由 learned `z_t` policy 产生，环境只提供价态与
+  可观察事实。
 - 木棍是任意方向 capsule，碰撞用连续 segment/capsule entry 求交，禁止高速穿透；火柴发布指数衰减
   热场和 owner 计算的有害半径，控制器只看局部热样本。环境 owner 自己生成渲染 description，
   App 不遍历或重建对象内部参数。
 - `WorldTransitionEvidence` 由环境 owner 发布动作前后的局部 food、home-pheromone 与 heat signal，
   以及 pickup/delivery/contact/threshold crossing。`AntSession` 只把这些可感知变化压成有界
   `EnvironmentMeasurement.action_payoff`：未携食时 food 改善、携食时 home signal 改善、降温/
-  逃逸/pickup/delivery 为正，升温/有害暴露/碰撞为负。该先天价态不含坐标、目标方位或推荐转向；
-  路径、绕行、回巢和逃逸动作仍必须由 learned `z_t` policy 产生。显式
-  `ecology_local_valence_enabled=False` 是 matched ablation，不得在正式 learned arm 静默关闭。
+  逃逸/pickup/delivery 为正，升温/有害暴露为负。木棍 contact 是可观察事实（进入 status/
+  evidence），但**不进入 payoff**；纯 contact 且无其他价态事件时不构造 measurement。该先天
+  价态不含坐标、目标方位或推荐转向；路径、绕行、回巢和逃逸动作仍必须由 learned `z_t` policy
+  产生。显式 `ecology_local_valence_enabled=False` 是 matched ablation，不得在正式 learned arm
+  静默关闭。
 - Digital Ant 正式 runtime profile 将 `internal_rl_runtime_segment_credit=ACTIVE`：joint-loop owner
   把 lineage-matched one-step replay 按真实 `beta_t` switch 边界聚成 segment，并在 milestone/
   terminal 或 24-step 上限处强制闭合；PPO/critic 对闭合 segment 的多步 transition 运行同一 GAE。
@@ -259,21 +266,29 @@ promotion gate：
   state-conditioned 左右响应。head 不含 butter/stick/match 字段、不直接生成 turn/step；参数由
   temporal/Internal-RL owner checkpoint、canonical archive、fingerprint 和事务 rollback 管理。
   通用默认仍为 `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。
-- `ecology_curriculum` 对黄油、木棍、火柴、组合四阶段分别执行 near → medium → far mastery：
-  每阶段达到预声明 pickup/contact/heat-entry/escape 样本量且满足最少 episode 后才提前晋级，未达到则在
-  最大预算处显式 BLOCK；已经掌握的阶段按固定频率交错回放。跨 episode 仅携带 owner-exported
-  checkpoint。learned、no-optimize、local-valence-off 与 segment-credit-off 从同一初始 checkpoint
-  分叉，并重放 learned 冻结下来的完全相同训练布局/seed 日程。长训练启动前必须先通过 food/
-  obstacle/heat 成对探针（输入可达且转向可区分）；探针失败时拒绝投入后续预算。
+- `ecology_curriculum` 对黄油、火柴、组合三阶段分别执行 near → medium → far mastery：
+  每阶段达到预声明 pickup/delivery/heat-entry/escape 样本量且满足最少 episode 后才提前晋级，
+  未达到则在最大预算处显式 BLOCK；已经掌握的阶段按固定频率交错回放。木棍不再是独立训练
+  阶段——它作为中性物理几何出现在组合布局中，不设 contact mastery。跨 episode 仅携带
+  owner-exported checkpoint。learned、no-optimize、local-valence-off 与 segment-credit-off 从同一
+  初始 checkpoint 分叉，并重放 learned 冻结下来的完全相同训练布局/seed 日程。长训练启动前必须
+  先通过 food/heat 成对探针（输入可达且转向可区分）；obstacle 成对探针只要求输入可达
+  （中性几何进入感知即可，不要求驱动转向）；探针失败时拒绝投入后续预算。
 - training、validation、正式 held-out 使用三个不重叠的 seed/布局命名空间。held-out 拆成
-  butter-only、wood-stick route、burning-match route avoidance、burning-match forced escape 和
-  composite 五类：主动避热不要求先进入热区；强制逃逸从有害区内的受控起点单独测 escape/harmful
-  ticks。评估将 joint learning 完全切到 evidence-only，policy 与 temporal-learning fingerprint
-  必须全程不变（PE 驱动的 turn-local mixture 不计入 temporal-learning fingerprint）。
-- 正式 gates 还冻结完整 19 维 channel activation、最近对象距离、首次事件 tick、局部 ecology payoff
-  数、switch/persistence、闭合 segment 长度、成对左右 action sensitivity、动作平滑度、archive
-  roundtrip/事务 rollback 以及 runtime replay settled/lineage ≥ 0.99。外层 bundle/report schema 为
-  `digital-ant-ecology-checkpoint.v3` / `digital-ant-ecology-curriculum.v2`。
+  butter-only、butter-with-neutral-stick、burning-match route avoidance、burning-match forced
+  escape 和 composite 五类：butter-with-neutral-stick 只验证有中性物理阻挡时觅食仍成功（不比
+  contact 率、不与 no-optimize 比"回避能力"）；主动避热不要求先进入热区；强制逃逸从有害区内的
+  受控起点单独测 escape/harmful ticks。评估将 joint learning 完全切到 evidence-only，policy 与
+  temporal-learning fingerprint 必须全程不变（PE 驱动的 turn-local mixture 不计入
+  temporal-learning fingerprint）。
+- 正式 gates 还冻结完整 19 维 channel activation（必需激活集合为 food/heat 家族 +
+  `obstacle_left/right`，不强制 `obstacle_contact`——不得为过门强迫碰撞）、最近对象距离、首次
+  事件 tick、局部 ecology payoff 数、switch/persistence、闭合 segment 长度、food/heat 成对左右
+  action sensitivity（obstacle 只作 input-reachability 诊断）、动作平滑度、archive roundtrip/事务
+  rollback 以及 runtime replay settled/lineage ≥ 0.99。综合 outcome score 与 composite/
+  matched-ablation 比较不含 obstacle-contact 惩罚项。外层 bundle/report schema 为
+  `digital-ant-ecology-checkpoint.v4` / `digital-ant-ecology-curriculum.v3`（v3/v2 是木棍仍作
+  回避目标的历史语义，其 artifact 只作诊断，loader 必须拒绝）。
   settlement coverage 的分母是 `captured - pending_capture_count`；episode 尾部尚无下一状态的
   capture 被明确发布为 pending，不得误报为 drop，也不得借此忽略真实 drop reason。
   任一失败即 `BLOCK`；不得加载为 demo checkpoint，也不得用 `FixedRuleAnt` 或 Canvas 脚本伪装通过。

@@ -33,7 +33,7 @@ from volvence_ant.runtime import AntSenseSchema
 from volvence_ant.substrate.sense_encode import sense_channels
 
 
-ECOLOGY_CHECKPOINT_BUNDLE_KIND = "digital-ant-ecology-checkpoint.v3"
+ECOLOGY_CHECKPOINT_BUNDLE_KIND = "digital-ant-ecology-checkpoint.v4"
 
 
 @dataclass(frozen=True)
@@ -183,9 +183,6 @@ def _config_from_report(payload: dict[str, object]) -> EcologyCurriculumConfig:
         mastery_min_pickups=int(raw_config["mastery_min_pickups"]),
         mastery_min_deliveries=int(
             raw_config["mastery_min_deliveries"]
-        ),
-        mastery_min_obstacle_contacts=int(
-            raw_config["mastery_min_obstacle_contacts"]
         ),
         mastery_min_heat_events=int(
             raw_config["mastery_min_heat_events"]

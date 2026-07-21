@@ -65,10 +65,11 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）这几条分层原理
   可选第三面板用**真内核**跑路线熟悉度：固定路线反复走，可下降新奇度（认知型 PE）随曝光下降，
   记忆关闭对照不下降。输出 `research/ant/figures/digital_ant_homing_theater.html`。
 - `scripts/train_ant_ecology.py` — 用真实 `AntSession` / `KernelColonyRunner` 执行 near→medium→far
-  mastery 与已掌握阶段交错回放，并在互斥 validation/held-out 布局上分别评估黄油、木棍、主动避热、
-  强制逃逸和三物体组合。脚本写出 owner-authored canonical JSON opaque checkpoint、冻结 gate
-  report 和 manifest；只有 PASS artifact 可由 realtime app 加载，BLOCK 会保留具体断点，不回退
-  FixedRule。
+  mastery 与已掌握阶段交错回放（训练阶段为黄油、火柴、组合三个有价态阶段；木棍是中性物理几何，
+  不设 contact mastery），并在互斥 validation/held-out 布局上分别评估黄油、中性木棍语境觅食、
+  主动避热、强制逃逸和三物体组合。脚本写出 owner-authored canonical JSON opaque checkpoint、
+  冻结 gate report 和 manifest；只有 PASS artifact 可由 realtime app 加载，BLOCK 会保留具体断点，
+  不回退 FixedRule。
 
 推荐从统一入口运行：
 

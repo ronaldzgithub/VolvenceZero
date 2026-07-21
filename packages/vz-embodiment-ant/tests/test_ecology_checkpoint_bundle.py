@@ -72,7 +72,6 @@ def _candidate(verdict: str) -> EcologyCheckpointCandidate:
         stage_episodes=1,
         mastery_min_episodes=1,
         mastery_min_pickups=1,
-        mastery_min_obstacle_contacts=1,
         mastery_min_heat_events=1,
         validation_rounds=1,
         validation_seeds=(5,),

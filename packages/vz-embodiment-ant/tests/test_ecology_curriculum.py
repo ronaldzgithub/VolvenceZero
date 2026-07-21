@@ -18,7 +18,6 @@ async def test_ecology_curriculum_exports_checkpoint_and_honest_gates() -> None:
             stage_episodes=1,
             mastery_min_episodes=1,
             mastery_min_pickups=1,
-            mastery_min_obstacle_contacts=1,
             mastery_min_heat_events=1,
             validation_rounds=1,
             validation_seeds=(13,),
@@ -39,7 +38,7 @@ async def test_ecology_curriculum_exports_checkpoint_and_honest_gates() -> None:
         for item in candidate.report.learned_metrics
     } == {
         "butter_only",
-        "wood_stick_route",
+        "butter_with_neutral_stick",
         "heat_route_avoidance",
         "heat_forced_escape",
         "composite",

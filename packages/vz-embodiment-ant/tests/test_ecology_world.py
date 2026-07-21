@@ -278,7 +278,13 @@ def test_environment_publishes_local_valence_without_target_direction() -> None:
     assert valence_off.measurement is None
 
 
-def test_ecology_outcome_combines_contact_with_direction_free_valence() -> None:
+def test_ecology_neutral_stick_contact_is_observable_but_valence_free() -> None:
+    """Wood-stick contact stays a physical fact and never enters payoff.
+
+    The body is pinned against the stick so the blocked move keeps every
+    local food/home/heat delta exactly zero: the only fact left is the
+    neutral contact, which must not produce a measurement.
+    """
     world = AntWorld(
         config=AntWorldConfig(seed=0, step_size=0.5),
         world_objects=(
@@ -291,7 +297,7 @@ def test_ecology_outcome_combines_contact_with_direction_free_valence() -> None:
             ),
         ),
     )
-    world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    world.set_body_pose(x=0.25, y=0.0, heading=0.0)
     session = AntSession(
         world,
         config=AntSessionConfig(
@@ -299,15 +305,16 @@ def test_ecology_outcome_combines_contact_with_direction_free_valence() -> None:
             sense_schema=AntSenseSchema.ECOLOGY_V2,
         ),
     )
-    world.act(turn_command=0.0, step_command=0.5)
+    world.act(turn_command=0.0, step_command=0.05)
     transition = world.last_transition()
+    assert transition.blocked_by_obstacle
+    assert transition.applied_step == 0.0
     outcome = session._ecology_environment_outcome(
         transition=transition,
         prediction_id="prediction-1",
     )
 
     assert outcome.status == "obstacle_contact"
-    assert outcome.measurement is not None
-    assert outcome.measurement.action_payoff < 0.0
+    assert outcome.measurement is None
     assert "no coordinates" in outcome.detail
     assert "turn" not in outcome.evidence[0]

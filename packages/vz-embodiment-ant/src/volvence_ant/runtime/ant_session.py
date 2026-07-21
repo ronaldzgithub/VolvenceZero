@@ -546,28 +546,35 @@ class AntSession:
         facts: list[str] = []
         task_progress: float | None = None
         payoff = 0.0
+        valenced = False
         terminal = False
         if transition.delivered:
             facts.append("delivered")
             task_progress = 1.0
             payoff += 1.0
             terminal = True
+            valenced = True
         elif transition.picked_up:
             facts.append("picked_up")
             task_progress = 0.5
             payoff += 0.5
+            valenced = True
         if transition.blocked_by_obstacle:
+            # Wood sticks are neutral physical geometry: contact stays an
+            # observable fact but must never contribute payoff/valence.
             facts.append("obstacle_contact")
-            payoff -= 0.25
         if transition.entered_harmful_heat:
             facts.append("heat_exposure_started")
             payoff -= 1.0
+            valenced = True
         elif transition.heat_harmful_after:
             facts.append("heat_exposure_continued")
             payoff -= 0.4
+            valenced = True
         elif transition.escaped_harmful_heat:
             facts.append("heat_exposure_ended")
             payoff += 0.35
+            valenced = True
         food_delta = (
             transition.local_food_signal_after
             - transition.local_food_signal_before
@@ -585,8 +592,10 @@ class AntSession:
                 local_valence += 0.45 * math.tanh(home_delta)
             local_valence += 0.7 * math.tanh(cooling_delta)
             payoff += local_valence
-            if abs(local_valence) > 1e-9 and not facts:
-                facts.append("local_valence")
+            if abs(local_valence) > 1e-9:
+                valenced = True
+                if not facts:
+                    facts.append("local_valence")
         status = "+".join(facts) if facts else "moved"
         measurement = (
             EnvironmentMeasurement(
@@ -594,7 +603,7 @@ class AntSession:
                 action_payoff=max(-1.0, min(1.0, payoff)),
                 terminal=terminal,
             )
-            if facts
+            if valenced
             else None
         )
         return EnvironmentOutcome(

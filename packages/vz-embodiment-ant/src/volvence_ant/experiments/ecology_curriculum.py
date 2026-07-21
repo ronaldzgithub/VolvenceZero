@@ -29,6 +29,7 @@ from volvence_ant.evidence.runtime_profile import (
 )
 from volvence_ant.experiments.ecology_probe import (
     EcologyActionProbe,
+    EcologyProbeKind,
     run_ecology_action_probes,
 )
 from volvence_ant.runtime import (
@@ -41,7 +42,7 @@ from volvence_ant.runtime import (
 )
 
 
-ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v2"
+ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v3"
 ECOLOGY_REQUIRED_GATE_NAMES = (
     "training_event_coverage",
     "paired_action_sensitivity",
@@ -49,7 +50,7 @@ ECOLOGY_REQUIRED_GATE_NAMES = (
     "no_optimize_policy_stable",
     "butter_pickup_gain",
     "butter_delivery_present",
-    "wood_stick_navigation",
+    "neutral_stick_context_robustness",
     "burning_match_route_avoidance",
     "burning_match_forced_escape",
     "composite_performance",
@@ -59,6 +60,9 @@ ECOLOGY_REQUIRED_GATE_NAMES = (
     "checkpoint_archive_roundtrip",
     "runtime_replay_lineage",
 )
+# Wood sticks are neutral physical geometry: they must stay perceivable
+# (obstacle_left/right), but obstacle_contact activation is NOT required --
+# forcing collisions to pass a gate would contradict stick neutrality.
 ECOLOGY_CRITICAL_ACTIVE_CHANNELS = frozenset(
     {
         "food_left",
@@ -67,7 +71,6 @@ ECOLOGY_CRITICAL_ACTIVE_CHANNELS = frozenset(
         "carrying_food",
         "obstacle_left",
         "obstacle_right",
-        "obstacle_contact",
         "heat_left",
         "heat_right",
         "heat_diff",
@@ -78,10 +81,22 @@ ECOLOGY_CRITICAL_ACTIVE_CHANNELS = frozenset(
 
 
 class EcologyStage(str, Enum):
+    """Scene layouts; WOOD_STICK names a butter+neutral-stick layout only."""
+
     BUTTER = "butter"
     WOOD_STICK = "wood_stick"
     BURNING_MATCH = "burning_match"
     COMPOSITE = "composite"
+
+
+# Valenced training schedule: butter (appetitive), burning match (aversive)
+# and the composite layout. The neutral wood stick is never a training stage
+# of its own -- it only appears as physical context inside layouts.
+ECOLOGY_TRAINING_STAGES = (
+    EcologyStage.BUTTER,
+    EcologyStage.BURNING_MATCH,
+    EcologyStage.COMPOSITE,
+)
 
 
 class EcologyTrainingTier(str, Enum):
@@ -98,7 +113,7 @@ class EcologyDataSplit(str, Enum):
 
 class EcologyEvaluationScenario(str, Enum):
     BUTTER_ONLY = "butter_only"
-    WOOD_STICK_ROUTE = "wood_stick_route"
+    BUTTER_WITH_NEUTRAL_STICK = "butter_with_neutral_stick"
     HEAT_ROUTE_AVOIDANCE = "heat_route_avoidance"
     HEAT_FORCED_ESCAPE = "heat_forced_escape"
     COMPOSITE = "composite"
@@ -113,7 +128,6 @@ class EcologyCurriculumConfig:
     mastery_min_episodes: int = 3
     mastery_min_pickups: int = 2
     mastery_min_deliveries: int = 1
-    mastery_min_obstacle_contacts: int = 2
     mastery_min_heat_events: int = 2
     interleave_every: int = 2
     validation_rounds: int = 80
@@ -136,7 +150,6 @@ class EcologyCurriculumConfig:
         if (
             self.mastery_min_pickups < 1
             or self.mastery_min_deliveries < 1
-            or self.mastery_min_obstacle_contacts < 1
             or self.mastery_min_heat_events < 1
         ):
             raise ValueError("mastery event thresholds must be >= 1")
@@ -510,7 +523,6 @@ def _mastery_reached(
     primary_episodes: int,
     pickups: int,
     deliveries: int,
-    obstacle_contacts: int,
     heat_entries: int,
     heat_escapes: int,
 ) -> bool:
@@ -521,27 +533,21 @@ def _mastery_reached(
             pickups >= config.mastery_min_pickups
             and deliveries >= config.mastery_min_deliveries
         )
-    if stage is EcologyStage.WOOD_STICK:
-        return (
-            pickups >= config.mastery_min_pickups
-            and deliveries >= config.mastery_min_deliveries
-            and obstacle_contacts
-            >= config.mastery_min_obstacle_contacts
-        )
     if stage is EcologyStage.BURNING_MATCH:
         return (
             deliveries >= config.mastery_min_deliveries
             and heat_entries >= config.mastery_min_heat_events
             and heat_escapes >= config.mastery_min_heat_events
         )
-    return (
-        pickups >= config.mastery_min_pickups
-        and deliveries >= config.mastery_min_deliveries
-        and (
-            obstacle_contacts > 0
-            or heat_entries > 0
-            or heat_escapes > 0
+    if stage is EcologyStage.COMPOSITE:
+        # Foraging must succeed with neutral sticks and matches present;
+        # bumping the neutral stick is never a requirement.
+        return (
+            pickups >= config.mastery_min_pickups
+            and deliveries >= config.mastery_min_deliveries
         )
+    raise ValueError(
+        f"stage {stage.value!r} is not a valenced training stage"
     )
 
 
@@ -554,22 +560,20 @@ def _mastery_threshold(
             f"pickups>={config.mastery_min_pickups}, "
             f"deliveries>={config.mastery_min_deliveries}"
         )
-    if stage is EcologyStage.WOOD_STICK:
-        return (
-            f"pickups>={config.mastery_min_pickups}, "
-            f"deliveries>={config.mastery_min_deliveries}, "
-            "contacts>="
-            f"{config.mastery_min_obstacle_contacts}"
-        )
     if stage is EcologyStage.BURNING_MATCH:
         return (
             f"deliveries>={config.mastery_min_deliveries}, "
             f"entries>={config.mastery_min_heat_events}, "
             f"escapes>={config.mastery_min_heat_events}"
         )
-    return (
-        f"pickups>={config.mastery_min_pickups}, "
-        f"deliveries>={config.mastery_min_deliveries} and hazard sample present"
+    if stage is EcologyStage.COMPOSITE:
+        return (
+            f"pickups>={config.mastery_min_pickups}, "
+            f"deliveries>={config.mastery_min_deliveries} "
+            "with neutral stick and match present"
+        )
+    raise ValueError(
+        f"stage {stage.value!r} is not a valenced training stage"
     )
 
 
@@ -691,12 +695,7 @@ async def _train_arm(
     tuple[EcologyStageMastery, ...],
 ]:
     checkpoints = initial
-    stages = (
-        EcologyStage.BUTTER,
-        EcologyStage.WOOD_STICK,
-        EcologyStage.BURNING_MATCH,
-        EcologyStage.COMPOSITE,
-    )
+    stages = ECOLOGY_TRAINING_STAGES
     reports: list[EcologyTrainingEpisodeReport] = []
     plans: list[EcologyTrainingEpisodePlan] = []
     mastery: list[EcologyStageMastery] = []
@@ -789,7 +788,6 @@ async def _train_arm(
                     primary_episodes=primary_episodes,
                     pickups=pickups,
                     deliveries=deliveries,
-                    obstacle_contacts=obstacle_contacts,
                     heat_entries=heat_entries,
                     heat_escapes=heat_escapes,
                 )
@@ -912,7 +910,7 @@ async def _evaluate_arm(
 ) -> EcologyArmMetrics:
     scenario_stage = {
         EcologyEvaluationScenario.BUTTER_ONLY: EcologyStage.BUTTER,
-        EcologyEvaluationScenario.WOOD_STICK_ROUTE: (
+        EcologyEvaluationScenario.BUTTER_WITH_NEUTRAL_STICK: (
             EcologyStage.WOOD_STICK
         ),
         EcologyEvaluationScenario.HEAT_ROUTE_AVOIDANCE: (
@@ -1069,6 +1067,16 @@ def _scenario_metrics(
     )
 
 
+def _probe_requirement_met(probe: EcologyActionProbe) -> bool:
+    """Valenced channels must drive action; neutral geometry only senses."""
+    if probe.kind is EcologyProbeKind.OBSTACLE:
+        # Wood sticks are neutral: they must reach the sensors, but are not
+        # required to drive turns -- demanding stick-driven action would
+        # reintroduce the avoidance objective the stick no longer carries.
+        return probe.input_reachable
+    return probe.input_reachable and probe.action_sensitive
+
+
 def _checkpoint_state_fingerprints(
     checkpoints: tuple[AntLearningCheckpoint, ...],
 ) -> tuple[tuple[str, str, str], ...]:
@@ -1161,12 +1169,12 @@ def _paired_bootstrap_mean_ci(
 
 
 def _ecology_outcome_score(item: EcologyArmMetrics) -> float:
+    # Neutral wood-stick contacts are diagnostics only and never scored.
     return (
         item.pickups * 0.5
         + item.deliveries
         + item.heat_escapes * 0.25
         - item.harmful_heat_ticks * 0.02
-        - item.obstacle_contacts * 0.05
     )
 
 
@@ -1236,11 +1244,7 @@ def _build_gates(
     )
     learned_stick = _scenario_metrics(
         learned_metrics,
-        EcologyEvaluationScenario.WOOD_STICK_ROUTE,
-    )
-    no_opt_stick = _scenario_metrics(
-        no_optimize_metrics,
-        EcologyEvaluationScenario.WOOD_STICK_ROUTE,
+        EcologyEvaluationScenario.BUTTER_WITH_NEUTRAL_STICK,
     )
     learned_heat_route = _scenario_metrics(
         learned_metrics,
@@ -1322,30 +1326,11 @@ def _build_gates(
         item.pickups > 0 and item.deliveries > 0
         for item in learned_stick
     )
-    learned_stick_contact_rate = (
-        sum(item.obstacle_contacts for item in learned_stick)
-        / max(
-            sum(
-                item.pickups + item.deliveries
-                for item in learned_stick
-            ),
-            1,
-        )
-    )
-    no_opt_stick_contact_rate = (
-        sum(item.obstacle_contacts for item in no_opt_stick)
-        / max(
-            sum(
-                item.pickups + item.deliveries
-                for item in no_opt_stick
-            ),
-            1,
-        )
-    )
-    stick_navigation = (
+    # The stick is neutral geometry: the gate only asks whether foraging
+    # still succeeds with the physical constraint present. Contact counts
+    # are recorded as diagnostics and never compared or rewarded.
+    stick_context_robustness = (
         stick_task_successes >= required_successes
-        and learned_stick_contact_rate
-        <= no_opt_stick_contact_rate
     )
     route_task_successes = sum(
         item.pickups > 0 and item.deliveries > 0
@@ -1385,14 +1370,10 @@ def _build_gates(
         item.pickups > 0 and item.deliveries > 0
         for item in learned_composite
     )
+    # Neutral stick contacts are excluded from the composite comparison;
+    # only foraging success and harmful heat exposure carry valence.
     composite_performance = (
         composite_successes >= required_successes
-        and sum(
-            item.obstacle_contacts for item in learned_composite
-        )
-        <= sum(
-            item.obstacle_contacts for item in no_opt_composite
-        )
         and sum(
             item.harmful_heat_ticks for item in learned_composite
         )
@@ -1488,7 +1469,7 @@ def _build_gates(
         EcologyGate(
             name="training_event_coverage",
             passed=(
-                len(learned_mastery) == len(EcologyStage)
+                len(learned_mastery) == len(ECOLOGY_TRAINING_STAGES)
                 and all(item.reached for item in learned_mastery)
                 and not missing_critical_channels
             ),
@@ -1512,9 +1493,9 @@ def _build_gates(
                 }
             ),
             threshold=(
-                "every stage reaches its predeclared event-sample mastery "
-                "threshold within bounded budget and every critical ecology "
-                "sensor channel activates"
+                "every valenced training stage reaches its predeclared "
+                "event-sample mastery threshold within bounded budget and "
+                "every critical ecology sensor channel activates"
             ),
         ),
         EcologyGate(
@@ -1522,7 +1503,7 @@ def _build_gates(
             passed=(
                 len(action_probes) == 3
                 and all(
-                    item.input_reachable and item.action_sensitive
+                    _probe_requirement_met(item)
                     for item in action_probes
                 )
             ),
@@ -1537,8 +1518,8 @@ def _build_gates(
                 )
             ),
             threshold=(
-                "food, obstacle and heat paired swaps each change code and "
-                "motor turn"
+                "food and heat paired swaps each change code and motor "
+                "turn; the neutral stick swap only needs to reach input"
             ),
         ),
         EcologyGate(
@@ -1575,16 +1556,16 @@ def _build_gates(
             threshold="butter delivery occurs on >=60% held-out seeds",
         ),
         EcologyGate(
-            name="wood_stick_navigation",
-            passed=stick_navigation,
+            name="neutral_stick_context_robustness",
+            passed=stick_context_robustness,
             observed=(
                 f"task_successes={stick_task_successes}, "
-                f"learned_contact_rate={learned_stick_contact_rate:.6f}, "
-                f"no_opt_contact_rate={no_opt_stick_contact_rate:.6f}"
+                "diagnostic_contacts="
+                f"{sum(item.obstacle_contacts for item in learned_stick)}"
             ),
             threshold=(
-                "pickup+delivery on >=60% stick seeds with normalized "
-                "contacts no worse than no-optimize"
+                "pickup+delivery on >=60% neutral-stick seeds; contacts are "
+                "diagnostics only and never gated or rewarded"
             ),
         ),
         EcologyGate(
@@ -1631,7 +1612,8 @@ def _build_gates(
             ),
             threshold=(
                 "pickup+delivery on >=60% composite seeds, pickup exceeds "
-                "cold, hazards no worse than no-optimize"
+                "cold, harmful heat no worse than no-optimize; neutral "
+                "stick contacts are diagnostics only"
             ),
         ),
         EcologyGate(
@@ -1747,7 +1729,7 @@ async def train_and_evaluate_ecology_checkpoint(
     failed_probes = tuple(
         item
         for item in pretraining_probes
-        if not item.input_reachable or not item.action_sensitive
+        if not _probe_requirement_met(item)
     )
     if failed_probes:
         detail = tuple(
@@ -1846,7 +1828,7 @@ async def train_and_evaluate_ecology_checkpoint(
     )
     evaluation_scenarios = (
         EcologyEvaluationScenario.BUTTER_ONLY,
-        EcologyEvaluationScenario.WOOD_STICK_ROUTE,
+        EcologyEvaluationScenario.BUTTER_WITH_NEUTRAL_STICK,
         EcologyEvaluationScenario.HEAT_ROUTE_AVOIDANCE,
         EcologyEvaluationScenario.HEAT_FORCED_ESCAPE,
         EcologyEvaluationScenario.COMPOSITE,
@@ -1992,6 +1974,7 @@ async def train_and_evaluate_ecology_checkpoint(
 __all__ = [
     "ECOLOGY_CURRICULUM_SCHEMA_VERSION",
     "ECOLOGY_REQUIRED_GATE_NAMES",
+    "ECOLOGY_TRAINING_STAGES",
     "EcologyArmMetrics",
     "EcologyCheckpointCandidate",
     "EcologyCheckpointReport",

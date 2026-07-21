@@ -16,8 +16,8 @@ from volvence_ant.experiments.ecology_curriculum import (
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_ARCHIVE = Path("research/ant/results/ecology_checkpoint.v3.vzac")
-_DEFAULT_REPORT = Path("research/ant/results/ecology_checkpoint.v3.json")
+_DEFAULT_ARCHIVE = Path("research/ant/results/ecology_checkpoint.v4.vzac")
+_DEFAULT_REPORT = Path("research/ant/results/ecology_checkpoint.v4.json")
 
 
 def _repo_path(path: Path) -> Path:
@@ -35,9 +35,6 @@ async def _run(args: argparse.Namespace) -> int:
         mastery_min_episodes=args.mastery_min_episodes,
         mastery_min_pickups=args.mastery_min_pickups,
         mastery_min_deliveries=args.mastery_min_deliveries,
-        mastery_min_obstacle_contacts=(
-            args.mastery_min_obstacle_contacts
-        ),
         mastery_min_heat_events=args.mastery_min_heat_events,
         interleave_every=args.interleave_every,
         validation_rounds=args.validation_rounds,
@@ -73,11 +70,6 @@ def main() -> int:
     parser.add_argument("--mastery-min-episodes", type=int, default=3)
     parser.add_argument("--mastery-min-pickups", type=int, default=2)
     parser.add_argument("--mastery-min-deliveries", type=int, default=1)
-    parser.add_argument(
-        "--mastery-min-obstacle-contacts",
-        type=int,
-        default=2,
-    )
     parser.add_argument(
         "--mastery-min-heat-events",
         type=int,
