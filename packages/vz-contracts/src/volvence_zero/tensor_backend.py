@@ -369,8 +369,9 @@ class TorchBackend(TensorBackend):
     """Real autograd backend.
 
     CPU remains the deterministic parity default.  Operators can explicitly
-    select CUDA for an ACTIVE training run with ``VZ_TENSOR_DEVICE=cuda``;
-    this is deliberately opt-in so SHADOW comparisons stay byte-stable.
+    select an accelerator for an ACTIVE training run with
+    ``VZ_TENSOR_DEVICE=cuda`` or ``VZ_TENSOR_DEVICE=mps``; this is
+    deliberately opt-in so SHADOW comparisons stay byte-stable.
     """
 
     kind = BackendKind.TORCH
@@ -389,6 +390,14 @@ class TorchBackend(TensorBackend):
         self._device = torch.device(requested_device)
         if self._device.type == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("VZ_TENSOR_DEVICE requests CUDA but CUDA is unavailable")
+        if self._device.type == "mps":
+            if not torch.backends.mps.is_available():
+                raise RuntimeError("VZ_TENSOR_DEVICE requests MPS but MPS is unavailable")
+            # Apple MPS has no float64 kernels; an explicit MPS training run
+            # uses float32. Parity/SHADOW comparisons keep the CPU float64
+            # default, so tolerance guarantees are unaffected.
+            if dtype == "float64":
+                dtype = "float32"
         # float64 keeps the torch path numerically close to the pure-Python
         # baseline so SHADOW parity comparisons use a tight tolerance.
         self._dtype = getattr(torch, dtype)

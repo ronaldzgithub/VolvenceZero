@@ -94,15 +94,18 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--device",
-        choices=("cpu", "cuda"),
+        choices=("cpu", "cuda", "mps"),
         default="cpu",
-        help="Tensor runtime device. CUDA enables the ant temporal runtime on GPU.",
+        help=(
+            "Tensor runtime device. CUDA/MPS enable the ant temporal runtime "
+            "on the GPU (MPS runs float32; CPU stays the float64 parity default)."
+        ),
     )
     parser.add_argument("--archive", type=Path, default=_DEFAULT_ARCHIVE)
     parser.add_argument("--report", type=Path, default=_DEFAULT_REPORT)
     args = parser.parse_args()
-    if args.device == "cuda":
-        os.environ["VZ_TENSOR_DEVICE"] = "cuda"
+    if args.device in ("cuda", "mps"):
+        os.environ["VZ_TENSOR_DEVICE"] = args.device
     else:
         os.environ.pop("VZ_TENSOR_DEVICE", None)
     return asyncio.run(_run(args))

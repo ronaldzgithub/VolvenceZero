@@ -21,13 +21,15 @@ def ant_runtime_replay_rollout_config(
 ) -> FinalRolloutConfig:
     """Open real replay; enable posterior exploration only for sparse tasks."""
 
-    use_cuda_runtime = os.environ.get("VZ_TENSOR_DEVICE", "cpu").strip().lower().startswith("cuda")
+    requested_device = os.environ.get("VZ_TENSOR_DEVICE", "cpu").strip().lower()
+    use_accelerated_runtime = requested_device.startswith(("cuda", "mps"))
     return FinalRolloutConfig(
-        # The ecological body has a CUDA-capable ndarray runtime path.  Keep
-        # CPU as the reproducible default; the training CLI sets
-        # VZ_TENSOR_DEVICE=cuda only for an explicit --device cuda run.
+        # The ecological body has an accelerator-capable ndarray runtime path
+        # (CUDA or Apple MPS).  Keep CPU as the reproducible default; the
+        # training CLI sets VZ_TENSOR_DEVICE only for an explicit
+        # --device cuda/mps run.
         temporal_runtime_backend=(
-            WiringLevel.ACTIVE if use_cuda_runtime else WiringLevel.DISABLED
+            WiringLevel.ACTIVE if use_accelerated_runtime else WiringLevel.DISABLED
         ),
         internal_rl_runtime_replay=WiringLevel.ACTIVE,
         internal_rl_runtime_segment_credit=(
