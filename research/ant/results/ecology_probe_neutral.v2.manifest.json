@@ -1,0 +1,52 @@
+{
+  "artifact": {
+    "path": "research/ant/results/ecology_probe_neutral.v2.json",
+    "sha256": "f0b4a69ed020f52d2e168fa6685c012941bf812a72aa1edb8e2f8611aa1e4eae",
+    "size_bytes": 237546
+  },
+  "externally_retainable": false,
+  "inputs": [
+    {
+      "path": "research/ant/results/ecology_probe_neutral.v2.vzac",
+      "sha256": "9775dfdbd3a3a3c32eda341657a3d219c4fa9ad3e3a172bdee5695fc28cc8bec",
+      "size_bytes": 65943740
+    }
+  ],
+  "provenance": {
+    "config_digest": "44e024544d55471b84ebf0039defc1c5623d3b8d64998955dc226fee2577f447",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "git_branch": "main",
+    "git_sha": "63957a716aee4ceb8784c89edb3dff9a1d93bc0f",
+    "model_fingerprint": "1fb48e9d2f9637a57eedf071097663f030852ab4582b018684f8e6592615ae57",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "seed_schedule": [
+      101,
+      211,
+      307
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}
