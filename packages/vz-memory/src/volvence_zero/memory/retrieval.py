@@ -178,6 +178,9 @@ class DerivedRetrievalIndex:
             tags=entry.tags,
         )
 
+    def delete_entry(self, entry_id: str) -> None:
+        self._artifact_embeddings.pop(entry_id, None)
+
     def affinity(self, *, entry: MemoryEntry, query_embedding: tuple[float, ...]) -> float:
         return _cosine_similarity(query_embedding, self._artifact_embeddings.get(entry.entry_id, (0.0,) * len(query_embedding)))
 
@@ -186,4 +189,3 @@ class DerivedRetrievalIndex:
 
     def restore(self, embeddings: tuple[tuple[str, tuple[float, ...]], ...]) -> None:
         self._artifact_embeddings = dict(embeddings)
-

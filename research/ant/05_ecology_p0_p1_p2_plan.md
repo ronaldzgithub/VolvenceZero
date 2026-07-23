@@ -243,6 +243,11 @@ P1 仍是 development evidence，不产生正式 promotion artifact。
 #### Stage 0：Near bootstrap（不计最终 mastery）
 
 - 目的仅是保证产生足够 pickup/delivery/heat 样本供 optimizer 学习。
+- 增加与 forced-escape 对称的 forced-return bootstrap：从巢外携食状态起步并同步 body-side
+  path integration，左右 home-bearing 均衡；controller 仍只消费常规 sense，不提供目标方向或
+  action label。
+- forced-return near 初始几何固定在 minimal-criterion 区间：冷策略可产生正负
+  home-progress 且部分轨迹可 delivery，但持续错误转向仍会失败。
 - near 结果进入训练报告，但不得使任何正式能力 gate 通过。
 
 #### Stage 1：Butter medium/far
@@ -489,4 +494,3 @@ Secondary endpoints 包括路径效率、首次 pickup tick、escape latency、p
 - 完整 matched-control 正式报告；
 - 一个诚实的 `PASS` 或 `BLOCK` checkpoint bundle；
 - 对“价态是否形成方向行为、temporal abstraction 是否贡献、learned 是否优于对照”的可审计结论。
-

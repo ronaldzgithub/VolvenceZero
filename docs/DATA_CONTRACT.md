@@ -823,12 +823,12 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 | 障碍几何与碰撞证据 | 同上 | `AxisAlignedObstacle` 由 environment owner 持有；substrate 只见局部左右触角/contact，`WorldTransitionEvidence` 发布 blocked/applied-step 审计事实；**不**新增 kernel slot |
 | ecology-v2 对象快照 | 同上 | frozen `ButterSource / WoodStick / BurningMatch` 由 `AntWorld` 唯一持有；仅发布 `WorldObjectSnapshot`（几何、owner 计算的 effect radius、description）给 App |
 | `ant-sense.ecology-v2` | 同上 | 保留 `ant-sense.v1` 14 维前缀并追加 5 个局部热感通道；runtime facade 将完整 19 维声明为 temporal `n_input`，由 encoder 压缩到独立的 latent `n_z`，禁止按 `n_z` 截断；对象坐标、木棍方向和推荐动作不进入 controller |
-| ecology local valence | `AntWorld` environment owner | `WorldTransitionEvidence` 发布动作前后 local food/home-pheromone/heat signal 与离散 milestone/contact；`AntSession` 仅压成有界 `EnvironmentMeasurement.action_payoff`，不得发布坐标、目标方向或推荐动作，reward/mismatch 仍由 PE owner 派生 |
+| ecology local valence | `AntWorld` environment owner | `WorldTransitionEvidence` 发布动作前后 local food/heat signal 与离散 milestone/contact；携食返巢 shaping 使用 body-side path-integration home-distance progress，不使用外部坐标或 home pheromone；`AntSession` 仅压成有界 `EnvironmentMeasurement.action_payoff`，不得发布坐标、目标方向或推荐动作。PE owner 负责 actual-outcome 归一化与 mismatch；runtime replay 只优化 PE owner 发布的 realized action payoff，不把 signed prediction residual 当 realized utility |
 | runtime beta segment replay | `vz-temporal` joint-loop owner | `internal_rl_runtime_segment_credit=ACTIVE` 时把 lineage-matched real replay 按真实 switch、milestone/terminal 或有界 horizon 闭合为多步 rollout，复用既有 GAE 与 pending queue；open segment 进入 owner checkpoint/rollback，不新增 slot/ledger；`joint_loop.learning` persistence schema v2 |
 | causal z-policy action head | `vz-temporal` metacontroller/Internal-RL owner | 通用低秩 `posterior hidden state -> bounded z_t residual` 参数面；`DISABLED/SHADOW/ACTIVE` 可回滚门控，禁止对象字段与 motor command；参数进入 owner snapshot、canonical archive、fingerprint 与事务 rollback，不新增 runtime slot |
 | typed task measurement | `vz-contracts` / PE owner | `EnvironmentOutcome.measurement` 仅含环境可观察事实；runtime 保留 lineage，PE 是唯一 mismatch owner |
 | opaque learning archive | `vz-runtime` facade | owner 发布 `OwnerPersistenceSnapshot`；`agent-learning-archive.v2` 以 strict canonical JSON 绑定逐 owner schema/payload sha256、整体 state fingerprint，`agent-learning-checkpoint-collection.v1` 再绑定 sense schema / input dim / latent dim / ant count，外层 ecology bundle 为 `digital-ant-ecology-checkpoint.v4`；禁止 pickle/object hook，跨 episode 显式排除未结算 runtime replay，embodiment 只存取 bytes |
-| ecology curriculum evidence | `vz-embodiment-ant` offline experiment owner | `digital-ant-ecology-curriculum.v3` 发布 mastery/interleaved 训练日程（butter/burning-match/composite 三阶段，木棍是中性物理几何、无 contact mastery/payoff）、training/validation/held-out split、五类独立 scenario metrics、paired action probes（food/heat 门控 action sensitivity，obstacle 只作 input-reachability 诊断）与 frozen gates；评估只读 owner snapshots，不回灌 reward |
+| ecology curriculum evidence | `vz-embodiment-ant` offline experiment owner | `digital-ant-ecology-curriculum.v6` 发布 mastery/interleaved 训练日程（butter/burning-match/composite 三阶段，木棍是中性物理几何、无 contact mastery/payoff）、P1 forced-return bootstrap（只初始化巢外携食状态并同步 body-side PI，不发布动作标签）、training/validation/held-out split、独立 scenario metrics、paired action probes（food/heat/home 门控 action sensitivity，home 另验目标对齐，obstacle 只作 input-reachability 诊断）与 frozen gates；长程 checkpoint 前由 Memory owner 把 explicit artifact 层有界到 8192 entries（CMS learned state 不裁剪，entry/index/pending/attribute 原子一致）；评估只读 owner snapshots，不回灌 reward |
 | `ColonyRareHeavyBundle` | `vz-embodiment-ant` | per-individual artifact digest/provenance/gate verdict；不含 temporal state、不新增 slot |
 | evidence manifest | `vz-embodiment-ant` | `digital-ant-manifest.v2` sidecar 绑定 artifact/input digest 与运行 provenance |
 | realtime app DTO | `vz-embodiment-ant` | `digital-ant-app.v2` 的 frozen config/frame/status/command/disturbance；新增 typed object upsert/move/remove、`AppFrame.objects` 和 checkpoint provenance；**不**进入 §3/§6 slot 注册表 |
@@ -836,8 +836,10 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 **关键不变量**：
 
 - `semantic_*_pull` 由 embodiment 发布为感觉/动机预测通道，但不能作为 task outcome 的代理。
-  正式闭环只通过公共 `EnvironmentOutcome.measurement` 进入 PE owner；Internal RL 只消费 PE/credit，
-  禁止 AntWorld 直送 reward、runtime 重算 mismatch 或 evaluation 回灌。
+  正式闭环只通过公共 `EnvironmentOutcome.measurement` 进入 PE owner；Internal RL 只消费
+  PE owner 发布的 typed actual outcome、prediction residual 与 credit，禁止 AntWorld 直送
+  optimizer reward、runtime 重算 mismatch 或 evaluation 回灌。realized utility 与 prediction
+  residual 必须作为不同 reward components 保留，不能互相替代。
 - **import 边界**：`vz-embodiment-ant` 只依赖 `vz-contracts` / `vz-substrate` / `vz-runtime`；
   **禁止**直接 import `volvence_zero.temporal` / `volvence_zero.memory` / `volvence_zero.prediction`
   等内核内部实现。经 `tests/test_import_boundaries.py` 强制。

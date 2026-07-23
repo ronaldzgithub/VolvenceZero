@@ -174,6 +174,8 @@ def _prediction_error(
     prediction_id: str,
     outcome_id: str = "outcome-1",
     next_prediction_id: str = "prediction-next",
+    action_payoff: float = 0.2,
+    signed_reward: float = 0.25,
 ) -> PredictionErrorSnapshot:
     context = PredictionActionContext(
         segment_id="segment-1",
@@ -200,7 +202,7 @@ def _prediction_error(
             task_progress=0.7,
             relationship_delta=0.0,
             regime_stability=0.5,
-            action_payoff=0.2,
+            action_payoff=action_payoff,
             description="realized environment result",
             action_context=context,
         ),
@@ -216,7 +218,7 @@ def _prediction_error(
             regime_error=0.0,
             action_error=-0.2,
             magnitude=0.2,
-            signed_reward=0.25,
+            signed_reward=signed_reward,
             description="PE-derived reward",
         ),
         turn_index=2,
@@ -383,8 +385,47 @@ def test_runtime_replay_settlement_contains_real_action_and_next_substrate_effec
             for index in range(4)
         )
     )
-    assert transition.reward == pytest.approx(0.31)
+    assert transition.reward == pytest.approx(0.26)
+    assert transition.raw_reward == pytest.approx(0.2)
+    assert tuple(name for name, _ in transition.reward_components) == (
+        "realized_action_payoff",
+        "prediction_error_residual",
+        "abstract_action_credit",
+    )
+    assert tuple(value for _, value in transition.reward_components) == pytest.approx(
+        (0.2, 0.25, 0.06)
+    )
     assert transition.lineage_matched is True
+
+
+def test_runtime_replay_optimizes_realized_utility_not_prediction_surprise() -> None:
+    sandbox, _, _ = _sandbox_capture()
+    settlement = sandbox.settle_runtime_action(
+        next_substrate_snapshot=_substrate("utility versus surprise"),
+        environment_outcome=_outcome(prediction_id="prediction-1"),
+        prediction_error_snapshot=_prediction_error(
+            prediction_id="prediction-1",
+            action_payoff=0.4,
+            signed_reward=-0.7,
+        ),
+        credit_snapshot=CreditSnapshot(
+            recent_credits=(),
+            recent_modifications=(),
+            cumulative_credit_by_level=(),
+        ),
+    )
+
+    assert settlement.rollout is not None
+    transition = settlement.rollout.transitions[0]
+    assert transition.reward == pytest.approx(0.4)
+    assert transition.raw_reward == pytest.approx(0.4)
+    assert tuple(name for name, _ in transition.reward_components) == (
+        "realized_action_payoff",
+        "prediction_error_residual",
+    )
+    assert tuple(value for _, value in transition.reward_components) == pytest.approx(
+        (0.4, -0.7)
+    )
 
 
 def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> None:

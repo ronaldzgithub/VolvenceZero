@@ -9,6 +9,7 @@ from pathlib import Path
 
 from volvence_ant.experiments.ecology_p1 import (
     EcologyP1Config,
+    EcologyP1ProgressPaused,
     run_ecology_p1,
     run_ecology_p1_diagnostics,
 )
@@ -33,11 +34,28 @@ async def _run(args: argparse.Namespace) -> int:
         layouts_per_tier=args.layouts_per_tier,
         seed=args.seed,
     )
-    report = (
-        run_ecology_p1_diagnostics(config)
-        if args.diagnostics_only
-        else await run_ecology_p1(config)
-    )
+    progress_dir = None
+    if args.progress_dir is not None:
+        progress_dir = (
+            args.progress_dir
+            if args.progress_dir.is_absolute()
+            else _ROOT / args.progress_dir
+        )
+        progress_dir.relative_to(_ROOT)
+    try:
+        report = (
+            run_ecology_p1_diagnostics(config)
+            if args.diagnostics_only
+            else await run_ecology_p1(
+                config,
+                progress_dir=progress_dir,
+                max_new_work_items=args.max_new_work_items,
+            )
+        )
+    except EcologyP1ProgressPaused as paused:
+        print(str(paused))
+        print(f"progress: {progress_dir.relative_to(_ROOT)}")
+        return 0
     requested_report = (
         _DEFAULT_DIAGNOSTIC_REPORT
         if args.diagnostics_only and args.report == _DEFAULT_REPORT
@@ -73,6 +91,24 @@ def main() -> int:
     parser.add_argument("--layouts-per-tier", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--diagnostics-only", action="store_true")
+    parser.add_argument(
+        "--progress-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Optional resumable progress directory. Training checkpoints are "
+            "journaled after every episode and evaluation after every layout."
+        ),
+    )
+    parser.add_argument(
+        "--max-new-work-items",
+        type=int,
+        default=None,
+        help=(
+            "Stop cleanly after this many newly committed training episodes "
+            "or evaluation layouts; requires --progress-dir."
+        ),
+    )
     parser.add_argument(
         "--report",
         type=Path,

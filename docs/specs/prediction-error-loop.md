@@ -65,7 +65,7 @@
 - 当前 owner 内部已收敛为单一 outcome mapper/head：prediction、actual outcome 与 error weighting 都在 `prediction_error` owner 内完成；consumer 不应重建这三段语义
 - 当前 `magnitude` / `signed_reward` 不再是简单的四维平权 L1/平均，而是结合 prediction confidence 与 axis expectation strength 的 owner-side calibrated readout
 - 当前 `evaluation` 只发布 PE-owner readout（如 `prediction_error_magnitude`、`prediction_error_reward`、`predictive_accuracy`），不再推导第二套 PE 语义
-- Digital Ant ecology 的 environment owner 可在 `EnvironmentOutcome.measurement.action_payoff` 发布有界局部价态：只使用动作前后可感知的 food/home-pheromone/heat signal 变化与离散 pickup/delivery/thermal-threshold 事实，不发布坐标、目标方向或动作标签。中性木棍 contact 只进入 status/evidence 可观察事实，不进入 payoff。PE owner 仍是唯一 mismatch/reward readout owner；embodiment 不直接写 Internal-RL reward。`ecology_local_valence_enabled=False` 仅用于 matched ablation。
+- Digital Ant ecology 的 environment owner 可在 `EnvironmentOutcome.measurement.action_payoff` 发布有界局部价态：只使用动作前后可感知的 food/heat signal、body-side path-integration home-distance progress 与离散 pickup/delivery/thermal-threshold 事实，不发布坐标、目标方向或动作标签。中性木棍 contact 只进入 status/evidence 可观察事实，不进入 payoff。PE owner 是唯一 actual-outcome 归一化与 mismatch owner；runtime replay 优化 PE owner 发布的 `ActualOutcome.action_payoff`，并把 `error.signed_reward` 作为 prediction residual 单独报告，禁止用 actual-minus-predicted residual 替代 realized utility。embodiment 不直接写 Internal-RL reward。`ecology_local_valence_enabled=False` 仅用于 matched ablation。
 
 **evaluation→PE/credit 解耦 gate（`VZ_PE_EVALUATION_DECOUPLED`）**：
 

@@ -5,8 +5,60 @@ from __future__ import annotations
 from volvence_ant.experiments.ecology_curriculum import (
     ECOLOGY_REQUIRED_GATE_NAMES,
     EcologyCurriculumConfig,
+    EcologyDataSplit,
+    EcologyStage,
+    EcologyTrainingTier,
+    _synchronize_forced_return_navigators,
+    _world,
+    _session_config,
     train_and_evaluate_ecology_checkpoint,
 )
+from volvence_ant.runtime import KernelColonyRunner
+
+
+def test_forced_return_curriculum_balances_state_without_action_labels() -> None:
+    config = EcologyCurriculumConfig(
+        n_ants=2,
+        temporal_latent_dim=4,
+        stage_rounds=1,
+        stage_episodes=1,
+        mastery_min_episodes=1,
+        validation_rounds=1,
+        validation_seeds=(13,),
+        heldout_rounds=1,
+        heldout_seeds=(19,),
+        seed=2,
+    )
+    world = _world(
+        config=config,
+        stage=EcologyStage.BUTTER,
+        seed=10,
+        data_split=EcologyDataSplit.TRAIN,
+        tier=EcologyTrainingTier.NEAR,
+        forced_return=True,
+    )
+    runner = KernelColonyRunner(
+        world,
+        base_config=_session_config(
+            config=config,
+            seed=10,
+            session_id="forced-return-test",
+            optimize=False,
+        ),
+    )
+
+    _synchronize_forced_return_navigators(runner)
+
+    assert all(world.body(body_id).carrying_food for body_id in range(2))
+    assert all(
+        session.navigator.state.home_distance > world.config.nest_radius
+        for session in runner.sessions
+    )
+    home_sides = tuple(
+        session.navigator.egocentric_home()[1]
+        for session in runner.sessions
+    )
+    assert home_sides[0] * home_sides[1] < 0.0
 
 
 async def test_ecology_curriculum_exports_checkpoint_and_honest_gates() -> None:

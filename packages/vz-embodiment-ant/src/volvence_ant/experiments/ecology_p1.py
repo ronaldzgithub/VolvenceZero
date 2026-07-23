@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+import os
 import statistics
+import tempfile
 from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
 
 import numpy as np
+
+from volvence_zero.agent import (
+    decode_agent_learning_checkpoint_archive,
+    encode_agent_learning_checkpoint_archive,
+)
 
 from volvence_ant.controllers import FixedRuleAnt, FixedRuleConfig, RandomAnt
 from volvence_ant.env.world_objects import ButterSource, BurningMatch, WoodStick
@@ -15,12 +26,14 @@ from volvence_ant.experiments.ecology_probe import (
     run_ecology_checkpoint_action_probes,
 )
 from volvence_ant.experiments.ecology_curriculum import (
+    ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY,
     EcologyArmMetrics,
     EcologyCurriculumConfig,
     EcologyDataSplit,
     EcologyEvaluationScenario,
     EcologyStage,
     EcologyTrainingEpisodePlan,
+    EcologyTrainingEpisodeReport,
     EcologyTrainingTier,
     _evaluate_arm,
     _ecology_action_chain_guard,
@@ -31,7 +44,8 @@ from volvence_ant.experiments.ecology_curriculum import (
 from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 
 
-ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v4"
+ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v5"
+ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v1"
 ECOLOGY_P1_ARM_NAMES = (
     "learned",
     "no_optimize",
@@ -160,6 +174,374 @@ class EcologyP1DiagnosticReport:
         return asdict(self)
 
 
+class EcologyP1ProgressPaused(RuntimeError):
+    """A bounded resumable run stopped after a committed work item."""
+
+    def __init__(self, *, completed_work_items: int) -> None:
+        self.completed_work_items = completed_work_items
+        super().__init__(
+            "P1 resumable run paused after "
+            f"{completed_work_items} committed work items"
+        )
+
+
+def _json_ready(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            str(key): _json_ready(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (tuple, list)):
+        return [_json_ready(item) for item in value]
+    enum_value = getattr(value, "value", None)
+    if isinstance(enum_value, str):
+        return enum_value
+    return value
+
+
+def _stable_json_bytes(value: Any) -> bytes:
+    return (
+        json.dumps(
+            _json_ready(value),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _sha256(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _atomic_write(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+            temporary = Path(handle.name)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
+def _progress_config_payload(config: EcologyP1Config) -> dict[str, Any]:
+    return _json_ready(asdict(config))
+
+
+def _schedule_digest(
+    schedule: tuple[EcologyTrainingEpisodePlan, ...],
+) -> str:
+    return _sha256(_stable_json_bytes(tuple(asdict(item) for item in schedule)))
+
+
+def _progress_compatibility(
+    config: EcologyP1Config,
+    *,
+    include_memory_capacity: bool = True,
+) -> tuple[tuple[str, str], ...]:
+    values = [
+        ("artifact_kind", ECOLOGY_P1_PROGRESS_SCHEMA_VERSION),
+        ("n_ants", str(config.n_ants)),
+        ("latent_dim", str(config.temporal_latent_dim)),
+        ("runtime_replay", "excluded"),
+    ]
+    if include_memory_capacity:
+        values.append(
+            (
+                "memory_entry_capacity",
+                str(ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY),
+            )
+        )
+    return tuple(values)
+
+
+def _arm_progress_path(progress_dir: Path, arm: str) -> Path:
+    return progress_dir / f"{arm}.json"
+
+
+def _load_arm_progress(
+    *,
+    progress_dir: Path,
+    arm: str,
+    config: EcologyP1Config,
+    schedule_sha256: str,
+) -> dict[str, Any] | None:
+    state_path = _arm_progress_path(progress_dir, arm)
+    if not state_path.exists():
+        return None
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    expected = {
+        "schema_version": ECOLOGY_P1_PROGRESS_SCHEMA_VERSION,
+        "arm": arm,
+        "config": _progress_config_payload(config),
+        "schedule_sha256": schedule_sha256,
+    }
+    for field, value in expected.items():
+        if payload.get(field) != value:
+            raise ValueError(
+                f"P1 progress mismatch for {arm}: field={field}, "
+                f"expected={value!r}, actual={payload.get(field)!r}"
+            )
+    completed = payload.get("completed_training_episodes")
+    if not isinstance(completed, int) or completed < 0:
+        raise ValueError(
+            f"P1 progress for {arm} has invalid completed episode count"
+        )
+    if int(
+        payload.get(
+            "checkpoint_memory_entry_capacity",
+            ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY,
+        )
+    ) != ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY:
+        raise ValueError(
+            f"P1 progress memory capacity mismatch for {arm}"
+        )
+    return payload
+
+
+def _read_progress_archive(
+    *,
+    progress_dir: Path,
+    state: dict[str, Any],
+    config: EcologyP1Config,
+) -> tuple[bytes, ...]:
+    filename = state.get("checkpoint_archive")
+    if not isinstance(filename, str) or not filename:
+        raise ValueError("P1 progress is missing checkpoint_archive")
+    archive_path = (progress_dir / filename).resolve()
+    archive_path.relative_to(progress_dir.resolve())
+    payload = archive_path.read_bytes()
+    if _sha256(payload) != state.get("checkpoint_sha256"):
+        raise ValueError(
+            f"P1 progress archive digest mismatch: {archive_path.name}"
+        )
+    expected_compatibility = _progress_compatibility(
+        config,
+        include_memory_capacity=(
+            "checkpoint_memory_entry_capacity" in state
+        ),
+    )
+    collection = decode_agent_learning_checkpoint_archive(
+        payload,
+        expected_compatibility=expected_compatibility,
+    )
+    if dict(collection.metadata.compatibility) != dict(
+        expected_compatibility
+    ):
+        raise ValueError(
+            "P1 progress checkpoint compatibility mismatch"
+        )
+    return collection.checkpoint_archives
+
+
+def _save_arm_progress(
+    *,
+    progress_dir: Path,
+    arm: str,
+    config: EcologyP1Config,
+    schedule_sha256: str,
+    completed_training_episodes: int,
+    runner: KernelColonyRunner,
+    training_complete: bool,
+    last_episode_report: EcologyTrainingEpisodeReport | None = None,
+) -> None:
+    raw_archives = runner.export_learning_checkpoint_archives(
+        checkpoint_prefix=(
+            f"ecology:p1:progress:{arm}:"
+            f"episode-{completed_training_episodes:04d}"
+        )
+    )
+    archive = encode_agent_learning_checkpoint_archive(
+        raw_archives,
+        compatibility=_progress_compatibility(config),
+    )
+    # Two-slot journal: write the slot not referenced by the previous state,
+    # fsync/rename it, then atomically advance the JSON pointer. This retains
+    # one rollback checkpoint while bounding a long formal run to two colony
+    # archives per arm.
+    archive_name = (
+        f"{arm}.slot-{completed_training_episodes % 2}.vzac"
+    )
+    _atomic_write(progress_dir / archive_name, archive)
+    state = {
+        "schema_version": ECOLOGY_P1_PROGRESS_SCHEMA_VERSION,
+        "arm": arm,
+        "config": _progress_config_payload(config),
+        "schedule_sha256": schedule_sha256,
+        "completed_training_episodes": completed_training_episodes,
+        "training_complete": training_complete,
+        "checkpoint_memory_entry_capacity": (
+            ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY
+        ),
+        "checkpoint_archive": archive_name,
+        "checkpoint_sha256": _sha256(archive),
+        "last_episode": (
+            {
+                "stage": last_episode_report.plan.stage.value,
+                "tier": last_episode_report.plan.tier.value,
+                "episode_index": (
+                    last_episode_report.plan.episode_index
+                ),
+                "forced_escape": (
+                    last_episode_report.plan.forced_escape
+                ),
+                "forced_return": (
+                    last_episode_report.plan.forced_return
+                ),
+                "pickups": last_episode_report.pickups,
+                "deliveries": last_episode_report.deliveries,
+                "heat_entries": last_episode_report.heat_entries,
+                "heat_escapes": last_episode_report.heat_escapes,
+                "memory_entries_evicted": (
+                    last_episode_report.memory_entries_evicted
+                ),
+            }
+            if last_episode_report is not None
+            else None
+        ),
+    }
+    _atomic_write(
+        _arm_progress_path(progress_dir, arm),
+        _stable_json_bytes(state),
+    )
+
+
+def _hydrate_progress_checkpoints(
+    *,
+    config: EcologyP1Config,
+    curriculum: EcologyCurriculumConfig,
+    archives: tuple[bytes, ...],
+    arm: str,
+) -> tuple[AntLearningCheckpoint, ...]:
+    runner = KernelColonyRunner(
+        _world(
+            config=curriculum,
+            stage=EcologyStage.COMPOSITE,
+            seed=config.seed,
+            data_split=EcologyDataSplit.TRAIN,
+            tier=EcologyTrainingTier.NEAR,
+        ),
+        base_config=_session_config(
+            config=curriculum,
+            seed=config.seed,
+            session_id=f"ecology:p1:progress:{arm}:hydrate",
+            optimize=False,
+        ),
+    )
+    runner.restore_learning_checkpoint_archives(archives)
+    return runner.export_learning_checkpoints(
+        checkpoint_prefix=f"ecology:p1:progress:{arm}:hydrated",
+        include_runtime_replay=False,
+    )
+
+
+def _layout_result_from_dict(
+    payload: dict[str, Any],
+) -> EcologyP1LayoutResult:
+    return EcologyP1LayoutResult(
+        arm=str(payload["arm"]),
+        capability=str(payload["capability"]),
+        seed=int(payload["seed"]),
+        tier=str(payload["tier"]),
+        successful_bodies=int(payload["successful_bodies"]),
+        required_bodies=int(payload["required_bodies"]),
+        layout_success=bool(payload["layout_success"]),
+        harmful_tick_rate=float(payload["harmful_tick_rate"]),
+        escape_latencies=tuple(
+            int(value) for value in payload["escape_latencies"]
+        ),
+        switch_count=int(payload["switch_count"]),
+        non_timeout_segment_closures=int(
+            payload["non_timeout_segment_closures"]
+        ),
+        policy_fingerprint_stable=bool(
+            payload["policy_fingerprint_stable"]
+        ),
+        temporal_learning_fingerprint_stable=bool(
+            payload["temporal_learning_fingerprint_stable"]
+        ),
+        replay_settlement_coverage=float(
+            payload["replay_settlement_coverage"]
+        ),
+        replay_lineage_coverage=float(
+            payload["replay_lineage_coverage"]
+        ),
+        replay_drop_count=int(payload["replay_drop_count"]),
+    )
+
+
+def _evaluation_progress_path(progress_dir: Path) -> Path:
+    return progress_dir / "evaluations.json"
+
+
+def _load_evaluation_progress(
+    *,
+    progress_dir: Path,
+    config: EcologyP1Config,
+    schedule_sha256: str,
+    arm_checkpoint_sha256: dict[str, str],
+) -> list[EcologyP1LayoutResult]:
+    path = _evaluation_progress_path(progress_dir)
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    expected = {
+        "schema_version": ECOLOGY_P1_PROGRESS_SCHEMA_VERSION,
+        "config": _progress_config_payload(config),
+        "schedule_sha256": schedule_sha256,
+    }
+    for field, value in expected.items():
+        if payload.get(field) != value:
+            raise ValueError(
+                f"P1 evaluation progress mismatch: field={field}"
+            )
+    if payload.get("arm_checkpoint_sha256") != arm_checkpoint_sha256:
+        # Training resumed from an earlier immutable episode and produced a
+        # different final checkpoint. Existing evaluation rows remain on disk
+        # for audit but are not eligible for reuse under the new checkpoint.
+        return []
+    raw_results = payload.get("layout_results")
+    if not isinstance(raw_results, list):
+        raise ValueError("P1 evaluation progress results must be a list")
+    return [
+        _layout_result_from_dict(item)
+        for item in raw_results
+    ]
+
+
+def _save_evaluation_progress(
+    *,
+    progress_dir: Path,
+    config: EcologyP1Config,
+    schedule_sha256: str,
+    arm_checkpoint_sha256: dict[str, str],
+    results: list[EcologyP1LayoutResult],
+) -> None:
+    payload = {
+        "schema_version": ECOLOGY_P1_PROGRESS_SCHEMA_VERSION,
+        "config": _progress_config_payload(config),
+        "schedule_sha256": schedule_sha256,
+        "arm_checkpoint_sha256": arm_checkpoint_sha256,
+        "layout_results": [asdict(item) for item in results],
+    }
+    _atomic_write(
+        _evaluation_progress_path(progress_dir),
+        _stable_json_bytes(payload),
+    )
+
+
 def _curriculum_config(config: EcologyP1Config) -> EcologyCurriculumConfig:
     return EcologyCurriculumConfig(
         n_ants=config.n_ants,
@@ -182,9 +564,11 @@ def _curriculum_config(config: EcologyP1Config) -> EcologyCurriculumConfig:
 
 
 def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan, ...]:
-    specs: list[tuple[EcologyStage, EcologyTrainingTier, bool]] = [
-        (stage, EcologyTrainingTier.NEAR, forced)
-        for stage, forced in (
+    specs: list[
+        tuple[EcologyStage, EcologyTrainingTier, bool, bool]
+    ] = [
+        (stage, EcologyTrainingTier.NEAR, forced_escape, False)
+        for stage, forced_escape in (
             (EcologyStage.BUTTER, False),
             (EcologyStage.BURNING_MATCH, True),
             (EcologyStage.COMPOSITE, False),
@@ -192,13 +576,22 @@ def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan
         for _ in range(config.layouts_per_tier)
     ]
     specs.extend(
-        (EcologyStage.BUTTER, tier, False)
+        (
+            EcologyStage.BUTTER,
+            EcologyTrainingTier.NEAR,
+            False,
+            True,
+        )
+        for _ in range(config.layouts_per_tier)
+    )
+    specs.extend(
+        (EcologyStage.BUTTER, tier, False, False)
         for tier in (EcologyTrainingTier.MEDIUM, EcologyTrainingTier.FAR)
         for _ in range(config.layouts_per_tier)
     )
     specs.extend(
-        (stage, tier, forced)
-        for stage, tier, forced in (
+        (stage, tier, forced_escape, False)
+        for stage, tier, forced_escape in (
             (EcologyStage.BURNING_MATCH, EcologyTrainingTier.NEAR, True),
             (EcologyStage.COMPOSITE, EcologyTrainingTier.FAR, False),
             (EcologyStage.WOOD_STICK, EcologyTrainingTier.FAR, False),
@@ -213,9 +606,15 @@ def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan
             seed=config.seed + 10_000 + index * 101,
             episode_index=index,
             interleaved=False,
-            forced_escape=forced,
+            forced_escape=forced_escape,
+            forced_return=forced_return,
         )
-        for index, (stage, tier, forced) in enumerate(specs)
+        for index, (
+            stage,
+            tier,
+            forced_escape,
+            forced_return,
+        ) in enumerate(specs)
     )
 
 
@@ -556,7 +955,19 @@ def run_ecology_p1_diagnostics(
     )
 
 
-async def run_ecology_p1(config: EcologyP1Config) -> EcologyP1Report:
+async def run_ecology_p1(
+    config: EcologyP1Config,
+    *,
+    progress_dir: Path | None = None,
+    max_new_work_items: int | None = None,
+) -> EcologyP1Report:
+    if max_new_work_items is not None and max_new_work_items < 1:
+        raise ValueError("max_new_work_items must be positive")
+    if max_new_work_items is not None and progress_dir is None:
+        raise ValueError(
+            "max_new_work_items requires a resumable progress_dir"
+        )
+    completed_work_items = 0
     curriculum = _curriculum_config(config)
     bootstrap = KernelColonyRunner(
         _world(
@@ -578,41 +989,189 @@ async def run_ecology_p1(config: EcologyP1Config) -> EcologyP1Report:
         include_runtime_replay=False,
     )
     schedule = _fixed_schedule(config)
-    arms: dict[str, tuple[AntLearningCheckpoint, ...]] = {"cold": initial}
+    schedule_sha256 = _schedule_digest(schedule)
+    resolved_progress = (
+        progress_dir.resolve()
+        if progress_dir is not None
+        else None
+    )
+    if resolved_progress is not None:
+        resolved_progress.mkdir(parents=True, exist_ok=True)
+        cold_state = _load_arm_progress(
+            progress_dir=resolved_progress,
+            arm="cold",
+            config=config,
+            schedule_sha256=schedule_sha256,
+        )
+        if cold_state is None:
+            _save_arm_progress(
+                progress_dir=resolved_progress,
+                arm="cold",
+                config=config,
+                schedule_sha256=schedule_sha256,
+                completed_training_episodes=0,
+                runner=bootstrap,
+                training_complete=True,
+            )
+        else:
+            initial = _hydrate_progress_checkpoints(
+                config=config,
+                curriculum=curriculum,
+                archives=_read_progress_archive(
+                    progress_dir=resolved_progress,
+                    state=cold_state,
+                    config=config,
+                ),
+                arm="cold",
+            )
+    arms: dict[str, tuple[AntLearningCheckpoint, ...]] = {
+        "cold": initial
+    }
     for arm, optimize, shaping, segment in (
         ("learned", True, True, True),
         ("no_optimize", False, True, True),
         ("dense_local_shaping_off", True, False, True),
         ("segment_credit_off", True, True, False),
     ):
-        checkpoints, _, _, _, _ = await _train_arm(
-            config=curriculum,
-            initial=initial,
-            arm=arm,
-            optimize=optimize,
-            local_valence_enabled=shaping,
-            segment_credit_enabled=segment,
-            schedule=schedule,
-        )
+        completed = 0
+        arm_initial = initial
+        if resolved_progress is not None:
+            state = _load_arm_progress(
+                progress_dir=resolved_progress,
+                arm=arm,
+                config=config,
+                schedule_sha256=schedule_sha256,
+            )
+            if state is not None:
+                completed = int(
+                    state["completed_training_episodes"]
+                )
+                if completed > len(schedule):
+                    raise ValueError(
+                        f"P1 progress for {arm} exceeds schedule length"
+                    )
+                if bool(state.get("training_complete")) != (
+                    completed == len(schedule)
+                ):
+                    raise ValueError(
+                        f"P1 progress completion flag mismatch for {arm}"
+                    )
+                arm_initial = _hydrate_progress_checkpoints(
+                    config=config,
+                    curriculum=curriculum,
+                    archives=_read_progress_archive(
+                        progress_dir=resolved_progress,
+                        state=state,
+                        config=config,
+                    ),
+                    arm=arm,
+                )
+
+        def save_episode(
+            schedule_index: int,
+            runner: KernelColonyRunner,
+            _checkpoints: tuple[AntLearningCheckpoint, ...],
+            _report: EcologyTrainingEpisodeReport,
+            *,
+            active_arm: str = arm,
+        ) -> None:
+            nonlocal completed_work_items
+            if resolved_progress is None:
+                return
+            completed_count = schedule_index + 1
+            _save_arm_progress(
+                progress_dir=resolved_progress,
+                arm=active_arm,
+                config=config,
+                schedule_sha256=schedule_sha256,
+                completed_training_episodes=completed_count,
+                runner=runner,
+                training_complete=(
+                    completed_count == len(schedule)
+                ),
+                last_episode_report=_report,
+            )
+            completed_work_items += 1
+            if (
+                max_new_work_items is not None
+                and completed_work_items >= max_new_work_items
+            ):
+                raise EcologyP1ProgressPaused(
+                    completed_work_items=completed_work_items
+                )
+
+        if completed == len(schedule):
+            checkpoints = arm_initial
+        else:
+            checkpoints, _, _, _, _ = await _train_arm(
+                config=curriculum,
+                initial=arm_initial,
+                arm=arm,
+                optimize=optimize,
+                local_valence_enabled=shaping,
+                segment_credit_enabled=segment,
+                schedule=schedule,
+                schedule_start_index=completed,
+                episode_callback=(
+                    save_episode
+                    if resolved_progress is not None
+                    else None
+                ),
+            )
         arms[arm] = checkpoints
-    results: list[EcologyP1LayoutResult] = []
+    arm_checkpoint_sha256: dict[str, str] = {}
+    if resolved_progress is not None:
+        for arm in ECOLOGY_P1_ARM_NAMES:
+            state = _load_arm_progress(
+                progress_dir=resolved_progress,
+                arm=arm,
+                config=config,
+                schedule_sha256=schedule_sha256,
+            )
+            if state is None or not state.get("training_complete"):
+                raise RuntimeError(
+                    f"P1 arm {arm} is not complete before evaluation"
+                )
+            arm_checkpoint_sha256[arm] = str(
+                state["checkpoint_sha256"]
+            )
+    results = (
+        _load_evaluation_progress(
+            progress_dir=resolved_progress,
+            config=config,
+            schedule_sha256=schedule_sha256,
+            arm_checkpoint_sha256=arm_checkpoint_sha256,
+        )
+        if resolved_progress is not None
+        else []
+    )
+    existing_result_keys = {
+        (item.arm, item.capability, item.seed)
+        for item in results
+    }
+    if len(existing_result_keys) != len(results):
+        raise ValueError("P1 evaluation progress contains duplicates")
     for arm in ECOLOGY_P1_ARM_NAMES:
         for capability_index, (capability, scenario, tier) in enumerate(
             _evaluation_specs()
         ):
             for index in range(config.layouts_per_tier):
+                evaluation_seed = (
+                    config.seed
+                    + 2_000_003
+                    + capability_index * 10_007
+                    + index * 103
+                )
+                result_key = (arm, capability, evaluation_seed)
+                if result_key in existing_result_keys:
+                    continue
                 metrics = await _evaluate_arm(
                     config=curriculum,
                     checkpoints=arms[arm],
                     arm=arm,
                     data_split=EcologyDataSplit.HELDOUT,
                     scenario=scenario,
-                    seed=(
-                        config.seed
-                        + 2_000_003
-                        + capability_index * 10_007
-                        + index * 103
-                    ),
+                    seed=evaluation_seed,
                     tier=tier,
                 )
                 results.append(
@@ -622,7 +1181,48 @@ async def run_ecology_p1(config: EcologyP1Config) -> EcologyP1Report:
                         metrics=metrics,
                     )
                 )
-    result_tuple = tuple(results)
+                existing_result_keys.add(result_key)
+                if resolved_progress is not None:
+                    _save_evaluation_progress(
+                        progress_dir=resolved_progress,
+                        config=config,
+                        schedule_sha256=schedule_sha256,
+                        arm_checkpoint_sha256=(
+                            arm_checkpoint_sha256
+                        ),
+                        results=results,
+                    )
+                    completed_work_items += 1
+                    if (
+                        max_new_work_items is not None
+                        and completed_work_items
+                        >= max_new_work_items
+                    ):
+                        raise EcologyP1ProgressPaused(
+                            completed_work_items=(
+                                completed_work_items
+                            )
+                        )
+    arm_order = {
+        arm: index
+        for index, arm in enumerate(ECOLOGY_P1_ARM_NAMES)
+    }
+    capability_order = {
+        capability: index
+        for index, (capability, _, _) in enumerate(
+            _evaluation_specs()
+        )
+    }
+    result_tuple = tuple(
+        sorted(
+            results,
+            key=lambda item: (
+                arm_order[item.arm],
+                capability_order[item.capability],
+                item.seed,
+            ),
+        )
+    )
     diagnostics = tuple(
         _run_diagnostic_layout(
             config=config,
@@ -884,6 +1484,7 @@ __all__ = [
     "EcologyP1DiagnosticResult",
     "EcologyP1DiagnosticReport",
     "EcologyP1LayoutResult",
+    "EcologyP1ProgressPaused",
     "EcologyP1Report",
     "run_ecology_p1",
     "run_ecology_p1_diagnostics",

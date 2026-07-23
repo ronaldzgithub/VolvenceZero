@@ -303,6 +303,52 @@ class MemoryStore:
         )
         return entry
 
+    def enforce_artifact_capacity(
+        self,
+        max_entries: int,
+    ) -> tuple[str, ...]:
+        """Evict least valuable explicit artifacts to a bounded capacity.
+
+        The learned CMS state is untouched. Explicit artifacts are ordered by
+        stratum durability, strength and recency so transient/episodic,
+        weak, old entries leave first. The owner updates every coupled index
+        atomically; checkpoint/archive code never edits memory payloads.
+        """
+
+        if max_entries < 1:
+            raise ValueError("memory artifact capacity must be positive")
+        entries = self._artifact_store.export_entries()
+        excess = len(entries) - max_entries
+        if excess <= 0:
+            return ()
+        stratum_rank = {
+            MemoryStratum.TRANSIENT.value: 0,
+            MemoryStratum.EPISODIC.value: 1,
+            MemoryStratum.DERIVED.value: 2,
+            MemoryStratum.DURABLE.value: 3,
+        }
+        candidates = sorted(
+            entries,
+            key=lambda entry: (
+                stratum_rank[entry.stratum],
+                entry.strength,
+                entry.last_accessed_ms,
+                entry.created_at_ms,
+                entry.entry_id,
+            ),
+        )
+        evicted: list[str] = []
+        for entry in candidates[:excess]:
+            removed = self._artifact_store.delete_entry(
+                entry.entry_id
+            )
+            if removed is None:
+                continue
+            self._derived_index.delete_entry(entry.entry_id)
+            self._entry_attributes.pop(entry.entry_id, None)
+            evicted.append(entry.entry_id)
+        return tuple(evicted)
+
     def retrieve(
         self,
         query: RetrievalQuery,

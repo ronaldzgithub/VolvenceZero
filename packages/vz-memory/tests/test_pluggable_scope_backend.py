@@ -21,6 +21,7 @@ from volvence_zero.memory import (
     EndUserIdentity,
     FileSystemPersistenceBackend,
     InMemoryPersistenceBackend,
+    MemoryStore,
     MemoryStratum,
     MemoryWriteRequest,
     TenantIdentity,
@@ -120,6 +121,42 @@ def test_resolve_postgres_without_driver_fails_loud(monkeypatch) -> None:
 
 
 _TS = 1_700_000_000_000
+
+
+def test_memory_owner_enforces_bounded_artifact_capacity() -> None:
+    store = MemoryStore()
+    for index, stratum in enumerate(
+        (
+            MemoryStratum.TRANSIENT,
+            MemoryStratum.EPISODIC,
+            MemoryStratum.DURABLE,
+            MemoryStratum.DERIVED,
+            MemoryStratum.DURABLE,
+        )
+    ):
+        store.write(
+            MemoryWriteRequest(
+                content=f"entry-{index}",
+                track=Track.SHARED,
+                stratum=stratum,
+                strength=0.2 + index * 0.1,
+            ),
+            timestamp_ms=_TS + index,
+        )
+
+    evicted = store.enforce_artifact_capacity(3)
+    checkpoint = store.create_checkpoint(
+        checkpoint_id="bounded-memory"
+    )
+    entry_ids = {entry.entry_id for entry in checkpoint.entries}
+    semantic_ids = {
+        entry_id for entry_id, _ in checkpoint.semantic_index
+    }
+
+    assert len(evicted) == 2
+    assert len(checkpoint.entries) == 3
+    assert entry_ids == semantic_ids
+    assert set(checkpoint.pending_promotions) <= entry_ids
 
 
 def _durable_write(store, content: str, scope: str) -> None:

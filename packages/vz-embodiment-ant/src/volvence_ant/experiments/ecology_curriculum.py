@@ -44,7 +44,8 @@ from volvence_ant.runtime import (
 )
 
 
-ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v5"
+ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v6"
+ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY = 8192
 ECOLOGY_REQUIRED_GATE_NAMES = (
     "training_event_coverage",
     "paired_action_sensitivity",
@@ -239,6 +240,7 @@ class EcologyTrainingEpisodePlan:
     episode_index: int
     interleaved: bool
     forced_escape: bool
+    forced_return: bool = False
 
 
 @dataclass(frozen=True)
@@ -261,6 +263,7 @@ class EcologyTrainingEpisodeReport:
     longest_segment_length: int
     policy_fingerprints_before: tuple[str, ...]
     policy_fingerprints_after: tuple[str, ...]
+    memory_entries_evicted: int
     action_chain_guard_passed: bool = True
     action_chain_rollback_applied: bool = False
     action_chain_failures: tuple[str, ...] = ()
@@ -427,7 +430,12 @@ def _world(
     data_split: EcologyDataSplit,
     tier: EcologyTrainingTier,
     forced_escape: bool = False,
+    forced_return: bool = False,
 ) -> ColonyWorld:
+    if forced_escape and forced_return:
+        raise ValueError(
+            "an ecology episode cannot force escape and return together"
+        )
     split_offset = {
         EcologyDataSplit.TRAIN: 17,
         EcologyDataSplit.VALIDATION: 3_000_017,
@@ -469,7 +477,52 @@ def _world(
                 y=match.y + math.sin(angle) * spawn_radius,
                 heading=(angle + math.pi / 2.0),
             )
+    elif forced_return:
+        radius = {
+            EcologyTrainingTier.NEAR: 1.5,
+            EcologyTrainingTier.MEDIUM: 2.5,
+            EcologyTrainingTier.FAR: 4.0,
+        }[tier]
+        bearing_offset = {
+            EcologyTrainingTier.NEAR: math.pi / 6.0,
+            EcologyTrainingTier.MEDIUM: math.pi / 4.0,
+            EcologyTrainingTier.FAR: math.pi / 3.0,
+        }[tier]
+        for body_id in range(config.n_ants):
+            angle = (
+                (body_id + 1) * 2.399963229728653
+                + seed * 0.017
+            )
+            home_bearing = angle + math.pi
+            side = 1.0 if (seed + body_id) % 2 == 0 else -1.0
+            world.set_body_pose(
+                body_id=body_id,
+                x=world.nest[0] + math.cos(angle) * radius,
+                y=world.nest[1] + math.sin(angle) * radius,
+                heading=home_bearing - side * bearing_offset,
+                carrying_food=True,
+            )
     return world
+
+
+def _synchronize_forced_return_navigators(
+    runner: KernelColonyRunner,
+) -> None:
+    """Initialize PI at a curriculum reset without leaking pose downstream."""
+
+    for body_id, session in enumerate(runner.sessions):
+        body = runner.world.body(body_id)
+        session.navigator.sync_to(
+            x=body.x,
+            y=body.y,
+            heading=body.heading,
+            nest=runner.world.nest,
+        )
+        session.holder.update(
+            observation=runner.world.observe(body_id),
+            navigator_state=session.navigator.state,
+            step=runner.world.tick,
+        )
 
 
 def _session_config(
@@ -824,6 +877,7 @@ async def _run_training_episode(
             data_split=EcologyDataSplit.TRAIN,
             tier=plan.tier,
             forced_escape=plan.forced_escape,
+            forced_return=plan.forced_return,
         ),
         base_config=_session_config(
             config=config,
@@ -837,9 +891,19 @@ async def _run_training_episode(
             segment_credit_enabled=segment_credit_enabled,
         ),
     )
+    if plan.forced_return:
+        _synchronize_forced_return_navigators(runner)
     runner.restore_learning_checkpoints(checkpoints)
     before = _policy_fingerprints(checkpoints)
     await runner.run(config.stage_rounds)
+    memory_entries_evicted = sum(
+        len(
+            session.runner.memory_store.enforce_artifact_capacity(
+                ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY
+            )
+        )
+        for session in runner.sessions
+    )
     trained = runner.export_learning_checkpoints(
         checkpoint_prefix=(
             f"ecology:{arm}:{plan.stage.value}:{plan.tier.value}:"
@@ -925,6 +989,7 @@ async def _run_training_episode(
         ),
         policy_fingerprints_before=before,
         policy_fingerprints_after=_policy_fingerprints(trained),
+        memory_entries_evicted=memory_entries_evicted,
         action_chain_guard_passed=action_chain_guard_passed,
         action_chain_rollback_applied=action_chain_rollback_applied,
         action_chain_failures=action_chain_failures,
@@ -947,6 +1012,17 @@ async def _train_arm(
     local_valence_enabled: bool,
     segment_credit_enabled: bool,
     schedule: tuple[EcologyTrainingEpisodePlan, ...] | None = None,
+    schedule_start_index: int = 0,
+    episode_callback: Callable[
+        [
+            int,
+            KernelColonyRunner,
+            tuple[AntLearningCheckpoint, ...],
+            EcologyTrainingEpisodeReport,
+        ],
+        None,
+    ]
+    | None = None,
 ) -> tuple[
     tuple[AntLearningCheckpoint, ...],
     tuple[bytes, ...],
@@ -961,6 +1037,16 @@ async def _train_arm(
     mastery: list[EcologyStageMastery] = []
     runner: KernelColonyRunner | None = None
     action_probe_baseline_reports = None
+    if schedule_start_index < 0:
+        raise ValueError("schedule_start_index must be non-negative")
+    if schedule is None and schedule_start_index:
+        raise ValueError(
+            "schedule_start_index requires an explicit fixed schedule"
+        )
+    if schedule is not None and schedule_start_index > len(schedule):
+        raise ValueError(
+            "schedule_start_index exceeds fixed schedule length"
+        )
     if config.action_probe_guard_enabled:
         action_probe_baseline_reports = (
             await run_ecology_checkpoint_action_probes(
@@ -976,7 +1062,10 @@ async def _train_arm(
             )
         )
     if schedule is not None:
-        for plan in schedule:
+        for schedule_index, plan in enumerate(
+            schedule[schedule_start_index:],
+            start=schedule_start_index,
+        ):
             runner, checkpoints, report = await _run_training_episode(
                 config=config,
                 checkpoints=checkpoints,
@@ -992,6 +1081,13 @@ async def _train_arm(
             )
             plans.append(plan)
             reports.append(report)
+            if episode_callback is not None:
+                episode_callback(
+                    schedule_index,
+                    runner,
+                    checkpoints,
+                    report,
+                )
             print(
                 (
                     f"[ecology:{arm}] replay stage={plan.stage.value} "

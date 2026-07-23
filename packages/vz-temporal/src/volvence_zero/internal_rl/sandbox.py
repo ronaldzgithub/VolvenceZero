@@ -1787,7 +1787,17 @@ class InternalRLSandbox:
         credit_snapshot: CreditSnapshot | None,
         prediction_error_reward_enabled: bool = True,
     ) -> RuntimeReplaySettlement:
-        """Settle the prior action using only matching PE-first evidence."""
+        """Settle the prior action using only matching PE-owner evidence.
+
+        ``PredictionError.signed_reward`` is a residual
+        (actual-minus-predicted), not the realized utility of the action.  A
+        policy trained on that residual would stop reinforcing a beneficial
+        action as soon as the predictor learned to expect its payoff.  Runtime
+        replay therefore optimizes the PE owner's typed
+        ``ActualOutcome.action_payoff`` and retains signed PE as a diagnostic
+        component.  The environment measurement is never consumed directly as
+        optimizer reward here.
+        """
 
         capture = self._pending_runtime_capture
         if capture is None:
@@ -1859,12 +1869,15 @@ class InternalRLSandbox:
                 * 0.1
                 * (1.0 + max(0.0, prediction_error_snapshot.error.magnitude))
             )
-        pe_reward = (
-            _clamp(prediction_error_snapshot.error.signed_reward)
+        realized_action_payoff = (
+            _clamp(prediction_error_snapshot.actual_outcome.action_payoff)
             if prediction_error_reward_enabled
             else 0.0
         )
-        reward = _clamp(pe_reward + segment_bonus)
+        pe_residual = _clamp(
+            prediction_error_snapshot.error.signed_reward
+        )
+        reward = _clamp(realized_action_payoff + segment_bonus)
         next_signature = _surface_signature(
             next_substrate_snapshot,
             self._causal_policy.n_z,
@@ -1873,7 +1886,10 @@ class InternalRLSandbox:
             _clamp(next_signature[index] - capture.observation_signature[index])
             for index in range(self._causal_policy.n_z)
         )
-        reward_components = [("prediction_error", pe_reward)]
+        reward_components = [
+            ("realized_action_payoff", realized_action_payoff),
+            ("prediction_error_residual", pe_residual),
+        ]
         if abs(segment_bonus) > 1e-12:
             reward_components.append(("abstract_action_credit", segment_bonus))
         runtime_state = capture.runtime_state
@@ -1893,7 +1909,7 @@ class InternalRLSandbox:
             policy_score=runtime_state.policy_replacement_score,
             log_prob=capture.log_prob,
             reward=reward,
-            raw_reward=pe_reward,
+            raw_reward=realized_action_payoff,
             policy_replacement_quality=1.0,
             backend_name="runtime-replay",
             backend_fidelity=1.0,
@@ -1939,7 +1955,8 @@ class InternalRLSandbox:
             total_reward=reward,
             description=(
                 "Real runtime replay settled from next substrate dynamics and "
-                f"PE-first credit for prediction {capture.prediction_id}."
+                "PE-owner realized utility plus typed segment credit for "
+                f"prediction {capture.prediction_id}."
             ),
             replacement_mode="runtime-replay",
             reward_mode="runtime-replay",
