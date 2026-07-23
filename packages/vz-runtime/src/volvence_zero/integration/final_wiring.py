@@ -267,6 +267,13 @@ class FinalRolloutConfig:
     # sample noise with a reproducible low-discrepancy sample; it never encodes
     # an environment-specific direction and remains inside posterior std.
     internal_rl_runtime_exploration_strength: float = 0.0
+    # Optional direction-free PE→beta bridge. ACTIVE converts only the
+    # previous turn's prediction-error magnitude above the configured floor
+    # into bounded switch pressure; it never supplies an action or target
+    # direction. DISABLED is the byte-stable default.
+    prediction_error_temporal_switch: WiringLevel = WiringLevel.DISABLED
+    prediction_error_temporal_switch_strength: float = 0.35
+    prediction_error_temporal_switch_floor: float = 0.5
     # Phase 2 W2.B of the EQ-owner uplift: session_post_slow_loop is
     # ACTIVE by default. The module's own ``default_wiring_level`` is
     # already ACTIVE; the previous SHADOW override was a treatment-mode

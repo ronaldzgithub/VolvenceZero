@@ -15,6 +15,7 @@ from volvence_zero.agent import (
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 
 from volvence_ant.evidence.ecology_checkpoint import (
+    _validated_report_verdict,
     load_promoted_ecology_checkpoint,
     write_ecology_checkpoint_bundle,
 )
@@ -200,3 +201,11 @@ def test_checkpoint_writer_rejects_verdict_gate_contradiction(
             report_path=tmp_path / "ecology.json",
             repo_root=tmp_path,
         )
+
+
+def test_checkpoint_loader_rejects_legacy_curriculum_schema() -> None:
+    payload = _candidate("PASS").report.to_dict()
+    payload["schema_version"] = "digital-ant-ecology-curriculum.v4"
+
+    with pytest.raises(AntArtifactIntegrityError, match="unexpected ecology"):
+        _validated_report_verdict(payload)

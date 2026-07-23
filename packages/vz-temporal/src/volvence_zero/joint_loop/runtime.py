@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import hashlib
+import math
 from typing import Any
 
 from volvence_zero.canonical_json import (
@@ -155,6 +156,9 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         runtime_replay_prediction_error_enabled: bool = True,
         runtime_replay_segment_credit: WiringLevel = WiringLevel.DISABLED,
         runtime_replay_segment_max_steps: int = 24,
+        prediction_error_temporal_switch: WiringLevel = WiringLevel.DISABLED,
+        prediction_error_temporal_switch_strength: float = 0.35,
+        prediction_error_temporal_switch_floor: float = 0.5,
     ) -> None:
         self._world_policy = world_policy or policy or FullLearnedTemporalPolicy()
         self._self_policy = self_policy or FullLearnedTemporalPolicy(
@@ -185,6 +189,24 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._previous_family_signals: dict[str, float] = {}
         self._previous_credit_snapshot: CreditSnapshot | None = None
         self._external_learning_signals: dict[str, float] = {}
+        self._prediction_error_temporal_switch = (
+            prediction_error_temporal_switch
+        )
+        if not 0.0 <= prediction_error_temporal_switch_strength <= 1.0:
+            raise ValueError(
+                "prediction_error_temporal_switch_strength must be within "
+                "[0, 1]"
+            )
+        if prediction_error_temporal_switch_floor < 0.0:
+            raise ValueError(
+                "prediction_error_temporal_switch_floor must be >= 0"
+            )
+        self._prediction_error_temporal_switch_strength = float(
+            prediction_error_temporal_switch_strength
+        )
+        self._prediction_error_temporal_switch_floor = float(
+            prediction_error_temporal_switch_floor
+        )
         self._primary_prediction_error_dominance_enabled = primary_prediction_error_dominance_enabled
         self._last_schedule_action = "evidence-only"
         self._last_learning_turn_index = 0
@@ -213,6 +235,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._runtime_replay_drop_reasons: list[str] = []
         self._runtime_segment_closed_count = 0
         self._runtime_longest_segment_length = 0
+        self._runtime_last_segment_close_reason = ""
+        self._runtime_segment_close_reason_counts: dict[str, int] = {}
         # T3 (#88): learned SSL->RL schedule gate, report-only SHADOW.
         # The rule cascade stays the live writer; the learner's shadow
         # recommendation is published in schedule telemetry and settled
@@ -226,6 +250,25 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
 
     def set_external_learning_signals(self, signals: dict[str, float]) -> None:
         self._external_learning_signals = dict(signals)
+        if self._prediction_error_temporal_switch is WiringLevel.DISABLED:
+            return
+        magnitude = abs(float(signals.get("prediction_error_magnitude", 0.0)))
+        excess = max(
+            0.0,
+            magnitude - self._prediction_error_temporal_switch_floor,
+        )
+        switch_pressure = min(
+            0.18,
+            self._prediction_error_temporal_switch_strength
+            * math.tanh(excess),
+        )
+        applied = (
+            self._prediction_error_temporal_switch is WiringLevel.ACTIVE
+        )
+        for policy in (self._world_policy, self._self_policy):
+            policy.parameter_store.record_prediction_error_switch_pressure(
+                switch_pressure if applied else 0.0
+            )
 
     @property
     def internal_rl_runtime_replay(self) -> WiringLevel:
@@ -278,6 +321,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             ),
             closed_segment_count=self._runtime_segment_closed_count,
             longest_segment_length=self._runtime_longest_segment_length,
+            last_segment_close_reason=(
+                self._runtime_last_segment_close_reason
+            ),
+            segment_close_reason_counts=tuple(
+                sorted(self._runtime_segment_close_reason_counts.items())
+            ),
         )
 
     def observe_runtime_transition(
@@ -478,6 +527,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             )
         )
         self._runtime_segment_closed_count += 1
+        self._runtime_last_segment_close_reason = reason
+        self._runtime_segment_close_reason_counts[reason] = (
+            self._runtime_segment_close_reason_counts.get(reason, 0) + 1
+        )
         self._runtime_longest_segment_length = max(
             self._runtime_longest_segment_length,
             segment_length,
@@ -815,6 +868,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             self._runtime_replay_drop_reasons = []
             self._runtime_segment_closed_count = 0
             self._runtime_longest_segment_length = 0
+            self._runtime_last_segment_close_reason = ""
+            self._runtime_segment_close_reason_counts = {}
             return operations + ("runtime-replay:episode-transfer-reset",)
         return operations
 

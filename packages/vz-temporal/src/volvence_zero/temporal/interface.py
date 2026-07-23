@@ -207,6 +207,7 @@ class MetacontrollerRuntimeState:
     fast_prior_family_bias: float = 0.0
     fast_prior_sequence_bias: float = 0.0
     fast_prior_switch_pressure_delta: float = 0.0
+    prediction_error_switch_pressure_delta: float = 0.0
     # protocol-temporal-prior bridge (observable SHADOW evidence). The prior
     # is recorded every turn the bridge is not DISABLED; ``applied`` reflects
     # whether it actually reached beta_t (ACTIVE) vs recorded-only (SHADOW).
@@ -418,6 +419,7 @@ class LatestMetacontrollerTelemetry:
     fast_prior_family_bias: float = 0.0
     fast_prior_sequence_bias: float = 0.0
     fast_prior_switch_pressure_delta: float = 0.0
+    prediction_error_switch_pressure_delta: float = 0.0
 
 
 class MetacontrollerParameterStore:
@@ -558,6 +560,7 @@ class MetacontrollerParameterStore:
         self._protocol_prior_switch_pressure_delta: float = 0.0
         self._protocol_prior_strength: float = 0.0
         self._protocol_prior_applied: bool = False
+        self._prediction_error_switch_pressure_delta: float = 0.0
 
     @property
     def n_z(self) -> int:
@@ -989,7 +992,12 @@ class MetacontrollerParameterStore:
             fast_prior_action_bias=self.latest_fast_prior_action_bias,
             fast_prior_family_bias=self.latest_fast_prior_family_bias,
             fast_prior_sequence_bias=self.latest_fast_prior_sequence_bias,
-            fast_prior_switch_pressure_delta=self.latest_fast_prior_switch_pressure_delta,
+            fast_prior_switch_pressure_delta=(
+                self.latest_fast_prior_switch_pressure_delta
+            ),
+            prediction_error_switch_pressure_delta=(
+                self._prediction_error_switch_pressure_delta
+            ),
             protocol_prior_switch_pressure_delta=self._protocol_prior_switch_pressure_delta,
             protocol_prior_strength=self._protocol_prior_strength,
             protocol_prior_applied=self._protocol_prior_applied,
@@ -1412,6 +1420,20 @@ class MetacontrollerParameterStore:
 
     def fast_prior_switch_pressure_delta(self) -> float:
         return self.latest_fast_prior_switch_pressure_delta
+
+    def record_prediction_error_switch_pressure(
+        self,
+        switch_pressure_delta: float,
+    ) -> None:
+        """Record a direction-free, runtime-only PE boundary signal."""
+
+        self._prediction_error_switch_pressure_delta = max(
+            0.0,
+            min(0.18, float(switch_pressure_delta)),
+        )
+
+    def prediction_error_switch_pressure_delta(self) -> float:
+        return self._prediction_error_switch_pressure_delta
 
     def record_protocol_prior_signals(
         self,
@@ -3347,6 +3369,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         )
         fast_prior_switch_pressure_delta = (
             self._parameter_store.fast_prior_switch_pressure_delta()
+            + self._parameter_store.prediction_error_switch_pressure_delta()
             + self._protocol_prior_switch_delta()
             + self._thinking_advisory_switch_delta()
         )
@@ -3592,6 +3615,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         )
         fast_prior_switch_pressure_delta = (
             self._parameter_store.fast_prior_switch_pressure_delta()
+            + self._parameter_store.prediction_error_switch_pressure_delta()
             + self._protocol_prior_switch_delta()
             + self._thinking_advisory_switch_delta()
         )
@@ -4109,6 +4133,11 @@ def build_temporal_runtime_state_aggregate(
             world_state.fast_prior_switch_pressure_delta + self_state.fast_prior_switch_pressure_delta
         )
         / 2.0,
+        prediction_error_switch_pressure_delta=(
+            world_state.prediction_error_switch_pressure_delta
+            + self_state.prediction_error_switch_pressure_delta
+        )
+        / 2.0,
         protocol_prior_switch_pressure_delta=(
             world_state.protocol_prior_switch_pressure_delta
             + self_state.protocol_prior_switch_pressure_delta
@@ -4123,6 +4152,35 @@ def build_temporal_runtime_state_aggregate(
         ),
         learned_update_rule_state=(
             world_state.learned_update_rule_state or self_state.learned_update_rule_state
+        ),
+        causal_action_head_residual=tuple(
+            (world_value + self_value) / 2.0
+            for world_value, self_value in zip(
+                world_state.causal_action_head_residual,
+                self_state.causal_action_head_residual,
+                strict=True,
+            )
+        )
+        if (
+            world_state.causal_action_head_residual
+            and self_state.causal_action_head_residual
+        )
+        else (
+            world_state.causal_action_head_residual
+            or self_state.causal_action_head_residual
+        ),
+        causal_action_head_wiring=(
+            world_state.causal_action_head_wiring
+            if world_state.causal_action_head_wiring
+            == self_state.causal_action_head_wiring
+            else (
+                f"world:{world_state.causal_action_head_wiring}|"
+                f"self:{self_state.causal_action_head_wiring}"
+            )
+        ),
+        causal_action_head_update_step=max(
+            world_state.causal_action_head_update_step,
+            self_state.causal_action_head_update_step,
         ),
         structure_frozen=world_state.structure_frozen and self_state.structure_frozen,
         learning_phase=(

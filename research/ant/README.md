@@ -24,6 +24,12 @@
 
 读 [`04_digital_ant_feasibility.md`](04_digital_ant_feasibility.md) — 这是本次调研的主要交付物：VZ 模块 ↔ 蚂蚁神经子系统的映射表、分阶段落地路线、当前差距清单。
 
+### 想看 ecology 下一轮怎么推进
+
+读 [`05_ecology_p0_p1_p2_plan.md`](05_ecology_p0_p1_p2_plan.md) — 从机制诊断（P0）、课程与能力门槛重构（P1）到正式 matched-control 证据（P2）的串行执行计划。
+
+实施结果与当前阻塞点见 [`06_ecology_implementation_status.md`](06_ecology_implementation_status.md)：P0 已 PASS，P1 runner/preflight 已完成，P2 仍由 P1 gate 锁定。
+
 ## 文档清单
 
 | 文档 | 内容 | 阅读时间 |
@@ -33,6 +39,8 @@
 | [`02_supporting_evidence.md`](02_supporting_evidence.md) | 按 R-ID 分组的支持证据 | 15 min |
 | [`03_counter_evidence.md`](03_counter_evidence.md) | 4 条反证 + 每条的应对策略 | 15 min |
 | [`04_digital_ant_feasibility.md`](04_digital_ant_feasibility.md) | 数字蚂蚁可行性评估 + 落地路线图 | 25 min |
+| [`05_ecology_p0_p1_p2_plan.md`](05_ecology_p0_p1_p2_plan.md) | Ecology P0→P1→P2 完整执行与验收计划 | 20 min |
+| [`06_ecology_implementation_status.md`](06_ecology_implementation_status.md) | P0 正式证据、P1 preflight 与当前差距 | 8 min |
 | [`_download_summary.md`](_download_summary.md) | 下载执行记录 | 2 min |
 | [`download_papers.sh`](download_papers.sh) | 下载脚本（可重新运行） | — |
 

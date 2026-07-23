@@ -157,6 +157,18 @@ class AntStepRecord:
     nearest_food_distance: float | None
     nearest_obstacle_distance: float | None
     nearest_heat_distance: float | None
+    causal_action_head_residual: tuple[float, ...] = ()
+    causal_action_head_wiring: str = "disabled"
+    causal_action_head_update_step: int = 0
+    track_switch_gates: tuple[tuple[str, float], ...] = ()
+    runtime_last_segment_close_reason: str = ""
+    runtime_segment_close_reason_counts: tuple[tuple[str, int], ...] = ()
+    fast_prior_strength: float = 0.0
+    fast_prior_switch_pressure_delta: float = 0.0
+    prediction_error_switch_pressure_delta: float = 0.0
+    body_id: int = 0
+    picked_up: bool = False
+    delivered: bool = False
 
 
 class AntSession:
@@ -280,9 +292,10 @@ class AntSession:
         # Refresh at the action boundary so every colony member consumes the
         # same currently published round snapshot. Keeping only the post-action
         # observation would make the last body uniquely see the next bus tick.
+        navigator_before = self.navigator.state
         self.holder.update(
             observation=self.world.observe(self._body_id),
-            navigator_state=self.navigator.state,
+            navigator_state=navigator_before,
             step=self.world.tick,
         )
         result = await self.runner.run_turn(f"ant-tick-{self.world.tick}")
@@ -300,12 +313,16 @@ class AntSession:
             step_command=command.step_command,
             true_heading=observation.eval_true_heading,
         )
+        home_progress = (
+            navigator_before.home_distance - nav_state.home_distance
+        )
         transition = self.world.last_transition(self._body_id)
         prediction_id = result.next_prediction.prediction_id if result.next_prediction is not None else ""
         environment_outcome = self._environment_outcome(
             transition=transition,
             observation=observation,
             prediction_id=prediction_id,
+            home_progress=home_progress,
         )
         self.runner.submit_environment_outcome(environment_outcome)
         environment_measurement = environment_outcome.measurement
@@ -406,6 +423,10 @@ class AntSession:
                     rollout.internal_rl_causal_action_head.value,
                 ),
                 (
+                    "prediction_error_temporal_switch",
+                    rollout.prediction_error_temporal_switch.value,
+                ),
+                (
                     "internal_rl_runtime_exploration_strength",
                     f"{rollout.internal_rl_runtime_exploration_strength:.6f}",
                 ),
@@ -432,8 +453,7 @@ class AntSession:
                 - transition.local_food_signal_before
             ),
             local_home_delta=(
-                transition.local_home_signal_after
-                - transition.local_home_signal_before
+                home_progress
             ),
             local_cooling_delta=(
                 transition.heat_load_before
@@ -462,6 +482,54 @@ class AntSession:
             nearest_heat_distance=(
                 ecology_diagnostics.nearest_heat_distance
             ),
+            causal_action_head_residual=(
+                result.metacontroller_state.causal_action_head_residual
+                if result.metacontroller_state is not None
+                else ()
+            ),
+            causal_action_head_wiring=(
+                result.metacontroller_state.causal_action_head_wiring
+                if result.metacontroller_state is not None
+                else "disabled"
+            ),
+            causal_action_head_update_step=(
+                result.metacontroller_state.causal_action_head_update_step
+                if result.metacontroller_state is not None
+                else 0
+            ),
+            track_switch_gates=(
+                result.metacontroller_state.track_switch_gates
+                if result.metacontroller_state is not None
+                else ()
+            ),
+            runtime_last_segment_close_reason=(
+                replay.last_segment_close_reason
+                if replay is not None
+                else ""
+            ),
+            runtime_segment_close_reason_counts=(
+                replay.segment_close_reason_counts
+                if replay is not None
+                else ()
+            ),
+            fast_prior_strength=(
+                result.metacontroller_state.fast_prior_strength
+                if result.metacontroller_state is not None
+                else 0.0
+            ),
+            fast_prior_switch_pressure_delta=(
+                result.metacontroller_state.fast_prior_switch_pressure_delta
+                if result.metacontroller_state is not None
+                else 0.0
+            ),
+            prediction_error_switch_pressure_delta=(
+                result.metacontroller_state.prediction_error_switch_pressure_delta
+                if result.metacontroller_state is not None
+                else 0.0
+            ),
+            body_id=self._body_id,
+            picked_up=transition.picked_up,
+            delivered=transition.delivered,
         )
         self.holder.update(observation=observation, navigator_state=nav_state, step=self.world.tick)
         self.trajectory.append(record)
@@ -473,6 +541,7 @@ class AntSession:
         transition: WorldTransitionEvidence,
         observation: WorldObservation,
         prediction_id: str,
+        home_progress: float = 0.0,
     ) -> EnvironmentOutcome:
         if self.config.objective is AntObjectiveKind.HEADING_STABILITY:
             heading_error = self._heading_stability_error(observation)
@@ -504,6 +573,7 @@ class AntSession:
             return self._ecology_environment_outcome(
                 transition=transition,
                 prediction_id=prediction_id,
+                home_progress=home_progress,
             )
 
         # Observable task facts (NOT rewards; the PE owner compares them with
@@ -540,6 +610,7 @@ class AntSession:
         *,
         transition: WorldTransitionEvidence,
         prediction_id: str,
+        home_progress: float = 0.0,
     ) -> EnvironmentOutcome:
         """Publish owner-authored local valence without a steering direction."""
 
@@ -579,10 +650,7 @@ class AntSession:
             transition.local_food_signal_after
             - transition.local_food_signal_before
         )
-        home_delta = (
-            transition.local_home_signal_after
-            - transition.local_home_signal_before
-        )
+        home_delta = home_progress
         cooling_delta = transition.heat_load_before - transition.heat_load_after
         local_valence = 0.0
         if self.config.ecology_local_valence_enabled:
@@ -615,7 +683,8 @@ class AntSession:
             summary=f"digital-ant ecology transition {status}",
             detail=(
                 "owner-authored pickup/delivery, contact, thermal threshold and "
-                "bounded local food/home/heat deltas; no coordinates, target "
+                "bounded local food/path-integration-home/heat deltas; no "
+                "coordinates, target "
                 "direction or steering recommendation"
             ),
             prediction_id=prediction_id or None,

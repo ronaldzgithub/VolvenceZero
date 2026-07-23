@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -29,6 +30,7 @@ class EcologyProbeKind(str, Enum):
     FOOD = "food"
     OBSTACLE = "obstacle"
     HEAT = "heat"
+    HOME = "home"
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,22 @@ class EcologyActionProbe:
     turn_delta: float
     input_reachable: bool
     action_sensitive: bool
+    left_action_head_residual: tuple[float, ...] = ()
+    right_action_head_residual: tuple[float, ...] = ()
+    left_action_head_update_step: int = 0
+    right_action_head_update_step: int = 0
+    target_aligned: bool = True
+
+
+@dataclass(frozen=True)
+class EcologyCheckpointActionProbe:
+    """Per-body action-chain evidence bound to one learning checkpoint."""
+
+    body_id: int
+    checkpoint_id: str
+    policy_fingerprint: str
+    temporal_learning_fingerprint: str
+    probes: tuple[EcologyActionProbe, ...]
 
 
 def _paired_objects(
@@ -86,6 +104,14 @@ def _paired_objects(
                 heat_decay=0.8,
             ),
         )
+    if kind is EcologyProbeKind.HOME:
+        # Both lanes see identical geometry; only carrying state differs.
+        shared = ButterSource(
+            object_id="probe-home-butter",
+            x=8.0,
+            y=0.0,
+        )
+        return (shared, shared)
     raise ValueError(f"unsupported ecology probe kind: {kind!r}")
 
 
@@ -107,6 +133,11 @@ def _sensor_pair(
         return (observation.obstacle_left, observation.obstacle_right)
     if kind is EcologyProbeKind.HEAT:
         return (observation.heat_left, observation.heat_right)
+    if kind is EcologyProbeKind.HOME:
+        return (
+            float(observation.carrying_food),
+            observation.eval_home_distance,
+        )
     raise ValueError(f"unsupported ecology probe kind: {kind!r}")
 
 
@@ -122,7 +153,13 @@ async def run_ecology_action_probes(
     for kind in EcologyProbeKind:
         objects = _paired_objects(kind)
         paired_records: list[
-            tuple[tuple[float, float], tuple[float, ...], float]
+            tuple[
+                tuple[float, float],
+                tuple[float, ...],
+                float,
+                tuple[float, ...],
+                int,
+            ]
         ] = []
         for side_index, world_object in enumerate(objects):
             world = AntWorld(
@@ -132,8 +169,6 @@ async def run_ecology_action_probes(
                 ),
                 world_objects=(world_object,),
             )
-            world.set_body_pose(x=0.0, y=0.0, heading=0.0)
-            observation = world.observe()
             session = AntSession(
                 world,
                 config=AntSessionConfig(
@@ -155,12 +190,35 @@ async def run_ecology_action_probes(
             )
             if checkpoint is not None:
                 session.restore_learning_checkpoint(checkpoint)
+            if kind is EcologyProbeKind.HOME:
+                for _ in range(5):
+                    session.navigator.update(
+                        turn_command=0.0,
+                        step_command=0.4,
+                        true_heading=0.0,
+                    )
+                session.navigator.update(
+                    turn_command=math.pi / 2.0,
+                    step_command=0.0,
+                    true_heading=math.pi / 2.0,
+                )
+                world.set_body_pose(
+                    x=2.0,
+                    y=0.0,
+                    heading=math.pi / 2.0,
+                    carrying_food=bool(side_index),
+                )
+            else:
+                world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+            observation = world.observe()
             record = await session.step()
             paired_records.append(
                 (
                     _sensor_pair(kind=kind, observation=observation),
                     record.code,
                     record.command.turn_command,
+                    record.causal_action_head_residual,
+                    record.causal_action_head_update_step,
                 )
             )
         left, right = paired_records
@@ -174,6 +232,11 @@ async def run_ecology_action_probes(
         )
         turn_delta = abs(left[2] - right[2])
         input_reachable = left[0] != right[0] and code_l1_delta > code_delta_threshold
+        target_aligned = True
+        if kind is EcologyProbeKind.HOME:
+            # At (2, 0), heading north, home lies to the left (+turn).
+            # The carrying lane is the right-hand member of this pair.
+            target_aligned = right[2] > turn_delta_threshold
         probes.append(
             EcologyActionProbe(
                 kind=kind,
@@ -188,13 +251,53 @@ async def run_ecology_action_probes(
                 input_reachable=input_reachable,
                 action_sensitive=input_reachable
                 and turn_delta > turn_delta_threshold,
+                left_action_head_residual=left[3],
+                right_action_head_residual=right[3],
+                left_action_head_update_step=left[4],
+                right_action_head_update_step=right[4],
+                target_aligned=target_aligned,
             )
         )
     return tuple(probes)
 
 
+async def run_ecology_checkpoint_action_probes(
+    *,
+    temporal_latent_dim: int,
+    seed: int,
+    checkpoints: tuple[AntLearningCheckpoint, ...],
+    code_delta_threshold: float = 1e-8,
+    turn_delta_threshold: float = 1e-4,
+) -> tuple[EcologyCheckpointActionProbe, ...]:
+    """Run deterministic paired probes for every isolated colony body."""
+
+    reports: list[EcologyCheckpointActionProbe] = []
+    for body_id, checkpoint in enumerate(checkpoints):
+        probes = await run_ecology_action_probes(
+            temporal_latent_dim=temporal_latent_dim,
+            seed=seed,
+            checkpoint=checkpoint,
+            code_delta_threshold=code_delta_threshold,
+            turn_delta_threshold=turn_delta_threshold,
+        )
+        reports.append(
+            EcologyCheckpointActionProbe(
+                body_id=body_id,
+                checkpoint_id=checkpoint.checkpoint_id,
+                policy_fingerprint=checkpoint.policy_fingerprint,
+                temporal_learning_fingerprint=(
+                    checkpoint.temporal_learning_fingerprint
+                ),
+                probes=probes,
+            )
+        )
+    return tuple(reports)
+
+
 __all__ = [
     "EcologyActionProbe",
+    "EcologyCheckpointActionProbe",
     "EcologyProbeKind",
+    "run_ecology_checkpoint_action_probes",
     "run_ecology_action_probes",
 ]

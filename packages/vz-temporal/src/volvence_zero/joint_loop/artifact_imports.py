@@ -187,6 +187,12 @@ class _JointLoopArtifactImportMixin:
             self._runtime_replay_drop_reasons = list(
                 replay_report.drop_reasons
             )
+            self._runtime_last_segment_close_reason = (
+                replay_report.last_segment_close_reason
+            )
+            self._runtime_segment_close_reason_counts = dict(
+                replay_report.segment_close_reason_counts
+            )
         operations = [
             "rare-heavy:world-temporal-rollback",
             "rare-heavy:self-temporal-rollback",

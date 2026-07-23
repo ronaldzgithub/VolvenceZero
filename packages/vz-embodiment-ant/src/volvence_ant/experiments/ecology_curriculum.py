@@ -29,8 +29,10 @@ from volvence_ant.evidence.runtime_profile import (
 )
 from volvence_ant.experiments.ecology_probe import (
     EcologyActionProbe,
+    EcologyCheckpointActionProbe,
     EcologyProbeKind,
     run_ecology_action_probes,
+    run_ecology_checkpoint_action_probes,
 )
 from volvence_ant.runtime import (
     AntLearningCheckpoint,
@@ -42,7 +44,7 @@ from volvence_ant.runtime import (
 )
 
 
-ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v3"
+ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v5"
 ECOLOGY_REQUIRED_GATE_NAMES = (
     "training_event_coverage",
     "paired_action_sensitivity",
@@ -135,6 +137,11 @@ class EcologyCurriculumConfig:
     heldout_rounds: int = 120
     heldout_seeds: tuple[int, ...] = (101, 211, 307, 401, 503)
     seed: int = 0
+    action_probe_guard_enabled: bool = True
+    action_probe_code_delta_threshold: float = 1e-8
+    action_probe_turn_delta_threshold: float = 1e-4
+    action_probe_retention_ratio: float = 0.25
+    action_probe_body_pass_ratio: float = 0.8
 
     def __post_init__(self) -> None:
         if self.n_ants < 1:
@@ -164,6 +171,22 @@ class EcologyCurriculumConfig:
         if set(self.validation_seeds).intersection(self.heldout_seeds):
             raise ValueError(
                 "validation and held-out seeds must be disjoint"
+            )
+        if self.action_probe_code_delta_threshold <= 0.0:
+            raise ValueError(
+                "action_probe_code_delta_threshold must be positive"
+            )
+        if self.action_probe_turn_delta_threshold <= 0.0:
+            raise ValueError(
+                "action_probe_turn_delta_threshold must be positive"
+            )
+        if not 0.0 < self.action_probe_retention_ratio <= 1.0:
+            raise ValueError(
+                "action_probe_retention_ratio must be within (0, 1]"
+            )
+        if not 0.0 < self.action_probe_body_pass_ratio <= 1.0:
+            raise ValueError(
+                "action_probe_body_pass_ratio must be within (0, 1]"
             )
 
 
@@ -205,6 +228,7 @@ class EcologyArmMetrics:
     mean_absolute_turn_delta: float
     policy_fingerprint_stable: bool
     temporal_learning_fingerprint_stable: bool
+    body_lineage: tuple["EcologyBodyEpisodeLineage", ...] = ()
 
 
 @dataclass(frozen=True)
@@ -237,6 +261,36 @@ class EcologyTrainingEpisodeReport:
     longest_segment_length: int
     policy_fingerprints_before: tuple[str, ...]
     policy_fingerprints_after: tuple[str, ...]
+    action_chain_guard_passed: bool = True
+    action_chain_rollback_applied: bool = False
+    action_chain_failures: tuple[str, ...] = ()
+    body_lineage: tuple["EcologyBodyEpisodeLineage", ...] = ()
+
+
+@dataclass(frozen=True)
+class EcologyBodyEpisodeLineage:
+    """Per-body events; aggregate totals cannot satisfy P1 mastery."""
+
+    body_id: int
+    episode_id: str
+    layout_seed: int
+    stage: EcologyStage
+    tier: EcologyTrainingTier
+    encountered_food: bool
+    encountered_heat: bool
+    picked_up: bool
+    delivered: bool
+    pickup_tick: int | None
+    delivery_tick: int | None
+    harmful_heat_ticks: int
+    heat_entries: int
+    heat_escapes: int
+    escape_latencies: tuple[int, ...]
+    applied_distance: float
+    switch_count: int
+    non_timeout_segment_closures: int
+    timed_out: bool
+    total_ticks: int
 
 
 @dataclass(frozen=True)
@@ -480,6 +534,97 @@ def _activated_sense_channels(
     return tuple(sorted(active))
 
 
+def _body_episode_lineage(
+    *,
+    records: tuple[AntStepRecord, ...],
+    plan: EcologyTrainingEpisodePlan,
+    arm: str,
+    n_ants: int,
+) -> tuple[EcologyBodyEpisodeLineage, ...]:
+    result: list[EcologyBodyEpisodeLineage] = []
+    episode_id = (
+        f"{arm}:{plan.stage.value}:{plan.tier.value}:"
+        f"{plan.seed}:{plan.episode_index}"
+    )
+    for body_id in range(n_ants):
+        body_records = tuple(
+            item for item in records if item.body_id == body_id
+        )
+        open_entry: int | None = (
+            0 if body_records and body_records[0].heat_harmful else None
+        )
+        escape_latencies: list[int] = []
+        for item in body_records:
+            if (
+                item.entered_harmful_heat
+                and open_entry is None
+                and (not plan.forced_escape or not escape_latencies)
+            ):
+                open_entry = item.tick
+            if item.escaped_harmful_heat and open_entry is not None:
+                escape_latencies.append(max(0, item.tick - open_entry))
+                open_entry = None
+        reason_counts = dict(
+            body_records[-1].runtime_segment_close_reason_counts
+            if body_records
+            else ()
+        )
+        result.append(
+            EcologyBodyEpisodeLineage(
+                body_id=body_id,
+                episode_id=episode_id,
+                layout_seed=plan.seed,
+                stage=plan.stage,
+                tier=plan.tier,
+                encountered_food=any(
+                    (item.nearest_food_distance is not None)
+                    and item.nearest_food_distance <= 4.4
+                    for item in body_records
+                ),
+                encountered_heat=any(
+                    item.heat_center > 1e-6 for item in body_records
+                ),
+                picked_up=any(item.picked_up for item in body_records),
+                delivered=any(item.delivered for item in body_records),
+                pickup_tick=_first_tick(
+                    body_records,
+                    predicate=lambda item: item.picked_up,
+                ),
+                delivery_tick=_first_tick(
+                    body_records,
+                    predicate=lambda item: item.delivered,
+                ),
+                harmful_heat_ticks=sum(
+                    int(item.heat_harmful) for item in body_records
+                ),
+                heat_entries=sum(
+                    int(item.entered_harmful_heat) for item in body_records
+                ),
+                heat_escapes=sum(
+                    int(item.escaped_harmful_heat) for item in body_records
+                ),
+                escape_latencies=tuple(escape_latencies),
+                applied_distance=sum(
+                    item.applied_step for item in body_records
+                ),
+                switch_count=sum(
+                    int(item.is_switching) for item in body_records
+                ),
+                non_timeout_segment_closures=sum(
+                    count
+                    for reason, count in reason_counts.items()
+                    if reason != "timeout"
+                ),
+                timed_out=not any(
+                    item.delivered or item.escaped_harmful_heat
+                    for item in body_records
+                ),
+                total_ticks=len(body_records),
+            )
+        )
+    return tuple(result)
+
+
 def _mean_absolute_turn_delta(
     records: tuple[AntStepRecord, ...],
     *,
@@ -577,6 +722,82 @@ def _mastery_threshold(
     )
 
 
+async def _ecology_action_chain_guard(
+    *,
+    config: EcologyCurriculumConfig,
+    baseline: tuple[AntLearningCheckpoint, ...],
+    candidate: tuple[AntLearningCheckpoint, ...],
+    baseline_reports: tuple[EcologyCheckpointActionProbe, ...] | None = None,
+) -> tuple[bool, tuple[str, ...]]:
+    """Reject an update that destroys preflight sensor→motor sensitivity."""
+
+    if baseline_reports is None:
+        baseline_reports = await run_ecology_checkpoint_action_probes(
+            temporal_latent_dim=config.temporal_latent_dim,
+            seed=config.seed + 700_003,
+            checkpoints=baseline,
+            code_delta_threshold=config.action_probe_code_delta_threshold,
+            turn_delta_threshold=config.action_probe_turn_delta_threshold,
+        )
+    candidate_reports = await run_ecology_checkpoint_action_probes(
+        temporal_latent_dim=config.temporal_latent_dim,
+        seed=config.seed + 700_003,
+        checkpoints=candidate,
+        code_delta_threshold=config.action_probe_code_delta_threshold,
+        turn_delta_threshold=config.action_probe_turn_delta_threshold,
+    )
+    baseline_by_body = {item.body_id: item for item in baseline_reports}
+    failures: list[str] = []
+    passing_bodies = 0
+    for candidate_body in candidate_reports:
+        baseline_body = baseline_by_body[candidate_body.body_id]
+        baseline_by_kind = {
+            probe.kind: probe for probe in baseline_body.probes
+        }
+        body_failures: list[str] = []
+        for probe in candidate_body.probes:
+            baseline_probe = baseline_by_kind[probe.kind]
+            if not probe.input_reachable:
+                body_failures.append(
+                    f"{probe.kind.value}:input-unreachable"
+                )
+                continue
+            if probe.kind in {
+                EcologyProbeKind.OBSTACLE,
+                EcologyProbeKind.HOME,
+            }:
+                continue
+            retention_floor = (
+                baseline_probe.turn_delta
+                * config.action_probe_retention_ratio
+            )
+            if probe.turn_delta < config.action_probe_turn_delta_threshold:
+                body_failures.append(
+                    f"{probe.kind.value}:turn-delta={probe.turn_delta:.9g}"
+                )
+            if probe.turn_delta < retention_floor:
+                body_failures.append(
+                    f"{probe.kind.value}:retention={probe.turn_delta:.9g}/"
+                    f"{baseline_probe.turn_delta:.9g}"
+                )
+        if body_failures:
+            failures.extend(
+                f"body:{candidate_body.body_id}:{failure}"
+                for failure in body_failures
+            )
+        else:
+            passing_bodies += 1
+    required = max(
+        1,
+        math.ceil(len(candidate_reports) * config.action_probe_body_pass_ratio),
+    )
+    if passing_bodies < required:
+        failures.append(
+            f"body-pass-ratio:{passing_bodies}/{len(candidate_reports)}"
+        )
+    return passing_bodies >= required, tuple(failures)
+
+
 async def _run_training_episode(
     *,
     config: EcologyCurriculumConfig,
@@ -586,6 +807,10 @@ async def _run_training_episode(
     local_valence_enabled: bool,
     segment_credit_enabled: bool,
     plan: EcologyTrainingEpisodePlan,
+    action_probe_baseline: tuple[AntLearningCheckpoint, ...] | None = None,
+    action_probe_baseline_reports: (
+        tuple[EcologyCheckpointActionProbe, ...] | None
+    ) = None,
 ) -> tuple[
     KernelColonyRunner,
     tuple[AntLearningCheckpoint, ...],
@@ -622,6 +847,32 @@ async def _run_training_episode(
         ),
         include_runtime_replay=False,
     )
+    action_chain_guard_passed = True
+    action_chain_failures: tuple[str, ...] = ()
+    action_chain_rollback_applied = False
+    if (
+        config.action_probe_guard_enabled
+        and action_probe_baseline is not None
+    ):
+        action_chain_guard_passed, action_chain_failures = (
+            await _ecology_action_chain_guard(
+                config=config,
+                baseline=action_probe_baseline,
+                candidate=trained,
+                baseline_reports=action_probe_baseline_reports,
+            )
+        )
+        if not action_chain_guard_passed:
+            runner.restore_learning_checkpoints(checkpoints)
+            trained = runner.export_learning_checkpoints(
+                checkpoint_prefix=(
+                    f"ecology:{arm}:{plan.stage.value}:"
+                    f"{plan.tier.value}:episode:{plan.episode_index}:"
+                    "action-chain-rollback"
+                ),
+                include_runtime_replay=False,
+            )
+            action_chain_rollback_applied = True
     records = _flatten_records(runner)
     report = EcologyTrainingEpisodeReport(
         arm=arm,
@@ -674,6 +925,15 @@ async def _run_training_episode(
         ),
         policy_fingerprints_before=before,
         policy_fingerprints_after=_policy_fingerprints(trained),
+        action_chain_guard_passed=action_chain_guard_passed,
+        action_chain_rollback_applied=action_chain_rollback_applied,
+        action_chain_failures=action_chain_failures,
+        body_lineage=_body_episode_lineage(
+            records=records,
+            plan=plan,
+            arm=arm,
+            n_ants=config.n_ants,
+        ),
     )
     return runner, trained, report
 
@@ -700,6 +960,21 @@ async def _train_arm(
     plans: list[EcologyTrainingEpisodePlan] = []
     mastery: list[EcologyStageMastery] = []
     runner: KernelColonyRunner | None = None
+    action_probe_baseline_reports = None
+    if config.action_probe_guard_enabled:
+        action_probe_baseline_reports = (
+            await run_ecology_checkpoint_action_probes(
+                temporal_latent_dim=config.temporal_latent_dim,
+                seed=config.seed + 700_003,
+                checkpoints=initial,
+                code_delta_threshold=(
+                    config.action_probe_code_delta_threshold
+                ),
+                turn_delta_threshold=(
+                    config.action_probe_turn_delta_threshold
+                ),
+            )
+        )
     if schedule is not None:
         for plan in schedule:
             runner, checkpoints, report = await _run_training_episode(
@@ -710,6 +985,10 @@ async def _train_arm(
                 local_valence_enabled=local_valence_enabled,
                 segment_credit_enabled=segment_credit_enabled,
                 plan=plan,
+                action_probe_baseline=initial,
+                action_probe_baseline_reports=(
+                    action_probe_baseline_reports
+                ),
             )
             plans.append(plan)
             reports.append(report)
@@ -761,6 +1040,10 @@ async def _train_arm(
                             segment_credit_enabled
                         ),
                         plan=plan,
+                        action_probe_baseline=initial,
+                        action_probe_baseline_reports=(
+                            action_probe_baseline_reports
+                        ),
                     )
                 )
                 plans.append(plan)
@@ -825,6 +1108,10 @@ async def _train_arm(
                                 segment_credit_enabled
                             ),
                             plan=replay_plan,
+                            action_probe_baseline=initial,
+                            action_probe_baseline_reports=(
+                                action_probe_baseline_reports
+                            ),
                         )
                     )
                     plans.append(replay_plan)
@@ -907,6 +1194,7 @@ async def _evaluate_arm(
     data_split: EcologyDataSplit,
     scenario: EcologyEvaluationScenario,
     seed: int,
+    tier: EcologyTrainingTier = EcologyTrainingTier.FAR,
 ) -> EcologyArmMetrics:
     scenario_stage = {
         EcologyEvaluationScenario.BUTTER_ONLY: EcologyStage.BUTTER,
@@ -929,7 +1217,7 @@ async def _evaluate_arm(
         stage=scenario_stage,
         seed=seed,
         data_split=data_split,
-        tier=EcologyTrainingTier.FAR,
+        tier=tier,
         forced_escape=forced_escape,
     )
     runner = KernelColonyRunner(
@@ -1055,6 +1343,19 @@ async def _evaluate_arm(
                 for item in checkpoints
             )
         ),
+        body_lineage=_body_episode_lineage(
+            records=records,
+            plan=EcologyTrainingEpisodePlan(
+                stage=scenario_stage,
+                tier=tier,
+                seed=seed,
+                episode_index=0,
+                interleaved=False,
+                forced_escape=forced_escape,
+            ),
+            arm=arm,
+            n_ants=config.n_ants,
+        ),
     )
 
 
@@ -1074,6 +1375,12 @@ def _probe_requirement_met(probe: EcologyActionProbe) -> bool:
         # required to drive turns -- demanding stick-driven action would
         # reintroduce the avoidance objective the stick no longer carries.
         return probe.input_reachable
+    if probe.kind is EcologyProbeKind.HOME:
+        return (
+            probe.input_reachable
+            and probe.action_sensitive
+            and probe.target_aligned
+        )
     return probe.input_reachable and probe.action_sensitive
 
 
@@ -1501,7 +1808,7 @@ def _build_gates(
         EcologyGate(
             name="paired_action_sensitivity",
             passed=(
-                len(action_probes) == 3
+                len(action_probes) == 4
                 and all(
                     _probe_requirement_met(item)
                     for item in action_probes
@@ -1729,7 +2036,11 @@ async def train_and_evaluate_ecology_checkpoint(
     failed_probes = tuple(
         item
         for item in pretraining_probes
-        if not _probe_requirement_met(item)
+        if not (
+            item.input_reachable and item.action_sensitive
+            if item.kind is EcologyProbeKind.HOME
+            else _probe_requirement_met(item)
+        )
     )
     if failed_probes:
         detail = tuple(
@@ -1976,6 +2287,7 @@ __all__ = [
     "ECOLOGY_REQUIRED_GATE_NAMES",
     "ECOLOGY_TRAINING_STAGES",
     "EcologyArmMetrics",
+    "EcologyBodyEpisodeLineage",
     "EcologyCheckpointCandidate",
     "EcologyCheckpointReport",
     "EcologyCurriculumConfig",

@@ -318,3 +318,38 @@ def test_ecology_neutral_stick_contact_is_observable_but_valence_free() -> None:
     assert outcome.measurement is None
     assert "no coordinates" in outcome.detail
     assert "turn" not in outcome.evidence[0]
+
+
+def test_carrying_local_valence_uses_path_integration_home_progress() -> None:
+    world = AntWorld(config=AntWorldConfig(seed=0, step_size=0.4))
+    world.set_body_pose(
+        x=2.0,
+        y=0.0,
+        heading=math.pi,
+        carrying_food=True,
+    )
+    session = AntSession(
+        world,
+        config=AntSessionConfig(
+            objective=AntObjectiveKind.ECOLOGY,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+        ),
+    )
+    world.act(turn_command=0.0, step_command=0.4)
+    transition = world.last_transition()
+
+    closer = session._ecology_environment_outcome(
+        transition=transition,
+        prediction_id="closer",
+        home_progress=0.4,
+    )
+    farther = session._ecology_environment_outcome(
+        transition=transition,
+        prediction_id="farther",
+        home_progress=-0.4,
+    )
+
+    assert closer.measurement is not None
+    assert farther.measurement is not None
+    assert closer.measurement.action_payoff > 0.0
+    assert farther.measurement.action_payoff < 0.0

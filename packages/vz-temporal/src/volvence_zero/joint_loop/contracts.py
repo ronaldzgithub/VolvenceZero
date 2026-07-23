@@ -48,6 +48,8 @@ class RuntimeReplayReport:
     open_segment_transition_count: int = 0
     closed_segment_count: int = 0
     longest_segment_length: int = 0
+    last_segment_close_reason: str = ""
+    segment_close_reason_counts: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)

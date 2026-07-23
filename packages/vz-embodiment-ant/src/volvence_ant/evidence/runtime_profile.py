@@ -52,6 +52,9 @@ def ant_runtime_replay_rollout_config(
             if enable_sparse_exploration
             else 0.0
         ),
+        prediction_error_temporal_switch=WiringLevel.ACTIVE,
+        prediction_error_temporal_switch_strength=0.35,
+        prediction_error_temporal_switch_floor=0.5,
     )
 
 

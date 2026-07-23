@@ -44,6 +44,14 @@ async def test_ecology_curriculum_exports_checkpoint_and_honest_gates() -> None:
         "composite",
     }
     assert candidate.report.training_schedule
+    assert candidate.report.learned_training
+    assert all(
+        len(item.body_lineage) == 1
+        and item.body_lineage[0].body_id == 0
+        and item.body_lineage[0].episode_id
+        and item.body_lineage[0].layout_seed == item.plan.seed
+        for item in candidate.report.learned_training
+    )
     assert candidate.report.action_probes
     assert all(
         item.policy_fingerprint_stable

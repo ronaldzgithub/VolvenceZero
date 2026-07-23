@@ -234,6 +234,7 @@ class AgentLearningCheckpoint:
     memory_fingerprint: str
     fingerprint: str
     temporal_learning_fingerprint: str = ""
+    learning_owner_fingerprints: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -888,6 +889,15 @@ class AgentSessionRunner(
             runtime_replay_segment_max_steps=(
                 self._config.internal_rl_runtime_segment_max_steps
             ),
+            prediction_error_temporal_switch=(
+                self._config.prediction_error_temporal_switch
+            ),
+            prediction_error_temporal_switch_strength=(
+                self._config.prediction_error_temporal_switch_strength
+            ),
+            prediction_error_temporal_switch_floor=(
+                self._config.prediction_error_temporal_switch_floor
+            ),
         )
         if (
             self._joint_loop.internal_rl_runtime_replay
@@ -1057,6 +1067,40 @@ class AgentSessionRunner(
         fingerprint = hashlib.sha256(
             repr(fingerprint_components).encode("utf-8")
         ).hexdigest()
+        learning_owner_fingerprints = (
+            (
+                "joint-loop/policy",
+                policy_fingerprint,
+            ),
+            (
+                "joint-loop/temporal-learning",
+                temporal_learning_fingerprint,
+            ),
+            (
+                "joint-loop/memory",
+                memory_fingerprint,
+            ),
+            (
+                "prediction",
+                hashlib.sha256(repr(components[1]).encode("utf-8")).hexdigest(),
+            ),
+            (
+                "credit",
+                hashlib.sha256(repr(components[2]).encode("utf-8")).hexdigest(),
+            ),
+            (
+                "regime",
+                hashlib.sha256(repr(components[3]).encode("utf-8")).hexdigest(),
+            ),
+            (
+                "dual-track-gate",
+                hashlib.sha256(repr(components[4]).encode("utf-8")).hexdigest(),
+            ),
+            (
+                "reflection",
+                hashlib.sha256(repr(components[5]).encode("utf-8")).hexdigest(),
+            ),
+        )
         return AgentLearningCheckpoint(
             checkpoint_id=checkpoint_id,
             joint_loop_state=components[0],
@@ -1072,6 +1116,7 @@ class AgentSessionRunner(
             temporal_learning_fingerprint=(
                 temporal_learning_fingerprint
             ),
+            learning_owner_fingerprints=learning_owner_fingerprints,
         )
 
     def export_learning_checkpoint_archive(
