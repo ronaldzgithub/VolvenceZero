@@ -625,6 +625,9 @@ class AgentSessionRunner(
             self._config.internal_rl_causal_action_head_strength
         )
         if isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
+            self._world_temporal_policy.set_learning_writes_enabled(
+                joint_learning_enabled
+            )
             self._world_temporal_policy.set_runtime_backend(_runtime_backend)
             self._world_temporal_policy.set_runtime_track_modulation(_track_modulation)
             self._world_temporal_policy.set_runtime_exploration(
@@ -636,6 +639,9 @@ class AgentSessionRunner(
                 strength=_causal_head_strength,
             )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
+            self._self_temporal_policy.set_learning_writes_enabled(
+                joint_learning_enabled
+            )
             self._self_temporal_policy.set_runtime_backend(_runtime_backend)
             self._self_temporal_policy.set_runtime_track_modulation(_track_modulation)
             self._self_temporal_policy.set_runtime_exploration(
@@ -1679,6 +1685,7 @@ class AgentSessionRunner(
                 schedule=self._joint_schedule,
                 apply_writeback=self._joint_apply_writeback,
                 apply_policy_optimization=self._joint_apply_policy_optimization,
+                learning_enabled=self._joint_learning_enabled,
             )
             pending_semantic_events = self._drain_pending_semantic_events()
             environment_outcome = self._consume_pending_environment_outcome()

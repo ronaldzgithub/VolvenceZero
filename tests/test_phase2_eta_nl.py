@@ -392,6 +392,57 @@ def test_eta_nl_joint_loop_schedule_exposes_batch_collect_and_flush_actions():
     assert flush.cycle_report.rl_batch_rollout_count == 2
 
 
+def test_eta_nl_joint_loop_frozen_step_cannot_flush_restored_pending_batch():
+    loop = ETANLJointLoop(rl_batch_accumulation_size=2)
+    trace = build_training_trace(
+        trace_id="frozen-pending-batch",
+        source_text="retain evidence without changing learned parameters",
+    )
+    schedule = JointLoopSchedule(
+        ssl_interval=99,
+        rl_interval=1,
+        rl_batch_max_wait_turns=3,
+    )
+    collected = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=1,
+            trace=trace,
+            schedule=schedule,
+        )
+    )
+    assert collected.schedule_action == "full-cycle-collect"
+    world_before = (
+        loop.world_temporal_policy.parameter_store
+        .learning_parameter_fingerprint()
+    )
+    self_before = (
+        loop.self_temporal_policy.parameter_store
+        .learning_parameter_fingerprint()
+    )
+
+    frozen = asyncio.run(
+        loop.run_scheduled_step(
+            turn_index=2,
+            trace=trace,
+            schedule=schedule,
+            learning_enabled=False,
+        )
+    )
+
+    assert frozen.schedule_action == "frozen-evidence-only"
+    assert frozen.cycle_report is None
+    assert (
+        loop.world_temporal_policy.parameter_store
+        .learning_parameter_fingerprint()
+        == world_before
+    )
+    assert (
+        loop.self_temporal_policy.parameter_store
+        .learning_parameter_fingerprint()
+        == self_before
+    )
+
+
 def test_eta_nl_joint_loop_schedule_can_force_batch_flush_after_wait():
     loop = ETANLJointLoop(rl_batch_accumulation_size=3)
     trace = build_training_trace(trace_id="scheduled-force-flush", source_text="steady support then deepen planning")

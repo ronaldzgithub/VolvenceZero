@@ -41,6 +41,8 @@ from volvence_zero.temporal.metacontroller_components import (
     summarize_residual_activations,
 )
 
+_CAUSAL_ACTION_ADVANTAGE_SCALE_FLOOR = 0.05
+
 
 @dataclass(frozen=True)
 class ZTransition:
@@ -1083,7 +1085,35 @@ class CausalZPolicy:
             raw_advantages = [0.0] * n
             last_gae = 0.0
             for index in range(n - 1, -1, -1):
-                next_value = values[index + 1] if index + 1 < n else 0.0
+                transition = rollout.transitions[index]
+                if index + 1 < n:
+                    next_value = values[index + 1]
+                elif (
+                    rollout.reward_mode == "runtime-replay"
+                    and not transition.runtime_terminal
+                ):
+                    # Runtime replay rollouts are bounded fragments, not
+                    # terminal episodes.  Treating every final real tick as a
+                    # terminal state subtracts the full critic estimate from
+                    # tiny but correctly signed local ecology payoffs, which
+                    # can reverse the actor update.  Bootstrap the fragment
+                    # boundary from the next published substrate signature;
+                    # terminal milestones retain the true zero continuation.
+                    next_surface = tuple(
+                        _clamp(value + delta)
+                        for value, delta in zip(
+                            transition.observation_signature,
+                            transition.downstream_effect,
+                            strict=True,
+                        )
+                    )
+                    next_value = self._value_estimate(
+                        track=transition.track,
+                        hidden_state=transition.hidden_state,
+                        surface=next_surface,
+                    )
+                else:
+                    next_value = 0.0
                 delta = rollout.transitions[index].reward + gamma * next_value - values[index]
                 last_gae = delta + gamma * gae_lambda * last_gae
                 raw_advantages[index] = last_gae
@@ -1241,6 +1271,16 @@ class CausalZPolicy:
         )
         if not runtime_transitions:
             return 0.0
+        advantage_scale = max(
+            math.sqrt(
+                sum(
+                    advantage * advantage
+                    for _, advantage in runtime_transitions
+                )
+                / len(runtime_transitions)
+            ),
+            _CAUSAL_ACTION_ADVANTAGE_SCALE_FLOOR,
+        )
         hidden_states: list[tuple[float, ...]] = []
         action_gradients: list[tuple[float, ...]] = []
         selected_advantages: list[float] = []
@@ -1282,7 +1322,15 @@ class CausalZPolicy:
             )
             hidden_states.append(transition.hidden_state)
             action_gradients.append(gradient)
-            selected_advantages.append(advantage)
+            # Normalize only the causal action-head signal.  Track/value
+            # updates keep the physical payoff scale, while the low-rank head
+            # receives a bounded directionally faithful signal.  Without this
+            # floor-relative normalization, exact local progress rewards are
+            # orders of magnitude below the head learning rate and produce a
+            # fingerprint change with no durable motor effect.
+            selected_advantages.append(
+                max(-1.0, min(1.0, advantage / advantage_scale))
+            )
         return self._parameter_store.update_causal_action_head(
             track=track,
             hidden_states=tuple(hidden_states),

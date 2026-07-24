@@ -550,6 +550,7 @@ class MetacontrollerParameterStore:
         )
         self.structure_frozen = True
         self.learning_phase = "runtime"
+        self._learning_writes_enabled = True
         self._action_family_version = 0
         # protocol-temporal-prior bridge: the BehaviorProtocol active
         # mixture (owned by vz-application, downstream of temporal in the
@@ -571,6 +572,20 @@ class MetacontrollerParameterStore:
         if self.ndim_encoder_parameters is None:
             return self._n_z
         return self.ndim_encoder_parameters.n_input
+
+    @property
+    def learning_writes_enabled(self) -> bool:
+        return self._learning_writes_enabled
+
+    def set_learning_writes_enabled(self, enabled: bool) -> None:
+        """Enable or freeze owner-held online learning writes.
+
+        This runtime gate is intentionally not checkpointed: a held-out
+        runner must be able to restore a trained artifact and then consume it
+        read-only, regardless of the mode in which the artifact was created.
+        """
+
+        self._learning_writes_enabled = bool(enabled)
 
     def learning_parameter_fingerprint(self) -> str:
         """Hash owned learning parameters while excluding turn-local adaptation.
@@ -1375,6 +1390,8 @@ class MetacontrollerParameterStore:
         )
 
     def observe_family_outcome_feedback(self, *, feedback: FamilyOutcomeFeedback) -> bool:
+        if not self._learning_writes_enabled:
+            return False
         updated_families = update_family_outcome_history(
             self.action_families,
             family_id=feedback.family_id,
@@ -1533,7 +1550,7 @@ class MetacontrollerParameterStore:
             + self.latest_fast_prior_family_bias * 0.45
             + self.latest_fast_prior_sequence_bias * 0.30
         )
-        self.action_families, active_label, family_summary = discover_latent_action_family(
+        discovered_families, active_label, family_summary = discover_latent_action_family(
             observation=observation,
             action_families=self.action_families,
             structure_frozen=self.structure_frozen,
@@ -1543,15 +1560,21 @@ class MetacontrollerParameterStore:
             allow_topology_maintenance=self.learning_phase.startswith("ssl") or not self.action_families,
             match_weights=self.family_match_weights,
         )
-        if self.action_families != previous_families:
-            self._action_family_version += 1
+        if self._learning_writes_enabled:
+            self.action_families = discovered_families
+            if self.action_families != previous_families:
+                self._action_family_version += 1
         # Cache the winning family's match features so a later settled
         # outcome for this family can credit the match head (bounded SGD).
         selected_family = next(
-            (family for family in self.action_families if family.family_id == active_label),
+            (
+                family
+                for family in discovered_families
+                if family.family_id == active_label
+            ),
             None,
         )
-        if selected_family is not None:
+        if selected_family is not None and self._learning_writes_enabled:
             self._latest_family_match_features[active_label] = family_match_features(
                 selected_family, observation
             )
@@ -1565,6 +1588,8 @@ class MetacontrollerParameterStore:
         memory_strength: float,
         reflection_strength: float,
     ) -> None:
+        if not self._learning_writes_enabled:
+            return
         total = max(residual_strength + memory_strength + reflection_strength, 1e-6)
         self.temporal_weights = {
             "residual": residual_strength / total,
@@ -2737,6 +2762,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         # Generic posterior exploration, opt-in and owner-local.  The default
         # is byte-equivalent to the historical deterministic posterior.
         self._runtime_exploration_strength = 0.0
+        self._learning_writes_enabled = True
         self._causal_action_head_wiring = WiringLevel.DISABLED
         self._causal_action_head_track = Track.WORLD
         self._causal_action_head_strength = 0.0
@@ -2794,6 +2820,14 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 f"got {strength!r}"
             )
         self._runtime_exploration_strength = float(strength)
+
+    @property
+    def learning_writes_enabled(self) -> bool:
+        return self._learning_writes_enabled
+
+    def set_learning_writes_enabled(self, enabled: bool) -> None:
+        self._learning_writes_enabled = bool(enabled)
+        self._parameter_store.set_learning_writes_enabled(enabled)
 
     @property
     def causal_action_head_wiring(self) -> WiringLevel:
@@ -3426,20 +3460,13 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 max(value, entropy_floor)
                 for value in encoded.posterior.posterior_std
             )
-            runtime_step = (
-                substrate_snapshot.residual_sequence[-1].step
-                if substrate_snapshot.residual_sequence
-                else 0
-            )
-            if runtime_step % 24 >= 3:
-                centroid = sum(runtime_posterior_mean) / max(
-                    len(runtime_posterior_mean), 1
-                )
-                runtime_posterior_mean = tuple(
-                    value * (1.0 - self._runtime_exploration_strength)
-                    + centroid * self._runtime_exploration_strength
-                    for value in runtime_posterior_mean
-                )
+            # Exploration owns the sampled residual only.  It must never
+            # flatten the learned posterior mean: doing so erases the
+            # state-conditioned steering signal during 21/24 sparse-search
+            # steps and makes training actions independent of the policy that
+            # replay is supposed to improve.  The coast proposal is
+            # intentionally common-mode, so it preserves opponent-coded
+            # steering while the short burst supplies bounded coverage.
             z_candidate = tuple(
                 _clamp(
                     runtime_posterior_mean[index]

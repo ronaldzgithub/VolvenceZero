@@ -1,6 +1,6 @@
 # Ecology P0/P1 实施状态
 
-> 更新时间：2026-07-23。P0 已完成；P1 runner、诊断矩阵与 home-action probe 已实现；P2 因 P1 尚未 PASS 而未启动。
+> 更新时间：2026-07-24。P0 已完成；P1 runner、诊断矩阵与 home-action probe 已实现；P2 因 P1 尚未 PASS 而未启动。
 
 ## P0 正式结果
 
@@ -57,6 +57,22 @@
 3. 按预注册规则不得进入 P2，也不得生成 promotion artifact。
 
 正式 seed 0 的 learned arm 已在 bounded work-item 边界安全完成 `50/50`，progress state 同时记录 `training_complete=true`。near bootstrap 中，5 个 composite layout 全部出现 delivery，合计 26 pickups、23 deliveries；5 个 forced-return layout 全部完成返巢，delivery 分布为 2、4、2、5、6，合计 19。第二组 5 个 forced-escape layout 均记录 4/4 body escapes，合计 29 pickups、13 deliveries。主要失败集中在距离迁移：butter medium 5/5、butter far 5/5、wood-stick far 5/5 均为 0 pickup、0 delivery；两组共 10 个 composite-far 也全部为 0 pickup、0 delivery，合计 11 heat entries、3 heat escapes。这些是训练覆盖信号，不是 held-out capability 结果，不改变 `BLOCK`。
+
+正式 seed 0 的 no-optimize arm 也已安全完成 `50/50`，`training_complete=true` 且最终 archive SHA256 校验通过。其 near 训练覆盖并不弱：butter-near 合计 28 pickups、19 deliveries，composite-near 合计 37 pickups、35 deliveries；forced-return 五布局 delivery 为 2、3、3、6、6，合计 20，略高于 learned 的 19。距离迁移同样失败：butter-medium 5/5 为 0/0，butter-far 仅一个布局出现 1 pickup 且全组 0 delivery，wood-stick-far 和两组 composite-far 均为 0 pickup、0 delivery。当前训练轨迹没有给出 learned 优于 no-optimize 的证据，甚至部分 near 指标由 no-optimize 更高；是否存在学习增益必须由后续冻结 paired evaluation 判定。
+
+正式 seed 0 的 dense-local-shaping-off arm 已安全完成 `50/50`，`training_complete=true` 且最终 archive SHA256 校验通过。其 butter-near 与 no-optimize 相同，合计 28 pickups、19 deliveries；composite-near 更高，合计 44 pickups、42 deliveries。forced-return 五布局均有 delivery，合计 15，低于 learned 的 19 与 no-optimize 的 20。距离迁移仍失败：butter-medium 和 butter-far 各仅一个布局出现 1 pickup，均无 delivery；wood-stick-far 和两组 composite-far 全部为 0 pickup、0 delivery。关闭 dense local shaping 没有造成 near 行为崩溃，也没有修复远距闭环；训练轨迹暂不支持 local shaping 是现有 near 成功或远距失败的决定性因素。
+
+正式 seed 0 的 segment-credit-off arm 已安全完成 `50/50`，`training_complete=true` 且最终 archive SHA256 校验通过。其 butter-near 合计 27 pickups、19 deliveries，composite-near 合计 36 pickups、33 deliveries；forced-return 五布局 delivery 为 2、4、2、7、6，合计 21，高于 learned 的 19。butter-medium 5/5 为 0/0；butter-far 有三个布局各出现 1 pickup，但全组 0 delivery；wood-stick-far 和两组 composite-far 全部为 0 pickup、0 delivery。关闭 segment credit 没有造成 near 行为崩溃，也未修复远距闭环，训练轨迹暂不支持 segment credit 是现有 near 成功的必要条件。
+
+五个 arms 的训练已全部完成，seed 0 冻结评估已完成 learned 的 `30/30` layouts。能力结果只有 forced-escape 通过（5/5 layouts、20/20 bodies、逃逸延迟 3–5 ticks）；butter-medium、butter-far、heat-route-foraging、neutral-stick、composite 均为 0/5 layouts、0 successful bodies。policy fingerprint 30/30 稳定，replay lineage/settlement coverage 最低均为 1.0，replay drop 总数为 0；但 temporal-learning fingerprint 只有 24/30 稳定，全部 5 个 forced-escape layouts 与 1 个 neutral-stick layout 发生漂移。因此 forced-escape 的行为成功同时违反 frozen-temporal gate，不能作为晋级证据，P1 继续 `BLOCK`。
+
+2026-07-24 的根因收敛包按 P0→P1→P2 串行约束先处理三项 P1 blocker：
+
+1. **冻结写入泄漏**：`joint_learning_enabled=False` 原先只存于 session，未进入 joint-loop；恢复出的 pending batch 仍可触发学习。此外，普通 family outcome feedback 还会绕过调度器更新 action-family 与 learned family-match。现由 session 同时关闭 joint-loop 与 temporal policy/store owner 写入；旧 learned checkpoint 的 forced-escape seed `2020017` 重跑完整 4 ants × 40 rounds，4/4 仍逃逸且 policy/temporal-learning fingerprint 均稳定，replay drop=0。
+2. **探索抹平 learned mean**：原 burst/coast 探索在 21/24 coast steps 把 posterior mean 压成 centroid，切断 state-conditioned steering。现探索只拥有 sample residual，保留 learned mean。2 ants × 16 rounds 的同 seed 短对照显示仅此修复未改变 near/medium/far 的 pickup 分布（far 仍为 0），因此它是必要契约修复，但不能单独宣称解决距离能力。
+3. **runtime actor 方向与幅度**：one-step runtime fragment 原先把每个末拍当 terminal，未对非终局 next-substrate 做 critic bootstrap，小幅正 local payoff 可能被初始正 value 反转为负 advantage。现非终局使用 next published signature 做 TD bootstrap；低秩 causal action head 对 advantage 做有 `0.05` floor 的 RMS scaling 并 clamp `[-1,1]`，track/value 仍保留物理 payoff 原尺度。回归覆盖正负更新方向、可观察 bias 幅度、rollback 与 checkpoint round-trip。
+
+该算法变更使旧 `development.v5/progress.v1` journal 不再可继续；新实验升级为 `development.v6/progress.v2`，必须使用全新目录与报告。当前仍保持 `BLOCK`，只有新版本 matched arms 与 frozen held-out gates 完成后才能重新判定 P1。
 
 实测 checkpoint collection 在 learned 5/50 时增长到 21 MB，owner 尺寸审计确认 95% 以上来自 `joint_loop.learning.memory_checkpoint`：每 body 约 5,115 条 explicit artifacts，且 entries/semantic-index 双份持久化。为避免 50-episode 长跑撞上单-agent 32 MB / collection 128 MB 上限，Memory owner 新增确定性 `enforce_artifact_capacity(8192)`：优先淘汰 transient/episodic、弱、旧条目，并同步清理 semantic index、pending queues 与 attribute readout；CMS learned state 完整保留。容量在每个 ecology training episode 的 checkpoint 边界执行并写入 progress compatibility/episode summary；旧 seed0 archive 已安全迁移。容量从第 9 个 episode 起持续触发，到 `learned 50/50` 时双槽 archive 仍均稳定在约 31 MB，证明长跑期间未继续无界增长。
 

@@ -102,10 +102,19 @@ source，不选择 pure/torch optimizer；生产默认仍为 `DISABLED`。ACTIVE
 群体 matched arms 统一为 `1.0`，已有 dense PE 的 heading-stability calibration 保持 `0.0`。
 temporal owner 把原 sample noise 与可复现的 low-discrepancy sample 混合，并发布以
 `0.4 * strength` 为下界的 effective posterior std，防止首个 milestone 前方差塌缩；
-它不读取食物位置、不编码补偿方向；实际 std / sample noise / `z_tilde` 进入
+探索只能改 sample residual，不得在 continuation/coast 阶段压平 learned posterior mean，
+因此 food/heat/home 等 state-conditioned mean 在训练动作中始终可达。它不读取食物位置、不编码补偿方向；实际 std / sample noise / `z_tilde` 进入
 runtime state，故 runtime replay 仍可重建 likelihood。同一实验内 learned/no-optimize/PE-off
 共享同一探索，
 它不能单独构成 learning claim，只负责让真实稀疏里程碑有被采到的机会。
+
+ecology 的 frozen evaluation 必须同时设置 `joint_learning_enabled=False` 与
+`apply_policy_optimization=False`。前者是 joint-loop owner 的硬边界：即使训练 checkpoint
+恢复出 pending replay/batch，调度器也只能发布 `frozen-evidence-only`，不得执行 SSL、Internal
+RL、writeback 或 rare-heavy 路径；同一个 flag 还必须关闭 temporal owner 的 fast fit、
+action-family outcome/topology/cache 与 learned match-head 写入，但不阻止恢复 checkpoint 或
+更新推理 telemetry。后者不能替代此前者。每个 held-out layout 都要比较前后
+`temporal_learning_fingerprint`，任一 body 漂移即阻断能力晋级。
 
 诊断 evidence 还必须区分 owner checkpoint 的 `policy_fingerprint`、`temporal_fingerprint` 与
 `memory_fingerprint`，并发布训练/held-out pickup、delivery、首次接触、最小食物距离、turn/

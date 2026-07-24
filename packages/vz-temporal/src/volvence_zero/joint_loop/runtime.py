@@ -1678,6 +1678,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         schedule: JointLoopSchedule | None = None,
         apply_writeback: bool = True,
         apply_policy_optimization: bool = True,
+        learning_enabled: bool = True,
     ) -> ScheduledJointLoopResult:
         self._world_policy.parameter_store.set_learning_phase("runtime")
         self._self_policy.parameter_store.set_learning_phase("runtime")
@@ -1701,6 +1702,32 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             if self._memory_store.learned_core is not None
             else "No CMS core attached."
         )
+        if not learning_enabled:
+            metacontroller_state = self._aggregate_metacontroller_state()
+            self._record_schedule_outcome(
+                turn_index=turn_index,
+                schedule_action="frozen-evidence-only",
+                metacontroller_state=metacontroller_state,
+            )
+            return ScheduledJointLoopResult(
+                turn_index=turn_index,
+                schedule_action="frozen-evidence-only",
+                cycle_report=None,
+                kernel_scores=(),
+                ssl_prediction_loss=0.0,
+                ssl_kl_loss=0.0,
+                metacontroller_state=metacontroller_state,
+                cms_description=cms_description,
+                owner_path=self.owner_path,
+                schedule_telemetry=schedule_telemetry,
+                description=(
+                    f"Scheduled joint loop owner={self.owner_path} collected "
+                    f"frozen evidence only at turn {turn_index}."
+                ),
+                substrate_online_fast_due=False,
+                rare_heavy_review_recommended=False,
+                runtime_replay_report=self.latest_runtime_replay_report,
+            )
         rare_heavy_review_recommended = self._pe_rare_heavy_due(schedule=active_schedule)
         # T3 (#88): report-only learned schedule gate. Derive the shadow
         # from the same inputs the rule cascade consumes and publish it in

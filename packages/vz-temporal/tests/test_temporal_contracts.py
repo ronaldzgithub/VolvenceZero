@@ -17,7 +17,7 @@ Torch-dependent tests SKIP when torch is missing (never silently pass).
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 
@@ -25,6 +25,7 @@ from volvence_zero.memory import Track
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import build_training_trace
 from volvence_zero.temporal.interface import (
+    FamilyOutcomeFeedback,
     FullLearnedTemporalPolicy,
     LearnedLiteTemporalPolicy,
     MetacontrollerParameterStore,
@@ -289,12 +290,89 @@ def test_runtime_posterior_exploration_is_opt_in_and_reproducible() -> None:
     )
 
 
+def test_runtime_posterior_exploration_preserves_state_conditioned_mean() -> None:
+    from volvence_zero.substrate import ResidualSequenceStep
+
+    snapshot = _trace_step_snapshot(_trace("exploration-mean"))
+    coast_snapshot = replace(
+        snapshot,
+        residual_sequence=(
+            ResidualSequenceStep(
+                step=6,
+                token="coast",
+                feature_surface=snapshot.feature_surface,
+                residual_activations=snapshot.residual_activations,
+                description="sparse exploration coast phase",
+            ),
+        ),
+    )
+    baseline = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    _first_code(baseline, coast_snapshot)
+    explored = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    explored.set_runtime_exploration(1.0)
+    _first_code(explored, coast_snapshot)
+
+    assert (
+        explored.export_runtime_state().posterior_mean
+        == baseline.export_runtime_state().posterior_mean
+    )
+    assert (
+        explored.export_runtime_state().posterior_sample_noise
+        != baseline.export_runtime_state().posterior_sample_noise
+    )
+
+
 def test_runtime_posterior_exploration_rejects_out_of_range_strength() -> None:
     policy = FullLearnedTemporalPolicy(
         parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
     )
     with pytest.raises(ValueError, match=r"within \[0, 1\]"):
         policy.set_runtime_exploration(1.01)
+
+
+def test_frozen_learning_write_gate_keeps_owner_parameters_read_only() -> None:
+    store = MetacontrollerParameterStore(n_z=3)
+    policy = FullLearnedTemporalPolicy(parameter_store=store)
+    store.discover_action_family(
+        latent_code=(0.2, 0.3, 0.4),
+        decoder_control=(0.3, 0.4, 0.5),
+        switch_gate=0.6,
+    )
+    policy.set_learning_writes_enabled(False)
+    before = store.export_parameter_snapshot()
+    family_id = before.action_families[0].family_id
+
+    store.discover_action_family(
+        latent_code=(0.8, 0.1, 0.4),
+        decoder_control=(0.7, 0.2, 0.5),
+        switch_gate=0.9,
+        posterior_drift=0.4,
+        persistence_window=2.0,
+    )
+    store.observe_family_outcome_feedback(
+        feedback=FamilyOutcomeFeedback(
+            family_id=family_id,
+            outcome_value=0.8,
+            delayed_credit_delta=0.4,
+        )
+    )
+    policy.fit_from_signals(
+        residual_strength=0.1,
+        memory_strength=0.8,
+        reflection_strength=0.1,
+    )
+    after = store.export_parameter_snapshot()
+
+    assert store.learning_writes_enabled is False
+    assert policy.learning_writes_enabled is False
+    assert after.action_families == before.action_families
+    assert after.action_family_version == before.action_family_version
+    assert after.family_match_weights == before.family_match_weights
+    assert after.temporal_parameters == before.temporal_parameters
 
 
 def test_sandbox_policy_mean_uses_live_runtime_track_modulation() -> None:

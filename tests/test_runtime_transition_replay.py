@@ -428,6 +428,51 @@ def test_runtime_replay_optimizes_realized_utility_not_prediction_surprise() -> 
     )
 
 
+def test_runtime_replay_nonterminal_fragment_bootstraps_actor_advantage() -> None:
+    sandbox, _, _ = _sandbox_capture()
+    settlement = sandbox.settle_runtime_action(
+        next_substrate_snapshot=_substrate("stationary bootstrap observation"),
+        environment_outcome=_outcome(prediction_id="prediction-1"),
+        prediction_error_snapshot=_prediction_error(
+            prediction_id="prediction-1"
+        ),
+        credit_snapshot=CreditSnapshot(
+            recent_credits=(),
+            recent_modifications=(),
+            cumulative_credit_by_level=(),
+        ),
+    )
+    assert settlement.rollout is not None
+    base = replace(
+        settlement.rollout.transitions[0],
+        downstream_effect=(0.0, 0.0, 0.0, 0.0),
+        runtime_terminal=False,
+    )
+    positive = replace(
+        settlement.rollout,
+        transitions=(replace(base, reward=0.2),),
+    )
+    negative = replace(
+        settlement.rollout,
+        transitions=(replace(base, reward=-0.2),),
+    )
+
+    positive_targets = sandbox.causal_policy._estimate_rollout_targets(
+        rollout=positive
+    )
+    negative_targets = sandbox.causal_policy._estimate_rollout_targets(
+        rollout=negative
+    )
+
+    assert positive_targets.normalized_advantages[0] > 0.0
+    assert negative_targets.normalized_advantages[0] < 0.0
+    assert (
+        positive_targets.normalized_advantages[0]
+        - negative_targets.normalized_advantages[0]
+        == pytest.approx(0.4)
+    )
+
+
 def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> None:
     store = MetacontrollerParameterStore(n_z=4)
     store.track_weights[Track.WORLD] = (0.4, 0.3, 0.2, 0.1)
@@ -467,10 +512,64 @@ def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> No
 
     report = sandbox.optimize(settlement.rollout)
     after = store.causal_action_head_parameters(track=Track.WORLD)
+    positive_checkpoint = sandbox.create_checkpoint(
+        checkpoint_id="causal-action-head-positive"
+    )
 
     assert report.parameter_change_norm > 0.0
     assert after != before
     assert after.update_step > before.update_step
+    assert max(
+        abs(value - baseline)
+        for value, baseline in zip(
+            after.bias,
+            before.bias,
+            strict=True,
+        )
+    ) > 1e-4
+
+    sandbox.restore_checkpoint(checkpoint)
+    negative_rollout = replace(
+        settlement.rollout,
+        transitions=(
+            replace(
+                settlement.rollout.transitions[0],
+                reward=-settlement.rollout.transitions[0].reward,
+            ),
+        ),
+    )
+    sandbox.optimize(negative_rollout)
+    negative_after = store.causal_action_head_parameters(
+        track=Track.WORLD
+    )
+    positive_bias_delta = tuple(
+        value - baseline
+        for value, baseline in zip(
+            after.bias,
+            before.bias,
+            strict=True,
+        )
+    )
+    negative_bias_delta = tuple(
+        value - baseline
+        for value, baseline in zip(
+            negative_after.bias,
+            before.bias,
+            strict=True,
+        )
+    )
+    assert sum(
+        positive * negative
+        for positive, negative in zip(
+            positive_bias_delta,
+            negative_bias_delta,
+            strict=True,
+        )
+    ) < 0.0
+
+    sandbox.restore_checkpoint(positive_checkpoint)
+
+    assert store.causal_action_head_parameters(track=Track.WORLD) == after
 
     sandbox.restore_checkpoint(checkpoint)
 
