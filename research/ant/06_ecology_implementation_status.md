@@ -76,6 +76,8 @@
 
 最终算法变更使旧 `development.v5/progress.v1` 以及中间诊断 `development.v6/progress.v2` journal 均不得继续；新实验升级为 `development.v7/progress.v3`，必须使用全新目录与报告。当前仍保持 `BLOCK`，只有 v3 matched arms 与 frozen held-out gates 完成后才能重新判定 P1。
 
+全新 v3 seed 0 journal 已从空目录正式复跑至 learned `10/50`。butter-near 五布局合计 26 pickups、18 deliveries，其中首布局为 0/0，后四布局均同时出现 pickup 与 delivery；burning-match-near 五布局合计 31 pickups、17 deliveries，五个布局均有 pickup、四个布局有 delivery。第 10 个 episode 记录 6 pickups、4 deliveries、4 heat escapes，容量 owner 同步淘汰 4,141 条旧 artifact；双槽 archive 分别约 30 MB 与 31 MB，未发生恢复、容量或 journal 回滚错误。这是修复后三个根因的早期正向训练证据，但只覆盖 learned arm 的 near 阶段，不能替代剩余 40 个训练 episode、matched arms 与 frozen held-out gates，P1 判定仍为 `BLOCK`。续跑 journal 位于 ignored `.partials/ecology_p1_v3/seed0`。
+
 实测 checkpoint collection 在 learned 5/50 时增长到 21 MB，owner 尺寸审计确认 95% 以上来自 `joint_loop.learning.memory_checkpoint`：每 body 约 5,115 条 explicit artifacts，且 entries/semantic-index 双份持久化。为避免 50-episode 长跑撞上单-agent 32 MB / collection 128 MB 上限，Memory owner 新增确定性 `enforce_artifact_capacity(8192)`：优先淘汰 transient/episodic、弱、旧条目，并同步清理 semantic index、pending queues 与 attribute readout；CMS learned state 完整保留。容量在每个 ecology training episode 的 checkpoint 边界执行并写入 progress compatibility/episode summary；旧 seed0 archive 已安全迁移。容量从第 9 个 episode 起持续触发，到 `learned 50/50` 时双槽 archive 仍均稳定在约 31 MB，证明长跑期间未继续无界增长。
 
 journal 位于 ignored `.partials/ecology_p1/seed0`，最终 report 尚未生成。当前相关回归集 53/53 通过。
