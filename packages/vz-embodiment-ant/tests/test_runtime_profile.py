@@ -8,6 +8,7 @@ from volvence_zero.runtime import WiringLevel
 from volvence_ant.evidence import (
     ANT_RUNTIME_EXPLORATION_STRENGTH,
     ANT_RUNTIME_MODULATION_STRENGTH,
+    ANT_RUNTIME_SEGMENT_MAX_STEPS,
     ant_runtime_replay_rollout_config,
 )
 from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
@@ -35,6 +36,15 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         == ANT_RUNTIME_EXPLORATION_STRENGTH
         == 1.0
     )
+    assert (
+        config.internal_rl_runtime_segment_max_steps
+        == ANT_RUNTIME_SEGMENT_MAX_STEPS
+        == 16
+    )
+    # A 24-turn ecology episode has 23 settled transitions.  The segment
+    # must close before the final turn so a later scheduled step can optimize
+    # it before the cross-episode checkpoint discards pending replay.
+    assert config.internal_rl_runtime_segment_max_steps <= 22
     dense_config = ant_runtime_replay_rollout_config(
         enable_sparse_exploration=False
     )

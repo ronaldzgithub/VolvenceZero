@@ -52,7 +52,6 @@ from volvence_zero.temporal.metacontroller_components import (
 from volvence_zero.temporal.m3_optimizer import M3OptimizerState
 
 _RUNTIME_EXPLORATION_OPTION_STEPS = 8
-_RUNTIME_EXPLORATION_BURST_STEPS = 2
 
 
 class TemporalImplementationMode(str, Enum):
@@ -709,12 +708,17 @@ class MetacontrollerParameterStore:
                 "causal action head hidden dimension mismatch: "
                 f"expected={self._n_z}, actual={len(hidden_state)}"
             )
+        if any(not -1.0 <= value <= 1.0 for value in hidden_state):
+            raise ValueError(
+                "causal action head requires signed GRU hidden state "
+                "within [-1, 1]"
+            )
         parameters = self.causal_action_heads[track]
         scale = math.sqrt(max(self._n_z, 1))
         return tuple(
             math.tanh(
                 sum(
-                    row[index] * (hidden_state[index] * 2.0 - 1.0)
+                    row[index] * hidden_state[index]
                     for index in range(self._n_z)
                 )
                 / scale
@@ -825,7 +829,7 @@ class MetacontrollerParameterStore:
                     input_delta[rank_index][input_index] += (
                         upstream
                         * derivative
-                        * (hidden_state[input_index] * 2.0 - 1.0)
+                        * hidden_state[input_index]
                         / scale
                     )
         learning_rate = (
@@ -2879,32 +2883,24 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             else 0
         )
         segment = step // _RUNTIME_EXPLORATION_OPTION_STEPS
-        burst_phase = (
-            step % _RUNTIME_EXPLORATION_OPTION_STEPS
-            < _RUNTIME_EXPLORATION_BURST_STEPS
-        )
-        shared_mean = sum(posterior_mean) / max(len(posterior_mean), 1)
-        shared_digest = sha256(
-            f"{segment}:coast:{shared_mean:.12f}".encode("utf-8")
-        ).digest()
-        shared_unit = int.from_bytes(shared_digest[:8], "big") / float(
-            2**64 - 1
-        )
-        shared_proposal = shared_unit * 2.0 - 1.0
         sampled: list[float] = []
-        for index, (mean, original) in enumerate(
+        for index, (_mean, original) in enumerate(
             zip(posterior_mean, base_noise, strict=True)
         ):
-            if burst_phase:
-                digest = sha256(
-                    f"{segment}:burst:{index}:{mean:.12f}".encode("utf-8")
-                ).digest()
-                unit = int.from_bytes(digest[:8], "big") / float(
-                    2**64 - 1
-                )
-                proposal = unit * 2.0 - 1.0
-            else:
-                proposal = shared_proposal
+            # A temporal option must retain one coherent latent direction for
+            # its full horizon.  Keying the proposal by the continuously
+            # changing posterior mean made the residual jump every step, while
+            # replacing it with a common-mode coast erased opponent-coded
+            # steering after two turns.  The posterior mean remains
+            # state-conditioned; only its sampled residual is fixed by the
+            # owner-local option identity.
+            digest = sha256(
+                f"{segment}:option:{index}".encode("utf-8")
+            ).digest()
+            unit = int.from_bytes(digest[:8], "big") / float(
+                2**64 - 1
+            )
+            proposal = unit * 2.0 - 1.0
             sampled.append(
                 max(
                     -1.0,

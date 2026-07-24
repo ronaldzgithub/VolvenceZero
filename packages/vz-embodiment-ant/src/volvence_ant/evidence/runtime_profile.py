@@ -10,7 +10,12 @@ from volvence_zero.runtime import WiringLevel
 
 ANT_RUNTIME_MODULATION_STRENGTH = 0.3
 ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
-ANT_RUNTIME_SEGMENT_MAX_STEPS = 24
+# A 24-turn ecology episode settles only 23 real transitions because the
+# first turn captures an action without a preceding outcome.  The segment
+# must close early enough for a later turn in the same episode to consume the
+# staged rollout; otherwise a no-milestone search segment is discarded by the
+# cross-episode checkpoint before it ever reaches the optimizer.
+ANT_RUNTIME_SEGMENT_MAX_STEPS = 16
 ANT_CAUSAL_ACTION_HEAD_STRENGTH = 0.35
 
 

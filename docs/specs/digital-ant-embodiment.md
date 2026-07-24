@@ -265,7 +265,11 @@ promotion gate：
   静默关闭。
 - Digital Ant 正式 runtime profile 将 `internal_rl_runtime_segment_credit=ACTIVE`：joint-loop owner
   把 lineage-matched one-step replay 按真实 `beta_t` switch 边界聚成 segment，并在 milestone/
-  terminal 或 24-step 上限处强制闭合；PPO/critic 对闭合 segment 的多步 transition 运行同一 GAE。
+  terminal 或 16-step 上限处强制闭合；PPO/critic 对闭合 segment 的多步 transition 运行同一 GAE。
+  ecology 单局是 24 turns，但首拍只有 capture、没有 preceding settlement，因此最多只有 23 个已
+  结算 transition。上限必须为后续同局 scheduled step 留出“闭合→optimizer”窗口；使用 24 会让
+  无 pickup/switch 的 open segment 在跨 episode `include_runtime_replay=False` checkpoint 前从未
+  进入 optimizer，形成“零 milestone→零更新→零 milestone”的确定性死锁。
   World/Self 两轨 metacontroller 独立切换，segment 边界取**任一轨** `beta_t` switch（与 milestone/
   terminal 闭合的 OR 语义一致）；分叉切换只会让 segment 更短，两轨打包保持逐拍成对对齐。
   open segment、closed segment 和最长长度进入 owner checkpoint/rollback，但不新增 ledger 或
@@ -274,7 +278,8 @@ promotion gate：
   posterior hidden state 映射为 bounded `z_t` residual，以补足逐维 track gain 不能表达的
   state-conditioned 左右响应。head 不含 butter/stick/match 字段、不直接生成 turn/step；参数由
   temporal/Internal-RL owner checkpoint、canonical archive、fingerprint 和事务 rollback 管理。
-  通用默认仍为 `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。
+  Ndim GRU hidden 以 signed `[-1,1]` 坐标进入 head，禁止再按 `[0,1]` 重心变换。通用默认仍为
+  `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。
 - `ecology_curriculum` 对黄油、火柴、组合三阶段分别执行 near → medium → far mastery：
   每阶段达到预声明 pickup/delivery/heat-entry/escape 样本量且满足最少 episode 后才提前晋级，
   未达到则在最大预算处显式 BLOCK；已经掌握的阶段按固定频率交错回放。木棍不再是独立训练

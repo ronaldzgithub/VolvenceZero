@@ -223,6 +223,18 @@ async def test_paired_ecology_channels_reach_code_and_motor_output() -> None:
     assert tuple(item.kind for item in probes) == tuple(EcologyProbeKind)
     assert all(item.input_reachable for item in probes)
     assert all(item.action_sensitive for item in probes)
+    by_kind = {item.kind: item for item in probes}
+    assert by_kind[EcologyProbeKind.FOOD].target_aligned is (
+        by_kind[EcologyProbeKind.FOOD].left_turn > 0.0
+        and by_kind[EcologyProbeKind.FOOD].right_turn < 0.0
+    )
+    assert by_kind[EcologyProbeKind.HEAT].target_aligned is (
+        by_kind[EcologyProbeKind.HEAT].left_turn < 0.0
+        and by_kind[EcologyProbeKind.HEAT].right_turn > 0.0
+    )
+    assert by_kind[EcologyProbeKind.HOME].target_aligned is (
+        by_kind[EcologyProbeKind.HOME].right_turn > 0.0
+    )
 
 
 def test_environment_publishes_local_valence_without_target_direction() -> None:

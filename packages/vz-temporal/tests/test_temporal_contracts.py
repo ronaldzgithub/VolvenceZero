@@ -78,6 +78,40 @@ def test_full_learned_policy_ndim_components_follow_store() -> None:
     assert policy.runtime_backend is WiringLevel.DISABLED
 
 
+def test_causal_action_head_preserves_signed_gru_hidden_symmetry() -> None:
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    zero = tuple(0.0 for _ in range(_NDIM))
+    positive = tuple(0.25 for _ in range(_NDIM))
+    negative = tuple(-value for value in positive)
+
+    zero_basis = store.causal_action_head_basis(
+        track=Track.WORLD,
+        hidden_state=zero,
+    )
+    positive_basis = store.causal_action_head_basis(
+        track=Track.WORLD,
+        hidden_state=positive,
+    )
+    negative_basis = store.causal_action_head_basis(
+        track=Track.WORLD,
+        hidden_state=negative,
+    )
+
+    assert zero_basis == pytest.approx(tuple(0.0 for _ in zero_basis))
+    assert negative_basis == pytest.approx(
+        tuple(-value for value in positive_basis)
+    )
+
+
+def test_causal_action_head_rejects_out_of_range_gru_hidden_state() -> None:
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    with pytest.raises(ValueError, match="signed GRU hidden state"):
+        store.causal_action_head_basis(
+            track=Track.WORLD,
+            hidden_state=(1.01,) + tuple(0.0 for _ in range(_NDIM - 1)),
+        )
+
+
 def test_learned_lite_code_dimension_follows_store() -> None:
     policy = LearnedLiteTemporalPolicy(
         parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
@@ -351,6 +385,7 @@ def test_runtime_posterior_exploration_reorients_within_short_episode() -> None:
         _first_code(policy, stepped)
         return policy.export_runtime_state().posterior_sample_noise
 
+    assert sampled_noise(0) == sampled_noise(7)
     assert sampled_noise(0) != sampled_noise(8)
 
 

@@ -232,11 +232,24 @@ async def run_ecology_action_probes(
         )
         turn_delta = abs(left[2] - right[2])
         input_reachable = left[0] != right[0] and code_l1_delta > code_delta_threshold
-        target_aligned = True
-        if kind is EcologyProbeKind.HOME:
+        if kind is EcologyProbeKind.FOOD:
+            target_aligned = (
+                left[2] > turn_delta_threshold
+                and right[2] < -turn_delta_threshold
+            )
+        elif kind is EcologyProbeKind.HEAT:
+            target_aligned = (
+                left[2] < -turn_delta_threshold
+                and right[2] > turn_delta_threshold
+            )
+        elif kind is EcologyProbeKind.HOME:
             # At (2, 0), heading north, home lies to the left (+turn).
             # The carrying lane is the right-hand member of this pair.
             target_aligned = right[2] > turn_delta_threshold
+        else:
+            # Neutral obstacle geometry is reachability evidence, not a
+            # valenced steering target.
+            target_aligned = True
         probes.append(
             EcologyActionProbe(
                 kind=kind,
