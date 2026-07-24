@@ -72,7 +72,9 @@
 2. **探索抹平 learned mean**：原 burst/coast 探索在 21/24 coast steps 把 posterior mean 压成 centroid，切断 state-conditioned steering。现探索只拥有 sample residual，保留 learned mean。2 ants × 16 rounds 的同 seed 短对照显示仅此修复未改变 near/medium/far 的 pickup 分布（far 仍为 0），因此它是必要契约修复，但不能单独宣称解决距离能力。
 3. **runtime actor 方向与幅度**：one-step runtime fragment 原先把每个末拍当 terminal，未对非终局 next-substrate 做 critic bootstrap，小幅正 local payoff 可能被初始正 value 反转为负 advantage。现非终局使用 next published signature 做 TD bootstrap；低秩 causal action head 对 advantage 做有 `0.05` floor 的 RMS scaling 并 clamp `[-1,1]`，track/value 仍保留物理 payoff 原尺度。回归覆盖正负更新方向、可观察 bias 幅度、rollback 与 checkpoint round-trip。
 
-该算法变更使旧 `development.v5/progress.v1` journal 不再可继续；新实验升级为 `development.v6/progress.v2`，必须使用全新目录与报告。当前仍保持 `BLOCK`，只有新版本 matched arms 与 frozen held-out gates 完成后才能重新判定 P1。
+首次提交后的两个独立短训练 seed 中，medium 均为 2 pickups；far 分别为 1 与 0 pickup。对第二个 seed 从 medium checkpoint 精确重放 far episode发现：两只蚂蚁最大离巢 3.43/4.14，而目标中心距巢 3.50，最近食物边界仍为 0.60，证明距离预算足够、失败来自角度覆盖。原探索 option 为 24 steps，16/24-round episode 只在开头重定向一次；收敛为 8-step option（2-step burst + 6-step coast）后，同 checkpoint/layout/seed 的最近边界距离变成 0，并出现 1 pickup，最大离巢半径仍为 3.70/3.73。该改善不读取坐标或目标方向。
+
+最终算法变更使旧 `development.v5/progress.v1` 以及中间诊断 `development.v6/progress.v2` journal 均不得继续；新实验升级为 `development.v7/progress.v3`，必须使用全新目录与报告。当前仍保持 `BLOCK`，只有 v3 matched arms 与 frozen held-out gates 完成后才能重新判定 P1。
 
 实测 checkpoint collection 在 learned 5/50 时增长到 21 MB，owner 尺寸审计确认 95% 以上来自 `joint_loop.learning.memory_checkpoint`：每 body 约 5,115 条 explicit artifacts，且 entries/semantic-index 双份持久化。为避免 50-episode 长跑撞上单-agent 32 MB / collection 128 MB 上限，Memory owner 新增确定性 `enforce_artifact_capacity(8192)`：优先淘汰 transient/episodic、弱、旧条目，并同步清理 semantic index、pending queues 与 attribute readout；CMS learned state 完整保留。容量在每个 ecology training episode 的 checkpoint 边界执行并写入 progress compatibility/episode summary；旧 seed0 archive 已安全迁移。容量从第 9 个 episode 起持续触发，到 `learned 50/50` 时双槽 archive 仍均稳定在约 31 MB，证明长跑期间未继续无界增长。
 

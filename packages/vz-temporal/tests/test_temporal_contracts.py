@@ -326,6 +326,34 @@ def test_runtime_posterior_exploration_preserves_state_conditioned_mean() -> Non
     )
 
 
+def test_runtime_posterior_exploration_reorients_within_short_episode() -> None:
+    from volvence_zero.substrate import ResidualSequenceStep
+
+    snapshot = _trace_step_snapshot(_trace("exploration-option"))
+
+    def sampled_noise(step: int) -> tuple[float, ...]:
+        stepped = replace(
+            snapshot,
+            residual_sequence=(
+                ResidualSequenceStep(
+                    step=step,
+                    token=f"step-{step}",
+                    feature_surface=snapshot.feature_surface,
+                    residual_activations=snapshot.residual_activations,
+                    description="bounded exploration option boundary",
+                ),
+            ),
+        )
+        policy = FullLearnedTemporalPolicy(
+            parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+        )
+        policy.set_runtime_exploration(1.0)
+        _first_code(policy, stepped)
+        return policy.export_runtime_state().posterior_sample_noise
+
+    assert sampled_noise(0) != sampled_noise(8)
+
+
 def test_runtime_posterior_exploration_rejects_out_of_range_strength() -> None:
     policy = FullLearnedTemporalPolicy(
         parameter_store=MetacontrollerParameterStore(n_z=_NDIM)

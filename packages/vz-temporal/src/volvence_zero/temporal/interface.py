@@ -51,6 +51,9 @@ from volvence_zero.temporal.metacontroller_components import (
 )
 from volvence_zero.temporal.m3_optimizer import M3OptimizerState
 
+_RUNTIME_EXPLORATION_OPTION_STEPS = 8
+_RUNTIME_EXPLORATION_BURST_STEPS = 2
+
 
 class TemporalImplementationMode(str, Enum):
     PLACEHOLDER = "placeholder"
@@ -2875,8 +2878,11 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             if substrate_snapshot.residual_sequence
             else 0
         )
-        segment = step // 24
-        burst_phase = step % 24 < 3
+        segment = step // _RUNTIME_EXPLORATION_OPTION_STEPS
+        burst_phase = (
+            step % _RUNTIME_EXPLORATION_OPTION_STEPS
+            < _RUNTIME_EXPLORATION_BURST_STEPS
+        )
         shared_mean = sum(posterior_mean) / max(len(posterior_mean), 1)
         shared_digest = sha256(
             f"{segment}:coast:{shared_mean:.12f}".encode("utf-8")
@@ -3462,7 +3468,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             )
             # Exploration owns the sampled residual only.  It must never
             # flatten the learned posterior mean: doing so erases the
-            # state-conditioned steering signal during 21/24 sparse-search
+            # state-conditioned steering signal during sparse-search coast
             # steps and makes training actions independent of the policy that
             # replay is supposed to improve.  The coast proposal is
             # intentionally common-mode, so it preserves opponent-coded
