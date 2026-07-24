@@ -165,6 +165,35 @@ def test_causal_action_head_intercept_stays_tightly_bounded() -> None:
     assert max(abs(value) for value in parameters.bias) <= 0.1
 
 
+def test_causal_action_head_keeps_common_signal_out_of_state_factors() -> None:
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    positive = tuple(0.25 for _ in range(_NDIM))
+    negative = tuple(-value for value in positive)
+    gradient = (1.0,) + tuple(0.0 for _ in range(_NDIM - 1))
+    opposite_gradient = (-1.0,) + tuple(
+        0.0 for _ in range(_NDIM - 1)
+    )
+    store.update_causal_action_head(
+        track=Track.WORLD,
+        hidden_states=(positive, negative),
+        action_gradients=(gradient, opposite_gradient),
+        advantages=(1.0, 1.0),
+    )
+    before = store.causal_action_head_parameters(track=Track.WORLD)
+
+    store.update_causal_action_head(
+        track=Track.WORLD,
+        hidden_states=(positive, negative),
+        action_gradients=(gradient, gradient),
+        advantages=(1.0, 1.0),
+    )
+
+    after = store.causal_action_head_parameters(track=Track.WORLD)
+    assert after.bias[0] > before.bias[0]
+    assert after.output_factors == before.output_factors
+    assert after.input_factors == before.input_factors
+
+
 def test_learned_lite_code_dimension_follows_store() -> None:
     policy = LearnedLiteTemporalPolicy(
         parameter_store=MetacontrollerParameterStore(n_z=_NDIM)

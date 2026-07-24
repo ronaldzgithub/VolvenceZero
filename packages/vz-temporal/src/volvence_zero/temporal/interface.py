@@ -795,6 +795,13 @@ class MetacontrollerParameterStore:
         ]
         bias_delta = [0.0 for _ in range(self._n_z)]
         scale = math.sqrt(max(self._n_z, 1))
+        samples: list[
+            tuple[
+                tuple[float, ...],
+                tuple[float, ...],
+                tuple[float, ...],
+            ]
+        ] = []
         for hidden_state, action_gradient, advantage in zip(
             hidden_states,
             action_gradients,
@@ -810,17 +817,39 @@ class MetacontrollerParameterStore:
                 track=track,
                 hidden_state=hidden_state,
             )
+            signal = tuple(
+                advantage * action_gradient[output_index]
+                for output_index in range(self._n_z)
+            )
+            samples.append((hidden_state, basis, signal))
+        # Decompose the batch gradient into an intercept and a
+        # state-conditioned covariance term.  Otherwise the low-rank factors
+        # can use a common hidden-state mean to recreate an unbounded
+        # intercept behind the explicitly bounded bias.
+        mean_signal = tuple(
+            sum(
+                signal[output_index]
+                for _, _, signal in samples
+            )
+            / len(samples)
+            for output_index in range(self._n_z)
+        )
+        for hidden_state, basis, signal in samples:
             for output_index in range(self._n_z):
-                signal = advantage * action_gradient[output_index]
-                bias_delta[output_index] += signal
+                bias_delta[output_index] += signal[output_index]
+                state_signal = (
+                    signal[output_index] - mean_signal[output_index]
+                )
                 for rank_index in range(parameters.rank):
                     output_delta[output_index][rank_index] += (
-                        signal * basis[rank_index]
+                        state_signal * basis[rank_index]
                     )
             for rank_index in range(parameters.rank):
                 upstream = sum(
-                    advantage
-                    * action_gradient[output_index]
+                    (
+                        signal[output_index]
+                        - mean_signal[output_index]
+                    )
                     * output_factors[output_index][rank_index]
                     for output_index in range(self._n_z)
                 )

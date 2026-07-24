@@ -105,7 +105,10 @@ temporal owner 把原 sample noise 与可复现的 low-discrepancy sample 混合
 探索只能改 sample residual，不得在 continuation/coast 阶段压平 learned posterior mean，
 因此 food/heat/home 等 state-conditioned mean 在训练动作中始终可达。它不读取食物位置、不编码补偿方向；实际 std / sample noise / `z_tilde` 进入
 runtime state，故 runtime replay 仍可重建 likelihood。同一实验内 learned/no-optimize/PE-off
-共享同一探索，
+共享同一探索。Ant runtime 以 session seed（colony 中已包含 body offset）作为不透明 exploration
+context；固定 schedule 的每个 episode 使用不同 seed，因此 episode/body 的 option 序列分散，
+而 matched arms 在相同 episode/body 上仍严格相同。temporal owner 只保留 context 摘要，不读取
+session label 或环境语义。未提供 context 的通用 runtime 保持历史探索序列不变。
 它不能单独构成 learning claim，只负责让真实稀疏里程碑有被采到的机会。
 
 ecology 的 frozen evaluation 必须同时设置 `joint_learning_enabled=False` 与
@@ -279,7 +282,9 @@ promotion gate：
   state-conditioned 左右响应。head 不含 butter/stick/match 字段、不直接生成 turn/step；参数由
   temporal/Internal-RL owner checkpoint、canonical archive、fingerprint 和事务 rollback 管理。
   Ndim GRU hidden 以 signed `[-1,1]` 坐标进入 head，禁止再按 `[0,1]` 重心变换。通用默认仍为
-  `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。
+  `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。常数 bias 的总幅度限制为 `0.1`，
+  学习尺度为 state path 的 `0.05`；batch mean 只更新该 bias，低秩 factor 只消费 centered
+  gradient，避免单个重复探索序列把近场偶然收益固化为显式或隐式的跨状态固定转向。
 - `ecology_curriculum` 对黄油、火柴、组合三阶段分别执行 near → medium → far mastery：
   每阶段达到预声明 pickup/delivery/heat-entry/escape 样本量且满足最少 episode 后才提前晋级，
   未达到则在最大预算处显式 BLOCK；已经掌握的阶段按固定频率交错回放。木棍不再是独立训练

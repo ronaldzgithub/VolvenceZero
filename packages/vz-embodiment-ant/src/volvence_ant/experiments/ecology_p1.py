@@ -44,8 +44,8 @@ from volvence_ant.experiments.ecology_curriculum import (
 from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 
 
-ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v9"
-ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v5"
+ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v10"
+ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v6"
 ECOLOGY_P1_ARM_NAMES = (
     "learned",
     "no_optimize",
