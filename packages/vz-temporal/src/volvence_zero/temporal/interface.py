@@ -840,12 +840,15 @@ class MetacontrollerParameterStore:
         total_change = 0.0
         for output_index in range(self._n_z):
             bias_step = max(
-                -0.05,
-                min(0.05, learning_rate * bias_delta[output_index]),
+                -0.01,
+                min(
+                    0.01,
+                    learning_rate * bias_delta[output_index] * 0.05,
+                ),
             )
             bias[output_index] = max(
-                -0.5,
-                min(0.5, bias[output_index] + bias_step),
+                -0.1,
+                min(0.1, bias[output_index] + bias_step),
             )
             total_change += abs(bias_step)
             for rank_index in range(parameters.rank):
@@ -872,8 +875,7 @@ class MetacontrollerParameterStore:
                     min(
                         0.02,
                         learning_rate
-                        * input_delta[rank_index][input_index]
-                        * 0.25,
+                        * input_delta[rank_index][input_index],
                     ),
                 )
                 input_factors[rank_index][input_index] = max(
@@ -2769,6 +2771,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         # Generic posterior exploration, opt-in and owner-local.  The default
         # is byte-equivalent to the historical deterministic posterior.
         self._runtime_exploration_strength = 0.0
+        self._runtime_exploration_context_digest = ""
         self._learning_writes_enabled = True
         self._causal_action_head_wiring = WiringLevel.DISABLED
         self._causal_action_head_track = Track.WORLD
@@ -2812,6 +2815,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     def runtime_exploration_strength(self) -> float:
         return self._runtime_exploration_strength
 
+    @property
+    def runtime_exploration_context_digest(self) -> str:
+        return self._runtime_exploration_context_digest
+
     def set_runtime_exploration(self, strength: float) -> None:
         """Blend reproducible low-discrepancy posterior exploration.
 
@@ -2827,6 +2834,24 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 f"got {strength!r}"
             )
         self._runtime_exploration_strength = float(strength)
+
+    def set_runtime_exploration_context(self, context: str | None) -> None:
+        """Set an opaque identity salt for reproducible temporal options.
+
+        Callers may use an experiment seed or another non-semantic identity.
+        The raw value is never retained: temporal owns only its digest.  An
+        absent context preserves the historical global option sequence.
+        """
+
+        if context is not None and not isinstance(context, str):
+            raise TypeError(
+                "runtime exploration context must be a string or None"
+            )
+        self._runtime_exploration_context_digest = (
+            sha256(context.encode("utf-8")).hexdigest()
+            if context
+            else ""
+        )
 
     @property
     def learning_writes_enabled(self) -> bool:
@@ -2894,9 +2919,13 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             # steering after two turns.  The posterior mean remains
             # state-conditioned; only its sampled residual is fixed by the
             # owner-local option identity.
-            digest = sha256(
-                f"{segment}:option:{index}".encode("utf-8")
-            ).digest()
+            option_identity = f"{segment}:option:{index}"
+            if self._runtime_exploration_context_digest:
+                option_identity = (
+                    f"{self._runtime_exploration_context_digest}:"
+                    f"{option_identity}"
+                )
+            digest = sha256(option_identity.encode("utf-8")).digest()
             unit = int.from_bytes(digest[:8], "big") / float(
                 2**64 - 1
             )

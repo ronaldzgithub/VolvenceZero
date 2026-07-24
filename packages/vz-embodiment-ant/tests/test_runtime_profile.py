@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.runtime import WiringLevel
+from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
 
 from volvence_ant.evidence import (
     ANT_RUNTIME_EXPLORATION_STRENGTH,
@@ -11,7 +12,8 @@ from volvence_ant.evidence import (
     ANT_RUNTIME_SEGMENT_MAX_STEPS,
     ant_runtime_replay_rollout_config,
 )
-from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
+from volvence_ant.env import AntWorld, AntWorldConfig
+from volvence_ant.runtime import AntSession, AntSessionConfig
 
 
 def test_production_rollout_defaults_remain_disabled_and_zero() -> None:
@@ -50,6 +52,34 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
     )
     assert dense_config.internal_rl_runtime_replay is WiringLevel.ACTIVE
     assert dense_config.internal_rl_runtime_exploration_strength == 0.0
+
+
+def test_ant_exploration_context_uses_seed_not_session_label() -> None:
+    def context_digest(*, seed: int, session_id: str) -> str:
+        session = AntSession(
+            AntWorld(config=AntWorldConfig(seed=3)),
+            config=AntSessionConfig(
+                temporal_latent_dim=4,
+                session_id=session_id,
+                seed=seed,
+                rollout_config=ant_runtime_replay_rollout_config(
+                    enable_sparse_exploration=True
+                ),
+            ),
+        )
+        return (
+            session.runner.world_temporal_policy
+            .runtime_exploration_context_digest
+        )
+
+    assert context_digest(seed=17, session_id="learned") == context_digest(
+        seed=17,
+        session_id="no-optimize",
+    )
+    assert context_digest(seed=17, session_id="learned") != context_digest(
+        seed=18,
+        session_id="learned",
+    )
 
 
 def test_formal_active_arms_only_isolate_declared_causal_factor() -> None:

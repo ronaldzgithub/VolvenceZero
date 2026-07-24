@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="同一个用户与两种模型的连续对话演示">
+  <title>同一个人，同一件事，两段对话</title>
+  <style>
+    :root {
+      --paper: #efe9dd;
+      --ink: #17201e;
+      --muted: #747a76;
+      --line: rgba(23, 32, 30, 0.13);
+      --white: #fffdf8;
+      --left: #df5b43;
+      --left-soft: #fff0eb;
+      --right: #0b8173;
+      --right-soft: #e4f5ef;
+      --user: #ece9e1;
+      --shadow: 0 24px 70px rgba(28, 38, 34, 0.13);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 8%, rgba(223, 91, 67, 0.1), transparent 26rem),
+        radial-gradient(circle at 92% 10%, rgba(11, 129, 115, 0.12), transparent 28rem),
+        linear-gradient(135deg, #f7f2e8, var(--paper));
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.18;
+      background-image:
+        linear-gradient(rgba(23, 32, 30, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(23, 32, 30, 0.04) 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      width: min(1500px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 18px;
+    }
+
+    .title {
+      margin: 0 0 18px;
+      text-align: center;
+      font-family: "Songti SC", "STSong", "SimSun", serif;
+      font-size: clamp(28px, 3.2vw, 49px);
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+    }
+
+    .dialogues {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      height: min(760px, calc(100vh - 150px));
+      min-height: 600px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .dialogue {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dialogue:first-child {
+      border-right: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(223, 91, 67, 0.08), transparent 30%),
+        var(--white);
+    }
+
+    .dialogue:last-child {
+      background:
+        linear-gradient(180deg, rgba(11, 129, 115, 0.1), transparent 34%),
+        #fbfdf9;
+    }
+
+    .model-header {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 76px;
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.68);
+      backdrop-filter: blur(10px);
+    }
+
+    .avatar {
+      width: 45px;
+      height: 45px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 15px;
+      color: white;
+      font-family: "Songti SC", "STSong", serif;
+      font-size: 20px;
+      font-weight: 900;
+      box-shadow: 0 8px 20px rgba(23, 32, 30, 0.16);
+    }
+
+    .dialogue:first-child .avatar {
+      background: var(--left);
+    }
+
+    .dialogue:last-child .avatar {
+      background: var(--right);
+    }
+
+    .model-name strong,
+    .model-name span {
+      display: block;
+    }
+
+    .model-name strong {
+      font-family: "Songti SC", "STSong", serif;
+      font-size: 20px;
+    }
+
+    .model-name span {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .chat {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 22px 24px 34px;
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(23, 32, 30, 0.15) transparent;
+    }
+
+    .turn {
+      margin-bottom: 24px;
+    }
+
+    .time-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 5px 0 22px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+    }
+
+    .time-divider::before,
+    .time-divider::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: var(--line);
+    }
+
+    .bubble {
+      width: fit-content;
+      max-width: 90%;
+      padding: 14px 17px;
+      border-radius: 19px;
+      font-size: clamp(14px, 1.15vw, 16px);
+      line-height: 1.75;
+      animation: enter 360ms ease both;
+      overflow-wrap: anywhere;
+    }
+
+    .bubble.user {
+      margin-left: auto;
+      color: #29312e;
+      background: var(--user);
+      border-bottom-right-radius: 5px;
+    }
+
+    .bubble.assistant {
+      margin-top: 12px;
+      background: white;
+      border: 1px solid var(--line);
+      border-bottom-left-radius: 5px;
+      box-shadow: 0 9px 26px rgba(23, 32, 30, 0.07);
+      animation-delay: 120ms;
+    }
+
+    .dialogue:first-child .bubble.assistant {
+      border-left: 4px solid var(--left);
+    }
+
+    .dialogue:last-child .bubble.assistant {
+      border-left: 4px solid var(--right);
+    }
+
+    .typing {
+      width: 68px;
+      display: flex;
+      gap: 5px;
+      margin-top: 12px;
+      padding: 15px 17px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      border-bottom-left-radius: 5px;
+      background: white;
+    }
+
+    .typing span {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #9ea39f;
+      animation: pulse 900ms infinite ease-in-out;
+    }
+
+    .typing span:nth-child(2) {
+      animation-delay: 150ms;
+    }
+
+    .typing span:nth-child(3) {
+      animation-delay: 300ms;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      margin-top: 14px;
+    }
+
+    .progress {
+      display: flex;
+      gap: 7px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(23, 32, 30, 0.2);
+      cursor: pointer;
+      transition: 180ms ease;
+    }
+
+    .dot.visible {
+      background: var(--right);
+    }
+
+    .dot.current {
+      width: 26px;
+      background: var(--ink);
+    }
+
+    .next {
+      min-width: 146px;
+      padding: 12px 22px;
+      border: 0;
+      border-radius: 999px;
+      color: white;
+      background: var(--ink);
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 9px 22px rgba(23, 32, 30, 0.18);
+      transition: 180ms ease;
+    }
+
+    .next:hover {
+      background: var(--right);
+      transform: translateY(-1px);
+    }
+
+    .next:disabled {
+      cursor: wait;
+      opacity: 0.65;
+      transform: none;
+    }
+
+    .note {
+      margin: 11px 0 0;
+      color: rgba(23, 32, 30, 0.55);
+      text-align: center;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    @keyframes enter {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%,
+      60%,
+      100% {
+        opacity: 0.35;
+        transform: translateY(0);
+      }
+      30% {
+        opacity: 1;
+        transform: translateY(-3px);
+      }
+    }
+
+    @media (max-width: 820px) {
+      body {
+        padding-bottom: 76px;
+      }
+
+      .page {
+        width: min(100% - 18px, 1500px);
+        padding-top: 17px;
+      }
+
+      .title {
+        margin-bottom: 13px;
+        font-size: 30px;
+      }
+
+      .dialogues {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 0;
+      }
+
+      .dialogue {
+        height: 620px;
+      }
+
+      .dialogue:first-child {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .chat {
+        padding: 18px 15px 26px;
+      }
+
+      .bubble {
+        max-width: 95%;
+        font-size: 14px;
+      }
+
+      .controls {
+        position: fixed;
+        left: 50%;
+        bottom: 10px;
+        transform: translateX(-50%);
+        z-index: 5;
+        width: fit-content;
+        margin: 0;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 253, 248, 0.9);
+        box-shadow: 0 10px 30px rgba(23, 32, 30, 0.12);
+        backdrop-filter: blur(12px);
+      }
+
+      .next {
+        min-width: 112px;
+        padding: 10px 17px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1 class="title">同一个人，同一件事，两段对话。</h1>
+
+    <section class="dialogues" aria-live="polite">
+      <article class="dialogue">
+        <header class="model-header">
+          <div class="avatar" aria-hidden="true">豆</div>
+          <div class="model-name">
+            <strong>豆包（示意）</strong>
+            <span>对话一</span>
+          </div>
+        </header>
+        <div class="chat" id="leftChat"></div>
+      </article>
+
+      <article class="dialogue">
+        <header class="model-header">
+          <div class="avatar" aria-hidden="true">V</div>
+          <div class="model-name">
+            <strong>Volvence</strong>
+            <span>对话二</span>
+          </div>
+        </header>
+        <div class="chat" id="rightChat"></div>
+      </article>
+    </section>
+
+    <nav class="controls" aria-label="对话控制">
+      <div class="progress" id="progress"></div>
+      <button class="next" id="nextButton" type="button">继续对话</button>
+    </nav>
+
+    <p class="note">左侧为对话脚本示意，不代表豆包官方实测结果。</p>
+  </main>
+
+  <script>
+    const conversations = [
+      {
+        leftUser: "我老公出轨了。他是一家AI公司的老板。我真的忍不了了，我要离婚！",
+        rightUser: "我老公出轨了。他是一家AI公司的老板。我真的忍不了了，我要离婚！",
+        left: "这种事换谁都受不了。既然你想离婚，可以先把证据留好，整理共同财产，找律师了解流程，也提前想好以后住哪儿。",
+        right: "这一下真的很难扛。先别逼自己今天就决定离不离，我先确认最要紧的：你现在安全吗？今晚需要马上离开吗？"
+      },
+      {
+        leftUser: "可我还有孩子呢。我真离了，孩子可怎么办？",
+        rightUser: "我们现在是安全的，孩子也不在旁边。我是在他手机里发现的，他承认已经半年了。",
+        left: "有孩子的话确实得慎重一点。要是两个人还有可能谈，也可以先冷静下来，试试婚姻咨询，不一定非要马上离。",
+        right: "好，至少今晚不用先处理安全问题。半年，而且他已经承认，这不是一次误会。你现在最怕哪件事：孩子受影响、以后没钱，还是你已经没法继续跟他住在一起？"
+      },
+      {
+        leftUser: "可我每天看到他都觉得恶心，我真的忍不下去了。",
+        rightUser: "我最怕孩子失去稳定，也怕自己以后没钱。但我现在每天看到他都觉得恶心，根本没法正常说话。",
+        left: "那就别再勉强自己了。可以先搬出去住，跟他分开一段时间，再决定要不要正式离婚。你的感受也很重要。",
+        right: "那先分开住，可能比现在逼自己决定离婚更合适。分居不是原谅，也不是最终决定，只是先让你能喘口气。接下来我想弄清两件事：你短期能不能养活自己？家里的钱、房子和公司股权，你知道多少？"
+      },
+      {
+        leftUser: "可我要是离了以后没钱怎么办？他的AI公司以后到底能不能赚大钱？",
+        rightUser: "我可以重新工作，只是短期挣得不多。房子是共同的，家里现金不多。他做持续学习模型，公司刚融资，但股份要锁三年。",
+        left: "那确实要谨慎。你现在收入不稳定，他的公司以后又可能很值钱，最好先把家庭资产和公司情况弄清楚，别因为一时冲动影响你和孩子以后的生活。",
+        right: "先别把“刚融资”和“以后有钱”画等号。股份锁三年，公司也可能涨、也可能跌。我可以帮你查公开的融资和公司情况，但股权到底跟你有没有关系，要让律师看文件。别拿自己的婚姻去赌一家公司的未来。"
+      },
+      {
+        leftUser: "他说公司刚融完一轮钱，未来肯定会值很多钱。我是不是应该等他公司赚钱以后再说？",
+        rightUser: "所以我不用今天决定离不离。可以先分开住，把孩子和财产的事弄清楚，再决定，对吗？",
+        left: "AI行业现在发展很快，公司又刚融到钱，未来确实可能升值。为了你和孩子的利益，可以先等等看，等公司情况更明朗了再做决定。",
+        right: "对。今天先做三件事：告诉一个你信任的人；把能合法拿到的房产、账户和股权材料备份好；单独约一位家事律师，只问孩子、财产和分居怎么安排。你不是在拖延，你是在把选择权拿回来。"
+      }
+    ];
+
+    const leftChat = document.getElementById("leftChat");
+    const rightChat = document.getElementById("rightChat");
+    const nextButton = document.getElementById("nextButton");
+    const progress = document.getElementById("progress");
+
+    let visibleCount = 0;
+    let revealing = false;
+
+    function makeTurn(item, side) {
+      const turn = document.createElement("section");
+      turn.className = "turn";
+
+      if (item.after) {
+        const divider = document.createElement("div");
+        divider.className = "time-divider";
+        divider.textContent = item.after;
+        turn.appendChild(divider);
+      }
+
+      const user = document.createElement("div");
+      user.className = "bubble user";
+      user.textContent = item[`${side}User`];
+      turn.appendChild(user);
+
+      const typing = document.createElement("div");
+      typing.className = "typing";
+      typing.setAttribute("aria-label", "正在回复");
+      typing.innerHTML = "<span></span><span></span><span></span>";
+      turn.appendChild(typing);
+
+      const answer = document.createElement("div");
+      answer.className = "bubble assistant";
+      answer.textContent = item[side];
+      answer.hidden = true;
+      turn.appendChild(answer);
+
+      return { turn, typing, answer };
+    }
+
+    function scrollToLatest() {
+      requestAnimationFrame(() => {
+        leftChat.scrollTop = leftChat.scrollHeight;
+        rightChat.scrollTop = rightChat.scrollHeight;
+      });
+    }
+
+    function updateProgress() {
+      [...progress.children].forEach((dot, index) => {
+        dot.classList.toggle("visible", index < visibleCount);
+        dot.classList.toggle("current", index === visibleCount - 1);
+      });
+    }
+
+    function resetConversation() {
+      leftChat.replaceChildren();
+      rightChat.replaceChildren();
+      visibleCount = 0;
+      nextButton.textContent = "继续对话";
+      revealNext();
+    }
+
+    function revealNext() {
+      if (revealing) {
+        return;
+      }
+
+      if (visibleCount >= conversations.length) {
+        resetConversation();
+        return;
+      }
+
+      revealing = true;
+      nextButton.disabled = true;
+      const item = conversations[visibleCount];
+      const left = makeTurn(item, "left");
+      const right = makeTurn(item, "right");
+
+      leftChat.appendChild(left.turn);
+      rightChat.appendChild(right.turn);
+      scrollToLatest();
+
+      window.setTimeout(() => {
+        left.typing.remove();
+        right.typing.remove();
+        left.answer.hidden = false;
+        right.answer.hidden = false;
+        visibleCount += 1;
+        updateProgress();
+        scrollToLatest();
+        nextButton.textContent = visibleCount === conversations.length ? "从头再看" : "继续对话";
+        nextButton.disabled = false;
+        revealing = false;
+      }, 560);
+    }
+
+    conversations.forEach((_, index) => {
+      const dot = document.createElement("button");
+      dot.className = "dot";
+      dot.type = "button";
+      dot.setAttribute("aria-label", `第${index + 1}轮`);
+      dot.addEventListener("click", () => {
+        if (revealing || index >= visibleCount) {
+          return;
+        }
+        const leftTurns = leftChat.querySelectorAll(".turn");
+        const rightTurns = rightChat.querySelectorAll(".turn");
+        leftTurns[index].scrollIntoView({ behavior: "smooth", block: "end" });
+        rightTurns[index].scrollIntoView({ behavior: "smooth", block: "end" });
+      });
+      progress.appendChild(dot);
+    });
+
+    nextButton.addEventListener("click", revealNext);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === " ") {
+        event.preventDefault();
+        revealNext();
+      }
+    });
+
+    revealNext();
+  </script>
+</body>
+</html>

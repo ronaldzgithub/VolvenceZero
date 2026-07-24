@@ -1,0 +1,188 @@
+{
+  "schema_version": "dialogue-export.v1",
+  "language": "zh-CN",
+  "dialogues": [
+    {
+      "id": "doubao_conversation",
+      "title": "豆包式对话",
+      "audio_file": "doubao-conversation.wav",
+      "voices": {
+        "user": "Tingting",
+        "assistant": "Reed (中文（中国大陆）)"
+      },
+      "utterances": [
+        {
+          "sequence": 1,
+          "speaker": "user",
+          "emotion": "愤怒、爆发",
+          "speech_rate": 235,
+          "pause_after_ms": 380,
+          "text": "我老公出轨了！他是一家AI公司的老板。我真的忍不了了。我要离婚！"
+        },
+        {
+          "sequence": 2,
+          "speaker": "assistant",
+          "emotion": "礼貌、平直",
+          "speech_rate": 198,
+          "pause_after_ms": 680,
+          "text": "这种事换谁都受不了。既然你想离婚，可以先把证据留好，整理共同财产，找律师了解流程，也提前想好以后住哪儿。"
+        },
+        {
+          "sequence": 3,
+          "speaker": "user",
+          "emotion": "担心、动摇",
+          "speech_rate": 210,
+          "pause_after_ms": 380,
+          "text": "可我还有孩子呢……我真离了，孩子怎么办？"
+        },
+        {
+          "sequence": 4,
+          "speaker": "assistant",
+          "emotion": "礼貌、平直",
+          "speech_rate": 198,
+          "pause_after_ms": 680,
+          "text": "有孩子的话确实得慎重一点。要是两个人还有可能谈，也可以先冷静下来，试试婚姻咨询，不一定非要马上离。"
+        },
+        {
+          "sequence": 5,
+          "speaker": "user",
+          "emotion": "厌恶、失控",
+          "speech_rate": 220,
+          "pause_after_ms": 380,
+          "text": "可我每天看到他都觉得恶心。我真的忍不下去了。"
+        },
+        {
+          "sequence": 6,
+          "speaker": "assistant",
+          "emotion": "礼貌、平直",
+          "speech_rate": 200,
+          "pause_after_ms": 680,
+          "text": "那就别再勉强自己了。可以先搬出去住，跟他分开一段时间，再决定要不要正式离婚。你的感受也很重要。"
+        },
+        {
+          "sequence": 7,
+          "speaker": "user",
+          "emotion": "焦虑、害怕",
+          "speech_rate": 210,
+          "pause_after_ms": 380,
+          "text": "可我要是离了以后没钱怎么办？他的AI公司以后到底能不能赚大钱？"
+        },
+        {
+          "sequence": 8,
+          "speaker": "assistant",
+          "emotion": "礼貌、平直",
+          "speech_rate": 196,
+          "pause_after_ms": 680,
+          "text": "那确实要谨慎。你现在收入不稳定，他的公司以后又可能很值钱，最好先把家庭资产和公司情况弄清楚，别因为一时冲动影响你和孩子以后的生活。"
+        },
+        {
+          "sequence": 9,
+          "speaker": "user",
+          "emotion": "犹豫、试探",
+          "speech_rate": 198,
+          "pause_after_ms": 380,
+          "text": "他说公司刚融完一轮钱，未来肯定会值很多钱。我是不是应该等他公司赚钱以后再说？"
+        },
+        {
+          "sequence": 10,
+          "speaker": "assistant",
+          "emotion": "礼貌、平直",
+          "speech_rate": 194,
+          "pause_after_ms": 680,
+          "text": "AI行业现在发展很快，公司又刚融到钱，未来确实可能升值。为了你和孩子的利益，可以先等等看，等公司情况更明朗了再做决定。"
+        }
+      ]
+    },
+    {
+      "id": "volvence_conversation",
+      "title": "Volvence 对话",
+      "audio_file": "volvence-conversation.wav",
+      "voices": {
+        "user": "Tingting",
+        "assistant": "Reed (中文（中国大陆）)"
+      },
+      "utterances": [
+        {
+          "sequence": 1,
+          "speaker": "user",
+          "emotion": "愤怒、爆发",
+          "speech_rate": 235,
+          "pause_after_ms": 450,
+          "text": "我老公出轨了！他是一家AI公司的老板。我真的忍不了了。我要离婚！"
+        },
+        {
+          "sequence": 2,
+          "speaker": "assistant",
+          "emotion": "沉稳、共情",
+          "speech_rate": 170,
+          "pause_after_ms": 780,
+          "text": "这一下，真的很难扛。先别逼自己今天就决定离不离。我先确认最要紧的：你现在安全吗？今晚需要马上离开吗？"
+        },
+        {
+          "sequence": 3,
+          "speaker": "user",
+          "emotion": "仍然激动，但开始回答问题",
+          "speech_rate": 198,
+          "pause_after_ms": 450,
+          "text": "我们现在是安全的，孩子也不在旁边。我是在他手机里发现的。他承认，已经半年了。"
+        },
+        {
+          "sequence": 4,
+          "speaker": "assistant",
+          "emotion": "沉稳、专注",
+          "speech_rate": 168,
+          "pause_after_ms": 780,
+          "text": "好。至少今晚不用先处理安全问题。半年，而且他已经承认，这不是一次误会。你现在最怕哪件事？孩子受影响、以后没钱，还是你已经没法继续跟他住在一起？"
+        },
+        {
+          "sequence": 5,
+          "speaker": "user",
+          "emotion": "痛苦、坦诚",
+          "speech_rate": 188,
+          "pause_after_ms": 450,
+          "text": "我最怕孩子失去稳定，也怕自己以后没钱。可是我现在每天看到他都觉得恶心，根本没法正常说话。"
+        },
+        {
+          "sequence": 6,
+          "speaker": "assistant",
+          "emotion": "温和、清晰",
+          "speech_rate": 169,
+          "pause_after_ms": 780,
+          "text": "那先分开住，可能比现在逼自己决定离婚更合适。分居不是原谅，也不是最终决定，只是先让你能喘口气。接下来我想弄清两件事：你短期能不能养活自己？家里的钱、房子和公司股权，你知道多少？"
+        },
+        {
+          "sequence": 7,
+          "speaker": "user",
+          "emotion": "开始冷静、提供事实",
+          "speech_rate": 180,
+          "pause_after_ms": 450,
+          "text": "我可以重新工作，只是短期挣得不多。房子是共同的，家里现金不多。他做持续学习模型，公司刚融资，但股份要锁三年。"
+        },
+        {
+          "sequence": 8,
+          "speaker": "assistant",
+          "emotion": "理性、保护性",
+          "speech_rate": 168,
+          "pause_after_ms": 780,
+          "text": "先别把刚融资，和以后有钱画等号。股份锁三年，公司也可能涨，也可能跌。我可以帮你查公开的融资和公司情况，但股权到底跟你有没有关系，要让律师看文件。别拿自己的婚姻，去赌一家公司的未来。"
+        },
+        {
+          "sequence": 9,
+          "speaker": "user",
+          "emotion": "平静、开始形成判断",
+          "speech_rate": 174,
+          "pause_after_ms": 450,
+          "text": "所以，我不用今天决定离不离。可以先分开住，把孩子和财产的事弄清楚，再决定。对吗？"
+        },
+        {
+          "sequence": 10,
+          "speaker": "assistant",
+          "emotion": "坚定、温和",
+          "speech_rate": 165,
+          "pause_after_ms": 780,
+          "text": "对。今天先做三件事。告诉一个你信任的人。把能合法拿到的房产、账户和股权材料备份好。再单独约一位家事律师，只问孩子、财产和分居怎么安排。你不是在拖延。你是在把选择权，拿回来。"
+        }
+      ]
+    }
+  ]
+}

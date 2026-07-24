@@ -1,0 +1,28 @@
+{
+  "name": "volvence-core-remotion-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts VolvenceCoreMechanism out/volvence-affair-mechanism.mp4",
+    "render:continuous": "remotion render src/index.ts ContinuousLearningMechanism out/volvence-continuous-learning.mp4 --codec=h264",
+    "render:cognitive": "remotion render src/index.ts CognitiveAGI out/volvence-cognitive-agi.mp4 --codec=h264",
+    "still": "remotion still src/index.ts VolvenceCoreMechanism out/volvence-affair-cover.png --frame=1020",
+    "still:continuous": "remotion still src/index.ts ContinuousLearningMechanism out/volvence-continuous-learning-cover.png --frame=120",
+    "still:cognitive": "remotion still src/index.ts CognitiveAGI out/volvence-cognitive-agi-cover.png --frame=150",
+    "voiceover": "node scripts/generate-voiceover.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "remotion": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "typescript": "^5.4.5"
+  }
+}

@@ -112,6 +112,59 @@ def test_causal_action_head_rejects_out_of_range_gru_hidden_state() -> None:
         )
 
 
+def test_causal_action_head_prioritizes_state_path_over_bounded_intercept() -> None:
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    positive = tuple(0.25 for _ in range(_NDIM))
+    negative = tuple(-value for value in positive)
+    positive_gradient = (1.0,) + tuple(0.0 for _ in range(_NDIM - 1))
+    negative_gradient = (-1.0,) + tuple(
+        0.0 for _ in range(_NDIM - 1)
+    )
+    before = store.causal_action_head_parameters(track=Track.WORLD)
+
+    for _ in range(3):
+        store.update_causal_action_head(
+            track=Track.WORLD,
+            hidden_states=(positive, negative),
+            action_gradients=(positive_gradient, negative_gradient),
+            advantages=(1.0, 1.0),
+        )
+
+    after = store.causal_action_head_parameters(track=Track.WORLD)
+    assert after.bias[0] == pytest.approx(0.0)
+    assert after.output_factors != before.output_factors
+    assert after.input_factors != before.input_factors
+    positive_residual = store.causal_action_head_residual(
+        track=Track.WORLD,
+        hidden_state=positive,
+        strength=1.0,
+    )
+    negative_residual = store.causal_action_head_residual(
+        track=Track.WORLD,
+        hidden_state=negative,
+        strength=1.0,
+    )
+    assert positive_residual[0] == pytest.approx(-negative_residual[0])
+    assert abs(positive_residual[0]) > 0.0
+
+
+def test_causal_action_head_intercept_stays_tightly_bounded() -> None:
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    zero = tuple(0.0 for _ in range(_NDIM))
+    gradient = (4.0,) + tuple(0.0 for _ in range(_NDIM - 1))
+    for _ in range(200):
+        store.update_causal_action_head(
+            track=Track.WORLD,
+            hidden_states=(zero,),
+            action_gradients=(gradient,),
+            advantages=(1.0,),
+        )
+
+    parameters = store.causal_action_head_parameters(track=Track.WORLD)
+    assert parameters.bias[0] == pytest.approx(0.1)
+    assert max(abs(value) for value in parameters.bias) <= 0.1
+
+
 def test_learned_lite_code_dimension_follows_store() -> None:
     policy = LearnedLiteTemporalPolicy(
         parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
@@ -389,12 +442,35 @@ def test_runtime_posterior_exploration_reorients_within_short_episode() -> None:
     assert sampled_noise(0) != sampled_noise(8)
 
 
+def test_runtime_posterior_exploration_context_diversifies_options() -> None:
+    snapshot = _trace_step_snapshot(_trace("exploration-context"))
+
+    def sampled_noise(context: str | None) -> tuple[float, ...]:
+        policy = FullLearnedTemporalPolicy(
+            parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+        )
+        policy.set_runtime_exploration(1.0)
+        policy.set_runtime_exploration_context(context)
+        _first_code(policy, snapshot)
+        return policy.export_runtime_state().posterior_sample_noise
+
+    assert sampled_noise(None) == sampled_noise(None)
+    assert sampled_noise("matched-seed:17") == sampled_noise(
+        "matched-seed:17"
+    )
+    assert sampled_noise("matched-seed:17") != sampled_noise(
+        "matched-seed:18"
+    )
+
+
 def test_runtime_posterior_exploration_rejects_out_of_range_strength() -> None:
     policy = FullLearnedTemporalPolicy(
         parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
     )
     with pytest.raises(ValueError, match=r"within \[0, 1\]"):
         policy.set_runtime_exploration(1.01)
+    with pytest.raises(TypeError, match="string or None"):
+        policy.set_runtime_exploration_context(17)  # type: ignore[arg-type]
 
 
 def test_frozen_learning_write_gate_keeps_owner_parameters_read_only() -> None:

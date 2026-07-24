@@ -147,7 +147,7 @@ export const defaultConfig: ExperimentConfig = {
   arm: "learned",
   objective: "ecology",
   seed: 0,
-  n_ants: 8,
+  n_ants: 12,
   temporal_latent_dim: 16,
   tick_interval_ms: 150,
   max_ticks: 1000,

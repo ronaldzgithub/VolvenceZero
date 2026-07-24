@@ -210,21 +210,35 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">VOLVENCE · NON-LANGUAGE EMBODIMENT</p>
-          <h1>数字蚂蚁实时实验场</h1>
+        <div className="brand-lockup">
+          <span className="brand-mark" aria-hidden="true">V</span>
+          <div>
+            <p className="eyebrow">VOLVENCE · DIGITAL COLONY</p>
+            <h1>数字蚁巢观察站</h1>
+          </div>
         </div>
         <div className="status-stack">
           <span className={`live-dot ${status?.state ?? "idle"}`} />
-          <strong>{status?.state ?? "未启动"}</strong>
+          <strong>
+            {status?.state === "running"
+              ? "观察中"
+              : status?.state === "paused"
+                ? "已暂停"
+                : status?.state === "completed"
+                  ? "已完成"
+                  : status?.state === "failed"
+                    ? "运行异常"
+                    : "未启动"}
+          </strong>
           <span>tick {frame?.tick ?? 0}</span>
         </div>
       </header>
 
       <main className="layout">
         <aside className="control-panel">
-          <section>
-            <h2>实验形态</h2>
+          <section className="setup-panel">
+            <p className="panel-kicker">观察设置</p>
+            <h2>创建一个真实蚁群</h2>
             <div className="segmented">
               {(["solo", "colony"] as AppMode[]).map((mode) => (
                 <button
@@ -336,7 +350,7 @@ export default function App() {
               onClick={startRun}
               disabled={busy}
             >
-              {busy ? "创建中…" : "创建真实闭环"}
+              {busy ? "正在唤醒蚁群…" : "创建真实闭环"}
             </button>
             <div className="transport">
               <button onClick={() => command("pause")} disabled={!runId}>
@@ -357,41 +371,10 @@ export default function App() {
             </div>
           </section>
 
-          <section>
-            <h2>生态物体</h2>
-            <p className="section-note">
-              选择黄油或火柴后点击画布；木棍用拖拽定义方向；选择工具可移动或删除对象。
-            </p>
-            <div className="object-tools">
-              {(
-                [
-                  ["butter", "黄油"],
-                  ["wood_stick", "木棍"],
-                  ["burning_match", "燃烧火柴"],
-                  ["select", "选择 / 移动"],
-                ] as [CanvasTool, string][]
-              ).map(([tool, label]) => (
-                <button
-                  key={tool}
-                  className={canvasTool === tool ? "selected" : ""}
-                  onClick={() => setCanvasTool(tool)}
-                  disabled={!runId || config.objective !== "ecology"}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <button
-              className="delete-object"
-              onClick={removeSelectedObject}
-              disabled={!runId || !selectedObjectId}
-            >
-              删除选中物体
-            </button>
-          </section>
-
-          <section>
-            <h2>环境扰动</h2>
+          <details className="advanced-panel">
+            <summary>高级环境扰动</summary>
+            <section>
+            <h2>实验扰动</h2>
             <p className="section-note">
               只在 tick / round 边界进入环境 owner，不直接写控制器。
             </p>
@@ -481,12 +464,15 @@ export default function App() {
                 施加隐藏电机扰动
               </button>
             </div>
-          </section>
+            </section>
+          </details>
 
           <section className="truth-boundary">
-            <h2>证据边界</h2>
-            <div className={`verdict ${verdict.toLowerCase()}`}>
-              {verdict}
+            <div className="truth-title">
+              <h2>行为证据</h2>
+              <div className={`verdict ${verdict.toLowerCase()}`}>
+                {verdict}
+              </div>
             </div>
             <p>
               {evidence?.verdict_reason ??
@@ -511,17 +497,74 @@ export default function App() {
         </aside>
 
         <section className="stage">
-          <WorldCanvas
-            frame={frame}
-            tool={canvasTool}
-            selectedObjectId={selectedObjectId}
-            onPlaceObject={placeObject}
-            onMoveObject={moveObject}
-            onSelectObject={setSelectedObjectId}
-          />
+          <div className="stage-heading">
+            <div>
+              <p className="panel-kicker">实时生态观察箱</p>
+              <h2>
+                {frame ? `${frame.ants.length} 只蚂蚁正在自主行动` : "等待蚁群进入环境"}
+              </h2>
+            </div>
+            <div className="field-readout">
+              <span>拾取 <strong>{frame?.pickups ?? 0}</strong></span>
+              <span>送回巢穴 <strong>{frame?.delivered ?? 0}</strong></span>
+            </div>
+          </div>
+
+          <div className="field-toolbar" aria-label="生态物体工具">
+            <div className="object-tools">
+              {(
+                [
+                  ["butter", "黄油", "butter"],
+                  ["wood_stick", "木棍", "stick"],
+                  ["burning_match", "燃烧火柴", "match"],
+                  ["select", "选择 / 移动", "cursor"],
+                ] as [CanvasTool, string, string][]
+              ).map(([tool, label, icon]) => (
+                <button
+                  key={tool}
+                  className={canvasTool === tool ? "selected" : ""}
+                  onClick={() => setCanvasTool(tool)}
+                  disabled={!runId || config.objective !== "ecology"}
+                  aria-pressed={canvasTool === tool}
+                >
+                  <span className={`tool-icon ${icon}`} aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+            <p className="tool-hint">
+              {canvasTool === "wood_stick"
+                ? "在环境中按住并拖动，画出木棍"
+                : canvasTool === "select"
+                  ? "拖动物体改变环境，点击空地取消选择"
+                  : `点击环境，放下一块${canvasTool === "butter" ? "黄油" : "燃烧火柴"}`}
+            </p>
+            <button
+              className="delete-object"
+              onClick={removeSelectedObject}
+              disabled={!runId || !selectedObjectId}
+            >
+              移除选中物体
+            </button>
+          </div>
+
+          <div className="canvas-shell">
+            <WorldCanvas
+              frame={frame}
+              tool={canvasTool}
+              selectedObjectId={selectedObjectId}
+              onPlaceObject={placeObject}
+              onMoveObject={moveObject}
+              onSelectObject={setSelectedObjectId}
+            />
+            <div className="canvas-legend" aria-hidden="true">
+              <span><i className="legend-dot pheromone" />信息素路径</span>
+              <span><i className="legend-dot heat" />有害热区</span>
+            </div>
+          </div>
           <div className="metrics-strip">
             <article>
-              <span>pickup / delivery</span>
+              <span>拾取 / 回巢</span>
               <strong>
                 {frame?.pickups ?? 0} / {frame?.delivered ?? 0}
               </strong>
@@ -531,11 +574,11 @@ export default function App() {
               <strong>{activeAnt?.action ?? "—"}</strong>
             </article>
             <article>
-              <span>β switch</span>
+              <span>策略切换 β</span>
               <strong>{activeAnt?.switch_gate.toFixed(3) ?? "—"}</strong>
             </article>
             <article>
-              <span>PE / credit</span>
+              <span>预测误差 / 信用</span>
               <strong>
                 {activeAnt
                   ? `${activeAnt.pe_magnitude.toFixed(3)} / ${activeAnt.cumulative_credit.toFixed(3)}`
@@ -543,7 +586,7 @@ export default function App() {
               </strong>
             </article>
             <article>
-              <span>replay settled / eligible</span>
+              <span>闭环结算 / 可用</span>
               <strong>
                 {evidence
                   ? `${evidence.runtime_replay_settled}/${Math.max(
@@ -555,7 +598,7 @@ export default function App() {
               </strong>
             </article>
             <article>
-              <span>实际 tick latency</span>
+              <span>每步耗时</span>
               <strong>
                 {frame ? `${frame.tick_latency_ms.toFixed(1)} ms` : "—"}
               </strong>

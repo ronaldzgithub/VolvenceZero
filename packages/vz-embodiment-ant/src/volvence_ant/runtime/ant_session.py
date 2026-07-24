@@ -212,6 +212,7 @@ class AntSession:
             session_id=self.config.session_id,
             config=self.config.rollout_config or FinalRolloutConfig(),
             temporal_latent_dim=self.config.temporal_latent_dim,
+            runtime_exploration_context=f"seed:{self.config.seed}",
             substrate_adapter_factory=self._adapter_factory,
             default_residual_runtime=SyntheticOpenWeightResidualRuntime(
                 model_id="digital-ant-fallback-runtime",

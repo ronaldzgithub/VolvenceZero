@@ -487,6 +487,7 @@ class AgentSessionRunner(
         self_temporal_policy: FullLearnedTemporalPolicy | None = None,
         temporal_latent_dim: int = 3,
         temporal_input_dim: int | None = None,
+        runtime_exploration_context: str | None = None,
         domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
         case_memory_store: ApplicationCaseMemoryStore | None = None,
         domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
@@ -633,6 +634,9 @@ class AgentSessionRunner(
             self._world_temporal_policy.set_runtime_exploration(
                 _runtime_exploration
             )
+            self._world_temporal_policy.set_runtime_exploration_context(
+                runtime_exploration_context
+            )
             self._world_temporal_policy.set_causal_action_head(
                 wiring_level=_causal_head_wiring,
                 track=Track.WORLD,
@@ -646,6 +650,9 @@ class AgentSessionRunner(
             self._self_temporal_policy.set_runtime_track_modulation(_track_modulation)
             self._self_temporal_policy.set_runtime_exploration(
                 _runtime_exploration
+            )
+            self._self_temporal_policy.set_runtime_exploration_context(
+                runtime_exploration_context
             )
             self._self_temporal_policy.set_causal_action_head(
                 wiring_level=_causal_head_wiring,
