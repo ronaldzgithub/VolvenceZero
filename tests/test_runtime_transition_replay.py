@@ -151,6 +151,36 @@ def test_causal_action_head_wiring_is_reversible_and_shadow_is_noop() -> None:
     )
 
 
+def test_causal_action_head_projects_opponent_pair_common_mode() -> None:
+    store = MetacontrollerParameterStore(n_z=4)
+    parameters = store.causal_action_head_parameters(track=Track.WORLD)
+    store.restore_causal_action_head_parameters(
+        replace(
+            parameters,
+            bias=(0.4, 0.2, 0.3, -0.1),
+            update_step=1,
+        )
+    )
+    policy = FullLearnedTemporalPolicy(parameter_store=store)
+    policy.set_causal_action_head(
+        wiring_level=WiringLevel.SHADOW,
+        track=Track.WORLD,
+        strength=0.5,
+        effective_dims=(0, 1, 2),
+        contrast_pairs=((0, 1),),
+    )
+
+    policy.step(
+        substrate_snapshot=_substrate("opponent pair projection"),
+        previous_snapshot=None,
+    )
+    residual = policy.export_runtime_state().causal_action_head_residual
+
+    assert residual[0] == pytest.approx(-residual[1])
+    assert residual[2] != 0.0
+    assert residual[3] == 0.0
+
+
 def test_causal_action_head_state_is_current_observation_stable() -> None:
     source_store = MetacontrollerParameterStore(n_z=4)
     source_head = source_store.causal_action_head_parameters(
@@ -594,6 +624,7 @@ def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> No
         track=Track.WORLD,
         strength=0.35,
         effective_dims=(2, 3),
+        contrast_pairs=((2, 3),),
     )
     sandbox = InternalRLSandbox(policy=policy)
     substrate = _substrate("causal action head replay observation")
@@ -641,6 +672,7 @@ def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> No
     ) > 1e-4
     assert after.bias[:2] == before.bias[:2]
     assert after.output_factors[:2] == before.output_factors[:2]
+    assert after.bias[2] == pytest.approx(-after.bias[3])
     _, masked_runtime_state = _runtime_action(policy, substrate)
     assert masked_runtime_state.causal_action_head_residual[:2] == (0.0, 0.0)
 
@@ -709,6 +741,35 @@ def test_causal_action_head_rejects_invalid_effective_dims(
             track=Track.WORLD,
             strength=0.35,
             effective_dims=effective_dims,
+        )
+
+
+@pytest.mark.parametrize(
+    "contrast_pairs",
+    (
+        ((0,),),
+        ((0, 0),),
+        ((0, 1), (1, 2)),
+        ((-1, 1),),
+        ((0, 4),),
+        ((True, 1),),
+        ((0, 3),),
+    ),
+)
+def test_causal_action_head_rejects_invalid_contrast_pairs(
+    contrast_pairs: tuple[tuple[int, ...], ...],
+) -> None:
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4)
+    )
+
+    with pytest.raises(ValueError, match="contrast pairs"):
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=Track.WORLD,
+            strength=0.35,
+            effective_dims=(0, 1, 2),
+            contrast_pairs=contrast_pairs,
         )
 
 

@@ -27,6 +27,10 @@ import math
 from dataclasses import dataclass, replace
 from typing import Any, Sequence
 
+from volvence_zero.temporal.causal_action_projection import (
+    normalize_causal_action_head_contrast_pairs,
+)
+
 
 def _require_torch() -> Any:
     try:
@@ -82,6 +86,9 @@ def torch_causal_ppo_update(
     causal_action_head_enabled: bool = False,
     causal_action_head_strength: float = 0.0,
     causal_action_head_effective_dims: tuple[int, ...] | None = None,
+    causal_action_head_contrast_pairs: (
+        tuple[tuple[int, int], ...] | None
+    ) = None,
 ) -> TorchPPOReport:
     """One real-autograd PPO update over a live ZTransition batch.
 
@@ -138,6 +145,11 @@ def torch_causal_ppo_update(
             "causal_action_head_effective_dims must be unique integer z "
             f"indices within [0, {n_z}), got {effective_dims!r}"
         )
+    contrast_pairs = normalize_causal_action_head_contrast_pairs(
+        causal_action_head_contrast_pairs,
+        n_z=n_z,
+        effective_dims=effective_dims,
+    )
 
     dtype = torch.float64
     effective_dim_mask = torch.tensor(
@@ -303,10 +315,18 @@ def torch_causal_ppo_update(
             )
             / math.sqrt(max(n_z, 1))
         )
-        return causal_action_head_strength * torch.tanh(
+        residual = causal_action_head_strength * torch.tanh(
             torch.matmul(basis, head_output.transpose(0, 1))
             + head_bias.unsqueeze(0)
         ) * effective_dim_mask.unsqueeze(0)
+        if not contrast_pairs:
+            return residual
+        columns = [residual[:, index] for index in range(n_z)]
+        for left, right in contrast_pairs:
+            contrast = 0.5 * (columns[left] - columns[right])
+            columns[left] = contrast
+            columns[right] = -contrast
+        return torch.stack(columns, dim=1)
 
     def policy_mean(weights: Any) -> Any:
         if runtime_replay:

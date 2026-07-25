@@ -8,8 +8,10 @@ from volvence_zero.runtime import WiringLevel
 from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
 
 from volvence_ant.evidence import (
+    ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS,
     ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS,
     ANT_CAUSAL_ACTION_HEAD_RANK,
+    ANT_CAUSAL_ACTION_HEAD_STRENGTH,
     ANT_RUNTIME_BATCH_TRANSITION_SIZE,
     ANT_RUNTIME_EXPLORATION_STRENGTH,
     ANT_RUNTIME_MODULATION_STRENGTH,
@@ -27,6 +29,7 @@ def test_production_rollout_defaults_remain_disabled_and_zero() -> None:
     assert config.internal_rl_runtime_modulation_strength == 0.0
     assert config.internal_rl_runtime_exploration_strength == 0.0
     assert config.internal_rl_causal_action_head_effective_dims is None
+    assert config.internal_rl_causal_action_head_contrast_pairs is None
 
 
 def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> None:
@@ -64,6 +67,16 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         == ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS
         == (0, 1, 2)
     )
+    assert (
+        config.internal_rl_causal_action_head_contrast_pairs
+        == ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS
+        == ((0, 1),)
+    )
+    assert (
+        config.internal_rl_causal_action_head_strength
+        == ANT_CAUSAL_ACTION_HEAD_STRENGTH
+        == 1.0
+    )
     # A 24-turn ecology episode has 23 settled transitions.  The segment
     # must close before the final turn so a later scheduled step can optimize
     # it before the cross-episode checkpoint discards pending replay.
@@ -93,9 +106,19 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         == (0, 1, 2)
     )
     assert (
+        session.runner.world_temporal_policy
+        .causal_action_head_contrast_pairs
+        == ((0, 1),)
+    )
+    assert (
         session.runner.joint_loop._world_sandbox.causal_policy
         .causal_action_head_effective_dims
         == (0, 1, 2)
+    )
+    assert (
+        session.runner.joint_loop._world_sandbox.causal_policy
+        .causal_action_head_contrast_pairs
+        == ((0, 1),)
     )
 
 

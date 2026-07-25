@@ -114,6 +114,12 @@ v19 从空目录推进到 25/50。butter/burning near 仍为 `41/32`、`30/16`�
 
 随后对真实 capture 的 likelihood 做代数审计发现更直接的断链：无显式 exploration 的 encoder `z_tilde` 使用 `0.5 × posterior_std × noise`，而 Digital Ant 稀疏探索分支使用 `1.0 × posterior_std × noise`；runtime replay 却对两者固定重建为 `0.5`。实际 capture 的第 0/2 维噪声位移精确等于 replay 预测的 2 倍，score gradient 因错误方差放大约 4 倍并频繁撞上 `±4` clamp。现由 joint-loop owner 在 capture/transition 持久化实际 `posterior_sample_scale`，pure/torch likelihood 共同消费；默认/历史为 `0.5`，显式 exploration 为 `1.0`。`joint_loop.learning` schema 升为 v4，ecology schema 升为 `development.v20/progress.v15`；v19 journal 只读保留，v20 必须从空目录复跑。
 
+v20 从空目录推进到 25/50。butter/burning/composite near 为 `41/32`、`30/16`、`44/39`，比 v19 的 composite 增加 `3/3`，且五个 interleaved butter 继续产生近场回流；但 butter-medium 仍为 `2 pickups / 0 deliveries`，所以未盲目续跑到 50。四体 action-head update step 为 `27/28/29/24`，无效 output row 严格为零。真实 far batch 审计显示 posterior scale 修复后所有 score clamp 均为 `0`，food signal 与 steering score covariance 在八个 World/Self batch 全为正，food basis 与实际 steering 参数更新 cosine 也全部为正，排除 sensor→GAE/score→basis 的符号断链。
+
+同 checkpoint 的 ACTIVE/DISABLED/strength 对照进一步证明 head 在四体上都改善左右相对排序，但幅度不足以覆盖冻结 controller 的同向偏置；参数放大 `4/8/12×` 可让相对 turn delta 依次跨零，却仍不能满足“左物向左、右物向右”的绝对 probe。把已学 mapping 推到 `100–1000×` 饱和后，四体只有一体形成绝对对向，其余分别落到双左、停转或双右。根因是此前 `effective_dims=(0,1,2)` 只删除了 `z[3:16]`，没有删除 actuator-null 的 `z[0]+z[1]` common mode；`motor_decode` 只消费 `z[1]-z[0]`，无效 common mode 仍吸收信用并固化 body-specific intercept。
+
+现由 temporal owner 新增通用、可回滚的 `contrast_pairs` 投影：pair 必须 disjoint、界内且属于 effective support；pure replay score gradient、torch forward gradient、live/SHADOW residual 全部执行同一正交差分投影。Digital Ant profile 声明 `((0,1),)`，速度 `z[2]` 不变，并把该稀疏 profile 的 head strength 从 `0.35` 提升到 `1.0`，消除训练梯度与 serving residual 两端累计的 `0.35²` 时间尺度衰减；通用默认仍为 `None/0.35`。正式 schema 升为 `development.v21/progress.v16`，v20 journal 只读保留，必须从空目录先跑 12/25 probe 与 near/medium 门槛，P1 继续 `BLOCK`。
+
 实测 checkpoint collection 在 learned 5/50 时增长到 21 MB，owner 尺寸审计确认 95% 以上来自 `joint_loop.learning.memory_checkpoint`：每 body 约 5,115 条 explicit artifacts，且 entries/semantic-index 双份持久化。为避免 50-episode 长跑撞上单-agent 32 MB / collection 128 MB 上限，Memory owner 新增确定性 `enforce_artifact_capacity(8192)`：优先淘汰 transient/episodic、弱、旧条目，并同步清理 semantic index、pending queues 与 attribute readout；CMS learned state 完整保留。容量在每个 ecology training episode 的 checkpoint 边界执行并写入 progress compatibility/episode summary；旧 seed0 archive 已安全迁移。容量从第 9 个 episode 起持续触发，到 `learned 50/50` 时双槽 archive 仍均稳定在约 31 MB，证明长跑期间未继续无界增长。
 
 journal 位于 ignored `.partials/ecology_p1/seed0`，最终 report 尚未生成。当前相关回归集 53/53 通过。

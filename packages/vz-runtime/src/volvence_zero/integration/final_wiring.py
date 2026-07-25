@@ -266,6 +266,12 @@ class FinalRolloutConfig:
     # all-z-dim behavior; an explicit tuple limits learned/live residuals to
     # coordinates consumed by the downstream frozen plant.
     internal_rl_causal_action_head_effective_dims: tuple[int, ...] | None = None
+    # Optional disjoint opponent-coded coordinate pairs. The temporal owner
+    # removes each pair's common mode from both live residuals and replay
+    # gradients. None preserves historical independent-coordinate behavior.
+    internal_rl_causal_action_head_contrast_pairs: (
+        tuple[tuple[int, int], ...] | None
+    ) = None
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
@@ -1555,6 +1561,9 @@ def build_final_runtime_modules(
             strength=config.internal_rl_causal_action_head_strength,
             rank=config.internal_rl_causal_action_head_rank,
             effective_dims=config.internal_rl_causal_action_head_effective_dims,
+            contrast_pairs=(
+                config.internal_rl_causal_action_head_contrast_pairs
+            ),
         )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
@@ -1570,6 +1579,9 @@ def build_final_runtime_modules(
             strength=config.internal_rl_causal_action_head_strength,
             rank=config.internal_rl_causal_action_head_rank,
             effective_dims=config.internal_rl_causal_action_head_effective_dims,
+            contrast_pairs=(
+                config.internal_rl_causal_action_head_contrast_pairs
+            ),
         )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded
     # protocol switch-pressure prior reach beta_t. SHADOW records evidence

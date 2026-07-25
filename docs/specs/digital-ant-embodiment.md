@@ -296,6 +296,13 @@ promotion gate：
   避免把 encoder 已保留的左右差再次随机压入 rank-4 basis。首个非零 covariance batch 先建立
   candidate output path，再按真实 output-column norm 回传 input。通用 profile 不指定 rank 时
   保持历史低秩；已学习 mapping 禁止原地改变 rank。
+  冻结 `motor_decode` 的 steering 只消费 `z[1]-z[0]`，因此仅声明
+  `effective_dims=(0,1,2)` 仍不充分：`z[0]+z[1]` 是 actuator-null common mode。正式 profile
+  额外声明 `contrast_pairs=((0,1),)`，由 temporal owner 在 pure/torch replay gradient 与
+  live/SHADOW residual 两端施加同一正交投影；`z[2]` 速度轴保持独立。该 projection 不编码食物、
+  热源或目标方向。v20 证明正确方向在旧 head 中仅有相对排序且被 common-mode 固定偏置覆盖，
+  所以 v21 同时把 Digital Ant 专用 head strength 设为 `1.0`；通用默认仍为 `0.35` 且
+  projection 为 `None`。
   正式 `n_z=16` 还必须保持 ndim/legacy 控制面隔离：Internal-RL 更新正式 track weights 后，
   不得写入 ndim serving 不消费的 legacy `temporal_weights/switch_bias`；dual-track aggregate
   的 `track_parameters` 发布 owner track weights，不得用逐拍 latent state 代替。否则通用 drift

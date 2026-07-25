@@ -781,10 +781,15 @@ def test_torch_causal_action_head_masks_non_actuator_dimensions() -> None:
         causal_action_head_enabled=True,
         causal_action_head_strength=0.35,
         causal_action_head_effective_dims=(0, 1),
+        causal_action_head_contrast_pairs=((0, 1),),
     )
     after = store.causal_action_head_parameters(track=Track.WORLD)
 
     assert after.output_factors[:2] != before.output_factors[:2]
+    assert after.output_factors[0] == pytest.approx(
+        tuple(-value for value in after.output_factors[1])
+    )
+    assert after.bias[0] == pytest.approx(-after.bias[1])
     assert after.output_factors[2:] == before.output_factors[2:]
     assert after.bias[2:] == before.bias[2:]
 

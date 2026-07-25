@@ -17,10 +17,13 @@ ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
 # cross-episode checkpoint before it ever reaches the optimizer.
 ANT_RUNTIME_SEGMENT_MAX_STEPS = 16
 ANT_RUNTIME_BATCH_TRANSITION_SIZE = 4
-ANT_CAUSAL_ACTION_HEAD_STRENGTH = 0.35
+ANT_CAUSAL_ACTION_HEAD_STRENGTH = 1.0
 ANT_CAUSAL_ACTION_HEAD_RANK = 16
 # Frozen motor_decode consumes steering in z[0:2] and speed in z[2].
 ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS = (0, 1, 2)
+# Steering consumes only the opponent-coded z[1] - z[0] axis. Its orthogonal
+# common mode is actuator-null and must not absorb policy credit.
+ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS = ((0, 1),)
 
 
 def ant_runtime_replay_rollout_config(
@@ -62,6 +65,9 @@ def ant_runtime_replay_rollout_config(
         internal_rl_causal_action_head_effective_dims=(
             ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS
         ),
+        internal_rl_causal_action_head_contrast_pairs=(
+            ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS
+        ),
         internal_rl_runtime_modulation_strength=(
             ANT_RUNTIME_MODULATION_STRENGTH
         ),
@@ -78,6 +84,7 @@ def ant_runtime_replay_rollout_config(
 
 __all__ = [
     "ANT_CAUSAL_ACTION_HEAD_STRENGTH",
+    "ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS",
     "ANT_CAUSAL_ACTION_HEAD_RANK",
     "ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS",
     "ANT_RUNTIME_EXPLORATION_STRENGTH",

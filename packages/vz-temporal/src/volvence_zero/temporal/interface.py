@@ -49,6 +49,10 @@ from volvence_zero.temporal.metacontroller_components import (
     update_family_match_weights,
     update_family_outcome_history,
 )
+from volvence_zero.temporal.causal_action_projection import (
+    normalize_causal_action_head_contrast_pairs,
+    project_causal_action_head_vector,
+)
 from volvence_zero.temporal.m3_optimizer import M3OptimizerState
 
 _RUNTIME_EXPLORATION_OPTION_STEPS = 8
@@ -2921,6 +2925,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._causal_action_head_track = Track.WORLD
         self._causal_action_head_strength = 0.0
         self._causal_action_head_effective_dims: tuple[int, ...] | None = None
+        self._causal_action_head_contrast_pairs: tuple[
+            tuple[int, int], ...
+        ] = ()
         self._latest_causal_action_head_state = _nz_zeros(n_z)
         self._latest_causal_action_head_residual = _nz_zeros(n_z)
 
@@ -3023,6 +3030,12 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     def causal_action_head_effective_dims(self) -> tuple[int, ...] | None:
         return self._causal_action_head_effective_dims
 
+    @property
+    def causal_action_head_contrast_pairs(
+        self,
+    ) -> tuple[tuple[int, int], ...]:
+        return self._causal_action_head_contrast_pairs
+
     def set_causal_action_head(
         self,
         *,
@@ -3031,6 +3044,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         strength: float,
         rank: int | None = None,
         effective_dims: tuple[int, ...] | None = None,
+        contrast_pairs: tuple[tuple[int, int], ...] | None = None,
     ) -> None:
         if not 0.0 <= strength <= 1.0:
             raise ValueError(
@@ -3067,6 +3081,13 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._causal_action_head_track = track
         self._causal_action_head_strength = float(strength)
         self._causal_action_head_effective_dims = effective_dims
+        self._causal_action_head_contrast_pairs = (
+            normalize_causal_action_head_contrast_pairs(
+                contrast_pairs,
+                n_z=self._parameter_store.n_z,
+                effective_dims=effective_dims,
+            )
+        )
         self._latest_causal_action_head_state = _nz_zeros(
             self._parameter_store.n_z
         )
@@ -3744,6 +3765,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                     else 0.0
                     for index, value in enumerate(action_head_residual)
                 )
+            action_head_residual = project_causal_action_head_vector(
+                action_head_residual,
+                contrast_pairs=self._causal_action_head_contrast_pairs,
+            )
             self._latest_causal_action_head_residual = (
                 action_head_residual
             )

@@ -40,6 +40,10 @@ from volvence_zero.temporal.metacontroller_components import (
     residual_sequence_from_snapshot,
     summarize_residual_activations,
 )
+from volvence_zero.temporal.causal_action_projection import (
+    normalize_causal_action_head_contrast_pairs,
+    project_causal_action_head_vector,
+)
 
 _CAUSAL_ACTION_ADVANTAGE_SCALE_FLOOR = 0.05
 
@@ -456,6 +460,9 @@ class CausalZPolicy:
         causal_action_head_wiring: WiringLevel = WiringLevel.DISABLED,
         causal_action_head_strength: float = 0.0,
         causal_action_head_effective_dims: tuple[int, ...] | None = None,
+        causal_action_head_contrast_pairs: (
+            tuple[tuple[int, int], ...] | None
+        ) = None,
     ) -> None:
         self._parameter_store = parameter_store
         self._rl_backend = rl_backend
@@ -505,6 +512,13 @@ class CausalZPolicy:
                 f"indices within [0, {parameter_store.n_z}), got "
                 f"{self._causal_action_head_effective_dims!r}"
             )
+        self._causal_action_head_contrast_pairs = (
+            normalize_causal_action_head_contrast_pairs(
+                causal_action_head_contrast_pairs,
+                n_z=parameter_store.n_z,
+                effective_dims=self._causal_action_head_effective_dims,
+            )
+        )
         self._value_weights: dict[Track, tuple[float, ...]] = {
             track: tuple(weight * 0.8 for weight in parameter_store.track_weights[track])
             for track in (Track.WORLD, Track.SELF, Track.SHARED)
@@ -545,6 +559,12 @@ class CausalZPolicy:
     @property
     def causal_action_head_effective_dims(self) -> tuple[int, ...]:
         return self._causal_action_head_effective_dims
+
+    @property
+    def causal_action_head_contrast_pairs(
+        self,
+    ) -> tuple[tuple[int, int], ...]:
+        return self._causal_action_head_contrast_pairs
 
     @property
     def n_z(self) -> int:
@@ -824,16 +844,20 @@ class CausalZPolicy:
                     strength=self._causal_action_head_strength,
                 )
             )
+            residual = project_causal_action_head_vector(
+                tuple(
+                    delta
+                    if index in self._causal_action_head_effective_dims
+                    else 0.0
+                    for index, delta in enumerate(residual)
+                ),
+                contrast_pairs=self._causal_action_head_contrast_pairs,
+            )
             return tuple(
                 _clamp(
-                    value
-                    + (
-                        delta
-                        if index in self._causal_action_head_effective_dims
-                        else 0.0
-                    )
+                    value + delta
                 )
-                for index, (value, delta) in enumerate(
+                for value, delta in (
                     zip(
                         candidate,
                         residual,
@@ -1362,7 +1386,7 @@ class CausalZPolicy:
                     "causal action head runtime beta dimension mismatch: "
                     f"expected={self.n_z}, actual={len(beta_vector)}"
                 )
-            gradient = tuple(
+            raw_gradient = tuple(
                 max(
                     -4.0,
                     min(
@@ -1382,6 +1406,10 @@ class CausalZPolicy:
                 if index in self._causal_action_head_effective_dims
                 else 0.0
                 for index in range(self.n_z)
+            )
+            gradient = project_causal_action_head_vector(
+                raw_gradient,
+                contrast_pairs=self._causal_action_head_contrast_pairs,
             )
             if len(transition.runtime_action_head_state) != self.n_z:
                 raise ValueError(
@@ -1624,6 +1652,9 @@ class CausalZPolicy:
             causal_action_head_effective_dims=(
                 self._causal_action_head_effective_dims
             ),
+            causal_action_head_contrast_pairs=(
+                self._causal_action_head_contrast_pairs
+            ),
         )
         return {
             "backend": self._rl_backend.value,
@@ -1675,6 +1706,11 @@ class InternalRLSandbox:
             if isinstance(self._policy, FullLearnedTemporalPolicy)
             else None
         )
+        causal_action_head_contrast_pairs = (
+            self._policy.causal_action_head_contrast_pairs
+            if isinstance(self._policy, FullLearnedTemporalPolicy)
+            else None
+        )
         self._causal_policy = CausalZPolicy(
             parameter_store=self._policy.parameter_store,
             rl_backend=rl_backend,
@@ -1683,6 +1719,9 @@ class InternalRLSandbox:
             causal_action_head_wiring=causal_action_head_wiring,
             causal_action_head_strength=causal_action_head_strength,
             causal_action_head_effective_dims=causal_action_head_effective_dims,
+            causal_action_head_contrast_pairs=(
+                causal_action_head_contrast_pairs
+            ),
         )
         self._env = env or InternalRLEnvironment()
         self._residual_runtime = residual_runtime

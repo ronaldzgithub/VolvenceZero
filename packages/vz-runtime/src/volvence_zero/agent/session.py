@@ -645,6 +645,10 @@ class AgentSessionRunner(
                 effective_dims=(
                     self._config.internal_rl_causal_action_head_effective_dims
                 ),
+                contrast_pairs=(
+                    self._config
+                    .internal_rl_causal_action_head_contrast_pairs
+                ),
             )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy.set_learning_writes_enabled(
@@ -665,6 +669,10 @@ class AgentSessionRunner(
                 rank=self._config.internal_rl_causal_action_head_rank,
                 effective_dims=(
                     self._config.internal_rl_causal_action_head_effective_dims
+                ),
+                contrast_pairs=(
+                    self._config
+                    .internal_rl_causal_action_head_contrast_pairs
                 ),
             )
         self._evaluation_backbone = EvaluationBackbone()
