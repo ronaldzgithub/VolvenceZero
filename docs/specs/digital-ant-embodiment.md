@@ -286,7 +286,9 @@ promotion gate：
   进入 head，禁止再按 `[0,1]` 重心变换。通用默认仍为
   `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。常数 bias 的总幅度限制为 `0.1`，
   学习尺度为 state path 的 `0.05`；batch mean 只更新该 bias，低秩 factor 只消费 centered
-  gradient，避免单个重复探索序列把近场偶然收益固化为显式或隐式的跨状态固定转向。
+  gradient，避免单个重复探索序列把近场偶然收益固化为显式或隐式的跨状态固定转向。output
+  factor 使用小幅确定性零均值初始化，input-factor 回传按 output-column norm 归一化，禁止全零
+  output 让完整训练窗口内的输入投影冻结在随机 rank-4 basis。
 - `ecology_curriculum` 对黄油、火柴、组合三阶段分别执行 near → medium → far mastery：
   每阶段达到预声明 pickup/delivery/heat-entry/escape 样本量且满足最少 episode 后才提前晋级，
   未达到则在最大预算处显式 BLOCK；已经掌握的阶段按固定频率交错回放。木棍不再是独立训练

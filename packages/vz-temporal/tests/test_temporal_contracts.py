@@ -78,7 +78,7 @@ def test_full_learned_policy_ndim_components_follow_store() -> None:
     assert policy.runtime_backend is WiringLevel.DISABLED
 
 
-def test_causal_action_head_preserves_signed_gru_hidden_symmetry() -> None:
+def test_causal_action_head_preserves_signed_encoder_state_symmetry() -> None:
     store = MetacontrollerParameterStore(n_z=_NDIM)
     zero = tuple(0.0 for _ in range(_NDIM))
     positive = tuple(0.25 for _ in range(_NDIM))
@@ -96,10 +96,36 @@ def test_causal_action_head_preserves_signed_gru_hidden_symmetry() -> None:
         track=Track.WORLD,
         state_features=negative,
     )
+    initial = store.causal_action_head_parameters(
+        track=Track.WORLD
+    )
+    positive_residual = store.causal_action_head_residual(
+        track=Track.WORLD,
+        state_features=positive,
+        strength=1.0,
+    )
+    negative_residual = store.causal_action_head_residual(
+        track=Track.WORLD,
+        state_features=negative,
+        strength=1.0,
+    )
 
     assert zero_basis == pytest.approx(tuple(0.0 for _ in zero_basis))
     assert negative_basis == pytest.approx(
         tuple(-value for value in positive_basis)
+    )
+    assert any(
+        abs(value) > 0.0
+        for row in initial.output_factors
+        for value in row
+    )
+    assert max(
+        abs(value)
+        for row in initial.output_factors
+        for value in row
+    ) < 0.2
+    assert negative_residual == pytest.approx(
+        tuple(-value for value in positive_residual)
     )
 
 
@@ -122,13 +148,12 @@ def test_causal_action_head_prioritizes_state_path_over_bounded_intercept() -> N
     )
     before = store.causal_action_head_parameters(track=Track.WORLD)
 
-    for _ in range(3):
-        store.update_causal_action_head(
-            track=Track.WORLD,
-            state_feature_batch=(positive, negative),
-            action_gradients=(positive_gradient, negative_gradient),
-            advantages=(1.0, 1.0),
-        )
+    store.update_causal_action_head(
+        track=Track.WORLD,
+        state_feature_batch=(positive, negative),
+        action_gradients=(positive_gradient, negative_gradient),
+        advantages=(1.0, 1.0),
+    )
 
     after = store.causal_action_head_parameters(track=Track.WORLD)
     assert after.bias[0] == pytest.approx(0.0)

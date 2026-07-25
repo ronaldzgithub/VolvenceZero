@@ -846,12 +846,25 @@ class MetacontrollerParameterStore:
                         state_signal * basis[rank_index]
                     )
             for rank_index in range(parameters.rank):
+                output_column_norm = max(
+                    math.sqrt(
+                        sum(
+                            output_factors[output_index][rank_index]
+                            ** 2
+                            for output_index in range(self._n_z)
+                        )
+                    ),
+                    0.05,
+                )
                 upstream = sum(
                     (
                         signal[output_index]
                         - mean_signal[output_index]
                     )
-                    * output_factors[output_index][rank_index]
+                    * (
+                        output_factors[output_index][rank_index]
+                        / output_column_norm
+                    )
                     for output_index in range(self._n_z)
                 )
                 derivative = 1.0 - basis[rank_index] ** 2
@@ -2129,9 +2142,18 @@ def _init_causal_action_heads(
                 n_z,
                 seed=211 + track_index,
             ),
+            # A zero output factor is a bilinear saddle: the input factor
+            # receives exactly zero gradient until the output path has already
+            # grown, leaving the state projection effectively frozen in short
+            # online windows. Keep a small deterministic symmetric seed so
+            # both factors learn from the first state-conditioned batch.
             output_factors=tuple(
-                tuple(0.0 for _ in range(rank))
-                for _ in range(n_z)
+                tuple(value * 0.2 for value in row)
+                for row in _random_mat(
+                    n_z,
+                    rank,
+                    seed=311 + track_index,
+                )
             ),
             bias=tuple(0.0 for _ in range(n_z)),
         )
