@@ -209,6 +209,27 @@ def torch_causal_ppo_update(
         if runtime_replay
         else None
     )
+    runtime_posterior_sample_scale = (
+        torch.tensor(
+            [
+                [float(t.runtime_posterior_sample_scale)]
+                for t in usable
+            ],
+            dtype=dtype,
+        )
+        if runtime_replay
+        else None
+    )
+    if (
+        runtime_posterior_sample_scale is not None
+        and (
+            torch.any(runtime_posterior_sample_scale <= 0.0)
+            or torch.any(runtime_posterior_sample_scale > 1.0)
+        )
+    ):
+        raise ValueError(
+            "torch runtime posterior sample scale must be within (0, 1]"
+        )
     runtime_other_track_sum = (
         torch.stack([vec(t.runtime_other_track_sum, n_z) for t in usable])
         if runtime_replay
@@ -372,6 +393,7 @@ def torch_causal_ppo_update(
                 runtime_base_std is None
                 or runtime_beta_t is None
                 or runtime_other_track_sum is None
+                or runtime_posterior_sample_scale is None
             ):
                 raise RuntimeError(
                     "runtime replay requires captured posterior standard deviation"
@@ -387,7 +409,12 @@ def torch_causal_ppo_update(
                 1.5,
             )
             return torch.clamp(
-                torch.abs(runtime_beta_t * runtime_base_std * gain * 0.5),
+                torch.abs(
+                    runtime_beta_t
+                    * runtime_base_std
+                    * gain
+                    * runtime_posterior_sample_scale
+                ),
                 0.02,
                 0.5,
             )

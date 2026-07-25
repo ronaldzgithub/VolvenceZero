@@ -93,6 +93,7 @@ class ZTransition:
     runtime_terminal: bool = False
     runtime_milestone: bool = False
     runtime_action_head_state: tuple[float, ...] = ()
+    runtime_posterior_sample_scale: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -164,6 +165,7 @@ class RuntimeActionCapture:
     runtime_other_track_sum: tuple[float, ...]
     runtime_action_head_state: tuple[float, ...]
     runtime_action_head_residual: tuple[float, ...]
+    runtime_posterior_sample_scale: float
 
 
 @dataclass(frozen=True)
@@ -269,6 +271,7 @@ def runtime_replay_policy_distribution(
     other_track_sum: tuple[float, ...],
     modulation_strength: float,
     action_head_residual: tuple[float, ...] = (),
+    posterior_sample_scale: float = 0.5,
 ) -> tuple[tuple[float, ...], tuple[float, ...]]:
     """Reconstruct the ndim runtime behavior distribution.
 
@@ -307,6 +310,11 @@ def runtime_replay_policy_distribution(
         raise ValueError(
             "runtime replay modulation_strength must be >= 0, "
             f"got {modulation_strength!r}"
+        )
+    if not 0.0 < posterior_sample_scale <= 1.0:
+        raise ValueError(
+            "runtime replay posterior_sample_scale must be within (0, 1], "
+            f"got {posterior_sample_scale!r}"
         )
     if action_head_residual and len(action_head_residual) != n:
         raise ValueError(
@@ -360,7 +368,7 @@ def runtime_replay_policy_distribution(
                     beta_vector[index]
                     * base_std[index]
                     * gains[index]
-                    * 0.5
+                    * posterior_sample_scale
                 ),
             ),
         )
@@ -444,6 +452,7 @@ class CausalZPolicy:
         parameter_store: MetacontrollerParameterStore,
         rl_backend: WiringLevel = WiringLevel.DISABLED,
         runtime_track_modulation_strength: float = 0.0,
+        runtime_posterior_sample_scale: float = 0.5,
         causal_action_head_wiring: WiringLevel = WiringLevel.DISABLED,
         causal_action_head_strength: float = 0.0,
         causal_action_head_effective_dims: tuple[int, ...] | None = None,
@@ -457,6 +466,14 @@ class CausalZPolicy:
             )
         self._runtime_track_modulation_strength = float(
             runtime_track_modulation_strength
+        )
+        if not 0.0 < runtime_posterior_sample_scale <= 1.0:
+            raise ValueError(
+                "runtime_posterior_sample_scale must be within (0, 1], "
+                f"got {runtime_posterior_sample_scale!r}"
+            )
+        self._runtime_posterior_sample_scale = float(
+            runtime_posterior_sample_scale
         )
         if not 0.0 <= causal_action_head_strength <= 1.0:
             raise ValueError(
@@ -512,6 +529,10 @@ class CausalZPolicy:
         """Owner-local evidence that sandbox and live forward share one bridge."""
 
         return self._runtime_track_modulation_strength
+
+    @property
+    def runtime_posterior_sample_scale(self) -> float:
+        return self._runtime_posterior_sample_scale
 
     @property
     def causal_action_head_wiring(self) -> WiringLevel:
@@ -1026,6 +1047,9 @@ class CausalZPolicy:
                     modulation_strength=self._runtime_track_modulation_strength,
                     action_head_residual=(
                         transition.runtime_action_head_residual
+                    ),
+                    posterior_sample_scale=(
+                        transition.runtime_posterior_sample_scale
                     ),
                 )
             elif transition.transition_source == "synthetic":
@@ -1628,6 +1652,14 @@ class InternalRLSandbox:
             if isinstance(self._policy, FullLearnedTemporalPolicy)
             else 0.0
         )
+        runtime_posterior_sample_scale = (
+            1.0
+            if (
+                isinstance(self._policy, FullLearnedTemporalPolicy)
+                and self._policy.runtime_exploration_strength > 0.0
+            )
+            else 0.5
+        )
         causal_action_head_wiring = (
             self._policy.causal_action_head_wiring
             if isinstance(self._policy, FullLearnedTemporalPolicy)
@@ -1647,6 +1679,7 @@ class InternalRLSandbox:
             parameter_store=self._policy.parameter_store,
             rl_backend=rl_backend,
             runtime_track_modulation_strength=runtime_track_modulation_strength,
+            runtime_posterior_sample_scale=runtime_posterior_sample_scale,
             causal_action_head_wiring=causal_action_head_wiring,
             causal_action_head_strength=causal_action_head_strength,
             causal_action_head_effective_dims=causal_action_head_effective_dims,
@@ -1847,6 +1880,9 @@ class InternalRLSandbox:
             other_track_sum=other_track_sum,
             modulation_strength=self._causal_policy.runtime_track_modulation_strength,
             action_head_residual=action_head_residual,
+            posterior_sample_scale=(
+                self._causal_policy.runtime_posterior_sample_scale
+            ),
         )
         observation_signature = _surface_signature(substrate_snapshot, n)
         log_prob = self._causal_policy._log_prob(
@@ -1881,6 +1917,9 @@ class InternalRLSandbox:
             runtime_other_track_sum=other_track_sum,
             runtime_action_head_state=action_head_state,
             runtime_action_head_residual=action_head_residual,
+            runtime_posterior_sample_scale=(
+                self._causal_policy.runtime_posterior_sample_scale
+            ),
         )
         self._pending_runtime_capture = capture
         self._runtime_previous_code = action
@@ -2056,6 +2095,9 @@ class InternalRLSandbox:
             ),
             runtime_action_head_state=(
                 capture.runtime_action_head_state
+            ),
+            runtime_posterior_sample_scale=(
+                capture.runtime_posterior_sample_scale
             ),
         )
         rollout = ZRollout(

@@ -110,6 +110,10 @@ v18 从空目录推进到 25/50。12 局时四体 action-head update step 已由
 
 现由通用 temporal owner 增加可选 `effective_dims` 契约，默认 `None` 保持全维历史行为；Digital Ant profile 依据冻结 `motor_decode` 显式声明 `(0,1,2)`。pure/torch action-head gradient 及 live/sandbox residual 都对非 actuator output row 严格置零，其他 controller code、track/value 学习和 plant 均不改变；恢复 `None` 即回滚。正式 schema 升为 `development.v19/progress.v14`，v18 journal 只读保留。必须从空目录先跑 v19 的 12/25 门槛，P1 继续 `BLOCK`，未通过前不得续跑到 50。
 
+v19 从空目录推进到 25/50。butter/burning near 仍为 `41/32`、`30/16`，composite 前五局与 v18 完全同轨，butter-medium 仍为 `2/0`。四体 update step 为 `27/26/28/24`，所有 `z[3:16]` output row L1 严格为 `0.0`，说明 actuator-support 契约生效且未破坏近场；但有效 steering L1 与 v18 几乎相同，food residual 左右差反而只有 `0.00059–0.00108`，故“无效维度稀释”不是 L1 blocker 的充分根因，禁止据此续跑到 50。
+
+随后对真实 capture 的 likelihood 做代数审计发现更直接的断链：无显式 exploration 的 encoder `z_tilde` 使用 `0.5 × posterior_std × noise`，而 Digital Ant 稀疏探索分支使用 `1.0 × posterior_std × noise`；runtime replay 却对两者固定重建为 `0.5`。实际 capture 的第 0/2 维噪声位移精确等于 replay 预测的 2 倍，score gradient 因错误方差放大约 4 倍并频繁撞上 `±4` clamp。现由 joint-loop owner 在 capture/transition 持久化实际 `posterior_sample_scale`，pure/torch likelihood 共同消费；默认/历史为 `0.5`，显式 exploration 为 `1.0`。`joint_loop.learning` schema 升为 v4，ecology schema 升为 `development.v20/progress.v15`；v19 journal 只读保留，v20 必须从空目录复跑。
+
 实测 checkpoint collection 在 learned 5/50 时增长到 21 MB，owner 尺寸审计确认 95% 以上来自 `joint_loop.learning.memory_checkpoint`：每 body 约 5,115 条 explicit artifacts，且 entries/semantic-index 双份持久化。为避免 50-episode 长跑撞上单-agent 32 MB / collection 128 MB 上限，Memory owner 新增确定性 `enforce_artifact_capacity(8192)`：优先淘汰 transient/episodic、弱、旧条目，并同步清理 semantic index、pending queues 与 attribute readout；CMS learned state 完整保留。容量在每个 ecology training episode 的 checkpoint 边界执行并写入 progress compatibility/episode summary；旧 seed0 archive 已安全迁移。容量从第 9 个 episode 起持续触发，到 `learned 50/50` 时双槽 archive 仍均稳定在约 31 MB，证明长跑期间未继续无界增长。
 
 journal 位于 ignored `.partials/ecology_p1/seed0`，最终 report 尚未生成。当前相关回归集 53/53 通过。

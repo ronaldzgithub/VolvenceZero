@@ -839,7 +839,7 @@ def test_joint_checkpoint_round_trips_staged_and_pending_runtime_replay() -> Non
     decoded = loop._decode_learning_persistence_snapshot(
         persistence
     )
-    assert persistence.schema_version == 3
+    assert persistence.schema_version == 4
     assert decoded.pending_task_rollouts is not None
     assert decoded.pending_task_rollouts[0].transitions[
         0
@@ -1225,6 +1225,7 @@ def test_runtime_replay_distribution_matches_captured_likelihood() -> None:
         track_weights=track_weights,
         other_track_sum=capture.runtime_other_track_sum,
         modulation_strength=0.3,
+        posterior_sample_scale=capture.runtime_posterior_sample_scale,
     )
     expected_log_prob = sum(
         -0.5
@@ -1273,7 +1274,7 @@ def test_runtime_replay_distribution_matches_captured_likelihood() -> None:
                             capture.runtime_base_mean[index]
                             + capture.runtime_base_std[index]
                             * capture.policy_noise[index]
-                            * 0.5,
+                            * capture.runtime_posterior_sample_scale,
                         ),
                     )
                 )
@@ -1297,6 +1298,54 @@ def test_runtime_replay_distribution_matches_captured_likelihood() -> None:
     assert capture.policy_action == pytest.approx(expected_action)
     assert expected_log_prob == pytest.approx(capture.log_prob)
     assert sandbox.runtime_replay_checkpoint.pending_capture == capture
+
+
+async def test_sparse_exploration_capture_uses_live_posterior_sample_scale() -> None:
+    session = AntSession(
+        AntWorld(config=AntWorldConfig(seed=0)),
+        config=AntSessionConfig(
+            temporal_latent_dim=16,
+            seed=0,
+            rollout_config=FinalRolloutConfig(
+                internal_rl_runtime_replay=WiringLevel.ACTIVE,
+                internal_rl_runtime_modulation_strength=0.3,
+                internal_rl_runtime_exploration_strength=1.0,
+            ),
+        ),
+    )
+
+    await session.step()
+    sandbox = session.runner.joint_loop._world_sandbox
+    capture = sandbox.runtime_replay_checkpoint.pending_capture
+    assert capture is not None
+    assert capture.runtime_posterior_sample_scale == 1.0
+    track_weights = sandbox.causal_policy._parameter_store.track_weights[
+        Track.WORLD
+    ]
+    mean, std = runtime_replay_policy_distribution(
+        base_mean=capture.runtime_base_mean,
+        base_std=capture.runtime_base_std,
+        previous_code=capture.previous_code,
+        beta_t=capture.runtime_beta_t,
+        track_weights=track_weights,
+        other_track_sum=capture.runtime_other_track_sum,
+        modulation_strength=0.3,
+        posterior_sample_scale=capture.runtime_posterior_sample_scale,
+    )
+    _, legacy_half_std = runtime_replay_policy_distribution(
+        base_mean=capture.runtime_base_mean,
+        base_std=capture.runtime_base_std,
+        previous_code=capture.previous_code,
+        beta_t=capture.runtime_beta_t,
+        track_weights=track_weights,
+        other_track_sum=capture.runtime_other_track_sum,
+        modulation_strength=0.3,
+        posterior_sample_scale=0.5,
+    )
+
+    assert mean == pytest.approx(capture.policy_mean)
+    assert std == pytest.approx(capture.policy_std)
+    assert legacy_half_std != pytest.approx(capture.policy_std)
 
 
 def test_torch_runtime_likelihood_matches_pure_capture() -> None:
