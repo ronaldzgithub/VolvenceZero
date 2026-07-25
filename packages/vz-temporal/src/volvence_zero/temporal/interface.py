@@ -845,11 +845,10 @@ class MetacontrollerParameterStore:
                     output_delta[output_index][rank_index] += (
                         state_signal * basis[rank_index]
                     )
-        learning_rate = (
-            self.learning_rate
-            * 0.12
-            / len(state_feature_batch)
+        factor_learning_rate = (
+            self.learning_rate / len(state_feature_batch)
         )
+        bias_learning_rate = factor_learning_rate * 0.12
         # A zero output factor keeps the live prior neutral, but a simultaneous
         # bilinear gradient would also give the input factor zero feedback on
         # the first informative batch. Use one bounded block-coordinate step:
@@ -865,7 +864,7 @@ class MetacontrollerParameterStore:
                     -0.05,
                     min(
                         0.05,
-                        learning_rate
+                        factor_learning_rate
                         * output_delta[output_index][rank_index],
                     ),
                 )
@@ -917,7 +916,9 @@ class MetacontrollerParameterStore:
                 -0.01,
                 min(
                     0.01,
-                    learning_rate * bias_delta[output_index] * 0.05,
+                    bias_learning_rate
+                    * bias_delta[output_index]
+                    * 0.05,
                 ),
             )
             bias[output_index] = max(
@@ -940,7 +941,7 @@ class MetacontrollerParameterStore:
                     -0.02,
                     min(
                         0.02,
-                        learning_rate
+                        factor_learning_rate
                         * input_delta[rank_index][input_index],
                     ),
                 )
