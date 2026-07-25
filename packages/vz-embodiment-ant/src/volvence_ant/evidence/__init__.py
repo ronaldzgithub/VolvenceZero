@@ -29,6 +29,7 @@ from volvence_ant.evidence.resume import (
     ant_stage_fingerprint,
 )
 from volvence_ant.evidence.runtime_profile import (
+    ANT_CAUSAL_ACTION_HEAD_RANK,
     ANT_RUNTIME_BATCH_TRANSITION_SIZE,
     ANT_RUNTIME_EXPLORATION_STRENGTH,
     ANT_RUNTIME_MODULATION_STRENGTH,
@@ -41,6 +42,7 @@ __all__ = [
     "AntArtifactIntegrityError",
     "AntResumeStateError",
     "AntRunProvenance",
+    "ANT_CAUSAL_ACTION_HEAD_RANK",
     "ANT_RUNTIME_BATCH_TRANSITION_SIZE",
     "ANT_RUNTIME_EXPLORATION_STRENGTH",
     "ANT_RUNTIME_MODULATION_STRENGTH",

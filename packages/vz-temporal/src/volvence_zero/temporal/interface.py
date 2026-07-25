@@ -698,6 +698,44 @@ class MetacontrollerParameterStore:
             )
         self.causal_action_heads[parameters.track] = parameters
 
+    def configure_causal_action_head_rank(
+        self,
+        *,
+        track: Track,
+        rank: int,
+    ) -> None:
+        """Select a neutral factor width before owner learning starts."""
+
+        if rank < 1:
+            raise ValueError(
+                "causal action head rank must be positive, "
+                f"got {rank!r}"
+            )
+        rank = min(rank, self._n_z)
+        parameters = self.causal_action_heads[track]
+        if parameters.rank == rank:
+            return
+        if (
+            parameters.update_step != 0
+            or any(
+                abs(value) > 1e-12
+                for row in parameters.output_factors
+                for value in row
+            )
+            or any(abs(value) > 1e-12 for value in parameters.bias)
+        ):
+            raise RuntimeError(
+                "cannot change causal action head rank after the owner "
+                "has learned a live mapping"
+            )
+        self.causal_action_heads[track] = (
+            _initial_causal_action_head_parameters(
+                n_z=self._n_z,
+                track=track,
+                rank=rank,
+            )
+        )
+
     def causal_action_head_basis(
         self,
         *,
@@ -2158,24 +2196,47 @@ def _init_causal_action_heads(
 ) -> dict[Track, CausalZActionHeadParameters]:
     rank = min(4, max(1, n_z // 2))
     return {
-        track: CausalZActionHeadParameters(
+        track: _initial_causal_action_head_parameters(
+            n_z=n_z,
             track=track,
             rank=rank,
-            input_factors=_random_mat(
-                rank,
-                n_z,
-                seed=211 + track_index,
-            ),
-            output_factors=tuple(
-                tuple(0.0 for _ in range(rank))
-                for _ in range(n_z)
-            ),
-            bias=tuple(0.0 for _ in range(n_z)),
         )
-        for track_index, track in enumerate(
-            (Track.WORLD, Track.SELF, Track.SHARED)
-        )
+        for track in (Track.WORLD, Track.SELF, Track.SHARED)
     }
+
+
+def _initial_causal_action_head_parameters(
+    *,
+    n_z: int,
+    track: Track,
+    rank: int,
+) -> CausalZActionHeadParameters:
+    track_index = (Track.WORLD, Track.SELF, Track.SHARED).index(track)
+    input_factors = (
+        tuple(
+            tuple(
+                1.0 if row_index == column_index else 0.0
+                for column_index in range(n_z)
+            )
+            for row_index in range(n_z)
+        )
+        if rank == n_z
+        else _random_mat(
+            rank,
+            n_z,
+            seed=211 + track_index,
+        )
+    )
+    return CausalZActionHeadParameters(
+        track=track,
+        rank=rank,
+        input_factors=input_factors,
+        output_factors=tuple(
+            tuple(0.0 for _ in range(rank))
+            for _ in range(n_z)
+        ),
+        bias=tuple(0.0 for _ in range(n_z)),
+    )
 
 
 def _nz_zeros(n: int) -> tuple[float, ...]:
@@ -2955,11 +3016,17 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         wiring_level: WiringLevel,
         track: Track,
         strength: float,
+        rank: int | None = None,
     ) -> None:
         if not 0.0 <= strength <= 1.0:
             raise ValueError(
                 "causal action head strength must be within [0, 1], "
                 f"got {strength!r}"
+            )
+        if rank is not None:
+            self._parameter_store.configure_causal_action_head_rank(
+                track=track,
+                rank=rank,
             )
         self._causal_action_head_wiring = wiring_level
         self._causal_action_head_track = track

@@ -207,6 +207,61 @@ def test_causal_action_head_state_is_current_observation_stable() -> None:
     )
 
 
+def test_causal_action_head_full_rank_preserves_owner_state_axes() -> None:
+    store = MetacontrollerParameterStore(n_z=16)
+    store.configure_causal_action_head_rank(
+        track=Track.WORLD,
+        rank=16,
+    )
+    parameters = store.causal_action_head_parameters(track=Track.WORLD)
+    state = tuple((index - 8) / 8.0 for index in range(16))
+
+    assert parameters.rank == 16
+    assert parameters.output_factors == tuple(
+        tuple(0.0 for _ in range(16))
+        for _ in range(16)
+    )
+    assert parameters.input_factors == tuple(
+        tuple(
+            1.0 if row_index == column_index else 0.0
+            for column_index in range(16)
+        )
+        for row_index in range(16)
+    )
+    assert store.causal_action_head_basis(
+        track=Track.WORLD,
+        state_features=state,
+    ) == pytest.approx(
+        tuple(math.tanh(value / 4.0) for value in state)
+    )
+    assert store.causal_action_head_residual(
+        track=Track.WORLD,
+        state_features=state,
+        strength=0.35,
+    ) == pytest.approx(tuple(0.0 for _ in range(16)))
+
+
+def test_causal_action_head_rank_change_rejects_learned_mapping() -> None:
+    store = MetacontrollerParameterStore(n_z=16)
+    current = store.causal_action_head_parameters(track=Track.WORLD)
+    store.restore_causal_action_head_parameters(
+        replace(
+            current,
+            bias=tuple(0.01 for _ in range(16)),
+            update_step=1,
+        )
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="cannot change causal action head rank",
+    ):
+        store.configure_causal_action_head_rank(
+            track=Track.WORLD,
+            rank=16,
+        )
+
+
 def _outcome(*, prediction_id: str, outcome_id: str = "outcome-1") -> EnvironmentOutcome:
     return EnvironmentOutcome(
         outcome_id=outcome_id,

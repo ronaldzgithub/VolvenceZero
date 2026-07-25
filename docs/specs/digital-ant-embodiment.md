@@ -277,18 +277,21 @@ promotion gate：
   terminal 闭合的 OR 语义一致）；分叉切换只会让 segment 更短，两轨打包保持逐拍成对对齐。
   open segment、closed segment 和最长长度进入 owner checkpoint/rollback，但不新增 ledger 或
   runtime slot；DISABLED 精确回到历史 one-step replay。
-- ecology evidence profile 还将通用 `internal_rl_causal_action_head=ACTIVE`：低秩 head 只把
-  temporal owner 发布的 `causal_action_head_state` 映射为 bounded `z_t` residual，以补足逐维 track gain 不能表达的
+- ecology evidence profile 还将通用 `internal_rl_causal_action_head=ACTIVE`，并为正式
+  `n_z=16` 配置 full-rank factor path：head 只把 temporal owner 发布的
+  `causal_action_head_state` 映射为 bounded `z_t` residual，以补足逐维 track gain 不能表达的
   state-conditioned 左右响应。head 不含 butter/stick/match 字段、不直接生成 turn/step；参数由
   temporal/Internal-RL owner checkpoint、canonical archive、fingerprint 和事务 rollback 管理。
   该 state 使用同一 Ndim encoder 参数对当前 19 维 observation 做零历史编码，因而不继承跨 turn
   recurrent hidden 漂移；live 与 replay 必须使用同一持久化 state。它以 signed `[-1,1]` 坐标
   进入 head，禁止再按 `[0,1]` 重心变换。通用默认仍为
   `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。常数 bias 的总幅度限制为 `0.1`，
-  学习尺度为 state path 的 `0.05`；batch mean 只更新该 bias，低秩 factor 只消费 centered
+  学习尺度为 state path 的 `0.05`；batch mean 只更新该 bias，factor 只消费 centered
   gradient，避免单个重复探索序列把近场偶然收益固化为显式或隐式的跨状态固定转向。output
-  factor 使用小幅确定性零均值初始化，input-factor 回传按 output-column norm 归一化，禁止全零
-  output 让完整训练窗口内的输入投影冻结在随机 rank-4 basis。
+  factor 与 bias 保持全零初始化，不引入未经经验的动作 prior；full-rank input 使用 identity，
+  避免把 encoder 已保留的左右差再次随机压入 rank-4 basis。首个非零 covariance batch 先建立
+  candidate output path，再按真实 output-column norm 回传 input。通用 profile 不指定 rank 时
+  保持历史低秩；已学习 mapping 禁止原地改变 rank。
 - `ecology_curriculum` 对黄油、火柴、组合三阶段分别执行 near → medium → far mastery：
   每阶段达到预声明 pickup/delivery/heat-entry/escape 样本量且满足最少 episode 后才提前晋级，
   未达到则在最大预算处显式 BLOCK；已经掌握的阶段按固定频率交错回放。木棍不再是独立训练

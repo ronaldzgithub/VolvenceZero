@@ -258,6 +258,10 @@ class FinalRolloutConfig:
     # changing live z_t; ACTIVE applies the bounded residual in latent space.
     internal_rl_causal_action_head: WiringLevel = WiringLevel.DISABLED
     internal_rl_causal_action_head_strength: float = 0.35
+    # Optional owner-local maximum factor rank. None preserves the historical
+    # rank; values above n_z select n_z so one evidence profile also works in
+    # smaller smoke configurations.
+    internal_rl_causal_action_head_rank: int | None = None
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
@@ -1545,6 +1549,7 @@ def build_final_runtime_modules(
             wiring_level=config.internal_rl_causal_action_head,
             track=Track.WORLD,
             strength=config.internal_rl_causal_action_head_strength,
+            rank=config.internal_rl_causal_action_head_rank,
         )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
@@ -1558,6 +1563,7 @@ def build_final_runtime_modules(
             wiring_level=config.internal_rl_causal_action_head,
             track=Track.SELF,
             strength=config.internal_rl_causal_action_head_strength,
+            rank=config.internal_rl_causal_action_head_rank,
         )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded
     # protocol switch-pressure prior reach beta_t. SHADOW records evidence

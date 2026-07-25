@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from volvence_zero.integration import FinalRolloutConfig
+from volvence_zero.memory import Track
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
 
 from volvence_ant.evidence import (
+    ANT_CAUSAL_ACTION_HEAD_RANK,
     ANT_RUNTIME_BATCH_TRANSITION_SIZE,
     ANT_RUNTIME_EXPLORATION_STRENGTH,
     ANT_RUNTIME_MODULATION_STRENGTH,
@@ -50,6 +52,11 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         == ANT_RUNTIME_SEGMENT_MAX_STEPS
         == 16
     )
+    assert (
+        config.internal_rl_causal_action_head_rank
+        == ANT_CAUSAL_ACTION_HEAD_RANK
+        == 16
+    )
     # A 24-turn ecology episode has 23 settled transitions.  The segment
     # must close before the final turn so a later scheduled step can optimize
     # it before the cross-episode checkpoint discards pending replay.
@@ -59,6 +66,20 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
     )
     assert dense_config.internal_rl_runtime_replay is WiringLevel.ACTIVE
     assert dense_config.internal_rl_runtime_exploration_strength == 0.0
+
+    session = AntSession(
+        AntWorld(config=AntWorldConfig(seed=3)),
+        config=AntSessionConfig(
+            temporal_latent_dim=16,
+            rollout_config=dense_config,
+        ),
+    )
+    assert (
+        session.runner.world_temporal_policy.parameter_store
+        .causal_action_head_parameters(track=Track.WORLD)
+        .rank
+        == 16
+    )
 
 
 def test_ant_exploration_context_uses_seed_not_session_label() -> None:

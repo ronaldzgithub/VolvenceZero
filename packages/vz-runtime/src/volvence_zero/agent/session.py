@@ -641,6 +641,7 @@ class AgentSessionRunner(
                 wiring_level=_causal_head_wiring,
                 track=Track.WORLD,
                 strength=_causal_head_strength,
+                rank=self._config.internal_rl_causal_action_head_rank,
             )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy.set_learning_writes_enabled(
@@ -658,6 +659,7 @@ class AgentSessionRunner(
                 wiring_level=_causal_head_wiring,
                 track=Track.SELF,
                 strength=_causal_head_strength,
+                rank=self._config.internal_rl_causal_action_head_rank,
             )
         self._evaluation_backbone = EvaluationBackbone()
         self._application_rare_heavy_state = ApplicationRareHeavyState()

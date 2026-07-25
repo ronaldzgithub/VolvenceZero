@@ -18,6 +18,7 @@ ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
 ANT_RUNTIME_SEGMENT_MAX_STEPS = 16
 ANT_RUNTIME_BATCH_TRANSITION_SIZE = 4
 ANT_CAUSAL_ACTION_HEAD_STRENGTH = 0.35
+ANT_CAUSAL_ACTION_HEAD_RANK = 16
 
 
 def ant_runtime_replay_rollout_config(
@@ -53,6 +54,9 @@ def ant_runtime_replay_rollout_config(
         internal_rl_causal_action_head_strength=(
             ANT_CAUSAL_ACTION_HEAD_STRENGTH
         ),
+        internal_rl_causal_action_head_rank=(
+            ANT_CAUSAL_ACTION_HEAD_RANK
+        ),
         internal_rl_runtime_modulation_strength=(
             ANT_RUNTIME_MODULATION_STRENGTH
         ),
@@ -69,6 +73,7 @@ def ant_runtime_replay_rollout_config(
 
 __all__ = [
     "ANT_CAUSAL_ACTION_HEAD_STRENGTH",
+    "ANT_CAUSAL_ACTION_HEAD_RANK",
     "ANT_RUNTIME_EXPLORATION_STRENGTH",
     "ANT_RUNTIME_BATCH_TRANSITION_SIZE",
     "ANT_RUNTIME_MODULATION_STRENGTH",
