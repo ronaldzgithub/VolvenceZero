@@ -150,23 +150,10 @@ def test_causal_action_head_prioritizes_state_path_over_bounded_intercept() -> N
         advantages=(1.0, 1.0),
     )
 
-    after_first_batch = store.causal_action_head_parameters(
-        track=Track.WORLD
-    )
-    assert after_first_batch.bias[0] == pytest.approx(0.0)
-    assert after_first_batch.output_factors != before.output_factors
-    assert after_first_batch.input_factors == before.input_factors
-
-    store.update_causal_action_head(
-        track=Track.WORLD,
-        state_feature_batch=(positive, negative),
-        action_gradients=(positive_gradient, negative_gradient),
-        advantages=(1.0, 1.0),
-    )
-
     after = store.causal_action_head_parameters(track=Track.WORLD)
-    assert after.output_factors != after_first_batch.output_factors
-    assert after.input_factors != after_first_batch.input_factors
+    assert after.bias[0] == pytest.approx(0.0)
+    assert after.output_factors != before.output_factors
+    assert after.input_factors != before.input_factors
     positive_residual = store.causal_action_head_residual(
         track=Track.WORLD,
         state_features=positive,

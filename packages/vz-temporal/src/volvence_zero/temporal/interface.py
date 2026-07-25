@@ -835,7 +835,7 @@ class MetacontrollerParameterStore:
             / len(samples)
             for output_index in range(self._n_z)
         )
-        for state_features, basis, signal in samples:
+        for _, basis, signal in samples:
             for output_index in range(self._n_z):
                 bias_delta[output_index] += signal[output_index]
                 state_signal = (
@@ -845,16 +845,50 @@ class MetacontrollerParameterStore:
                     output_delta[output_index][rank_index] += (
                         state_signal * basis[rank_index]
                     )
+        learning_rate = (
+            self.learning_rate
+            * 0.12
+            / len(state_feature_batch)
+        )
+        # A zero output factor keeps the live prior neutral, but a simultaneous
+        # bilinear gradient would also give the input factor zero feedback on
+        # the first informative batch. Use one bounded block-coordinate step:
+        # establish the output path from this batch's centered covariance,
+        # then backpropagate through that candidate path before committing
+        # either factor. This introduces no random state->action prior.
+        candidate_output_factors = [
+            list(row) for row in output_factors
+        ]
+        for output_index in range(self._n_z):
             for rank_index in range(parameters.rank):
-                output_column_norm = max(
+                step = max(
+                    -0.05,
+                    min(
+                        0.05,
+                        learning_rate
+                        * output_delta[output_index][rank_index],
+                    ),
+                )
+                candidate_output_factors[output_index][rank_index] = max(
+                    -1.5,
+                    min(
+                        1.5,
+                        output_factors[output_index][rank_index] + step,
+                    ),
+                )
+        for state_features, basis, signal in samples:
+            for rank_index in range(parameters.rank):
+                candidate_column_norm = max(
                     math.sqrt(
                         sum(
-                            output_factors[output_index][rank_index]
+                            candidate_output_factors[
+                                output_index
+                            ][rank_index]
                             ** 2
                             for output_index in range(self._n_z)
                         )
                     ),
-                    0.05,
+                    1e-8,
                 )
                 upstream = sum(
                     (
@@ -862,8 +896,10 @@ class MetacontrollerParameterStore:
                         - mean_signal[output_index]
                     )
                     * (
-                        output_factors[output_index][rank_index]
-                        / output_column_norm
+                        candidate_output_factors[
+                            output_index
+                        ][rank_index]
+                        / candidate_column_norm
                     )
                     for output_index in range(self._n_z)
                 )
@@ -875,11 +911,6 @@ class MetacontrollerParameterStore:
                         * state_features[input_index]
                         / scale
                     )
-        learning_rate = (
-            self.learning_rate
-            * 0.12
-            / len(state_feature_batch)
-        )
         total_change = 0.0
         for output_index in range(self._n_z):
             bias_step = max(
@@ -895,22 +926,14 @@ class MetacontrollerParameterStore:
             )
             total_change += abs(bias_step)
             for rank_index in range(parameters.rank):
-                step = max(
-                    -0.05,
-                    min(
-                        0.05,
-                        learning_rate
-                        * output_delta[output_index][rank_index],
-                    ),
+                candidate = candidate_output_factors[
+                    output_index
+                ][rank_index]
+                total_change += abs(
+                    candidate
+                    - output_factors[output_index][rank_index]
                 )
-                output_factors[output_index][rank_index] = max(
-                    -1.5,
-                    min(
-                        1.5,
-                        output_factors[output_index][rank_index] + step,
-                    ),
-                )
-                total_change += abs(step)
+                output_factors[output_index][rank_index] = candidate
         for rank_index in range(parameters.rank):
             for input_index in range(self._n_z):
                 step = max(
