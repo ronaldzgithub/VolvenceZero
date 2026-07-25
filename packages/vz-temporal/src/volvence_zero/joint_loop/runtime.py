@@ -210,7 +210,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._primary_prediction_error_dominance_enabled = primary_prediction_error_dominance_enabled
         self._last_schedule_action = "evidence-only"
         self._last_learning_turn_index = 0
-        self._rl_batch_accumulation_size = max(1, rl_batch_accumulation_size)
+        if rl_batch_accumulation_size < 1:
+            raise ValueError(
+                "rl_batch_accumulation_size must be >= 1, "
+                f"got {rl_batch_accumulation_size!r}"
+            )
+        self._rl_batch_accumulation_size = rl_batch_accumulation_size
         self._pending_task_rollouts: list[ZRollout] = []
         self._pending_relationship_rollouts: list[ZRollout] = []
         self._open_task_segment_rollouts: list[ZRollout] = []
@@ -277,6 +282,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     @property
     def runtime_replay_segment_credit(self) -> WiringLevel:
         return self._runtime_replay_segment_credit
+
+    @property
+    def rl_batch_accumulation_size(self) -> int:
+        return self._rl_batch_accumulation_size
 
     @property
     def latest_runtime_replay_report(self) -> RuntimeReplayReport:
@@ -1052,10 +1061,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 raise RuntimeError(
                     "ACTIVE runtime replay staging diverged between tracks"
                 )
-            batch_due = (
-                len(self._pending_task_rollouts)
-                >= self._rl_batch_accumulation_size
-            )
+            batch_due = self._rl_batch_ready_for_optimization()
             if batch_due:
                 task_batch = tuple(self._pending_task_rollouts)
                 relationship_batch = tuple(
@@ -1115,10 +1121,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             )
             self._pending_task_rollouts.append(task_rollout)
             self._pending_relationship_rollouts.append(relationship_rollout)
-            batch_due = (
-                len(self._pending_task_rollouts)
-                >= self._rl_batch_accumulation_size
-            )
+            batch_due = self._rl_batch_ready_for_optimization()
             task_batch = (
                 tuple(self._pending_task_rollouts) if batch_due else ()
             )

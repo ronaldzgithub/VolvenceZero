@@ -249,6 +249,10 @@ class FinalRolloutConfig:
     # DISABLED preserves one-step runtime replay exactly.
     internal_rl_runtime_segment_credit: WiringLevel = WiringLevel.DISABLED
     internal_rl_runtime_segment_max_steps: int = 24
+    # Minimum optimizer batch support. Synthetic replay counts rollouts;
+    # ACTIVE runtime replay counts real transitions so short closed segments
+    # cannot be optimized as singleton, zero-covariance factor batches.
+    internal_rl_batch_accumulation_size: int = 1
     # Generic low-rank state-conditioned residual over z_t. DISABLED is the
     # exact rollback path; SHADOW learns/reports candidate parameters without
     # changing live z_t; ACTIVE applies the bounded residual in latent space.

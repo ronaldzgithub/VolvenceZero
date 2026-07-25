@@ -16,6 +16,7 @@ ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
 # staged rollout; otherwise a no-milestone search segment is discarded by the
 # cross-episode checkpoint before it ever reaches the optimizer.
 ANT_RUNTIME_SEGMENT_MAX_STEPS = 16
+ANT_RUNTIME_BATCH_TRANSITION_SIZE = 4
 ANT_CAUSAL_ACTION_HEAD_STRENGTH = 0.35
 
 
@@ -45,6 +46,9 @@ def ant_runtime_replay_rollout_config(
         internal_rl_runtime_segment_max_steps=(
             ANT_RUNTIME_SEGMENT_MAX_STEPS
         ),
+        internal_rl_batch_accumulation_size=(
+            ANT_RUNTIME_BATCH_TRANSITION_SIZE
+        ),
         internal_rl_causal_action_head=WiringLevel.ACTIVE,
         internal_rl_causal_action_head_strength=(
             ANT_CAUSAL_ACTION_HEAD_STRENGTH
@@ -66,6 +70,7 @@ def ant_runtime_replay_rollout_config(
 __all__ = [
     "ANT_CAUSAL_ACTION_HEAD_STRENGTH",
     "ANT_RUNTIME_EXPLORATION_STRENGTH",
+    "ANT_RUNTIME_BATCH_TRANSITION_SIZE",
     "ANT_RUNTIME_MODULATION_STRENGTH",
     "ANT_RUNTIME_SEGMENT_MAX_STEPS",
     "ant_runtime_replay_rollout_config",

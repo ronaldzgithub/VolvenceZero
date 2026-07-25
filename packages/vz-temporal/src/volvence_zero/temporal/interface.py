@@ -2142,18 +2142,9 @@ def _init_causal_action_heads(
                 n_z,
                 seed=211 + track_index,
             ),
-            # A zero output factor is a bilinear saddle: the input factor
-            # receives exactly zero gradient until the output path has already
-            # grown, leaving the state projection effectively frozen in short
-            # online windows. Keep a small deterministic symmetric seed so
-            # both factors learn from the first state-conditioned batch.
             output_factors=tuple(
-                tuple(value * 0.2 for value in row)
-                for row in _random_mat(
-                    n_z,
-                    rank,
-                    seed=311 + track_index,
-                )
+                tuple(0.0 for _ in range(rank))
+                for _ in range(n_z)
             ),
             bias=tuple(0.0 for _ in range(n_z)),
         )
@@ -2612,7 +2603,15 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
         return self._parameter_store
 
     def export_runtime_state(self) -> MetacontrollerRuntimeState:
-        return self._parameter_store.export_runtime_state(mode=self.mode.value)
+        n_z = self._parameter_store.n_z
+        return replace(
+            self._parameter_store.export_runtime_state(
+                mode=self.mode.value
+            ),
+            causal_action_head_state=_nz_zeros(n_z),
+            causal_action_head_residual=_nz_zeros(n_z),
+            causal_action_head_wiring=WiringLevel.DISABLED.value,
+        )
 
     def export_parameters(self) -> TemporalControllerParameters:
         return self._parameter_store.export_temporal_parameters()

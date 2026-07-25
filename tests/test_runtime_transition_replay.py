@@ -875,6 +875,103 @@ def test_runtime_replay_aggregates_real_transitions_by_beta_segment() -> None:
     assert report.longest_segment_length == 2
 
 
+@pytest.mark.asyncio
+async def test_active_runtime_replay_batches_short_segments_by_transition_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sandbox, _, _ = _sandbox_capture()
+    settlement = sandbox.settle_runtime_action(
+        next_substrate_snapshot=_substrate("batch next observation"),
+        environment_outcome=_outcome(prediction_id="prediction-1"),
+        prediction_error_snapshot=_prediction_error(
+            prediction_id="prediction-1"
+        ),
+        credit_snapshot=_credit(),
+    )
+    assert settlement.rollout is not None
+    base_transition = settlement.rollout.transitions[0]
+    world_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4)
+    )
+    loop = ETANLJointLoop(
+        world_policy=world_policy,
+        self_policy=clone_full_learned_temporal_policy(world_policy),
+        internal_rl_runtime_replay=WiringLevel.ACTIVE,
+        runtime_replay_segment_credit=WiringLevel.ACTIVE,
+        runtime_replay_segment_max_steps=8,
+        rl_batch_accumulation_size=4,
+    )
+    optimized_transition_counts: list[int] = []
+    original_world_optimize = loop._world_sandbox.optimize
+
+    def record_world_batch(rollouts: tuple[ZRollout, ...]):
+        optimized_transition_counts.append(
+            sum(len(rollout.transitions) for rollout in rollouts)
+        )
+        return original_world_optimize(rollouts)
+
+    monkeypatch.setattr(
+        loop._world_sandbox,
+        "optimize",
+        record_world_batch,
+    )
+
+    def stage_singleton(turn_index: int) -> None:
+        state = (
+            turn_index / 10.0,
+            -turn_index / 10.0,
+            0.05 * turn_index,
+            -0.05 * turn_index,
+        )
+        world_transition = replace(
+            base_transition,
+            track=Track.WORLD,
+            runtime_turn_index=turn_index,
+            runtime_milestone=True,
+            runtime_action_head_state=state,
+        )
+        self_transition = replace(
+            world_transition,
+            track=Track.SELF,
+        )
+        loop._stage_runtime_segment_pair(
+            world_rollout=replace(
+                settlement.rollout,
+                rollout_id=f"batch-world-{turn_index}",
+                track=Track.WORLD,
+                transitions=(world_transition,),
+            ),
+            self_rollout=replace(
+                settlement.rollout,
+                rollout_id=f"batch-self-{turn_index}",
+                track=Track.SELF,
+                transitions=(self_transition,),
+            ),
+        )
+
+    for turn_index in (1, 2, 3):
+        stage_singleton(turn_index)
+    assert loop._pending_rl_batch_count() == 3
+    assert loop._rl_batch_ready_for_optimization() is False
+
+    trace = build_training_trace(
+        trace_id="runtime-transition-batch",
+        source_text="accumulate state-varying runtime transitions",
+    )
+    waiting = await loop.run_cycle(cycle_index=1, trace=trace)
+    assert waiting.backend_name == "waiting-for-runtime-replay"
+    assert optimized_transition_counts == []
+
+    stage_singleton(4)
+    assert loop._pending_rl_batch_count() == 4
+    assert loop._rl_batch_ready_for_optimization() is True
+
+    optimized = await loop.run_cycle(cycle_index=2, trace=trace)
+    assert optimized_transition_counts == [4]
+    assert optimized.rl_batch_rollout_count == 4
+    assert loop._pending_rl_batch_count() == 0
+
+
 def test_runtime_segment_closes_on_single_track_beta_switch() -> None:
     """World/self metacontrollers switch independently; a boundary on either
     track closes the open segment instead of raising."""

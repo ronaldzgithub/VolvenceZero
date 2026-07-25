@@ -114,16 +114,11 @@ def test_causal_action_head_preserves_signed_encoder_state_symmetry() -> None:
     assert negative_basis == pytest.approx(
         tuple(-value for value in positive_basis)
     )
-    assert any(
-        abs(value) > 0.0
+    assert all(
+        value == 0.0
         for row in initial.output_factors
         for value in row
     )
-    assert max(
-        abs(value)
-        for row in initial.output_factors
-        for value in row
-    ) < 0.2
     assert negative_residual == pytest.approx(
         tuple(-value for value in positive_residual)
     )
@@ -155,10 +150,23 @@ def test_causal_action_head_prioritizes_state_path_over_bounded_intercept() -> N
         advantages=(1.0, 1.0),
     )
 
+    after_first_batch = store.causal_action_head_parameters(
+        track=Track.WORLD
+    )
+    assert after_first_batch.bias[0] == pytest.approx(0.0)
+    assert after_first_batch.output_factors != before.output_factors
+    assert after_first_batch.input_factors == before.input_factors
+
+    store.update_causal_action_head(
+        track=Track.WORLD,
+        state_feature_batch=(positive, negative),
+        action_gradients=(positive_gradient, negative_gradient),
+        advantages=(1.0, 1.0),
+    )
+
     after = store.causal_action_head_parameters(track=Track.WORLD)
-    assert after.bias[0] == pytest.approx(0.0)
-    assert after.output_factors != before.output_factors
-    assert after.input_factors != before.input_factors
+    assert after.output_factors != after_first_batch.output_factors
+    assert after.input_factors != after_first_batch.input_factors
     positive_residual = store.causal_action_head_residual(
         track=Track.WORLD,
         state_features=positive,
@@ -230,6 +238,22 @@ def test_learned_lite_code_dimension_follows_store() -> None:
 
     assert step.controller_state.code_dim == _NDIM
     assert len(step.controller_state.code) == _NDIM
+
+
+def test_learned_lite_publishes_disabled_action_head_shape() -> None:
+    policy = LearnedLiteTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+
+    runtime_state = policy.export_runtime_state()
+
+    assert runtime_state.causal_action_head_wiring == "disabled"
+    assert runtime_state.causal_action_head_state == pytest.approx(
+        tuple(0.0 for _ in range(_NDIM))
+    )
+    assert runtime_state.causal_action_head_residual == pytest.approx(
+        tuple(0.0 for _ in range(_NDIM))
+    )
 
 
 # ---------------------------------------------------------------------------

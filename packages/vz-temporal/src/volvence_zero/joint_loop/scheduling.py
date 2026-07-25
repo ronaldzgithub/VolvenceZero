@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from volvence_zero.joint_loop.contracts import JointLoopSchedule
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.temporal import MetacontrollerRuntimeState
 
 
@@ -191,12 +192,25 @@ class _JointLoopSchedulingMixin:
         return max(1, self._rl_batch_accumulation_size)
 
     def _pending_rl_batch_count(self) -> int:
+        if self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
+            return sum(
+                len(rollout.transitions)
+                for rollout in self._pending_task_rollouts
+            )
         return len(self._pending_task_rollouts)
+
+    def _rl_batch_ready_for_optimization(self) -> bool:
+        return (
+            self._pending_rl_batch_count()
+            >= self._effective_rl_batch_target()
+        )
 
     def _rl_batch_ready_due(self) -> bool:
         target = self._effective_rl_batch_target()
         if target <= 1:
             return False
+        if self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
+            return self._rl_batch_ready_for_optimization()
         return self._pending_rl_batch_count() + 1 >= target
 
     def _rl_batch_wait_due(

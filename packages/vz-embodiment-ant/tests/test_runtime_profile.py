@@ -7,6 +7,7 @@ from volvence_zero.runtime import WiringLevel
 from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
 
 from volvence_ant.evidence import (
+    ANT_RUNTIME_BATCH_TRANSITION_SIZE,
     ANT_RUNTIME_EXPLORATION_STRENGTH,
     ANT_RUNTIME_MODULATION_STRENGTH,
     ANT_RUNTIME_SEGMENT_MAX_STEPS,
@@ -19,6 +20,7 @@ from volvence_ant.runtime import AntSession, AntSessionConfig
 def test_production_rollout_defaults_remain_disabled_and_zero() -> None:
     config = FinalRolloutConfig()
     assert config.internal_rl_runtime_replay is WiringLevel.DISABLED
+    assert config.internal_rl_batch_accumulation_size == 1
     assert config.internal_rl_runtime_modulation_strength == 0.0
     assert config.internal_rl_runtime_exploration_strength == 0.0
 
@@ -28,6 +30,11 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         enable_sparse_exploration=True
     )
     assert config.internal_rl_runtime_replay is WiringLevel.ACTIVE
+    assert (
+        config.internal_rl_batch_accumulation_size
+        == ANT_RUNTIME_BATCH_TRANSITION_SIZE
+        == 4
+    )
     assert (
         config.internal_rl_runtime_modulation_strength
         == ANT_RUNTIME_MODULATION_STRENGTH

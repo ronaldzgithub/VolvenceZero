@@ -902,6 +902,9 @@ class AgentSessionRunner(
             runtime_replay_segment_max_steps=(
                 self._config.internal_rl_runtime_segment_max_steps
             ),
+            rl_batch_accumulation_size=(
+                self._config.internal_rl_batch_accumulation_size
+            ),
             prediction_error_temporal_switch=(
                 self._config.prediction_error_temporal_switch
             ),
@@ -931,6 +934,16 @@ class AgentSessionRunner(
                 "credit mismatch: config="
                 f"{self._config.internal_rl_runtime_segment_credit.value}, "
                 f"loop={self._joint_loop.runtime_replay_segment_credit.value}"
+            )
+        if (
+            self._joint_loop.rl_batch_accumulation_size
+            != self._config.internal_rl_batch_accumulation_size
+        ):
+            raise ValueError(
+                "AgentSessionRunner config/joint-loop RL batch accumulation "
+                "mismatch: config="
+                f"{self._config.internal_rl_batch_accumulation_size}, loop="
+                f"{self._joint_loop.rl_batch_accumulation_size}"
             )
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         if not joint_learning_enabled and joint_schedule is not None:

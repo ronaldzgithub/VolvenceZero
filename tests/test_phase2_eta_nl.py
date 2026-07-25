@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 
+import pytest
+
 from volvence_zero.credit import CreditRecord, CreditSnapshot, GateDecision, ModificationGate, extract_abstract_action_credit_bonus
 from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
 from volvence_zero.internal_rl import (
@@ -361,6 +363,14 @@ def test_eta_nl_joint_loop_supports_rl_batch_accumulation():
     assert first.policy_update_applied is False
     assert second.rl_batch_rollout_count == 2
     assert second.policy_epochs_executed >= 2
+
+
+def test_eta_nl_joint_loop_rejects_invalid_rl_batch_accumulation():
+    with pytest.raises(
+        ValueError,
+        match="rl_batch_accumulation_size must be >= 1",
+    ):
+        ETANLJointLoop(rl_batch_accumulation_size=0)
 
 
 def test_eta_nl_joint_loop_schedule_exposes_batch_collect_and_flush_actions():

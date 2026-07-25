@@ -101,6 +101,16 @@ def test_agent_session_runner_executes_single_turn():
     assert result.active_snapshots["session_post_slow_loop"].value.queue_state.completed_job_count == 0
 
 
+def test_agent_session_runner_wires_rl_batch_accumulation_config():
+    runner = AgentSessionRunner(
+        config=FinalRolloutConfig(
+            internal_rl_batch_accumulation_size=4,
+        )
+    )
+
+    assert runner._joint_loop.rl_batch_accumulation_size == 4
+
+
 def test_agent_session_runner_exposes_primary_social_scope_from_active_owner():
     runner = default_active_runner()
     result = asyncio.run(runner.run_turn("I need help organizing my plan."))
