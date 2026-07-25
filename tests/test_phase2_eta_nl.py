@@ -612,6 +612,36 @@ def test_eta_nl_joint_loop_can_rollback_policy_when_reward_regresses():
     assert "policy-rollback" in report.applied_operations
 
 
+def test_ndim_track_update_does_not_trigger_legacy_drift_rollback():
+    world = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=16)
+    )
+    self_policy = clone_full_learned_temporal_policy(world)
+    loop = ETANLJointLoop(
+        world_policy=world,
+        self_policy=self_policy,
+    )
+    previous = loop._aggregate_metacontroller_state()
+    for policy, track in (
+        (world, Track.WORLD),
+        (self_policy, Track.SELF),
+    ):
+        weights = list(policy.parameter_store.track_weights[track])
+        shift = min(0.05, weights[1])
+        weights[0] += shift
+        weights[1] -= shift
+        policy.parameter_store.track_weights[track] = tuple(weights)
+        policy.parameter_store.align_temporal_from_tracks()
+    loop._previous_metacontroller_state = previous
+
+    assert (
+        loop._metacontroller_drift_exceeds_limit(
+            loop._aggregate_metacontroller_state()
+        )
+        is False
+    )
+
+
 def test_eta_nl_joint_loop_detects_surrogate_outcome_decoupling():
     loop = ETANLJointLoop()
     reasons = loop._rollback_reasons(

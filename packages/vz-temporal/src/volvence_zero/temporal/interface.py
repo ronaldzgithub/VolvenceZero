@@ -1827,6 +1827,14 @@ class MetacontrollerParameterStore:
         return tuple(operations)
 
     def align_temporal_from_tracks(self) -> None:
+        if self._n_z > 3:
+            # The ndim runtime consumes track_weights through
+            # runtime_track_modulated_code and its own Ndim switch parameters.
+            # Rewriting the legacy three-axis temporal weights/switch bias here
+            # has no serving effect, but the joint-loop drift gate observes
+            # those exported compatibility fields and can roll back the real
+            # ndim actor update as a false metacontroller drift.
+            return
         world_weights = self.track_weights[Track.WORLD]
         self_weights = self.track_weights[Track.SELF]
         shared_weights = self.track_weights[Track.SHARED]
@@ -4272,10 +4280,27 @@ def build_temporal_runtime_state_aggregate(
         if world_state.active_label == self_state.active_label
         else f"world:{world_state.active_label}|self:{self_state.active_label}"
     )
+    world_track_parameters = dict(world_state.track_parameters)
+    self_track_parameters = dict(self_state.track_parameters)
+    required_tracks = {track.value for track in Track}
+    if (
+        set(world_track_parameters) != required_tracks
+        or set(self_track_parameters) != required_tracks
+    ):
+        raise ValueError(
+            "dual-track runtime aggregate requires world/self/shared "
+            "track parameters from both owners"
+        )
     aggregate_track_parameters = (
-        ("world", world_state.latent_mean),
-        ("self", self_state.latent_mean),
-        ("shared", shared_latent),
+        ("world", world_track_parameters[Track.WORLD.value]),
+        ("self", self_track_parameters[Track.SELF.value]),
+        (
+            "shared",
+            _merge_track_codes(
+                world_track_parameters[Track.SHARED.value],
+                self_track_parameters[Track.SHARED.value],
+            ),
+        ),
     )
     aggregate_update_steps = (
         ("world", next((step for track, step in world_state.update_steps if track == "world"), 0)),

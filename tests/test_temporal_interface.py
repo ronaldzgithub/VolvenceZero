@@ -25,6 +25,7 @@ from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     HeuristicTemporalPolicy,
     LearnedLiteTemporalPolicy,
+    MetacontrollerParameterStore,
     MetacontrollerSSLTrainer,
     PlaceholderTemporalPolicy,
     TemporalAbstractionSnapshot,
@@ -32,6 +33,7 @@ from volvence_zero.temporal import (
     TrackTemporalConsolidationModule,
     TrackTemporalModule,
     TemporalModule,
+    build_temporal_runtime_state_aggregate,
     fit_policy_from_trace_dataset,
 )
 from volvence_zero.substrate import TrainingTraceDataset
@@ -238,6 +240,57 @@ def test_learned_lite_policy_can_align_with_internal_rl_parameters():
 
     assert aligned != initial
     assert aligned.switch_bias > 0.0
+
+
+def test_ndim_track_alignment_does_not_mutate_legacy_temporal_controls():
+    store = MetacontrollerParameterStore(n_z=16)
+    before = store.export_temporal_parameters()
+    store.track_weights[Track.WORLD] = (
+        0.7,
+        0.1,
+        0.1,
+        0.1,
+        *(0.0 for _ in range(12)),
+    )
+
+    store.align_temporal_from_tracks()
+
+    assert store.export_temporal_parameters() == before
+
+
+def test_dual_track_runtime_aggregate_publishes_owner_track_parameters():
+    world = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4)
+    )
+    self_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4)
+    )
+    world_weights = (0.7, 0.1, 0.1, 0.1)
+    self_weights = (0.1, 0.7, 0.1, 0.1)
+    world_shared = (0.4, 0.3, 0.2, 0.1)
+    self_shared = (0.2, 0.3, 0.4, 0.1)
+    world.parameter_store.track_weights[Track.WORLD] = world_weights
+    world.parameter_store.track_weights[Track.SHARED] = world_shared
+    self_policy.parameter_store.track_weights[Track.SELF] = self_weights
+    self_policy.parameter_store.track_weights[Track.SHARED] = self_shared
+
+    aggregate = build_temporal_runtime_state_aggregate(
+        world_state=world.export_runtime_state(),
+        self_state=self_policy.export_runtime_state(),
+    )
+
+    assert dict(aggregate.track_parameters) == {
+        "world": world_weights,
+        "self": self_weights,
+        "shared": tuple(
+            (world_value + self_value) / 2.0
+            for world_value, self_value in zip(
+                world_shared,
+                self_shared,
+                strict=True,
+            )
+        ),
+    }
 
 
 def test_learned_lite_policy_exports_runtime_visible_metacontroller_state():

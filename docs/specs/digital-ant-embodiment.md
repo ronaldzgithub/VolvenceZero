@@ -292,6 +292,10 @@ promotion gate：
   避免把 encoder 已保留的左右差再次随机压入 rank-4 basis。首个非零 covariance batch 先建立
   candidate output path，再按真实 output-column norm 回传 input。通用 profile 不指定 rank 时
   保持历史低秩；已学习 mapping 禁止原地改变 rank。
+  正式 `n_z=16` 还必须保持 ndim/legacy 控制面隔离：Internal-RL 更新正式 track weights 后，
+  不得写入 ndim serving 不消费的 legacy `temporal_weights/switch_bias`；dual-track aggregate
+  的 `track_parameters` 发布 owner track weights，不得用逐拍 latent state 代替。否则通用 drift
+  gate 会把无效兼容字段或环境状态变化误判成参数漂移并回滚真实 action-head batch。
 - `ecology_curriculum` 对黄油、火柴、组合三阶段分别执行 near → medium → far mastery：
   每阶段达到预声明 pickup/delivery/heat-entry/escape 样本量且满足最少 episode 后才提前晋级，
   未达到则在最大预算处显式 BLOCK；已经掌握的阶段按固定频率交错回放。木棍不再是独立训练
