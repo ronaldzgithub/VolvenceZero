@@ -151,6 +151,62 @@ def test_causal_action_head_wiring_is_reversible_and_shadow_is_noop() -> None:
     )
 
 
+def test_causal_action_head_state_is_current_observation_stable() -> None:
+    source_store = MetacontrollerParameterStore(n_z=4)
+    source_head = source_store.causal_action_head_parameters(
+        track=Track.WORLD
+    )
+    source_store.restore_causal_action_head_parameters(
+        replace(
+            source_head,
+            output_factors=tuple(
+                tuple(value * 4.0 for value in row)
+                for row in source_head.output_factors
+            ),
+        )
+    )
+    snapshot = source_store.export_parameter_snapshot()
+
+    def policy_with_same_owner_state() -> FullLearnedTemporalPolicy:
+        store = MetacontrollerParameterStore(n_z=4)
+        store.restore_parameter_snapshot(snapshot)
+        policy = FullLearnedTemporalPolicy(parameter_store=store)
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=Track.WORLD,
+            strength=0.5,
+        )
+        return policy
+
+    history_policy = policy_with_same_owner_state()
+    direct_policy = policy_with_same_owner_state()
+    history_policy.step(
+        substrate_snapshot=_substrate("unrelated preceding observation"),
+        previous_snapshot=None,
+    )
+    target = _substrate("identical current action-head observation")
+    history_policy.step(
+        substrate_snapshot=target,
+        previous_snapshot=None,
+    )
+    direct_policy.step(
+        substrate_snapshot=target,
+        previous_snapshot=None,
+    )
+
+    after_history = history_policy.export_runtime_state()
+    direct = direct_policy.export_runtime_state()
+    assert after_history.posterior_hidden_state != pytest.approx(
+        direct.posterior_hidden_state
+    )
+    assert after_history.causal_action_head_state == pytest.approx(
+        direct.causal_action_head_state
+    )
+    assert after_history.causal_action_head_residual == pytest.approx(
+        direct.causal_action_head_residual
+    )
+
+
 def _outcome(*, prediction_id: str, outcome_id: str = "outcome-1") -> EnvironmentOutcome:
     return EnvironmentOutcome(
         outcome_id=outcome_id,
@@ -616,6 +672,15 @@ def test_joint_checkpoint_round_trips_staged_and_pending_runtime_replay() -> Non
     self_policy = clone_full_learned_temporal_policy(world_policy)
     world_policy.set_runtime_track_modulation(0.3)
     self_policy.set_runtime_track_modulation(0.3)
+    for track, policy in (
+        (Track.WORLD, world_policy),
+        (Track.SELF, self_policy),
+    ):
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=track,
+            strength=0.35,
+        )
     loop = ETANLJointLoop(
         world_policy=world_policy,
         self_policy=self_policy,
@@ -683,6 +748,24 @@ def test_joint_checkpoint_round_trips_staged_and_pending_runtime_replay() -> Non
     )
     assert checkpoint.runtime_replay_report is not None
     assert checkpoint.runtime_replay_report.transition_count == 2
+    assert checkpoint.pending_task_rollouts[0].transitions[
+        0
+    ].runtime_action_head_state == pytest.approx(
+        first_world_state.causal_action_head_state
+    )
+    persistence = loop.export_learning_persistence_snapshot(
+        include_runtime_replay=True
+    )
+    decoded = loop._decode_learning_persistence_snapshot(
+        persistence
+    )
+    assert persistence.schema_version == 3
+    assert decoded.pending_task_rollouts is not None
+    assert decoded.pending_task_rollouts[0].transitions[
+        0
+    ].runtime_action_head_state == pytest.approx(
+        first_world_state.causal_action_head_state
+    )
 
     loop.restore_learning_checkpoint(checkpoint)
 

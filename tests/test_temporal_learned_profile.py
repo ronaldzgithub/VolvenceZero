@@ -12,6 +12,8 @@ from __future__ import annotations
 import pytest
 
 from volvence_zero.brain import TEMPORAL_PROFILE_LATENT_DIMS, BrainConfig
+from volvence_zero.memory import Track
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
     ResidualActivation,
     ResidualSequenceStep,
@@ -114,6 +116,12 @@ def test_last_sensor_channel_is_reachable_and_changes_controller_code() -> None:
     right_policy = FullLearnedTemporalPolicy(
         parameter_store=MetacontrollerParameterStore(n_z=4, n_input=19)
     )
+    for policy in (left_policy, right_policy):
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.SHADOW,
+            track=Track.WORLD,
+            strength=0.35,
+        )
 
     left_step = left_policy.step(
         substrate_snapshot=_sensor_snapshot(left),
@@ -125,6 +133,10 @@ def test_last_sensor_channel_is_reachable_and_changes_controller_code() -> None:
     )
 
     assert left_step.controller_state.code != right_step.controller_state.code
+    left_state = left_policy.export_runtime_state().causal_action_head_state
+    right_state = right_policy.export_runtime_state().causal_action_head_state
+    assert left_state != right_state
+    assert all(-1.0 <= value <= 1.0 for value in left_state + right_state)
 
 
 def test_temporal_profile_resolves_learned_ndim_capacity() -> None:

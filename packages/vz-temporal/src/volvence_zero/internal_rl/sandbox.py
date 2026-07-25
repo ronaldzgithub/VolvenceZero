@@ -92,6 +92,7 @@ class ZTransition:
     runtime_segment_id: str = ""
     runtime_terminal: bool = False
     runtime_milestone: bool = False
+    runtime_action_head_state: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -161,6 +162,7 @@ class RuntimeActionCapture:
     runtime_base_std: tuple[float, ...]
     runtime_beta_t: tuple[float, ...]
     runtime_other_track_sum: tuple[float, ...]
+    runtime_action_head_state: tuple[float, ...]
     runtime_action_head_residual: tuple[float, ...]
 
 
@@ -771,7 +773,7 @@ class CausalZPolicy:
             residual = (
                 self._parameter_store.causal_action_head_residual(
                     track=track,
-                    hidden_state=hidden_state,
+                    state_features=hidden_state,
                     strength=self._causal_action_head_strength,
                 )
             )
@@ -1281,7 +1283,7 @@ class CausalZPolicy:
             ),
             _CAUSAL_ACTION_ADVANTAGE_SCALE_FLOOR,
         )
-        hidden_states: list[tuple[float, ...]] = []
+        state_feature_batch: list[tuple[float, ...]] = []
         action_gradients: list[tuple[float, ...]] = []
         selected_advantages: list[float] = []
         for transition, advantage in runtime_transitions:
@@ -1320,7 +1322,15 @@ class CausalZPolicy:
                 )
                 for index in range(self.n_z)
             )
-            hidden_states.append(transition.hidden_state)
+            if len(transition.runtime_action_head_state) != self.n_z:
+                raise ValueError(
+                    "causal action head runtime state dimension mismatch: "
+                    f"expected={self.n_z}, "
+                    f"actual={len(transition.runtime_action_head_state)}"
+                )
+            state_feature_batch.append(
+                transition.runtime_action_head_state
+            )
             action_gradients.append(gradient)
             # Normalize only the causal action-head signal.  Track/value
             # updates keep the physical payoff scale, while the low-rank head
@@ -1333,7 +1343,7 @@ class CausalZPolicy:
             )
         return self._parameter_store.update_causal_action_head(
             track=track,
-            hidden_states=tuple(hidden_states),
+            state_feature_batch=tuple(state_feature_batch),
             action_gradients=tuple(action_gradients),
             advantages=tuple(selected_advantages),
         )
@@ -1720,12 +1730,16 @@ class InternalRLSandbox:
             == WiringLevel.ACTIVE.value
             else tuple(0.0 for _ in range(n))
         )
+        action_head_state = tuple(
+            runtime_state.causal_action_head_state
+        )
         for name, values in (
             ("posterior_mean", base_mean),
             ("posterior_std", base_std),
             ("posterior_sample_noise", policy_noise),
             ("posterior_hidden_state", hidden_state),
             ("z_tilde", sampled_candidate),
+            ("causal_action_head_state", action_head_state),
             ("causal_action_head_residual", action_head_residual),
         ):
             if len(values) != n:
@@ -1819,6 +1833,7 @@ class InternalRLSandbox:
             runtime_base_std=base_std,
             runtime_beta_t=beta_t,
             runtime_other_track_sum=other_track_sum,
+            runtime_action_head_state=action_head_state,
             runtime_action_head_residual=action_head_residual,
         )
         self._pending_runtime_capture = capture
@@ -1992,6 +2007,9 @@ class InternalRLSandbox:
             runtime_milestone=(
                 measurement is not None
                 and measurement.task_progress is not None
+            ),
+            runtime_action_head_state=(
+                capture.runtime_action_head_state
             ),
         )
         rollout = ZRollout(

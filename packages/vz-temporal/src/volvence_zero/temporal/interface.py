@@ -219,6 +219,7 @@ class MetacontrollerRuntimeState:
     protocol_prior_strength: float = 0.0
     protocol_prior_applied: bool = False
     learned_update_rule_state: LearnedUpdateRuleState | None = None
+    causal_action_head_state: tuple[float, ...] = ()
     causal_action_head_residual: tuple[float, ...] = ()
     causal_action_head_wiring: str = "disabled"
     causal_action_head_update_step: int = 0
@@ -701,16 +702,16 @@ class MetacontrollerParameterStore:
         self,
         *,
         track: Track,
-        hidden_state: tuple[float, ...],
+        state_features: tuple[float, ...],
     ) -> tuple[float, ...]:
-        if len(hidden_state) != self._n_z:
+        if len(state_features) != self._n_z:
             raise ValueError(
-                "causal action head hidden dimension mismatch: "
-                f"expected={self._n_z}, actual={len(hidden_state)}"
+                "causal action head state dimension mismatch: "
+                f"expected={self._n_z}, actual={len(state_features)}"
             )
-        if any(not -1.0 <= value <= 1.0 for value in hidden_state):
+        if any(not -1.0 <= value <= 1.0 for value in state_features):
             raise ValueError(
-                "causal action head requires signed GRU hidden state "
+                "causal action head requires signed encoder state "
                 "within [-1, 1]"
             )
         parameters = self.causal_action_heads[track]
@@ -718,7 +719,7 @@ class MetacontrollerParameterStore:
         return tuple(
             math.tanh(
                 sum(
-                    row[index] * hidden_state[index]
+                    row[index] * state_features[index]
                     for index in range(self._n_z)
                 )
                 / scale
@@ -730,7 +731,7 @@ class MetacontrollerParameterStore:
         self,
         *,
         track: Track,
-        hidden_state: tuple[float, ...],
+        state_features: tuple[float, ...],
         strength: float,
     ) -> tuple[float, ...]:
         if not 0.0 <= strength <= 1.0:
@@ -741,7 +742,7 @@ class MetacontrollerParameterStore:
         parameters = self.causal_action_heads[track]
         basis = self.causal_action_head_basis(
             track=track,
-            hidden_state=hidden_state,
+            state_features=state_features,
         )
         return tuple(
             strength
@@ -760,22 +761,22 @@ class MetacontrollerParameterStore:
         self,
         *,
         track: Track,
-        hidden_states: tuple[tuple[float, ...], ...],
+        state_feature_batch: tuple[tuple[float, ...], ...],
         action_gradients: tuple[tuple[float, ...], ...],
         advantages: tuple[float, ...],
     ) -> float:
         if not (
-            len(hidden_states)
+            len(state_feature_batch)
             == len(action_gradients)
             == len(advantages)
         ):
             raise ValueError(
                 "causal action head update requires aligned batches: "
-                f"hidden={len(hidden_states)}, "
+                f"states={len(state_feature_batch)}, "
                 f"action_gradients={len(action_gradients)}, "
                 f"advantages={len(advantages)}"
             )
-        if not hidden_states:
+        if not state_feature_batch:
             return 0.0
         parameters = self.causal_action_heads[track]
         input_factors = [
@@ -802,8 +803,8 @@ class MetacontrollerParameterStore:
                 tuple[float, ...],
             ]
         ] = []
-        for hidden_state, action_gradient, advantage in zip(
-            hidden_states,
+        for state_features, action_gradient, advantage in zip(
+            state_feature_batch,
             action_gradients,
             advantages,
             strict=True,
@@ -815,13 +816,13 @@ class MetacontrollerParameterStore:
                 )
             basis = self.causal_action_head_basis(
                 track=track,
-                hidden_state=hidden_state,
+                state_features=state_features,
             )
             signal = tuple(
                 advantage * action_gradient[output_index]
                 for output_index in range(self._n_z)
             )
-            samples.append((hidden_state, basis, signal))
+            samples.append((state_features, basis, signal))
         # Decompose the batch gradient into an intercept and a
         # state-conditioned covariance term.  Otherwise the low-rank factors
         # can use a common hidden-state mean to recreate an unbounded
@@ -834,7 +835,7 @@ class MetacontrollerParameterStore:
             / len(samples)
             for output_index in range(self._n_z)
         )
-        for hidden_state, basis, signal in samples:
+        for state_features, basis, signal in samples:
             for output_index in range(self._n_z):
                 bias_delta[output_index] += signal[output_index]
                 state_signal = (
@@ -858,13 +859,13 @@ class MetacontrollerParameterStore:
                     input_delta[rank_index][input_index] += (
                         upstream
                         * derivative
-                        * hidden_state[input_index]
+                        * state_features[input_index]
                         / scale
                     )
         learning_rate = (
             self.learning_rate
             * 0.12
-            / len(hidden_states)
+            / len(state_feature_batch)
         )
         total_change = 0.0
         for output_index in range(self._n_z):
@@ -2805,6 +2806,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._causal_action_head_wiring = WiringLevel.DISABLED
         self._causal_action_head_track = Track.WORLD
         self._causal_action_head_strength = 0.0
+        self._latest_causal_action_head_state = _nz_zeros(n_z)
         self._latest_causal_action_head_residual = _nz_zeros(n_z)
 
     @property
@@ -2917,6 +2919,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._causal_action_head_wiring = wiring_level
         self._causal_action_head_track = track
         self._causal_action_head_strength = float(strength)
+        self._latest_causal_action_head_state = _nz_zeros(
+            self._parameter_store.n_z
+        )
         self._latest_causal_action_head_residual = _nz_zeros(
             self._parameter_store.n_z
         )
@@ -3014,6 +3019,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         )
         return replace(
             self._parameter_store.export_runtime_state(mode=self.mode.value),
+            causal_action_head_state=(
+                self._latest_causal_action_head_state
+            ),
             causal_action_head_residual=(
                 self._latest_causal_action_head_residual
             ),
@@ -3448,6 +3456,23 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             cms_context=cms_ctx,
             params=self._parameter_store.ndim_encoder_parameters,
         )
+        self._latest_causal_action_head_state = _nz_zeros(n_z)
+        if self._causal_action_head_wiring is not WiringLevel.DISABLED:
+            # The action head needs a current-observation representation, not
+            # the recurrent serving state whose coordinates drift with the
+            # preceding turn sequence. Reusing the same owner encoder with a
+            # zero recurrent preimage preserves every configured input channel
+            # and produces a signed, checkpoint-stable feature in the existing
+            # latent width. DISABLED remains the historical single-encode path.
+            action_head_encoded = encoder_obj.encode(
+                substrate_snapshot=substrate_snapshot,
+                previous_hidden_state=_nz_zeros(n_z),
+                cms_context=None,
+                params=self._parameter_store.ndim_encoder_parameters,
+            )
+            self._latest_causal_action_head_state = (
+                action_head_encoded.posterior.hidden_state
+            )
         self._latest_encoder_output_for_cms = tuple(
             _clamp(encoded.posterior.posterior_mean[i] * 0.6 + encoded.posterior.z_tilde[i] * 0.4)
             for i in range(n_z)
@@ -3560,7 +3585,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             action_head_residual = (
                 self._parameter_store.causal_action_head_residual(
                     track=self._causal_action_head_track,
-                    hidden_state=encoded.posterior.hidden_state,
+                    state_features=self._latest_causal_action_head_state,
                     strength=self._causal_action_head_strength,
                 )
             )
@@ -4239,6 +4264,22 @@ def build_temporal_runtime_state_aggregate(
         ),
         learned_update_rule_state=(
             world_state.learned_update_rule_state or self_state.learned_update_rule_state
+        ),
+        causal_action_head_state=tuple(
+            (world_value + self_value) / 2.0
+            for world_value, self_value in zip(
+                world_state.causal_action_head_state,
+                self_state.causal_action_head_state,
+                strict=True,
+            )
+        )
+        if (
+            world_state.causal_action_head_state
+            and self_state.causal_action_head_state
+        )
+        else (
+            world_state.causal_action_head_state
+            or self_state.causal_action_head_state
         ),
         causal_action_head_residual=tuple(
             (world_value + self_value) / 2.0

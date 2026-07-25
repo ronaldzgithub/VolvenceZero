@@ -278,10 +278,12 @@ promotion gate：
   open segment、closed segment 和最长长度进入 owner checkpoint/rollback，但不新增 ledger 或
   runtime slot；DISABLED 精确回到历史 one-step replay。
 - ecology evidence profile 还将通用 `internal_rl_causal_action_head=ACTIVE`：低秩 head 只把
-  posterior hidden state 映射为 bounded `z_t` residual，以补足逐维 track gain 不能表达的
+  temporal owner 发布的 `causal_action_head_state` 映射为 bounded `z_t` residual，以补足逐维 track gain 不能表达的
   state-conditioned 左右响应。head 不含 butter/stick/match 字段、不直接生成 turn/step；参数由
   temporal/Internal-RL owner checkpoint、canonical archive、fingerprint 和事务 rollback 管理。
-  Ndim GRU hidden 以 signed `[-1,1]` 坐标进入 head，禁止再按 `[0,1]` 重心变换。通用默认仍为
+  该 state 使用同一 Ndim encoder 参数对当前 19 维 observation 做零历史编码，因而不继承跨 turn
+  recurrent hidden 漂移；live 与 replay 必须使用同一持久化 state。它以 signed `[-1,1]` 坐标
+  进入 head，禁止再按 `[0,1]` 重心变换。通用默认仍为
   `DISABLED`，`SHADOW` 是不改变 live code 的候选评估路径。常数 bias 的总幅度限制为 `0.1`，
   学习尺度为 state path 的 `0.05`；batch mean 只更新该 bias，低秩 factor 只消费 centered
   gradient，避免单个重复探索序列把近场偶然收益固化为显式或隐式的跨状态固定转向。

@@ -129,13 +129,32 @@ def torch_causal_ppo_update(
     actions = torch.stack([vec(t.policy_action, n_z) for t in usable])
     hidden = (
         torch.stack([vec(t.hidden_state, n_z) for t in usable])
-        if causal_action_head_enabled
-        or (
+        if (
             runtime_track_modulation_strength > 0.0
             and not runtime_replay
         )
+        or (causal_action_head_enabled and not runtime_replay)
         else None
     )
+    if causal_action_head_enabled and runtime_replay:
+        invalid_action_states = tuple(
+            len(t.runtime_action_head_state)
+            for t in usable
+            if len(t.runtime_action_head_state) != n_z
+        )
+        if invalid_action_states:
+            raise ValueError(
+                "torch causal action head runtime state dimension mismatch: "
+                f"expected={n_z}, actual={invalid_action_states}"
+            )
+        action_head_state = torch.stack(
+            [
+                vec(t.runtime_action_head_state, n_z)
+                for t in usable
+            ]
+        )
+    else:
+        action_head_state = hidden
     runtime_base_mean = (
         torch.stack([vec(t.runtime_base_mean, n_z) for t in usable])
         if runtime_replay
@@ -224,17 +243,17 @@ def torch_causal_ppo_update(
         if not causal_action_head_enabled:
             return 0.0
         if (
-            hidden is None
+            action_head_state is None
             or head_input is None
             or head_output is None
             or head_bias is None
         ):
             raise RuntimeError(
-                "causal action head requires hidden state and parameters"
+                "causal action head requires state features and parameters"
             )
         basis = torch.tanh(
             torch.matmul(
-                hidden * 2.0 - 1.0,
+                action_head_state,
                 head_input.transpose(0, 1),
             )
             / math.sqrt(max(n_z, 1))

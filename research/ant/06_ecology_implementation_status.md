@@ -1,6 +1,6 @@
 # Ecology P0/P1 实施状态
 
-> 更新时间：2026-07-24。P0 已完成；P1 runner、诊断矩阵与 home-action probe 已实现；P2 因 P1 尚未 PASS 而未启动。
+> 更新时间：2026-07-25。P0 已完成；P1 runner、诊断矩阵与 home-action probe 已实现；P2 因 P1 尚未 PASS 而未启动。
 
 ## P0 正式结果
 
@@ -87,6 +87,8 @@ v4 checkpoint 的 action probe 揭示第四个根因：四只 body 的 food/heat
 当前收敛包由 temporal owner 为 coherent option 增加可选的 opaque context digest：Digital Ant 用 episode seed 与 body offset 分散序列，同一 schedule 的 matched arms 仍共享 context；不提供 context 的通用 runtime 保持历史序列。action-head bias 同时收紧为状态路径 `0.05` 倍学习尺度、单步 `0.01`、总幅度 `0.1`，并移除 input factor 额外的 `0.25` 衰减。首轮 2-body 25 局门槛中 bias 已降到 `-0.002…0.017`，近场三阶段和 5/5 forced-return 均保留闭环，但 butter-medium 五布局只有 2 pickups、0 deliveries；body 0 只通过 heat probe，body 1 只通过 food probe。进一步确认未中心化的 factor gradient 仍可借 hidden 公共均值重建隐式截距，现将 batch mean 只分配给受限 bias、output/input factor 只消费 centered state covariance。v10 同 seed 门槛把 butter/composite near 分别从 `18/15、10/7` 提升到 `19/17、12/9`，但 medium 仍为 `2/0`；45 次更新后 output-factor L1 仅 `0.059`，probe 的左右 head residual 差分约 `0.0002`，不足以覆盖冻结基底 `0.02–0.10` 的同向分量。
 
 后续 v11 诊断曾尝试按 `sqrt(n_z)` 放大 factor 学习尺度：25 局 medium 仍为 `2/0`，composite-near 反从 v10 的 `12/9` 回落到 `9/5`；续跑至 50 局后 factor L1 已增长到 `0.29–0.46`，body 1 却丢失第 25 局曾通过的 food probe。再追加 5 个 butter/composite/forced-return/burning-match near rehearsal 虽产生 `21 pickups / 19 deliveries`，仍未恢复 body 1 probe；把 learned bias 归零也没有恢复方向分离。这组反例排除了单纯学习幅度、样本量、末尾 rehearsal 和显式 bias 是剩余充分根因，v11 放大已回退，禁止合入正式线。当前正式算法停在 `development.v10/progress.v6`，其目标是消除重复探索与显式/隐式截距主导；是否提高 4-body 通过比例仍需正式门槛验证，P1 继续 `BLOCK`。
+
+正式 v10 的 4-body 门槛随后推进到 25/50：butter/burning/composite near 分别为 `41/32`、`31/17`、`43/38`，forced-return 为 `14 pickups / 26 deliveries`，但 butter-medium 仍只有 `2 pickups / 0 deliveries`。四个 checkpoint body 的最终 food probe 全部方向失败，只有 body 0 通过 heat、body 0/2 通过 home；从该 checkpoint 追加五个 butter-near 聚焦 episode 虽产生 `38/30`，四个 food probe 仍全部失败。由此进一步排除 body 数、一般样本量和末尾 food rehearsal 是充分根因。审计确认 live action head 使用跨 turn 的 recurrent `posterior_hidden_state`，replay 也据此更新；相同当前感知会因此前序列落在不同 state 坐标，导致训练信号无法沉淀为可复用左右映射。现由 temporal owner 新增 `causal_action_head_state`：同一 Ndim encoder 对当前 observation 做零历史编码，live forward、pure/torch replay、pending capture 与 open segment 共同持久化该 signed state；serving hidden 继续服务 metacontroller/value，不再作为 action-head 输入。`joint_loop.learning` schema 升为 v3，正式 ecology 报告/journal 升为 `development.v12/progress.v7`，v10 journal 只保留为只读根因证据，P1 在 v12 新跑通过前继续 `BLOCK`。
 
 实测 checkpoint collection 在 learned 5/50 时增长到 21 MB，owner 尺寸审计确认 95% 以上来自 `joint_loop.learning.memory_checkpoint`：每 body 约 5,115 条 explicit artifacts，且 entries/semantic-index 双份持久化。为避免 50-episode 长跑撞上单-agent 32 MB / collection 128 MB 上限，Memory owner 新增确定性 `enforce_artifact_capacity(8192)`：优先淘汰 transient/episodic、弱、旧条目，并同步清理 semantic index、pending queues 与 attribute readout；CMS learned state 完整保留。容量在每个 ecology training episode 的 checkpoint 边界执行并写入 progress compatibility/episode summary；旧 seed0 archive 已安全迁移。容量从第 9 个 episode 起持续触发，到 `learned 50/50` 时双槽 archive 仍均稳定在约 31 MB，证明长跑期间未继续无界增长。
 

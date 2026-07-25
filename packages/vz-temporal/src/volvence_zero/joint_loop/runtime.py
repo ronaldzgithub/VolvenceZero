@@ -104,7 +104,7 @@ from volvence_zero.temporal import (
 
 
 _JOINT_LEARNING_OWNER_NAME = "joint_loop.learning"
-_JOINT_LEARNING_SCHEMA_VERSION = 2
+_JOINT_LEARNING_SCHEMA_VERSION = 3
 
 
 class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):

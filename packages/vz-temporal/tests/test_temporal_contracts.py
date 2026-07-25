@@ -86,15 +86,15 @@ def test_causal_action_head_preserves_signed_gru_hidden_symmetry() -> None:
 
     zero_basis = store.causal_action_head_basis(
         track=Track.WORLD,
-        hidden_state=zero,
+        state_features=zero,
     )
     positive_basis = store.causal_action_head_basis(
         track=Track.WORLD,
-        hidden_state=positive,
+        state_features=positive,
     )
     negative_basis = store.causal_action_head_basis(
         track=Track.WORLD,
-        hidden_state=negative,
+        state_features=negative,
     )
 
     assert zero_basis == pytest.approx(tuple(0.0 for _ in zero_basis))
@@ -103,12 +103,12 @@ def test_causal_action_head_preserves_signed_gru_hidden_symmetry() -> None:
     )
 
 
-def test_causal_action_head_rejects_out_of_range_gru_hidden_state() -> None:
+def test_causal_action_head_rejects_out_of_range_encoder_state() -> None:
     store = MetacontrollerParameterStore(n_z=_NDIM)
-    with pytest.raises(ValueError, match="signed GRU hidden state"):
+    with pytest.raises(ValueError, match="signed encoder state"):
         store.causal_action_head_basis(
             track=Track.WORLD,
-            hidden_state=(1.01,) + tuple(0.0 for _ in range(_NDIM - 1)),
+            state_features=(1.01,) + tuple(0.0 for _ in range(_NDIM - 1)),
         )
 
 
@@ -125,7 +125,7 @@ def test_causal_action_head_prioritizes_state_path_over_bounded_intercept() -> N
     for _ in range(3):
         store.update_causal_action_head(
             track=Track.WORLD,
-            hidden_states=(positive, negative),
+            state_feature_batch=(positive, negative),
             action_gradients=(positive_gradient, negative_gradient),
             advantages=(1.0, 1.0),
         )
@@ -136,12 +136,12 @@ def test_causal_action_head_prioritizes_state_path_over_bounded_intercept() -> N
     assert after.input_factors != before.input_factors
     positive_residual = store.causal_action_head_residual(
         track=Track.WORLD,
-        hidden_state=positive,
+        state_features=positive,
         strength=1.0,
     )
     negative_residual = store.causal_action_head_residual(
         track=Track.WORLD,
-        hidden_state=negative,
+        state_features=negative,
         strength=1.0,
     )
     assert positive_residual[0] == pytest.approx(-negative_residual[0])
@@ -155,7 +155,7 @@ def test_causal_action_head_intercept_stays_tightly_bounded() -> None:
     for _ in range(200):
         store.update_causal_action_head(
             track=Track.WORLD,
-            hidden_states=(zero,),
+            state_feature_batch=(zero,),
             action_gradients=(gradient,),
             advantages=(1.0,),
         )
@@ -175,7 +175,7 @@ def test_causal_action_head_keeps_common_signal_out_of_state_factors() -> None:
     )
     store.update_causal_action_head(
         track=Track.WORLD,
-        hidden_states=(positive, negative),
+        state_feature_batch=(positive, negative),
         action_gradients=(gradient, opposite_gradient),
         advantages=(1.0, 1.0),
     )
@@ -183,7 +183,7 @@ def test_causal_action_head_keeps_common_signal_out_of_state_factors() -> None:
 
     store.update_causal_action_head(
         track=Track.WORLD,
-        hidden_states=(positive, negative),
+        state_feature_batch=(positive, negative),
         action_gradients=(gradient, gradient),
         advantages=(1.0, 1.0),
     )
