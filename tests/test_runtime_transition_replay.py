@@ -593,6 +593,7 @@ def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> No
         wiring_level=WiringLevel.ACTIVE,
         track=Track.WORLD,
         strength=0.35,
+        effective_dims=(2, 3),
     )
     sandbox = InternalRLSandbox(policy=policy)
     substrate = _substrate("causal action head replay observation")
@@ -638,6 +639,10 @@ def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> No
             strict=True,
         )
     ) > 1e-4
+    assert after.bias[:2] == before.bias[:2]
+    assert after.output_factors[:2] == before.output_factors[:2]
+    _, masked_runtime_state = _runtime_action(policy, substrate)
+    assert masked_runtime_state.causal_action_head_residual[:2] == (0.0, 0.0)
 
     sandbox.restore_checkpoint(checkpoint)
     negative_rollout = replace(
@@ -685,6 +690,26 @@ def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> No
     sandbox.restore_checkpoint(checkpoint)
 
     assert store.causal_action_head_parameters(track=Track.WORLD) == before
+
+
+@pytest.mark.parametrize(
+    "effective_dims",
+    ((), (0, 0), (-1,), (4,), (True,)),
+)
+def test_causal_action_head_rejects_invalid_effective_dims(
+    effective_dims: tuple[int, ...],
+) -> None:
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4)
+    )
+
+    with pytest.raises(ValueError, match="effective_dims"):
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=Track.WORLD,
+            strength=0.35,
+            effective_dims=effective_dims,
+        )
 
 
 def test_runtime_replay_lineage_mismatch_fails_loudly() -> None:

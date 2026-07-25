@@ -38,6 +38,10 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）是否**独立于语�
 相等时直行、`z1>z0` 左转、`z0>z1` 右转；`z[2]` → 期望速度（squash）。历史直接
 `atan2(z1,z0)` 会让非负 controller 结构性无法右转，已移除。
 controller 自由学习「感知特征 → egocentric 动作」的映射；`motor_decode` 只做有界转换。**策略在可学习的内核，plant 冻结在此。**
+因此 Digital Ant evidence profile 还必须向通用 action-head owner 声明 actuator support
+`effective_dims=(0,1,2)`：只允许真实进入 `motor_decode` 的 steering/speed 坐标接收动作信用；
+`z[3:16]` 仍可作为 controller state，但不能因与奖励偶然相关而被误训成“动作输出”。该声明是
+启动时配置，不把蚂蚁动作语义写入 `vz-temporal`；恢复 `None` 即回到通用全维兼容路径。
 
 `AntNavigator`（body 侧，冻结）维护环形吸引子朝向估计 ĥ 与路径积分回巢向量（对应中央复合体）。
 正式证据必须让 world 真值运动噪声与 navigator estimate 独立，并只由真实 `world.act` 产生轨迹；

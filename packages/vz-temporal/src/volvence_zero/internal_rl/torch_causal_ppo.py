@@ -81,6 +81,7 @@ def torch_causal_ppo_update(
     runtime_track_modulation_strength: float = 0.0,
     causal_action_head_enabled: bool = False,
     causal_action_head_strength: float = 0.0,
+    causal_action_head_effective_dims: tuple[int, ...] | None = None,
 ) -> TorchPPOReport:
     """One real-autograd PPO update over a live ZTransition batch.
 
@@ -118,8 +119,31 @@ def torch_causal_ppo_update(
             "causal_action_head_strength must be within [0, 1], "
             f"got {causal_action_head_strength!r}"
         )
+    effective_dims = (
+        tuple(range(n_z))
+        if causal_action_head_effective_dims is None
+        else causal_action_head_effective_dims
+    )
+    if (
+        not effective_dims
+        or len(set(effective_dims)) != len(effective_dims)
+        or any(
+            isinstance(index, bool)
+            or not isinstance(index, int)
+            or not 0 <= index < n_z
+            for index in effective_dims
+        )
+    ):
+        raise ValueError(
+            "causal_action_head_effective_dims must be unique integer z "
+            f"indices within [0, {n_z}), got {effective_dims!r}"
+        )
 
     dtype = torch.float64
+    effective_dim_mask = torch.tensor(
+        tuple(1.0 if index in effective_dims else 0.0 for index in range(n_z)),
+        dtype=dtype,
+    )
 
     def vec(values: Sequence[float], length: int) -> Any:
         data = list(values)[:length] + [0.0] * max(0, length - len(values))
@@ -261,7 +285,7 @@ def torch_causal_ppo_update(
         return causal_action_head_strength * torch.tanh(
             torch.matmul(basis, head_output.transpose(0, 1))
             + head_bias.unsqueeze(0)
-        )
+        ) * effective_dim_mask.unsqueeze(0)
 
     def policy_mean(weights: Any) -> Any:
         if runtime_replay:

@@ -446,6 +446,7 @@ class CausalZPolicy:
         runtime_track_modulation_strength: float = 0.0,
         causal_action_head_wiring: WiringLevel = WiringLevel.DISABLED,
         causal_action_head_strength: float = 0.0,
+        causal_action_head_effective_dims: tuple[int, ...] | None = None,
     ) -> None:
         self._parameter_store = parameter_store
         self._rl_backend = rl_backend
@@ -466,6 +467,27 @@ class CausalZPolicy:
         self._causal_action_head_strength = float(
             causal_action_head_strength
         )
+        self._causal_action_head_effective_dims = (
+            tuple(range(parameter_store.n_z))
+            if causal_action_head_effective_dims is None
+            else causal_action_head_effective_dims
+        )
+        if (
+            not self._causal_action_head_effective_dims
+            or len(set(self._causal_action_head_effective_dims))
+            != len(self._causal_action_head_effective_dims)
+            or any(
+                isinstance(index, bool)
+                or not isinstance(index, int)
+                or not 0 <= index < parameter_store.n_z
+                for index in self._causal_action_head_effective_dims
+            )
+        ):
+            raise ValueError(
+                "causal_action_head_effective_dims must be unique integer z "
+                f"indices within [0, {parameter_store.n_z}), got "
+                f"{self._causal_action_head_effective_dims!r}"
+            )
         self._value_weights: dict[Track, tuple[float, ...]] = {
             track: tuple(weight * 0.8 for weight in parameter_store.track_weights[track])
             for track in (Track.WORLD, Track.SELF, Track.SHARED)
@@ -498,6 +520,10 @@ class CausalZPolicy:
     @property
     def causal_action_head_strength(self) -> float:
         return self._causal_action_head_strength
+
+    @property
+    def causal_action_head_effective_dims(self) -> tuple[int, ...]:
+        return self._causal_action_head_effective_dims
 
     @property
     def n_z(self) -> int:
@@ -778,11 +804,20 @@ class CausalZPolicy:
                 )
             )
             return tuple(
-                _clamp(value + delta)
-                for value, delta in zip(
-                    candidate,
-                    residual,
-                    strict=True,
+                _clamp(
+                    value
+                    + (
+                        delta
+                        if index in self._causal_action_head_effective_dims
+                        else 0.0
+                    )
+                )
+                for index, (value, delta) in enumerate(
+                    zip(
+                        candidate,
+                        residual,
+                        strict=True,
+                    )
                 )
             )
         return candidate
@@ -1320,6 +1355,8 @@ class CausalZPolicy:
                         * self._causal_action_head_strength,
                     ),
                 )
+                if index in self._causal_action_head_effective_dims
+                else 0.0
                 for index in range(self.n_z)
             )
             if len(transition.runtime_action_head_state) != self.n_z:
@@ -1560,6 +1597,9 @@ class CausalZPolicy:
             causal_action_head_strength=(
                 self._causal_action_head_strength
             ),
+            causal_action_head_effective_dims=(
+                self._causal_action_head_effective_dims
+            ),
         )
         return {
             "backend": self._rl_backend.value,
@@ -1598,12 +1638,18 @@ class InternalRLSandbox:
             if isinstance(self._policy, FullLearnedTemporalPolicy)
             else 0.0
         )
+        causal_action_head_effective_dims = (
+            self._policy.causal_action_head_effective_dims
+            if isinstance(self._policy, FullLearnedTemporalPolicy)
+            else None
+        )
         self._causal_policy = CausalZPolicy(
             parameter_store=self._policy.parameter_store,
             rl_backend=rl_backend,
             runtime_track_modulation_strength=runtime_track_modulation_strength,
             causal_action_head_wiring=causal_action_head_wiring,
             causal_action_head_strength=causal_action_head_strength,
+            causal_action_head_effective_dims=causal_action_head_effective_dims,
         )
         self._env = env or InternalRLEnvironment()
         self._residual_runtime = residual_runtime

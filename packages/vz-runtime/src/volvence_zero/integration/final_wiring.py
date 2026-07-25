@@ -262,6 +262,10 @@ class FinalRolloutConfig:
     # rank; values above n_z select n_z so one evidence profile also works in
     # smaller smoke configurations.
     internal_rl_causal_action_head_rank: int | None = None
+    # Optional actuator-support contract for the action head. None preserves
+    # all-z-dim behavior; an explicit tuple limits learned/live residuals to
+    # coordinates consumed by the downstream frozen plant.
+    internal_rl_causal_action_head_effective_dims: tuple[int, ...] | None = None
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
@@ -1550,6 +1554,7 @@ def build_final_runtime_modules(
             track=Track.WORLD,
             strength=config.internal_rl_causal_action_head_strength,
             rank=config.internal_rl_causal_action_head_rank,
+            effective_dims=config.internal_rl_causal_action_head_effective_dims,
         )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
@@ -1564,6 +1569,7 @@ def build_final_runtime_modules(
             track=Track.SELF,
             strength=config.internal_rl_causal_action_head_strength,
             rank=config.internal_rl_causal_action_head_rank,
+            effective_dims=config.internal_rl_causal_action_head_effective_dims,
         )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded
     # protocol switch-pressure prior reach beta_t. SHADOW records evidence

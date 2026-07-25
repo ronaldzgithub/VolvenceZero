@@ -761,6 +761,34 @@ def test_torch_causal_ppo_update_changes_live_runtime_code_when_bridge_open() ->
     assert after_code != before_code
 
 
+@torch_only
+def test_torch_causal_action_head_masks_non_actuator_dimensions() -> None:
+    from volvence_zero.internal_rl.torch_causal_ppo import torch_causal_ppo_update
+
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    before = store.causal_action_head_parameters(track=Track.WORLD)
+    value_weights = {Track.WORLD: tuple(0.1 for _ in range(_NDIM))}
+    value_bias = {Track.WORLD: 0.05}
+
+    torch_causal_ppo_update(
+        parameter_store=store,
+        value_weights=value_weights,
+        value_bias=value_bias,
+        track=Track.WORLD,
+        transitions=_transitions(_NDIM),
+        n_z=_NDIM,
+        write_back=True,
+        causal_action_head_enabled=True,
+        causal_action_head_strength=0.35,
+        causal_action_head_effective_dims=(0, 1),
+    )
+    after = store.causal_action_head_parameters(track=Track.WORLD)
+
+    assert after.output_factors[:2] != before.output_factors[:2]
+    assert after.output_factors[2:] == before.output_factors[2:]
+    assert after.bias[2:] == before.bias[2:]
+
+
 def test_joint_loop_no_optimize_reports_but_does_not_persist_rl_update() -> None:
     """Matched control runs the optimizer but restores its policy/critic write."""
 

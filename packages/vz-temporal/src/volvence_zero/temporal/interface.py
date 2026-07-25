@@ -2920,6 +2920,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._causal_action_head_wiring = WiringLevel.DISABLED
         self._causal_action_head_track = Track.WORLD
         self._causal_action_head_strength = 0.0
+        self._causal_action_head_effective_dims: tuple[int, ...] | None = None
         self._latest_causal_action_head_state = _nz_zeros(n_z)
         self._latest_causal_action_head_residual = _nz_zeros(n_z)
 
@@ -3018,6 +3019,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     def causal_action_head_track(self) -> Track:
         return self._causal_action_head_track
 
+    @property
+    def causal_action_head_effective_dims(self) -> tuple[int, ...] | None:
+        return self._causal_action_head_effective_dims
+
     def set_causal_action_head(
         self,
         *,
@@ -3025,6 +3030,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         track: Track,
         strength: float,
         rank: int | None = None,
+        effective_dims: tuple[int, ...] | None = None,
     ) -> None:
         if not 0.0 <= strength <= 1.0:
             raise ValueError(
@@ -3036,9 +3042,31 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 track=track,
                 rank=rank,
             )
+        if effective_dims is not None:
+            if not effective_dims:
+                raise ValueError(
+                    "causal action head effective_dims must not be empty"
+                )
+            if len(set(effective_dims)) != len(effective_dims):
+                raise ValueError(
+                    "causal action head effective_dims must be unique, "
+                    f"got {effective_dims!r}"
+                )
+            if any(
+                isinstance(index, bool)
+                or not isinstance(index, int)
+                or not 0 <= index < self._parameter_store.n_z
+                for index in effective_dims
+            ):
+                raise ValueError(
+                    "causal action head effective_dims must be integer z "
+                    f"indices within [0, {self._parameter_store.n_z}), "
+                    f"got {effective_dims!r}"
+                )
         self._causal_action_head_wiring = wiring_level
         self._causal_action_head_track = track
         self._causal_action_head_strength = float(strength)
+        self._causal_action_head_effective_dims = effective_dims
         self._latest_causal_action_head_state = _nz_zeros(
             self._parameter_store.n_z
         )
@@ -3709,6 +3737,13 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                     strength=self._causal_action_head_strength,
                 )
             )
+            if self._causal_action_head_effective_dims is not None:
+                action_head_residual = tuple(
+                    value
+                    if index in self._causal_action_head_effective_dims
+                    else 0.0
+                    for index, value in enumerate(action_head_residual)
+                )
             self._latest_causal_action_head_residual = (
                 action_head_residual
             )

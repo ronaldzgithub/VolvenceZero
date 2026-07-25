@@ -642,6 +642,9 @@ class AgentSessionRunner(
                 track=Track.WORLD,
                 strength=_causal_head_strength,
                 rank=self._config.internal_rl_causal_action_head_rank,
+                effective_dims=(
+                    self._config.internal_rl_causal_action_head_effective_dims
+                ),
             )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy.set_learning_writes_enabled(
@@ -660,6 +663,9 @@ class AgentSessionRunner(
                 track=Track.SELF,
                 strength=_causal_head_strength,
                 rank=self._config.internal_rl_causal_action_head_rank,
+                effective_dims=(
+                    self._config.internal_rl_causal_action_head_effective_dims
+                ),
             )
         self._evaluation_backbone = EvaluationBackbone()
         self._application_rare_heavy_state = ApplicationRareHeavyState()
