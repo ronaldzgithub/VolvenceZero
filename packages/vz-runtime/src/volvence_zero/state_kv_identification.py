@@ -48,13 +48,8 @@ from volvence_zero.personal_conditioning_contracts import (
 )
 
 __all__ = [
-    "ALL_ARM_LABELS",
-    "CONTROL_ARM_LABEL",
-    "DEFAULT_CANDIDATE_ARM_LABEL",
     "IDENTIFICATION_SCHEMA_VERSION",
     "IDENTIFICATION_ARM_LABELS",
-    "PREFIX_ARM_LABEL",
-    "PREFIX_IDENTIFICATION_ARM_LABELS",
     "PURE_ARM_LABELS",
     "ArmObservation",
     "BlindMatchingJudge",
@@ -85,30 +80,12 @@ IDENTIFICATION_ARM_LABELS: tuple[str, ...] = (
     "state-kv-arm-e",
 )
 
-PREFIX_ARM_LABEL = "state-kv-arm-g-prefix-pure"
-
-# The P3 lane: the same four arms plus the prefix-KV carrier, so arm G is
-# measured against the residual carrier and the text carrier in one run on one
-# frozen substrate rather than across two runs that could differ in anything.
-PREFIX_IDENTIFICATION_ARM_LABELS: tuple[str, ...] = (
-    *IDENTIFICATION_ARM_LABELS,
-    PREFIX_ARM_LABEL,
-)
-
-# Every arm this module knows how to order in an artifact. Row order is part of
-# the artifact: a reader comparing two runs must see the same rows in the same
-# places.
-ALL_ARM_LABELS: tuple[str, ...] = PREFIX_IDENTIFICATION_ARM_LABELS
-
-# The control arm whose prompt every candidate must match byte-for-byte, and
-# the default candidate. Claim 1 is defined on the (control, candidate) pair;
-# the remaining arms deliberately differ in prompt bytes.
+# The two arms whose system prompts must be byte-identical. Claim 1 is defined
+# on this pair only; the other two arms deliberately differ in prompt bytes.
 PURE_ARM_LABELS: tuple[str, str] = (
     "state-kv-arm-a-pure",
     "state-kv-arm-e-pure",
 )
-CONTROL_ARM_LABEL = PURE_ARM_LABELS[0]
-DEFAULT_CANDIDATE_ARM_LABEL = PURE_ARM_LABELS[1]
 
 _CLAIM_PROMPT_IDENTITY = "claim_prompt_identity"
 _CLAIM_OUTPUT_DIVERGENCE = "claim_output_divergence"
@@ -198,7 +175,7 @@ def arm_from_profile(label: str) -> IdentificationArm:
     wiring = str(overrides.get("personal_conditioning", "WiringLevel.SHADOW"))
     mode = str(overrides.get("personal_conditioning_mode", "residual"))
     delivery = str(overrides.get("prompt_state_delivery", "text"))
-    if mode not in ("residual", "text", "prefix_kv"):
+    if mode not in ("residual", "text"):
         raise ValueError(
             f"profile {label!r} declares unknown personal_conditioning_mode "
             f"{mode!r}"
@@ -285,9 +262,6 @@ def context_for_arm(
         personal_conditioning_statement=statement,
         personal_conditioning_statement_ref=statement_ref,
         prompt_state_delivery=arm.prompt_state_delivery,
-        personal_conditioning_carrier=(
-            "prefix_kv" if arm.conditioning_mode == "prefix_kv" else "residual"
-        ),
     )
 
 
@@ -505,27 +479,21 @@ class ClaimResult:
 
 def evaluate_prompt_identity(
     observations: Mapping[str, ArmObservation],
-    *,
-    candidate_arm_label: str = DEFAULT_CANDIDATE_ARM_LABEL,
 ) -> ClaimResult:
     """Claim 1: the two pure arms sent byte-identical prompts, with no state sections.
 
     Failure here voids the experiment (spec §判据 1), so it is evaluated first
-    and its failure short-circuits the rest. ``candidate_arm_label`` selects
-    which latent carrier is on trial: the residual arm by default, the
-    prefix-KV arm on the P3 lane. The control arm never changes, so a claim
-    computed for one carrier can be compared to the other.
+    and its failure short-circuits the rest.
     """
 
-    pair = (CONTROL_ARM_LABEL, candidate_arm_label)
-    missing = [label for label in pair if label not in observations]
+    missing = [label for label in PURE_ARM_LABELS if label not in observations]
     if missing:
         return ClaimResult(
             name=_CLAIM_PROMPT_IDENTITY,
             state=ClaimState.INSUFFICIENT_DATA,
             detail=f"pure arms not observed: {', '.join(missing)}",
         )
-    control, candidate = (observations[label] for label in pair)
+    control, candidate = (observations[label] for label in PURE_ARM_LABELS)
     control_by_probe = control.turns_by_probe()
     candidate_by_probe = candidate.turns_by_probe()
     if set(control_by_probe) != set(candidate_by_probe):
@@ -575,7 +543,6 @@ def evaluate_output_divergence(
     observations: Mapping[str, ArmObservation],
     *,
     substrate_kind: SubstrateEvidenceKind,
-    candidate_arm_label: str = DEFAULT_CANDIDATE_ARM_LABEL,
 ) -> ClaimResult:
     """Claim 2: within the candidate arm, two users' outputs actually diverge.
 
@@ -584,7 +551,7 @@ def evaluate_output_divergence(
     (spec §判据 2).
     """
 
-    candidate_label = candidate_arm_label
+    candidate_label = PURE_ARM_LABELS[1]
     observation = observations.get(candidate_label)
     if observation is None:
         return ClaimResult(
@@ -625,16 +592,14 @@ def evaluate_output_divergence(
         name=_CLAIM_OUTPUT_DIVERGENCE,
         state=ClaimState.PASS,
         detail=(
-            f"{candidate_label} injected on every delivered turn and outputs "
-            "differ across users on every probe"
+            f"{candidate_label} injected the residual on every delivered turn "
+            "and outputs differ across users on every probe"
         ),
     )
 
 
 def evaluate_identification(
     matching: Mapping[str, MatchingReadout],
-    *,
-    candidate_arm_label: str = DEFAULT_CANDIDATE_ARM_LABEL,
 ) -> ClaimResult:
     """Claim 3: blind matching on the candidate arm beats chance.
 
@@ -642,7 +607,7 @@ def evaluate_identification(
     from internal state -- that would be scoring the hypothesis with itself.
     """
 
-    candidate_label = candidate_arm_label
+    candidate_label = PURE_ARM_LABELS[1]
     readout = matching.get(candidate_label)
     if readout is None:
         return ClaimResult(
@@ -684,7 +649,7 @@ def evaluate_carrier_causality(
     (spec §判据 4).
     """
 
-    control_label = CONTROL_ARM_LABEL
+    control_label = PURE_ARM_LABELS[0]
     text_label = "state-kv-arm-bprime"
     control = matching.get(control_label)
     text = matching.get(text_label)
@@ -728,14 +693,10 @@ def evaluate_carrier_causality(
     )
 
 
-def grade_c5(
-    observations: Mapping[str, ArmObservation],
-    *,
-    candidate_arm_label: str = DEFAULT_CANDIDATE_ARM_LABEL,
-) -> tuple[C5Grade, str]:
+def grade_c5(observations: Mapping[str, ArmObservation]) -> tuple[C5Grade, str]:
     """Spec §C5 分档: did the sampling-layer carrier also match across users?"""
 
-    candidate = observations.get(candidate_arm_label)
+    candidate = observations.get(PURE_ARM_LABELS[1])
     if candidate is None:
         return C5Grade.UNKNOWN, "candidate arm not observed"
     divergent: list[str] = []
@@ -773,10 +734,6 @@ class IdentificationVerdict:
     prompt_fp_table: tuple[dict[str, object], ...]
     judge_model_id: str
     notes: tuple[str, ...] = field(default_factory=tuple)
-    # Which latent carrier claims 1/2/3 were computed against. Without this in
-    # the artifact, two runs with identical claim states would be
-    # indistinguishable even though they tested different channels.
-    candidate_arm_label: str = DEFAULT_CANDIDATE_ARM_LABEL
 
     def claim(self, name: str) -> ClaimResult:
         for result in self.claims:
@@ -790,7 +747,6 @@ class IdentificationVerdict:
             "verdict_state": self.verdict_state.value,
             "substrate_kind": self.substrate_kind.value,
             "substrate_fingerprint": self.substrate_fingerprint,
-            "candidate_arm": self.candidate_arm_label,
             "claims": [claim.as_json_dict() for claim in self.claims],
             "c5_grade": self.c5_grade.value,
             "c5_detail": self.c5_detail,
@@ -862,7 +818,6 @@ def build_identification_verdict(
     matching: Sequence[MatchingReadout] = (),
     judge_model_id: str = "",
     extra_notes: Sequence[str] = (),
-    candidate_arm_label: str = DEFAULT_CANDIDATE_ARM_LABEL,
 ) -> IdentificationVerdict:
     """Compute the verdict from recorded turns and (optional) judge votes."""
 
@@ -884,14 +839,7 @@ def build_identification_verdict(
             "accuracy cannot be checked against the cross-family rule."
         )
 
-    if candidate_arm_label not in ALL_ARM_LABELS:
-        raise ValueError(
-            f"unknown candidate arm {candidate_arm_label!r}; expected one of "
-            f"{ALL_ARM_LABELS}"
-        )
-    identity = evaluate_prompt_identity(
-        by_label, candidate_arm_label=candidate_arm_label
-    )
+    identity = evaluate_prompt_identity(by_label)
     if identity.state is ClaimState.FAIL:
         # Spec §判据 1: the experiment is void; do not report downstream claims
         # computed on prompts that were not in fact identical.
@@ -907,19 +855,11 @@ def build_identification_verdict(
     else:
         claims = (
             identity,
-            evaluate_output_divergence(
-                by_label,
-                substrate_kind=substrate_kind,
-                candidate_arm_label=candidate_arm_label,
-            ),
-            evaluate_identification(
-                matching_by_label, candidate_arm_label=candidate_arm_label
-            ),
+            evaluate_output_divergence(by_label, substrate_kind=substrate_kind),
+            evaluate_identification(matching_by_label),
             evaluate_carrier_causality(matching_by_label),
         )
-    c5_grade, c5_detail = grade_c5(
-        by_label, candidate_arm_label=candidate_arm_label
-    )
+    c5_grade, c5_detail = grade_c5(by_label)
     state, notes = _resolve_verdict_state(
         claims={claim.name: claim for claim in claims},
         c5_grade=c5_grade,
@@ -927,7 +867,7 @@ def build_identification_verdict(
     )
     prompt_fp_table = tuple(
         turn.as_json_dict()
-        for label in ALL_ARM_LABELS
+        for label in IDENTIFICATION_ARM_LABELS
         if label in by_label
         for turn in by_label[label].turns
     )
@@ -947,7 +887,6 @@ def build_identification_verdict(
         prompt_fp_table=prompt_fp_table,
         judge_model_id=judge_model_id,
         notes=(*notes, *extra_notes),
-        candidate_arm_label=candidate_arm_label,
     )
 
 
@@ -961,7 +900,6 @@ def run_identification_smoke(
     arm_labels: Sequence[str] = IDENTIFICATION_ARM_LABELS,
     judge: BlindMatchingJudge | None = None,
     bootstrap_seed: int = 20260726,
-    candidate_arm_label: str = DEFAULT_CANDIDATE_ARM_LABEL,
 ) -> IdentificationVerdict:
     """Run every arm over every probe case and build the verdict.
 
@@ -1014,5 +952,4 @@ def run_identification_smoke(
         substrate_fingerprint=substrate_fingerprint,
         matching=tuple(matching),
         judge_model_id=judge.judge_model_id if judge is not None else "",
-        candidate_arm_label=candidate_arm_label,
     )

@@ -518,7 +518,6 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
             "personal_conditioning": "WiringLevel.SHADOW",
             "personal_conditioning_mode": "residual",
         },
-        conflicts_with=("personal-conditioning-prefix-kv",),
         description="State KV arm A: no personalization (SHADOW baseline).",
     ),
     ProfileCapability(
@@ -528,7 +527,6 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
             "personal_conditioning": "WiringLevel.ACTIVE",
             "personal_conditioning_mode": "text",
         },
-        conflicts_with=("personal-conditioning-prefix-kv",),
         description=(
             "State KV arm B-prime: owner-rendered state statement in the "
             "system prompt; no residual injection."
@@ -541,31 +539,9 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
             "personal_conditioning": "WiringLevel.ACTIVE",
             "personal_conditioning_mode": "residual",
         },
-        conflicts_with=(
-            "personal-conditioning-text",
-            "personal-conditioning-off",
-            "personal-conditioning-prefix-kv",
-        ),
+        conflicts_with=("personal-conditioning-text", "personal-conditioning-off"),
         description=(
             "State KV arm E: existing single-layer constant residual bias."
-        ),
-    ),
-    ProfileCapability(
-        name="personal-conditioning-prefix-kv",
-        applies_to_owner="personal_conditioning",
-        flag_overrides={
-            "personal_conditioning": "WiringLevel.ACTIVE",
-            "personal_conditioning_mode": "prefix_kv",
-        },
-        conflicts_with=(
-            "personal-conditioning-text",
-            "personal-conditioning-off",
-            "personal-conditioning-residual",
-        ),
-        description=(
-            "State KV arm G: the same typed readout reaches the frozen "
-            "substrate as a bounded per-layer key/value prefix instead of a "
-            "single-layer additive residual."
         ),
     ),
     # Carrier-identification evidence (docs/specs/state-kv-identification-
@@ -730,21 +706,6 @@ _BUILTIN_PROFILES: tuple[ProfileSpec, ...] = (
             "Carrier-identification candidate arm: relationship state reaches "
             "the frozen substrate only through the residual channel, with a "
             "prompt byte-identical to state-kv-arm-a-pure."
-        ),
-    ),
-    ProfileSpec(
-        label="state-kv-arm-g-prefix-pure",
-        capabilities=(
-            "personal-conditioning-prefix-kv",
-            "prompt-state-suppressed",
-        ),
-        description=(
-            "Carrier-identification candidate arm G: relationship state "
-            "reaches the frozen substrate as a bounded per-layer key/value "
-            "prefix, with a prompt byte-identical to state-kv-arm-a-pure. "
-            "The residual carrier measured out at a ~0.3% perturbation and "
-            "produced identical text across users; this arm tests the "
-            "higher-bandwidth carrier under the same prompt closure."
         ),
     ),
 )

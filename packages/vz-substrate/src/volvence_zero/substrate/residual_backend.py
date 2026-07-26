@@ -96,14 +96,6 @@ from volvence_zero.substrate.rare_heavy_training import (  # noqa: E402
     RareHeavyAdapterTrainingBackend,
     RareHeavyTrainingRequest,
 )
-from volvence_zero.substrate.personal_conditioning_projector import (  # noqa: E402
-    PersonalConditioningProjectorArtifact,
-    load_projector_basis,
-)
-from volvence_zero.substrate.prefix_kv_artifact import (  # noqa: E402
-    PrefixKVArtifact,
-    load_prefix_generator,
-)
 from volvence_zero.substrate.residual_synthetic import (  # noqa: E402,F401
     SyntheticOpenWeightResidualRuntime,
 )
@@ -218,10 +210,6 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         hook_layer_selection: str = "middle",
         control_scale: float = 0.12,
         personal_conditioning_scale: float = 0.08,
-        personal_conditioning_projector: (
-            PersonalConditioningProjectorArtifact | None
-        ) = None,
-        personal_conditioning_prefix: PrefixKVArtifact | None = None,
         local_files_only: bool = False,
         runtime_origin: str = "hf-pretrained",
         allow_live_substrate_mutation: bool = False,
@@ -269,45 +257,6 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 vector_dim=len(PERSONAL_CONDITIONING_VECTOR_LABELS),
             )
         )
-        self._personal_conditioning_layer_gains = {
-            self._layer_indices[0]: 1.0
-        }
-        self._personal_conditioning_projector_id = "fixed-sine-cosine-v1"
-        self._personal_conditioning_projector_training_mode = "fixed"
-        if personal_conditioning_projector is not None:
-            (
-                self._personal_conditioning_basis,
-                self._personal_conditioning_layer_gains,
-            ) = load_projector_basis(
-                torch_module=self._torch,
-                artifact=personal_conditioning_projector,
-                expected_model_id=self.model_id,
-                expected_hidden_size=self._hidden_size,
-                available_layer_indices=self._layer_indices,
-                device=self._device,
-            )
-            self._personal_conditioning_projector_id = (
-                personal_conditioning_projector.artifact_id
-            )
-            self._personal_conditioning_projector_training_mode = (
-                personal_conditioning_projector.training_mode
-            )
-        self._prefix_generator = None
-        self._personal_conditioning_prefix_id = ""
-        if personal_conditioning_prefix is not None:
-            self._prefix_generator = load_prefix_generator(
-                torch_module=self._torch,
-                artifact=personal_conditioning_prefix,
-                expected_model_id=self.model_id,
-                expected_num_layers=len(self._block_modules),
-                expected_num_kv_heads=self._resolve_num_kv_heads(),
-                expected_head_dim=self._resolve_head_dim(),
-                device=self._device,
-                dtype=self._model_dtype(),
-            )
-            self._personal_conditioning_prefix_id = (
-                personal_conditioning_prefix.artifact_id
-            )
         self._semantic_projection_dim = 24
         self._semantic_basis = self._build_semantic_basis(
             hidden_size=self._hidden_size,
@@ -334,68 +283,6 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         # S1: injectable real rare-heavy training backend (e.g. PEFT LoRA).
         # None -> the built-in adapter-delta autograd loop stays in charge.
         self._rare_heavy_training_backend: RareHeavyAdapterTrainingBackend | None = None
-
-    @property
-    def hook_layer_indices(self) -> tuple[int, ...]:
-        """Frozen hook surface available to projector artifacts."""
-
-        return self._layer_indices
-
-    @property
-    def hidden_size(self) -> int:
-        """Residual width used by projector compatibility checks."""
-
-        return self._hidden_size
-
-    @property
-    def personal_conditioning_projector_id(self) -> str:
-        return self._personal_conditioning_projector_id
-
-    @property
-    def personal_conditioning_projector_training_mode(self) -> str:
-        return self._personal_conditioning_projector_training_mode
-
-    @property
-    def personal_conditioning_prefix_id(self) -> str:
-        """Artifact id of the loaded State-KV prefix, empty when unloaded."""
-
-        return self._personal_conditioning_prefix_id
-
-    @property
-    def supports_prefix_kv(self) -> bool:
-        return self._prefix_generator is not None
-
-    def _resolve_num_kv_heads(self) -> int:
-        config = getattr(self._model, "config", None)
-        heads = getattr(config, "num_key_value_heads", None)
-        if heads is None:
-            heads = getattr(config, "num_attention_heads", None)
-        if not isinstance(heads, int) or heads <= 0:
-            raise ValueError(
-                f"cannot resolve attention KV head count for {self.model_id!r}; "
-                "a prefix artifact cannot be checked against unknown geometry."
-            )
-        return heads
-
-    def _resolve_head_dim(self) -> int:
-        config = getattr(self._model, "config", None)
-        head_dim = getattr(config, "head_dim", None)
-        if head_dim is None:
-            heads = getattr(config, "num_attention_heads", 0)
-            hidden = getattr(config, "hidden_size", 0)
-            if isinstance(heads, int) and heads > 0 and isinstance(hidden, int):
-                head_dim = hidden // heads
-        if not isinstance(head_dim, int) or head_dim <= 0:
-            raise ValueError(
-                f"cannot resolve attention head dim for {self.model_id!r}; "
-                "a prefix artifact cannot be checked against unknown geometry."
-            )
-        return head_dim
-
-    def _model_dtype(self) -> Any:
-        for parameter in self._model.parameters():
-            return parameter.dtype
-        return self._torch.float32
 
     def set_rare_heavy_training_backend(
         self, backend: RareHeavyAdapterTrainingBackend | None
@@ -988,26 +875,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         generation_constraints: "GenerationConstraints | None" = None,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
-        personal_conditioning_carrier: str = "residual",
     ) -> GenerationResult:
-        if personal_conditioning_carrier not in ("residual", "prefix_kv"):
-            raise ValueError(
-                "unknown personal_conditioning_carrier "
-                f"{personal_conditioning_carrier!r}; expected 'residual' or "
-                "'prefix_kv'."
-            )
-        if (
-            personal_conditioning_carrier == "prefix_kv"
-            and self._prefix_generator is None
-        ):
-            # Silently degrading to the residual carrier would publish an arm
-            # labelled "prefix-KV" whose evidence came from a different
-            # channel entirely (AGENTS §6: no silent fallback).
-            raise ValueError(
-                "personal_conditioning_carrier='prefix_kv' requires a prefix "
-                "artifact; construct the runtime with "
-                "personal_conditioning_prefix=..."
-            )
         effective_max_new_tokens = max_new_tokens
         effective_temperature = temperature
         effective_repetition_penalty = 1.08
@@ -1045,18 +913,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 applied_control=control_parameters,
                 track_scale=(control_scale, control_scale, control_scale),
             )
-        # The two carriers are mutually exclusive by construction: an arm that
-        # ran both would not identify which channel carried the state.
-        prefix_pairs = None
-        personal_delta = None
-        if personal_conditioning_carrier == "prefix_kv":
-            prefix_pairs = self._build_personal_conditioning_prefix(
-                conditioning=personal_conditioning
-            )
-        else:
-            personal_delta = self._build_personal_conditioning_delta(
-                conditioning=personal_conditioning
-            )
+        personal_delta = self._build_personal_conditioning_delta(
+            conditioning=personal_conditioning
+        )
         captured_layers: dict[int, object] = {}
         # ``capture_residuals=False`` (raw pass-through path) skips both the
         # forward hooks and the post-generate full-prompt re-forward that
@@ -1110,18 +969,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     generate_kwargs["temperature"] = effective_temperature
                     if effective_top_p < 0.999:
                         generate_kwargs["top_p"] = effective_top_p
-                if personal_conditioning_carrier == "prefix_kv":
-                    output_ids = self._greedy_generate_with_prefix(
-                        model_inputs=model_inputs,
-                        prefix_pairs=prefix_pairs,
-                        max_new_tokens=effective_max_new_tokens,
-                        repetition_penalty=effective_repetition_penalty,
-                        temperature=effective_temperature,
-                    )
-                else:
-                    output_ids = self._model.generate(
-                        **model_inputs, **generate_kwargs
-                    )
+                output_ids = self._model.generate(**model_inputs, **generate_kwargs)
         finally:
             for hook in hooks:
                 hook.remove()
@@ -1167,15 +1015,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
         # The delta is applied by forward hooks, so injection only actually
         # happened when both the delta was built (non-cold-start, positive
-        # confidence) and the hooks were registered. The prefix carrier does
-        # not use hooks: it reports injection when the state-derived key/value
-        # slots were actually prepended to the attention cache.
-        if personal_conditioning_carrier == "prefix_kv":
-            personal_conditioning_applied = prefix_pairs is not None
-        else:
-            personal_conditioning_applied = personal_delta is not None and bool(
-                hooks
-            )
+        # confidence) and the hooks were registered.
+        personal_conditioning_applied = personal_delta is not None and bool(hooks)
         result = GenerationResult(
             text=generated_text,
             token_count=token_count,
@@ -2010,144 +1851,6 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             device=self._device,
         )
 
-    def _build_personal_conditioning_prefix(
-        self,
-        *,
-        conditioning: PersonalConditioningSnapshot | None,
-    ) -> list[tuple[Any, Any]] | None:
-        """Generate this turn's key/value prefix, or ``None`` for no injection.
-
-        Gated identically to the residual carrier (absent / cold-start /
-        zero-confidence snapshots inject nothing) so the two arms differ only
-        in how the same admitted state reaches the substrate.
-        """
-
-        if (
-            conditioning is None
-            or conditioning.is_cold_start
-            or conditioning.confidence <= 0.0
-        ):
-            return None
-        assert self._prefix_generator is not None  # guarded in generate()
-        return self._prefix_generator.build(conditioning.state_vector)
-
-    def _greedy_generate_with_prefix(
-        self,
-        *,
-        model_inputs: dict[str, Any],
-        prefix_pairs: list[tuple[Any, Any]] | None,
-        max_new_tokens: int,
-        repetition_penalty: float,
-        temperature: float,
-    ):
-        """Greedy decode over a state-derived key/value prefix.
-
-        ``model.generate`` cannot be used here. It derives ``cache_position``
-        from ``past_key_values.get_seq_length()``, so a pre-filled cache makes
-        it treat the first ``num_slots`` prompt tokens as already processed and
-        silently truncate the prompt; it also derives ``position_ids`` from the
-        widened attention mask, which shifts every real token by ``num_slots``.
-        That shift alone changes the output, which would make even a
-        zero-content prefix look like a working carrier.
-
-        This loop instead pins real tokens to positions ``0..n-1`` and feeds
-        the widened mask explicitly, so the *only* difference from the
-        no-prefix path is the prefix content itself. It reproduces
-        ``model.generate``'s greedy output byte-for-byte when no prefix is
-        supplied, which is what makes this arm comparable to the others.
-        """
-
-        torch = self._torch
-        if temperature > 0:
-            # Matching sampling across arms needs per-turn seed alignment that
-            # the identification runner does not implement yet; silently
-            # sampling here would let RNG masquerade as a state carrier.
-            raise ValueError(
-                "the prefix-KV carrier is greedy-only; pass temperature=0 "
-                "until per-turn seed alignment is wired."
-            )
-        input_ids = model_inputs["input_ids"]
-        if int(input_ids.shape[0]) != 1:
-            raise ValueError(
-                "the prefix-KV carrier decodes one sequence at a time; got "
-                f"batch {int(input_ids.shape[0])}."
-            )
-        attention_mask = model_inputs.get("attention_mask")
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-        prompt_length = int(input_ids.shape[-1])
-        slots = 0
-        cache = self._transformers.DynamicCache()
-        if prefix_pairs:
-            slots = int(prefix_pairs[0][0].shape[-2])
-            cache = self._transformers.DynamicCache(ddp_cache_data=prefix_pairs)
-        mask = attention_mask
-        if slots:
-            mask = torch.cat(
-                [
-                    torch.ones(
-                        (1, slots),
-                        dtype=attention_mask.dtype,
-                        device=attention_mask.device,
-                    ),
-                    attention_mask,
-                ],
-                dim=-1,
-            )
-        eos_token_id = self._generation_eos_token_id()
-        stop_ids = set(
-            eos_token_id if isinstance(eos_token_id, list) else [eos_token_id]
-        )
-        penalty = float(repetition_penalty)
-        seen = input_ids[0].tolist()
-        generated: list[int] = []
-        step_input = input_ids
-        positions = torch.arange(
-            prompt_length, device=input_ids.device
-        ).unsqueeze(0)
-        for step in range(max_new_tokens):
-            outputs = self._model(
-                input_ids=step_input,
-                attention_mask=mask,
-                position_ids=positions,
-                past_key_values=cache,
-                use_cache=True,
-            )
-            logits = self._extract_logits(outputs=outputs)[0, -1].to(
-                torch.float32
-            )
-            if penalty and penalty != 1.0:
-                # Same transform as transformers' RepetitionPenaltyLogitsProcessor,
-                # over prompt plus generated tokens.
-                index = torch.tensor(
-                    sorted(set(seen)), device=logits.device, dtype=torch.long
-                )
-                scored = logits[index]
-                logits[index] = torch.where(
-                    scored < 0, scored * penalty, scored / penalty
-                )
-            next_id = int(logits.argmax())
-            if next_id in stop_ids:
-                break
-            generated.append(next_id)
-            seen.append(next_id)
-            step_input = torch.tensor(
-                [[next_id]], device=input_ids.device, dtype=input_ids.dtype
-            )
-            positions = torch.tensor(
-                [[prompt_length + step]], device=input_ids.device
-            )
-            mask = torch.cat(
-                [mask, torch.ones((1, 1), dtype=mask.dtype, device=mask.device)],
-                dim=-1,
-            )
-        if not generated:
-            return input_ids
-        tail = torch.tensor(
-            [generated], device=input_ids.device, dtype=input_ids.dtype
-        )
-        return torch.cat([input_ids, tail], dim=-1)
-
     def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> SubstrateRareHeavyCheckpoint:
         adapter_layers = self._export_adapter_layers()
         training_mode = "adapter-delta-v2" if adapter_layers else "bounded-state-v1"
@@ -2462,12 +2165,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             del args
             hidden = self._extract_hidden_tensor(output=output)
             adapter_delta = self._adapter_delta_for_layer(layer_index=layer_index)
-            personal_gain = self._personal_conditioning_layer_gains.get(
-                layer_index,
-                0.0,
-            )
             applies_personal_delta = (
-                personal_delta is not None and personal_gain > 0.0
+                personal_delta is not None
+                and layer_index == self._layer_indices[0]
             )
             if (
                 adapter_delta is None
@@ -2483,9 +2183,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             if control_delta is not None:
                 adjusted = adjusted + control_delta.view(1, 1, -1).to(dtype=hidden.dtype)
             if applies_personal_delta:
-                adjusted = adjusted + (
-                    personal_delta * personal_gain
-                ).view(1, 1, -1).to(dtype=hidden.dtype)
+                adjusted = adjusted + personal_delta.view(1, 1, -1).to(
+                    dtype=hidden.dtype
+                )
             if capture_residuals:
                 captured_layers[layer_index] = adjusted.detach().cpu()
             if isinstance(output, tuple):
