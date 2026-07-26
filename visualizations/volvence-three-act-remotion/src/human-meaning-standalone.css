@@ -247,8 +247,9 @@
 
 .h7-ending {
   z-index: 40;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #010303;
 }
 

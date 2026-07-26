@@ -66,6 +66,18 @@ from companion_standard.semantic_state import (  # noqa: F401
 )
 
 
+# Confidence at or above which ``BeliefAssumptionModule`` treats a record
+# as a belief; below it, the record is published as a verification need.
+#
+# Named here rather than left as a literal in the owner because a second
+# writer now depends on the exact boundary: the tool-result adapter caps
+# the confidence of claims with incomplete provenance so they land on the
+# verification side. If the owner's threshold moved and the adapter's cap
+# did not, unverifiable research would quietly start being published as
+# belief — the failure would look like the system getting more confident.
+BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD: float = 0.55
+
+
 def load_semantic_prompt_template(name: str = "extraction.md") -> str:
     return files("volvence_zero.semantic_state").joinpath("prompts", name).read_text(encoding="utf-8")
 
@@ -107,6 +119,49 @@ class SemanticProposalBatch:
 
 
 @dataclass(frozen=True)
+class EvidenceProvenance:
+    """One claim a tool returned, with what makes it checkable.
+
+    A claim is usable as evidence only if you can say **where it came
+    from, when it was true, and what it applies to**. Miss any one and
+    it is not evidence, it is an assertion that happens to be adjacent
+    to a tool call — and a research summary is exactly the shape of
+    thing that reads as authoritative while carrying none of the three.
+
+    ``scope`` is the applicability boundary: the jurisdiction, the
+    entity, the market, the population the claim holds for. A valuation
+    for a comparable company is not a valuation for this one, and the
+    difference is invisible once the number is in a sentence.
+
+    ``confidence`` is the source's own reliability, before the
+    completeness rule below is applied.
+    """
+
+    claim_id: str
+    source: str
+    as_of: str
+    scope: str
+    confidence: float = 0.5
+
+    @property
+    def is_complete(self) -> bool:
+        return bool(
+            self.source.strip() and self.as_of.strip() and self.scope.strip()
+        )
+
+    def missing_fields(self) -> tuple[str, ...]:
+        return tuple(
+            name
+            for name, value in (
+                ("source", self.source),
+                ("as_of", self.as_of),
+                ("scope", self.scope),
+            )
+            if not value.strip()
+        )
+
+
+@dataclass(frozen=True)
 class ToolResultSemanticEvent:
     event_id: str
     tool_name: str
@@ -117,6 +172,10 @@ class ToolResultSemanticEvent:
     confidence: float = 0.8
     artifact_refs: tuple[str, ...] = ()
     plan_ref: str | None = None
+    # Per-claim provenance for tools that return findings about the
+    # world (research, retrieval, lookup) rather than acting on it.
+    # Empty for action-shaped tools — writing a file makes no claim.
+    provenance: tuple[EvidenceProvenance, ...] = ()
 
 
 @dataclass(frozen=True)

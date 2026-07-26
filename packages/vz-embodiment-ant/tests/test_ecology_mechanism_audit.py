@@ -294,6 +294,11 @@ _LANE_APPLIED_WIRING = {
     "runtime": ("active", "disabled", "disabled"),
     "torch": ("disabled", "active", "active"),
 }
+_LANE_DECLARED_ACTIVE = {
+    "pure": (),
+    "runtime": ("temporal_runtime_backend",),
+    "torch": ("temporal_ssl_backend", "internal_rl_backend"),
+}
 
 
 def _clean_lane(
@@ -316,9 +321,7 @@ def _clean_lane(
         covered=True,
         not_measured_reason="",
         not_covered_reason="",
-        declared_active_backends=(
-            () if lane == "pure" else tuple(sorted({lane}))
-        ),
+        declared_active_backends=_LANE_DECLARED_ACTIVE[lane],
         max_code_delta=code_delta,
         max_turn_delta=0.0,
         max_step_delta=0.0,
