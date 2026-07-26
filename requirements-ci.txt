@@ -5,5 +5,9 @@
 # CUDA stack (nvidia-* / triton / cuda-toolkit, several GB) and the ubuntu
 # runner dies with "[Errno 28] No space left on device" during install.
 pytest
+# Root pyproject sets `asyncio_mode = "auto"`; without pytest-asyncio pytest
+# reports it as an unknown config option and any `async def test_` collected in
+# CI fails instead of running.
+pytest-asyncio
 torch
 transformers

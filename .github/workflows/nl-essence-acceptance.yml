@@ -10,7 +10,9 @@ on:
 jobs:
   nl-essence-acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Raised from 20: the job now also does a 35-wheel editable workspace
+    # install before the 120 benchmark tests and the acceptance run.
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repository

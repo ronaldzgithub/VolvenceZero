@@ -32,7 +32,9 @@ on:
 jobs:
   phase2-shadow-evidence-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Raised from 20: the job now also does a 35-wheel editable workspace
+    # install before the contract tests and the evidence smoke.
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository

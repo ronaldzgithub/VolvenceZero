@@ -8,7 +8,7 @@ on:
 jobs:
   dialogue-paper-suite:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -50,7 +50,7 @@ jobs:
 
   eta-paper-suite:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
