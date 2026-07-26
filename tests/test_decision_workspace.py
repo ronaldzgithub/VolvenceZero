@@ -315,3 +315,119 @@ def test_default_wiring_is_shadow() -> None:
     from volvence_zero.runtime import WiringLevel
 
     assert DecisionWorkspaceModule.default_wiring_level is WiringLevel.SHADOW
+
+
+# ---------------------------------------------------------------------------
+# Safety sits above the ranking
+# ---------------------------------------------------------------------------
+
+
+def _boundary_policy(*, risk_band: str, refer_out: bool):
+    from volvence_zero.application.types import (
+        BoundaryDecision,
+        BoundaryPolicySnapshot,
+        ProfessionalScope,
+        RiskBand,
+    )
+
+    return BoundaryPolicySnapshot(
+        active_decision=BoundaryDecision(
+            decision_id="test",
+            risk_band=RiskBand(risk_band),
+            professional_scope=ProfessionalScope.GENERAL_SUPPORT,
+            answer_depth_limit="standard",
+            citation_required=False,
+            clarification_required=False,
+            refer_out_required=refer_out,
+            blocked_topics=(),
+            required_disclaimers=(),
+            description="",
+        ),
+        trigger_reasons=(),
+        description="",
+    )
+
+
+def _run_with_boundary(**boundary: object) -> DecisionWorkspaceSnapshot:
+    module = DecisionWorkspaceModule()
+    upstream = _upstream(ParticipationLevel.STRUCTURED)
+    upstream["boundary_policy"] = _snapshot(
+        "boundary_policy", _boundary_policy(**boundary)  # type: ignore[arg-type]
+    )
+    workspace = asyncio.run(module.process(upstream)).value
+    assert isinstance(workspace, DecisionWorkspaceSnapshot)
+    return workspace
+
+
+def test_critical_band_literal_matches_the_owner_enum() -> None:
+    """The safety literal must not drift from the owner's vocabulary.
+
+    ``decision_workspace`` sits below vz-application and names the band
+    as a string rather than importing the enum. If ``RiskBand.CRITICAL``
+    were ever renamed, the hold would stop firing silently — a safety
+    check that fails open and says nothing. This test is the seam.
+    """
+    from volvence_zero.application.types import RiskBand
+
+    from volvence_zero.decision_workspace import _CRITICAL_RISK_BAND
+
+    assert _CRITICAL_RISK_BAND == RiskBand.CRITICAL.value
+
+
+def test_critical_risk_band_withholds_the_ranking() -> None:
+    workspace = _run_with_boundary(risk_band="critical", refer_out=False)
+    assert workspace.safety_hold is True
+    assert workspace.conclusion_state == "withheld-safety"
+    assert "risk-band-critical" in workspace.safety_reasons
+
+
+def test_refer_out_withholds_the_ranking() -> None:
+    workspace = _run_with_boundary(risk_band="low", refer_out=True)
+    assert workspace.safety_hold is True
+    assert "refer-out-required" in workspace.safety_reasons
+
+
+def test_ordinary_risk_does_not_withhold() -> None:
+    workspace = _run_with_boundary(risk_band="high", refer_out=False)
+    assert workspace.safety_hold is False
+    assert workspace.conclusion_state == CONCLUSION_PROVISIONAL
+
+
+def test_withholding_still_publishes_what_was_held() -> None:
+    """Suppressing the ranking is not the same as erasing the decision.
+
+    An audit needs to see which options and unknowns existed at the
+    moment the hold fired.
+    """
+    workspace = _run_with_boundary(risk_band="critical", refer_out=False)
+    assert workspace.options != ()
+    assert workspace.unknowns != ()
+
+
+def test_missing_boundary_policy_does_not_invent_a_hold() -> None:
+    workspace = _run(ParticipationLevel.STRUCTURED)
+    assert workspace.safety_hold is False
+
+
+def test_safety_hold_is_not_reachable_through_the_panorama_gate() -> None:
+    """The two gates are independent, and must stay that way.
+
+    A closed panorama means "do not lay out a decision here". A safety
+    hold means "do not state a ranking at all". Collapsing one into the
+    other would let a wide-open panorama imply the safety question had
+    been answered.
+    """
+    for level in (ParticipationLevel.BRIEF, ParticipationLevel.STRUCTURED):
+        module = DecisionWorkspaceModule()
+        upstream = _upstream(level)
+        upstream["boundary_policy"] = _snapshot(
+            "boundary_policy", _boundary_policy(risk_band="critical", refer_out=False)
+        )
+        workspace = asyncio.run(module.process(upstream)).value
+        assert isinstance(workspace, DecisionWorkspaceSnapshot)
+        if level is ParticipationLevel.STRUCTURED:
+            assert workspace.safety_hold is True
+        else:
+            # BRIEF never publishes a conclusion in the first place, so
+            # there is nothing for the hold to withhold.
+            assert workspace.conclusion_state == CONCLUSION_NONE

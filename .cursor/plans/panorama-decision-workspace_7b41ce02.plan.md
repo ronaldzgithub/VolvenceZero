@@ -37,19 +37,19 @@ todos:
     status: completed
   - id: safety-floor-above-gate
     content: 人身安全/自伤/未成年人安全信号走硬约束路径，不参与门的打分也不参与 EV 排名
-    status: pending
+    status: completed
   - id: interval-ev-reversibility
     content: 区间 EV、情景分解、折价项，以及可逆性/期权价值作为一等评分项
-    status: pending
+    status: completed
   - id: voi-next-action
     content: 主动取证控制器（VOI）+ 每轮至多一个动作 + 收敛终止规则；unknown_dominance 特征与它共用同一份计算
-    status: pending
+    status: completed
   - id: research-tool-through-affordance
     content: 公开公司研究工具走 AffordanceInvoker → EnvironmentOutcome → PE lineage；证据先进 evidence owner 再被引用
     status: pending
   - id: evidence-id-rendering-contract
     content: 渲染契约——无 evidence id 的事实类数字渲染为待核验；区间重叠时禁用"EV 最高"措辞
-    status: pending
+    status: completed
   - id: act4-acceptance-corpus
     content: 第四幕转成结构不变量式验收样本（gold 用修正后口径），并用既有 deterministic 用户模拟器造分支变体
     status: pending
@@ -273,9 +273,26 @@ regime owner
 
 **过程中修掉的真实缺陷**：`ranking_instability` 第一版含"有选项但没选定"，那是选项数的函数，导致它与 `option_multiplicity` 在语料上 r=0.96——"四轴合取"实为一轴取幂。解耦后 0.687。这个缺陷是消融+共线探针发现的，不是 review 发现的；两个探针值得保留在 CI 里。
 
-## 未落地（P4–P5）
+## 已落地（P4 估值层）
 
-`gate-as-abstract-action` / `learned-gate-shadow` / `safety-floor-above-gate` / `interval-ev-reversibility` / `voi-next-action` / `research-tool-through-affordance` / `evidence-id-rendering-contract` / `act4-acceptance-corpus` / `cross-session-reopen` / `process-outcome-learning` / `ablation-and-gate`。
+| 内容 | 位置 |
+|---|---|
+| 安全保留（读 `boundary_policy`，经 vz-contracts 协议） | `_safety_hold`，[decision_workspace](packages/vz-cognition/src/volvence_zero/decision_workspace/__init__.py) |
+| 区间估值 / 期权价值 / VOI | [valuation.py](packages/vz-cognition/src/volvence_zero/decision_workspace/valuation.py) |
+| Claim licence（typed，非 prompt 措辞） | [rendering.py](packages/vz-cognition/src/volvence_zero/decision_workspace/rendering.py) |
+| 第四幕验收样本 + 25 条估值测试 | [test_decision_valuation.py](tests/test_decision_valuation.py) |
+
+第四幕样本读数：无 leader（区间重叠）→ 只许 robustness 断言；`most_robust = separate`；下一个该问的是股权归属；所有数字均无 evidence ref，不可作为事实陈述。样本里"谈好再离"被刻意给了最高账面数字（13.8 vs 11.0），否则"可逆选项胜出"这条断言毫无力度。
+
+**过程中修掉的第二处真实缺陷**：VOI 的宽度收益原本只测 leader 区间宽度的减少量，这是盲的——加宽了**挑战者**的未知会得 0 分，哪怕它正是决定能否下结论的那一个。改为测头两名区间的重叠减少量。
+
+**一处被拦住的分层违规**：安全读取最初直接 import `volvence_zero.application.types`。契约测试只查模块级 import，函数内 import 能过——但 vz-cognition 在 vz-application 之下，分层照样破了。改走 vz-contracts 的 `BoundaryReadout` 协议（`BoundaryDecisionReadout` 补 `risk_band`）。
+
+## 未落地（P4 剩余 + P5）
+
+`research-tool-through-affordance` / `act4-acceptance-corpus`（多轮 trace 版；当前只有单点估值样本）/ `gate-as-abstract-action` / `learned-gate-shadow` / `cross-session-reopen` / `process-outcome-learning` / `ablation-and-gate`。
+
+估值层目前是**离线可算但尚未接线**：`DimensionEstimate` 需要一个 typed 来源才能在运行时被填充，而那个来源正是 `research-tool-through-affordance`（研究结果 → 证据 owner → 估值引用）。在它落地前，workspace 发布的是结构而非数字。
 
 其中 `user-override-channel` 只完成了**读侧**：`HintReadoutContext.panorama_override` 已实现且覆盖直接胜出，但写侧（用户显式偏好如何进入这个字段、如何跨会话保留）要等 `decision_workspace` 从 SHADOW 晋升后接。目前 regime owner 恒传 `None`。
 

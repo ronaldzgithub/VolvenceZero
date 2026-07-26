@@ -49,6 +49,16 @@ CONCLUSION_NONE = "none"
 CONCLUSION_PROVISIONAL = "provisional"
 # Every unknown that could reorder the options has been resolved.
 CONCLUSION_SETTLED = "settled"
+# The boundary owner raised a safety band. No ranking is published, at
+# any interval separation, under any weighting. Safety sits ABOVE the
+# ranking rather than inside it as one more weighted dimension — a
+# dimension can be given a low weight, and "the user deprioritised their
+# own safety" must not be a reachable state.
+CONCLUSION_WITHHELD_SAFETY = "withheld-safety"
+
+# ``RiskBand.CRITICAL``'s string value. Kept as a literal so this module
+# does not have to import the application tier to name it.
+_CRITICAL_RISK_BAND = "critical"
 
 
 @dataclass(frozen=True)
@@ -101,6 +111,11 @@ class DecisionWorkspaceSnapshot:
     # that cites nothing is a conclusion with no provenance.
     evidence_refs: tuple[str, ...] = ()
     conclusion_state: str = CONCLUSION_NONE
+    # True when a safety band from ``boundary_policy`` is holding the
+    # ranking back. Published so the hold is auditable rather than
+    # showing up as an unexplained absence of a conclusion.
+    safety_hold: bool = False
+    safety_reasons: tuple[str, ...] = ()
     description: str = ""
 
     @property
@@ -130,8 +145,45 @@ class DecisionWorkspaceModule(RuntimeModule[DecisionWorkspaceSnapshot]):
         "goal_value",
         "open_loop",
         "belief_assumption",
+        "boundary_policy",
     )
     default_wiring_level = WiringLevel.SHADOW
+
+    @staticmethod
+    def _safety_hold(
+        upstream: Mapping[str, Snapshot[Any]],
+    ) -> tuple[bool, tuple[str, ...]]:
+        """Read the boundary owner's safety band.
+
+        Deliberately reads an existing owner rather than adding a
+        detector here. A second safety judgement is a second thing to
+        keep correct, and the one that disagrees is the one that will be
+        wrong at the moment it matters.
+
+        Read through the ``BoundaryReadout`` protocol in vz-contracts,
+        not by importing the owner: vz-cognition sits below
+        vz-application and may not depend on it. (A function-local
+        import would slip past the import-boundary contract test, which
+        only inspects module-level imports — the layering rule would
+        still have been broken, just invisibly.)
+
+        A missing / inactive ``boundary_policy`` yields no hold. That is
+        the right failure direction for a SHADOW owner whose output no
+        consumer reads yet; when this slot is promoted, boundary_policy
+        is ACTIVE by default and runs earlier in the same turn.
+        """
+        value = getattr(upstream.get("boundary_policy"), "value", None)
+        decision = getattr(value, "active_decision", None)
+        if decision is None:
+            return False, ()
+        reasons: list[str] = []
+        # ``RiskBand`` is a ``str`` enum, so this compares equal against
+        # both the enum member and a plain string readout.
+        if getattr(decision, "risk_band", None) == _CRITICAL_RISK_BAND:
+            reasons.append("risk-band-critical")
+        if getattr(decision, "refer_out_required", False):
+            reasons.append("refer-out-required")
+        return bool(reasons), tuple(reasons)
 
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
@@ -195,6 +247,28 @@ class DecisionWorkspaceModule(RuntimeModule[DecisionWorkspaceSnapshot]):
             else ()
         )
         evidence_refs = self._evidence_refs(belief)
+        safety_hold, safety_reasons = self._safety_hold(upstream)
+        if safety_hold:
+            # Options and unknowns stay published — withholding the
+            # ranking is not the same as pretending the decision does
+            # not exist, and an audit needs to see what was held.
+            return self.publish(
+                DecisionWorkspaceSnapshot(
+                    engagement=engagement,
+                    engagement_rationale=rationale,
+                    options=options,
+                    dimension_refs=dimension_refs,
+                    unknowns=unknowns,
+                    evidence_refs=evidence_refs,
+                    conclusion_state=CONCLUSION_WITHHELD_SAFETY,
+                    safety_hold=True,
+                    safety_reasons=safety_reasons,
+                    description=(
+                        "decision_workspace: ranking withheld above the "
+                        f"valuation ({', '.join(safety_reasons)})"
+                    ),
+                )
+            )
         conclusion_state = (
             CONCLUSION_SETTLED if not unknowns else CONCLUSION_PROVISIONAL
         )

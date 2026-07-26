@@ -124,6 +124,7 @@ artifacts/companion_bench_smoke/*
 # versioned alongside it.
 !/tests/test_panorama_gate.py
 !/tests/test_decision_workspace.py
+!/tests/test_decision_valuation.py
 *.pyc
 /.venv-ant
 /.conda-volvence-gpu

@@ -77,6 +77,26 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
 
 测试 `tests/test_decision_workspace.py`：固定一组"最像决策"的 owner 快照，只改门的取值，验证三档行为差异——任何本地"这看起来很重要"的判断都会立刻暴露。
 
+### 安全在排名之上，不在排名之内
+
+`boundary_policy` 报 `RiskBand.CRITICAL` 或 `refer_out_required` 时，workspace 发布 `conclusion_state = withheld-safety` 且 `safety_hold=True`，**无论区间分离得多干净、无论用户怎么给权重**。安全若是六维之一，"用户把自己的安全调到最低"就是一个可达状态——不可接受。
+
+三个实现选择值得记：模块位置排在 `boundary_policy` 之后，因为读到上一轮的安全带意味着刚转危的这一轮仍会发布推荐；不自建检测器，读既有 owner，因为第二个安全判断就是第二个要维护对的东西，而出错的往往正是它；通过 vz-contracts 的 `BoundaryReadout` 协议读取而非 import owner——vz-cognition 在 vz-application 之下，函数内 import 能绕过契约测试（它只查模块级 import），但分层照样破了，只是看不见。`_CRITICAL_RISK_BAND` 字面量与枚举的一致性有专门测试守门：安全检查静默失效是最糟的失效方式。
+
+### 区间估值、期权价值与信息价值
+
+`decision_workspace/valuation.py`。三个量由**同一个模型**算出，不是三套启发式——两套分开调参的启发式总能被调到在第四幕转录上一致。
+
+- **未知项加宽区间，已知折扣平移区间。** 三年锁定期是折扣，整段下移；"股权文件没人看过"不是折扣，它使区间变宽而 `base` 不动——未知不是"估计错了"的证据，只是"估计没有支撑"的证据。把未决问题坍缩成中点正是让决策辅助变危险的伪精确。
+- **维度按共单调聚合**（极值直接相加）。独立性假设会收窄总区间，从而让"某选项胜出"更容易成立；相关性未知时应取使宽度最大的假设，保守方向朝着"不下断言"。
+- **只有严格分离才有 leader。** 区间重叠时 `leader_ref` 为 `None`，只发 `most_robust_ref`。第四幕台本的"现在收益最高的是先分开三个月"正是这条要挡的——重叠时那个结论不存在。
+- **期权价值 = 可逆性 × 该选项买到的信息**。不可逆但能解答一切的选项拿不到分：你用不上学到的东西。期权价值不抬高区间下界（选项自身走坏的分支里，保住的选择权一文不值），且尺度刻意小于维度值——重叠时它决定 `most_robust_ref`，但永远无法把一个区间推离另一个。
+- **VOI = 解答该未知后排名是否会变**，量化为"头两名区间重叠减少了多少"。第一版用的是"leader 区间宽度减少量"，那是盲的：加宽了**挑战者**的未知会得 0 分，哪怕它正是决定能否下结论的那一个。VOI 为 0 的未知不该问——这也是**收敛终止条件**，缺了它系统会一直追问，读起来像审讯。
+
+`decision_workspace/rendering.py` 把这些变成 typed `ClaimLicence` 而非 prompt 措辞：prompt 里的"别过度断言"是请求，装配器必须查询的 licence 是约束。区间重叠 → 只许 `robustness`（更稳健、更可逆、保留更多选择）；严格分离 → 才许 `comparative`；无 evidence ref 的数字只许标记为待核验；`safety_hold` 直接撤销一切排名断言。
+
+第四幕作为**验收样本**跑在 `tests/test_decision_valuation.py`：断言的是"算术支持哪些说法"，不是复现台词。样本里"谈好再离"被刻意给了最高的账面数字，否则"可逆选项胜出"这条断言毫无力度。结果：无 leader（重叠）、`most_robust = separate`、下一个该问的是股权归属、所有数字均不可作为事实陈述。
+
 ## ETA / NL 集成
 
 - `TrackTemporalModule` 直接消费九个 semantic slots，并把它们压成 `semantic_pressure`，作为 control advisory 写入 public temporal description / feedback signal。
@@ -109,6 +129,7 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
 
 ## 变更日志
 
+- 2026-07-27 (P4): `decision_workspace` 增加安全保留（读 `boundary_policy`，经 vz-contracts `BoundaryReadout` 协议，`BoundaryDecisionReadout` 补 `risk_band`）、区间估值 / 期权价值 / VOI（`valuation.py`）与 claim licence（`rendering.py`）。模块位置移到 `boundary_policy` 之后以保证同轮读取。过程中修掉一处 VOI 盲区：宽度收益原本只测 leader 区间，导致加宽挑战者的未知得 0 分；改为测头两名的重叠减少量。测试 `tests/test_decision_valuation.py`（含第四幕验收样本）+ `tests/test_decision_workspace.py` 安全段。
 - 2026-07-27: 新增相邻 owner `decision_workspace`（`SHADOW`，见上节）。spine 仍是 9 个 owner，`semantic_spine_coverage` 分母不变。所有权边界靠字段形状强制（记录类型没有可放文本的字段）+ 行为测试（同一批 owner 快照下只改 panorama 门取值）。测试 `tests/test_decision_workspace.py`。
 - 2026-07-17: G2 LLM proposal 覆盖 9/9。`_GENERIC_LLM_SLOT_IDS` 从 4 slot 扩到 8（`plan_intent` / `open_loop` / `execution_result` / `belief_assumption` 加入既有 JSON-schema generic 路径；commitment 仍走专用分类器，合计 9/9 全部 semantic owner 具备 typed LLM proposal source）。per-slot 语义说明集中在 `_GENERIC_SLOT_SEMANTIC_HINTS`（llm-prompt-centralization；原四 slot 的 prompt 字节不变）。owner 单写者、`min_proposal_confidence` 过滤、unparseable→NoOp fail-safe 均不变。测试：`tests/test_llm_semantic_runtime.py` 新四 slot 参数化用例 + hint-line 边界用例。
 - 2026-07-14: CP-12 第二波 publisher 接线（GAP-05）。`plan_intent`（kind

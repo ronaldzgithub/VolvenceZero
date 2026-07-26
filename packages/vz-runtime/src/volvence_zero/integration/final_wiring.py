@@ -2013,11 +2013,6 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("regime", WiringLevel.SHADOW),
             panorama_gate_mode=config.panorama_gate_mode,
         ),
-        # Must follow regime: it subscribes to that owner's panorama gate
-        # rather than deciding its own activation.
-        DecisionWorkspaceModule(
-            wiring_level=config.level_for("decision_workspace", WiringLevel.SHADOW),
-        ),
         RetrievalPolicyModule(
             rare_heavy_state=application_rare_heavy_state,
             wiring_level=config.level_for("retrieval_policy", WiringLevel.ACTIVE),
@@ -2055,6 +2050,14 @@ def build_final_runtime_modules(
         BoundaryPolicyModule(
             rare_heavy_state=application_rare_heavy_state,
             wiring_level=config.level_for("boundary_policy", WiringLevel.ACTIVE),
+        ),
+        # Placed after regime (whose panorama gate decides whether this owner
+        # instantiates at all) AND after boundary_policy (whose risk band can
+        # withhold a ranking outright). Reading a stale safety band would let
+        # a turn that just went critical still publish a recommendation, so
+        # the same-turn read is the point of this position, not a detail.
+        DecisionWorkspaceModule(
+            wiring_level=config.level_for("decision_workspace", WiringLevel.SHADOW),
         ),
         ResponseAssemblyModule(
             wiring_level=config.level_for("response_assembly", WiringLevel.ACTIVE),

@@ -47,6 +47,11 @@ class BoundaryDecisionReadout(Protocol):
     clarification_required: bool
     refer_out_required: bool
     citation_required: bool
+    # Compared against the ``RiskBand`` string values. Typed as ``str``
+    # rather than the enum so consumers in tiers that may not import
+    # vz-application (decision_workspace, evaluation) can read the band
+    # through this protocol instead of reaching into the owner.
+    risk_band: str
 
 
 class BoundaryReadout(Protocol):
