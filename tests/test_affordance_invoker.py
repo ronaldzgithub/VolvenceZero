@@ -545,6 +545,11 @@ class _FakeSession:
         confidence: float = 0.8,
         artifact_refs: tuple[str, ...] = (),
         plan_ref: str | None = None,
+        # Per-claim provenance for findings-shaped tools. Accepted (and
+        # ignored) here so this double keeps matching the session
+        # protocol; the provenance path has its own coverage in
+        # tests/test_research_evidence_path.py.
+        provenance: tuple[object, ...] = (),
         latency_ms: int | None = None,
         monetary_cost: float = 0.0,
         reversibility: str = "reversible",

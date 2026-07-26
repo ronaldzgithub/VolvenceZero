@@ -515,6 +515,7 @@ class _SessionLike(Protocol):
         confidence: float = 0.8,
         artifact_refs: tuple[str, ...] = (),
         plan_ref: str | None = None,
+        provenance: tuple[object, ...] = (),
         latency_ms: int | None = None,
         monetary_cost: float = 0.0,
         reversibility: str = "reversible",
@@ -1030,6 +1031,7 @@ class AffordanceInvoker:
                 # ``plan_ref=None`` preserves the legacy "no lineage"
                 # path used by callers that don't yet bind predictions.
                 plan_ref=plan_ref,
+                provenance=_extract_provenance(payload),
                 latency_ms=latency_ms,
                 monetary_cost=_monetary_cost_from_descriptor(descriptor),
                 reversibility=(
@@ -1071,6 +1073,58 @@ def _timeout_seconds_from_descriptor(descriptor: AffordanceDescriptor) -> float:
         "slow": 30.0,
         "very_slow": 120.0,
     }[latency_class.value]
+
+
+# Payload key carrying per-claim findings. A convention over the payload
+# *shape*, not a route over the tool *name* — every findings-shaped tool
+# uses the same key and no code branches on which tool produced it. That
+# distinction is what keeps this from becoming the hardcoded dispatch the
+# affordance spec forbids.
+PROVENANCE_PAYLOAD_KEY = "claims"
+
+
+def _extract_provenance(
+    payload: Mapping[str, Any] | None,
+) -> tuple[Any, ...]:
+    """Lift ``payload["claims"]`` into typed provenance records.
+
+    Tools that act on the world return no claims and so contribute
+    nothing here — writing a file asserts nothing about the world that
+    would need a source.
+
+    Malformed entries are dropped rather than raising: a research call
+    that returned nine good claims and one broken one should still land
+    the nine. What must not happen is a broken claim arriving *without*
+    its defect being visible, and that cannot happen here — a claim with
+    missing provenance fields is admitted with those fields empty, and
+    the kernel-side adapter caps its confidence accordingly.
+    """
+    if not payload:
+        return ()
+    raw = payload.get(PROVENANCE_PAYLOAD_KEY)
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    from volvence_zero.semantic_state import EvidenceProvenance
+
+    claims: list[Any] = []
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, Mapping):
+            continue
+        claim_id = str(entry.get("claim_id") or f"claim-{index}")
+        try:
+            confidence = float(entry.get("confidence", 0.5))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        claims.append(
+            EvidenceProvenance(
+                claim_id=claim_id,
+                source=str(entry.get("source") or ""),
+                as_of=str(entry.get("as_of") or ""),
+                scope=str(entry.get("scope") or ""),
+                confidence=max(0.0, min(1.0, confidence)),
+            )
+        )
+    return tuple(claims)
 
 
 def _summarise_for_kernel(

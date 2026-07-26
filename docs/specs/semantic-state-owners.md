@@ -97,6 +97,29 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
 
 第四幕作为**验收样本**跑在 `tests/test_decision_valuation.py`：断言的是"算术支持哪些说法"，不是复现台词。样本里"谈好再离"被刻意给了最高的账面数字，否则"可逆选项胜出"这条断言毫无力度。结果：无 leader（重叠）、`most_robust = separate`、下一个该问的是股权归属、所有数字均不可作为事实陈述。
 
+### 什么算证据：来源 / 时间 / 适用范围
+
+工具返回的一条主张只有在能说清**它从哪来、什么时候为真、适用于什么**时才算证据；缺任何一项，它就只是一句碰巧挨着工具调用的断言。搜索摘要与凭空编造的句子到达 owner 时形状完全一致，文本本身区分不了，所以规则必须咬在结构上。
+
+`EvidenceProvenance`（`semantic_state/contracts.py`）携带 `claim_id` / `source` / `as_of` / `scope` / `confidence`，`ToolResultSemanticEvent.provenance` 是它的元组。`scope` 是适用边界——可比公司的估值不是这家公司的估值，而这个差别一旦进了句子就看不见了。
+
+**执行方式是调低一个诚实的置信度，而不是给未溯源主张开一条特殊路径**。特殊路径是会在下一个调用点被忘记的东西。`BeliefAssumptionModule` 本来就按 `BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD`（0.55）分桶：≥ 阈值进 `beliefs`，< 阈值进 `verification_needs`。adapter 把溯源不全的主张封顶在阈值之下，剩下的由既有分桶完成。该阈值已从字面量提为具名常量并由两处共用——阈值动了而封顶没动的话，无法核实的研究会悄悄开始被当作 belief 发布，而这个失效看起来像是系统变得更自信了。
+
+由此**自动**得到一条闭环，没有任何地方被告知要去追查自己的未溯源主张：
+
+```
+未溯源主张 → verification_needs → unknown_dominance 升高
+           → panorama 门读到 → VOI 把它排为下一个该问的
+```
+
+逐条主张分别入库而非合并成一条记录：一次研究调用常常同时返回可核验的融资日期和纯属猜测的估值，合并后它们共享一个置信度，可核验的那部分会把猜测一起拖过阈值。
+
+审计串写明缺了哪一项（`incomplete_provenance=as_of`）——"置信度低"不是诊断，"没有时间"才是。
+
+工具侧的 `research_public_company`（`lifeform-domain-growth-advisor/research_affordances`）把这条规则前推到边界：`output_schema` 把 `source` / `as_of` / `scope` 列为 required，拿不出溯源的后端在契约层就失败，而不是返回一段听起来很权威的散文。两条边界写进描述符本身而非留给调用方——参数只接受公司标识而**没有**接受个人的参数（"帮我决定要不要离婚"的对话恰恰会诱导去查具体某个私人），且需要 `public_research` 授权、在 `emotional_support` / `repair_and_deescalation` regime 下被禁用。急性痛苦中的人不是在要求你去调查他的伴侣。
+
+invoker 侧按**载荷形状**（`claims` 键）而非工具名提取，所以这不是 affordance spec 禁止的硬编码路由。
+
 ## ETA / NL 集成
 
 - `TrackTemporalModule` 直接消费九个 semantic slots，并把它们压成 `semantic_pressure`，作为 control advisory 写入 public temporal description / feedback signal。
@@ -129,6 +152,7 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
 
 ## 变更日志
 
+- 2026-07-27 (P4 研究工具): 证据溯源契约（`EvidenceProvenance` + `ToolResultSemanticEvent.provenance`），溯源不全的主张按 `BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD` 封顶从而落入 `verification_needs`；阈值由字面量提为具名常量供 owner 与 adapter 共用。`research_public_company` 描述符落在 growth-advisor vertical，schema 强制 source/as_of/scope、参数不接受个人、需 `public_research` 授权且在情绪/修复 regime 下禁用。invoker 按载荷形状提取 claims（非按工具名路由）。`submit_tool_result` 增加 `provenance` 形参，走既有 `EnvironmentOutcome` 通道，无新数据通道。测试 `tests/test_research_evidence_path.py`。
 - 2026-07-27 (P4): `decision_workspace` 增加安全保留（读 `boundary_policy`，经 vz-contracts `BoundaryReadout` 协议，`BoundaryDecisionReadout` 补 `risk_band`）、区间估值 / 期权价值 / VOI（`valuation.py`）与 claim licence（`rendering.py`）。模块位置移到 `boundary_policy` 之后以保证同轮读取。过程中修掉一处 VOI 盲区：宽度收益原本只测 leader 区间，导致加宽挑战者的未知得 0 分；改为测头两名的重叠减少量。测试 `tests/test_decision_valuation.py`（含第四幕验收样本）+ `tests/test_decision_workspace.py` 安全段。
 - 2026-07-27: 新增相邻 owner `decision_workspace`（`SHADOW`，见上节）。spine 仍是 9 个 owner，`semantic_spine_coverage` 分母不变。所有权边界靠字段形状强制（记录类型没有可放文本的字段）+ 行为测试（同一批 owner 快照下只改 panorama 门取值）。测试 `tests/test_decision_workspace.py`。
 - 2026-07-17: G2 LLM proposal 覆盖 9/9。`_GENERIC_LLM_SLOT_IDS` 从 4 slot 扩到 8（`plan_intent` / `open_loop` / `execution_result` / `belief_assumption` 加入既有 JSON-schema generic 路径；commitment 仍走专用分类器，合计 9/9 全部 semantic owner 具备 typed LLM proposal source）。per-slot 语义说明集中在 `_GENERIC_SLOT_SEMANTIC_HINTS`（llm-prompt-centralization；原四 slot 的 prompt 字节不变）。owner 单写者、`min_proposal_confidence` 过滤、unparseable→NoOp fail-safe 均不变。测试：`tests/test_llm_semantic_runtime.py` 新四 slot 参数化用例 + hint-line 边界用例。

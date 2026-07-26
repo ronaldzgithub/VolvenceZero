@@ -28,6 +28,7 @@ from volvence_zero.substrate import SubstrateSnapshot
 
 from volvence_zero.semantic_state.contracts import (
     BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD,
+    EvidenceProvenance,
     ExternalSemanticEvent,
     ExternalSemanticEventBatch,
     GenericSemanticEvent,
@@ -618,6 +619,7 @@ def semantic_events_from_tool_result(
     confidence: float = 0.8,
     artifact_refs: tuple[str, ...] = (),
     plan_ref: str | None = None,
+    provenance: tuple[EvidenceProvenance, ...] = (),
 ) -> ExternalSemanticEventBatch:
     return ExternalSemanticEventBatch(
         events=(
@@ -631,6 +633,7 @@ def semantic_events_from_tool_result(
                 confidence=confidence,
                 artifact_refs=artifact_refs,
                 plan_ref=plan_ref,
+                provenance=provenance,
             ),
         ),
         source="tool-result",

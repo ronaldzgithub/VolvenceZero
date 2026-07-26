@@ -46,7 +46,7 @@ todos:
     status: completed
   - id: research-tool-through-affordance
     content: 公开公司研究工具走 AffordanceInvoker → EnvironmentOutcome → PE lineage；证据先进 evidence owner 再被引用
-    status: pending
+    status: completed
   - id: evidence-id-rendering-contract
     content: 渲染契约——无 evidence id 的事实类数字渲染为待核验；区间重叠时禁用"EV 最高"措辞
     status: completed
@@ -288,11 +288,36 @@ regime owner
 
 **一处被拦住的分层违规**：安全读取最初直接 import `volvence_zero.application.types`。契约测试只查模块级 import，函数内 import 能过——但 vz-cognition 在 vz-application 之下，分层照样破了。改走 vz-contracts 的 `BoundaryReadout` 协议（`BoundaryDecisionReadout` 补 `risk_band`）。
 
+## 已落地（P4 研究工具与证据链）
+
+| 内容 | 位置 |
+|---|---|
+| 证据溯源契约（source / as_of / scope） | `EvidenceProvenance`，[contracts.py](packages/vz-cognition/src/volvence_zero/semantic_state/contracts.py) |
+| 溯源不全 → 封顶 → 落入 verification_needs | `ToolResultSemanticAdapter`，[proposal_runtime.py](packages/vz-cognition/src/volvence_zero/semantic_state/proposal_runtime.py) |
+| `research_public_company` 描述符 | [research_affordances](packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/research_affordances/descriptors.py) |
+| invoker 按载荷形状提取 claims | `_extract_provenance`，[invoker.py](packages/lifeform-affordance/src/lifeform_affordance/invoker.py) |
+| 19 条测试 | [test_research_evidence_path.py](tests/test_research_evidence_path.py) |
+
+**第一性判断**：一条主张只有能说清"从哪来、什么时候为真、适用于什么"才算证据。搜索摘要与编造的句子到达 owner 时形状完全一致，文本区分不了，所以规则必须咬在结构上。
+
+**执行方式是调低一个诚实的置信度，而不是给未溯源主张开特殊路径**——特殊路径是会在下一个调用点被忘记的东西。owner 本来就按 0.55 分桶，adapter 只需把溯源不全的主张封顶在阈值之下。由此自动闭环：
+
+```
+未溯源主张 → verification_needs → unknown_dominance 升高
+           → panorama 门读到 → VOI 排为下一个该问的
+```
+
+没有任何地方被告知"要去追查自己的未溯源主张"，它是掉出来的。
+
+逐条主张分别入库而非合并：一次调用常同时返回可核验的融资日期与纯猜测的估值，合并后共享一个置信度，可核验的那部分会把猜测一起拖过阈值。
+
+两条边界写进描述符本身：参数**没有**接受个人的字段（"帮我决定要不要离婚"恰恰会诱导去查具体某个私人），且需 `public_research` 授权、在情绪支持 / 修复 regime 下禁用。
+
 ## 未落地（P4 剩余 + P5）
 
-`research-tool-through-affordance` / `act4-acceptance-corpus`（多轮 trace 版；当前只有单点估值样本）/ `gate-as-abstract-action` / `learned-gate-shadow` / `cross-session-reopen` / `process-outcome-learning` / `ablation-and-gate`。
+`act4-acceptance-corpus`（多轮 trace 版；当前只有单点估值样本）/ `gate-as-abstract-action` / `learned-gate-shadow` / `cross-session-reopen` / `process-outcome-learning` / `ablation-and-gate`。
 
-估值层目前是**离线可算但尚未接线**：`DimensionEstimate` 需要一个 typed 来源才能在运行时被填充，而那个来源正是 `research-tool-through-affordance`（研究结果 → 证据 owner → 估值引用）。在它落地前，workspace 发布的是结构而非数字。
+研究工具已接通到证据 owner。仍缺的最后一环是 `DimensionEstimate` 的自动填充——把 `belief_assumption` 里的溯源主张投影成某个选项在某个维度上的区间。目前那步需要人给数字；证据链本身（工具 → 溯源 → 证据 owner → 可引用）已经闭合。
 
 其中 `user-override-channel` 只完成了**读侧**：`HintReadoutContext.panorama_override` 已实现且覆盖直接胜出，但写侧（用户显式偏好如何进入这个字段、如何跨会话保留）要等 `decision_workspace` 从 SHADOW 晋升后接。目前 regime owner 恒传 `None`。
 
