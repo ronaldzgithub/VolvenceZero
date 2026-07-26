@@ -4470,6 +4470,38 @@ def clone_full_learned_temporal_policy(source_policy: FullLearnedTemporalPolicy)
     )
 
 
+def clone_temporal_policy(source_policy: TemporalPolicy) -> TemporalPolicy:
+    """Clone a store-owning temporal policy, preserving its implementation mode.
+
+    ``ETANLJointLoop`` owns world and self as two *independent* tracks and
+    publishes them as two separate lanes of every learning checkpoint
+    (``world_temporal_snapshot`` / ``self_temporal_snapshot`` and the two
+    sandbox ``metacontroller_snapshot`` lanes). The two tracks must therefore
+    own distinct :class:`MetacontrollerParameterStore` instances: a shared
+    store makes the checkpoint round trip asymmetric, because restoring the
+    world lane and then the self lane collapses both onto the self lane.
+
+    Callers that only hold a single configured policy use this to build the
+    second track. Unlike :func:`clone_full_learned_temporal_policy` it does not
+    promote a ``LEARNED_LITE`` source to ``FULL_LEARNED``; a matched-control
+    ETA-off arm must stay ETA-off on both tracks.
+    """
+
+    if isinstance(source_policy, FullLearnedTemporalPolicy):
+        return clone_full_learned_temporal_policy(source_policy)
+    if isinstance(source_policy, LearnedLiteTemporalPolicy):
+        return LearnedLiteTemporalPolicy(
+            parameter_store=build_bootstrapped_parameter_store(
+                source_policy.export_rare_heavy_snapshot()
+            )
+        )
+    raise TypeError(
+        "clone_temporal_policy requires a parameter-store owning temporal "
+        "policy (FULL_LEARNED or LEARNED_LITE), got "
+        f"{type(source_policy).__name__}"
+    )
+
+
 def _merge_track_codes(
     world_code: tuple[float, ...],
     self_code: tuple[float, ...],

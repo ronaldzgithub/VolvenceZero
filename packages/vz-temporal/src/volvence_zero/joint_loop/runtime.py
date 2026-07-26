@@ -166,6 +166,24 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         )
         if self_policy is None:
             self._self_policy = clone_full_learned_temporal_policy(self._world_policy)
+        if self._self_policy.parameter_store is self._world_policy.parameter_store:
+            # Dual-track owner invariant. Every learning checkpoint this loop
+            # publishes carries world and self as two independent lanes
+            # (``world_temporal_snapshot`` / ``self_temporal_snapshot`` plus the
+            # two sandbox ``metacontroller_snapshot`` lanes). A shared
+            # MetacontrollerParameterStore makes that persistence asymmetric:
+            # ``rollback_rare_heavy_import`` restores the world lane and then
+            # the self lane into the same store, so the world lane is silently
+            # dropped and the checkpoint no longer round-trips. Repairing it
+            # here would silently discard the per-track runtime configuration
+            # the caller already applied to its single policy object, so fail
+            # loudly and make the caller clone with ``clone_temporal_policy``.
+            raise ValueError(
+                "ETANLJointLoop requires world and self tracks to own distinct "
+                "MetacontrollerParameterStore instances; the same store was "
+                "passed for both tracks. Build the second track with "
+                "volvence_zero.temporal.clone_temporal_policy()."
+            )
         world_latent_dim = self._world_policy.parameter_store.n_z
         self_latent_dim = self._self_policy.parameter_store.n_z
         if self_latent_dim != world_latent_dim:

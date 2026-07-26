@@ -1169,3 +1169,99 @@ def test_live_action_head_residual_is_mirror_equivariant() -> None:
     assert mirrored[1] == pytest.approx(direct[0])
     assert mirrored[2] == pytest.approx(direct[2])
     assert direct[3] == pytest.approx(0.0)
+
+
+def test_clone_temporal_policy_preserves_mode_and_splits_the_store() -> None:
+    """The second track must be an independent store in the source mode.
+
+    ``ETANLJointLoop`` publishes world/self as two independent checkpoint
+    lanes, so a shared ``MetacontrollerParameterStore`` makes the round trip
+    asymmetric. ``clone_temporal_policy`` is the owner-side way to build the
+    second track without promoting a LEARNED_LITE arm to FULL_LEARNED.
+    """
+
+    from volvence_zero.temporal import clone_temporal_policy
+
+    lite = LearnedLiteTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=8)
+    )
+    lite_clone = clone_temporal_policy(lite)
+    assert isinstance(lite_clone, LearnedLiteTemporalPolicy)
+    assert lite_clone.parameter_store is not lite.parameter_store
+    assert lite_clone.parameter_store.n_z == 8
+    assert (
+        lite_clone.export_rare_heavy_snapshot()
+        == lite.export_rare_heavy_snapshot()
+    )
+
+    full = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=8)
+    )
+    full_clone = clone_temporal_policy(full)
+    assert isinstance(full_clone, FullLearnedTemporalPolicy)
+    assert full_clone.parameter_store is not full.parameter_store
+
+
+def test_joint_loop_rejects_a_shared_dual_track_parameter_store() -> None:
+    """A shared store silently drops the world lane on checkpoint restore."""
+
+    from volvence_zero.joint_loop import ETANLJointLoop
+
+    shared = LearnedLiteTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=8)
+    )
+    with pytest.raises(ValueError, match="distinct"):
+        ETANLJointLoop(world_policy=shared, self_policy=shared)
+
+
+def test_joint_loop_learning_checkpoint_round_trips_per_track_heads() -> None:
+    """World and self action heads must both survive restore (regression).
+
+    Each track promotes its *own* head to full rank, so the two lanes carry
+    genuinely different head shapes. Restoring them into one store used to
+    overwrite the world lane with the self lane, which the session-level
+    re-export fingerprint guard then reported as a mismatch.
+    """
+
+    from volvence_zero.joint_loop import ETANLJointLoop
+    from volvence_zero.temporal import clone_temporal_policy
+
+    n_z = 8
+    world = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=n_z)
+    )
+    self_policy = clone_temporal_policy(world)
+    assert isinstance(self_policy, FullLearnedTemporalPolicy)
+    for policy, track in ((world, Track.WORLD), (self_policy, Track.SELF)):
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=track,
+            strength=1.0,
+            rank=n_z,
+        )
+    loop = ETANLJointLoop(world_policy=world, self_policy=self_policy)
+
+    def head_ranks(snapshot) -> dict[str, int]:
+        return {
+            head.track.value: head.rank
+            for head in snapshot.causal_action_heads
+        }
+
+    checkpoint = loop.create_learning_checkpoint(checkpoint_id="round-trip")
+    expected_world = head_ranks(checkpoint.world_temporal_snapshot)
+    expected_self = head_ranks(checkpoint.self_temporal_snapshot)
+    # Each track promoted only its own head, so the lanes really do differ.
+    assert expected_world["world"] == n_z
+    assert expected_self["self"] == n_z
+    assert expected_world != expected_self
+
+    loop.restore_learning_checkpoint(checkpoint)
+    restored = loop.create_learning_checkpoint(checkpoint_id="round-trip")
+    assert head_ranks(restored.world_temporal_snapshot) == expected_world
+    assert head_ranks(restored.self_temporal_snapshot) == expected_self
+    assert (
+        head_ranks(
+            restored.world_policy_checkpoint.metacontroller_snapshot
+        )
+        == expected_world
+    )

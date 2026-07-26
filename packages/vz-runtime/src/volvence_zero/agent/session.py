@@ -194,6 +194,7 @@ from volvence_zero.temporal import (
     TemporalAbstractionSnapshot,
     TemporalPolicy,
     clone_full_learned_temporal_policy,
+    clone_temporal_policy,
     resolve_temporal_bootstrap_snapshot,
 )
 from volvence_zero.agent.session_post_slow_loop import (
@@ -593,7 +594,12 @@ class AgentSessionRunner(
         elif isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy = clone_full_learned_temporal_policy(self._world_temporal_policy)
         else:
-            self._self_temporal_policy = self._world_temporal_policy
+            # A non-FULL_LEARNED single policy (e.g. the matched-control ETA-off
+            # LEARNED_LITE arm) still needs its own self-track store: the joint
+            # loop publishes world and self as independent checkpoint lanes, so
+            # sharing one store would drop the world lane on restore. Clone in
+            # the source mode rather than promoting the arm to FULL_LEARNED.
+            self._self_temporal_policy = clone_temporal_policy(self._world_temporal_policy)
         self._temporal_policy = self._world_temporal_policy
         if temporal_input_dim is not None:
             for track_name, policy in (
