@@ -303,6 +303,16 @@ promotion gate：
   热源或目标方向。v20 证明正确方向在旧 head 中仅有相对排序且被 common-mode 固定偏置覆盖，
   所以 v21 同时把 Digital Ant 专用 head strength 设为 `1.0`；通用默认仍为 `0.35` 且
   projection 为 `None`。
+  `ant-sense.ecology-v2` 还由冻结 substrate owner 发布完整的 19 维镜像变换：food/heat/
+  obstacle 左右触角互换，`food_diff / heat_diff / home_ego_sin / home_pher_diff /
+  trail_pher_diff / last_turn_command` 取反，其余标量保持不变；置换和符号连续应用两次必须
+  精确还原原输入。temporal owner 只消费该代数契约，在同一 encoder/head 上计算原状态与镜像
+  状态，并令 steering contrast 等于两 lane 输出差的一半；它不得 import Ant schema 或重新解释
+  感觉字段。Digital Ant ecology profile 显式打开该约束，非 ecology/V1 profile 不携带镜像配置。
+  关闭 `internal_rl_causal_action_head_input_mirror_permutation/signs` 即回滚。v24 通道审计显示
+  food/heat/home/obstacle 的 head 镜像对称/反对称中位比分别为 `3.92/2.67/2.65/7.67`；
+  对称部分在世界镜像后不翻号，按构造不可能指向任何方向，因此必须由结构投影删除，而不是继续
+  加训练量或删除正在抵消它的 bias。
   正式 `n_z=16` 还必须保持 ndim/legacy 控制面隔离：Internal-RL 更新正式 track weights 后，
   不得写入 ndim serving 不消费的 legacy `temporal_weights/switch_bias`；dual-track aggregate
   的 `track_parameters` 发布 owner track weights，不得用逐拍 latent state 代替。否则通用 drift

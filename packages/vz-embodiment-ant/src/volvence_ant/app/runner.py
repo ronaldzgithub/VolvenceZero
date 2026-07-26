@@ -178,17 +178,27 @@ class AntAppRun:
             objective = AntObjectiveKind.ECOLOGY
         else:
             objective = AntObjectiveKind.FORAGING
+        sense_schema = (
+            AntSenseSchema.ECOLOGY_V2
+            if objective is AntObjectiveKind.ECOLOGY
+            else AntSenseSchema.V1
+        )
         session_config = AntSessionConfig(
             temporal_latent_dim=self.config.temporal_latent_dim,
             session_id=f"digital-ant-app:{self.run_id}",
             seed=self.config.seed,
             rollout_config=ant_runtime_replay_rollout_config(
-                enable_sparse_exploration=(self.config.objective in {AppObjective.FORAGING, AppObjective.ECOLOGY})
+                enable_sparse_exploration=(self.config.objective in {AppObjective.FORAGING, AppObjective.ECOLOGY}),
+                sense_schema=(
+                    sense_schema
+                    if sense_schema is AntSenseSchema.ECOLOGY_V2
+                    else None
+                ),
             ),
             joint_apply_writeback=True,
             joint_apply_policy_optimization=(self.config.arm is AppArm.LEARNED),
             objective=objective,
-            sense_schema=(AntSenseSchema.ECOLOGY_V2 if objective is AntObjectiveKind.ECOLOGY else AntSenseSchema.V1),
+            sense_schema=sense_schema,
         )
         if self.config.mode is AppMode.COLONY:
             self._kernel_colony = KernelColonyRunner(self.world, base_config=session_config)

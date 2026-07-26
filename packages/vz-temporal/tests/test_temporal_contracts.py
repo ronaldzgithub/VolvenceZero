@@ -1027,3 +1027,145 @@ def test_causal_z_policy_exclusive_steering_requires_active_head() -> None:
     # Cold head residual is zero and the skewed weights only touched the
     # pair dims through the base -- exclusive steering must equalize them.
     assert mean[0] == pytest.approx(mean[1])
+
+
+def test_causal_action_head_input_mirror_is_signed_and_involutive() -> None:
+    from volvence_zero.temporal.causal_action_projection import (
+        mirror_causal_action_head_input,
+        normalize_causal_action_head_input_mirror,
+    )
+
+    permutation, signs = normalize_causal_action_head_input_mirror(
+        (1, 0, 2, 3),
+        (1, 1, -1, 1),
+        n_input=4,
+    )
+    values = (0.2, 0.8, -0.3, 0.6)
+    mirrored = mirror_causal_action_head_input(
+        values,
+        permutation=permutation,
+        signs=signs,
+    )
+    roundtrip = mirror_causal_action_head_input(
+        mirrored,
+        permutation=permutation,
+        signs=signs,
+    )
+
+    assert mirrored == pytest.approx((0.8, 0.2, 0.3, 0.6))
+    assert roundtrip == pytest.approx(values)
+    with pytest.raises(ValueError, match="both permutation and signs"):
+        normalize_causal_action_head_input_mirror(
+            (0, 1),
+            None,
+            n_input=2,
+        )
+    with pytest.raises(ValueError, match="involutive"):
+        normalize_causal_action_head_input_mirror(
+            (1, 2, 0),
+            (1, 1, 1),
+            n_input=3,
+        )
+
+
+def test_mirror_equivariant_projection_removes_symmetric_steering() -> None:
+    from volvence_zero.temporal.causal_action_projection import (
+        project_causal_action_head_mirror_equivariant,
+    )
+
+    projected = project_causal_action_head_mirror_equivariant(
+        (0.7, -0.1, 0.4),
+        (0.5, -0.3, 0.2),
+        contrast_pairs=((0, 1),),
+    )
+
+    # Direct and mirrored lanes share the same steering contrast (0.4), so it
+    # is reflection-symmetric and must be deleted exactly.
+    assert projected == pytest.approx((0.0, 0.0, 0.3))
+
+
+def test_live_action_head_residual_is_mirror_equivariant() -> None:
+    from volvence_zero.substrate import (
+        ResidualActivation,
+        SubstrateSnapshot,
+        SurfaceKind,
+    )
+    from volvence_zero.temporal.causal_action_projection import (
+        mirror_causal_action_head_input,
+    )
+
+    n_z = 4
+    permutation = (1, 0, 2, 3)
+    signs = (1, 1, -1, 1)
+    store = MetacontrollerParameterStore(n_z=n_z, n_input=n_z)
+    store.configure_causal_action_head_rank(track=Track.WORLD, rank=n_z)
+    head = store.causal_action_head_parameters(track=Track.WORLD)
+    store.restore_causal_action_head_parameters(
+        replace(
+            head,
+            output_factors=(
+                (0.8, 0.1, 0.0, 0.0),
+                (-0.6, 0.2, 0.0, 0.0),
+                (0.0, 0.5, 0.0, 0.0),
+                (0.0, 0.0, 0.4, 0.0),
+            ),
+            bias=(0.08, -0.03, 0.04, 0.02),
+            update_step=1,
+        )
+    )
+    checkpoint = store.export_parameter_snapshot()
+
+    def substrate(values: tuple[float, ...]) -> SubstrateSnapshot:
+        return SubstrateSnapshot(
+            model_id="mirror-contract",
+            is_frozen=True,
+            surface_kind=SurfaceKind.RESIDUAL_STREAM,
+            token_logits=(),
+            feature_surface=(),
+            residual_activations=(
+                ResidualActivation(
+                    layer_index=0,
+                    activation=values,
+                    step=0,
+                ),
+            ),
+            residual_sequence=(),
+            unavailable_fields=(),
+            description="signed mirror contract fixture",
+        )
+
+    def residual(values: tuple[float, ...]) -> tuple[float, ...]:
+        policy = FullLearnedTemporalPolicy(
+            bootstrap_snapshot=checkpoint
+        )
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=Track.WORLD,
+            strength=1.0,
+            effective_dims=(0, 1, 2),
+            contrast_pairs=((0, 1),),
+            exclusive_steering=True,
+            input_mirror_permutation=permutation,
+            input_mirror_signs=signs,
+        )
+        policy.step(
+            substrate_snapshot=substrate(values),
+            previous_snapshot=None,
+        )
+        return policy.export_runtime_state().causal_action_head_residual
+
+    direct_input = (0.8, 0.2, -0.4, 0.3)
+    mirrored_input = mirror_causal_action_head_input(
+        direct_input,
+        permutation=permutation,
+        signs=signs,
+    )
+    direct = residual(direct_input)
+    mirrored = residual(mirrored_input)
+
+    assert abs(direct[0]) > 1e-8
+    assert direct[0] == pytest.approx(direct[1] * -1.0)
+    assert mirrored[0] == pytest.approx(direct[1])
+    assert mirrored[1] == pytest.approx(direct[0])
+    assert mirrored[2] == pytest.approx(direct[2])
+    assert direct[3] == pytest.approx(0.0)

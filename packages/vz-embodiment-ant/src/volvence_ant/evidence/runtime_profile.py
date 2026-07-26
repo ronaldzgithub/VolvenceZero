@@ -7,6 +7,8 @@ import os
 from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.runtime import WiringLevel
 
+from volvence_ant.substrate import AntSenseSchema, sense_mirror_transform
+
 
 ANT_RUNTIME_MODULATION_STRENGTH = 0.3
 ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
@@ -33,17 +35,38 @@ ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS = ((0, 1),)
 # head is the only learned steering writer; the base keeps the speed/common
 # mode and exploration noise still proposes turns.
 ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING = True
+# Frozen embodiment reflection: left/right receptors swap, oriented
+# pseudoscalars (gradient, egocentric sine, prior turn) change sign. The
+# temporal owner consumes this transform without learning or reconstructing
+# ant sensor semantics.
+(
+    ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_PERMUTATION,
+    ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_SIGNS,
+) = sense_mirror_transform(AntSenseSchema.ECOLOGY_V2)
 
 
 def ant_runtime_replay_rollout_config(
     *,
     enable_sparse_exploration: bool,
     enable_segment_credit: bool = True,
+    enable_prediction_error_switch: bool = True,
+    sense_schema: AntSenseSchema | None = None,
 ) -> FinalRolloutConfig:
-    """Open real replay; enable posterior exploration only for sparse tasks."""
+    """Open real replay; enable posterior exploration only for sparse tasks.
+
+    ``enable_prediction_error_switch=False`` is the PE-off matched-control
+    lever: the temporal switch stops consuming external prediction-error
+    pressure while every other owner, budget and layout stays matched. True is
+    the exact rollback path and the only setting a formal learned arm may use.
+    """
 
     requested_device = os.environ.get("VZ_TENSOR_DEVICE", "cpu").strip().lower()
     use_accelerated_runtime = requested_device.startswith(("cuda", "mps"))
+    input_mirror = (
+        sense_mirror_transform(sense_schema)
+        if sense_schema is not None
+        else (None, None)
+    )
     return FinalRolloutConfig(
         # The ecological body has an accelerator-capable ndarray runtime path
         # (CUDA or Apple MPS).  Keep CPU as the reproducible default; the
@@ -80,6 +103,12 @@ def ant_runtime_replay_rollout_config(
         internal_rl_causal_action_head_exclusive_steering=(
             ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING
         ),
+        internal_rl_causal_action_head_input_mirror_permutation=(
+            input_mirror[0]
+        ),
+        internal_rl_causal_action_head_input_mirror_signs=(
+            input_mirror[1]
+        ),
         internal_rl_runtime_modulation_strength=(
             ANT_RUNTIME_MODULATION_STRENGTH
         ),
@@ -88,7 +117,11 @@ def ant_runtime_replay_rollout_config(
             if enable_sparse_exploration
             else 0.0
         ),
-        prediction_error_temporal_switch=WiringLevel.ACTIVE,
+        prediction_error_temporal_switch=(
+            WiringLevel.ACTIVE
+            if enable_prediction_error_switch
+            else WiringLevel.DISABLED
+        ),
         prediction_error_temporal_switch_strength=0.35,
         prediction_error_temporal_switch_floor=0.5,
     )
@@ -98,6 +131,8 @@ __all__ = [
     "ANT_CAUSAL_ACTION_HEAD_STRENGTH",
     "ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS",
     "ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING",
+    "ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_PERMUTATION",
+    "ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_SIGNS",
     "ANT_CAUSAL_ACTION_HEAD_RANK",
     "ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS",
     "ANT_RUNTIME_EXPLORATION_STRENGTH",

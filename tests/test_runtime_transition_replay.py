@@ -5,9 +5,18 @@ import math
 
 import pytest
 
-from volvence_ant.env import AntWorld, AntWorldConfig, MotorDistortionProfile
+from volvence_ant.env import (
+    AntWorld,
+    AntWorldConfig,
+    ButterSource,
+    MotorDistortionProfile,
+)
+from volvence_ant.evidence.runtime_profile import (
+    ant_runtime_replay_rollout_config,
+)
 from volvence_ant.runtime import (
     AntObjectiveKind,
+    AntSenseSchema,
     AntSession,
     AntSessionConfig,
     AntStepRecord,
@@ -894,18 +903,28 @@ def test_joint_checkpoint_round_trips_staged_and_pending_runtime_replay() -> Non
     ].runtime_action_head_state == pytest.approx(
         first_world_state.causal_action_head_state
     )
+    assert checkpoint.pending_task_rollouts[0].transitions[
+        0
+    ].runtime_action_head_mirror_state == pytest.approx(
+        first_world_state.causal_action_head_mirror_state
+    )
     persistence = loop.export_learning_persistence_snapshot(
         include_runtime_replay=True
     )
     decoded = loop._decode_learning_persistence_snapshot(
         persistence
     )
-    assert persistence.schema_version == 4
+    assert persistence.schema_version == 5
     assert decoded.pending_task_rollouts is not None
     assert decoded.pending_task_rollouts[0].transitions[
         0
     ].runtime_action_head_state == pytest.approx(
         first_world_state.causal_action_head_state
+    )
+    assert decoded.pending_task_rollouts[0].transitions[
+        0
+    ].runtime_action_head_mirror_state == pytest.approx(
+        first_world_state.causal_action_head_mirror_state
     )
 
     loop.restore_learning_checkpoint(checkpoint)
@@ -913,6 +932,51 @@ def test_joint_checkpoint_round_trips_staged_and_pending_runtime_replay() -> Non
     restored = loop.latest_runtime_replay_report
     assert restored.transition_count == 2
     assert restored.staged_rollout_count == 2
+
+
+@pytest.mark.asyncio
+async def test_ant_ecology_runtime_capture_publishes_mirror_state() -> None:
+    session = AntSession(
+        AntWorld(
+            config=AntWorldConfig(seed=7),
+            world_objects=(
+                ButterSource(
+                    object_id="mirror-butter",
+                    x=1.0,
+                    y=0.7,
+                ),
+            ),
+        ),
+        config=AntSessionConfig(
+            temporal_latent_dim=16,
+            seed=7,
+            objective=AntObjectiveKind.ECOLOGY,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+            rollout_config=ant_runtime_replay_rollout_config(
+                enable_sparse_exploration=False,
+                sense_schema=AntSenseSchema.ECOLOGY_V2,
+            ),
+        ),
+    )
+
+    await session.step()
+
+    runtime_state = (
+        session.runner.world_temporal_policy.export_runtime_state()
+    )
+    capture = (
+        session.runner.joint_loop._world_sandbox
+        .runtime_replay_checkpoint.pending_capture
+    )
+    assert len(runtime_state.causal_action_head_state) == 16
+    assert len(runtime_state.causal_action_head_mirror_state) == 16
+    assert runtime_state.causal_action_head_mirror_state != pytest.approx(
+        runtime_state.causal_action_head_state
+    )
+    assert capture is not None
+    assert capture.runtime_action_head_mirror_state == pytest.approx(
+        runtime_state.causal_action_head_mirror_state
+    )
 
 
 def test_runtime_replay_aggregates_real_transitions_by_beta_segment() -> None:

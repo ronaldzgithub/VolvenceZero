@@ -20,6 +20,7 @@ from volvence_ant.substrate.sense_encode import (
     AntSenseSchema,
     sense_channels,
     sense_encode,
+    sense_mirror_transform,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "motor_decode",
     "sense_channels",
     "sense_encode",
+    "sense_mirror_transform",
 ]

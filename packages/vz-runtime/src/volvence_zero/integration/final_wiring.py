@@ -307,6 +307,17 @@ class FinalRolloutConfig:
     # exploration noise still proposes contrast so the head can earn credit.
     # False is the exact rollback path.
     internal_rl_causal_action_head_exclusive_steering: bool = False
+    # Optional embodiment-authored reflection over the frozen encoder input.
+    # The signed permutation is consumed only by the temporal owner: it
+    # evaluates the same action head on s and mirror(s), then projects the
+    # opponent-coded output onto the reflection-equivariant subspace.
+    # Both fields must be provided together; None is the exact rollback path.
+    internal_rl_causal_action_head_input_mirror_permutation: (
+        tuple[int, ...] | None
+    ) = None
+    internal_rl_causal_action_head_input_mirror_signs: (
+        tuple[int, ...] | None
+    ) = None
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
@@ -1627,6 +1638,13 @@ def build_final_runtime_modules(
             exclusive_steering=(
                 config.internal_rl_causal_action_head_exclusive_steering
             ),
+            input_mirror_permutation=(
+                config
+                .internal_rl_causal_action_head_input_mirror_permutation
+            ),
+            input_mirror_signs=(
+                config.internal_rl_causal_action_head_input_mirror_signs
+            ),
         )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
@@ -1647,6 +1665,13 @@ def build_final_runtime_modules(
             ),
             exclusive_steering=(
                 config.internal_rl_causal_action_head_exclusive_steering
+            ),
+            input_mirror_permutation=(
+                config
+                .internal_rl_causal_action_head_input_mirror_permutation
+            ),
+            input_mirror_signs=(
+                config.internal_rl_causal_action_head_input_mirror_signs
             ),
         )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded

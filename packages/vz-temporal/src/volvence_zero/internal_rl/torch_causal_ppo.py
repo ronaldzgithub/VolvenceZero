@@ -90,6 +90,7 @@ def torch_causal_ppo_update(
         tuple[tuple[int, int], ...] | None
     ) = None,
     causal_action_head_exclusive_steering: bool = False,
+    causal_action_head_mirror_equivariance: bool = False,
 ) -> TorchPPOReport:
     """One real-autograd PPO update over a live ZTransition batch.
 
@@ -155,6 +156,18 @@ def torch_causal_ppo_update(
         raise ValueError(
             "exclusive steering requires non-empty contrast_pairs"
         )
+    if (
+        causal_action_head_mirror_equivariance
+        and not causal_action_head_exclusive_steering
+    ):
+        raise ValueError(
+            "causal action head mirror equivariance requires exclusive steering"
+        )
+    if causal_action_head_mirror_equivariance and not runtime_replay:
+        raise ValueError(
+            "causal action head mirror equivariance requires runtime-replay "
+            "transitions with owner-published mirror states"
+        )
 
     dtype = torch.float64
     effective_dim_mask = torch.tensor(
@@ -194,8 +207,28 @@ def torch_causal_ppo_update(
                 for t in usable
             ]
         )
+        if causal_action_head_mirror_equivariance:
+            invalid_mirror_states = tuple(
+                len(t.runtime_action_head_mirror_state)
+                for t in usable
+                if len(t.runtime_action_head_mirror_state) != n_z
+            )
+            if invalid_mirror_states:
+                raise ValueError(
+                    "torch causal action head runtime mirror-state dimension "
+                    f"mismatch: expected={n_z}, actual={invalid_mirror_states}"
+                )
+            action_head_mirror_state = torch.stack(
+                [
+                    vec(t.runtime_action_head_mirror_state, n_z)
+                    for t in usable
+                ]
+            )
+        else:
+            action_head_mirror_state = None
     else:
         action_head_state = hidden
+        action_head_mirror_state = None
     runtime_base_mean = (
         torch.stack([vec(t.runtime_base_mean, n_z) for t in usable])
         if runtime_replay
@@ -301,11 +334,9 @@ def torch_causal_ppo_update(
         else None
     )
 
-    def action_head_residual() -> Any:
-        if not causal_action_head_enabled:
-            return 0.0
+    def raw_action_head_residual(state: Any) -> Any:
         if (
-            action_head_state is None
+            state is None
             or head_input is None
             or head_output is None
             or head_bias is None
@@ -315,7 +346,7 @@ def torch_causal_ppo_update(
             )
         basis = torch.tanh(
             torch.matmul(
-                action_head_state,
+                state,
                 head_input.transpose(0, 1),
             )
             / math.sqrt(max(n_z, 1))
@@ -324,6 +355,36 @@ def torch_causal_ppo_update(
             torch.matmul(basis, head_output.transpose(0, 1))
             + head_bias.unsqueeze(0)
         ) * effective_dim_mask.unsqueeze(0)
+        return residual
+
+    def action_head_residual() -> Any:
+        if not causal_action_head_enabled:
+            return 0.0
+        residual = raw_action_head_residual(action_head_state)
+        if causal_action_head_mirror_equivariance:
+            mirrored_residual = raw_action_head_residual(
+                action_head_mirror_state
+            )
+            columns = [
+                0.5 * (
+                    residual[:, index] + mirrored_residual[:, index]
+                )
+                for index in range(n_z)
+            ]
+            for left, right in contrast_pairs:
+                direct_contrast = 0.5 * (
+                    residual[:, left] - residual[:, right]
+                )
+                mirrored_contrast = 0.5 * (
+                    mirrored_residual[:, left]
+                    - mirrored_residual[:, right]
+                )
+                equivariant = 0.5 * (
+                    direct_contrast - mirrored_contrast
+                )
+                columns[left] = equivariant
+                columns[right] = -equivariant
+            return torch.stack(columns, dim=1)
         if not contrast_pairs:
             return residual
         columns = [residual[:, index] for index in range(n_z)]

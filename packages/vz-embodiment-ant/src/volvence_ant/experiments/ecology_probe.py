@@ -182,6 +182,7 @@ async def run_ecology_action_probes(
                     rollout_config=(
                         ant_runtime_replay_rollout_config(
                             enable_sparse_exploration=False,
+                            sense_schema=AntSenseSchema.ECOLOGY_V2,
                         )
                     ),
                     objective=AntObjectiveKind.ECOLOGY,

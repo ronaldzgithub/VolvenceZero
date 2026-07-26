@@ -11,6 +11,8 @@ from volvence_ant.evidence import (
     ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS,
     ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING,
     ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS,
+    ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_PERMUTATION,
+    ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_SIGNS,
     ANT_CAUSAL_ACTION_HEAD_RANK,
     ANT_CAUSAL_ACTION_HEAD_STRENGTH,
     ANT_RUNTIME_BATCH_TRANSITION_SIZE,
@@ -21,6 +23,11 @@ from volvence_ant.evidence import (
 )
 from volvence_ant.env import AntWorld, AntWorldConfig
 from volvence_ant.runtime import AntSession, AntSessionConfig
+from volvence_ant.substrate import (
+    SENSE_CHANNELS_ECOLOGY_V2,
+    AntSenseSchema,
+    sense_mirror_transform,
+)
 
 
 def test_production_rollout_defaults_remain_disabled_and_zero() -> None:
@@ -31,6 +38,11 @@ def test_production_rollout_defaults_remain_disabled_and_zero() -> None:
     assert config.internal_rl_runtime_exploration_strength == 0.0
     assert config.internal_rl_causal_action_head_effective_dims is None
     assert config.internal_rl_causal_action_head_contrast_pairs is None
+    assert (
+        config.internal_rl_causal_action_head_input_mirror_permutation
+        is None
+    )
+    assert config.internal_rl_causal_action_head_input_mirror_signs is None
 
 
 def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> None:
@@ -92,12 +104,26 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
     )
     assert dense_config.internal_rl_runtime_replay is WiringLevel.ACTIVE
     assert dense_config.internal_rl_runtime_exploration_strength == 0.0
+    ecology_config = ant_runtime_replay_rollout_config(
+        enable_sparse_exploration=False,
+        sense_schema=AntSenseSchema.ECOLOGY_V2,
+    )
+    assert (
+        ecology_config
+        .internal_rl_causal_action_head_input_mirror_permutation
+        == ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_PERMUTATION
+    )
+    assert (
+        ecology_config.internal_rl_causal_action_head_input_mirror_signs
+        == ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_SIGNS
+    )
 
     session = AntSession(
         AntWorld(config=AntWorldConfig(seed=3)),
         config=AntSessionConfig(
             temporal_latent_dim=16,
-            rollout_config=dense_config,
+            rollout_config=ecology_config,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
         ),
     )
     assert (
@@ -122,6 +148,11 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         is True
     )
     assert (
+        session.runner.world_temporal_policy
+        .causal_action_head_mirror_equivariance
+        is True
+    )
+    assert (
         session.runner.joint_loop._world_sandbox.causal_policy
         .causal_action_head_effective_dims
         == (0, 1, 2)
@@ -131,6 +162,28 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         .causal_action_head_contrast_pairs
         == ((0, 1),)
     )
+    assert (
+        session.runner.joint_loop._world_sandbox.causal_policy
+        .causal_action_head_mirror_equivariance
+        is True
+    )
+
+
+def test_ecology_sense_mirror_transform_is_complete_and_involutive() -> None:
+    permutation, signs = sense_mirror_transform(
+        AntSenseSchema.ECOLOGY_V2
+    )
+    channels = SENSE_CHANNELS_ECOLOGY_V2
+
+    assert len(permutation) == len(signs) == len(channels) == 19
+    assert channels[permutation[channels.index("food_left")]] == "food_right"
+    assert channels[permutation[channels.index("heat_left")]] == "heat_right"
+    assert signs[channels.index("food_diff")] == -1
+    assert signs[channels.index("home_ego_sin")] == -1
+    assert signs[channels.index("last_turn_command")] == -1
+    for index, source in enumerate(permutation):
+        assert permutation[source] == index
+        assert signs[index] * signs[source] == 1
 
 
 def test_ant_exploration_context_uses_seed_not_session_label() -> None:

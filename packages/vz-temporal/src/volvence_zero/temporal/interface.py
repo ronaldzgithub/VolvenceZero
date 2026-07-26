@@ -15,7 +15,12 @@ from volvence_zero.prediction.error import PredictionErrorSnapshot
 from volvence_zero.reflection import ReflectionSnapshot, TemporalPriorUpdate, TemporalStructureProposal
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.semantic_state import SEMANTIC_OWNER_SLOTS, semantic_control_signal
-from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
+from volvence_zero.substrate import (
+    FeatureSignal,
+    ResidualSequenceStep,
+    SubstrateSnapshot,
+    SurfaceKind,
+)
 from volvence_zero.temporal_types import ControllerState, TemporalAbstractionSnapshot, TemporalSegmentClosure
 from volvence_zero.temporal.metacontroller_components import (
     DEFAULT_FAMILY_MATCH_WEIGHTS,
@@ -50,8 +55,11 @@ from volvence_zero.temporal.metacontroller_components import (
     update_family_outcome_history,
 )
 from volvence_zero.temporal.causal_action_projection import (
+    mirror_causal_action_head_input,
+    normalize_causal_action_head_input_mirror,
     normalize_causal_action_head_contrast_pairs,
     project_base_code_off_contrast,
+    project_causal_action_head_mirror_equivariant,
     project_causal_action_head_vector,
 )
 from volvence_zero.temporal.m3_optimizer import M3OptimizerState
@@ -225,6 +233,7 @@ class MetacontrollerRuntimeState:
     protocol_prior_applied: bool = False
     learned_update_rule_state: LearnedUpdateRuleState | None = None
     causal_action_head_state: tuple[float, ...] = ()
+    causal_action_head_mirror_state: tuple[float, ...] = ()
     causal_action_head_residual: tuple[float, ...] = ()
     causal_action_head_wiring: str = "disabled"
     causal_action_head_update_step: int = 0
@@ -1899,6 +1908,98 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _mirror_action_head_substrate_snapshot(
+    substrate_snapshot: SubstrateSnapshot,
+    *,
+    permutation: tuple[int, ...],
+    signs: tuple[int, ...],
+) -> SubstrateSnapshot:
+    """Reflect encoder inputs using the embodiment-authored signed permutation."""
+
+    def mirror_step(step: ResidualSequenceStep) -> ResidualSequenceStep:
+        if step.residual_activations:
+            lengths = tuple(
+                len(activation.activation)
+                for activation in step.residual_activations
+            )
+            flattened = tuple(
+                value
+                for activation in step.residual_activations
+                for value in activation.activation
+            )
+            mirrored = mirror_causal_action_head_input(
+                flattened,
+                permutation=permutation,
+                signs=signs,
+            )
+            cursor = 0
+            mirrored_activations = []
+            for activation, length in zip(
+                step.residual_activations,
+                lengths,
+                strict=True,
+            ):
+                mirrored_activations.append(
+                    replace(
+                        activation,
+                        activation=mirrored[cursor : cursor + length],
+                    )
+                )
+                cursor += length
+            return replace(
+                step,
+                residual_activations=tuple(mirrored_activations),
+            )
+        if step.feature_surface:
+            lengths = tuple(
+                len(feature.values) for feature in step.feature_surface
+            )
+            flattened = tuple(
+                value
+                for feature in step.feature_surface
+                for value in feature.values
+            )
+            mirrored = mirror_causal_action_head_input(
+                flattened,
+                permutation=permutation,
+                signs=signs,
+            )
+            cursor = 0
+            mirrored_features = []
+            for feature, length in zip(
+                step.feature_surface,
+                lengths,
+                strict=True,
+            ):
+                mirrored_features.append(
+                    replace(
+                        feature,
+                        values=mirrored[cursor : cursor + length],
+                    )
+                )
+                cursor += length
+            return replace(
+                step,
+                feature_surface=tuple(mirrored_features),
+            )
+        raise ValueError(
+            "causal action head input mirror requires residual activations "
+            "or feature-surface values"
+        )
+
+    mirrored_sequence = tuple(
+        mirror_step(step)
+        for step in residual_sequence_from_snapshot(substrate_snapshot)
+    )
+    latest = mirrored_sequence[-1]
+    return replace(
+        substrate_snapshot,
+        feature_surface=latest.feature_surface,
+        residual_activations=latest.residual_activations,
+        residual_sequence=mirrored_sequence,
+    )
+
+
 def _scale_matrix(
     matrix: tuple[tuple[float, ...], ...],
     delta: float,
@@ -2930,7 +3031,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             tuple[int, int], ...
         ] = ()
         self._causal_action_head_exclusive_steering = False
+        self._causal_action_head_input_mirror_permutation: tuple[int, ...] = ()
+        self._causal_action_head_input_mirror_signs: tuple[int, ...] = ()
         self._latest_causal_action_head_state = _nz_zeros(n_z)
+        self._latest_causal_action_head_mirror_state = _nz_zeros(n_z)
         self._latest_causal_action_head_residual = _nz_zeros(n_z)
 
     @property
@@ -3042,6 +3146,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     def causal_action_head_exclusive_steering(self) -> bool:
         return self._causal_action_head_exclusive_steering
 
+    @property
+    def causal_action_head_mirror_equivariance(self) -> bool:
+        return bool(self._causal_action_head_input_mirror_permutation)
+
     def set_causal_action_head(
         self,
         *,
@@ -3052,6 +3160,8 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         effective_dims: tuple[int, ...] | None = None,
         contrast_pairs: tuple[tuple[int, int], ...] | None = None,
         exclusive_steering: bool = False,
+        input_mirror_permutation: tuple[int, ...] | None = None,
+        input_mirror_signs: tuple[int, ...] | None = None,
     ) -> None:
         if not 0.0 <= strength <= 1.0:
             raise ValueError(
@@ -3095,6 +3205,14 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 effective_dims=effective_dims,
             )
         )
+        (
+            self._causal_action_head_input_mirror_permutation,
+            self._causal_action_head_input_mirror_signs,
+        ) = normalize_causal_action_head_input_mirror(
+            input_mirror_permutation,
+            input_mirror_signs,
+            n_input=self._parameter_store.n_input,
+        )
         if exclusive_steering:
             # Exclusive steering transfers ownership of the opponent-coded
             # actuator axes to the head. Without contrast pairs there is no
@@ -3109,8 +3227,22 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                     "exclusive steering requires an ACTIVE causal action "
                     f"head, got wiring_level={wiring_level!r}"
                 )
+        if self._causal_action_head_input_mirror_permutation:
+            if not exclusive_steering:
+                raise ValueError(
+                    "causal action head mirror equivariance requires "
+                    "exclusive_steering=True"
+                )
+            if not self._causal_action_head_contrast_pairs:
+                raise ValueError(
+                    "causal action head mirror equivariance requires "
+                    "non-empty contrast_pairs"
+                )
         self._causal_action_head_exclusive_steering = bool(exclusive_steering)
         self._latest_causal_action_head_state = _nz_zeros(
+            self._parameter_store.n_z
+        )
+        self._latest_causal_action_head_mirror_state = _nz_zeros(
             self._parameter_store.n_z
         )
         self._latest_causal_action_head_residual = _nz_zeros(
@@ -3212,6 +3344,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             self._parameter_store.export_runtime_state(mode=self.mode.value),
             causal_action_head_state=(
                 self._latest_causal_action_head_state
+            ),
+            causal_action_head_mirror_state=(
+                self._latest_causal_action_head_mirror_state
             ),
             causal_action_head_residual=(
                 self._latest_causal_action_head_residual
@@ -3648,6 +3783,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             params=self._parameter_store.ndim_encoder_parameters,
         )
         self._latest_causal_action_head_state = _nz_zeros(n_z)
+        self._latest_causal_action_head_mirror_state = _nz_zeros(n_z)
         if self._causal_action_head_wiring is not WiringLevel.DISABLED:
             # The action head needs a current-observation representation, not
             # the recurrent serving state whose coordinates drift with the
@@ -3664,6 +3800,23 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             self._latest_causal_action_head_state = (
                 action_head_encoded.posterior.hidden_state
             )
+            if self._causal_action_head_input_mirror_permutation:
+                mirrored_snapshot = _mirror_action_head_substrate_snapshot(
+                    substrate_snapshot,
+                    permutation=(
+                        self._causal_action_head_input_mirror_permutation
+                    ),
+                    signs=self._causal_action_head_input_mirror_signs,
+                )
+                mirrored_action_head_encoded = encoder_obj.encode(
+                    substrate_snapshot=mirrored_snapshot,
+                    previous_hidden_state=_nz_zeros(n_z),
+                    cms_context=None,
+                    params=self._parameter_store.ndim_encoder_parameters,
+                )
+                self._latest_causal_action_head_mirror_state = (
+                    mirrored_action_head_encoded.posterior.hidden_state
+                )
         self._latest_encoder_output_for_cms = tuple(
             _clamp(encoded.posterior.posterior_mean[i] * 0.6 + encoded.posterior.z_tilde[i] * 0.4)
             for i in range(n_z)
@@ -3819,6 +3972,25 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                     strength=self._causal_action_head_strength,
                 )
             )
+            if self._causal_action_head_input_mirror_permutation:
+                mirrored_action_head_residual = (
+                    self._parameter_store.causal_action_head_residual(
+                        track=self._causal_action_head_track,
+                        state_features=(
+                            self._latest_causal_action_head_mirror_state
+                        ),
+                        strength=self._causal_action_head_strength,
+                    )
+                )
+                action_head_residual = (
+                    project_causal_action_head_mirror_equivariant(
+                        action_head_residual,
+                        mirrored_action_head_residual,
+                        contrast_pairs=(
+                            self._causal_action_head_contrast_pairs
+                        ),
+                    )
+                )
             if self._causal_action_head_effective_dims is not None:
                 action_head_residual = tuple(
                     value
@@ -4551,6 +4723,22 @@ def build_temporal_runtime_state_aggregate(
         else (
             world_state.causal_action_head_state
             or self_state.causal_action_head_state
+        ),
+        causal_action_head_mirror_state=tuple(
+            (world_value + self_value) / 2.0
+            for world_value, self_value in zip(
+                world_state.causal_action_head_mirror_state,
+                self_state.causal_action_head_mirror_state,
+                strict=True,
+            )
+        )
+        if (
+            world_state.causal_action_head_mirror_state
+            and self_state.causal_action_head_mirror_state
+        )
+        else (
+            world_state.causal_action_head_mirror_state
+            or self_state.causal_action_head_mirror_state
         ),
         causal_action_head_residual=tuple(
             (world_value + self_value) / 2.0

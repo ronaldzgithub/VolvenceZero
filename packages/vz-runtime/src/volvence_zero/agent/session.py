@@ -653,6 +653,14 @@ class AgentSessionRunner(
                     self._config
                     .internal_rl_causal_action_head_exclusive_steering
                 ),
+                input_mirror_permutation=(
+                    self._config
+                    .internal_rl_causal_action_head_input_mirror_permutation
+                ),
+                input_mirror_signs=(
+                    self._config
+                    .internal_rl_causal_action_head_input_mirror_signs
+                ),
             )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy.set_learning_writes_enabled(
@@ -681,6 +689,14 @@ class AgentSessionRunner(
                 exclusive_steering=(
                     self._config
                     .internal_rl_causal_action_head_exclusive_steering
+                ),
+                input_mirror_permutation=(
+                    self._config
+                    .internal_rl_causal_action_head_input_mirror_permutation
+                ),
+                input_mirror_signs=(
+                    self._config
+                    .internal_rl_causal_action_head_input_mirror_signs
                 ),
             )
         self._evaluation_backbone = EvaluationBackbone()

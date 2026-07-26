@@ -136,6 +136,52 @@ def sense_channels(schema: AntSenseSchema) -> tuple[str, ...]:
     raise ValueError(f"unsupported ant sense schema: {schema!r}")
 
 
+def sense_mirror_transform(
+    schema: AntSenseSchema,
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Publish the frozen left/right reflection of one sense schema.
+
+    The permutation maps each mirrored output coordinate to its source input
+    coordinate. ``signs`` marks pseudoscalars whose orientation reverses.
+    Applying the returned transform twice is exactly the identity.
+    """
+
+    channels = sense_channels(schema)
+    reflected: dict[str, tuple[str, int]] = {
+        "food_left": ("food_right", 1),
+        "food_right": ("food_left", 1),
+        "food_diff": ("food_diff", -1),
+        "home_ego_cos": ("home_ego_cos", 1),
+        "home_ego_sin": ("home_ego_sin", -1),
+        "home_distance_norm": ("home_distance_norm", 1),
+        "carrying_food": ("carrying_food", 1),
+        "home_pher_diff": ("home_pher_diff", -1),
+        "trail_pher_diff": ("trail_pher_diff", -1),
+        "last_turn_command": ("last_turn_command", -1),
+        "alarm": ("alarm", 1),
+        "obstacle_left": ("obstacle_right", 1),
+        "obstacle_right": ("obstacle_left", 1),
+        "obstacle_contact": ("obstacle_contact", 1),
+        "heat_left": ("heat_right", 1),
+        "heat_right": ("heat_left", 1),
+        "heat_diff": ("heat_diff", -1),
+        "heat_center": ("heat_center", 1),
+        "heat_harmful": ("heat_harmful", 1),
+    }
+    missing = tuple(channel for channel in channels if channel not in reflected)
+    if missing:
+        raise ValueError(
+            f"ant sense mirror transform is missing channels: {missing!r}"
+        )
+    index_by_name = {name: index for index, name in enumerate(channels)}
+    permutation = tuple(
+        index_by_name[reflected[channel][0]]
+        for channel in channels
+    )
+    signs = tuple(reflected[channel][1] for channel in channels)
+    return permutation, signs
+
+
 def sense_to_drives(observation: WorldObservation, navigator_state: NavigatorState) -> AntDrives:
     """Project the situation onto embodiment-native drives in [0, 1].
 

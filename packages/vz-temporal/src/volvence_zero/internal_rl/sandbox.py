@@ -41,6 +41,7 @@ from volvence_zero.temporal.metacontroller_components import (
     summarize_residual_activations,
 )
 from volvence_zero.temporal.causal_action_projection import (
+    mirror_causal_action_head_output_gradient,
     normalize_causal_action_head_contrast_pairs,
     project_base_code_off_contrast,
     project_causal_action_head_vector,
@@ -98,6 +99,7 @@ class ZTransition:
     runtime_terminal: bool = False
     runtime_milestone: bool = False
     runtime_action_head_state: tuple[float, ...] = ()
+    runtime_action_head_mirror_state: tuple[float, ...] = ()
     runtime_posterior_sample_scale: float = 0.5
 
 
@@ -169,6 +171,7 @@ class RuntimeActionCapture:
     runtime_beta_t: tuple[float, ...]
     runtime_other_track_sum: tuple[float, ...]
     runtime_action_head_state: tuple[float, ...]
+    runtime_action_head_mirror_state: tuple[float, ...]
     runtime_action_head_residual: tuple[float, ...]
     runtime_posterior_sample_scale: float
 
@@ -474,6 +477,7 @@ class CausalZPolicy:
             tuple[tuple[int, int], ...] | None
         ) = None,
         causal_action_head_exclusive_steering: bool = False,
+        causal_action_head_mirror_equivariance: bool = False,
     ) -> None:
         self._parameter_store = parameter_store
         self._rl_backend = rl_backend
@@ -543,6 +547,20 @@ class CausalZPolicy:
         self._causal_action_head_exclusive_steering = bool(
             causal_action_head_exclusive_steering
         )
+        if causal_action_head_mirror_equivariance:
+            if not causal_action_head_exclusive_steering:
+                raise ValueError(
+                    "causal action head mirror equivariance requires "
+                    "exclusive steering"
+                )
+            if causal_action_head_wiring is not WiringLevel.ACTIVE:
+                raise ValueError(
+                    "causal action head mirror equivariance requires an "
+                    "ACTIVE causal action head"
+                )
+        self._causal_action_head_mirror_equivariance = bool(
+            causal_action_head_mirror_equivariance
+        )
         self._exclusive_contrast_dims = frozenset(
             index
             for pair in (
@@ -602,6 +620,10 @@ class CausalZPolicy:
     @property
     def causal_action_head_exclusive_steering(self) -> bool:
         return self._causal_action_head_exclusive_steering
+
+    @property
+    def causal_action_head_mirror_equivariance(self) -> bool:
+        return self._causal_action_head_mirror_equivariance
 
     @property
     def n_z(self) -> int:
@@ -1485,6 +1507,30 @@ class CausalZPolicy:
             selected_advantages.append(
                 max(-1.0, min(1.0, advantage / advantage_scale))
             )
+            if self._causal_action_head_mirror_equivariance:
+                if (
+                    len(transition.runtime_action_head_mirror_state)
+                    != self.n_z
+                ):
+                    raise ValueError(
+                        "causal action head runtime mirror-state dimension "
+                        f"mismatch: expected={self.n_z}, actual="
+                        f"{len(transition.runtime_action_head_mirror_state)}"
+                    )
+                state_feature_batch.append(
+                    transition.runtime_action_head_mirror_state
+                )
+                action_gradients.append(
+                    mirror_causal_action_head_output_gradient(
+                        gradient,
+                        contrast_pairs=(
+                            self._causal_action_head_contrast_pairs
+                        ),
+                    )
+                )
+                selected_advantages.append(
+                    max(-1.0, min(1.0, advantage / advantage_scale))
+                )
         return self._parameter_store.update_causal_action_head(
             track=track,
             state_feature_batch=tuple(state_feature_batch),
@@ -1713,6 +1759,9 @@ class CausalZPolicy:
             causal_action_head_exclusive_steering=(
                 self._causal_action_head_exclusive_steering
             ),
+            causal_action_head_mirror_equivariance=(
+                self._causal_action_head_mirror_equivariance
+            ),
         )
         return {
             "backend": self._rl_backend.value,
@@ -1774,6 +1823,11 @@ class InternalRLSandbox:
             if isinstance(self._policy, FullLearnedTemporalPolicy)
             else False
         )
+        causal_action_head_mirror_equivariance = (
+            self._policy.causal_action_head_mirror_equivariance
+            if isinstance(self._policy, FullLearnedTemporalPolicy)
+            else False
+        )
         self._causal_policy = CausalZPolicy(
             parameter_store=self._policy.parameter_store,
             rl_backend=rl_backend,
@@ -1787,6 +1841,9 @@ class InternalRLSandbox:
             ),
             causal_action_head_exclusive_steering=(
                 causal_action_head_exclusive_steering
+            ),
+            causal_action_head_mirror_equivariance=(
+                causal_action_head_mirror_equivariance
             ),
         )
         self._env = env or InternalRLEnvironment()
@@ -1917,6 +1974,9 @@ class InternalRLSandbox:
         action_head_state = tuple(
             runtime_state.causal_action_head_state
         )
+        action_head_mirror_state = tuple(
+            runtime_state.causal_action_head_mirror_state
+        )
         for name, values in (
             ("posterior_mean", base_mean),
             ("posterior_std", base_std),
@@ -1931,6 +1991,19 @@ class InternalRLSandbox:
                     f"runtime replay {name} dimension mismatch: "
                     f"expected={n}, actual={len(values)}"
                 )
+        if self._causal_policy.causal_action_head_mirror_equivariance:
+            if len(action_head_mirror_state) != n:
+                raise ValueError(
+                    "runtime replay causal_action_head_mirror_state dimension "
+                    f"mismatch: expected={n}, "
+                    f"actual={len(action_head_mirror_state)}"
+                )
+        elif action_head_mirror_state and len(action_head_mirror_state) != n:
+            raise ValueError(
+                "runtime replay causal_action_head_mirror_state dimension "
+                f"mismatch: expected={n}, "
+                f"actual={len(action_head_mirror_state)}"
+            )
         track_parameters = dict(runtime_state.track_parameters)
         required_tracks = {member.value for member in (Track.WORLD, Track.SELF, Track.SHARED)}
         if set(track_parameters) != required_tracks:
@@ -2026,6 +2099,7 @@ class InternalRLSandbox:
             runtime_beta_t=beta_t,
             runtime_other_track_sum=other_track_sum,
             runtime_action_head_state=action_head_state,
+            runtime_action_head_mirror_state=action_head_mirror_state,
             runtime_action_head_residual=action_head_residual,
             runtime_posterior_sample_scale=(
                 self._causal_policy.runtime_posterior_sample_scale
@@ -2205,6 +2279,9 @@ class InternalRLSandbox:
             ),
             runtime_action_head_state=(
                 capture.runtime_action_head_state
+            ),
+            runtime_action_head_mirror_state=(
+                capture.runtime_action_head_mirror_state
             ),
             runtime_posterior_sample_scale=(
                 capture.runtime_posterior_sample_scale
