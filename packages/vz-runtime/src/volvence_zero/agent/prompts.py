@@ -7,6 +7,19 @@ Per-regime steering prose is owned by ``vz-cognition.regime``
 (see ``RegimeIdentity.expression_brief.llm_guidance``); this
 module reads it from the snapshot rather than maintaining a
 parallel ``regime_id -> guidance`` table (R8 SSOT).
+
+Sections are partitioned into two classes, and this module is the
+single definition point for that split
+(``docs/specs/state-kv-identification-evidence.md`` §prompt 段落分层):
+
+- **invariant** (``_INVARIANT_SYSTEM_SECTIONS``): expression rules that
+  read no snapshot state, hence byte-identical across every user and
+  every session.
+- **state-derived** (``state_prompt_sections``): regime guidance, the
+  rendered personal-conditioning statement, prompt residue, speech plan,
+  boundary labels, ordering. ``ResponseContext.prompt_state_delivery ==
+  "suppressed"`` drops this whole class so the prompt channel (carrier C1)
+  can be closed for carrier-identification evidence.
 """
 
 from __future__ import annotations
@@ -16,6 +29,28 @@ from volvence_zero.agent.response import ResponseContext
 from volvence_zero.regime import expression_brief_for_regime
 
 ChatMessage = tuple[str, str]
+
+# Expression rules that consume no snapshot state. Byte-identical for
+# every user and every session; the only sections that survive
+# ``prompt_state_delivery="suppressed"``.
+_INVARIANT_SYSTEM_SECTIONS: tuple[str, ...] = (
+    "You are a thoughtful, emotionally aware conversational partner. "
+    "You have both intellectual capability and emotional intelligence. "
+    "You adapt your tone and approach based on what the conversation needs.",
+    "Reply as the assistant to the latest user message only. "
+    "Do not continue the conversation on behalf of the user. "
+    "Do not write role labels, scripts, templates, example dialogues, or headings like "
+    "'Conversation', 'Situation', or 'Response'. "
+    "Stay grounded in the user's actual message and answer directly.",
+    "Keep the reply compact and natural. "
+    "Use at most one clarifying question when genuinely needed. "
+    "Do not invent unrelated topics, hypothetical scenarios, or extra follow-up prompts.",
+    "Match the user's language. If the latest user message is in Chinese, "
+    "reply in natural Chinese. If it is in English, reply in English. "
+    "Do not switch languages unless the user asks you to.",
+    "Do not expose internal module names, control codes, rule residue, legal or jurisdiction reminders, "
+    "or other system bookkeeping unless the current boundary state below explicitly requires it.",
+)
 
 
 def _resolve_llm_guidance(
@@ -44,47 +79,36 @@ def _resolve_llm_guidance(
     return expression_brief_for_regime("casual_social").llm_guidance
 
 
-def build_system_prompt(
+def state_prompt_sections(
     *,
     assembly: ResponseAssemblySnapshot,
     context: ResponseContext | None = None,
-) -> str:
-    """Assemble system prompt from live cognitive state.
+) -> tuple[str, ...]:
+    """Build the state-derived system-prompt sections.
 
-    Each section comes from the owning module's snapshot data (R8).
+    Every section here reads live snapshot state, so two users (or two
+    sessions of one user) generally produce different bytes. This is the
+    prompt-side carrier (C1) that carrier-identification evidence closes;
+    ``build_system_prompt`` drops the whole tuple under
+    ``prompt_state_delivery="suppressed"``.
     """
-    sections: list[str] = []
 
-    sections.append(
-        "You are a thoughtful, emotionally aware conversational partner. "
-        "You have both intellectual capability and emotional intelligence. "
-        "You adapt your tone and approach based on what the conversation needs."
-    )
-    sections.append(
-        "Reply as the assistant to the latest user message only. "
-        "Do not continue the conversation on behalf of the user. "
-        "Do not write role labels, scripts, templates, example dialogues, or headings like "
-        "'Conversation', 'Situation', or 'Response'. "
-        "Stay grounded in the user's actual message and answer directly."
-    )
-    sections.append(
-        "Keep the reply compact and natural. "
-        "Use at most one clarifying question when genuinely needed. "
-        "Do not invent unrelated topics, hypothetical scenarios, or extra follow-up prompts."
-    )
-    sections.append(
-        "Match the user's language. If the latest user message is in Chinese, "
-        "reply in natural Chinese. If it is in English, reply in English. "
-        "Do not switch languages unless the user asks you to."
-    )
-    sections.append(
-        "Do not expose internal module names, control codes, rule residue, legal or jurisdiction reminders, "
-        "or other system bookkeeping unless the current boundary state below explicitly requires it."
-    )
+    sections: list[str] = []
 
     regime_name = assembly.regime_name
     guidance = _resolve_llm_guidance(assembly=assembly, context=context)
     sections.append(f"Current mode: {regime_name}. {guidance}")
+
+    if context is not None and context.personal_conditioning_statement:
+        # State KV arm B-prime: the personal-conditioning owner's rendered
+        # readout enters as an early, stable system section (prefix-cache
+        # friendly placement). Same information as the latent path.
+        sections.append(
+            "Private background state for calibration only. Do not quote, "
+            "list, or mention these estimates or their values; let them "
+            "quietly inform tone and judgment.\n"
+            + context.personal_conditioning_statement
+        )
 
     if assembly.prompt_residue_summary and assembly.expression_intent != "judgment-process":
         sections.append(assembly.prompt_residue_summary)
@@ -158,7 +182,44 @@ def build_system_prompt(
             "Acknowledge the shift naturally without being mechanical about it."
         )
 
+    return tuple(sections)
+
+
+def build_system_prompt(
+    *,
+    assembly: ResponseAssemblySnapshot,
+    context: ResponseContext | None = None,
+) -> str:
+    """Assemble system prompt from live cognitive state.
+
+    Each state-derived section comes from the owning module's snapshot
+    data (R8). ``prompt_state_delivery="suppressed"`` keeps only the
+    invariant expression rules, closing carrier C1 for
+    carrier-identification evidence; ``"text"`` (the default) is the
+    byte-for-byte unchanged production path.
+    """
+
+    sections: list[str] = list(_INVARIANT_SYSTEM_SECTIONS)
+    if context is None or context.prompt_state_delivery == "text":
+        sections.extend(state_prompt_sections(assembly=assembly, context=context))
     return "\n\n".join(sections)
+
+
+def state_prompt_section_count(
+    *,
+    assembly: ResponseAssemblySnapshot,
+    context: ResponseContext | None = None,
+) -> int:
+    """How many state-derived sections actually entered the prompt.
+
+    Published per turn as the ``prompt_state_sections`` audit tag: it is
+    the observable that distinguishes a closed prompt carrier (0) from a
+    prompt that silently carries relationship or memory state.
+    """
+
+    if context is not None and context.prompt_state_delivery == "suppressed":
+        return 0
+    return len(state_prompt_sections(assembly=assembly, context=context))
 
 
 def build_chat_messages(

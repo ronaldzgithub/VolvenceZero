@@ -37,6 +37,9 @@ import contextvars
 import importlib
 from typing import Any, Callable, Iterator
 
+from volvence_zero.personal_conditioning_contracts import (
+    PersonalConditioningSnapshot,
+)
 from volvence_zero.substrate.peft_adapter_cache import adapter_name_for
 from volvence_zero.substrate.residual_contracts import GenerationResult
 from volvence_zero.substrate.residual_interfaces import (
@@ -239,7 +242,15 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_scale: float = 0.0,
         generation_constraints: Any | None = None,
         capture_residuals: bool = True,
+        personal_conditioning: PersonalConditioningSnapshot | None = None,
     ) -> GenerationResult:
+        if personal_conditioning is not None:
+            raise NotImplementedError(
+                "VLLMOpenWeightResidualRuntime cannot apply personal "
+                "conditioning because vLLM does not expose residual hooks. "
+                "Use the transformers open-weight runtime or disable the "
+                "personal_conditioning owner."
+            )
         del system_context, chat_messages, control_parameters, control_scale
         del generation_constraints, capture_residuals
         return self._generate_with_lora(

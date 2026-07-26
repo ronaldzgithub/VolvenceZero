@@ -59,10 +59,22 @@ class OpenWeightRuntimeCapture:
 
 @dataclass(frozen=True)
 class GenerationResult:
+    """Result of a runtime ``generate()`` call.
+
+    ``personal_conditioning_applied`` is the audit source of truth for
+    whether the runtime actually injected the personal conditioning
+    delta into the residual stream during this generation. Consumers
+    must read this flag instead of inferring injection from having
+    passed a snapshot: a runtime may legitimately receive a snapshot
+    and not inject (e.g. trace-only synthetic runtime, or a
+    zero-confidence snapshot filtered at the substrate boundary).
+    """
+
     text: str
     token_count: int
     capture: OpenWeightRuntimeCapture | None
     description: str
+    personal_conditioning_applied: bool = False
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,11 @@ import torch.nn as nn
 from transformers import GPT2Config, GPT2LMHeadModel
 
 from volvence_zero.runtime import Snapshot, WiringLevel, propagate
+from volvence_zero.personal_conditioning_contracts import (
+    PERSONAL_CONDITIONING_SCHEMA_VERSION,
+    PERSONAL_CONDITIONING_VECTOR_LABELS,
+    PersonalConditioningSnapshot,
+)
 from volvence_zero.substrate import (
     apply_residual_control,
     FeatureSignal,
@@ -429,6 +434,49 @@ def test_transformers_open_weight_runtime_applies_residual_control_via_hooks():
     assert applied.applied_snapshot.residual_sequence
     assert applied.downstream_effect != (0.0, 0.0, 0.0)
     assert applied.applied_snapshot.residual_activations != snapshot.residual_activations
+
+
+def test_transformers_runtime_applies_personal_conditioning_at_earliest_hook():
+    runtime = _build_tiny_transformers_runtime()
+    conditioning = PersonalConditioningSnapshot(
+        schema_version=PERSONAL_CONDITIONING_SCHEMA_VERSION,
+        state_vector=tuple(0.5 for _ in PERSONAL_CONDITIONING_VECTOR_LABELS),
+        vector_labels=PERSONAL_CONDITIONING_VECTOR_LABELS,
+        source_versions=(("user_model", 1),),
+        source_fingerprint="substrate-conditioning-test",
+        confidence=0.8,
+        is_cold_start=False,
+        description="test",
+    )
+
+    delta = runtime._build_personal_conditioning_delta(
+        conditioning=conditioning
+    )
+    assert delta is not None
+    assert float(delta.abs().sum()) > 0.0
+
+    hidden = torch.zeros((1, 2, runtime._hidden_size), dtype=torch.float32)
+    earliest_hook = runtime._make_capture_hook(
+        layer_index=runtime._layer_indices[0],
+        captured_layers={},
+        control_delta=None,
+        capture_residuals=False,
+        personal_delta=delta,
+    )
+    later_hook = runtime._make_capture_hook(
+        layer_index=runtime._layer_indices[-1],
+        captured_layers={},
+        control_delta=None,
+        capture_residuals=False,
+        personal_delta=delta,
+    )
+
+    earliest_output = earliest_hook(None, (), hidden)
+    later_output = later_hook(None, (), hidden)
+
+    assert earliest_output is not None
+    assert not torch.equal(earliest_output, hidden)
+    assert later_output is None
 
 
 def test_transformers_runtime_trains_adapter_delta_checkpoint_and_roundtrips():

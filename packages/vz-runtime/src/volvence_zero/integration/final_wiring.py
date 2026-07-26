@@ -78,6 +78,7 @@ from volvence_zero.evaluation import (
 )
 from volvence_zero.environment import EnvironmentEvent, EnvironmentOutcome
 from volvence_zero.memory import MemoryModule, MemoryStore, Track, build_default_memory_store
+from volvence_zero.personal_conditioning import PersonalConditioningModule
 from volvence_zero.prediction.error import (
     PredictedOutcome,
     PredictionActionContext,
@@ -200,6 +201,31 @@ class FinalRolloutConfig:
     experience_fast_prior: WiringLevel = WiringLevel.ACTIVE
     boundary_policy: WiringLevel = WiringLevel.ACTIVE
     response_assembly: WiringLevel = WiringLevel.ACTIVE
+    # Personal-state residual bootstrap. SHADOW publishes the auditable
+    # conditioning snapshot but leaves generation byte-equivalent. ACTIVE
+    # lets the open-weight substrate inject the bounded vector at its earliest
+    # configured residual hook as a constant bias over the whole generation.
+    # DISABLED is the immediate rollback path.
+    personal_conditioning: WiringLevel = WiringLevel.SHADOW
+    # Delivery mode for an ACTIVE personal_conditioning snapshot (State KV
+    # arm wiring, docs/specs/personal-conditioning.md):
+    #   - "residual": latent path -- the snapshot goes to the runtime as a
+    #     bounded residual bias (arm E; today's behavior).
+    #   - "text": arm B-prime -- the owner-rendered natural-language
+    #     statement is placed in the system prompt and the runtime receives
+    #     no conditioning snapshot. The two paths are mutually exclusive.
+    # Ignored while personal_conditioning is SHADOW/DISABLED.
+    personal_conditioning_mode: str = "residual"
+    # Whether state-derived sections reach the system prompt at all
+    # (docs/specs/state-kv-identification-evidence.md §契约):
+    #   - "text": production default; byte-for-byte the historical prompt.
+    #   - "suppressed": only the invariant expression rules are assembled,
+    #     closing the prompt carrier (C1) so it is identical across users.
+    #     Evidence-only -- it also drops boundary / disclaimer / refer-out
+    #     prompt steering, leaving those to the substrate-side
+    #     GenerationConstraints post-processing. Never set on a deployed or
+    #     default profile; a contract test enforces that.
+    prompt_state_delivery: str = "text"
     dual_track: WiringLevel = WiringLevel.ACTIVE
     # Reliable-apprenticeship alignment owner
     # (docs/specs/apprenticeship-alignment.md). #90: ACTIVE by default so
@@ -448,6 +474,30 @@ class FinalRolloutConfig:
         default_factory=lambda: MappingProxyType({})
     )
 
+    def __post_init__(self) -> None:
+        if self.personal_conditioning_mode not in ("residual", "text"):
+            raise ValueError(
+                "personal_conditioning_mode must be 'residual' or 'text', "
+                f"got {self.personal_conditioning_mode!r}."
+            )
+        if self.prompt_state_delivery not in ("text", "suppressed"):
+            raise ValueError(
+                "prompt_state_delivery must be 'text' or 'suppressed', "
+                f"got {self.prompt_state_delivery!r}."
+            )
+        if (
+            self.personal_conditioning_mode == "text"
+            and self.prompt_state_delivery == "suppressed"
+        ):
+            # Arm B-prime renders the readout into the prompt; suppression
+            # then discards it. Configuring both would silently produce an
+            # unconditioned arm that still reports as text-delivered.
+            raise ValueError(
+                "personal_conditioning_mode='text' requires "
+                "prompt_state_delivery='text'; suppression would discard the "
+                "rendered statement."
+            )
+
     def capability_overrides_for(self, owner_slot: str) -> Mapping[str, WiringLevel]:
         """Return capability-level overrides for ``owner_slot`` or empty map.
 
@@ -470,6 +520,7 @@ class FinalRolloutConfig:
             "experience_fast_prior": self.experience_fast_prior,
             "boundary_policy": self.boundary_policy,
             "response_assembly": self.response_assembly,
+            "personal_conditioning": self.personal_conditioning,
             "dual_track": self.dual_track,
             "apprenticeship_alignment": self.apprenticeship_alignment,
             "apprenticeship_protocol_alignment": self.apprenticeship_protocol_alignment,
@@ -1872,6 +1923,11 @@ def build_final_runtime_modules(
             turn_index=turn_index,
             level_for=config.level_for,
         ),
+        PersonalConditioningModule(
+            wiring_level=config.level_for(
+                "personal_conditioning", WiringLevel.SHADOW
+            ),
+        ),
         TrackTemporalModule(
             track=Track.WORLD,
             policy=resolved_world_temporal_policy,
@@ -2768,6 +2824,7 @@ def build_acceptance_report(
                 "experience_fast_prior",
                 "boundary_policy",
                 "response_assembly",
+                "personal_conditioning",
                 "dual_track",
                 "evaluation",
                 "prediction_error",
@@ -2795,6 +2852,7 @@ def build_acceptance_report(
         ("experience_fast_prior", "experience_fast_prior"),
         ("boundary_policy", "boundary_policy"),
         ("response_assembly", "response_assembly"),
+        ("personal_conditioning", "personal_conditioning"),
         ("dual_track", "dual_track"),
         ("evaluation", "evaluation"),
         ("prediction_error", "prediction_error"),

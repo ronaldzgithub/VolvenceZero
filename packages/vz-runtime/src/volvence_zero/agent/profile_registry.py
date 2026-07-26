@@ -507,6 +507,57 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
         wiring_overrides={"audit_readout": WiringLevel.SHADOW},
         description="OA-4 audit owner SHADOW evidence surface.",
     ),
+    # State KV P0 experiment arms (research/state_kv/01_state_kv_complete_design_plan.md
+    # §11.1, docs/specs/personal-conditioning.md). Flag overrides mirror the
+    # FinalRolloutConfig fields the legacy runner branch sets; 阶段 1 keeps
+    # the legacy branch authoritative.
+    ProfileCapability(
+        name="personal-conditioning-off",
+        applies_to_owner="personal_conditioning",
+        flag_overrides={
+            "personal_conditioning": "WiringLevel.SHADOW",
+            "personal_conditioning_mode": "residual",
+        },
+        description="State KV arm A: no personalization (SHADOW baseline).",
+    ),
+    ProfileCapability(
+        name="personal-conditioning-text",
+        applies_to_owner="personal_conditioning",
+        flag_overrides={
+            "personal_conditioning": "WiringLevel.ACTIVE",
+            "personal_conditioning_mode": "text",
+        },
+        description=(
+            "State KV arm B-prime: owner-rendered state statement in the "
+            "system prompt; no residual injection."
+        ),
+    ),
+    ProfileCapability(
+        name="personal-conditioning-residual",
+        applies_to_owner="personal_conditioning",
+        flag_overrides={
+            "personal_conditioning": "WiringLevel.ACTIVE",
+            "personal_conditioning_mode": "residual",
+        },
+        conflicts_with=("personal-conditioning-text", "personal-conditioning-off"),
+        description=(
+            "State KV arm E: existing single-layer constant residual bias."
+        ),
+    ),
+    # Carrier-identification evidence (docs/specs/state-kv-identification-
+    # evidence.md). Closes the prompt carrier C1 so the system prompt is
+    # byte-identical across users; evidence-only, never on a deployed profile.
+    ProfileCapability(
+        name="prompt-state-suppressed",
+        applies_to_owner="response_assembly",
+        flag_overrides={"prompt_state_delivery": "suppressed"},
+        conflicts_with=("personal-conditioning-text",),
+        description=(
+            "Carrier C1 closed: only invariant expression rules enter the "
+            "system prompt, so state-derived sections cannot carry "
+            "relationship or memory content."
+        ),
+    ),
 )
 
 
@@ -613,6 +664,49 @@ _BUILTIN_PROFILES: tuple[ProfileSpec, ...] = (
         label="audit-persona-geometry",
         capabilities=("audit-readout", "persona-geometry-readout"),
         description="Phase 3 combo: OA-4 audit channel + COG-3 persona drift readout.",
+    ),
+    # State KV P0 arms — explicit-only, never in the default ablation matrix.
+    ProfileSpec(
+        label="state-kv-arm-a",
+        capabilities=("personal-conditioning-off",),
+        description="State KV arm A: frozen substrate, no personalization.",
+    ),
+    ProfileSpec(
+        label="state-kv-arm-bprime",
+        capabilities=("personal-conditioning-text",),
+        description=(
+            "State KV arm B-prime: same typed readout rendered as a "
+            "natural-language system-prompt section (primary text-state "
+            "control arm)."
+        ),
+    ),
+    ProfileSpec(
+        label="state-kv-arm-e",
+        capabilities=("personal-conditioning-residual",),
+        description=(
+            "State KV arm E: current single-layer constant residual bias "
+            "baseline."
+        ),
+    ),
+    # Carrier-identification arms: same as A / E but with the prompt carrier
+    # closed, so their system prompts are byte-identical to each other.
+    ProfileSpec(
+        label="state-kv-arm-a-pure",
+        capabilities=("personal-conditioning-off", "prompt-state-suppressed"),
+        description=(
+            "Carrier-identification control arm: no personalization and no "
+            "state-derived prompt sections. Matching accuracy here must fall "
+            "back to chance."
+        ),
+    ),
+    ProfileSpec(
+        label="state-kv-arm-e-pure",
+        capabilities=("personal-conditioning-residual", "prompt-state-suppressed"),
+        description=(
+            "Carrier-identification candidate arm: relationship state reaches "
+            "the frozen substrate only through the residual channel, with a "
+            "prompt byte-identical to state-kv-arm-a-pure."
+        ),
     ),
 )
 

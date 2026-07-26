@@ -60,6 +60,9 @@ from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.integration import FinalIntegrationResult
 from volvence_zero.joint_loop import ScheduledJointLoopResult
 from volvence_zero.memory import MemorySnapshot
+from volvence_zero.personal_conditioning_contracts import (
+    PersonalConditioningSnapshot,
+)
 from volvence_zero.planning import ImaginationResult, imagine
 from volvence_zero.reflection import ReflectionSnapshot, WritebackResult
 from volvence_zero.regime import RegimeSnapshot
@@ -275,6 +278,39 @@ class SessionObservationMixin:
             if response_assembly_snapshot is not None and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
             else None
         )
+        personal_conditioning_snapshot = integration_result.active_snapshots.get(
+            "personal_conditioning"
+        )
+        active_conditioning = (
+            personal_conditioning_snapshot.value
+            if personal_conditioning_snapshot is not None
+            and isinstance(
+                personal_conditioning_snapshot.value,
+                PersonalConditioningSnapshot,
+            )
+            and not personal_conditioning_snapshot.value.is_cold_start
+            else None
+        )
+        # State KV arm wiring (docs/specs/personal-conditioning.md): the
+        # same ACTIVE snapshot is delivered either as a latent residual
+        # bias ("residual", arm E) or as the owner-rendered statement in
+        # the system prompt ("text", arm B-prime). The two paths are
+        # mutually exclusive so an arm never receives both.
+        personal_conditioning = None
+        personal_conditioning_statement = ""
+        personal_conditioning_statement_ref = ""
+        if active_conditioning is not None:
+            if self._config.personal_conditioning_mode == "text":
+                personal_conditioning_statement = (
+                    active_conditioning.rendered_statement
+                )
+                personal_conditioning_statement_ref = (
+                    f"{active_conditioning.schema_version}:"
+                    f"{active_conditioning.confidence:.2f}:"
+                    f"{active_conditioning.source_fingerprint[:12]}"
+                )
+            else:
+                personal_conditioning = active_conditioning
         domain_knowledge_snapshot = integration_result.active_snapshots.get("domain_knowledge")
         case_memory_snapshot = integration_result.active_snapshots.get("case_memory")
         strategy_playbook_snapshot = integration_result.active_snapshots.get("strategy_playbook")
@@ -341,6 +377,10 @@ class SessionObservationMixin:
                 audience_ids=audience_ids,
                 repair_advisory=repair_advisory,
                 regime_expression_brief=regime_expression_brief,
+                personal_conditioning=personal_conditioning,
+                personal_conditioning_statement=personal_conditioning_statement,
+                personal_conditioning_statement_ref=personal_conditioning_statement_ref,
+                prompt_state_delivery=self._config.prompt_state_delivery,
             ),
             assembly=response_assembly,
         )

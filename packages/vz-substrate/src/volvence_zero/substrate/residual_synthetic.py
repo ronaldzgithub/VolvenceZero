@@ -21,6 +21,9 @@ import random
 from typing import Any, Sequence
 from uuid import uuid4
 
+from volvence_zero.personal_conditioning_contracts import (
+    PersonalConditioningSnapshot,
+)
 from volvence_zero.substrate.adapter import (
     FeatureSignal,
     ResidualActivation,
@@ -123,6 +126,10 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         # S1: injectable real rare-heavy training backend. None -> the
         # built-in heuristic/adapter-delta path stays the documented fallback.
         self._rare_heavy_training_backend: RareHeavyAdapterTrainingBackend | None = None
+        # Observable trace-only intake for personal conditioning: the
+        # synthetic runtime cannot inject, so it records what it received
+        # and always reports personal_conditioning_applied=False.
+        self.personal_conditioning_trace: list[PersonalConditioningSnapshot] = []
 
     def set_rare_heavy_training_backend(
         self, backend: RareHeavyAdapterTrainingBackend | None
@@ -237,6 +244,63 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"Synthetic open-weight runtime delegated residual intervention. "
                 f"{result.description}"
             ),
+        )
+
+    def generate(
+        self,
+        *,
+        prompt: str,
+        system_context: str = "",
+        chat_messages: tuple[tuple[str, str], ...] = (),
+        max_new_tokens: int = 256,
+        temperature: float = 0.7,
+        control_parameters: tuple[float, ...] = (),
+        control_scale: float = 0.0,
+        generation_constraints: "GenerationConstraints | None" = None,
+        capture_residuals: bool = True,
+        personal_conditioning: PersonalConditioningSnapshot | None = None,
+    ) -> GenerationResult:
+        """Placeholder generation with trace-only conditioning intake.
+
+        The synthetic runtime has no real forward pass, so it cannot
+        inject personal conditioning. Instead of failing loudly (the
+        ABC default) it records the received snapshot on
+        :attr:`personal_conditioning_trace` so contract tests can
+        assert delivery without a GPU, and reports
+        ``personal_conditioning_applied=False`` so no consumer can
+        mistake the trace for a real injection. This mirrors the
+        :class:`TraceResidualInterventionBackend` pattern and is the
+        documented, observable fallback for this
+        ``fallback_active=True`` runtime.
+        """
+        del (
+            prompt,
+            system_context,
+            chat_messages,
+            max_new_tokens,
+            temperature,
+            control_parameters,
+            control_scale,
+            generation_constraints,
+            capture_residuals,
+        )
+        conditioning_note = ""
+        if personal_conditioning is not None:
+            self.personal_conditioning_trace.append(personal_conditioning)
+            conditioning_note = (
+                "; personal conditioning received trace-only "
+                f"(fingerprint={personal_conditioning.source_fingerprint[:12]}, "
+                "not injected)"
+            )
+        return GenerationResult(
+            text=f"[generation not supported by {self.model_id}]",
+            token_count=0,
+            capture=None,
+            description=(
+                f"{self.model_id} does not support generation"
+                f"{conditioning_note}"
+            ),
+            personal_conditioning_applied=False,
         )
 
     def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> SubstrateRareHeavyCheckpoint:

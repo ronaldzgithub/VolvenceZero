@@ -4331,6 +4331,77 @@ def test_pe_eta_runner_uses_live_substrate_mutation_by_default():
     assert runner.residual_runtime.supports_live_substrate_mutation is True
 
 
+def test_state_kv_arm_runners_wire_personal_conditioning_delivery():
+    from volvence_zero.runtime import WiringLevel
+
+    case = DEFAULT_DIALOGUE_PROOF_CASES[0]
+    arm_a = build_standard_dialogue_runner(profile_label="state-kv-arm-a", case=case)
+    arm_bprime = build_standard_dialogue_runner(
+        profile_label="state-kv-arm-bprime", case=case
+    )
+    arm_e = build_standard_dialogue_runner(profile_label="state-kv-arm-e", case=case)
+
+    # Arm A: SHADOW baseline -- no injection, no rendered statement.
+    assert arm_a._config.personal_conditioning is WiringLevel.SHADOW
+    assert arm_a._config.personal_conditioning_mode == "residual"
+    # Arm B': ACTIVE snapshot delivered as system-prompt text only.
+    assert arm_bprime._config.personal_conditioning is WiringLevel.ACTIVE
+    assert arm_bprime._config.personal_conditioning_mode == "text"
+    # Arm E: ACTIVE snapshot delivered through the residual channel.
+    assert arm_e._config.personal_conditioning is WiringLevel.ACTIVE
+    assert arm_e._config.personal_conditioning_mode == "residual"
+
+
+def test_carrier_identification_arm_runners_close_the_prompt_carrier():
+    """arm A-pure / E-pure differ only in the residual channel.
+
+    docs/specs/state-kv-identification-evidence.md §四臂矩阵: both arms must
+    suppress state-derived prompt sections so their system prompts are
+    byte-identical, while only E-pure delivers the conditioning snapshot.
+    """
+    from volvence_zero.runtime import WiringLevel
+
+    case = DEFAULT_DIALOGUE_PROOF_CASES[0]
+    arm_a_pure = build_standard_dialogue_runner(
+        profile_label="state-kv-arm-a-pure", case=case
+    )
+    arm_e_pure = build_standard_dialogue_runner(
+        profile_label="state-kv-arm-e-pure", case=case
+    )
+
+    assert arm_a_pure._config.personal_conditioning is WiringLevel.SHADOW
+    assert arm_a_pure._config.prompt_state_delivery == "suppressed"
+    assert arm_e_pure._config.personal_conditioning is WiringLevel.ACTIVE
+    assert arm_e_pure._config.personal_conditioning_mode == "residual"
+    assert arm_e_pure._config.prompt_state_delivery == "suppressed"
+
+    # The three text-delivery arms keep the production prompt path, so their
+    # prompts are not comparable byte-wise and must not be used for the
+    # prompt-identity claim.
+    for label in ("state-kv-arm-a", "state-kv-arm-bprime", "state-kv-arm-e"):
+        runner = build_standard_dialogue_runner(profile_label=label, case=case)
+        assert runner._config.prompt_state_delivery == "text"
+
+
+def test_state_kv_arm_profiles_stay_out_of_default_matrices():
+    for label in (
+        "state-kv-arm-a",
+        "state-kv-arm-bprime",
+        "state-kv-arm-e",
+        "state-kv-arm-a-pure",
+        "state-kv-arm-e-pure",
+    ):
+        assert label not in default_dialogue_ablation_profiles()
+        assert label not in default_dialogue_strong_proof_profiles()
+
+
+def test_final_rollout_config_rejects_unknown_personal_conditioning_mode():
+    from volvence_zero.integration.final_wiring import FinalRolloutConfig
+
+    with pytest.raises(ValueError, match="personal_conditioning_mode"):
+        FinalRolloutConfig(personal_conditioning_mode="prompt")
+
+
 def test_scaffold_ablation_runners_expose_expected_temporal_controls():
     case = DEFAULT_DIALOGUE_PROOF_CASES[0]
     no_label_runner = build_standard_dialogue_runner(

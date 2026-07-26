@@ -17,6 +17,9 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import Any, Iterator, Sequence
 
+from volvence_zero.personal_conditioning_contracts import (
+    PersonalConditioningSnapshot,
+)
 from volvence_zero.substrate.adapter import (
     ResidualActivation,
     ResidualSequenceStep,
@@ -160,6 +163,7 @@ class OpenWeightResidualRuntime(ABC):
         control_scale: float = 0.0,
         generation_constraints: "GenerationConstraints | None" = None,
         capture_residuals: bool = True,
+        personal_conditioning: PersonalConditioningSnapshot | None = None,
     ) -> GenerationResult:
         """Generate text using the underlying model.
 
@@ -171,8 +175,21 @@ class OpenWeightResidualRuntime(ABC):
         ablation track) skip building the runtime residual capture; real
         backends may honour it to avoid the expensive post-generate
         re-forward. The default placeholder ignores it.
+
+        ``personal_conditioning`` is a contract input: a runtime that
+        cannot inject it into the residual stream must fail loudly
+        instead of silently dropping it (the caller would otherwise
+        believe the model was conditioned). Runtimes that can apply or
+        observably trace the conditioning override ``generate``.
         """
         del generation_constraints, capture_residuals
+        if personal_conditioning is not None:
+            raise NotImplementedError(
+                f"{type(self).__name__} cannot apply personal conditioning "
+                "because it does not expose residual hooks. Use a runtime "
+                "that overrides generate() with a residual-hook path, or "
+                "disable the personal_conditioning owner."
+            )
         return GenerationResult(
             text=f"[generation not supported by {self.model_id}]",
             token_count=0,
@@ -361,5 +378,4 @@ def _extract_activation_at_layer(
         f"capture_for_contrastive: no activation tuple at layer_index="
         f"{layer_index!r}; the runtime did not capture this layer."
     )
-
 

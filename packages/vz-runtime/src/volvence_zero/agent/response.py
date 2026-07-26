@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode
+from volvence_zero.personal_conditioning_contracts import (
+    PersonalConditioningSnapshot,
+)
 from volvence_zero.regime.contracts import ExpressionBrief
 from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLOCUTOR_ID
 
@@ -98,6 +101,62 @@ class ResponseContext:
     # so the LLM expression path can keep continuity for small
     # base models that need raw chat context.
     prior_turns: tuple[tuple[str, str], ...] = ()
+    # ACTIVE personal-conditioning snapshots are passed to the substrate as a
+    # bounded neural side channel. SHADOW snapshots remain in the runtime
+    # evidence map and are deliberately not applied here.
+    personal_conditioning: PersonalConditioningSnapshot | None = None
+    # State KV arm B-prime: the owner-rendered natural-language form of the
+    # same typed readout, delivered through the system prompt instead of the
+    # residual side channel. session_observation guarantees the two delivery
+    # paths are mutually exclusive (personal_conditioning_mode wiring).
+    # ``personal_conditioning_statement_ref`` carries the audit lineage
+    # (schema:confidence:fingerprint-prefix) of the snapshot the statement
+    # was rendered from, since the snapshot itself is not forwarded.
+    personal_conditioning_statement: str = ""
+    personal_conditioning_statement_ref: str = ""
+    # Whether state-derived sections reach the system prompt at all
+    # (docs/specs/state-kv-identification-evidence.md §契约). "text" is the
+    # production default and byte-for-byte the historical behaviour;
+    # "suppressed" keeps only the invariant expression rules so the prompt
+    # carrier (C1) is closed and identical across users. Evidence-only:
+    # suppression also drops boundary/disclaimer prompt steering, which then
+    # rests on the substrate-side GenerationConstraints post-processing.
+    prompt_state_delivery: str = "text"
+
+    def __post_init__(self) -> None:
+        if self.prompt_state_delivery not in ("text", "suppressed"):
+            raise ValueError(
+                "ResponseContext prompt_state_delivery must be 'text' or "
+                f"'suppressed', got {self.prompt_state_delivery!r}."
+            )
+        if (
+            self.personal_conditioning is not None
+            and self.personal_conditioning_statement
+        ):
+            raise ValueError(
+                "ResponseContext personal conditioning must use exactly one "
+                "delivery path: residual snapshot or rendered statement."
+            )
+        if (
+            self.personal_conditioning_statement
+            and not self.personal_conditioning_statement_ref
+        ):
+            raise ValueError(
+                "ResponseContext rendered personal conditioning requires an "
+                "audit lineage reference."
+            )
+        if (
+            self.personal_conditioning_statement
+            and self.prompt_state_delivery == "suppressed"
+        ):
+            # The statement would be assembled and then dropped: a silent
+            # fallback that makes an arm look prompt-free while its owner
+            # believes the readout was delivered.
+            raise ValueError(
+                "ResponseContext cannot deliver a rendered personal "
+                "conditioning statement while prompt_state_delivery is "
+                "'suppressed'."
+            )
 
 
 @dataclass(frozen=True)
@@ -419,7 +478,15 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot | None = None,
     ) -> AgentResponse:
-        from volvence_zero.agent.prompts import build_chat_messages, build_system_prompt
+        from volvence_zero.agent.carrier_attestation import (
+            decode_fingerprint,
+            prompt_fingerprint,
+        )
+        from volvence_zero.agent.prompts import (
+            build_chat_messages,
+            build_system_prompt,
+            state_prompt_section_count,
+        )
 
         if assembly is None:
             return super().synthesize(context=context, assembly=assembly)
@@ -477,6 +544,7 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             control_parameters=control_params,
             control_scale=control_scale,
             generation_constraints=constraints,
+            personal_conditioning=context.personal_conditioning,
             # The expression layer consumes text + token_count only. Residual
             # captures are owned by substrate/control paths; retaining every
             # hooked hidden state during long benchmark arcs can crash native
@@ -493,11 +561,57 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             f"model={self._runtime.model_id}",
             f"tokens={result.token_count}",
         ]
+        # Carrier attestation, emitted unconditionally: without it on every
+        # turn, "state did not travel through the prompt" is unfalsifiable.
+        # See docs/specs/state-kv-identification-evidence.md §审计标签.
+        rationale_parts.append(
+            f"prompt_fp={prompt_fingerprint(messages=chat_messages)}"
+        )
+        rationale_parts.append(
+            "prompt_state_sections="
+            f"{state_prompt_section_count(assembly=assembly, context=context)}"
+        )
+        rationale_parts.append(
+            "decode_fp="
+            + decode_fingerprint(
+                constraints=constraints,
+                temperature=self._temperature,
+                max_new_tokens=self._max_new_tokens,
+            )
+        )
         if assembly is not None and assembly.abstract_action:
             rationale_parts.append(f"temporal={assembly.abstract_action}")
         elif context.abstract_action:
             rationale_parts.append(f"temporal={context.abstract_action}")
         rationale_parts.append(f"switch_gate={context.temporal_switch_gate:.2f}")
+        if context.personal_conditioning is not None:
+            # Audit truth comes from the runtime result, not from having
+            # passed a snapshot: a runtime may receive conditioning and
+            # not inject it (trace-only synthetic backend, filtered
+            # zero-confidence snapshot). Claiming injection based on the
+            # input would fabricate audit evidence.
+            conditioning_ref = (
+                f"{context.personal_conditioning.schema_version}:"
+                f"{context.personal_conditioning.confidence:.2f}:"
+                f"{context.personal_conditioning.source_fingerprint[:12]}"
+            )
+            if result.personal_conditioning_applied:
+                rationale_parts.append(
+                    f"personal_conditioning={conditioning_ref}"
+                )
+            else:
+                rationale_parts.append(
+                    f"personal_conditioning_not_applied={conditioning_ref}"
+                )
+        elif context.personal_conditioning_statement:
+            # State KV arm B-prime: the same readout entered through the
+            # system prompt instead of the residual channel. Record the
+            # rendered-statement lineage so text-mode turns are as
+            # auditable as latent-mode turns.
+            rationale_parts.append(
+                "personal_conditioning_text="
+                f"{context.personal_conditioning_statement_ref}"
+            )
         if assembly is not None and assembly.knowledge_hit_count:
             rationale_parts.append(f"knowledge_hits={assembly.knowledge_hit_count}")
         if assembly is not None and assembly.case_hit_count:

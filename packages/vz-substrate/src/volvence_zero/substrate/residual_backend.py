@@ -12,6 +12,11 @@ import os
 import re
 from typing import Any, Callable, Iterable, Sequence
 
+from volvence_zero.personal_conditioning_contracts import (
+    PERSONAL_CONDITIONING_VECTOR_LABELS,
+    PersonalConditioningSnapshot,
+)
+
 _LOG = logging.getLogger("volvence_zero.substrate.residual_backend")
 
 from volvence_zero.substrate.adapter import (
@@ -101,6 +106,91 @@ from volvence_zero.substrate.residual_training import (  # noqa: E402,F401
 )
 
 
+PERSONAL_CONDITIONING_SCALE_CAP = 0.12
+
+
+def clamp_personal_conditioning_scale(scale: float) -> float:
+    """Clamp the personal conditioning scale into ``[0, 0.12]``.
+
+    The upper bound is the hard contract cap documented in
+    ``docs/specs/personal-conditioning.md``; no configuration may raise
+    the injection magnitude above it.
+    """
+
+    return max(0.0, min(float(scale), PERSONAL_CONDITIONING_SCALE_CAP))
+
+
+def build_personal_conditioning_basis(
+    *,
+    torch_module: Any,
+    hidden_size: int,
+    vector_dim: int,
+    device: Any | None = None,
+):
+    """Build the fixed sine/cosine projection basis for personal conditioning.
+
+    Pure function of ``(hidden_size, vector_dim)``: one L2-normalised
+    row per conditioning coordinate, deterministic across processes.
+    Extracted from the runtime so the projection can be unit-tested
+    without loading a model.
+    """
+
+    positions = torch_module.arange(hidden_size, dtype=torch_module.float32)
+    rows = []
+    for factor in range(1, vector_dim + 1):
+        row = torch_module.sin(
+            (positions + 1.0) * 0.053 * factor
+        ) + torch_module.cos(
+            (positions + 1.0) * 0.031 * (factor + 2.0)
+        )
+        row = row / row.norm().clamp_min(1e-6)
+        rows.append(row)
+    basis = torch_module.stack(rows, dim=0)
+    return basis.to(device) if device is not None else basis
+
+
+def build_personal_conditioning_delta(
+    *,
+    torch_module: Any,
+    conditioning: PersonalConditioningSnapshot | None,
+    basis: Any,
+    scale: float,
+    device: Any | None = None,
+):
+    """Project a conditioning snapshot onto the hidden-width delta.
+
+    Returns ``None`` (no injection) for absent, cold-start, or
+    zero-confidence snapshots. Otherwise the delta magnitude is
+    ``scale * confidence`` after per-active-dimension normalisation.
+    """
+
+    if (
+        conditioning is None
+        or conditioning.is_cold_start
+        or conditioning.confidence <= 0.0
+    ):
+        return None
+    if len(conditioning.state_vector) != len(
+        PERSONAL_CONDITIONING_VECTOR_LABELS
+    ):
+        raise ValueError(
+            "personal conditioning vector width does not match the "
+            "substrate projection contract."
+        )
+    state = torch_module.tensor(
+        conditioning.state_vector,
+        dtype=torch_module.float32,
+        device=device,
+    )
+    active_dims = max(
+        int((state.abs() > 1e-8).sum().item()),
+        1,
+    )
+    delta = state @ basis
+    delta = delta / math.sqrt(active_dims)
+    return delta * scale * float(conditioning.confidence)
+
+
 class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     """Frozen HF runtime with real middle-layer capture and intervention hooks."""
 
@@ -119,6 +209,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         layer_indices: tuple[int, ...] | None = None,
         hook_layer_selection: str = "middle",
         control_scale: float = 0.12,
+        personal_conditioning_scale: float = 0.08,
         local_files_only: bool = False,
         runtime_origin: str = "hf-pretrained",
         allow_live_substrate_mutation: bool = False,
@@ -137,6 +228,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._top_k_logits = max(1, top_k_logits)
         self._activation_width = max(1, activation_width)
         self._control_scale = max(0.0, control_scale)
+        self._personal_conditioning_scale = clamp_personal_conditioning_scale(
+            personal_conditioning_scale
+        )
         self._runtime_origin = runtime_origin
         self.runtime_origin = runtime_origin
         self._tokenizer = tokenizer or self._load_tokenizer(
@@ -157,6 +251,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._hidden_size = self._resolve_hidden_size()
         self._model_family = self._resolve_model_family()
         self._control_basis = self._build_control_basis(hidden_size=self._hidden_size)
+        self._personal_conditioning_basis = (
+            self._build_personal_conditioning_basis(
+                hidden_size=self._hidden_size,
+                vector_dim=len(PERSONAL_CONDITIONING_VECTOR_LABELS),
+            )
+        )
         self._semantic_projection_dim = 24
         self._semantic_basis = self._build_semantic_basis(
             hidden_size=self._hidden_size,
@@ -774,6 +874,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_scale: float = 0.0,
         generation_constraints: "GenerationConstraints | None" = None,
         capture_residuals: bool = True,
+        personal_conditioning: PersonalConditioningSnapshot | None = None,
     ) -> GenerationResult:
         effective_max_new_tokens = max_new_tokens
         effective_temperature = temperature
@@ -812,6 +913,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 applied_control=control_parameters,
                 track_scale=(control_scale, control_scale, control_scale),
             )
+        personal_delta = self._build_personal_conditioning_delta(
+            conditioning=personal_conditioning
+        )
         captured_layers: dict[int, object] = {}
         # ``capture_residuals=False`` (raw pass-through path) skips both the
         # forward hooks and the post-generate full-prompt re-forward that
@@ -822,7 +926,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         # long multi-turn contexts. The raw ablation track never reads the
         # capture, so skipping it is both correct and the memory fix.
         has_runtime_deltas = bool(getattr(self, "_online_fast_adapter_deltas", {}))
-        hook_required = capture_residuals or control_delta is not None or has_runtime_deltas
+        hook_required = (
+            capture_residuals
+            or control_delta is not None
+            or personal_delta is not None
+            or has_runtime_deltas
+        )
         hooks = (
             [
                 self._block_modules[layer_index].register_forward_hook(
@@ -831,6 +940,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                         captured_layers=captured_layers,
                         control_delta=control_delta,
                         capture_residuals=capture_residuals,
+                        personal_delta=personal_delta,
                     )
                 )
                 for layer_index in self._layer_indices
@@ -886,7 +996,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     input_ids=input_ids,
                     logits=logits,
                     captured_layers=captured_layers,
-                    control_applied=control_delta is not None,
+                    control_applied=(
+                        control_delta is not None or personal_delta is not None
+                    ),
                 )
             except (RuntimeError, ValueError, AttributeError, IndexError) as exc:
                 _LOG.warning(
@@ -901,6 +1013,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             if cuda is not None and cuda.is_available():
                 cuda.empty_cache()
 
+        # The delta is applied by forward hooks, so injection only actually
+        # happened when both the delta was built (non-cold-start, positive
+        # confidence) and the hooks were registered.
+        personal_conditioning_applied = personal_delta is not None and bool(hooks)
         result = GenerationResult(
             text=generated_text,
             token_count=token_count,
@@ -909,8 +1025,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"Generated {token_count} tokens from {self.model_id} "
                 f"device={self._device} temp={effective_temperature} "
                 f"profile={generation_constraints.decoding_profile if generation_constraints is not None else 'balanced'} "
-                f"control={'on' if control_delta is not None else 'off'}"
+                f"control={'on' if control_delta is not None else 'off'} "
+                "personal_conditioning="
+                f"{'on' if personal_conditioning_applied else 'off'}"
             ),
+            personal_conditioning_applied=personal_conditioning_applied,
         )
         if str(self._device).startswith("mps"):
             # MPS uses unified memory and retains released generation buffers
@@ -1326,6 +1445,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             rows.append(row)
         return self._torch.stack(rows, dim=0).to(self._device)
 
+    def _build_personal_conditioning_basis(
+        self, *, hidden_size: int, vector_dim: int
+    ):
+        return build_personal_conditioning_basis(
+            torch_module=self._torch,
+            hidden_size=hidden_size,
+            vector_dim=vector_dim,
+            device=self._device,
+        )
+
     def _build_semantic_basis(self, *, hidden_size: int, projection_dim: int):
         positions = self._torch.arange(hidden_size, dtype=self._torch.float32)
         rows = []
@@ -1709,6 +1838,19 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         delta = control_vector @ self._control_basis
         return delta * self._rare_heavy_control_scale
 
+    def _build_personal_conditioning_delta(
+        self,
+        *,
+        conditioning: PersonalConditioningSnapshot | None,
+    ):
+        return build_personal_conditioning_delta(
+            torch_module=self._torch,
+            conditioning=conditioning,
+            basis=self._personal_conditioning_basis,
+            scale=self._personal_conditioning_scale,
+            device=self._device,
+        )
+
     def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> SubstrateRareHeavyCheckpoint:
         adapter_layers = self._export_adapter_layers()
         training_mode = "adapter-delta-v2" if adapter_layers else "bounded-state-v1"
@@ -2016,13 +2158,22 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         captured_layers: dict[int, object],
         control_delta,
         capture_residuals: bool = True,
+        personal_delta=None,
     ):
         def hook(module, args, output):
             del module
             del args
             hidden = self._extract_hidden_tensor(output=output)
             adapter_delta = self._adapter_delta_for_layer(layer_index=layer_index)
-            if adapter_delta is None and control_delta is None:
+            applies_personal_delta = (
+                personal_delta is not None
+                and layer_index == self._layer_indices[0]
+            )
+            if (
+                adapter_delta is None
+                and control_delta is None
+                and not applies_personal_delta
+            ):
                 if capture_residuals:
                     captured_layers[layer_index] = hidden.detach().cpu()
                 return None
@@ -2031,6 +2182,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 adjusted = adjusted + adapter_delta.view(1, 1, -1).to(dtype=hidden.dtype)
             if control_delta is not None:
                 adjusted = adjusted + control_delta.view(1, 1, -1).to(dtype=hidden.dtype)
+            if applies_personal_delta:
+                adjusted = adjusted + personal_delta.view(1, 1, -1).to(
+                    dtype=hidden.dtype
+                )
             if capture_residuals:
                 captured_layers[layer_index] = adjusted.detach().cpu()
             if isinstance(output, tuple):
@@ -2612,5 +2767,3 @@ def probe_local_model_compatibility(
         error_message=error_message,
         description=description,
     )
-
-

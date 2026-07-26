@@ -63,6 +63,9 @@ from volvence_zero.memory import (
     MemoryWriteRequest,
     Track,
 )
+from volvence_zero.personal_conditioning_contracts import (
+    PersonalConditioningSnapshot,
+)
 from volvence_zero.prediction import PredictionErrorModule
 from volvence_zero.reflection import WritebackMode
 from volvence_zero.runtime import Snapshot, WiringLevel
@@ -304,6 +307,12 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert "experience_fast_prior" in result.active_snapshots
     assert "audit" not in result.active_snapshots
     assert "audit" in result.shadow_snapshots
+    assert "personal_conditioning" not in result.active_snapshots
+    assert "personal_conditioning" in result.shadow_snapshots
+    assert isinstance(
+        result.shadow_snapshots["personal_conditioning"].value,
+        PersonalConditioningSnapshot,
+    )
     audit_snapshot = result.shadow_snapshots["audit"]
     assert isinstance(audit_snapshot.value, AuditSnapshot)
     assert audit_snapshot.value.threshold_decision == "pass"
@@ -344,6 +353,35 @@ def test_final_wiring_turn_builds_expected_active_and_shadow_chain():
     assert any(
         "cognitive_loop_readiness" in recommendation
         for recommendation in result.acceptance_report.recommendations
+    )
+
+
+def test_personal_conditioning_requires_explicit_active_wiring() -> None:
+    result = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(
+                personal_conditioning=WiringLevel.ACTIVE,
+            ),
+            substrate_adapter=FeatureSurfaceSubstrateAdapter(
+                model_id="personal-conditioning-active-model",
+                feature_surface=(
+                    FeatureSignal(
+                        name="personal_conditioning_context",
+                        values=(0.5,),
+                        source="adapter",
+                    ),
+                ),
+            ),
+            session_id="personal-conditioning-session",
+            wave_id="personal-conditioning-wave",
+        )
+    )
+
+    assert "personal_conditioning" in result.active_snapshots
+    assert "personal_conditioning" not in result.shadow_snapshots
+    assert isinstance(
+        result.active_snapshots["personal_conditioning"].value,
+        PersonalConditioningSnapshot,
     )
 
 

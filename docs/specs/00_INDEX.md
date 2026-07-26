@@ -82,6 +82,39 @@
 
 ---
 
+### 4A. 推理前个人状态条件化
+
+**对应需求**：R2（稳定基底 + 自适应控制器）、R4（token 空间之上的内部控制）、R8（快照优先）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [personal-conditioning.md](./personal-conditioning.md) | 把用户、关系、目标与边界 owner 的已审计状态编译为有界神经侧条件，在模型生成前进入残差流；定义当前 SHADOW 包、后续前置水合与可训练投影路线 |
+
+**核心不变量**：
+- 用户无需自行做 context engineering；系统只从正式 owner 快照自动加载个人状态
+- 精确事实仍走可审计上下文，压缩状态才走神经侧条件，二者不得互相替代
+- 冻结基底不在线更新；个人条件只能通过有界、可关闭、可追溯的控制入口生效
+- 当前实现只承诺最终生成前的最早 hook 注入，不冒充整条认知链已经完成前置条件化
+
+---
+
+### 4B. 状态载体识别证据
+
+**对应需求**：R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
+
+| Spec | 内容 |
+|------|------|
+| [state-kv-identification-evidence.md](./state-kv-identification-evidence.md) | 同句双人识别实验：prompt 逐字节相同 + 零上下文下，关系状态能否只经模型层载体被认回；载体清单 C1–C6、四臂矩阵、四条判据、`prompt_state_delivery` 开关与三个 attestation tag 契约 |
+
+**核心不变量**：
+- 默认路径的记忆是 prompt 载运的（`prompt_residue_summary` 含检索原文）；prompt-free 主张只能落在显式 pure 臂上
+- 载体清单每条通道必须声明开/关；未声明即未受控，采样层通道（解码配置）不得冒充模型层
+- `prompt_state_delivery="suppressed"` 是证据专用模式，禁止进入默认 profile 或部署路径
+- 文本臂与残差臂必须消费同一份 `PersonalConditioningSnapshot`，禁止为文本臂另做摘要
+- 16 维带宽只支持关系姿态级主张；情节事实记忆的模型层主张需 adapter/权重载体，gate 在 GPU bake
+
+---
+
 ### 5. 双轨学习
 
 **对应需求**：R7（自我/关系学习与任务学习分离）

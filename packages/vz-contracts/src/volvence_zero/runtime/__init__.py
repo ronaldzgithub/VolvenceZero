@@ -20,6 +20,7 @@ from volvence_zero.runtime.kernel import (
     detect_dependency_cycle,
     make_placeholder_snapshot,
     propagate,
+    stable_value_hash,
     topo_sort_modules,
     validate_snapshot_contract,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "detect_dependency_cycle",
     "make_placeholder_snapshot",
     "propagate",
+    "stable_value_hash",
     "topo_sort_modules",
     "validate_snapshot_contract",
 ]

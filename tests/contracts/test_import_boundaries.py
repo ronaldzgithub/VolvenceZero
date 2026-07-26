@@ -63,7 +63,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-contracts": frozenset(),  # internal foundation: zero volvence_zero upstream (sits on companion-standard only)
     "vz-substrate": frozenset(
         {
-            "runtime", "learned_update",
+            "runtime", "learned_update", "personal_conditioning_contracts",
             # #91: SubstrateTextEncoderBackend implements the
             # vz-contracts SemanticEmbeddingBackend seam (reuses the loaded
             # LM as a real text encoder). The protocol + stub fallback live
@@ -89,6 +89,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-cognition": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
+            "personal_conditioning_contracts",
             "application_readouts", "social_cognition", "environment",
             # rupture_state owner (Rupture and Repair, M1) consumes
             # DialogueExternalOutcomeSnapshot published by vz-runtime's
@@ -197,6 +198,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-runtime": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory", "dialogue_trace",
+            "personal_conditioning_contracts",
             # Out-of-turn owner archive envelope uses the strict canonical
             # JSON codec from vz-contracts.
             "canonical_json",
@@ -208,6 +210,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # everything in vz-cognition:
             "audit", "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
+            "personal_conditioning",
             # apprenticeship_alignment owner (reliable-apprenticeship
             # alignment; docs/specs/apprenticeship-alignment.md) lives in
             # vz-cognition; vz-runtime registers it into the kernel graph.

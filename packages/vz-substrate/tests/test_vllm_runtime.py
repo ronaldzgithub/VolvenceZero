@@ -11,6 +11,11 @@ from dataclasses import dataclass
 
 import pytest
 
+from volvence_zero.personal_conditioning_contracts import (
+    PERSONAL_CONDITIONING_SCHEMA_VERSION,
+    PERSONAL_CONDITIONING_VECTOR_LABELS,
+    PersonalConditioningSnapshot,
+)
 from volvence_zero.substrate import (
     VLLMLoRARouter,
     VLLMOpenWeightResidualRuntime,
@@ -132,6 +137,23 @@ def test_capture_and_apply_control_fail_loud() -> None:
         runtime.capture(source_text="x")
     with pytest.raises(NotImplementedError, match="residual"):
         runtime.apply_control()
+
+
+def test_personal_conditioning_without_residual_hooks_fails_loud() -> None:
+    runtime = _runtime()
+    conditioning = PersonalConditioningSnapshot(
+        schema_version=PERSONAL_CONDITIONING_SCHEMA_VERSION,
+        state_vector=tuple(0.5 for _ in PERSONAL_CONDITIONING_VECTOR_LABELS),
+        vector_labels=PERSONAL_CONDITIONING_VECTOR_LABELS,
+        source_versions=(("user_model", 1),),
+        source_fingerprint="vllm-conditioning-test",
+        confidence=0.8,
+        is_cold_start=False,
+        description="test",
+    )
+
+    with pytest.raises(NotImplementedError, match="residual hooks"):
+        runtime.generate(prompt="hello", personal_conditioning=conditioning)
 
 
 def test_activation_is_task_local_for_concurrency() -> None:
