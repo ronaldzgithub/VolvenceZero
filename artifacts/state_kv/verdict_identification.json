@@ -1,0 +1,277 @@
+{
+  "schema_version": "state-kv-identification.v1",
+  "verdict_state": "insufficient_data",
+  "substrate_kind": "trace-only",
+  "substrate_fingerprint": "7f9198ea387c0d20",
+  "claims": [
+    {
+      "claim": "claim_prompt_identity",
+      "state": "pass",
+      "detail": "12 turns across 3 probes share one prompt_fp per probe with prompt_state_sections=0"
+    },
+    {
+      "claim": "claim_output_divergence",
+      "state": "insufficient_data",
+      "detail": "substrate=trace-only did not inject the residual on 6 delivered turn(s) (persona-a/p0, persona-a/p1, persona-a/p2, persona-b/p0); injection cannot be inferred from having passed a snapshot"
+    },
+    {
+      "claim": "claim_identification_above_chance",
+      "state": "insufficient_data",
+      "detail": "no blind-judge votes for state-kv-arm-e-pure; a cross-family judge is required (spec §关键不变量 5) and arrives with P1-directional"
+    },
+    {
+      "claim": "claim_carrier_causality",
+      "state": "insufficient_data",
+      "detail": "no blind-judge votes for: state-kv-arm-a-pure, state-kv-arm-bprime"
+    }
+  ],
+  "c5_grade": "decode-divergent",
+  "c5_detail": "decode_fp differs across users on probes: p0, p1, p2",
+  "matching": [],
+  "prompt_fp_table": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "ac3eb49410dbd35d",
+      "prompt_state_sections": 4,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "1922453580d088dd",
+      "prompt_state_sections": 4,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "91403e2feab4613d",
+      "prompt_state_sections": 4,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "3755384cc594aaec",
+      "prompt_state_sections": 4,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "f8bc42ccf958cab7",
+      "prompt_state_sections": 4,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "00fd168f45128a55",
+      "prompt_state_sections": 4,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "362554d46ba3ea37",
+      "prompt_state_sections": 3,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "0f480c72c24b240a",
+      "prompt_state_sections": 3,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "9962cf8ee8e8563c",
+      "prompt_state_sections": 3,
+      "decode_fp": "346c7f6d245aa5b1",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "4423bc0ff9a49135",
+      "prompt_state_sections": 3,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "1539a84e95a592c4",
+      "prompt_state_sections": 3,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "96f5d625e6f4c299",
+      "prompt_state_sections": 3,
+      "decode_fp": "962cc118f31abba5",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    }
+  ],
+  "judge_model_id": "",
+  "notes": [
+    "claims not established: claim_output_divergence, claim_identification_above_chance, claim_carrier_causality"
+  ]
+}

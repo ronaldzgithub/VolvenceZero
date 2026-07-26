@@ -1,6 +1,6 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0 契约与 prompt 载体开关落地中；identification runner 属包 2，真实 substrate 运行 pending
+> Status: P0-contract 与 P0-smoke 已落地（runner + `verdict_identification.json` 可复跑）；真实 substrate 与盲裁判（P1-directional）pending
 > Last updated: 2026-07-26
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
@@ -153,12 +153,44 @@ C5 是最容易被攻破的一条：解码配置由 assembly 派生，因此**�
 
 ## 执行阶段
 
-| Phase | 内容 | 真钱 |
-|---|---|---|
-| P0-contract | prompt 载体开关 + 三个 attestation tag + 两个 pure 臂 + 契约测试（**本包**） | 0 |
-| P0-smoke | deterministic-fake substrate 跑通四臂，验证 `prompt_fp` 相等与 tag 完整（包 2） | 0 |
-| P1-directional | 真冻结 Qwen + 跨家族盲裁判，2 personas × K 探针句 × 多 seed | 中（裁判） |
-| P2-retain | held-out personas + 多 seed，出 `verdict_identification.json` | 批准预算 |
+| Phase | 内容 | 真钱 | 状态 |
+|---|---|---|---|
+| P0-contract | prompt 载体开关 + 三个 attestation tag + 两个 pure 臂 + 契约测试 | 0 | ✅ 已落地 |
+| P0-smoke | deterministic-fake substrate 跑通四臂，验证 `prompt_fp` 相等与 tag 完整 | 0 | ✅ 已落地，见下 |
+| P1-directional | 真冻结 Qwen + 跨家族盲裁判，2 personas × K 探针句 × 多 seed | 中（裁判） | pending |
+| P2-retain | held-out personas + 多 seed，出 held-out `verdict_identification.json` | 批准预算 | pending |
+
+### P0-smoke 实测结果（2026-07-26）
+
+`scripts/run_state_kv_identification.py` 跑四臂 × 2 personas × 3 探针句，
+产出 [`artifacts/state_kv/verdict_identification.json`](../../artifacts/state_kv/verdict_identification.json)。
+runner 与判据实现见 `packages/vz-runtime/src/volvence_zero/state_kv_identification.py`。
+
+| 项 | 结果 |
+|---|---|
+| `verdict_state` | `insufficient_data`（fake substrate 的诚实上限） |
+| 判据 1 `claim_prompt_identity` | **pass** —— 两条 pure 臂 12 个 turn，逐探针共享同一 `prompt_fp`，`prompt_state_sections=0` |
+| 判据 2 `claim_output_divergence` | `insufficient_data` —— trace-only runtime 上报 `applied=False`，按 §判据 2 不得当作注入成功 |
+| 判据 3 / 4 | `insufficient_data` —— 无盲裁判；runner 不会为缺失的裁判编造 matching 数值 |
+| C5 分档 | `decode-divergent` |
+
+两条对后续阶段有约束力的结论：
+
+1. **判据 1 是真的成立的**，不是断言：两个 persona 的 assembly 携带完全不同的
+   regime 名、记忆残留原文与 disclaimer，`suppressed` 下这些状态派生段全部不进
+   prompt，因此 `prompt_fp` 逐字节相同。这条是 P1-directional 的前置，现在已闭合。
+2. **C5 在真实 assembly 下默认是开的**：`GenerationConstraints` 的
+   `ordering_bias` / `required_disclaimer_phrases` / `decoding_profile` 由 per-user
+   assembly 派生，且被 substrate 侧后处理真实消费。因此即便 P1-directional 的盲裁判
+   全部命中，最高只能记 `retain-prompt-closed`，**拿不到 `retain-strict`**——除非
+   实验设计额外把两个 persona 的解码配置对齐。这是花裁判预算之前必须先决定的事。
+   （`prompt_residue_summary` 也在 constraints 里逐字携带记忆原文，但当前无任何
+   substrate 消费该字段，故它今天不是载体；一旦有 consumer 就会在 `suppressed`
+   下静默打开一条记忆通道。）
+
+runner 的反超发齿：`SubstrateEvidenceKind.TRACE_ONLY` 下即使四条判据全过，
+verdict 也被强制封顶在 `insufficient_data`，并写明「retained verdict 需要
+residual hook 真实触发的冻结权重」。因此本次零成本 smoke 不可能被引用为识别结论。
 
 ## 接口契约
 
