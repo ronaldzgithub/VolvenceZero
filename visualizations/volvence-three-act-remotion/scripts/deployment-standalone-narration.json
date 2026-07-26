@@ -1,0 +1,72 @@
+{
+  "schema_version": "dialogue-export.v1",
+  "language": "zh-CN",
+  "dialogues": [
+    {
+      "id": "volvence_deployment_standalone_v1",
+      "title": "Volvence 独立部署说明",
+      "audio_file": "volvence-deployment-standalone.wav",
+      "voices": {
+        "assistant": "zh_male_wennuanahu_moon_bigtts"
+      },
+      "utterances": [
+        {
+          "sequence": 1,
+          "speaker": "assistant",
+          "emotion": "清晰、坚定",
+          "speech_rate": 178,
+          "pause_after_ms": 520,
+          "text": "Volvence的部署很简单：Base模型和Adapter模型统一部署，形成一套共享模型服务。每个用户不拥有一套模型，只拥有一份独立的Profile。"
+        },
+        {
+          "sequence": 2,
+          "speaker": "assistant",
+          "emotion": "理性、解释",
+          "speech_rate": 176,
+          "pause_after_ms": 520,
+          "text": "Base模型负责通用能力：语言、知识、推理和工具使用。它回答的是，模型能不能听懂、想明白、把事情做出来。"
+        },
+        {
+          "sequence": 3,
+          "speaker": "assistant",
+          "emotion": "理性、解释",
+          "speech_rate": 174,
+          "pause_after_ms": 560,
+          "text": "Adapter模型是所有用户共享的Volvence能力。它保存通用语义本体、抽象动作族先验、Beta与切换先验、预测误差解释先验、安全边界，以及默认关系动力学。它回答的是，面对不同状态，应该怎样理解、怎样决策、怎样从结果中学习。"
+        },
+        {
+          "sequence": 4,
+          "speaker": "assistant",
+          "emotion": "清晰、强调边界",
+          "speech_rate": 172,
+          "pause_after_ms": 600,
+          "text": "用户档案完全不同。它不是模型权重，也不是每个用户一份微调模型。它只保存这个人的真实状态：用户模型取值、关系轨迹、具体记忆、不同抽象策略对这个用户的有效性记录、策略保持与切换偏好、已经作出的承诺和尚未完成的事项，以及用户授权范围和不可越过的边界。"
+        },
+        {
+          "sequence": 5,
+          "speaker": "assistant",
+          "emotion": "流程化、清晰",
+          "speech_rate": 176,
+          "pause_after_ms": 560,
+          "text": "一次请求到来，系统先根据用户身份，从隔离的Profile存储中读取获授权的状态，再把它动态加载到共享模型服务。Base和Adapter不变，变化的只是这次请求带入的用户状态。"
+        },
+        {
+          "sequence": 6,
+          "speaker": "assistant",
+          "emotion": "坚定、简洁",
+          "speech_rate": 176,
+          "pause_after_ms": 560,
+          "text": "因此规模化也很直接：模型节点可以无状态扩容，很多用户共享同一套Base和Adapter；Profile独立存储、独立加载、互不混淆。请求结束后，新的记忆和结果只回到对应用户的Profile。"
+        },
+        {
+          "sequence": 7,
+          "speaker": "assistant",
+          "emotion": "总结、有力",
+          "speech_rate": 170,
+          "pause_after_ms": 900,
+          "text": "一句话总结：共享的是语言、决策与学习能力；隔离的是每个人的状态、关系与记忆。这就是Volvence的部署方式。"
+        }
+      ]
+    }
+  ]
+}

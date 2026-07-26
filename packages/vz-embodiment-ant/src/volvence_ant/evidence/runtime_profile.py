@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from volvence_zero.integration import FinalRolloutConfig
+from volvence_zero.integration.final_wiring import RuntimeReplayRewardEligibility
 from volvence_zero.runtime import WiringLevel
 
 from volvence_ant.substrate import AntSenseSchema, sense_mirror_transform
@@ -76,6 +77,26 @@ def ant_runtime_replay_rollout_config(
             WiringLevel.ACTIVE if use_accelerated_runtime else WiringLevel.DISABLED
         ),
         internal_rl_runtime_replay=WiringLevel.ACTIVE,
+        # Typed reward eligibility (kernel contract). The digital ant's task
+        # path forbids distance/potential shaping, so a tick with no published
+        # environment measurement must contribute realized reward 0 instead of
+        # the PE owner's internally synthesized action axis (a monotone
+        # function of the food sensors, i.e. exactly the dense shaping the
+        # ablation claims to have removed). Under this declaration the
+        # environment-published payoff is also independent of
+        # ``external_prediction_error_drive``, so the PE-off arm keeps it.
+        internal_rl_runtime_reward_eligibility=(
+            RuntimeReplayRewardEligibility.ENVIRONMENT_MEASURED_ONLY
+        ),
+        # Latent-code bound (kernel contract). The digital ant is the only
+        # domain with an ACTIVE causal action head, and the audit finding that
+        # motivated this contract is its own: on a saturated contrast axis the
+        # replay lane reconstructed a mean below the frozen plant's latent
+        # floor, so ``(action - mean)`` was signed against the action actually
+        # taken and the head gradient pointed the wrong way. Declaring the
+        # owner's [0, 1] bound makes both replay lanes reconstruct only what
+        # the live forward could have emitted.
+        internal_rl_runtime_latent_unit_clamp=True,
         internal_rl_runtime_segment_credit=(
             WiringLevel.ACTIVE
             if enable_segment_credit

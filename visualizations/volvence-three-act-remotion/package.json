@@ -8,7 +8,17 @@
     "typecheck": "tsc --noEmit",
     "voiceover": "python3 scripts/build-voiceover.py",
     "still": "remotion still src/index.ts VolvenceThreeAct out/volvence-four-act-2d-cover.png --frame=8950",
-    "render": "remotion render src/index.ts VolvenceThreeAct out/volvence-four-act-2d.mp4 --codec=h264"
+    "render": "remotion render src/index.ts VolvenceThreeAct out/volvence-four-act-2d.mp4 --codec=h264",
+    "render:product": "remotion render src/index.ts VolvenceProductFourthAct out/volvence-product-fourth-act.mp4 --codec=h264",
+    "still:product": "remotion still src/index.ts VolvenceProductFourthAct out/volvence-product-fourth-act-cover.png --frame=5000",
+    "render:deployment": "remotion render src/index.ts VolvenceDeploymentStandalone out/volvence-deployment-standalone.mp4 --codec=h264",
+    "still:deployment": "remotion still src/index.ts VolvenceDeploymentStandalone out/volvence-deployment-standalone-cover.png --frame=2200",
+    "render:digital-twin": "remotion render src/index.ts VolvenceDigitalTwinStandalone out/volvence-digital-twin-standalone.mp4 --codec=h264",
+    "still:digital-twin": "remotion still src/index.ts VolvenceDigitalTwinStandalone out/volvence-digital-twin-standalone-cover.png --frame=3600",
+    "render:app-ecosystem": "remotion render src/index.ts VolvenceAppEcosystemStandalone out/volvence-app-ecosystem-standalone.mp4 --codec=h264",
+    "still:app-ecosystem": "remotion still src/index.ts VolvenceAppEcosystemStandalone out/volvence-app-ecosystem-standalone-cover.png --frame=4200",
+    "render:human-meaning": "remotion render src/index.ts VolvenceHumanMeaningStandalone out/volvence-human-meaning-standalone.mp4 --codec=h264",
+    "still:human-meaning": "remotion still src/index.ts VolvenceHumanMeaningStandalone out/volvence-human-meaning-standalone-cover.png --frame=5800"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",

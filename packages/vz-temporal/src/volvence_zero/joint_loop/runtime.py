@@ -7,7 +7,7 @@ and re-exports the historic public API from ``volvence_zero.joint_loop.runtime``
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import hashlib
 import math
 from typing import Any
@@ -51,6 +51,13 @@ from volvence_zero.internal_rl import (
     PolicyOptimizationResult,
     ZRollout,
     derive_abstract_action_credit,
+)
+# Reward-eligibility contract lives with the settlement owner. The
+# ``volvence_zero.internal_rl`` facade does not re-export it yet, so the
+# module path is the SSOT import until that facade is extended.
+from volvence_zero.internal_rl.sandbox import (
+    RuntimeReplayRewardEligibility,
+    RuntimeReplaySettlement,
 )
 from volvence_zero.joint_loop.artifact_imports import _JointLoopArtifactImportMixin
 from volvence_zero.joint_loop.contracts import (
@@ -107,6 +114,38 @@ _JOINT_LEARNING_OWNER_NAME = "joint_loop.learning"
 _JOINT_LEARNING_SCHEMA_VERSION = 5
 
 
+@dataclass(frozen=True)
+class RuntimeReplayRewardStream:
+    """The reward stream the Internal-RL optimizer actually consumed.
+
+    Published by the runtime-replay owner so an auditor can answer "which
+    transitions earned nonzero reward, and from which outcome lineage" without
+    guessing from evaluation-side numbers. Neither the environment-side
+    measurement counters nor the PE signed residual answer that question: this
+    report is the optimizer's own input.
+
+    Counters are cumulative over the owner's lifetime and cover settled
+    (lineage-matched) transitions only; drops are already reported on
+    ``RuntimeReplayReport.drop_reasons``.
+    """
+
+    eligibility_contract: str
+    outcome_payoff_reward: str
+    prediction_error_reward_enabled: bool
+    settled_transition_count: int
+    eligible_transition_count: int
+    ineligible_transition_count: int
+    nonzero_reward_transition_count: int
+    nonzero_realized_payoff_transition_count: int
+    nonzero_segment_bonus_transition_count: int
+    realized_action_payoff_sum: float
+    segment_bonus_sum: float
+    reward_sum: float
+    eligibility_reason_counts: tuple[tuple[str, int], ...]
+    last_eligibility_reason: str
+    description: str
+
+
 class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     """SSL-RL joint training loop over the stage-two building blocks.
 
@@ -153,7 +192,23 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         ssl_backend: WiringLevel = WiringLevel.DISABLED,
         internal_rl_backend: WiringLevel = WiringLevel.DISABLED,
         internal_rl_runtime_replay: WiringLevel = WiringLevel.DISABLED,
+        # (a) PE drives learning signals: the PE-derived segment-credit bonus
+        # in runtime replay and the PE->beta_t switch pressure. This is the
+        # lever a PE-off matched arm turns off; PE stays a readout.
         runtime_replay_prediction_error_enabled: bool = True,
+        # (b) the realized outcome payoff reaches the optimizer. ``None``
+        # derives it from the eligibility contract (see
+        # ``InternalRLSandbox.settle_runtime_action``) and is the exact
+        # historical rollback; an explicit bool decouples (b) from (a).
+        runtime_replay_outcome_payoff_reward: bool | None = None,
+        # Typed reward eligibility. The default declares every settled
+        # transition eligible, which is byte-identical to the historical lane.
+        runtime_replay_reward_eligibility: RuntimeReplayRewardEligibility = (
+            RuntimeReplayRewardEligibility.ANY_SETTLED_OUTCOME
+        ),
+        # Latent-code bound contract for the replay lane. False is the exact
+        # rollback (signed [-1, 1]); True adopts the live owner's [0, 1].
+        runtime_replay_latent_unit_clamp: bool = False,
         runtime_replay_segment_credit: WiringLevel = WiringLevel.DISABLED,
         runtime_replay_segment_max_steps: int = 24,
         prediction_error_temporal_switch: WiringLevel = WiringLevel.DISABLED,
@@ -190,11 +245,20 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             raise ValueError(
                 f"ETANLJointLoop requires aligned world/self latent dims, got {world_latent_dim} and {self_latent_dim}."
             )
+        self._runtime_replay_latent_unit_clamp = bool(
+            runtime_replay_latent_unit_clamp
+        )
         self._world_sandbox = InternalRLSandbox(
-            policy=self._world_policy, residual_runtime=residual_runtime, rl_backend=internal_rl_backend
+            policy=self._world_policy,
+            residual_runtime=residual_runtime,
+            rl_backend=internal_rl_backend,
+            latent_unit_clamp=self._runtime_replay_latent_unit_clamp,
         )
         self._self_sandbox = InternalRLSandbox(
-            policy=self._self_policy, residual_runtime=residual_runtime, rl_backend=internal_rl_backend
+            policy=self._self_policy,
+            residual_runtime=residual_runtime,
+            rl_backend=internal_rl_backend,
+            latent_unit_clamp=self._runtime_replay_latent_unit_clamp,
         )
         self._residual_runtime = residual_runtime
         self._ssl_trainer = MetacontrollerSSLTrainer(n_z=world_latent_dim, ssl_backend=ssl_backend)
@@ -251,11 +315,43 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._runtime_replay_prediction_error_enabled = bool(
             runtime_replay_prediction_error_enabled
         )
+        if not isinstance(
+            runtime_replay_reward_eligibility, RuntimeReplayRewardEligibility
+        ):
+            raise TypeError(
+                "runtime_replay_reward_eligibility must be a "
+                "RuntimeReplayRewardEligibility member, got "
+                f"{runtime_replay_reward_eligibility!r}"
+            )
+        self._runtime_replay_reward_eligibility = (
+            runtime_replay_reward_eligibility
+        )
+        if runtime_replay_outcome_payoff_reward is not None and not isinstance(
+            runtime_replay_outcome_payoff_reward, bool
+        ):
+            raise TypeError(
+                "runtime_replay_outcome_payoff_reward must be None or bool, "
+                f"got {runtime_replay_outcome_payoff_reward!r}"
+            )
+        self._runtime_replay_outcome_payoff_reward = (
+            runtime_replay_outcome_payoff_reward
+        )
         self._runtime_replay_captured_count = 0
         self._runtime_replay_settled_count = 0
         self._runtime_replay_transition_count = 0
         self._runtime_replay_lineage_match_count = 0
         self._runtime_replay_drop_reasons: list[str] = []
+        # Optimizer-visible reward stream audit (published, never consumed).
+        self._runtime_reward_eligible_count = 0
+        self._runtime_reward_ineligible_count = 0
+        self._runtime_reward_nonzero_count = 0
+        self._runtime_reward_nonzero_payoff_count = 0
+        self._runtime_reward_nonzero_bonus_count = 0
+        self._runtime_realized_payoff_sum = 0.0
+        self._runtime_segment_bonus_sum = 0.0
+        self._runtime_reward_sum = 0.0
+        self._runtime_reward_eligibility_reason_counts: dict[str, int] = {}
+        self._runtime_last_reward_eligibility_reason = ""
         self._runtime_segment_closed_count = 0
         self._runtime_longest_segment_length = 0
         self._runtime_last_segment_close_reason = ""
@@ -296,6 +392,88 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     @property
     def internal_rl_runtime_replay(self) -> WiringLevel:
         return self._internal_rl_runtime_replay
+
+    @property
+    def runtime_replay_reward_eligibility(
+        self,
+    ) -> RuntimeReplayRewardEligibility:
+        return self._runtime_replay_reward_eligibility
+
+    @property
+    def runtime_replay_outcome_payoff_reward(self) -> bool | None:
+        return self._runtime_replay_outcome_payoff_reward
+
+    @property
+    def runtime_replay_latent_unit_clamp(self) -> bool:
+        return self._runtime_replay_latent_unit_clamp
+
+    @property
+    def latest_runtime_replay_reward_stream(
+        self,
+    ) -> RuntimeReplayRewardStream:
+        """Publish the optimizer's own reward stream (readout only).
+
+        ``nonzero_ecology_payoffs``-style environment counters and the PE
+        signed residual both describe something else; this is what actually
+        entered the Internal-RL batch.
+        """
+
+        settled = (
+            self._runtime_reward_eligible_count
+            + self._runtime_reward_ineligible_count
+        )
+        return RuntimeReplayRewardStream(
+            eligibility_contract=(
+                self._runtime_replay_reward_eligibility.value
+            ),
+            outcome_payoff_reward=(
+                "derived-from-eligibility"
+                if self._runtime_replay_outcome_payoff_reward is None
+                else (
+                    "enabled"
+                    if self._runtime_replay_outcome_payoff_reward
+                    else "disabled"
+                )
+            ),
+            prediction_error_reward_enabled=(
+                self._runtime_replay_prediction_error_enabled
+            ),
+            settled_transition_count=settled,
+            eligible_transition_count=self._runtime_reward_eligible_count,
+            ineligible_transition_count=(
+                self._runtime_reward_ineligible_count
+            ),
+            nonzero_reward_transition_count=(
+                self._runtime_reward_nonzero_count
+            ),
+            nonzero_realized_payoff_transition_count=(
+                self._runtime_reward_nonzero_payoff_count
+            ),
+            nonzero_segment_bonus_transition_count=(
+                self._runtime_reward_nonzero_bonus_count
+            ),
+            realized_action_payoff_sum=self._runtime_realized_payoff_sum,
+            segment_bonus_sum=self._runtime_segment_bonus_sum,
+            reward_sum=self._runtime_reward_sum,
+            eligibility_reason_counts=tuple(
+                sorted(
+                    self._runtime_reward_eligibility_reason_counts.items()
+                )
+            ),
+            last_eligibility_reason=(
+                self._runtime_last_reward_eligibility_reason
+            ),
+            description=(
+                "Internal-RL optimizer reward stream "
+                f"eligibility={self._runtime_replay_reward_eligibility.value} "
+                f"pe_reward={self._runtime_replay_prediction_error_enabled} "
+                f"settled={settled} "
+                f"eligible={self._runtime_reward_eligible_count} "
+                f"ineligible={self._runtime_reward_ineligible_count} "
+                f"nonzero_reward={self._runtime_reward_nonzero_count} "
+                f"reward_sum={self._runtime_reward_sum:.6f}."
+            ),
+        )
 
     @property
     def runtime_replay_segment_credit(self) -> WiringLevel:
@@ -392,6 +570,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             prediction_error_reward_enabled=(
                 self._runtime_replay_prediction_error_enabled
             ),
+            outcome_payoff_reward_enabled=(
+                self._runtime_replay_outcome_payoff_reward
+            ),
+            reward_eligibility=self._runtime_replay_reward_eligibility,
         )
         self_settlement, _ = self._self_sandbox.observe_runtime_transition(
             turn_index=turn_index,
@@ -406,6 +588,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             prediction_error_reward_enabled=(
                 self._runtime_replay_prediction_error_enabled
             ),
+            outcome_payoff_reward_enabled=(
+                self._runtime_replay_outcome_payoff_reward
+            ),
+            reward_eligibility=self._runtime_replay_reward_eligibility,
         )
         self._runtime_replay_captured_count += 2
         for track_name, settlement in (
@@ -420,6 +606,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 self._runtime_replay_lineage_match_count += int(
                     settlement.lineage_matched
                 )
+                self._record_runtime_reward_stream(settlement)
             elif settlement.drop_reason not in {"", "no-pending-capture"}:
                 self._runtime_replay_drop_reasons.append(
                     f"{track_name}:{settlement.drop_reason}"
@@ -461,6 +648,39 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                     "runtime replay staging diverged between world and self tracks"
                 )
         return self.latest_runtime_replay_report
+
+    def _record_runtime_reward_stream(
+        self,
+        settlement: RuntimeReplaySettlement,
+    ) -> None:
+        """Accumulate the optimizer-visible reward stream for publication."""
+
+        if not settlement.reward_eligibility_reason:
+            raise RuntimeError(
+                "settled runtime replay transition is missing its typed "
+                "reward-eligibility tag: "
+                f"capture_id={settlement.capture_id!r}"
+            )
+        reason = settlement.reward_eligibility_reason
+        if settlement.reward_eligible:
+            self._runtime_reward_eligible_count += 1
+        else:
+            self._runtime_reward_ineligible_count += 1
+        self._runtime_reward_eligibility_reason_counts[reason] = (
+            self._runtime_reward_eligibility_reason_counts.get(reason, 0) + 1
+        )
+        self._runtime_last_reward_eligibility_reason = reason
+        self._runtime_realized_payoff_sum += (
+            settlement.realized_action_payoff
+        )
+        self._runtime_segment_bonus_sum += settlement.segment_bonus
+        self._runtime_reward_sum += settlement.reward
+        if abs(settlement.reward) > 1e-12:
+            self._runtime_reward_nonzero_count += 1
+        if abs(settlement.realized_action_payoff) > 1e-12:
+            self._runtime_reward_nonzero_payoff_count += 1
+        if abs(settlement.segment_bonus) > 1e-12:
+            self._runtime_reward_nonzero_bonus_count += 1
 
     def _stage_runtime_segment_pair(
         self,

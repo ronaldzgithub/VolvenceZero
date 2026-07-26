@@ -48,6 +48,22 @@ from volvence_zero.substrate.persona_lora_pool import (
     PersonaLoRARecord,
     default_pool as default_persona_lora_pool,
 )
+from volvence_zero.substrate.personal_conditioning_projector import (
+    CONTRASTIVE_RESIDUAL_TRAINING_MODE,
+    PERSONAL_CONDITIONING_PROJECTOR_SCHEMA_VERSION,
+    PersonalConditioningProjectorArtifact,
+    build_contrastive_projector_artifact,
+    load_projector_basis,
+)
+from volvence_zero.substrate.prefix_kv_artifact import (
+    MAX_PREFIX_NORM_CAP,
+    PREFIX_KV_SCHEMA_VERSION,
+    TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
+    PrefixKVArtifact,
+    PrefixKVGenerator,
+    build_teacher_distilled_prefix_artifact,
+    load_prefix_generator,
+)
 from volvence_zero.substrate.rare_heavy_training import (
     RARE_HEAVY_PEFT_TRAINING_MODE,
     PeftLoraRareHeavyBackend,
@@ -144,6 +160,18 @@ __all__ = [
     "PersonaLoRANotFound",
     "PersonaLoRAPool",
     "PersonaLoRARecord",
+    "CONTRASTIVE_RESIDUAL_TRAINING_MODE",
+    "PERSONAL_CONDITIONING_PROJECTOR_SCHEMA_VERSION",
+    "PersonalConditioningProjectorArtifact",
+    "build_contrastive_projector_artifact",
+    "load_projector_basis",
+    "MAX_PREFIX_NORM_CAP",
+    "PREFIX_KV_SCHEMA_VERSION",
+    "TEACHER_DISTILLED_PREFIX_TRAINING_MODE",
+    "PrefixKVArtifact",
+    "PrefixKVGenerator",
+    "build_teacher_distilled_prefix_artifact",
+    "load_prefix_generator",
     "RARE_HEAVY_PEFT_TRAINING_MODE",
     "PeftLoraRareHeavyBackend",
     "RareHeavyAdapterTrainingBackend",

@@ -1,12 +1,28 @@
-"""Run one frozen-schedule P1 ecology development repetition."""
+"""Run one frozen-schedule P1 ecology development repetition.
+
+Every report is written through the evidence bundle writer, so the artifact
+carries its own provenance (git SHA, dirty flag, config digest, dependency
+versions, device, training seed, layout seeds) and a sidecar
+``*.manifest.json`` with the exact bytes -- plan sections 2.1 and 2.3.
+
+The default report path is run-id suffixed and the writer refuses to replace an
+existing artifact, so re-running the driver can no longer destroy a previous
+``BLOCK`` report in place. ``--overwrite`` is the explicit, logged escape hatch.
+"""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-import json
+from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 
+from volvence_ant.evidence.provenance import (
+    collect_ant_provenance,
+    ensure_artifact_writable,
+    write_ant_artifact_bundle,
+)
 from volvence_ant.experiments.ecology_p1 import (
     EcologyP1Config,
     EcologyP1ProgressPaused,
@@ -16,13 +32,22 @@ from volvence_ant.experiments.ecology_p1 import (
 
 
 _ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_REPORT = Path(
-    "research/ant/results/ecology_recovery/p1/ecology_p1.seed0.json"
-)
-_DEFAULT_DIAGNOSTIC_REPORT = Path(
-    "research/ant/results/ecology_recovery/p1/"
-    "ecology_p1.diagnostics.seed0.json"
-)
+_RESULT_DIR = Path("research/ant/results/ecology_recovery/p1")
+
+
+def _default_run_id() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _default_report(*, diagnostics_only: bool, seed: int, run_id: str) -> Path:
+    kind = "diagnostics." if diagnostics_only else ""
+    return _RESULT_DIR / f"ecology_p1.{kind}seed{seed}.{run_id}.json"
+
+
+def _resolve(path: Path) -> Path:
+    resolved = path if path.is_absolute() else _ROOT / path
+    resolved.relative_to(_ROOT)
+    return resolved
 
 
 async def _run(args: argparse.Namespace) -> int:
@@ -36,12 +61,18 @@ async def _run(args: argparse.Namespace) -> int:
     )
     progress_dir = None
     if args.progress_dir is not None:
-        progress_dir = (
-            args.progress_dir
-            if args.progress_dir.is_absolute()
-            else _ROOT / args.progress_dir
+        progress_dir = _resolve(args.progress_dir)
+    output = _resolve(
+        args.report
+        if args.report is not None
+        else _default_report(
+            diagnostics_only=args.diagnostics_only,
+            seed=config.seed,
+            run_id=args.run_id,
         )
-        progress_dir.relative_to(_ROOT)
+    )
+    # Refuse a colliding artifact before spending the run's budget, not after.
+    ensure_artifact_writable(output, overwrite=args.overwrite)
     try:
         report = (
             run_ecology_p1_diagnostics(config)
@@ -56,30 +87,37 @@ async def _run(args: argparse.Namespace) -> int:
         print(str(paused))
         print(f"progress: {progress_dir.relative_to(_ROOT)}")
         return 0
-    requested_report = (
-        _DEFAULT_DIAGNOSTIC_REPORT
-        if args.diagnostics_only and args.report == _DEFAULT_REPORT
-        else args.report
-    )
-    output = (
-        requested_report
-        if requested_report.is_absolute()
-        else _ROOT / requested_report
-    )
-    output.relative_to(_ROOT)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(report.to_dict(), ensure_ascii=False, indent=2, sort_keys=True)
-        + "\n",
-        encoding="utf-8",
-    )
-    print(
-        f"diagnostics passed={report.passed}"
+    payload = report.to_dict()
+    rows = (
+        report.results
         if args.diagnostics_only
-        else report.description
+        else report.layout_results
     )
+    manifest = write_ant_artifact_bundle(
+        artifact_path=output,
+        payload=payload,
+        provenance=collect_ant_provenance(
+            repo_root=_ROOT,
+            seeds=(config.seed,),
+            config=asdict(config),
+            training_seeds=(config.seed,),
+            layout_seeds=tuple(sorted({item.seed for item in rows})),
+        ),
+        repo_root=_ROOT,
+        overwrite=args.overwrite,
+    )
+    if args.diagnostics_only:
+        print(f"diagnostics passed={report.passed}")
+        verdict_ok = report.passed
+    else:
+        print(report.description)
+        verdict_ok = report.verdict == "PASS"
     print(f"report: {output.relative_to(_ROOT)}")
-    return 0
+    print(f"manifest: {manifest.relative_to(_ROOT)}")
+    # A BLOCK verdict must be visible to a shell pipeline exactly like the P2
+    # driver reports one; returning 0 lets an orchestrator treat a blocked P1
+    # as a successful stage and start spending P2 budget.
+    return 0 if verdict_ok else 1
 
 
 def main() -> int:
@@ -110,11 +148,35 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--run-id",
+        type=str,
+        default=None,
+        help=(
+            "Run identifier used in the default report filename; defaults to "
+            "a UTC timestamp so no run overwrites another."
+        ),
+    )
+    parser.add_argument(
         "--report",
         type=Path,
-        default=_DEFAULT_REPORT,
+        default=None,
+        help=(
+            "Explicit report path. Defaults to a run-id suffixed file under "
+            f"{_RESULT_DIR}."
+        ),
     )
-    return asyncio.run(_run(parser.parse_args()))
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help=(
+            "Destroy an existing report and manifest at the target path. "
+            "Without this flag an existing artifact is never replaced."
+        ),
+    )
+    args = parser.parse_args()
+    if args.run_id is None:
+        args.run_id = _default_run_id()
+    return asyncio.run(_run(args))
 
 
 if __name__ == "__main__":

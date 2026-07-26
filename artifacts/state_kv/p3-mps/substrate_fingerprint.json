@@ -1,0 +1,18 @@
+{
+  "schema_version": "state-kv-substrate-fingerprint.v1",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "weights_root": "/Users/mengfu/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775",
+  "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+  "weight_file_count": 1,
+  "weight_files": [
+    "model.safetensors"
+  ],
+  "runtime_origin": "hf-local",
+  "is_frozen": true,
+  "device_request": "mps",
+  "personal_conditioning_scale": 0.12,
+  "personal_conditioning_projector_id": "fixed-sine-cosine-v1",
+  "personal_conditioning_projector_training_mode": "fixed",
+  "personal_conditioning_prefix_id": "1b133cf27e27ca2f27bbbd45f29928881b54a55752b4ffab0f5dbe39308134a6",
+  "personal_conditioning_prefix_norm_cap": 0.2
+}

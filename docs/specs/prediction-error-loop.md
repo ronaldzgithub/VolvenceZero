@@ -15,6 +15,12 @@
 - evaluation 是 prediction error 的 readout / gate 层，不是学习源头
 - credit 是 prediction error 的聚合 / 审计层，不是学习源头
 - prediction error 必须以 machine-readable 多维结构对外发布，而不是只剩一条文本描述
+- 进入 optimizer 的 realized reward 必须能逐条追溯 outcome lineage；"PE 停止驱动学习信号"不等于
+  "环境发布的 outcome payoff 消失"（见 §Runtime replay reward eligibility）
+- eligibility 门读的字段必须就是 payout 付的字段；两者分离时必须 fail loudly，不得靠别的文件的
+  耦合维持相等
+- **`reward = 0` 不等于"没有更新"**：ineligible transition 仍进 GAE 与 PPO 批次，
+  `gamma*V(s')-V(s)` 仍产生非零 advantage。这是 value bootstrapping，不是 reward 泄漏
 
 ## 工程挑战
 
@@ -199,6 +205,183 @@ debt #11 修法 (3) 方法论：先写 38-turn 长 scenario（[`packages/lifefor
 
 Active Inference TTS 作为理论母体保留在 research motivation：PE 可以统一驱动 world model 与 policy posterior 更新，但其"同时在线改 policy/world model + free-energy 单一总目标"的用法是 R2 反例，不进 runtime。
 
+## Runtime replay reward eligibility 与 PE-drive / outcome-payoff 拆分（W3-a, 2026-07-26）
+
+本节冻结 runtime-replay 结算接缝上两条**通用**契约。二者都是 opt-in，默认值逐字节复现历史行为，关闭即精确回滚；内核不引入任何领域语义（不知道 butter / heat / food / ant 是什么），只区分"环境是否为该 transition 发布了 outcome payoff"。
+
+Owner：`volvence_zero.internal_rl.sandbox.InternalRLSandbox.settle_runtime_action`（结算）与
+`volvence_zero.joint_loop.runtime.ETANLJointLoop`（声明、转发、发布）。
+Runtime 门面：`FinalRolloutConfig.internal_rl_runtime_*`。
+
+### 缺陷 1：measurement-free tick 静默产生 substrate 派生 reward
+
+链路：`final_wiring` 只在 `EnvironmentOutcome.measurement` 存在时把
+`environment_action_payoff` 传给 PE owner → `prediction/error.py` 仅在该值非 None 时覆盖
+`ActualOutcome.action_payoff`，否则保留 PE owner 自己合成的 action 轴（substrate feature 信号与
+evaluation family 信号的混合）→ `settle_runtime_action` 把该值直接当作
+`realized_action_payoff` 进入 batch。结算本身只在 `EnvironmentOutcome` 对象为 None 时才 drop，
+从不检查 measurement 是否存在。
+
+因此对于**任务路径禁止任何 distance/potential shaping** 的域（数字蚂蚁，见
+`docs/specs/digital-ant-embodiment.md` §4），"去掉稠密局部塑形"的那条臂实际上仍在被另一套
+稠密的感知派生塑形训练，消融含义反转；按契约不携带 payoff 的动作也会得到严格正 reward。
+
+**契约：`RuntimeReplayRewardEligibility`（typed enum）**
+
+| 取值 | 语义 | 状态 |
+|---|---|---|
+| `any-settled-outcome` | 每条 lineage 匹配的结算都可获得 realized payoff（可能是 PE owner 合成的 action 轴） | **默认 = 历史行为 = 精确回滚** |
+| `environment-measured-only` | 只有 `measurement.action_payoff` 非 None 的 transition 可获得 realized payoff | 严格模式 |
+
+严格模式下的不变量：
+
+1. ineligible transition **仍然结算**：lineage、动力学、milestone/terminal 标记、PE 残差诊断全部保留；
+2. `realized_action_payoff = 0`，且 `segment_bonus = 0`——PE 派生的 segment credit 不得把同一份量偷渡回来；
+3. transition 被**逐条打标**：`ZTransition.runtime_reward_eligible` +
+   `runtime_reward_eligibility_reason ∈ {eligible, ineligible:no-environment-measurement,
+   ineligible:no-environment-action-payoff}`，使 "逐条审计 nonzero reward 的 outcome lineage" 可执行；
+4. 语言域（companion 等）根本没有 environment measurement，**必须保持默认值**，否则整条 reward 流恒为 0；
+5. **门读哪个字段就付哪个字段**（W3-a follow-up，见下）；
+6. **ineligible ≠ 无更新**：realized payoff 与 segment bonus 都为 0，但 GAE 仍从 critic
+   bootstrap 出非零 advantage，optimizer 仍会更新参数（见下"ineligible transition 上仍然发生的更新"）。
+
+#### 门读哪个字段就付哪个字段（gate/payout 不变量）
+
+`_resolve_reward_eligibility` 用 `EnvironmentOutcome.measurement.action_payoff` 判定资格，而
+历史 payout 行读的是 `prediction_error_snapshot.actual_outcome.action_payoff`——**两个不同对象**。
+它们相等只因为另外两个文件的耦合：`final_wiring.py` 令
+`environment_action_payoff = measurement.action_payoff if measurement is not None else None`，
+`prediction/error.py` 仅在该值非 None 时覆盖 PE owner 自己合成的 action 轴。这条耦合不是契约：
+自己组装 `PredictionActionContext` 的域、或这两个文件的任何后续改动，都会在
+`eligible` 标签不变的前提下静默恢复原缺陷（付出 substrate 派生 reward）。
+
+因此严格模式下 `settle_runtime_action`：
+
+- **消费 gate 自己读的那个字段**（`measurement.action_payoff`），不再依赖上述耦合；
+- 同时与 PE owner 发布的 `actual_outcome.action_payoff` 比对，偏差 > `1e-9` 即抛
+  `RuntimeReplayRewardEligibilityError` fail loudly（AGENTS.md §6），因为该偏差意味着审计标签
+  已经不描述被支付的 reward；
+- 该校验在 **eligible 即执行**，与 `outcome_payoff_reward_enabled` 无关——否则一条坏接线可以
+  躲在消融开关后面，等开关打开时才开始付错数。
+
+默认契约 `any-settled-outcome` 完全不受影响：仍然支付 PE owner 的轴，逐字节等于历史行为。
+实测（`packages/vz-temporal/tests/test_runtime_replay_reward_eligibility.py`）：同一组发散输入
+（measurement `0.2` / PE 轴 `0.9`）下，严格臂现在抛错，默认臂仍然支付 `0.9`、reward `0.96`。
+
+#### ineligible transition 上仍然发生的更新（不是 reward 泄漏，是 value bootstrap）
+
+严格模式下一条 measurement-free transition 的 reward 恒为 `0.0`，发布出的
+`RuntimeReplayRewardStream.reward_sum` 也是 `0.0`。**读者不能由此推断"没有发生更新"**：GAE 的
+`delta_t = r_t + gamma*V(s_{t+1}) - V(s_t)` 在 `r_t = 0` 时仍然非零，因为两个 surface 是不同的
+substrate signature，critic 对它们的估值不同。这是标准的 value bootstrapping，不是 reward 泄漏——
+没有任何环境未发布的量进入 reward——但它确实会移动策略参数。
+
+实测（50 条 measurement-free transition，全部 `reward == 0.0`，
+`scripts` 之外的一次性复现见变更日志所列测试的同名 fixture）：post-GAE `max |advantage| = 2.54`
+（归一化后）、`max |return| = 1.58e-01`、`max |V| = 2.04e-01`，一次 PPO 批次令
+`max |Δ track weight| = 1.04e-04`、`max |Δ critic weight| = 1.12e-03`。量级随 surface 变化幅度
+浮动（审计侧在蚂蚁 probe 上报过 `8.4e-06` 同一现象），但**方向恒定：reward_sum = 0 不等于
+参数不变**。要真正冻结这些 tick 必须把它们排除出 batch，那是另一条契约，本包不提供。
+
+#### 未闭合：segment credit 没有 per-transition eligibility 概念（spec-only）
+
+`segment_bonus` 的来源是 `CreditSnapshot.recent_credits` 中 `source_event == f"segment:{segment_id}"`
+的记录，按 **segment id 在滚动窗口内选取**，记录本身不携带"产生它的那一拍是否 eligible"。因此
+一条在 measurement-free tick 上产生的 credit record，仍可能在同一 segment 的后续 eligible tick 上
+被平均进 `segment_bonus`。严格模式的第 2 条不变量（ineligible tick 自身 `segment_bonus = 0`）成立，
+但它不能阻止跨拍的窗口混入。闭合它需要在 credit record 上增加 eligibility 归属并改 credit owner，
+属于另一个收敛包。**在此之前，严格模式下 eligible tick 的 `segment_bonus` 不得被解读为
+"只由 eligible tick 的证据构成"。**
+
+### 缺陷 2："PE-off" 被静默实现成 "reward-off"
+
+`external_prediction_error_drive=False` 经 `session.py` →
+`runtime_replay_prediction_error_enabled` → sandbox，同时把 `segment_bonus` 与
+`realized_action_payoff` 都置 0，PE-off matched arm 于是在恒零 reward 流上训练。设计中的 PE-off
+（本 spec kill 条件、ant lane 文档）含义是"PE 停止驱动学习信号与 temporal switch 压力，仍是
+readout"，而不是"环境 payoff 消失"。
+
+**拆成两条正交、显式命名的契约**：
+
+| 契约 | 字段 | 语义 |
+|---|---|---|
+| (a) PE 驱动学习信号 | `external_prediction_error_drive` / `runtime_replay_prediction_error_enabled` | PE 派生的 segment credit bonus + PE→`beta_t` switch 压力。这才是消融要关掉的东西 |
+| (b) outcome payoff 到达 optimizer | `FinalRolloutConfig.internal_rl_runtime_outcome_payoff_reward: bool \| None` | `None`（默认）= 由 eligibility 契约推导；显式 `True`/`False` 覆盖推导 |
+
+(b) 的推导规则（这是默认可回滚的关键）：
+
+- eligibility = `any-settled-outcome` → (b) 跟随 (a)。此时 realized payoff 可能就是 PE owner 合成的
+  轴，跟随 PE drive 在语义上成立，且**与历史行为逐字节一致**；
+- eligibility = `environment-measured-only` → (b) 恒为 `True`。此时 realized payoff 按构造是
+  环境发布量、不是 PE 派生量，因此与 PE drive 正交，PE-off 臂继续获得环境 payoff。
+
+### 发布：optimizer 实际消费的 reward 流
+
+`ETANLJointLoop.latest_runtime_replay_reward_stream` 发布不可变
+`RuntimeReplayRewardStream`，经 `AgentSessionRunner.latest_runtime_replay_reward_stream` 只读透出。
+字段：eligibility 契约、(b) 状态、(a) 状态、settled / eligible / ineligible / nonzero-reward /
+nonzero-payoff / nonzero-bonus 计数、realized payoff、segment bonus 与 reward 三个求和、
+per-reason 计数、最近一次 reason。
+
+这是 readout，不回灌学习路径。它填的空白是：此前没有任何 consumer 能看见 optimizer 的 reward——
+环境侧计数器（如 ant 的 `nonzero_ecology_payoffs`）恰好在泄漏的那些 tick 上为 0，而
+`nonzero_reward_steps` 是 PE signed residual，两者都不是 optimizer 的 reward。
+
+### Latent code clamp 约定
+
+sandbox 的 `_clamp` 是 `[-1, 1]`，对 reward / advantage 正确，但同一函数也被用于 latent code /
+modulated mean / candidate mean / policy mean 的重建，而**在线 owner 把 `z_t` 限制在 `[0, 1]`**
+（`temporal/interface.py` 的 `_clamp` 与 `metacontroller_components.clamp_unit`）。当 causal action
+head 的残差为负时，replay lane 会重建出冻结 plant 根本无法输出的 mean。新增
+`FinalRolloutConfig.internal_rl_runtime_latent_unit_clamp`：`False`（默认）保持历史 signed 边界，
+是精确回滚；`True` 只对 latent code / mean 重建改用 `[0, 1]`。**reward / advantage 的
+clamp 边界在任何取值下都不变。**
+
+值域本身只有一个 owner：`temporal/interface.py` 的 `LATENT_CODE_BOUNDS`。sandbox 的
+`_clamp_unit` 与 `resolve_latent_code_bounds` 都从它派生，**禁止在第二个文件里写死 `[0, 1]`**；
+signed 分支保留的 `(-1.0, 1.0)` 是历史回滚基线，不是第二个 latent 值域声明。
+
+**两条 lane 必须收到同一个值。** pure lane 由
+`FinalRolloutConfig → session → joint loop → sandbox` 端到端接通；torch lane 同名 kwarg
+`torch_causal_ppo_update(..., latent_unit_clamp=)` 由唯一生产调用点
+`CausalZPolicy._maybe_run_torch_ppo` 转发。该转发不靠约定：调用前
+`assert_runtime_replay_latent_bounds_agree` 对**即将发出的 payload** 按 callee 自身签名做
+`bind_partial`，比较**解析出的边界**而非 flag，因此漏传 kwarg、传错值、或任一 lane 的
+`resolve_latent_code_bounds` 语义漂移都会抛 `RuntimeReplayLatentBoundContractError`
+fail loudly，而不是让同一 batch 训练出两个策略。负对照：去掉转发后，跨 lane 测试在
+`latent_unit_clamp` 的 `True` 与 `False` 两个参数化下都失败（torch lane 记录到 `<omitted>`）。
+
+**数字蚂蚁声明该契约**（`ant_runtime_replay_rollout_config`）。它是唯一带 ACTIVE causal action
+head 的域，也正是该缺陷的原始来源。32-tick ECOLOGY 会话（`objective=ECOLOGY`、
+`sense_schema=ECOLOGY_V2`、seed 7、matched 双臂）实测：
+
+| 量 | OFF（回滚） | ON（声明） |
+|---|---|---|
+| replay 重建次数 | 244 | 244 |
+| 两个边界重建结果不同的次数 | 72（29.5%） | 72 |
+| 重建均值最大差 | 4.30e-05 | 4.30e-05 |
+| reward 流 settled / eligible / ineligible | 62 / 50 / 12 | 62 / 50 / 12 |
+
+即**冷启动下该声明近似数值惰性**：终态 `max |Δ head bias| = 6.5e-09`、
+`max |Δ track weight| = 3.0e-15`、`Δ reward_sum = 2.6e-09`（reward 语义不受影响，符合设计）。
+它的作用随 head 学到的残差幅度增长：把同样这 244 次真实蚂蚁重建的 steering 残差设为冻结包络允许的
+bias 上限（`CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE.bias_absolute_limit = 0.1`，反对称加在 contrast
+pair `(0, 1)` 上）后，**236/244（96.7%）** 次重建发生分歧，重建均值最大差 `0.0805`，且 signed lane
+重建出低至 `-0.0804` 的均值——冻结 plant 不可能输出的码，正是审计中 `(action - mean)` 反号、
+head 梯度指向错误方向的机制。结论：该契约在冷启动阶段不改变结论，在 head 真正学到转向权威后才
+生效，因此可以安全地在正式臂上默认打开。
+
+### 已知缺口（本包未闭合）
+
+- `volvence_zero.internal_rl.__init__` 与 `volvence_zero.joint_loop.__init__` 尚未 re-export
+  `RuntimeReplayRewardEligibility` / `RuntimeReplayRewardStream`；当前经模块路径导入。
+- ~~torch PPO backend 尚未消费 `latent_unit_clamp`~~：W3-b 给了 torch lane 同名 kwarg，
+  W3 follow-up 在唯一生产调用点转发并加了跨 lane 校验（见上）。**残余**：校验发生在调用点，
+  不是类型系统；新增第二个 `torch_causal_ppo_update` 调用点必须自行走同一 helper。
+- segment credit 的滚动窗口选取没有 per-transition eligibility 归属（见上 spec-only 条目）。
+- ineligible transition 仍参与 GAE 与 PPO 批次；`reward_sum = 0` 不代表参数不变（见上）。
+- `RuntimeReplayRewardStream` 是进程内累计量，不进 rare-heavy checkpoint，跨 session 不续接。
+
 ## 真梯度 LSS（NL）与 runtime 语义 PE 的关系（Phase 5）
 
 NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂output`，并指出“用 backprop 训练一层等价于构建一个把输入映射到其 prediction error 的 associative memory”，该梯度本身就是被记忆的内容。
@@ -224,6 +407,35 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 
 ## 变更日志
 
+- 2026-07-27: W3 follow-up（对抗评审闭环，4 处）。(1) **死接缝**：`latent_unit_clamp` 的 torch lane
+  从未被唯一生产调用点 `CausalZPolicy._maybe_run_torch_ppo` 转发，spec 要求"两条 lane 必须收到同一个
+  值"却无人执行；现转发并新增 `assert_runtime_replay_latent_bounds_agree`——按 callee 签名
+  `bind_partial` 检查即将发出的 payload、比较解析出的边界，漏传/传错/语义漂移一律抛
+  `RuntimeReplayLatentBoundContractError`。负对照：撤掉转发后跨 lane 测试在两个参数化下都失败。
+  (2) **门读一个字段、付另一个字段**：严格模式改为消费 gate 自己读的
+  `measurement.action_payoff`，并与 PE owner 的 `actual_outcome.action_payoff` 比对，偏差 > 1e-9 抛
+  `RuntimeReplayRewardEligibilityError`；校验在 eligible 即执行，不受
+  `outcome_payoff_reward_enabled` 影响。该校验立刻在既有 reward-stream fixture 上抓到一处真实发散
+  （measurement 0.2 vs PE 轴 0.42）。默认契约不受影响，逐字节回滚。
+  (3) `_clamp_unit` 与新的 `resolve_latent_code_bounds` 从 owner 常量 `LATENT_CODE_BOUNDS` 派生，
+  不再硬编码 `[0, 1]`；数字蚂蚁 evidence profile 声明 `internal_rl_runtime_latent_unit_clamp=True`，
+  并在 32-tick ECOLOGY 会话上量化（冷启动 72/244 次重建分歧、终态参数差 ≤6.5e-09；把 steering 残差
+  提到冻结包络 bias 上限后 236/244 分歧、均值差 0.0805、signed lane 重建出 -0.0804）。
+  (4) 记录两条**不修复只披露**的事实：ineligible transition 的 `reward_sum = 0` 不代表参数不变
+  （GAE value bootstrap，实测 50 条全零 reward 仍产生 `max |Δw| = 1.04e-04`），以及 segment credit
+  按 segment id 滚动窗口选取、没有 per-transition eligibility 归属。
+  测试：`packages/vz-temporal/tests/test_runtime_replay_reward_eligibility.py`（25 通过）。
+- 2026-07-26: 收敛包 W3-a。新增 §"Runtime replay reward eligibility 与 PE-drive /
+  outcome-payoff 拆分"：typed `RuntimeReplayRewardEligibility`（默认
+  `any-settled-outcome` = 逐字节回滚，`environment-measured-only` = 严格模式，ineligible
+  transition realized payoff 与 segment bonus 同时为 0 并逐条打标）；把
+  `external_prediction_error_drive` 拆成 (a) PE 驱动学习信号 / temporal switch 压力 与
+  (b) `internal_rl_runtime_outcome_payoff_reward`（`None` 由 eligibility 推导），使 PE-off 臂在
+  严格模式下继续获得环境 payoff；新增只读发布面
+  `ETANLJointLoop.latest_runtime_replay_reward_stream`（optimizer 实际消费的 reward 流）；新增
+  opt-in `internal_rl_runtime_latent_unit_clamp`（latent 重建改用在线 owner 的 `[0, 1]`，
+  reward / advantage 边界不变）。数字蚂蚁 evidence profile 声明严格 eligibility。
+  测试：`packages/vz-temporal/tests/test_runtime_replay_reward_eligibility.py`。
 - 2026-07-20: 新增 §"PE / Epistemic Value / Intrinsic Reward 三层契约"。吸收 ICL Intrinsic Curiosity（`2606.19476`）BAMDP 负面定理与 Active Inference TTS（`2606.22813`）正面构造：L1 raw mismatch / L2 epistemic value / L3 intrinsic reward 三层显式转换，禁止层间塌缩；L2 消费方必须声明环境假设与偏差来源。来源 `research/frontier-sweep-2026-07-20.md` §6 同步项，不改运行时行为。
 - 2026-07-14: CP-12 第二波 settlement 覆盖（GAP-05）。
   `PredictionErrorModule._OWNER_PREDICTION_SLOTS` 扩至 9 slot（追加

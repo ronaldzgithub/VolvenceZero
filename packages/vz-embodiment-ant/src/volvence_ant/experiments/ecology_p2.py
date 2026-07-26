@@ -74,12 +74,15 @@ from volvence_ant.experiments.ecology_probe import (
     run_ecology_checkpoint_action_probes,
 )
 from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
-from volvence_ant.substrate import AntSenseSchema
+from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
 ECOLOGY_P2_SCHEMA_VERSION = "digital-ant-ecology-p2-confirmatory.v1"
 ECOLOGY_P2_SHARD_SCHEMA_VERSION = "digital-ant-ecology-p2-shard.v1"
-ECOLOGY_P2_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p2-progress.v1"
+# v2 binds sense schema and input dim into the shard resume compatibility, so
+# an interrupted formal shard cannot rehydrate from a checkpoint trained on a
+# different sensory body. v1 journals carry neither key and are refused.
+ECOLOGY_P2_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p2-progress.v2"
 ECOLOGY_P2_PREFLIGHT_SCHEMA_VERSION = "digital-ant-ecology-p2-preflight.v1"
 
 #: Held-out namespace. Disjoint from the P1 held-out base (``2_000_003`` plus a
@@ -1052,8 +1055,17 @@ def _shard_state_path(shard_dir: Path) -> Path:
 def _progress_compatibility(
     config: EcologyP2Config,
 ) -> tuple[tuple[str, str], ...]:
+    # Same four-way binding as the promotion bundle
+    # (ecology_checkpoint_compatibility): sense schema, input dim, latent dim
+    # and ant count. A shard journal is the archive an interrupted formal run
+    # rehydrates from, so it may not bind less than the promotion archive.
     return (
         ("artifact_kind", ECOLOGY_P2_PROGRESS_SCHEMA_VERSION),
+        ("sense_schema", AntSenseSchema.ECOLOGY_V2.value),
+        (
+            "input_dim",
+            str(len(sense_channels(AntSenseSchema.ECOLOGY_V2))),
+        ),
         ("n_ants", str(config.n_ants)),
         ("latent_dim", str(config.temporal_latent_dim)),
         ("runtime_replay", "excluded"),
@@ -1119,12 +1131,25 @@ def _read_shard_archive(
             f"P2 shard archive digest mismatch: {archive_path.name}"
         )
     expected = _progress_compatibility(config)
-    collection = decode_agent_learning_checkpoint_archive(
-        payload,
-        expected_compatibility=expected,
-    )
+    try:
+        collection = decode_agent_learning_checkpoint_archive(
+            payload,
+            expected_compatibility=expected,
+        )
+    except ValueError as exc:
+        raise ValueError(
+            "P2 shard checkpoint is not compatible with this run "
+            f"({archive_path.name}): {exc}. Shard journals written before "
+            f"{ECOLOGY_P2_PROGRESS_SCHEMA_VERSION} do not bind sense schema "
+            "and input dim and cannot be resumed; rerun the shard into a new "
+            "--progress-dir."
+        ) from exc
     if dict(collection.metadata.compatibility) != dict(expected):
-        raise ValueError("P2 shard checkpoint compatibility mismatch")
+        raise ValueError(
+            "P2 shard checkpoint compatibility mismatch: "
+            f"expected={dict(expected)!r}, "
+            f"actual={dict(collection.metadata.compatibility)!r}"
+        )
     return collection.checkpoint_archives
 
 

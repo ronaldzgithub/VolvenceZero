@@ -33,9 +33,13 @@ R-PE（预测误差一级信号）、SSOT（快照隔离）是否**独立于语�
 | `motor_decode` | `z_t`（`ControllerState.code`, len n_z） | `(turn_command, step_command)` | 纯 numpy，无可学习参数 |
 
 `z_t` 契约（egocentric 抽象动作）：ndim controller 的 code 被界在 `[0,1]`，因此 `z[0],z[1]`
-采用非负 opponent residual steering 编码：`forward=1+z0+z1`、`left=z1-z0`；
-固定 forward baseline 让 near-zero code 只产生 near-zero turn，避免在巢边形成 ±45° 小圆；
-相等时直行、`z1>z0` 左转、`z0>z1` 右转；`z[2]` → 期望速度（squash）。历史直接
+采用非负 opponent residual steering 编码。冻结 plant 先对 code 施加一个常数增益 `g = code_gain`
+（默认 `4.0`，由 `AntSessionConfig.code_gain` 下发给 `AntActuator` / `motor_decode`；它是 plant
+常数，不是可学习参数），再做该代数：`forward = 1 + g·z0 + g·z1`、`left = g·(z1 − z0)`、
+`turn = clamp(atan2(left, forward), ±max_turn_rate)`、`z[2]` → 期望速度 `sigmoid(g·z2)`。
+`g` 只放大近零 code 的**转向幅度**，不改变可转向性：`left` 的符号仍只由 `z1 − z0` 决定，
+`g = 0` 时严格直行。固定 forward baseline 让 near-zero code 只产生 near-zero turn，
+避免在巢边形成 ±45° 小圆；相等时直行、`z1>z0` 左转、`z0>z1` 右转。历史直接
 `atan2(z1,z0)` 会让非负 controller 结构性无法右转，已移除。
 controller 自由学习「感知特征 → egocentric 动作」的映射；`motor_decode` 只做有界转换。**策略在可学习的内核，plant 冻结在此。**
 因此 Digital Ant evidence profile 还必须向通用 action-head owner 声明 actuator support
@@ -53,9 +57,16 @@ controller 自由学习「感知特征 → egocentric 动作」的映射；`moto
 `ĥ ← ĥ + k·wrap(compass − ĥ)`（`compass_gain=k`，`compass_gain=0` 退回纯 dead reckoning）。
 这是**航向参考，不是位置读出**，与 AntBot 的天空罗盘 + 光流测距配置对齐——纯 efference-copy 积分的
 航向误差按 √N 随机游走增长，物理上到不了 AntBot 量级；有 AntBot 级罗盘（σ≈0.4°）才能达标。
-罗盘是所有导航共用的 substrate 传感器（`AntSession` / `FixedRuleAnt` 默认开启，同一 frozen substrate
-在 matched-control 各臂间一致），不是只为 homing 实验选择性开启的调参。此通道引入的是一个**受控、
-只读的真值航向耦合**，其他真值位置隔离不变。
+罗盘是所有导航共用的 substrate 传感器，不是只为 homing 实验选择性开启的调参：`AntSession`、
+`FixedRuleAnt` 与 `E2ERLAnt` 默认使用同一组冻结 body 传感器参数
+`heading_noise=0.01 / step_noise=0.01 / compass_gain=0.85 / compass_noise=0.007`，
+同一 frozen substrate 在 matched-control 各臂间一致（由
+`packages/vz-embodiment-ant/tests/test_frozen_functions.py` 逐臂比对构造参数）。罗盘读的是**动作之后**
+的绝对航向，因此各臂都必须先 `world.act(...)` 再
+`navigator.update(..., true_heading=...)`；只声明 `compass_gain` 而不传 `true_heading` 等于没有罗盘。
+此通道引入的是一个**受控、只读的真值航向耦合**，其他真值位置隔离不变。E2E-RL 基线在 2026-07-26
+之前使用零噪声、无罗盘且先积分后动作的 navigator，等于在另一具（更容易的）身体上比较；该臂在此之前
+产出的路径积分相关数字不得与其他臂并列。
 
 `ant-sense.ecology-v2` 只追加 `heat_left / heat_right / heat_diff / heat_center /
 heat_harmful`。热值来自触角和身体位置的局部采样；对象坐标、火柴方位、逃离方向和木棍几何均不进入

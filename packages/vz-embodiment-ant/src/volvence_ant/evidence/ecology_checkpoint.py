@@ -17,9 +17,13 @@ from volvence_zero.agent import (
 )
 
 from volvence_ant.evidence.provenance import (
+    AntArtifactExistsError,
     AntArtifactIntegrityError,
+    artifact_verdict_summary,
     collect_ant_provenance,
+    ensure_artifact_writable,
     file_digest,
+    require_ant_artifact_envelope,
     verify_ant_artifact_manifest,
     write_ant_artifact_bundle,
 )
@@ -58,7 +62,41 @@ def ecology_checkpoint_compatibility(
     )
 
 
-def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+def ensure_ecology_archive_writable(
+    archive_path: Path,
+    *,
+    report_path: Path,
+    overwrite: bool,
+) -> None:
+    """Refuse to destroy the ``.vzac`` half of an existing promotion bundle.
+
+    ``ensure_artifact_writable`` covers the report and its manifest; the
+    archive is a separate file on the same bundle and needs the same guard, or
+    the report would be protected while the checkpoint bytes it certifies were
+    replaced underneath it.  ``report_path`` is only used to name the verdict a
+    forced overwrite would destroy, so the caller passes the report it is
+    actually about to write rather than one derived from the archive name.
+    """
+
+    if overwrite or not archive_path.exists():
+        return
+    detail = (
+        artifact_verdict_summary(report_path)
+        if report_path.exists()
+        else "report absent"
+    )
+    raise AntArtifactExistsError(
+        "refusing to overwrite an existing ecology checkpoint archive "
+        f"{archive_path} [{detail}]; write a new run-id filename, or pass "
+        "overwrite=True to destroy it deliberately"
+    )
+
+
+def _atomic_write_bytes(path: Path, payload: bytes, *, overwrite: bool) -> None:
+    if not overwrite and path.exists():
+        raise AntArtifactExistsError(
+            f"refusing to overwrite an existing archive: {path}"
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary: Path | None = None
     try:
@@ -131,7 +169,16 @@ def write_ecology_checkpoint_bundle(
     archive_path: Path,
     report_path: Path,
     repo_root: Path,
+    overwrite: bool = False,
 ) -> Path:
+    """Write the ``.vzac`` archive, the report and the sidecar manifest.
+
+    This is an evidence-lane writer, not a shared one: the promotion bundle is
+    the artifact plan section 2.1 protects most, so ``overwrite`` defaults to
+    ``False``.  The archive and the report are both checked *before* the
+    archive bytes are written, so a half-replaced bundle cannot exist.
+    """
+
     config = candidate.report.config
     report_payload = candidate.report.to_dict()
     _validated_report_verdict(report_payload)
@@ -139,17 +186,28 @@ def write_ecology_checkpoint_bundle(
         raise AntArtifactIntegrityError("ecology in-process checkpoint count does not match configured ant count")
     if len(candidate.checkpoint_archives) != config.n_ants:
         raise AntArtifactIntegrityError("ecology checkpoint archive count does not match configured ant count")
+    ensure_artifact_writable(report_path, overwrite=overwrite)
+    ensure_ecology_archive_writable(
+        archive_path,
+        report_path=report_path,
+        overwrite=overwrite,
+    )
     archive_bytes = encode_agent_learning_checkpoint_archive(
         candidate.checkpoint_archives,
         compatibility=ecology_checkpoint_compatibility(config),
     )
-    _atomic_write_bytes(archive_path, archive_bytes)
+    _atomic_write_bytes(archive_path, archive_bytes, overwrite=overwrite)
     archive_digest = file_digest(archive_path, relative_to=repo_root)
     provenance = collect_ant_provenance(
         repo_root=repo_root,
         seeds=config.heldout_seeds,
         config=asdict(config),
         model_fingerprint=_aggregate_fingerprint(candidate.checkpoint_archives),
+        # The curriculum seed drives training; validation and held-out layout
+        # seeds are a disjoint namespace (plan section 2.1) and stay separately
+        # recoverable from the record instead of collapsing into one schedule.
+        training_seeds=(config.seed,),
+        layout_seeds=tuple(config.validation_seeds) + tuple(config.heldout_seeds),
     )
     payload = {
         "artifact_kind": ECOLOGY_CHECKPOINT_BUNDLE_KIND,
@@ -164,6 +222,7 @@ def write_ecology_checkpoint_bundle(
         provenance=provenance,
         input_paths=(archive_path,),
         repo_root=repo_root,
+        overwrite=overwrite,
     )
 
 
@@ -211,6 +270,7 @@ def load_promoted_ecology_checkpoint(
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise AntArtifactIntegrityError("ecology checkpoint report must be an object")
+    require_ant_artifact_envelope(payload, path=report_path)
     if payload.get("artifact_kind") != ECOLOGY_CHECKPOINT_BUNDLE_KIND:
         raise AntArtifactIntegrityError(f"unexpected ecology artifact kind: {payload.get('artifact_kind')!r}")
     raw_report = payload.get("report")
@@ -253,6 +313,7 @@ __all__ = [
     "ECOLOGY_CHECKPOINT_BUNDLE_KIND",
     "LoadedEcologyCheckpoint",
     "ecology_checkpoint_compatibility",
+    "ensure_ecology_archive_writable",
     "load_promoted_ecology_checkpoint",
     "write_ecology_checkpoint_bundle",
 ]

@@ -172,6 +172,10 @@ from volvence_zero.substrate import (
     SubstrateSelfModSnapshot,
     SubstrateSnapshot,
 )
+# Reward-eligibility contract owned by the runtime-replay settlement owner in
+# vz-temporal. Re-exported below so domain profiles can declare it through the
+# vz-runtime rollout-config facade without importing kernel internals.
+from volvence_zero.internal_rl.sandbox import RuntimeReplayRewardEligibility
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerRuntimeState,
@@ -298,6 +302,36 @@ class FinalRolloutConfig:
     # DISABLED preserves one-step runtime replay exactly.
     internal_rl_runtime_segment_credit: WiringLevel = WiringLevel.DISABLED
     internal_rl_runtime_segment_max_steps: int = 24
+    # Typed reward eligibility for runtime replay (docs/specs/
+    # prediction-error-loop.md §"runtime replay reward eligibility").
+    # ANY_SETTLED_OUTCOME (default) is the exact rollback: every
+    # lineage-matched settlement earns the PE owner's realized
+    # ``ActualOutcome.action_payoff``, whether or not the environment
+    # published a measurement for that tick. ENVIRONMENT_MEASURED_ONLY makes a
+    # measurement-free tick contribute realized payoff 0 and segment bonus 0,
+    # tagged with the reason, so "only an environment-published outcome payoff
+    # is eligible as realized reward" becomes checkable per transition. A
+    # domain with no environment measurement at all (every language companion)
+    # must keep the default or it would train on an all-zero reward stream.
+    internal_rl_runtime_reward_eligibility: RuntimeReplayRewardEligibility = (
+        RuntimeReplayRewardEligibility.ANY_SETTLED_OUTCOME
+    )
+    # Does the realized outcome payoff reach the optimizer? This is the
+    # orthogonal half of ``external_prediction_error_drive``, which owns only
+    # "PE drives learning signals / temporal switch pressure".
+    #   - None (default): derived from the eligibility contract. Under
+    #     ANY_SETTLED_OUTCOME it stays coupled to the PE drive exactly as
+    #     before (byte rollback); under ENVIRONMENT_MEASURED_ONLY the payoff is
+    #     environment-published by construction, so a PE-off arm keeps it.
+    #   - True / False: explicit, always wins over the derivation.
+    internal_rl_runtime_outcome_payoff_reward: bool | None = None
+    # Latent-code bound for the Internal-RL replay lane. False (default) keeps
+    # the sandbox's historic signed [-1, 1] bound on the reconstructed
+    # latent-code / modulated-mean / candidate-mean / policy-mean and is the
+    # exact rollback. True adopts the live metacontroller's [0, 1] latent
+    # bound so replay can no longer reconstruct a mean the frozen plant cannot
+    # emit. Reward / advantage bounds stay signed either way.
+    internal_rl_runtime_latent_unit_clamp: bool = False
     # Minimum optimizer batch support. Synthetic replay counts rollouts;
     # ACTIVE runtime replay counts real transitions so short closed segments
     # cannot be optimized as singleton, zero-covariance factor batches.
@@ -509,6 +543,22 @@ class FinalRolloutConfig:
     )
 
     def __post_init__(self) -> None:
+        if not isinstance(
+            self.internal_rl_runtime_reward_eligibility,
+            RuntimeReplayRewardEligibility,
+        ):
+            raise TypeError(
+                "internal_rl_runtime_reward_eligibility must be a "
+                "RuntimeReplayRewardEligibility member, got "
+                f"{self.internal_rl_runtime_reward_eligibility!r}."
+            )
+        if self.internal_rl_runtime_outcome_payoff_reward is not None and not (
+            isinstance(self.internal_rl_runtime_outcome_payoff_reward, bool)
+        ):
+            raise TypeError(
+                "internal_rl_runtime_outcome_payoff_reward must be None or "
+                f"bool, got {self.internal_rl_runtime_outcome_payoff_reward!r}."
+            )
         if self.personal_conditioning_mode not in ("residual", "text"):
             raise ValueError(
                 "personal_conditioning_mode must be 'residual' or 'text', "

@@ -131,6 +131,10 @@ from volvence_zero.joint_loop import (
     ScheduledJointLoopResult,
     OnlineFastImportResult,
 )
+# Runtime-replay reward-stream contract. The ``volvence_zero.joint_loop``
+# facade does not re-export it yet, so the owning module is the SSOT import
+# until that facade is extended.
+from volvence_zero.joint_loop.runtime import RuntimeReplayRewardStream
 from volvence_zero.memory import MemorySnapshot, MemoryStore, Track, build_default_memory_store
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 from volvence_zero.planning import ImaginationResult, imagine
@@ -939,8 +943,23 @@ class AgentSessionRunner(
             ssl_backend=self._config.temporal_ssl_backend,
             internal_rl_backend=self._config.internal_rl_backend,
             internal_rl_runtime_replay=self._config.internal_rl_runtime_replay,
+            # ``external_prediction_error_drive`` is contract (a) only: PE
+            # drives learning signals (the PE-derived segment-credit bonus and
+            # the PE->beta_t switch pressure). It must NOT also decide whether
+            # the environment-published outcome payoff reaches the optimizer;
+            # contract (b) below owns that, and under a strict eligibility
+            # declaration a PE-off arm keeps earning the environment payoff.
             runtime_replay_prediction_error_enabled=(
                 external_prediction_error_drive
+            ),
+            runtime_replay_outcome_payoff_reward=(
+                self._config.internal_rl_runtime_outcome_payoff_reward
+            ),
+            runtime_replay_reward_eligibility=(
+                self._config.internal_rl_runtime_reward_eligibility
+            ),
+            runtime_replay_latent_unit_clamp=(
+                self._config.internal_rl_runtime_latent_unit_clamp
             ),
             runtime_replay_segment_credit=(
                 self._config.internal_rl_runtime_segment_credit
@@ -990,6 +1009,37 @@ class AgentSessionRunner(
                 "mismatch: config="
                 f"{self._config.internal_rl_batch_accumulation_size}, loop="
                 f"{self._joint_loop.rl_batch_accumulation_size}"
+            )
+        if (
+            self._joint_loop.runtime_replay_reward_eligibility
+            is not self._config.internal_rl_runtime_reward_eligibility
+        ):
+            raise ValueError(
+                "AgentSessionRunner config/joint-loop runtime replay reward "
+                "eligibility mismatch: config="
+                f"{self._config.internal_rl_runtime_reward_eligibility.value}, "
+                "loop="
+                f"{self._joint_loop.runtime_replay_reward_eligibility.value}"
+            )
+        if (
+            self._joint_loop.runtime_replay_outcome_payoff_reward
+            != self._config.internal_rl_runtime_outcome_payoff_reward
+        ):
+            raise ValueError(
+                "AgentSessionRunner config/joint-loop runtime replay outcome "
+                "payoff reward mismatch: config="
+                f"{self._config.internal_rl_runtime_outcome_payoff_reward!r}, "
+                f"loop={self._joint_loop.runtime_replay_outcome_payoff_reward!r}"
+            )
+        if (
+            self._joint_loop.runtime_replay_latent_unit_clamp
+            is not self._config.internal_rl_runtime_latent_unit_clamp
+        ):
+            raise ValueError(
+                "AgentSessionRunner config/joint-loop runtime replay latent "
+                "unit clamp mismatch: config="
+                f"{self._config.internal_rl_runtime_latent_unit_clamp!r}, "
+                f"loop={self._joint_loop.runtime_replay_latent_unit_clamp!r}"
             )
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         if not joint_learning_enabled and joint_schedule is not None:
@@ -1556,6 +1606,18 @@ class AgentSessionRunner(
     @property
     def rollout_config(self) -> FinalRolloutConfig:
         return self._config
+
+    @property
+    def latest_runtime_replay_reward_stream(self) -> RuntimeReplayRewardStream:
+        """Facade passthrough for the runtime-replay owner's reward stream.
+
+        Read-only evidence surface: the realized payoff / segment bonus /
+        eligibility tally the Internal-RL optimizer actually consumed. Owned
+        and published by the joint-loop runtime-replay owner; this runner only
+        forwards it.
+        """
+
+        return self._joint_loop.latest_runtime_replay_reward_stream
 
     @property
     def world_temporal_policy(self) -> TemporalPolicy:

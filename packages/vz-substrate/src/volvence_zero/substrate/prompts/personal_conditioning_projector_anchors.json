@@ -1,0 +1,66 @@
+{
+  "user_stability": {
+    "positive": ["The person feels steady, grounded, and able to stay regulated."],
+    "negative": ["The person feels unstable, unsettled, and easily dysregulated."]
+  },
+  "user_overwhelm": {
+    "positive": ["The person is overwhelmed and has very little spare capacity."],
+    "negative": ["The person has enough capacity and is not overwhelmed."]
+  },
+  "user_control": {
+    "positive": ["The person has agency and feels able to choose what happens next."],
+    "negative": ["The person feels powerless and unable to influence what happens next."]
+  },
+  "relationship_trust": {
+    "positive": ["Trust in this relationship is strong and well established."],
+    "negative": ["Trust in this relationship is low and still fragile."]
+  },
+  "relationship_continuity": {
+    "positive": ["This is a continuous relationship with a strong sense of shared history."],
+    "negative": ["This relationship has little continuity or shared history."]
+  },
+  "relationship_repair_need": {
+    "positive": ["The relationship needs repair before advice or action."],
+    "negative": ["The relationship is intact and does not currently need repair."]
+  },
+  "relationship_emotional_load": {
+    "positive": ["The relationship carries a heavy emotional load right now."],
+    "negative": ["The relationship carries little emotional load right now."]
+  },
+  "relationship_attunement_gap": {
+    "positive": ["There is a large attunement gap and the person does not yet feel understood."],
+    "negative": ["Attunement is close and the person feels accurately understood."]
+  },
+  "goal_alignment": {
+    "positive": ["The possible action is strongly aligned with the person's goals."],
+    "negative": ["The possible action is poorly aligned with the person's goals."]
+  },
+  "goal_value_conflict": {
+    "positive": ["The decision contains a serious conflict between important values."],
+    "negative": ["The decision contains little conflict between the person's values."]
+  },
+  "goal_decision_readiness": {
+    "positive": ["The person is ready to decide and take a concrete next step."],
+    "negative": ["The person is not ready to decide or take action yet."]
+  },
+  "goal_reversibility_need": {
+    "positive": ["Any next step should remain reversible and easy to undo."],
+    "negative": ["Reversibility is not an important concern for this next step."]
+  },
+  "boundary_compliance": {
+    "positive": ["The interaction is respecting the person's stated boundaries."],
+    "negative": ["The interaction is failing to respect the person's stated boundaries."]
+  },
+  "boundary_autonomy_risk": {
+    "positive": ["There is a high risk of overriding the person's autonomy."],
+    "negative": ["There is little risk of overriding the person's autonomy."]
+  },
+  "boundary_consent_clarity": {
+    "positive": ["Consent and permission are explicit and clear."],
+    "negative": ["Consent and permission are ambiguous or missing."]
+  },
+  "boundary_overreach_risk": {
+    "positive": ["There is a high risk that the response could overreach."],
+    "negative": ["There is little risk that the response could overreach."]
+  }
+}

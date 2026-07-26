@@ -1,0 +1,16 @@
+{
+  "schema_version": "state-kv-projector-bake.v1",
+  "artifact_id": "36bd71eb317e23ad828bd0fad75109debc1c10ef0d99d16e4dfd5f6b6ecf2e6c",
+  "training_mode": "contrastive-residual-v1",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+  "anchor_sha256": "4b43a528828c42f33ccc1676d0cf0d592c2fe75143f5f7781c9a992b268c2f37",
+  "injection_layers": [
+    11,
+    12,
+    13
+  ],
+  "basis_row_norm": 1.0,
+  "per_layer_gain": 1.0,
+  "base_model_mutated": false
+}

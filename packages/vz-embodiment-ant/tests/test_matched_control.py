@@ -20,6 +20,52 @@ from volvence_ant.runtime import AntSessionConfig
 _HAS_TORCH = importlib.util.find_spec("torch") is not None
 
 
+def test_arm_substrate_digest_tracks_the_body_every_arm_runs(monkeypatch) -> None:
+    """The resume gate can only see an arm's physics if the digest carries it.
+
+    ``research/ant/05_ecology_p0_p1_p2_plan.md`` §5.4 (P2-B): "任何代码或门槛
+    变化都会使整批失效并重新开始". ``scripts/run_ant_matched_control.py``
+    resumes on ``provenance.config_digest``, which is built only from the
+    operator knobs (ticks / seeds / n_z / runtime strengths) — none of which
+    move when an arm's frozen body changes. This digest is the missing input.
+
+    Whether the reported values match the navigators the arms really construct
+    is checked separately, arm by arm, in ``tests/test_frozen_functions.py``.
+    """
+
+    from volvence_ant.proofs import matched_control
+    from volvence_ant.proofs.matched_control import (
+        ARM_SUBSTRATE_SENSOR_FIELDS,
+        arm_substrate_parameters,
+        matched_control_arm_substrate_digest,
+    )
+
+    parameters = arm_substrate_parameters()
+    assert set(parameters) == {"kernel", "fixed_rule", "e2e_rl", "random"}
+    for family, values in sorted(parameters.items()):
+        assert tuple(sorted(values)) == tuple(
+            sorted(ARM_SUBSTRATE_SENSOR_FIELDS)
+        ), family
+
+    baseline = matched_control_arm_substrate_digest()
+    assert baseline == matched_control_arm_substrate_digest()
+
+    # Changing an arm's body must move the digest, otherwise a resumed run
+    # keeps serving numbers produced on the previous body.
+    monkeypatch.setattr(matched_control, "SHARED_COMPASS_GAIN", 0.0)
+    assert matched_control_arm_substrate_digest() != baseline
+    monkeypatch.undo()
+    assert matched_control_arm_substrate_digest() == baseline
+
+    # The kernel / scripted entries are read off the live config owners rather
+    # than re-typed, so editing those owners moves the digest too.
+    kernel = matched_control.AntSessionConfig()
+    scripted = matched_control.FixedRuleConfig()
+    for field in ARM_SUBSTRATE_SENSOR_FIELDS:
+        assert parameters["kernel"][field] == getattr(kernel, field), field
+        assert parameters["fixed_rule"][field] == getattr(scripted, field), field
+
+
 def test_read_only_diagnostic_order_identifies_sparse_exploration_breakpoint() -> None:
     from volvence_ant.env import AntWorld, AntWorldConfig, FoodSource
     from volvence_ant.proofs import matched_control

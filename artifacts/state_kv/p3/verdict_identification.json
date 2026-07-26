@@ -1,0 +1,338 @@
+{
+  "schema_version": "state-kv-identification.v1",
+  "verdict_state": "insufficient_data",
+  "substrate_kind": "frozen-weights",
+  "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+  "candidate_arm": "state-kv-arm-g-prefix-pure",
+  "claims": [
+    {
+      "claim": "claim_prompt_identity",
+      "state": "pass",
+      "detail": "12 turns across 3 probes share one prompt_fp per probe with prompt_state_sections=0"
+    },
+    {
+      "claim": "claim_output_divergence",
+      "state": "fail",
+      "detail": "candidate arm produced identical text across users on probes: p1"
+    },
+    {
+      "claim": "claim_identification_above_chance",
+      "state": "insufficient_data",
+      "detail": "no blind-judge votes for state-kv-arm-g-prefix-pure; a cross-family judge is required (spec §关键不变量 5) and arrives with P1-directional"
+    },
+    {
+      "claim": "claim_carrier_causality",
+      "state": "insufficient_data",
+      "detail": "no blind-judge votes for: state-kv-arm-a-pure, state-kv-arm-bprime"
+    }
+  ],
+  "c5_grade": "decode-matched",
+  "c5_detail": "decode_fp identical across users on every probe",
+  "matching": [],
+  "prompt_fp_table": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "740e73d73a096cd8",
+      "prompt_state_sections": 2,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "2932b758722e6483",
+      "prompt_state_sections": 2,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "e4393b1d71ac0f08",
+      "prompt_state_sections": 2,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "1a60da699df120c4",
+      "prompt_state_sections": 2,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "0dad065be876f82e",
+      "prompt_state_sections": 2,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b497bff796249b67",
+      "prompt_state_sections": 2,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "0d0dbb437e5c3102",
+      "prompt_state_sections": 1,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "179b76bd4c331ef6",
+      "prompt_state_sections": 1,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "57cd8841dc2e4be1",
+      "prompt_state_sections": 1,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "0d0dbb437e5c3102",
+      "prompt_state_sections": 1,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "179b76bd4c331ef6",
+      "prompt_state_sections": 1,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "57cd8841dc2e4be1",
+      "prompt_state_sections": 1,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "22c58eff74b38d95",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    }
+  ],
+  "judge_model_id": "",
+  "notes": [
+    "claims not established: claim_output_divergence, claim_identification_above_chance, claim_carrier_causality"
+  ]
+}

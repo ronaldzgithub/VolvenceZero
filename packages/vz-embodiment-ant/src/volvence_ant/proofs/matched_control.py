@@ -16,6 +16,12 @@ Boundary-clean arms (expressible via the vz-runtime facade only):
 Additional schedule-gated arms (``no_optimize`` / ``eta_off``) require a
 ``JointLoopSchedule`` object, which the embodiment package must not import; the
 evidence lane script passes one in via ``extra_kernel_arms``.
+
+Every arm must run the SAME frozen body (``docs/specs/digital-ant-embodiment.md``
+§3). :func:`matched_control_arm_substrate_digest` exposes that body so evidence
+runners can bind it into the config they digest into ``provenance.config_digest``
+— otherwise a resume gate keyed only on operator knobs re-serves artifacts that
+were produced on a different body.
 """
 
 from __future__ import annotations
@@ -26,7 +32,14 @@ from typing import Callable
 
 import numpy as np
 
-from volvence_ant.controllers.e2e_rl_ant import E2ERLAnt, PPOConfig
+from volvence_ant.controllers.e2e_rl_ant import (
+    SHARED_COMPASS_GAIN,
+    SHARED_COMPASS_NOISE,
+    SHARED_HEADING_NOISE,
+    SHARED_STEP_NOISE,
+    E2ERLAnt,
+    PPOConfig,
+)
 from volvence_ant.controllers.fixed_rule_ant import FixedRuleAnt, FixedRuleConfig
 from volvence_ant.controllers.random_ant import RandomAnt
 from volvence_ant.env.ant_world import AntWorld, AntWorldConfig, FoodSource
@@ -35,6 +48,82 @@ from volvence_ant.runtime.ant_session import (
     AntSession,
     AntSessionConfig,
 )
+
+#: Body-sensor fields that define "the same frozen substrate" for an arm.
+#: ``docs/specs/digital-ant-embodiment.md`` §3 freezes these four for every
+#: matched-control arm; a per-arm divergence means the arms were compared on
+#: different bodies and the published numbers are not commensurable.
+ARM_SUBSTRATE_SENSOR_FIELDS: tuple[str, ...] = (
+    "heading_noise",
+    "step_noise",
+    "compass_gain",
+    "compass_noise",
+)
+
+
+def arm_substrate_parameters() -> dict[str, dict[str, float]]:
+    """The frozen body-sensor parameters each arm family actually declares.
+
+    Read from the live declarations rather than re-typed here, so editing an
+    arm's physics necessarily moves the returned mapping (and therefore
+    :func:`matched_control_arm_substrate_digest`).
+
+    Scope note: the kernel entry reads ``AntSessionConfig`` defaults, which is
+    what every kernel arm (``learned`` / ``pe_off`` / ``no_optimize`` /
+    ``eta_off``) inherits — those arms differ only in PE drive and joint
+    schedule. A script-side factory that overrode a sensor field would NOT show
+    up here; that case is covered by the per-arm construction comparison in
+    ``packages/vz-embodiment-ant/tests/test_frozen_functions.py``.
+    """
+
+    kernel = AntSessionConfig()
+    scripted = FixedRuleConfig()
+    baseline_and_floor = {
+        "heading_noise": SHARED_HEADING_NOISE,
+        "step_noise": SHARED_STEP_NOISE,
+        "compass_gain": SHARED_COMPASS_GAIN,
+        "compass_noise": SHARED_COMPASS_NOISE,
+    }
+    return {
+        "kernel": {
+            field: float(getattr(kernel, field))
+            for field in ARM_SUBSTRATE_SENSOR_FIELDS
+        },
+        "fixed_rule": {
+            field: float(getattr(scripted, field))
+            for field in ARM_SUBSTRATE_SENSOR_FIELDS
+        },
+        "e2e_rl": {
+            field: float(baseline_and_floor[field])
+            for field in ARM_SUBSTRATE_SENSOR_FIELDS
+        },
+        "random": {
+            field: float(baseline_and_floor[field])
+            for field in ARM_SUBSTRATE_SENSOR_FIELDS
+        },
+    }
+
+
+def matched_control_arm_substrate_digest() -> str:
+    """Digest of the frozen body sensors every matched-control arm runs.
+
+    Evidence runners must bind this into the config they digest into
+    ``provenance.config_digest``. ``research/ant/05_ecology_p0_p1_p2_plan.md``
+    §5.4 (P2-B) declares that any code or threshold change invalidates the whole
+    confirmatory batch, but a resume gate that compares only the operator-facing
+    knobs (ticks / seeds / n_z / strengths) cannot see an arm's physics change
+    and will happily serve a superseded artifact. Including this digest makes
+    "the arms no longer run the body the stored numbers were produced on" a
+    mechanically detectable mismatch.
+    """
+
+    # Deferred: ``volvence_ant.evidence`` imports this module (the ant-active
+    # evidence lane runs the behavioural arms), so a module-level import would
+    # be circular. The canonical encoding is reused rather than re-implemented
+    # because runners compare this against digests produced by the same helper.
+    from volvence_ant.evidence.provenance import stable_json_digest
+
+    return stable_json_digest(arm_substrate_parameters())
 
 
 @dataclass(frozen=True)

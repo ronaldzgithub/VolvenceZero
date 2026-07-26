@@ -1,15 +1,29 @@
-"""Train and gate the learned three-object digital-ant checkpoint."""
+"""Train and gate the learned three-object digital-ant checkpoint.
+
+Plan section 2.1 forbids overwriting an existing artifact -- in particular an
+existing ``BLOCK`` artifact. The default archive/report names are therefore
+run-id suffixed, and an existing target is refused with the verdict it carries
+unless ``--overwrite`` is passed explicitly.
+
+``--overwrite`` never deletes anything up front: training can run for hours, so
+the previous archive/report/manifest stay on disk until the new bundle is
+complete and atomically replaces them. A crash mid-training loses the new run,
+never the old evidence.
+"""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from volvence_ant.evidence.ecology_checkpoint import (
+    ensure_ecology_archive_writable,
     write_ecology_checkpoint_bundle,
 )
+from volvence_ant.evidence.provenance import ensure_artifact_writable
 from volvence_ant.experiments.ecology_curriculum import (
     EcologyCurriculumConfig,
     train_and_evaluate_ecology_checkpoint,
@@ -17,14 +31,56 @@ from volvence_ant.experiments.ecology_curriculum import (
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_ARCHIVE = Path("research/ant/results/ecology_checkpoint.v4.vzac")
-_DEFAULT_REPORT = Path("research/ant/results/ecology_checkpoint.v4.json")
+_RESULT_DIR = Path("research/ant/results")
+_ARCHIVE_STEM = "ecology_checkpoint.v4"
+_MANIFEST_SUFFIX = ".manifest.json"
+
+
+def _default_run_id() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _repo_path(path: Path) -> Path:
     resolved = path if path.is_absolute() else _REPO_ROOT / path
     resolved.relative_to(_REPO_ROOT)
     return resolved
+
+
+def _guard_outputs(
+    *,
+    archive_path: Path,
+    report_path: Path,
+    overwrite: bool,
+) -> None:
+    """Refuse a colliding output *before* any training budget is spent.
+
+    This is a pre-flight check only. Nothing is deleted here: with
+    ``--overwrite`` the previous archive, report and manifest stay on disk
+    until the new bundle atomically replaces them
+    (``write_ecology_checkpoint_bundle`` commits every file through a temp file
+    plus ``os.replace``). A crash at hour six of training therefore leaves the
+    previous evidence exactly as it was, instead of destroying it and producing
+    nothing.
+    """
+
+    ensure_artifact_writable(report_path, overwrite=overwrite)
+    ensure_ecology_archive_writable(
+        archive_path,
+        report_path=report_path,
+        overwrite=overwrite,
+    )
+    if overwrite:
+        for path in (
+            archive_path,
+            report_path,
+            report_path.with_suffix(_MANIFEST_SUFFIX),
+        ):
+            if path.exists():
+                print(
+                    "--overwrite: "
+                    f"{path.relative_to(_REPO_ROOT)} will be replaced once the "
+                    "new bundle is complete"
+                )
 
 
 async def _run(args: argparse.Namespace) -> int:
@@ -44,14 +100,20 @@ async def _run(args: argparse.Namespace) -> int:
         heldout_seeds=tuple(args.heldout_seeds),
         seed=args.seed,
     )
-    candidate = await train_and_evaluate_ecology_checkpoint(config)
     archive_path = _repo_path(args.archive)
     report_path = _repo_path(args.report)
+    _guard_outputs(
+        archive_path=archive_path,
+        report_path=report_path,
+        overwrite=args.overwrite,
+    )
+    candidate = await train_and_evaluate_ecology_checkpoint(config)
     manifest_path = write_ecology_checkpoint_bundle(
         candidate=candidate,
         archive_path=archive_path,
         report_path=report_path,
         repo_root=_REPO_ROOT,
+        overwrite=args.overwrite,
     )
     print(candidate.report.description)
     print(f"checkpoint: {archive_path.relative_to(_REPO_ROOT)}")
@@ -98,12 +160,36 @@ def main() -> int:
         default="cpu",
         help=(
             "Tensor runtime device. CUDA/MPS enable the ant temporal runtime "
-            "on the GPU (MPS runs float32; CPU stays the float64 parity default)."
+            "on the GPU (MPS runs float32; CPU stays the float64 parity default). "
+            "The requested device and the backend it resolves to are recorded "
+            "in the artifact provenance."
         ),
     )
-    parser.add_argument("--archive", type=Path, default=_DEFAULT_ARCHIVE)
-    parser.add_argument("--report", type=Path, default=_DEFAULT_REPORT)
+    parser.add_argument(
+        "--run-id",
+        type=str,
+        default=None,
+        help=(
+            "Run identifier used in the default archive/report filenames; "
+            "defaults to a UTC timestamp so no run overwrites another."
+        ),
+    )
+    parser.add_argument("--archive", type=Path, default=None)
+    parser.add_argument("--report", type=Path, default=None)
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help=(
+            "Destroy an existing archive, report and manifest at the target "
+            "paths. Without this flag an existing artifact is never replaced."
+        ),
+    )
     args = parser.parse_args()
+    run_id = args.run_id if args.run_id is not None else _default_run_id()
+    if args.archive is None:
+        args.archive = _RESULT_DIR / f"{_ARCHIVE_STEM}.{run_id}.vzac"
+    if args.report is None:
+        args.report = _RESULT_DIR / f"{_ARCHIVE_STEM}.{run_id}.json"
     if args.device in ("cuda", "mps"):
         os.environ["VZ_TENSOR_DEVICE"] = args.device
     else:

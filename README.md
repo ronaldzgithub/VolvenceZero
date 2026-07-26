@@ -1,5 +1,58 @@
 # VolvenceZero
 
+## State-KV Carrier Identification
+
+The State-KV runner tests whether two users can receive distinguishable
+responses through model-layer personal state while the pure arms send
+byte-identical prompts and no conversation history:
+
+```bash
+# Zero-cost wiring smoke.
+python scripts/run_state_kv_identification.py --lane smoke
+
+# Real frozen Qwen2.5-0.5B; local weights only by default.
+python scripts/run_state_kv_identification.py \
+  --lane p1 \
+  --model-id Qwen/Qwen2.5-0.5B-Instruct \
+  --device cpu
+
+# Bake and explicitly test the reversible contrastive projector artifact.
+python scripts/bake_state_kv_projector.py \
+  --model-id Qwen/Qwen2.5-0.5B-Instruct \
+  --device cpu
+python scripts/run_state_kv_identification.py \
+  --lane p1 \
+  --model-id Qwen/Qwen2.5-0.5B-Instruct \
+  --device cpu \
+  --projector-artifact \
+  artifacts/state_kv/projectors/qwen2.5-0.5b-contrastive.json
+```
+
+The P1 lane reuses one frozen Transformers runtime across all four arms,
+forces deterministic decoding, and gives both personas the same response
+assembly so the sampling-layer carrier is closed. It writes the verdict,
+full response transcript, and content-addressed substrate fingerprint under
+`artifacts/state_kv/p1/`. Without a cross-family blind judge the identification
+and causality claims remain `insufficient_data`; a real residual hook alone is
+not promoted into a retained result. The learned-projector lane writes to
+`artifacts/state_kv/p1-learned/`; omitting `--projector-artifact` is its rollback.
+On the recorded Qwen 0.5B matched run, both fixed and contrastive projectors
+failed output divergence on probes p0/p2, so the artifact remains evidence-only.
+
+The P3 lane adds a fifth arm, `state-kv-arm-g-prefix-pure`, which carries the
+same readout as a bounded per-layer key/value prefix instead of a single-layer
+residual, and makes it the candidate arm. Train the generator with
+`scripts/train_state_kv_prefix.py` (teacher is the text arm; the base model
+stays frozen and only 123k generator parameters move), then pass
+`--lane p3 --prefix-kv-artifact ...`; omitting the artifact is its rollback.
+Running the same artifact on CPU and MPS is what separates carrier effects from
+numerical noise: the residual arm's single divergence disappears when the
+device changes, while the prefix arm diverges on probes p0/p2 under both. That
+is a bandwidth result, not an identification one — the wrong-user negative
+control sits at chance (0.508), probe p1 is still byte-identical across users,
+so claim 2 fails and the blind judge stays unwired. Evidence is under
+`artifacts/state_kv/p3/` and `artifacts/state_kv/p3-mps/`.
+
 ## Semantic Grounding Evidence
 
 One command runs the two experiments of
