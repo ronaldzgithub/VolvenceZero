@@ -64,6 +64,13 @@ from volvence_zero.substrate.prefix_kv_artifact import (
     build_teacher_distilled_prefix_artifact,
     load_prefix_generator,
 )
+from volvence_zero.substrate.prefix_kv_diagnostics import (
+    PrefixAttentionProfile,
+    ProbeFit,
+    capture_prefix_diagnostics,
+    fit_ridge_probe,
+    profile_spread,
+)
 from volvence_zero.substrate.rare_heavy_training import (
     RARE_HEAVY_PEFT_TRAINING_MODE,
     PeftLoraRareHeavyBackend,
@@ -170,6 +177,11 @@ __all__ = [
     "TEACHER_DISTILLED_PREFIX_TRAINING_MODE",
     "PrefixKVArtifact",
     "PrefixKVGenerator",
+    "PrefixAttentionProfile",
+    "ProbeFit",
+    "capture_prefix_diagnostics",
+    "fit_ridge_probe",
+    "profile_spread",
     "build_teacher_distilled_prefix_artifact",
     "load_prefix_generator",
     "RARE_HEAVY_PEFT_TRAINING_MODE",

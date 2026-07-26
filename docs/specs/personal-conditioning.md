@@ -177,7 +177,13 @@ profile 选它。省略 `personal_conditioning_prefix` 参数即原子回滚：�
 当前 `teacher-distilled-prefix-v1` 由 B′ 文本臂教师蒸馏而来（基底冻结，只训
 122,948 个生成器参数）。它在 p0 / p2 两条探针上取得了跨 CPU/MPS 稳定的双人分叉，
 是第一条做到这点的潜通道；但 p1 仍双人同文，错用户负对照停在 0.508（随机），
-因此判据 2 未过，不得晋升默认 ACTIVE，也不触发盲裁判预算。完整数据与反主张边界见
+因此判据 2 未过，不得晋升默认 ACTIVE，也不触发盲裁判预算。机制定位（P4 门 A / 门 B）：状态确实进入 prefill 并可从真实 token 的残差流线性
+读出（held-out R² 0.858），但 slot 注意力几乎不随状态变化（跨状态离散度比跨探针句
+低 58 倍）。即注意力权重近乎恒定、value 随状态变，贡献形如 `w · V(state)`——一个
+恒定增益的状态相关偏置，也就是 residual 载体的多层版本。因此加 slot 数或抬
+`norm_cap` 只会放大偏置，不会产生按人路由；要动的是让注意力权重本身成为状态的函数。
+
+完整数据与反主张边界见
 [`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3。
 
 ## 4. 完整目标架构

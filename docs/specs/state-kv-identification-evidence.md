@@ -1,6 +1,6 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；P3 Prefix-KV 载体取得首个跨设备稳定的双人分叉（p0 / p2），但 p1 仍同文且错用户负对照停在随机，判据 2 未过；跨家族盲裁判保持未启用
+> Status: P0-contract / P0-smoke 已落地；P4 机制门给出定位结论——状态进得去、可线性读出（门 B pass，held-out R² 0.858），但注意力不按人路由（门 A fail），通道退化为 residual 的多层版本；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；P3 Prefix-KV 载体取得首个跨设备稳定的双人分叉（p0 / p2），但 p1 仍同文且错用户负对照停在随机，判据 2 未过；跨家族盲裁判保持未启用
 > Last updated: 2026-07-26
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
@@ -179,6 +179,7 @@ prompt」的效果（设计方案 §9.3 原文）。即便日后判据 2 通过�
 | P0-smoke | deterministic-fake substrate 跑通四臂，验证 `prompt_fp` 相等与 tag 完整 | 0 | ✅ 已落地，见下 |
 | P1-directional | 真冻结 Qwen + 跨家族盲裁判，2 personas × K 探针句 × 多 seed | 中（裁判） | fixed 与 learned projector 均未过判据 2；盲裁判未启用 |
 | P3-prefix | 同一冻结 Qwen 加第五臂 `g-prefix-pure`，候选臂换成 Prefix-KV 载体 | 0（本机训练） | p0 / p2 跨设备稳定分叉；p1 同文、负对照随机，判据 2 未过 |
+| P4-mechanism | slot 注意力非退化检验（门 A）+ 状态线性可读出探针（门 B） | 0 | 门 A fail / 门 B pass；`carrier_is_live=false` |
 | P2-retain | held-out personas + 多 seed，出 held-out `verdict_identification.json` | 批准预算 | pending |
 
 ### P1 frozen-Qwen runner
@@ -420,6 +421,82 @@ artifact ID `1b133cf27e27ca2f27bbbd45f29928881b54a55752b4ffab0f5dbe39308134a6`�
 先解决状态选择性再谈探针覆盖。可查的方向是加大 slot 数与秩、把 margin 项换成
 逐 token 对比损失、以及扩大状态素材的覆盖；抬 `norm_cap` 不在其中——范数匹配的
 随机前缀在 gain 0.25 就已经把输出打崩，0.2 已接近可用上界。
+
+### P4：机制门（门 A 注意力 / 门 B 可读出）（2026-07-27）
+
+P3 之后卡住的不是探针覆盖，是**错用户负对照停在 0.508**。而这个数字把两种完全
+不同的失败混在一起：注意力根本没读那些 slot，还是读了但里面没有状态。这两者的
+修法不同，所以本包用两个比识别判据更弱、但能证伪、且不花裁判预算的机制门把它们
+分开。
+
+产物 `artifacts/state_kv/p4-diagnostics/`，runner：
+
+```bash
+python scripts/run_state_kv_carrier_diagnostics.py --device cpu \
+  --train-states 96 --eval-states 32 --shuffle-draws 5 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-prefix.json
+```
+
+#### 两个门的定义，以及两处必须记录的判据修正
+
+**门 A `claim_slot_attention_read`**：A2 跨 slot 区分度（块内 max/min）在**至少
+半数层**超过同范数随机前缀对照；A3 注意力剖面的跨状态离散度 > 跨探针句离散度。
+
+> **A1 被废弃。** 原本还打算要求"slot 注意力质量 > 均匀期望 `S/(S+N)`"。实测
+> 否掉了它：零内容前缀拿到 **0.347**、随机前缀 **0.339**，均匀期望只有 **0.16**。
+> 近零 attention logit 会吸走真实 token（logit 多为负）不争抢的质量，这是
+> attention sink，与内容无关。**任何定义在 slot 注意力总量上的门，一个零张量就能
+> 通过**。因此总量只报告、不判定。禁止对外引用"状态 slot 拿到 XX% 注意力"。
+
+**门 B `claim_state_linearly_readable`**：探针打在 **prefill 后真实 prompt 末位的
+hidden state** 上——不是打在前缀 KV 上，后者是 readout 的确定性函数，probe 它是
+循环论证。ridge 的 alpha 由**训练状态内部按状态分组的 4 折 CV** 在固定网格上选出，
+全程不看 held-out。
+
+> **B2 第一版是错的。** 原本要求"打乱标签对照 R² ≤ 0"。但报告的统计量是**跨 24 层
+> 取最大值**，而有限样本 R² 零分布虽中心近 0 却有方差，取 24 个的最大值必然为正。
+> 这个条件在载体完全正常时也不可能满足——第一次全量跑出的 `fail: leakage` 就是
+> 这么来的，与载体无关。修正为：held-out 最优值必须**超出零分布天花板一个 floor
+> 的余量**，零分布由 5 次独立打乱抽样取上界。中途还提过一个"低方差坐标主导未加权
+> 平均"的假设，验证后**被证伪**（16 个坐标方差 0.004–0.063，无近常数坐标），故未
+> 采纳；记在这里是因为按错误假设改聚合方式会改出一个好看但没有依据的结果。
+
+#### 结果
+
+| 门 | 状态 | 数字 |
+|---|---|---|
+| A（注意力被读） | **fail** | 跨 slot 区分度仅 5/24 层超过随机对照（需 >12）；跨状态离散度 **0.00032** vs 跨句 **0.01852** |
+| B（线性可读出） | **pass** | layer 5 held-out mean R² **0.8576**（floor 0.1）；打乱零分布上界 0.1059；无前缀对照 **−0.0521** |
+| overall | `carrier_is_live=false` | |
+
+无前缀对照为负是结构性的：pure 臂 prompt 逐字节相同，不挂前缀时不同状态的 hidden
+state **完全一致**，探针只能预测均值。runner 逐句实测这一点，不成立即记
+`insufficient_data`。
+
+#### 定位结论：状态走的是 value，不是注意力
+
+两个门的组合给出一个此前拿不到的机制事实：**状态确实进入了 prefill 并写进了真实
+token 的残差流（R² 0.858），但注意力权重几乎不随状态变化**（跨状态离散度比跨句低
+58 倍）。也就是说注意力权重近乎恒定、value 随状态变，输出贡献是 `w · V(state)`
+——数学形式上就是一个**恒定增益的状态相关偏置**。
+
+那正是 residual 载体的形式。当前前缀生成器**退化成了 residual 通道的多层版本**：
+比单层强（所以 P3 的 p0/p2 能分叉），但完全没有用上注意力"按人路由"的能力，因此
+产生不了身份选择性（错用户负对照 0.508）。
+
+这直接指定了下一步该改什么，也排除了两条看起来合理但没用的路：加 slot 数、抬
+`norm_cap`——它们只会把这个偏置放大，不会让它变成路由。要改的是让**注意力权重
+本身**成为状态的函数：当前低秩生成器把 K 和 V 从同一个 `tanh(Es+b)` 瓶颈线性展开，
+K 的状态依赖在 per-head norm cap 之后被压到 softmax 分辨不出的量级。
+
+#### 这两个门能说什么，不能说什么
+
+**能**：这条载体是活的——状态到得了 prefill，也能从真实 token 的表示里线性读出。
+
+**不能**：门 B 通过**不代表状态被使用**。探针测的是"在不在"，不是"起不起作用"；
+而且生成器本身近似线性，高 R² 有相当一部分只是反映了这一点。行为层的判据 2 仍未过、
+负对照仍在随机，因此不得声称模型层身份识别成立，更不得引申为"不需要 context
+engineering"。
 
 #### 盲裁判已就绪但故意未接线
 
