@@ -126,6 +126,7 @@ artifacts/companion_bench_smoke/*
 !/tests/test_decision_workspace.py
 !/tests/test_decision_valuation.py
 !/tests/test_research_evidence_path.py
+!/tests/test_panorama_render.py
 *.pyc
 /.venv-ant
 /.conda-volvence-gpu

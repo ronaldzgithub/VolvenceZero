@@ -29,6 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from volvence_zero.decision_workspace.valuation import ValuationResult
+from volvence_zero.regime import ParticipationLevel
 
 # What kind of statement about the ranking is supported.
 CLAIM_NONE = "none"
@@ -118,4 +119,111 @@ def licence_for(
             "licence: robustness only (intervals overlap; a comparative "
             "claim would assert a result the arithmetic does not have)"
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Render plan
+#
+# The split here is deliberate: *what may be said* is decided in this tier,
+# next to the arithmetic that licenses it; *how it is worded* belongs to the
+# expression layer. Putting the constraint in the prompt instead would make
+# it a suggestion, and the failure would be invisible — fluent text that
+# quietly asserts a result the numbers do not support.
+#
+# It also means the contract tests can assert the constraint without
+# asserting the wording, so rephrasing a sentence never silently relaxes
+# what the system is entitled to claim.
+# ---------------------------------------------------------------------------
+
+PANORAMA_TIER_BRIEF = "brief"
+PANORAMA_TIER_STRUCTURED = "structured"
+
+
+@dataclass(frozen=True)
+class PanoramaRenderPlan:
+    """What the expression layer may put on screen this turn."""
+
+    tier: str
+    option_count: int
+    dimension_count: int
+    open_unknown_count: int
+    # Licence-derived. ``claim_kind`` is CLAIM_NONE / CLAIM_ROBUSTNESS /
+    # CLAIM_COMPARATIVE; ``subject_ref`` names the option the claim is
+    # about, or None when no claim is licensed at all.
+    claim_kind: str = CLAIM_NONE
+    subject_ref: str | None = None
+    # Unknowns that must remain visible in whatever is said. A conclusion
+    # that silently drops the thing it depends on is worse than no
+    # conclusion, because it reads as settled.
+    surface_unknown_refs: tuple[str, ...] = ()
+    # Dimensions whose figures may only appear marked as unverified.
+    unverified_dimension_refs: tuple[str, ...] = ()
+    # The single most useful thing to ask next, or None when nothing left
+    # to learn could change the ranking — the termination condition.
+    next_question_ref: str | None = None
+    safety_hold: bool = False
+
+    @property
+    def may_state_a_winner(self) -> bool:
+        return self.claim_kind == CLAIM_COMPARATIVE
+
+    @property
+    def may_rank_at_all(self) -> bool:
+        return self.claim_kind != CLAIM_NONE
+
+
+def plan_panorama_render(
+    workspace: object, valuation: ValuationResult | None = None
+) -> PanoramaRenderPlan | None:
+    """Turn a published workspace into a render plan, or ``None``.
+
+    ``None`` means nothing about a decision goes on screen this turn —
+    the gate was closed. That is the common case by a wide margin, and
+    it is a real absence rather than an empty section: there is nothing
+    for a downstream renderer to accidentally expand.
+
+    The BRIEF tier deliberately carries counts but no ranking claim. At
+    that tier the system has noticed a decision is taking shape and can
+    say so; it has not earned the right to lay one out.
+    """
+    engagement = getattr(workspace, "engagement", None)
+    if engagement is None or engagement is ParticipationLevel.SILENT:
+        return None
+    safety_hold = bool(getattr(workspace, "safety_hold", False))
+    options = getattr(workspace, "options", ())
+    unknowns = getattr(workspace, "unknowns", ())
+    dimensions = getattr(workspace, "dimension_refs", ())
+    if engagement is ParticipationLevel.BRIEF:
+        return PanoramaRenderPlan(
+            tier=PANORAMA_TIER_BRIEF,
+            option_count=len(options),
+            dimension_count=0,
+            open_unknown_count=len(unknowns),
+            claim_kind=CLAIM_NONE,
+            safety_hold=safety_hold,
+        )
+    licence = (
+        licence_for(valuation, safety_hold=safety_hold)
+        if valuation is not None
+        else ClaimLicence(
+            claim_kind=CLAIM_NONE,
+            subject_ref=None,
+            rationale="licence: no valuation available",
+        )
+    )
+    next_question = (
+        valuation.next_unknown_to_resolve() if valuation is not None else None
+    )
+    return PanoramaRenderPlan(
+        tier=PANORAMA_TIER_STRUCTURED,
+        option_count=len(options),
+        dimension_count=len(dimensions),
+        open_unknown_count=len(unknowns),
+        claim_kind=licence.claim_kind,
+        subject_ref=licence.subject_ref,
+        surface_unknown_refs=licence.must_surface_unknown_refs,
+        unverified_dimension_refs=licence.unverified_dimension_refs,
+        next_question_ref=next_question,
+        safety_hold=safety_hold,
     )

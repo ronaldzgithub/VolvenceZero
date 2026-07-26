@@ -313,6 +313,34 @@ regime owner
 
 两条边界写进描述符本身：参数**没有**接受个人的字段（"帮我决定要不要离婚"恰恰会诱导去查具体某个私人），且需 `public_research` 授权、在情绪支持 / 修复 regime 下禁用。
 
+## 已落地（最后一公里：全景真的出现了）
+
+此前的状态：判断力、结构、算术都在，但**用户什么也看不见**——workspace 读者数为 0，三档 `panorama_level` 跑出的 prompt plan 完全相同。
+
+| 内容 | 位置 |
+|---|---|
+| `PanoramaRenderPlan` + `plan_panorama_render` | [rendering.py](packages/vz-cognition/src/volvence_zero/decision_workspace/rendering.py) |
+| `SectionId.DECISION_PANORAMA` + planner 接线 | [prompt_planner.py](packages/lifeform-expression/src/lifeform_expression/prompt_planner.py) |
+| `_render_decision_panorama`（措辞受 licence 约束） | [response_synthesizer.py](packages/lifeform-expression/src/lifeform_expression/response_synthesizer.py) |
+| `LifeformSession.panorama_render_plan` provider | [lifeform.py](packages/lifeform-core/src/lifeform_core/lifeform.py) |
+| 19 条测试 | [test_panorama_render.py](tests/test_panorama_render.py) |
+
+实际输出：
+
+```
+[silent    ] (什么都没有)
+[brief     ] There seem to be 4 live options here. Want to lay them out properly?
+[structured] 4 options on the table, weighed on 3 things you have named.
+             The ranges overlap, so nothing wins outright - but separate is
+             the one that stays reversible and buys the most information.
+             2 things are still unresolved, and the ranking moves with them.
+             The one worth settling first is equity-ownership.
+             Anything I have said about children, emotion, money is
+             unverified - treat it as a placeholder, not a number.
+```
+
+**能说什么在认知层，怎么说在表达层。** 区间重叠时渲染器没有任何一条分支能到达"谁最高"的句子。契约测试断言的是约束的效果而非措辞，所以改写句子永远不会悄悄放松系统有资格断言的东西。
+
 ## 未落地（P4 剩余 + P5）
 
 `act4-acceptance-corpus`（多轮 trace 版；当前只有单点估值样本）/ `gate-as-abstract-action` / `learned-gate-shadow` / `cross-session-reopen` / `process-outcome-learning` / `ablation-and-gate`。

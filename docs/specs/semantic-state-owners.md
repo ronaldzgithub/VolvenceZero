@@ -97,6 +97,34 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
 
 第四幕作为**验收样本**跑在 `tests/test_decision_valuation.py`：断言的是"算术支持哪些说法"，不是复现台词。样本里"谈好再离"被刻意给了最高的账面数字，否则"可逆选项胜出"这条断言毫无力度。结果：无 leader（重叠）、`most_robust = separate`、下一个该问的是股权归属、所有数字均不可作为事实陈述。
 
+### 全景怎么出现在回复里
+
+在此之前，判断力、结构、算术都在，但用户什么也看不见：workspace 的读者数量为 0，三档 `panorama_level` 跑出的 prompt plan 完全相同——`panorama_level` 在下游只做一件事，SILENT 时丢掉 `CLARIFICATION`。
+
+补齐的链路：
+
+```
+decision_workspace 快照
+  → plan_panorama_render(workspace, valuation?) → PanoramaRenderPlan | None
+  → LifeformSession.panorama_render_plan（provider）
+  → PromptPlanner 加 SectionId.DECISION_PANORAMA
+  → GroundedResponseSynthesizer._render_decision_panorama
+```
+
+**关键分工：能说什么在认知层决定，怎么说在表达层。** claim licence 与算术放在一起，措辞留给表达层。写进 prompt 的"别过度断言"是请求，装配器必须查询的 licence 是约束——而后者失效时会留下痕迹，前者不会。这也让契约测试断言的是"约束的效果"而非"具体措辞"，改写一个句子永远不会悄悄放松系统有资格断言的东西。
+
+三档行为：
+
+| 档 | 输出 |
+|---|---|
+| SILENT | `plan_panorama_render` 返回 `None`，没有 section。**是真实的缺席，不是空 section**——下游没有东西可以误展开 |
+| BRIEF | "看起来有 4 个选项。要不要摊开来看？"——只发现，不铺开。检测到就立刻铺全景，正是对还没决定要不要一起想的人讲话 |
+| STRUCTURED | 选项数 / 维度数 + licence 允许的排名说法 + 未决项 + 下一个该问的 + 未核实数字的标记 |
+
+区间重叠时渲染器**没有任何一条分支**能到达"谁最高"的句子——它只会说"范围重叠，没有哪个赢下来，但先分开是最可逆、买到最多信息的那个"。这正是台本那句"现在收益最高的是先分开三个月"的替代，且是从算术里得出的。安全保留时连排名句都不出。
+
+`LifeformSession.panorama_render_plan` **不附带 valuation**：区间需要数字来源（用户给的、或带溯源的研究主张），从结构本身编出数字正是这套设计拒绝的伪精确。没有数字时全景描述决策而拒绝排名。
+
 ### 什么算证据：来源 / 时间 / 适用范围
 
 工具返回的一条主张只有在能说清**它从哪来、什么时候为真、适用于什么**时才算证据；缺任何一项，它就只是一句碰巧挨着工具调用的断言。搜索摘要与凭空编造的句子到达 owner 时形状完全一致，文本本身区分不了，所以规则必须咬在结构上。
@@ -152,6 +180,7 @@ invoker 侧按**载荷形状**（`claims` 键）而非工具名提取，所以�
 
 ## 变更日志
 
+- 2026-07-27 (P4 最后一公里): 全景真正出现在回复里。`PanoramaRenderPlan` + `plan_panorama_render`（认知层决定能说什么）、`SectionId.DECISION_PANORAMA` + planner 接线、`_render_decision_panorama`（表达层决定怎么说，措辞受 licence 约束）、`LifeformSession.panorama_render_plan` provider。此前三档 prompt plan 完全相同、workspace 读者为 0。测试 `tests/test_panorama_render.py`。
 - 2026-07-27 (P4 研究工具): 证据溯源契约（`EvidenceProvenance` + `ToolResultSemanticEvent.provenance`），溯源不全的主张按 `BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD` 封顶从而落入 `verification_needs`；阈值由字面量提为具名常量供 owner 与 adapter 共用。`research_public_company` 描述符落在 growth-advisor vertical，schema 强制 source/as_of/scope、参数不接受个人、需 `public_research` 授权且在情绪/修复 regime 下禁用。invoker 按载荷形状提取 claims（非按工具名路由）。`submit_tool_result` 增加 `provenance` 形参，走既有 `EnvironmentOutcome` 通道，无新数据通道。测试 `tests/test_research_evidence_path.py`。
 - 2026-07-27 (P4): `decision_workspace` 增加安全保留（读 `boundary_policy`，经 vz-contracts `BoundaryReadout` 协议，`BoundaryDecisionReadout` 补 `risk_band`）、区间估值 / 期权价值 / VOI（`valuation.py`）与 claim licence（`rendering.py`）。模块位置移到 `boundary_policy` 之后以保证同轮读取。过程中修掉一处 VOI 盲区：宽度收益原本只测 leader 区间，导致加宽挑战者的未知得 0 分；改为测头两名的重叠减少量。测试 `tests/test_decision_valuation.py`（含第四幕验收样本）+ `tests/test_decision_workspace.py` 安全段。
 - 2026-07-27: 新增相邻 owner `decision_workspace`（`SHADOW`，见上节）。spine 仍是 9 个 owner，`semantic_spine_coverage` 分母不变。所有权边界靠字段形状强制（记录类型没有可放文本的字段）+ 行为测试（同一批 owner 快照下只改 panorama 门取值）。测试 `tests/test_decision_workspace.py`。
