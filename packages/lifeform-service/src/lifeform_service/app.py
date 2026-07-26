@@ -1351,6 +1351,17 @@ async def _handle_dialogue_outcome(request: web.Request) -> web.Response:
         if isinstance(raw_turn_index, int)
         else len(session.turn_summaries) + 1
     )
+    # Attribution needs the turn that *produced* the response being rated,
+    # which is the last completed turn -- one behind the consuming turn bound
+    # above. An explicit turn_index from a review tool already names the
+    # historical turn, so it serves as both. With no completed turns there is
+    # no action to attribute to, and -1 keeps the entry out of credit
+    # assignment instead of pinning it to a turn that never ran.
+    action_turn_index = (
+        raw_turn_index
+        if isinstance(raw_turn_index, int)
+        else (len(session.turn_summaries) or -1)
+    )
     evidence = session.submit_dialogue_outcome(
         kind=kind,
         source=DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
@@ -1359,6 +1370,7 @@ async def _handle_dialogue_outcome(request: web.Request) -> web.Response:
         evidence_ref=evidence_ref
         or f"service:{session_id}:{kind.value}:turn-{turn_index}:{uuid4().hex[:12]}",
         description=description,
+        action_turn_index=action_turn_index,
     )
     return _json_ok(
         {

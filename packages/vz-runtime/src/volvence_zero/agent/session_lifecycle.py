@@ -198,6 +198,7 @@ class SessionLifecycleMixin:
         turn_index: int | None = None,
         evidence_ref: str | None = None,
         description: str = "",
+        action_turn_index: int | None = None,
     ) -> DialogueExternalOutcomeEvidence:
         """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
 
@@ -220,10 +221,24 @@ class SessionLifecycleMixin:
         (or is about to run when ``submit`` is called before
         ``run_turn``). Pass an explicit value when an external reviewer
         retrospectively scores a past turn.
+
+        ``action_turn_index`` names the turn whose *action* is being
+        evaluated, which is what bank attribution joins on. It defaults to
+        ``turn_index`` because on this surface the two coincide. Surfaces
+        where they do not -- the HTTP feedback endpoint binds ``turn_index``
+        to the consuming turn, one ahead -- must pass it explicitly, or the
+        outcome will be credited to the wrong turn's bank set.
         """
 
         resolved_turn = int(turn_index) if turn_index is not None else max(
             0, int(self._turn_index)
+        )
+        # On this surface ``turn_index`` already means "the turn whose action
+        # this evaluates", so it doubles as the attribution key unless a caller
+        # separates them explicitly (the HTTP surface does, because there
+        # ``turn_index`` means the consuming turn instead).
+        resolved_action_turn = (
+            int(action_turn_index) if action_turn_index is not None else resolved_turn
         )
         ref = evidence_ref or f"{source.value}:{kind.value}:turn-{resolved_turn}"
         evidence = DialogueExternalOutcomeEvidence(
@@ -234,12 +249,23 @@ class SessionLifecycleMixin:
             confidence=float(confidence),
             evidence_ref=ref,
             description=description,
+            # Attribution join key. ``_session_id`` rather than
+            # ``active_context_session_id``: a context reset must not sever the
+            # link between an outcome and the banks that produced the action,
+            # and an outcome often arrives after such a reset.
+            session_scope=self._session_id,
+            action_turn_index=resolved_action_turn,
         )
         self._dialogue_external_outcome_module.append_evidence(evidence)
         structural = structural_outcome_evidence_from_external(evidence)
         if structural is not None:
-            self._dialogue_trace_store.attach_outcome_evidence_to_last_trace(
-                (structural,)
+            # Target the turn whose action is being evaluated, not the latest
+            # one. These differ whenever a reviewer scores a past turn, and
+            # attaching to the wrong trace would misattribute the outcome to a
+            # different bank set entirely.
+            self._dialogue_trace_store.attach_outcome_evidence_to_turn(
+                turn_index=resolved_action_turn,
+                evidence=(structural,),
             )
         return evidence
 

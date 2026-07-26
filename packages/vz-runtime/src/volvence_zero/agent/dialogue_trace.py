@@ -224,20 +224,58 @@ class DialogueTraceStore:
             if outcome.previous_trace_id in kept_ids
         ]
 
+    def attach_outcome_evidence_to_turn(
+        self,
+        *,
+        turn_index: int,
+        evidence: tuple[DialogueOutcomeEvidence, ...],
+    ) -> DialogueOutcomeResolution | None:
+        """Attach typed evidence to the trace recorded for ``turn_index``.
+
+        Retrospective scoring -- an external reviewer grading turn 3 while the
+        session is on turn 10 -- must land on turn 3's trace, otherwise the
+        outcome is attributed to whichever banks happened to be live at turn
+        10 and every downstream credit assignment is wrong.
+
+        Returns ``None`` when no trace matches, which is the honest result for
+        a turn that was trimmed from the bounded store or never recorded.
+        Callers must not fall back to the most recent trace: a mis-attributed
+        outcome is worse than an unattributed one.
+        """
+
+        if not evidence:
+            return None
+        target = next(
+            (trace for trace in reversed(self._traces) if trace.turn_index == turn_index),
+            None,
+        )
+        if target is None:
+            return None
+        return self._attach_outcome_evidence(trace=target, evidence=evidence)
+
     def attach_outcome_evidence_to_last_trace(
         self,
         evidence: tuple[DialogueOutcomeEvidence, ...],
     ) -> DialogueOutcomeResolution | None:
         """Attach typed evidence to the most recent trace.
 
-        Used by producers that observe an event after the turn has been
-        recorded (for example, scene close). When no trace exists yet
-        the call is a no-op.
+        Used by producers whose observation genuinely belongs to the turn that
+        just finished (for example, scene close). Anything carrying its own
+        turn index must use :meth:`attach_outcome_evidence_to_turn` instead.
+        When no trace exists yet the call is a no-op.
         """
 
         if not evidence or not self._traces:
             return None
-        last_trace = self._traces[-1]
+        return self._attach_outcome_evidence(trace=self._traces[-1], evidence=evidence)
+
+    def _attach_outcome_evidence(
+        self,
+        *,
+        trace: DialogueActionTrace,
+        evidence: tuple[DialogueOutcomeEvidence, ...],
+    ) -> DialogueOutcomeResolution:
+        last_trace = trace
         merged_evidence = tuple(
             dict.fromkeys(
                 (

@@ -143,12 +143,48 @@ class DialogueExternalOutcomeEvidence:
     confidence: float
     evidence_ref: str
     description: str = ""
+    # Join key for bank attribution, paired with ``action_turn_index``. Empty
+    # means the submitting surface did not identify a session, which is
+    # allowed -- the outcome still reaches its consumers -- but such an entry
+    # cannot be attributed to a bank set, so it is excluded from credit
+    # assignment rather than being guessed at.
+    session_scope: str = ""
+    # The turn whose *action* this outcome evaluates.
+    #
+    # Deliberately distinct from ``turn_index``, which the submitting surfaces
+    # already use with two different meanings: the HTTP feedback endpoint binds
+    # to the upcoming turn that will consume the evidence, while the runner
+    # default binds to the turn that just finished. Both are defensible for
+    # consumption scheduling, and neither is changed here -- but attribution
+    # needs exactly one of them (the producing action), so it gets its own
+    # field instead of overloading a value whose meaning depends on the caller.
+    #
+    # ``-1`` means "not declared"; such evidence is counted but never
+    # attributed, because guessing which turn produced it would silently
+    # assign credit to the wrong bank set.
+    action_turn_index: int = -1
 
     def __post_init__(self) -> None:
         _require_non_empty("evidence_id", self.evidence_id)
         _require_non_empty("evidence_ref", self.evidence_ref)
         _require_non_negative_int("turn_index", self.turn_index)
         _require_unit_interval("confidence", self.confidence)
+        if self.action_turn_index < -1:
+            raise ValueError(
+                "DialogueExternalOutcomeEvidence action_turn_index must be a "
+                "non-negative turn or -1 for 'not declared'."
+            )
+
+    @property
+    def is_attributable(self) -> bool:
+        """Whether this evidence can be joined to a conditioning lineage.
+
+        Both halves of the join key must be present. A partially-keyed entry
+        is treated as unattributable rather than joined on session alone,
+        which would spread one outcome across every turn of the session.
+        """
+
+        return bool(self.session_scope) and self.action_turn_index >= 0
 
 
 @dataclass(frozen=True)
@@ -204,6 +240,55 @@ class DialogueOutcomeTrace:
 
 
 @dataclass(frozen=True)
+class ConditioningLineage:
+    """Which conditioning banks were live when a dialogue action was taken.
+
+    This is the right-hand side of the external-outcome attribution join: an
+    outcome reported later carries ``(session_scope, turn_index)``, and this
+    record is what makes that pair resolvable to "these banks, at these
+    versions, produced that action". Without it an outcome can be counted but
+    not attributed, so bank-level credit cannot be computed at all.
+
+    Fields are flat strings rather than the contract enums/dataclasses so a
+    trace row stays trivially serialisable to the durable JSONL sink and stays
+    readable after a bank vocabulary change. ``selected_bank_set`` therefore
+    holds ``ConditioningBankType`` *values*, not members.
+
+    The three artifact versions are empty until the corresponding component
+    exists: a bank set can be recorded long before there is a learned encoder,
+    and recording an empty version is honest, whereas omitting the field would
+    make old and new rows indistinguishable.
+    """
+
+    session_scope: str
+    selected_bank_set: tuple[str, ...] = ()
+    bank_fingerprints: tuple[tuple[str, str], ...] = ()
+    state_encoder_version: str = ""
+    prefix_generator_version: str = ""
+    router_version: str = ""
+
+    def __post_init__(self) -> None:
+        _require_non_empty("session_scope", self.session_scope)
+        _require_unique_non_empty("selected_bank_set", self.selected_bank_set)
+        fingerprinted = tuple(bank for bank, _ in self.bank_fingerprints)
+        _require_unique_non_empty("bank_fingerprints.bank", fingerprinted)
+        for bank, fingerprint in self.bank_fingerprints:
+            if not fingerprint:
+                raise ValueError(
+                    "ConditioningLineage bank_fingerprints must carry a "
+                    f"non-empty fingerprint for {bank!r}."
+                )
+        # A selected bank with no fingerprint cannot be attributed to a
+        # specific state version, which defeats the point of recording it.
+        missing = set(self.selected_bank_set) - set(fingerprinted)
+        if missing:
+            raise ValueError(
+                "ConditioningLineage selected_bank_set entries must each have a "
+                f"fingerprint; missing: {sorted(missing)}."
+            )
+
+
+@dataclass(frozen=True)
 class DialogueActionTrace:
     """Replay-safe record of one assistant dialogue action."""
 
@@ -222,6 +307,7 @@ class DialogueActionTrace:
     outcome: DialogueOutcomeTrace
     response_text_hash: str = ""
     description: str = ""
+    conditioning_lineage: ConditioningLineage | None = None
 
     def __post_init__(self) -> None:
         _require_non_empty("trace_id", self.trace_id)
@@ -322,6 +408,7 @@ def _require_unit_interval(field_name: str, value: float) -> None:
 
 
 __all__ = [
+    "ConditioningLineage",
     "DialogueActionKind",
     "DialogueActionTrace",
     "DialogueExternalOutcomeEvidence",
