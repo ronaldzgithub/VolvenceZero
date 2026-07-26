@@ -45,3 +45,9 @@ volvence-zero = "volvence_zero.agent.cli:main"
 where = ["src"]
 include = ["volvence_zero*"]
 namespaces = true
+
+[tool.setuptools.package-data]
+# The blind-match prompt is part of the published evidence method, so the
+# installed wheel must ship it (AGENTS §7: prompts live in prompts/, not
+# inlined in runtime code).
+"volvence_zero" = ["prompts/*.md"]
