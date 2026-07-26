@@ -128,3 +128,7 @@ artifacts/companion_bench_smoke/*
 # 从 src/data/architectureVoiceover.json 重新合成（54 MB 的 wav/mp3），
 # 与 out/ 同属渲染产物，不入库。
 visualizations/volvence-core-remotion/public/architecture-deep-dive/
+
+# 三幕影片的 TTS 产物：public/voiceover/ 由 scripts/build-voiceover.py
+# 从场景脚本重新合成（37 MB 拼接 wav + raw 分段 mp3），属渲染产物。
+visualizations/volvence-three-act-remotion/public/voiceover/

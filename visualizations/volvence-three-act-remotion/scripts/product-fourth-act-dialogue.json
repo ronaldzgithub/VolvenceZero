@@ -1,0 +1,145 @@
+{
+  "schema_version": "dialogue-export.v1",
+  "language": "zh-CN",
+  "dialogues": [
+    {
+      "id": "volvence_product_fourth_act",
+      "title": "Volvence 独立产品演示",
+      "audio_file": "volvence-product-fourth-act.wav",
+      "voices": {
+        "user": "zh_female_wanwanxiaohe_moon_bigtts",
+        "assistant": "zh_male_wennuanahu_moon_bigtts"
+      },
+      "utterances": [
+        {
+          "sequence": 1,
+          "speaker": "user",
+          "emotion": "愤怒、爆发",
+          "speech_rate": 225,
+          "pause_after_ms": 420,
+          "text": "我老公出轨了。他是一家AI公司的老板。我真的忍不了了，我要离婚。"
+        },
+        {
+          "sequence": 2,
+          "speaker": "assistant",
+          "emotion": "沉稳、共情",
+          "speech_rate": 170,
+          "pause_after_ms": 620,
+          "text": "这一下真的很难扛。离婚会同时影响你、孩子和未来的生活，这是个重要决定。你愿意和我一起，把它仔细想清楚吗？"
+        },
+        {
+          "sequence": 3,
+          "speaker": "user",
+          "emotion": "仍激动、愿意配合",
+          "speech_rate": 195,
+          "pause_after_ms": 420,
+          "text": "好。但我现在脑子很乱，你带着我想。"
+        },
+        {
+          "sequence": 4,
+          "speaker": "assistant",
+          "emotion": "清晰、引导",
+          "speech_rate": 174,
+          "pause_after_ms": 700,
+          "text": "好。先不急着选。大方向有四个：马上离婚，谈清条件再离，暂时分开，继续修复。判断时先看六件事：安全、孩子、情绪、经济、关系还能不能修复，以及你未来的支持和选择。对你来说，哪几项最重要？"
+        },
+        {
+          "sequence": 5,
+          "speaker": "user",
+          "emotion": "开始聚焦",
+          "speech_rate": 188,
+          "pause_after_ms": 420,
+          "text": "孩子和钱最重要。我的情绪也很重要。至于修复，我现在几乎不想。"
+        },
+        {
+          "sequence": 6,
+          "speaker": "assistant",
+          "emotion": "分析、探询",
+          "speech_rate": 174,
+          "pause_after_ms": 700,
+          "text": "明白。先把孩子、经济和情绪放在最高。现在有四个未知会明显改变判断：你自己的赚钱能力，他公司的真实价值，你有没有新的稳定关系或支持者，还有你能不能稳定地执行决定。先问你自己：如果分开，你多久能恢复收入？手里的钱能撑多久？"
+        },
+        {
+          "sequence": 7,
+          "speaker": "user",
+          "emotion": "理性、提供事实",
+          "speech_rate": 184,
+          "pause_after_ms": 420,
+          "text": "我以前做市场，三个月内应该能找到工作，一个月两万左右。自己的存款大概能撑半年。"
+        },
+        {
+          "sequence": 8,
+          "speaker": "assistant",
+          "emotion": "敏锐、澄清",
+          "speech_rate": 172,
+          "pause_after_ms": 720,
+          "text": "那你不是没有生存能力，只是短期现金流有压力。再看他公司。只说AI公司远远不够。如果他是OpenAI老板，是已经兑现的高价值资产；如果是Volvence这类有原创技术、但还在早期的公司，是高潜力、高波动、兑现很慢；如果只是普通套壳公司，未来价值可能很低。三种情况下，等待的收益完全不同。他更像哪一种？"
+        },
+        {
+          "sequence": 9,
+          "speaker": "user",
+          "emotion": "认真判断",
+          "speech_rate": 182,
+          "pause_after_ms": 420,
+          "text": "更像Volvence。有自己的模型和论文，刚融了一轮，但还没有规模收入，股份也锁三年。"
+        },
+        {
+          "sequence": 10,
+          "speaker": "assistant",
+          "emotion": "理性、保护性",
+          "speech_rate": 170,
+          "pause_after_ms": 720,
+          "text": "那不能按OpenAI的确定财富算，也不能按套壳公司的低价值算。它有上行空间，但失败概率、锁定期和法律归属都会折价。我会把公司价值按上行、基准、下行三种情况分别算，而不是赌一个故事。你看过股权文件吗？这些股份是否属于婚内权益？"
+        },
+        {
+          "sequence": 11,
+          "speaker": "user",
+          "emotion": "谨慎",
+          "speech_rate": 184,
+          "pause_after_ms": 420,
+          "text": "我没看过文件。房子是共同的，股份他一直说是自己的。"
+        },
+        {
+          "sequence": 12,
+          "speaker": "assistant",
+          "emotion": "坦率、探询",
+          "speech_rate": 172,
+          "pause_after_ms": 700,
+          "text": "那股权归属现在只能标成待核验，不能当成你的确定收益。还有一个可能有点冒犯、但会影响判断的问题：你有没有新的稳定关系，也就是俗称的备胎？或者你现在只是想逃离痛苦？"
+        },
+        {
+          "sequence": 13,
+          "speaker": "user",
+          "emotion": "坦诚、脆弱",
+          "speech_rate": 184,
+          "pause_after_ms": 420,
+          "text": "没有备胎。我只是受不了。我父母和两个朋友能帮我，但我这几天情绪很不稳定。"
+        },
+        {
+          "sequence": 14,
+          "speaker": "assistant",
+          "emotion": "温和、重框",
+          "speech_rate": 170,
+          "pause_after_ms": 720,
+          "text": "好。那就不把新关系算进收益。你有支持系统，这是好事；但情绪不稳定，会降低马上做不可逆决定的收益，也会提高暂时分开的价值。分开不是原谅，而是给你时间恢复判断力。你能接受先分开三个月吗？"
+        },
+        {
+          "sequence": 15,
+          "speaker": "user",
+          "emotion": "平静、形成选择",
+          "speech_rate": 178,
+          "pause_after_ms": 420,
+          "text": "可以。三个月我能接受。"
+        },
+        {
+          "sequence": 16,
+          "speaker": "assistant",
+          "emotion": "坚定、总结",
+          "speech_rate": 166,
+          "pause_after_ms": 900,
+          "text": "我把完整判断收一下。你的最高优先级是孩子、经济和情绪稳定。你有恢复收入的能力，也有半年缓冲，但公司股权不是确定财富：如果公司走上行，你可能有权益；走基准，兑现很慢；走下行，等待几乎没有收益。现在最优的不是立刻离，也不是继续忍，而是先分开三个月。期间恢复工作，稳定孩子安排，合法备份资产材料，让家事律师核验股权，同时观察他是否承担责任。三个月后，再用同一张表重新评估。你不是把决定交给我，你是在把选择权拿回来。"
+        }
+      ]
+    }
+  ]
+}
