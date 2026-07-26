@@ -30,6 +30,10 @@
 
 实施结果与当前阻塞点见 [`06_ecology_implementation_status.md`](06_ecology_implementation_status.md)：P0 已 PASS，P1 runner/preflight 已完成，P2 仍由 P1 gate 锁定。
 
+### 想看"实现到底符不符合设计"
+
+读 [`07_static_design_conformance.md`](07_static_design_conformance.md) — 2026-07-26 的纯静态一致性审计：146 条设计条目逐条对照代码（81 实现 / 43 部分 / 13 缺失 / 9 矛盾），13 条一等阻塞与 6 条可行性判断，另附被对抗性复核**推翻**的 8 条疑点。它同时是 `06` 的校验：`06` 的声明在本文档中一律按"待核对"处理。
+
 ## 文档清单
 
 | 文档 | 内容 | 阅读时间 |
@@ -41,6 +45,7 @@
 | [`04_digital_ant_feasibility.md`](04_digital_ant_feasibility.md) | 数字蚂蚁可行性评估 + 落地路线图 | 25 min |
 | [`05_ecology_p0_p1_p2_plan.md`](05_ecology_p0_p1_p2_plan.md) | Ecology P0→P1→P2 完整执行与验收计划 | 20 min |
 | [`06_ecology_implementation_status.md`](06_ecology_implementation_status.md) | P0 正式证据、P1 preflight 与当前差距 | 8 min |
+| [`07_static_design_conformance.md`](07_static_design_conformance.md) | 静态设计一致性审计：146 条条目矩阵、13 条一等阻塞、可行性判断、文档↔代码不一致清单 | 40 min |
 | [`_download_summary.md`](_download_summary.md) | 下载执行记录 | 2 min |
 | [`download_papers.sh`](download_papers.sh) | 下载脚本（可重新运行） | — |
 
