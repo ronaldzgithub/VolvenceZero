@@ -52,6 +52,7 @@ class CaptureRuntime(SyntheticOpenWeightResidualRuntime):
         self.last_control_parameters: tuple[float, ...] = ()
         self.last_chat_messages: tuple[tuple[str, str], ...] = ()
         self.last_generation_constraints = None
+        self.last_personal_conditioning = None
 
     def generate(
         self,
@@ -65,18 +66,23 @@ class CaptureRuntime(SyntheticOpenWeightResidualRuntime):
         control_scale: float = 0.0,
         generation_constraints=None,
         capture_residuals: bool = True,
+        personal_conditioning=None,
     ) -> GenerationResult:
         del max_new_tokens, temperature, capture_residuals
         self.last_control_scale = control_scale
         self.last_control_parameters = control_parameters
         self.last_chat_messages = chat_messages
         self.last_generation_constraints = generation_constraints
+        self.last_personal_conditioning = personal_conditioning
         capture = self.capture(source_text=f"{system_context} {prompt}".strip())
         return GenerationResult(
             text="generated",
             token_count=1,
             capture=capture,
             description="fake generation",
+            # Trace-only double, so it reports what the synthetic runtime
+            # contract reports: receiving a snapshot is not injecting it.
+            personal_conditioning_applied=False,
         )
 
 
