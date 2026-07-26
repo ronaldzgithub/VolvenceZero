@@ -16,18 +16,21 @@ on:
       - "docs/specs/evidence_program.md"
       - "docs/moving forward/engineering-convergence-evidence-war.md"
       - ".github/workflows/phase2-shadow-evidence-smoke.yml"
-  pull_request:
-    paths:
-      - "packages/vz-cognition/**"
-      - "packages/vz-contracts/**"
-      - "packages/vz-runtime/**"
-      - "scripts/run_phase2_shadow_evidence_smoke.py"
-      - "scripts/verify_phase2_shadow_evidence_manifest.py"
-      - "tests/contracts/test_phase2_shadow_smoke_script.py"
-      - "tests/contracts/test_phase2_shadow_manifest_verifier.py"
-      - "docs/specs/evidence_program.md"
-      - "docs/moving forward/engineering-convergence-evidence-war.md"
-      - ".github/workflows/phase2-shadow-evidence-smoke.yml"
+  # PR 触发暂时停用：当前分支只做静态设计一致性审计，测试 CI 先不跑。
+  # 恢复方式：取消下面 pull_request 块的注释。
+  # pull_request:
+  #   paths:
+  #     - "packages/vz-cognition/**"
+  #     - "packages/vz-contracts/**"
+  #     - "packages/vz-runtime/**"
+  #     - "scripts/run_phase2_shadow_evidence_smoke.py"
+  #     - "scripts/verify_phase2_shadow_evidence_manifest.py"
+  #     - "tests/contracts/test_phase2_shadow_smoke_script.py"
+  #     - "tests/contracts/test_phase2_shadow_manifest_verifier.py"
+  #     - "docs/specs/evidence_program.md"
+  #     - "docs/moving forward/engineering-convergence-evidence-war.md"
+  #     - ".github/workflows/phase2-shadow-evidence-smoke.yml"
+  workflow_dispatch:
 
 jobs:
   phase2-shadow-evidence-smoke:

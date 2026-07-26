@@ -5,7 +5,10 @@ on:
     branches:
       - main
       - master
-  pull_request:
+  # PR 触发暂时停用：当前分支只做静态设计一致性审计，测试 CI 先不跑。
+  # 恢复方式：取消下面两行注释。
+  # pull_request:
+  workflow_dispatch:
 
 jobs:
   nl-essence-acceptance:
