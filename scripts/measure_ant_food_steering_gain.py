@@ -145,6 +145,7 @@ async def _turn_for_food(
             step_noise=0.0,
             rollout_config=ant_runtime_replay_rollout_config(
                 enable_sparse_exploration=False,
+                sense_schema=AntSenseSchema.ECOLOGY_V2,
             ),
             objective=AntObjectiveKind.ECOLOGY,
             sense_schema=AntSenseSchema.ECOLOGY_V2,

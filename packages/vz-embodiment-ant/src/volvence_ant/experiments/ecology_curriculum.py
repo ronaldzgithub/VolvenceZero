@@ -587,7 +587,24 @@ def _session_config(
     segment_credit_enabled: bool = True,
     learning_enabled: bool = True,
     sparse_exploration_enabled: bool = True,
+    prediction_error_enabled: bool = True,
+    temporal_writeback_enabled: bool = True,
 ) -> AntSessionConfig:
+    """Build one matched ecology session.
+
+    Two P2 matched-control levers ship as explicit keyword contracts; both
+    default to the learned-arm value so every existing caller is unchanged:
+
+    * ``prediction_error_enabled=False`` -- PE-off. Prediction error stops
+      driving joint-loop learning signals and stops pressuring the temporal
+      switch; it remains a readout, matching R-PE (evaluation and credit are
+      downstream of PE and never feed back into it).
+    * ``temporal_writeback_enabled=False`` -- ETA-off. Bounded writeback of
+      the learned temporal metacontroller is withheld, so the emergent
+      temporal abstraction cannot adapt while Internal-RL policy optimization
+      stays matched to the learned arm.
+    """
+
     return AntSessionConfig(
         temporal_latent_dim=config.temporal_latent_dim,
         session_id=session_id,
@@ -595,8 +612,11 @@ def _session_config(
         rollout_config=ant_runtime_replay_rollout_config(
             enable_sparse_exploration=sparse_exploration_enabled,
             enable_segment_credit=segment_credit_enabled,
+            enable_prediction_error_switch=prediction_error_enabled,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
         ),
-        joint_apply_writeback=True,
+        external_prediction_error_drive=prediction_error_enabled,
+        joint_apply_writeback=temporal_writeback_enabled,
         joint_apply_policy_optimization=optimize,
         joint_learning_enabled=learning_enabled,
         objective=AntObjectiveKind.ECOLOGY,
@@ -912,6 +932,8 @@ async def _run_training_episode(
     local_valence_enabled: bool,
     segment_credit_enabled: bool,
     plan: EcologyTrainingEpisodePlan,
+    prediction_error_enabled: bool = True,
+    temporal_writeback_enabled: bool = True,
     action_probe_baseline: tuple[AntLearningCheckpoint, ...] | None = None,
     action_probe_baseline_reports: (
         tuple[EcologyCheckpointActionProbe, ...] | None
@@ -942,6 +964,8 @@ async def _run_training_episode(
             optimize=optimize,
             local_valence_enabled=local_valence_enabled,
             segment_credit_enabled=segment_credit_enabled,
+            prediction_error_enabled=prediction_error_enabled,
+            temporal_writeback_enabled=temporal_writeback_enabled,
         ),
     )
     if plan.forced_return or plan.forced_approach:
@@ -1064,6 +1088,8 @@ async def _train_arm(
     optimize: bool,
     local_valence_enabled: bool,
     segment_credit_enabled: bool,
+    prediction_error_enabled: bool = True,
+    temporal_writeback_enabled: bool = True,
     schedule: tuple[EcologyTrainingEpisodePlan, ...] | None = None,
     schedule_start_index: int = 0,
     episode_callback: Callable[
@@ -1126,6 +1152,8 @@ async def _train_arm(
                 optimize=optimize,
                 local_valence_enabled=local_valence_enabled,
                 segment_credit_enabled=segment_credit_enabled,
+                prediction_error_enabled=prediction_error_enabled,
+                temporal_writeback_enabled=temporal_writeback_enabled,
                 plan=plan,
                 action_probe_baseline=initial,
                 action_probe_baseline_reports=(
@@ -1187,6 +1215,12 @@ async def _train_arm(
                         ),
                         segment_credit_enabled=(
                             segment_credit_enabled
+                        ),
+                        prediction_error_enabled=(
+                            prediction_error_enabled
+                        ),
+                        temporal_writeback_enabled=(
+                            temporal_writeback_enabled
                         ),
                         plan=plan,
                         action_probe_baseline=initial,
@@ -1344,6 +1378,8 @@ async def _evaluate_arm(
     scenario: EcologyEvaluationScenario,
     seed: int,
     tier: EcologyTrainingTier = EcologyTrainingTier.FAR,
+    prediction_error_enabled: bool = True,
+    temporal_writeback_enabled: bool = True,
 ) -> EcologyArmMetrics:
     scenario_stage = {
         EcologyEvaluationScenario.BUTTER_ONLY: EcologyStage.BUTTER,
@@ -1381,6 +1417,12 @@ async def _evaluate_arm(
             optimize=False,
             learning_enabled=False,
             sparse_exploration_enabled=False,
+            # A matched ablation must remain ablated at test time: PE-off and
+            # ETA-off keep their wiring during the frozen held-out rollout, or
+            # the arm silently reverts to the learned configuration and the
+            # causal comparison measures nothing.
+            prediction_error_enabled=prediction_error_enabled,
+            temporal_writeback_enabled=temporal_writeback_enabled,
         ),
     )
     runner.restore_learning_checkpoints(checkpoints)

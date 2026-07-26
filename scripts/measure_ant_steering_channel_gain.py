@@ -142,14 +142,13 @@ def _channel_row(
             if abs(turn_offset) > 0.0
             else float("inf")
         ),
-        # The two lanes of the food / heat / obstacle probes are exact mirror
-        # images, so ``head_offset`` is precisely the head's response to the
-        # mirror-SYMMETRIC part of its input and ``head_swing / 2`` its
-        # response to the mirror-ANTISYMMETRIC part. Only the latter can
-        # encode a direction: a turn that survives mirroring the world is by
-        # construction non-directional. This ratio is therefore the share of
-        # the head's steering output that cannot possibly point anywhere.
-        "mirror_symmetric_ratio": (
+        # These probes mirror ONE stimulus while holding home/PI/history
+        # fixed. Their shared offset therefore includes legitimate steering
+        # from all other channels and is not the symmetric component under a
+        # full-world reflection. Keep the ratio as a channel-competition
+        # diagnostic only; the temporal owner's formal mirror contract uses
+        # the complete signed sense permutation.
+        "stimulus_pair_offset_ratio": (
             abs(head_offset) / abs(0.5 * head_swing)
             if abs(head_swing) > 0.0
             else float("inf")
@@ -179,7 +178,10 @@ async def _run(args: argparse.Namespace) -> int:
     )
     reports = await run_ecology_checkpoint_action_probes(
         temporal_latent_dim=config.temporal_latent_dim,
-        seed=config.seed,
+        # Keep this diagnostic on the exact frozen probe distribution consumed
+        # by the P1 gates. ``config.seed`` identifies the resumable training
+        # journal and must not be repurposed as the probe-layout seed.
+        seed=config.seed + 700_003,
         checkpoints=checkpoints,
     )
     payload: list[dict[str, object]] = []
@@ -228,8 +230,8 @@ async def _run(args: argparse.Namespace) -> int:
             "abs_code_offset": statistics.median(
                 abs(float(row["code_offset"])) for row in rows
             ),
-            "mirror_symmetric_ratio": statistics.median(
-                float(row["mirror_symmetric_ratio"]) for row in rows
+            "stimulus_pair_offset_ratio": statistics.median(
+                float(row["stimulus_pair_offset_ratio"]) for row in rows
             ),
             "abs_code_gain": statistics.median(
                 abs(float(row["code_gain"])) for row in rows
@@ -246,7 +248,7 @@ async def _run(args: argparse.Namespace) -> int:
             f"|head_off|={entry['abs_head_offset']:.5f} "
             f"|code_off|={entry['abs_code_offset']:.5f} "
             f"turn_gain={entry['abs_turn_gain']:.5f} "
-            f"mirror_sym/antisym={entry['mirror_symmetric_ratio']:.2f} "
+            f"pair_offset/swing={entry['stimulus_pair_offset_ratio']:.2f} "
             f"aligned={int(entry['aligned_bodies'])}/{len(rows)}"
         )
     if args.json_out is not None:
