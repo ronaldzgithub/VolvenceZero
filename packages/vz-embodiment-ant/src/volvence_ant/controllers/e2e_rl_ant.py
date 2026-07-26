@@ -15,7 +15,11 @@ import numpy as np
 
 from volvence_ant.env.ant_world import AntWorld
 from volvence_ant.substrate.navigator import AntNavigator
-from volvence_ant.substrate.sense_encode import SENSE_CHANNELS, sense_encode
+from volvence_ant.substrate.sense_encode import (
+    AntSenseSchema,
+    sense_channels,
+    sense_encode,
+)
 
 
 @dataclass(frozen=True)
@@ -39,7 +43,13 @@ class E2EEvaluation:
 class E2ERLAnt:
     """Torch PPO policy with direct observation-to-motor control."""
 
-    def __init__(self, *, seed: int, hidden_dim: int = 32) -> None:
+    def __init__(
+        self,
+        *,
+        seed: int,
+        hidden_dim: int = 32,
+        sense_schema: AntSenseSchema = AntSenseSchema.V1,
+    ) -> None:
         try:
             import torch
         except ImportError as exc:  # pragma: no cover - optional dependency
@@ -47,14 +57,16 @@ class E2ERLAnt:
 
         torch.manual_seed(seed)
         self._torch = torch
+        self._sense_schema = sense_schema
         self._policy = torch.nn.Sequential(
-            torch.nn.Linear(len(SENSE_CHANNELS), hidden_dim),
+            torch.nn.Linear(len(sense_channels(sense_schema)), hidden_dim),
             torch.nn.Tanh(),
             torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.Tanh(),
             torch.nn.Linear(hidden_dim, 3),
         )
         self._log_std = torch.nn.Parameter(torch.full((2,), -0.5))
+        self._navigators: dict[int, AntNavigator] = {}
 
     def parameter_digest(self) -> tuple[float, ...]:
         torch = self._torch
@@ -72,6 +84,51 @@ class E2ERLAnt:
         output = self._policy(torch.as_tensor(observation, dtype=torch.float32))
         return output[:2], output[2]
 
+    def _encode(
+        self,
+        world: AntWorld,
+        navigator: AntNavigator,
+        *,
+        body_id: int,
+    ) -> np.ndarray:
+        return sense_encode(
+            world.observe(body_id),
+            navigator.state,
+            turn_command_scale=world.config.max_turn_rate,
+            schema=self._sense_schema,
+        )
+
+    def _episode_navigator(
+        self,
+        world: AntWorld,
+        *,
+        body_id: int,
+        seed: int,
+        synchronize: bool,
+    ) -> AntNavigator:
+        navigator = AntNavigator(
+            step_size=world.config.step_size,
+            heading_noise=0.0,
+            step_noise=0.0,
+            seed=seed,
+        )
+        navigator.reset(
+            initial_heading=world.observe(body_id).eval_true_heading
+        )
+        if synchronize:
+            # Forced-start curriculum episodes reposition bodies away from the
+            # nest. The kernel arms resynchronise path integration there, so
+            # the baseline must receive the same home vector or its egocentric
+            # home channels are corrupted and the comparison is unfair.
+            body = world.body(body_id)
+            navigator.sync_to(
+                x=body.x,
+                y=body.y,
+                heading=body.heading,
+                nest=world.nest,
+            )
+        return navigator
+
     @staticmethod
     def _command(raw_action: np.ndarray, world: AntWorld) -> tuple[float, float]:
         turn = float(np.tanh(raw_action[0]) * world.config.max_turn_rate)
@@ -84,53 +141,97 @@ class E2ERLAnt:
         world_factory: Callable[[int], AntWorld],
         seed: int,
         config: PPOConfig | None = None,
+        episode_keys: tuple[int, ...] | None = None,
+        n_bodies: int = 1,
+        synchronize_navigators: bool = False,
     ) -> None:
+        """Run offline PPO over ``episodes`` fresh worlds.
+
+        ``episode_keys`` replays an externally frozen training schedule: the
+        factory receives each key instead of ``seed + episode``, so a matched
+        formal run can hand every arm the identical layout sequence. ``None``
+        preserves the historical ``seed + episode`` walk.
+        """
+
         cfg = config or PPOConfig()
+        if n_bodies < 1:
+            raise ValueError("n_bodies must be >= 1")
+        if episode_keys is not None and not episode_keys:
+            raise ValueError("episode_keys must be non-empty when provided")
         torch = self._torch
         optimizer = torch.optim.Adam(
             (*self._policy.parameters(), self._log_std),
             lr=cfg.learning_rate,
         )
-        for episode in range(cfg.episodes):
-            world = world_factory(seed + episode)
-            navigator = AntNavigator(
-                step_size=world.config.step_size,
-                heading_noise=0.0,
-                step_noise=0.0,
-                seed=seed + episode,
+        episodes = (
+            len(episode_keys) if episode_keys is not None else cfg.episodes
+        )
+        for episode in range(episodes):
+            world = world_factory(
+                episode_keys[episode]
+                if episode_keys is not None
+                else seed + episode
             )
-            navigator.reset(initial_heading=world.observe().eval_true_heading)
+            navigators = {
+                body_id: self._episode_navigator(
+                    world,
+                    body_id=body_id,
+                    seed=seed + episode + body_id * 7919,
+                    synchronize=synchronize_navigators,
+                )
+                for body_id in range(n_bodies)
+            }
             observations: list[np.ndarray] = []
             actions: list[object] = []
             old_log_probs: list[object] = []
             values: list[object] = []
-            rewards: list[float] = []
+            # Per-body reward traces: discounted returns must not leak credit
+            # across bodies that only share the policy, not a trajectory.
+            body_rewards: dict[int, list[float]] = {
+                body_id: [] for body_id in range(n_bodies)
+            }
+            body_slots: dict[int, list[int]] = {
+                body_id: [] for body_id in range(n_bodies)
+            }
             for _ in range(cfg.ticks_per_episode):
-                observation = world.observe()
-                encoded = sense_encode(
-                    observation,
-                    navigator.state,
-                    turn_command_scale=world.config.max_turn_rate,
-                )
-                mean, value = self._forward(encoded)
-                distribution = torch.distributions.Normal(mean, self._log_std.exp())
-                raw_action = distribution.sample()
-                log_prob = distribution.log_prob(raw_action).sum()
-                turn, step = self._command(raw_action.detach().numpy(), world)
-                navigator.update(turn_command=turn, step_command=step)
-                world.act(turn_command=turn, step_command=step)
-                transition = world.last_transition()
-                observations.append(encoded)
-                actions.append(raw_action.detach())
-                old_log_probs.append(log_prob.detach())
-                values.append(value.detach())
-                rewards.append(1.0 if transition.delivered else 0.0)
-            returns: list[float] = []
-            running = 0.0
-            for reward in reversed(rewards):
-                running = reward + cfg.gamma * running
-                returns.append(running)
-            returns.reverse()
+                for body_id in range(n_bodies):
+                    navigator = navigators[body_id]
+                    encoded = self._encode(world, navigator, body_id=body_id)
+                    mean, value = self._forward(encoded)
+                    distribution = torch.distributions.Normal(
+                        mean, self._log_std.exp()
+                    )
+                    raw_action = distribution.sample()
+                    log_prob = distribution.log_prob(raw_action).sum()
+                    turn, step = self._command(
+                        raw_action.detach().numpy(), world
+                    )
+                    navigator.update(turn_command=turn, step_command=step)
+                    world.act(
+                        turn_command=turn,
+                        step_command=step,
+                        body_id=body_id,
+                    )
+                    transition = world.last_transition(body_id)
+                    body_slots[body_id].append(len(observations))
+                    observations.append(encoded)
+                    actions.append(raw_action.detach())
+                    old_log_probs.append(log_prob.detach())
+                    values.append(value.detach())
+                    body_rewards[body_id].append(
+                        1.0 if transition.delivered else 0.0
+                    )
+            returns_by_slot = [0.0] * len(observations)
+            for body_id in range(n_bodies):
+                running = 0.0
+                for slot, reward in zip(
+                    reversed(body_slots[body_id]),
+                    reversed(body_rewards[body_id]),
+                    strict=True,
+                ):
+                    running = reward + cfg.gamma * running
+                    returns_by_slot[slot] = running
+            returns = returns_by_slot
             obs_tensor = torch.as_tensor(np.asarray(observations), dtype=torch.float32)
             action_tensor = torch.stack(actions)
             old_log_prob_tensor = torch.stack(old_log_probs)
@@ -171,11 +272,7 @@ class E2ERLAnt:
         positions: list[tuple[float, float]] = []
         with torch.no_grad():
             for _ in range(ticks):
-                encoded = sense_encode(
-                    world.observe(),
-                    navigator.state,
-                    turn_command_scale=world.config.max_turn_rate,
-                )
+                encoded = self._encode(world, navigator, body_id=0)
                 mean, _ = self._forward(encoded)
                 turn, step = self._command(mean.numpy(), world)
                 navigator.update(turn_command=turn, step_command=step)
@@ -186,6 +283,44 @@ class E2ERLAnt:
             food_delivered=world.food_delivered,
             positions=tuple(positions),
         )
+
+    def attach(
+        self,
+        world: AntWorld,
+        *,
+        body_id: int = 0,
+        seed: int = 0,
+        synchronize_navigator: bool = False,
+    ) -> None:
+        """Bind one body of ``world`` so it can be driven with ``step``.
+
+        Colony evaluation drives every body through the same shared policy,
+        matching how ``FixedRuleAnt``/``RandomAnt`` baselines are stepped by
+        the ecology harnesses.
+        """
+
+        self._navigators[body_id] = self._episode_navigator(
+            world,
+            body_id=body_id,
+            seed=seed,
+            synchronize=synchronize_navigator,
+        )
+
+    def step(self, world: AntWorld, *, body_id: int = 0) -> None:
+        """Apply one deterministic (mean-action) command to an attached body."""
+
+        navigator = self._navigators.get(body_id)
+        if navigator is None:
+            raise RuntimeError(
+                f"E2ERLAnt body {body_id} was never attached to a world"
+            )
+        torch = self._torch
+        with torch.no_grad():
+            encoded = self._encode(world, navigator, body_id=body_id)
+            mean, _ = self._forward(encoded)
+            turn, step = self._command(mean.numpy(), world)
+        navigator.update(turn_command=turn, step_command=step)
+        world.act(turn_command=turn, step_command=step, body_id=body_id)
 
 
 __all__ = ["E2EEvaluation", "E2ERLAnt", "PPOConfig"]
