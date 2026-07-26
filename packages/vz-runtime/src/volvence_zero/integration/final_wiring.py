@@ -99,6 +99,7 @@ from volvence_zero.reflection import (
 )
 from volvence_zero.dialogue_external_outcome import DialogueExternalOutcomeModule
 from volvence_zero.dialogue_trace import DialogueExternalOutcomeSnapshot
+from volvence_zero.decision_workspace import DecisionWorkspaceModule
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.interlocutor import (
     InterlocutorStateModule,
@@ -248,6 +249,28 @@ class FinalRolloutConfig:
     evaluation_cross_generation: WiringLevel = WiringLevel.DISABLED
     prediction_error: WiringLevel = WiringLevel.ACTIVE
     regime: WiringLevel = WiringLevel.ACTIVE
+    # Which gate decides ``participation_hint.panorama_level`` — the single
+    # surface that answers "should this turn expand a decision panorama?"
+    # (docs/specs/cognitive-regime.md).
+    #
+    #   - "v1": production default. The shipped attention-posture score
+    #     (world presence / switch pressure / controller drives). Byte-for-
+    #     byte today's behaviour; this is the rollback point.
+    #   - "v2": the decision-structure gate. Reads how many live mutually
+    #     exclusive options exist, how costly a wrong choice is to undo,
+    #     how unstable the user's own ranking is, and how much that ranking
+    #     hinges on information not yet in hand.
+    #
+    # Opt-in rather than default because the expensive failure is opening a
+    # panorama into a turn that did not want one, and that failure is the
+    # one users do not report. Promotion criteria and the corpus budgets
+    # live in .cursor/plans/panorama-decision-workspace_7b41ce02.plan.md.
+    panorama_gate_mode: str = "v1"
+    # Decision-structure owner. Subscribes to the panorama gate above; it
+    # never decides its own activation. SHADOW publishes the structure for
+    # audit without any consumer reading it. Not a semantic-spine owner —
+    # it must stay out of ``semantic_spine_coverage``'s denominator.
+    decision_workspace: WiringLevel = WiringLevel.SHADOW
     credit: WiringLevel = WiringLevel.ACTIVE
     reflection: WiringLevel = WiringLevel.ACTIVE
     temporal: WiringLevel = WiringLevel.ACTIVE
@@ -556,6 +579,7 @@ class FinalRolloutConfig:
             "relationship_state": self.relationship_state,
             "goal_value": self.goal_value,
             "boundary_consent": self.boundary_consent,
+            "decision_workspace": self.decision_workspace,
             "multi_party_identity": self.multi_party_identity,
             "social_prediction": self.social_prediction,
             "social_prediction_error": self.social_prediction_error,
@@ -1987,6 +2011,12 @@ def build_final_runtime_modules(
         regime_module
         or RegimeModule(
             wiring_level=config.level_for("regime", WiringLevel.SHADOW),
+            panorama_gate_mode=config.panorama_gate_mode,
+        ),
+        # Must follow regime: it subscribes to that owner's panorama gate
+        # rather than deciding its own activation.
+        DecisionWorkspaceModule(
+            wiring_level=config.level_for("decision_workspace", WiringLevel.SHADOW),
         ),
         RetrievalPolicyModule(
             rare_heavy_state=application_rare_heavy_state,

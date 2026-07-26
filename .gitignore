@@ -118,6 +118,12 @@ artifacts/companion_bench_smoke/*
 !/tests/test_runtime_transition_replay.py
 !/tests/test_personal_conditioning_module.py
 !/tests/test_personal_conditioning_rendering.py
+# Panorama participation gate: the corpus verdicts, the per-feature
+# ablation and the collinearity bound are the only falsifiable part of
+# that design (corpus and gate share an author), so they must stay
+# versioned alongside it.
+!/tests/test_panorama_gate.py
+!/tests/test_decision_workspace.py
 *.pyc
 /.venv-ant
 /.conda-volvence-gpu

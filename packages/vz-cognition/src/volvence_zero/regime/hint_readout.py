@@ -52,6 +52,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from volvence_zero.regime.decision_structure import (
+    derive_decision_structure_signals,
+)
 from volvence_zero.regime.identity import (
     CognitiveDepth,
     CognitiveDepthHint,
@@ -63,6 +66,16 @@ from volvence_zero.regime.identity import (
 )
 
 if TYPE_CHECKING:
+    from companion_standard.semantic_state import (
+        BeliefAssumptionSnapshot,
+        BoundaryConsentSnapshot,
+        CommitmentSnapshot,
+        GoalValueSnapshot,
+        OpenLoopSnapshot,
+        PlanIntentSnapshot,
+        UserModelSnapshot,
+    )
+
     from volvence_zero.dual_track import DualTrackSnapshot
     from volvence_zero.evaluation import EvaluationSnapshot
     from volvence_zero.memory import MemorySnapshot
@@ -159,6 +172,36 @@ class HintReadoutContext:
     # stack of 3+ world entries saturates to 1.0).
     world_presence: float = 0.0
     self_presence: float = 0.0
+
+    # ------------------------------------------------------------------
+    # Decision-structure features (panorama gate v2).
+    #
+    # Derived from typed semantic-owner snapshots by
+    # ``regime.decision_structure``; see that module for why each one is
+    # measured the way it is. They are kept flat here so this context
+    # stays trivially loggable, matching the rest of the surface.
+    #
+    # ``has_decision_structure`` distinguishes "measured and found to be
+    # zero" from "never measured". The v2 gate treats the latter as
+    # "stay quiet", never as "confidently quiet".
+    # ------------------------------------------------------------------
+    has_decision_structure: bool = False
+    decision_structure_slots: tuple[str, ...] = ()
+    option_multiplicity: float = 0.0
+    irreversibility: float = 0.0
+    ranking_instability: float = 0.0
+    unknown_dominance: float = 0.0
+
+    # Panorama level published on the previous turn, or None on the
+    # first turn of a session. Drives escalation limiting and the
+    # hold-open deadband so the panorama cannot flap open and shut
+    # inside one conversation.
+    previous_panorama_level: ParticipationLevel | None = None
+    # An explicit user instruction about how much structure they want.
+    # When set it wins outright over any score. The only legitimate
+    # writer is a typed user-preference source; nothing may infer this
+    # from wording.
+    panorama_override: ParticipationLevel | None = None
 
     def evidence_score(self) -> float:
         """Heuristic [0,1] score for "how much data did we see".
@@ -306,6 +349,15 @@ def build_hint_readout_context(
     dual_track: "DualTrackSnapshot | None",
     evaluation: "EvaluationSnapshot | None",
     prediction_error: "PredictionErrorSnapshot | None",
+    plan_intent: "PlanIntentSnapshot | None" = None,
+    goal_value: "GoalValueSnapshot | None" = None,
+    open_loop: "OpenLoopSnapshot | None" = None,
+    belief_assumption: "BeliefAssumptionSnapshot | None" = None,
+    commitment: "CommitmentSnapshot | None" = None,
+    boundary_consent: "BoundaryConsentSnapshot | None" = None,
+    user_model: "UserModelSnapshot | None" = None,
+    previous_panorama_level: ParticipationLevel | None = None,
+    panorama_override: ParticipationLevel | None = None,
 ) -> HintReadoutContext:
     """Collect runtime signals into a ``HintReadoutContext``.
 
@@ -314,6 +366,12 @@ def build_hint_readout_context(
     defaults take over. A cold-start context (everything None)
     yields low evidence_score so the readout can either fall
     back to the scaffold or publish a low-confidence hint.
+
+    The semantic-owner arguments feed the decision-structure features
+    the v2 panorama gate reads. Omitting them all leaves
+    ``has_decision_structure`` False, which the v2 gate reads as "no
+    basis for expanding a panorama" — deliberately not as "all four
+    features are zero".
     """
     cross = 0.0
     world_t = 0.0
@@ -337,6 +395,15 @@ def build_hint_readout_context(
     task_pressure = _evaluation_metric(evaluation, "task_pressure", default=0.5)
     stability = _evaluation_metric(evaluation, "cross_track_stability", default=0.5)
     info = _evaluation_metric(evaluation, "info_integration", default=0.5)
+    decision_signals = derive_decision_structure_signals(
+        plan_intent=plan_intent,
+        goal_value=goal_value,
+        open_loop=open_loop,
+        belief_assumption=belief_assumption,
+        commitment=commitment,
+        boundary_consent=boundary_consent,
+        user_model=user_model,
+    )
     return HintReadoutContext(
         regime_id=regime_id,
         turns_in_current_regime=turns_in_current_regime,
@@ -366,6 +433,14 @@ def build_hint_readout_context(
         pe_task_error=pe_task_err,
         world_presence=world_p,
         self_presence=self_p,
+        has_decision_structure=decision_signals.has_observation,
+        decision_structure_slots=decision_signals.observed_slots,
+        option_multiplicity=decision_signals.option_multiplicity,
+        irreversibility=decision_signals.irreversibility,
+        ranking_instability=decision_signals.ranking_instability,
+        unknown_dominance=decision_signals.unknown_dominance,
+        previous_panorama_level=previous_panorama_level,
+        panorama_override=panorama_override,
     )
 
 
@@ -467,6 +542,126 @@ def _panorama_score(ctx: HintReadoutContext) -> float:
     return _clamp01(baseline + 0.6 * pull - 0.7 * push)
 
 
+# ---------------------------------------------------------------------------
+# Panorama gate v2 — decision structure instead of attention posture
+# ---------------------------------------------------------------------------
+
+# Options have collapsed to (at most) a single live path; whatever the
+# other axes say, there is no panorama left to lay out.
+_OPTION_COLLAPSE_FLOOR: float = 0.25
+
+# Asymmetric-cost bias applied before discretisation. Opening a panorama
+# into a turn that did not want one is a relational harm the user rarely
+# reports; failing to open costs one structured turn and is recoverable
+# next turn. So entry is taxed and an already-open panorama is held.
+_PANORAMA_ENTRY_BIAS: float = -0.04
+_PANORAMA_HOLD_BIAS: float = 0.08
+
+
+def panorama_structure_score(ctx: HintReadoutContext) -> float:
+    """Combine the four decision-structure features.
+
+    Geometric mean, not a weighted sum. The claim being encoded is that
+    all four are **necessary and none is sufficient**:
+
+    * no live options -> nothing to lay out;
+    * nothing costly to undo -> structuring is not worth the interruption;
+    * a settled ranking -> the user wants execution, not a table;
+    * nothing waiting on information -> a panorama only restates.
+
+    A weighted sum lets three strong axes drag a zero fourth one over
+    the line, which is exactly how a gate ends up structuring someone's
+    grief. The geometric mean cannot: any zero closes it.
+    """
+    product = 1.0
+    for value in (
+        ctx.option_multiplicity,
+        ctx.irreversibility,
+        ctx.ranking_instability,
+        ctx.unknown_dominance,
+    ):
+        product *= _clamp01(value)
+    if product <= 0.0:
+        return 0.0
+    return _clamp01(product ** 0.25)
+
+
+def _cap_escalation(
+    proposed: ParticipationLevel, previous: ParticipationLevel | None
+) -> ParticipationLevel:
+    """Allow at most one tier of escalation per turn.
+
+    A panorama that appears fully formed in the first turn of a hard
+    conversation lands as the system talking past the person. Structure
+    is earned across turns: SILENT -> BRIEF -> STRUCTURED. De-escalation
+    is not capped — backing off should always be immediate.
+    """
+    order = (
+        ParticipationLevel.SILENT,
+        ParticipationLevel.BRIEF,
+        ParticipationLevel.STRUCTURED,
+    )
+    previous_rank = 0 if previous is None else order.index(previous)
+    proposed_rank = order.index(proposed)
+    return order[min(proposed_rank, previous_rank + 1)]
+
+
+def readout_panorama_level(ctx: HintReadoutContext) -> tuple[ParticipationLevel, str]:
+    """The v2 panorama gate: level plus an auditable rationale.
+
+    Order of application matters and is part of the contract:
+
+    1. An explicit user override wins outright.
+    2. No decision-structure observation at all -> SILENT. "Not
+       measured" is not "measured as safe to expand".
+    3. Score, biased by the asymmetric-cost rule, discretised.
+    4. Option collapse forces the level down regardless of stickiness —
+       this is the exit condition, and it must not be defeated by the
+       hold bias that keeps an open panorama open.
+    5. Escalation capped to one tier per turn.
+    """
+    if ctx.panorama_override is not None:
+        return (
+            ctx.panorama_override,
+            f"panorama.v2:override={ctx.panorama_override.value}",
+        )
+    if not ctx.has_decision_structure:
+        return (
+            ParticipationLevel.SILENT,
+            "panorama.v2:no-decision-structure-observed",
+        )
+    score = panorama_structure_score(ctx)
+    if ctx.previous_panorama_level is ParticipationLevel.STRUCTURED:
+        bias = _PANORAMA_HOLD_BIAS
+    elif ctx.previous_panorama_level in (None, ParticipationLevel.SILENT):
+        bias = _PANORAMA_ENTRY_BIAS
+    else:
+        bias = 0.0
+    level = _score_to_level(_clamp01(score + bias))
+    exit_reason = ""
+    if ctx.option_multiplicity < _OPTION_COLLAPSE_FLOOR and level is (
+        ParticipationLevel.STRUCTURED
+    ):
+        level = ParticipationLevel.BRIEF
+        exit_reason = ",exit=options-collapsed"
+    capped = _cap_escalation(level, ctx.previous_panorama_level)
+    if capped is not level:
+        exit_reason += ",capped=one-tier-per-turn"
+    previous = (
+        ctx.previous_panorama_level.value
+        if ctx.previous_panorama_level is not None
+        else "none"
+    )
+    rationale = (
+        f"panorama.v2:score={score:.2f},bias={bias:+.2f},prev={previous},"
+        f"options={ctx.option_multiplicity:.2f},"
+        f"irreversible={ctx.irreversibility:.2f},"
+        f"unstable={ctx.ranking_instability:.2f},"
+        f"unknown={ctx.unknown_dominance:.2f}{exit_reason}"
+    )
+    return capped, rationale
+
+
 def _method_score(ctx: HintReadoutContext) -> float:
     # Method ("how we're approaching this") wants to render when
     # there is a recognisable controller bias (task/exploration/
@@ -533,7 +728,9 @@ def _build_rationale(
     return f"{tag}:{regime_id}:" + ",".join(pieces)
 
 
-def readout_participation_hint(ctx: HintReadoutContext) -> ParticipationHint:
+def readout_participation_hint(
+    ctx: HintReadoutContext, *, panorama_gate: str = "v1"
+) -> ParticipationHint:
     """Compute a ``ParticipationHint`` from the context.
 
     Uses ``_panorama_score`` / ``_method_score`` / ``_task_score``
@@ -541,28 +738,53 @@ def readout_participation_hint(ctx: HintReadoutContext) -> ParticipationHint:
     the top contributing features so downstream audit + family
     report can see WHY the hint landed this way.
 
+    ``panorama_gate`` selects which gate decides ``panorama_level``:
+
+    * ``"v1"`` (default) — the shipped attention-posture score. Reads
+      world presence, switch pressure, controller drives.
+    * ``"v2"`` — the decision-structure gate in
+      ``readout_panorama_level``. ``method_level`` / ``task_level`` are
+      unchanged in both modes; only the panorama decision moves, which
+      keeps the change auditable and the rollback a one-field flip.
+
     Fallback: when neither dual_track nor evaluation is available,
     the readout has nothing actionable to work with. We defer to
     the slice-1 scaffold; this preserves the cold-start behaviour
-    the existing tests expect.
+    the existing tests expect. Under ``v2`` the panorama level is
+    still decided by the v2 gate — a cold boot has no decision-
+    structure observation, so the scaffold's STRUCTURED default for
+    problem-shaped regimes must not leak through.
     """
+    if panorama_gate not in {"v1", "v2"}:
+        raise ValueError(
+            f"panorama_gate must be 'v1' or 'v2', got {panorama_gate!r}"
+        )
     if not (ctx.has_dual_track or ctx.has_evaluation):
         fallback = derive_participation_hint(ctx.regime_id)
+        panorama_level = fallback.panorama_level
+        rationale = f"readout:cold-fallback:{fallback.rationale}"
+        if panorama_gate == "v2":
+            panorama_level, panorama_rationale = readout_panorama_level(ctx)
+            rationale = f"readout:cold-fallback:{panorama_rationale}"
         # Re-tag rationale to make it clear this is a fallback, not
         # a learned readout; and lower confidence because we had no
         # runtime signal.
         return ParticipationHint(
             flow_kind=fallback.flow_kind,
-            panorama_level=fallback.panorama_level,
+            panorama_level=panorama_level,
             method_level=fallback.method_level,
             task_level=fallback.task_level,
             confidence=round(min(fallback.confidence, 0.30), 4),
-            rationale=f"readout:cold-fallback:{fallback.rationale}",
+            rationale=rationale,
         )
     panorama = _panorama_score(ctx)
     method = _method_score(ctx)
     task = _task_score(ctx)
     flow_kind = _select_flow_kind(ctx)
+    panorama_level = _score_to_level(panorama)
+    panorama_rationale = ""
+    if panorama_gate == "v2":
+        panorama_level, panorama_rationale = readout_panorama_level(ctx)
     contributions = (
         ("panorama", panorama),
         ("method", method),
@@ -579,9 +801,11 @@ def readout_participation_hint(ctx: HintReadoutContext) -> ParticipationHint:
         feature_contributions=contributions,
         tag="readout.v1",
     )
+    if panorama_rationale:
+        rationale = f"{rationale}|{panorama_rationale}"
     return ParticipationHint(
         flow_kind=flow_kind,
-        panorama_level=_score_to_level(panorama),
+        panorama_level=panorama_level,
         method_level=_score_to_level(method),
         task_level=_score_to_level(task),
         confidence=round(0.25 + 0.70 * ctx.evidence_score(), 4),

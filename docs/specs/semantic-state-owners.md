@@ -67,6 +67,16 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
 
 `CharacterSemanticEvent` 是 reviewed chapter artifact 的 typed proposal source，不是新的 semantic owner。它必须携带 `target_slot`（9 slots 闭集）、`operation`、`summary`、`detail`、`confidence`、`evidence_locator`。adapter 只做结构字段映射，不能读取原文小说、不能用关键词决定 slot 或 operation。角色 vertical 可生成这些 events，但最终状态仍由 `SemanticStateStore` 持有并发布快照。
 
+## 不属于本 spine 的相邻 owner
+
+`decision_workspace`（`vz-cognition/decision_workspace`，默认 `SHADOW`）持有**决策结构**：哪些选项还活着、在哪些维度上比较、排名悬在哪些未知上、引用了哪些证据、结论处于什么状态。它**不是第十个 semantic owner**，理由有三：
+
+- **不进 `semantic_spine_coverage` 分母**。该指标算的是五个 core semantic owner；把它加进去会让全部历史 paper-suite / companion 读数因为与关系状态无关的原因整体平移。
+- **不拥有语义事实，只持引用**。用户重视什么归 `goal_value`，什么还没解决归 `open_loop`，什么需要核验归 `belief_assumption`，哪些计划是候选归 `plan_intent`。workspace 只记录"选项 A 在桌上、对应 plan-ref X"。这条靠**结构**保证而非靠自觉：`DecisionOption` / `DecisionUnknown` 根本没有能放文本的字段。同一事实两个写者，在跨会话水合后必然分叉。
+- **不决定自己何时存在**。激活值读自 `regime` 的 `participation_hint.panorama_level`（见 [cognitive-regime.md](./cognitive-regime.md) §Panorama 参与门）。该模块完全没有"重要性""风险""话题"的概念，只读一个枚举。SILENT → 不实例化；BRIEF → 只维护选项集与未知项、不发布维度与结论；STRUCTURED → 全量。
+
+测试 `tests/test_decision_workspace.py`：固定一组"最像决策"的 owner 快照，只改门的取值，验证三档行为差异——任何本地"这看起来很重要"的判断都会立刻暴露。
+
 ## ETA / NL 集成
 
 - `TrackTemporalModule` 直接消费九个 semantic slots，并把它们压成 `semantic_pressure`，作为 control advisory 写入 public temporal description / feedback signal。
@@ -99,6 +109,7 @@ ReviewedChapterExperience / CharacterSemanticEventBundle
 
 ## 变更日志
 
+- 2026-07-27: 新增相邻 owner `decision_workspace`（`SHADOW`，见上节）。spine 仍是 9 个 owner，`semantic_spine_coverage` 分母不变。所有权边界靠字段形状强制（记录类型没有可放文本的字段）+ 行为测试（同一批 owner 快照下只改 panorama 门取值）。测试 `tests/test_decision_workspace.py`。
 - 2026-07-17: G2 LLM proposal 覆盖 9/9。`_GENERIC_LLM_SLOT_IDS` 从 4 slot 扩到 8（`plan_intent` / `open_loop` / `execution_result` / `belief_assumption` 加入既有 JSON-schema generic 路径；commitment 仍走专用分类器，合计 9/9 全部 semantic owner 具备 typed LLM proposal source）。per-slot 语义说明集中在 `_GENERIC_SLOT_SEMANTIC_HINTS`（llm-prompt-centralization；原四 slot 的 prompt 字节不变）。owner 单写者、`min_proposal_confidence` 过滤、unparseable→NoOp fail-safe 均不变。测试：`tests/test_llm_semantic_runtime.py` 新四 slot 参数化用例 + hint-line 边界用例。
 - 2026-07-14: CP-12 第二波 publisher 接线（GAP-05）。`plan_intent`（kind
   `PLAN_INTENT_PROGRESS`, track world）/ `open_loop`（`OPEN_LOOP_CLOSURE`,

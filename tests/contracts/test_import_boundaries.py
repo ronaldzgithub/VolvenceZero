@@ -228,6 +228,14 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "audit", "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
             "personal_conditioning",
+            # decision_workspace owner (docs/specs/cognitive-regime.md
+            # §Panorama 参与门). Lives in vz-cognition alongside regime,
+            # whose panorama gate it subscribes to; vz-runtime only
+            # registers it into the kernel graph. Deliberately its own
+            # tier rather than a member of ``semantic_state``: it is not
+            # a semantic-spine owner and must not be swept into spine
+            # enumerations.
+            "decision_workspace",
             # apprenticeship_alignment owner (reliable-apprenticeship
             # alignment; docs/specs/apprenticeship-alignment.md) lives in
             # vz-cognition; vz-runtime registers it into the kernel graph.

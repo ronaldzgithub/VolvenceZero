@@ -1,0 +1,68 @@
+{
+  "ablation": [
+    {
+      "feature": "option_multiplicity",
+      "ceiling_breaches": 1,
+      "floor_misses": 0,
+      "caught_by": [
+        "bnd-isolate-single-option"
+      ]
+    },
+    {
+      "feature": "irreversibility",
+      "ceiling_breaches": 1,
+      "floor_misses": 0,
+      "caught_by": [
+        "bnd-restaurant-choice"
+      ]
+    },
+    {
+      "feature": "ranking_instability",
+      "ceiling_breaches": 1,
+      "floor_misses": 0,
+      "caught_by": [
+        "bnd-isolate-ranking-settled"
+      ]
+    },
+    {
+      "feature": "unknown_dominance",
+      "ceiling_breaches": 1,
+      "floor_misses": 0,
+      "caught_by": [
+        "bnd-isolate-unknown-fully-informed"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "left": "option_multiplicity",
+      "right": "irreversibility",
+      "pearson_r": 0.5181
+    },
+    {
+      "left": "option_multiplicity",
+      "right": "ranking_instability",
+      "pearson_r": 0.6868
+    },
+    {
+      "left": "option_multiplicity",
+      "right": "unknown_dominance",
+      "pearson_r": 0.6102
+    },
+    {
+      "left": "irreversibility",
+      "right": "ranking_instability",
+      "pearson_r": 0.5856
+    },
+    {
+      "left": "irreversibility",
+      "right": "unknown_dominance",
+      "pearson_r": 0.6169
+    },
+    {
+      "left": "ranking_instability",
+      "right": "unknown_dominance",
+      "pearson_r": 0.64
+    }
+  ]
+}
