@@ -64,6 +64,10 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-substrate": frozenset(
         {
             "runtime", "learned_update", "personal_conditioning_contracts",
+            # State KV P3: the prefix generator reads a bank's numeric readout
+            # and shape only. The contract carries no bank semantics, so
+            # substrate can consume it without becoming a semantic owner.
+            "conditioning_bank_contracts",
             # #91: SubstrateTextEncoderBackend implements the
             # vz-contracts SemanticEmbeddingBackend seam (reuses the loaded
             # LM as a real text encoder). The protocol + stub fallback live
@@ -90,6 +94,12 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
             "personal_conditioning_contracts",
+            # State KV P1: the generic conditioning-bank value type that all
+            # six banks publish. The per-bank adapters live here in cognition
+            # because they project owner-published semantics; the contract
+            # itself stays in vz-contracts so substrate can read a bank
+            # without importing a cognition owner.
+            "conditioning_bank_contracts",
             "application_readouts", "social_cognition", "environment",
             # rupture_state owner (Rupture and Repair, M1) consumes
             # DialogueExternalOutcomeSnapshot published by vz-runtime's
@@ -199,6 +209,13 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory", "dialogue_trace",
             "personal_conditioning_contracts",
+            # State KV P1: runtime supplies the scope a bank is published
+            # under and records the per-turn lineage, so it constructs the
+            # generic value type directly.
+            "conditioning_bank_contracts",
+            # Per-bank adapters (owner snapshot -> generic bank) live in
+            # vz-cognition; runtime calls them with the session scope.
+            "conditioning_bank_adapters",
             # Out-of-turn owner archive envelope uses the strict canonical
             # JSON codec from vz-contracts.
             "canonical_json",

@@ -11,6 +11,7 @@ from dataclasses import replace
 from hashlib import sha256
 
 from volvence_zero.dialogue_trace import (
+    ConditioningLineage,
     DialogueActionKind,
     DialogueActionTrace,
     DialogueOutcomeEvidence,
@@ -54,6 +55,7 @@ class DialogueTraceStore:
         actual_outcome: ActualOutcome | None,
         prediction_error: PredictionError | None,
         outcome_evidence: tuple[DialogueOutcomeEvidence, ...] = (),
+        conditioning_lineage: ConditioningLineage | None = None,
     ) -> tuple[DialogueActionTrace, DialogueOutcomeResolution | None]:
         trace_id = f"{session_id}:{wave_id}:dialogue-trace"
         unresolved_outcome = build_unknown_dialogue_outcome(
@@ -80,6 +82,7 @@ class DialogueTraceStore:
                 "Dialogue action trace records public turn evidence; "
                 "prediction-error semantics remain owned by prediction_error."
             ),
+            conditioning_lineage=conditioning_lineage,
         )
         self._traces.append(trace)
         self._unresolved_trace_ids.append(trace_id)

@@ -82,6 +82,30 @@ slot 为 `SHADOW` / `DISABLED` 时该开关无效（臂 A = 默认 `SHADOW`）�
 residual 模式的 `personal_conditioning` / `personal_conditioning_not_applied`
 标签同级，保证两种投递形态同等可审计。
 
+### 3.2 载体识别臂（prompt 载体闭合）
+
+上述三臂的 system prompt 仍含 regime guidance / `prompt_residue_summary` /
+speech plan 等**状态派生段**，因此臂之间的 prompt 并非逐字节相同，不能用于
+「状态没有经 prompt 到达模型」这类主张。第二个开关
+`FinalRolloutConfig.prompt_state_delivery` 负责关闭这条 prompt 载体：
+
+| 模式 | 行为 |
+|------|------|
+| `"text"`（默认） | 现状生产路径，逐字节等价 |
+| `"suppressed"` | `build_system_prompt` 只组装不变表达规则段，状态派生段整组不进 prompt |
+
+由此得到两条 pure 臂 `state-kv-arm-a-pure` / `state-kv-arm-e-pure`：两者
+prompt 逐字节相同，差异只在 residual 通道。`personal_conditioning_mode="text"`
+与 `"suppressed"` 组合为非法配置（渲染语句会被静默丢弃），构造期即 raise。
+
+`suppressed` 会同时移除 boundary / disclaimer / refer-out 的 prompt 侧引导，
+因此是**证据专用模式，禁止部署**；边界约束在该臂下仅由 `GenerationConstraints`
+的 substrate 侧后处理承担，`prompt-state-suppressed` capability 由守门测试限制
+只能出现在 `*-pure` 臂上。
+
+实验设计、载体清单与判据见
+[`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md)。
+
 已知限制：当前 Transformers 与 vLLM runtime 均无跨调用 prefix KV cache，
 B′ 的“前缀 KV 缓存”延迟对齐属于包 C / State KV P3 的工程范围；本阶段只保证
 状态段位于 system prompt 的稳定早段（cache 友好位置）。

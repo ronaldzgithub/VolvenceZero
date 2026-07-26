@@ -60,6 +60,9 @@ from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.integration import FinalIntegrationResult
 from volvence_zero.joint_loop import ScheduledJointLoopResult
 from volvence_zero.memory import MemorySnapshot
+from volvence_zero.agent.conditioning_lineage import build_conditioning_lineage
+from volvence_zero.conditioning_bank_adapters import personal_conditioning_to_bank
+from volvence_zero.conditioning_bank_contracts import ConditioningScope
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
@@ -89,6 +92,16 @@ if TYPE_CHECKING:
         OnlineFastSubstrateTurnResult,
         RareHeavyTurnResult,
     )
+
+
+# An ``AgentSessionRunner`` serves exactly one session for one user, so the
+# runner tier has no tenant dimension and real isolation is carried by
+# ``user_scope``. The generic bank contract still requires a non-empty tenant
+# so that cross-tenant KV reuse is impossible to express; this constant fills
+# that slot for the single-tenant path. A multi-tenant deployment (the DLaaS
+# tier, which does carry ``tenant_id``) must pass its own value rather than
+# inherit this one, otherwise two tenants would share a cache namespace.
+_RUNNER_TENANT_SCOPE = "runner-local"
 
 
 class SessionObservationMixin:
@@ -311,6 +324,24 @@ class SessionObservationMixin:
                 )
             else:
                 personal_conditioning = active_conditioning
+        # State KV P1 lineage: project the ACTIVE personal snapshot onto the
+        # generic bank so this turn records which state versions shaped it.
+        # Built for both delivery modes -- residual and text both influence
+        # the response, so both must be attributable.
+        conditioning_banks = (
+            (
+                personal_conditioning_to_bank(
+                    snapshot=active_conditioning,
+                    scope=ConditioningScope(
+                        tenant_scope=_RUNNER_TENANT_SCOPE,
+                        user_scope=self.user_scope,
+                        session_scope=self._session_id,
+                    ),
+                ),
+            )
+            if active_conditioning is not None
+            else ()
+        )
         domain_knowledge_snapshot = integration_result.active_snapshots.get("domain_knowledge")
         case_memory_snapshot = integration_result.active_snapshots.get("case_memory")
         strategy_playbook_snapshot = integration_result.active_snapshots.get("strategy_playbook")
@@ -503,6 +534,13 @@ class SessionObservationMixin:
             actual_outcome=actual_outcome,
             prediction_error=prediction_error,
             outcome_evidence=outcome_evidence,
+            conditioning_lineage=build_conditioning_lineage(
+                # ``_session_id`` rather than the context-scoped id: a context
+                # reset must not sever an outcome from the banks that produced
+                # the action it is rating.
+                session_scope=self._session_id,
+                banks=conditioning_banks,
+            ),
         )
         dialogue_trace_snapshot = self._dialogue_trace_store.snapshot()
         if outcome_evidence:

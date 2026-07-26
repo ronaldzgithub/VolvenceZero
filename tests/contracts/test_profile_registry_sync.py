@@ -206,6 +206,32 @@ def test_capability_applies_to_owner_matches_final_rollout_config_fields() -> No
     )
 
 
+def test_prompt_state_suppression_is_evidence_only() -> None:
+    """``prompt-state-suppressed`` must never ride on a deployable profile.
+
+    docs/specs/state-kv-identification-evidence.md §关键不变量 1: suppression
+    also drops boundary / disclaimer / refer-out prompt steering, so it is
+    valid only for carrier-identification arms. The naming rule (``*-pure``)
+    keeps that visible at every call site that passes a profile_label.
+    """
+    reg = builtin_profile_registry()
+    offenders: list[str] = []
+    for label in list_builtin_profiles():
+        resolved = resolve_profile(label)
+        if any(c.name == "prompt-state-suppressed" for c in resolved.capabilities):
+            if not label.endswith("-pure"):
+                offenders.append(
+                    f"{label!r} suppresses state-derived prompt sections but is "
+                    "not named as a carrier-identification (*-pure) arm"
+                )
+    assert not offenders, "\n".join(f"  - {o}" for o in offenders)
+
+    # The capability exists and targets a real owner slot.
+    assert "prompt-state-suppressed" in list_builtin_capabilities()
+    cap = reg._capabilities["prompt-state-suppressed"]  # noqa: SLF001
+    assert cap.flag_overrides["prompt_state_delivery"] == "suppressed"
+
+
 def test_conflicting_capabilities_blocked_in_topo_order() -> None:
     """Capabilities marked conflicts_with cannot coexist in the same profile.
 
