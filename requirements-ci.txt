@@ -1,3 +1,9 @@
+# CI dependency set. `torch` is intentionally unpinned here: every workflow
+# installs it from https://download.pytorch.org/whl/cpu BEFORE this file, so
+# the bare requirement below is already satisfied by the CPU-only wheel. Do not
+# let torch resolve from the default PyPI index in CI — that wheel pulls the
+# CUDA stack (nvidia-* / triton / cuda-toolkit, several GB) and the ubuntu
+# runner dies with "[Errno 28] No space left on device" during install.
 pytest
 torch
 transformers
