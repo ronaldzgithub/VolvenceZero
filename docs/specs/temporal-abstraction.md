@@ -138,7 +138,9 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - **action-head 幅度校验（`causal_action_head_envelope_enforced`，默认 `False`）**：`restore_causal_action_head_parameters` 历史上只校验 rank/width 五项 shape，任何 archive（包括无约束 torch lane 产出的、或被手工编辑/损坏的）都能装入违反冻结包络的参数。现新增 `validate_causal_action_head_magnitudes`，越界时 fail loudly 并在消息里点名被违反的具体上界（`factor_absolute_limit` / `bias_absolute_limit`）。`MetacontrollerParameterStore(causal_action_head_envelope_enforced=...)` 是显式契约字段，默认 `False` **精确保留历史 restore 行为**（只校验 shape），`True` 时 `restore_causal_action_head_parameters` 与 `restore_parameter_snapshot` 的 archive/checkpoint 路径同时执行幅度校验；恢复为 `False` 即精确回滚。owner 自己的受纪律写入路径（pure 更新、torch 投影后写回）与该开关无关，始终按 `True` 校验，因此越权 archive 无法借它们落地。
   **校验不带任何容差**：冻结上界上不加 epsilon。owner clamp 的产物天然合法——`max(-0.1, min(0.1, x))` 精确返回 `0.1`，而 `abs(0.1) > 0.1` 为 `False`；`1e-9` 的 slack 只会悄悄把冻结上界放宽（`math.nextafter(0.1, inf)` 与 `0.1` 之差远小于 `1e-9`，会被吞掉）。
   **非有限值一律 fail loudly，且不受该开关支配**：(1) `_envelope_bounded_value` 此前只检查 candidate；非有限 **baseline** 会让 `max(nan-step, min(nan+step, candidate))` 得到 `nan`，再被绝对 clamp 静默压成 `+absolute_limit`——一个损坏基线因此被洗成“合法的、钉在绝对上界上的截距”（实测 `nan`/`inf` baseline 都得到 `0.1`）。现 baseline 与 candidate 同样校验。(2) `restore_causal_action_head_parameters` 补齐 `restore_parameter_snapshot` 早就有的有限性校验，NaN/Inf 无法直接写进 live head。
-  **开关的可达路径（opt-in，已贯通到生产配置）**：`MetacontrollerParameterStore.set_causal_action_head_envelope_enforced(bool)` 是构造后的显式切换点；`FinalRolloutConfig.internal_rl_causal_action_head_envelope_enforced: bool = False`（`packages/vz-runtime/src/volvence_zero/integration/final_wiring.py`，与 `internal_rl_causal_action_head_rank` 等字段同处）是 domain 唯一的声明入口，经四个 `set_causal_action_head(...)` 调用点落到 store：`final_wiring.py` 的 WORLD / SELF 两处、`packages/vz-runtime/src/volvence_zero/agent/session.py` 的 WORLD / SELF 两处。**两轨都必须收到**，否则一条 lane 仍可被装入越界 archive。数字蚂蚁 evidence profile（`packages/vz-embodiment-ant/src/volvence_ant/evidence/runtime_profile.py`）声明 `True`：它是唯一拥有 ACTIVE causal action head 的域，而 `docs/specs/digital-ant-embodiment.md` 冻结的正是本校验所守的 bias 幅度上界。通用默认 `False` 精确保留历史 restore 行为（`tests/test_runtime_transition_replay.py` 刻意从 permissive 路径装入 bias `0.35 / 0.4`），因此该契约必须保持 opt-in。
+  **开关的可达路径（opt-in，已贯通到生产配置）**：`MetacontrollerParameterStore.set_causal_action_head_envelope_enforced(bool)` 是构造后的显式切换点；`FinalRolloutConfig.internal_rl_causal_action_head_envelope_enforced: bool = False`（`packages/vz-runtime/src/volvence_zero/integration/final_wiring.py`，与 `internal_rl_causal_action_head_rank` 等字段同处）是 domain 唯一的声明入口，经四个 `set_causal_action_head(...)` 调用点落到 store：`final_wiring.py` 的 WORLD / SELF 两处、`packages/vz-runtime/src/volvence_zero/agent/session.py` 的 WORLD / SELF 两处。**两轨都必须收到**，否则一条 lane 仍可被装入越界 archive。通用默认 `False` 精确保留历史 restore 行为（`tests/test_runtime_transition_replay.py` 刻意从 permissive 路径装入 bias `0.35 / 0.4`），因此该契约必须保持 opt-in。
+  **⚠ 目前没有任何域能真正打开它——阻塞项在本 owner 自己身上（已实测，未修复）**：`_initial_causal_action_head_parameters` 在 `rank < n_z` 时回落到 `_random_mat(rank, n_z)`，即 scale `1/sqrt(rank)` 的**无界高斯**，与 `factor_absolute_limit=1.5` 毫无关联。种子固定，因此违例是确定性的；实测（`n_z=16`，即数字蚂蚁正式配置）：`world rank=4 max|input_factor|=1.0749` 合规，`self=1.9823`、`shared=1.6192` **越界**（`n_z=4` 时 `self=1.5976` 越界）。而 `internal_rl_causal_action_head_rank` 只配置传给 `set_causal_action_head` 的那**一个** track，`restore_parameter_snapshot` 却校验全部三个 track，于是未被配置的 SELF/SHARED 头保留随机低秩初值。结果：任何域一旦声明 `True`，**第一次 checkpoint 恢复就会在 owner 刚刚自己创建的头上抛错**——实测数字蚂蚁 profile 声明 `True` 会让 `packages/vz-embodiment-ant/tests` 中 19 个测试失败，全部来自 `validate_causal_action_head_magnitudes` 拒绝一个 `update_step=0`、output factor 与 bias 全零（即 live steering 权限精确为零）的头。
+  换言之 `validate_causal_action_head_magnitudes` 的口径宽于它自己的立论：它声称拒绝"owner 更新路径永远产生不出来的映射"，但 owner 的**构造函数**恰好能产生一个。收窄校验口径会削弱这道 gate，给初始化加界会改变通用默认的算术，两者都需要单独的收敛包。数字蚂蚁 profile 因此显式声明 `False` 并在原地记录该阻塞与实测数字；`tests/test_temporal_contracts.py::test_pristine_head_initializer_violates_the_envelope_it_is_validated_against` 是强制函数——阻塞项一旦修好该测试立即失败，迫使同批把 profile 翻成 `True`。
   **声明的优先级：`None` 表示“本次不声明”**。`set_causal_action_head(..., envelope_enforced: bool | None = None)` 只在显式传 `True`/`False` 时写入 store。此前它把 `False` 默认值无条件写入，于是一个用 `MetacontrollerParameterStore(causal_action_head_envelope_enforced=True)` 构造出来的 store，会被任何一个根本没提到该开关的后续 head 配置调用（改 rank、改 strength、配第二轨）静默关掉强制校验——AGENTS.md §6 明令禁止的静默降级。`FinalRolloutConfig` 走的是显式路径，因此 rollout 配置仍是 domain 声明的权威边界。证据：`tests/test_temporal_contracts.py::test_head_configuration_without_a_declaration_leaves_the_store_alone`、`::test_rollout_config_carries_the_envelope_declaration_to_the_store`、`::test_digital_ant_profile_declares_archive_envelope_enforcement`。
 - **latent code 值域的唯一 owner**：`temporal/interface.py` 的 `LATENT_CODE_BOUNDS = (0.0, 1.0)` 是 live ndim forward 对 `code` 的冻结值域（`_clamp` 由它派生）。torch runtime-replay lane 此前硬编码三处 `[-1,1]`，而同一函数的两条 synthetic lane 用 `[0,1]`；在饱和 contrast 轴上重建出的均值会离开冻结 plant 的值域，使 `(action - mean)` 相对真实动作反号、head 梯度指向错误方向。现该 lane 经 `resolve_latent_code_bounds(latent_unit_clamp=...)` 选择边界，与 pure lane 的 `latent_unit_clamp` 契约同名同义：`False` 保持历史 signed 边界（精确回滚基线），`True` 在 owner 的单位值域上重建。reward/advantage 的 `[-1,1]` clamp 是另一套约定，两条 lane 都不变。**pure 与 torch 两条 runtime-replay lane 必须收到同一个 `latent_unit_clamp`**，否则同一 batch 会重建出不同均值；这正是 `assert_runtime_replay_latent_bounds_agree` 所执行的范围。
   **该不变量精确限定在 runtime-replay 重建上，不覆盖 synthetic 分支**（此前这句话没有限定作用域，读起来像是覆盖全函数）：torch 的两条 synthetic lane 历来就在 owner 的 `LATENT_CODE_BOUNDS` 上做 clamp，与 `latent_unit_clamp` 无关；pure 的 synthetic lane 则按 `latent_unit_clamp` 选择 `_clamp`（signed，历史默认）或 `_clamp_unit`（= `LATENT_CODE_BOUNDS`）。因此：声明 `True`（数字蚂蚁 evidence profile）时四条 lane 全部落在 `LATENT_CODE_BOUNDS` 上；保持历史默认 `False` 时两条 synthetic lane 的边界不一致，**这一不对称本身就是精确回滚基线**，不是新缺陷。把 torch synthetic 也接到 `resolve_latent_code_bounds` 是错误修法：默认下它会把该 lane 从冻结 plant 的值域上**移走**（改成 signed），实测使 818 行字节探针中 88 行改变，直接破坏通用默认的字节等价。本包只把该 lane 里写死的 `0.0, 1.0` 字面量换成 owner 常量 `LATENT_CODE_BOUNDS`（算术逐字节不变），以满足“值域只有一个 owner、禁止在第二个文件里写死边界”的约束。证据：`tests/test_temporal_contracts.py::test_torch_synthetic_lane_reconstructs_on_the_owner_latent_range`（差分锚定：两组令未 clamp 均值都落到地板以下但数值不同的 track weights 必须给出同一 surrogate；signed 地板下则不会）。
@@ -208,8 +210,16 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   在任何真实部署里仍接受越界 head——正是"任何 archive 都能装入固定转向截距"这一缺陷本身。
   新增 `FinalRolloutConfig.internal_rl_causal_action_head_envelope_enforced: bool = False`
   并在四个 `set_causal_action_head(...)` 调用点（`final_wiring.py` 与 `agent/session.py`
-  各 WORLD/SELF 两处）传下；数字蚂蚁 evidence profile 声明 `True`（唯一 ACTIVE-head 域，
-  `docs/specs/digital-ant-embodiment.md` 冻结的就是本校验所守的 bias 上界）。
+  各 WORLD/SELF 两处）传下。**打开它的那一步被一个更深的缺陷挡住，本包不修但已量化**：
+  owner 自己的 `_initial_causal_action_head_parameters` 在 `rank < n_z` 时用无界高斯初始化
+  input factor，实测 `n_z=16` 下 `self=1.9823`、`shared=1.6192` 越过
+  `factor_absolute_limit=1.5`，而 `restore_parameter_snapshot` 校验全部三轨、
+  `internal_rl_causal_action_head_rank` 只配置一轨，因此任何域声明 `True` 都会在第一次
+  checkpoint 恢复时炸在 owner 刚创建的头上（实测蚂蚁包 19 个测试失败，全部是
+  `update_step=0`、output/bias 全零、live steering 权限精确为零的头）。收窄校验会削弱 gate，
+  给初始化加界会改动通用默认算术，故数字蚂蚁 profile 显式声明 `False` 并原地记录该阻塞，
+  由 `test_pristine_head_initializer_violates_the_envelope_it_is_validated_against` 作强制
+  函数（阻塞一修该测试即失败，迫使同批翻成 `True`）。
   (2) **后一次调用会静默清掉前一次声明**：`set_causal_action_head(..., envelope_enforced)`
   把 `False` 默认值无条件写进 store，于是
   `MetacontrollerParameterStore(causal_action_head_envelope_enforced=True)` 会被任何一次
@@ -226,8 +236,16 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   （baseline 在包络外时绝对 clamp 获胜，实测 `0.35 -> 0.1` 一次位移 25 倍上界；且区间按
   binary64 求值，精确算术下会以 1 ulp 之差为假）；`tests/contracts 3668 passed` 改记为
   失败/错误集合等于既存基线（该 pass 计数当日复测已漂到 `3682`）。
-  验证：`packages/vz-temporal/tests` 106 passed（本包新增 8 个测试，5 个 torch-free）；
-  `tests/contracts` 失败/错误集合 = 既存基线（4 failed + 5 errors，3682 passed）。
+  验证：`packages/vz-temporal/tests` 107 passed（本包新增 9 个测试，6 个 torch-free）；
+  `packages/vz-embodiment-ant/tests` 240 passed / 1 failed（`test_forbidden_list_covers_every_kernel_wheel_module`，
+  缺 `volvence_zero.decision_workspace`，属并行 wave 的既存失败）；
+  `tests/test_runtime_transition_replay.py` + `tests/test_temporal_interface.py` +
+  `packages/vz-runtime/tests` 217 passed；`tests/contracts` 失败/错误集合 = 既存基线
+  （4 failed + 5 errors）；ruff 对 8 个改动文件的发现集合与干净 HEAD 完全相同
+  （117 条既存，无新增；`S110/S112/E722` 为 0）。
+  顺带为上一条的 pass-count 论点提供了当场证据：同一会话内 `tests/contracts` 的 passed
+  先后测到 `3682` 与 `3672`（并行 wave 正在增删测试），而失败/错误集合三次完全一致。
+  pass 计数不可核验，失败/错误集合可核验。
   **通用默认逐字节不变（已证明，非断言）**：818 行 `float.hex()` 探针覆盖 pure
   `update_causal_action_head`（`n_z∈{3,4,16}` × 梯度尺度 `1e-6/1/1e6` × 120 次更新）、
   `project_causal_action_head_update`（5 baseline × 4 candidate，含包络内/边界/外）、
@@ -247,7 +265,9 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   `bias=1.230494e-05 / out=5.657864e-04 / in=8.364014e-05`；gain `20→40` →
   `1.9910x / 1.9968x / 2.0034x`；`lr` ×25 → 精确 `25.000000x`；gain 1000 与 5000 均精确顶在
   `0.01 / 0.05 / 0.02` 不再增长），与原记录一致。
-  **未收敛（本包不改，已单列）**：`_clamp` 对非有限值做静默 laundering——实测
+  **未收敛（本包不改，已单列，两项）**：(a) 上述 pristine head 初始化越界，导致包络强制在任何
+  域都还打不开——这是本包唯一没有完全闭合的评审项（配置跳已落地并有测试，声明那一步被挡）。
+  (b) `_clamp` 对非有限值做静默 laundering——实测
   `_clamp(nan) = _clamp(inf) = 1.0`、`_clamp(-inf) = -1.0`（`nan < 1.0` 与 `nan > -1.0`
   均为 False，两个界各自保留自身操作数）。一个 NaN 的 `EnvironmentMeasurement.action_payoff`
   因此被当作**最大奖励** `+1.0` 支付，且 `_require_signed_unit_interval` 同样漏过。两条 lane
