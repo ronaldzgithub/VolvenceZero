@@ -286,6 +286,307 @@ class CausalZActionHeadParameters:
     update_step: int = 0
 
 
+# 冻结 latent code 值域。live ndim forward（``_clamp``）、pure replay 重建与
+# torch autograd lane 必须共享同一个 owner 常数，禁止在第二个文件里写死边界。
+LATENT_CODE_BOUNDS: tuple[float, float] = (0.0, 1.0)
+
+
+@dataclass(frozen=True)
+class CausalActionHeadUpdateEnvelope:
+    """causal action head 单次 owner 更新的冻结包络。
+
+    唯一 owner 是本模块：pure 更新路径（``update_causal_action_head``）与
+    torch autograd lane 都必须消费同一组常数。任何在第二个文件里复制这些
+    数字的实现都是错误设计——无约束截距会安装跨状态固定转向。
+    """
+
+    factor_absolute_limit: float
+    input_factor_step_limit: float
+    output_factor_step_limit: float
+    bias_absolute_limit: float
+    bias_step_limit: float
+    bias_learning_rate_ratio: float
+    bias_state_path_scale: float
+
+
+CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE = CausalActionHeadUpdateEnvelope(
+    factor_absolute_limit=1.5,
+    input_factor_step_limit=0.02,
+    output_factor_step_limit=0.05,
+    bias_absolute_limit=0.1,
+    bias_step_limit=0.01,
+    bias_learning_rate_ratio=0.12,
+    bias_state_path_scale=0.05,
+)
+
+@dataclass(frozen=True)
+class CausalActionHeadUpdateScales:
+    """一次 owner 更新的**比例**步长尺度（clamp 之前）。
+
+    包络是护栏，不是步长。步长必须与梯度成正比，否则更新只携带梯度的符号，
+    退化成 bang-bang 控制器：每次都恰好走满单步上界，10 次就把 bias 钉在绝对
+    上界上——那正是包络要阻止的跨状态固定转向截距。
+
+    - ``factor_learning_rate``：input/output factor 的梯度尺度，
+      ``learning_rate / batch_size``。
+    - ``bias_learning_rate``：``factor_learning_rate * bias_learning_rate_ratio``。
+    - ``bias_signal_learning_rate``：再乘 ``bias_state_path_scale``，即 bias 相对
+      state path 的阻尼后尺度。pure 路径在 delta 处按历史乘法顺序折入同一个
+      ``bias_state_path_scale``（保持逐字节不变），因此只消费前两项。
+    """
+
+    factor_learning_rate: float
+    bias_learning_rate: float
+    bias_signal_learning_rate: float
+
+
+def causal_action_head_update_scales(
+    *,
+    learning_rate: float,
+    batch_size: int,
+    envelope: CausalActionHeadUpdateEnvelope = (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+    ),
+) -> CausalActionHeadUpdateScales:
+    """action-head 更新步长尺度的唯一 owner。
+
+    pure 更新路径与 torch autograd lane 必须消费同一组尺度，禁止在第二个文件
+    里复制 ``/ batch_size``、``0.12`` 或 ``0.05``。
+    """
+
+    if batch_size < 1:
+        raise ValueError(
+            "causal action head update requires a non-empty batch, "
+            f"got batch_size={batch_size!r}"
+        )
+    if not math.isfinite(learning_rate) or learning_rate < 0.0:
+        raise ValueError(
+            "causal action head update learning rate must be finite and "
+            f"non-negative, got {learning_rate!r}"
+        )
+    factor_learning_rate = learning_rate / batch_size
+    bias_learning_rate = (
+        factor_learning_rate * envelope.bias_learning_rate_ratio
+    )
+    return CausalActionHeadUpdateScales(
+        factor_learning_rate=factor_learning_rate,
+        bias_learning_rate=bias_learning_rate,
+        bias_signal_learning_rate=(
+            bias_learning_rate * envelope.bias_state_path_scale
+        ),
+    )
+
+
+def validate_causal_action_head_magnitudes(
+    parameters: CausalZActionHeadParameters,
+    *,
+    envelope: CausalActionHeadUpdateEnvelope = (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+    ),
+) -> None:
+    """校验 action-head 参数幅度落在冻结包络内。
+
+    越界时 fail loudly，并在消息里点名被违反的具体上界，使损坏 / 越权
+    archive 无法静默安装一个 owner 更新路径永远产生不出来的映射。
+
+    **不加任何容差**：包络是冻结上界，加 slack 就是悄悄放宽它。owner 写入路径
+    产出的边界值天然合法——``max(-0.1, min(0.1, x))`` 精确返回 ``0.1``，而
+    ``abs(0.1) > 0.1`` 为 ``False``，无需 epsilon 兜底。
+    """
+
+    for name, matrix in (
+        ("input_factors", parameters.input_factors),
+        ("output_factors", parameters.output_factors),
+    ):
+        for row_index, row in enumerate(matrix):
+            for column_index, value in enumerate(row):
+                if (
+                    not math.isfinite(value)
+                    or abs(value) > envelope.factor_absolute_limit
+                ):
+                    raise ValueError(
+                        "causal action head violates frozen bound "
+                        "factor_absolute_limit="
+                        f"{envelope.factor_absolute_limit}: "
+                        f"track={parameters.track.value}, "
+                        f"{name}[{row_index}][{column_index}]={value!r}"
+                    )
+    for index, value in enumerate(parameters.bias):
+        if (
+            not math.isfinite(value)
+            or abs(value) > envelope.bias_absolute_limit
+        ):
+            raise ValueError(
+                "causal action head violates frozen bound "
+                f"bias_absolute_limit={envelope.bias_absolute_limit}: "
+                f"track={parameters.track.value}, bias[{index}]={value!r}"
+            )
+
+
+def _envelope_bounded_value(
+    *,
+    baseline: float,
+    candidate: float,
+    step_limit: float,
+    absolute_limit: float,
+    label: str,
+) -> float:
+    """单个参数的“先限步长、再限绝对幅度”投影。
+
+    与 ``update_causal_action_head`` 中的 clamp 顺序逐字对应。
+
+    baseline 与 candidate 都必须有限。非有限 baseline 同样 fail loudly：
+    ``max(nan - step, min(nan + step, candidate))`` 得到 ``nan``，再 clamp 会被
+    静默压成 ``+absolute_limit``——一个损坏的基线因此会悄悄变成钉在绝对上界上
+    的合法参数，正是包络要阻止的固定截距。
+    """
+
+    if not math.isfinite(baseline):
+        raise ValueError(
+            "causal action head baseline must be finite, "
+            f"got {label}={baseline!r}"
+        )
+    if not math.isfinite(candidate):
+        raise ValueError(
+            "causal action head candidate must be finite, "
+            f"got {label}={candidate!r}"
+        )
+    bounded_step = max(
+        baseline - step_limit,
+        min(baseline + step_limit, candidate),
+    )
+    return max(-absolute_limit, min(absolute_limit, bounded_step))
+
+
+def project_causal_action_head_update(
+    *,
+    baseline: CausalZActionHeadParameters,
+    candidate: CausalZActionHeadParameters,
+    envelope: CausalActionHeadUpdateEnvelope = (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+    ),
+) -> CausalZActionHeadParameters:
+    """把一次候选更新投影回 ``baseline`` 周围的冻结包络。
+
+    ``baseline`` 是本次 owner 更新开始时的参数，``candidate`` 是任意优化器
+    （例如 torch Adam）提出的新参数。语义与 pure owner 路径完全一致（同一组
+    常数、同样的 clamp 顺序），因此 torch lane 无需复制任何阈值。
+
+    投影是 ``clamp_absolute(clamp_step(candidate))``，两条上界的成立条件**不
+    对称**，不要把逐步位移当成无条件不变量：
+
+    1. ``|result| <= absolute_limit`` —— **无条件成立**。
+    2. baseline 已在包络内（``|baseline| <= absolute_limit``）时
+       ``result`` 落在 ``[baseline - step_limit, baseline + step_limit]``
+       —— 这是每步位移上界的成立域，也是 owner 自身写入路径的稳态。区间按
+       binary64 求值，不是精确算术：``0.05 + 0.01`` 的可表示值是
+       ``0.060000000000000005``，因此 ``|result - baseline| <= step_limit``
+       会以 1 ulp 之差为假；不变量属于区间，不属于差的绝对值。
+    3. baseline 已在包络**外**且距离超过 ``step_limit`` 时，step 区间与绝对区
+       间不相交，绝对 clamp 获胜：``result == sign(baseline) * absolute_limit``，
+       单次调用的位移是 ``|baseline| - absolute_limit``，**可以远大于**
+       ``step_limit``。实测：permissive 路径装入的 ``bias=0.35`` 在
+       ``bias_step_limit=0.01`` 下一次更新即被拉回 ``0.1``（25 倍单步上界）。
+       方向恒为**朝冻结区收敛**：``|result| = absolute_limit < |baseline|``；在
+       冻结包络下（三个 step 上界均严格小于对应 absolute 上界）符号也不会翻转
+       到对侧上界。因此这是安全方向；pure owner 路径历来如此，属于按设计行为，
+       文档记述必须与之一致而不是反过来改行为。
+
+    合并起来即：``result`` 落在 ``[baseline - step, baseline + step]`` 与
+    ``[-absolute, absolute]`` 的交集里；交集为空时取 ``[-absolute, absolute]``
+    中离 ``baseline`` 最近的端点。
+    """
+
+    if baseline.track is not candidate.track:
+        raise ValueError(
+            "causal action head projection track mismatch: "
+            f"baseline={baseline.track.value}, "
+            f"candidate={candidate.track.value}"
+        )
+    if baseline.rank != candidate.rank:
+        raise ValueError(
+            "causal action head projection rank mismatch: "
+            f"baseline={baseline.rank}, candidate={candidate.rank}"
+        )
+    if (
+        len(baseline.input_factors) != len(candidate.input_factors)
+        or len(baseline.output_factors) != len(candidate.output_factors)
+        or len(baseline.bias) != len(candidate.bias)
+        or any(
+            len(baseline_row) != len(candidate_row)
+            for baseline_row, candidate_row in zip(
+                baseline.input_factors,
+                candidate.input_factors,
+                strict=True,
+            )
+        )
+        or any(
+            len(baseline_row) != len(candidate_row)
+            for baseline_row, candidate_row in zip(
+                baseline.output_factors,
+                candidate.output_factors,
+                strict=True,
+            )
+        )
+    ):
+        raise ValueError(
+            "causal action head projection shape mismatch for "
+            f"track={baseline.track.value}"
+        )
+    projected_input = tuple(
+        tuple(
+            _envelope_bounded_value(
+                baseline=baseline_value,
+                candidate=candidate_value,
+                step_limit=envelope.input_factor_step_limit,
+                absolute_limit=envelope.factor_absolute_limit,
+                label=f"input_factors[{row_index}][{column_index}]",
+            )
+            for column_index, (baseline_value, candidate_value) in enumerate(
+                zip(baseline_row, candidate_row, strict=True)
+            )
+        )
+        for row_index, (baseline_row, candidate_row) in enumerate(
+            zip(baseline.input_factors, candidate.input_factors, strict=True)
+        )
+    )
+    projected_output = tuple(
+        tuple(
+            _envelope_bounded_value(
+                baseline=baseline_value,
+                candidate=candidate_value,
+                step_limit=envelope.output_factor_step_limit,
+                absolute_limit=envelope.factor_absolute_limit,
+                label=f"output_factors[{row_index}][{column_index}]",
+            )
+            for column_index, (baseline_value, candidate_value) in enumerate(
+                zip(baseline_row, candidate_row, strict=True)
+            )
+        )
+        for row_index, (baseline_row, candidate_row) in enumerate(
+            zip(baseline.output_factors, candidate.output_factors, strict=True)
+        )
+    )
+    projected_bias = tuple(
+        _envelope_bounded_value(
+            baseline=baseline_value,
+            candidate=candidate_value,
+            step_limit=envelope.bias_step_limit,
+            absolute_limit=envelope.bias_absolute_limit,
+            label=f"bias[{index}]",
+        )
+        for index, (baseline_value, candidate_value) in enumerate(
+            zip(baseline.bias, candidate.bias, strict=True)
+        )
+    )
+    return replace(
+        candidate,
+        input_factors=projected_input,
+        output_factors=projected_output,
+        bias=projected_bias,
+    )
+
+
 @dataclass(frozen=True)
 class MetacontrollerParameterSnapshot:
     temporal_parameters: TemporalControllerParameters
@@ -457,7 +758,14 @@ class MetacontrollerParameterStore:
         *,
         n_z: int = 3,
         n_input: int | None = None,
+        causal_action_head_envelope_enforced: bool = False,
     ) -> None:
+        # 显式契约字段：默认 False 精确保留历史 restore 行为（只校验 shape），
+        # True 时 archive / checkpoint 恢复也必须满足冻结幅度包络。
+        # owner 自己的受纪律写入路径始终按 True 校验，与本开关无关。
+        self.causal_action_head_envelope_enforced = bool(
+            causal_action_head_envelope_enforced
+        )
         resolved_input_dim = n_z if n_input is None else n_input
         if resolved_input_dim < 1:
             raise ValueError(
@@ -675,7 +983,17 @@ class MetacontrollerParameterStore:
     def restore_causal_action_head_parameters(
         self,
         parameters: CausalZActionHeadParameters,
+        *,
+        enforce_envelope: bool | None = None,
     ) -> None:
+        """安装一组 action-head 参数。
+
+        ``enforce_envelope`` 为 ``None`` 时回落到 store 的
+        ``causal_action_head_envelope_enforced`` 契约字段（默认 ``False``，
+        即历史行为：只校验 shape）。owner 自己的受纪律写入路径（pure 更新与
+        torch 投影后写回）显式传 ``True``，因此越权 archive 无法借它们落地。
+        """
+
         if len(parameters.input_factors) != parameters.rank:
             raise ValueError(
                 "causal action head input rank mismatch: "
@@ -710,7 +1028,38 @@ class MetacontrollerParameterStore:
                 f"expected={self._n_z}, "
                 f"actual={len(parameters.bias)}"
             )
+        # NaN/Inf 从来不是任何 owner 更新路径的合法产物，也不受 opt-in 包络开关
+        # 支配：``restore_parameter_snapshot`` 早就在 checkpoint 侧拒绝它们，这条
+        # 直接安装路径必须同样 fail loudly，否则一次发散的 torch 更新会把 NaN
+        # 静默写进 live head，直到下游某处才炸开。
+        if not all(
+            math.isfinite(value)
+            for matrix in (parameters.input_factors, parameters.output_factors)
+            for row in matrix
+            for value in row
+        ) or not all(math.isfinite(value) for value in parameters.bias):
+            raise ValueError(
+                "causal action head parameters contain non-finite values for "
+                f"track={parameters.track.value}"
+            )
+        enforce = (
+            self.causal_action_head_envelope_enforced
+            if enforce_envelope is None
+            else bool(enforce_envelope)
+        )
+        if enforce:
+            validate_causal_action_head_magnitudes(parameters)
         self.causal_action_heads[parameters.track] = parameters
+
+    def set_causal_action_head_envelope_enforced(self, enabled: bool) -> None:
+        """打开/关闭 archive 侧的冻结幅度校验（默认 ``False``）。
+
+        构造后的显式契约切换点：持有 store 的调用方（joint-loop pipeline、
+        session 装配）据此把 domain 的声明落到 owner 边界上。``False`` 精确恢复
+        历史 restore 行为，因此该开关是可逆的 opt-in，而不是新默认值。
+        """
+
+        self.causal_action_head_envelope_enforced = bool(enabled)
 
     def configure_causal_action_head_rank(
         self,
@@ -897,10 +1246,17 @@ class MetacontrollerParameterStore:
                     output_delta[output_index][rank_index] += (
                         state_signal * basis[rank_index]
                     )
-        factor_learning_rate = (
-            self.learning_rate / len(state_feature_batch)
+        envelope = CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+        # 步长尺度与包络同 owner。本路径保留历史乘法顺序（``bias_learning_rate *
+        # bias_delta * bias_state_path_scale``），因此只消费前两个字段，逐字节
+        # 与 Wave 3 之前一致。
+        scales = causal_action_head_update_scales(
+            learning_rate=self.learning_rate,
+            batch_size=len(state_feature_batch),
+            envelope=envelope,
         )
-        bias_learning_rate = factor_learning_rate * 0.12
+        factor_learning_rate = scales.factor_learning_rate
+        bias_learning_rate = scales.bias_learning_rate
         # A zero output factor keeps the live prior neutral, but a simultaneous
         # bilinear gradient would also give the input factor zero feedback on
         # the first informative batch. Use one bounded block-coordinate step:
@@ -913,17 +1269,17 @@ class MetacontrollerParameterStore:
         for output_index in range(self._n_z):
             for rank_index in range(parameters.rank):
                 step = max(
-                    -0.05,
+                    -envelope.output_factor_step_limit,
                     min(
-                        0.05,
+                        envelope.output_factor_step_limit,
                         factor_learning_rate
                         * output_delta[output_index][rank_index],
                     ),
                 )
                 candidate_output_factors[output_index][rank_index] = max(
-                    -1.5,
+                    -envelope.factor_absolute_limit,
                     min(
-                        1.5,
+                        envelope.factor_absolute_limit,
                         output_factors[output_index][rank_index] + step,
                     ),
                 )
@@ -965,17 +1321,20 @@ class MetacontrollerParameterStore:
         total_change = 0.0
         for output_index in range(self._n_z):
             bias_step = max(
-                -0.01,
+                -envelope.bias_step_limit,
                 min(
-                    0.01,
+                    envelope.bias_step_limit,
                     bias_learning_rate
                     * bias_delta[output_index]
-                    * 0.05,
+                    * envelope.bias_state_path_scale,
                 ),
             )
             bias[output_index] = max(
-                -0.1,
-                min(0.1, bias[output_index] + bias_step),
+                -envelope.bias_absolute_limit,
+                min(
+                    envelope.bias_absolute_limit,
+                    bias[output_index] + bias_step,
+                ),
             )
             total_change += abs(bias_step)
             for rank_index in range(parameters.rank):
@@ -990,17 +1349,17 @@ class MetacontrollerParameterStore:
         for rank_index in range(parameters.rank):
             for input_index in range(self._n_z):
                 step = max(
-                    -0.02,
+                    -envelope.input_factor_step_limit,
                     min(
-                        0.02,
+                        envelope.input_factor_step_limit,
                         factor_learning_rate
                         * input_delta[rank_index][input_index],
                     ),
                 )
                 input_factors[rank_index][input_index] = max(
-                    -1.5,
+                    -envelope.factor_absolute_limit,
                     min(
-                        1.5,
+                        envelope.factor_absolute_limit,
                         input_factors[rank_index][input_index] + step,
                     ),
                 )
@@ -1017,7 +1376,10 @@ class MetacontrollerParameterStore:
                 ),
                 bias=tuple(bias),
                 update_step=parameters.update_step + 1,
-            )
+            ),
+            # 本路径逐参数按同一包络 clamp，校验必然通过；显式打开是为了让
+            # 任何未来对 clamp 的改动立刻在 owner 内部炸开，而不是悄悄放宽。
+            enforce_envelope=True,
         )
         parameter_count = (
             parameters.rank * self._n_z
@@ -1302,6 +1664,8 @@ class MetacontrollerParameterStore:
                         "causal action head checkpoint contains non-finite "
                         f"values for track={parameters.track.value}"
                     )
+                if self.causal_action_head_envelope_enforced:
+                    validate_causal_action_head_magnitudes(parameters)
             self.causal_action_heads = {
                 parameters.track: parameters
                 for parameters in snapshot.causal_action_heads
@@ -1905,7 +2269,8 @@ class MetacontrollerParameterStore:
 
 
 def _clamp(value: float) -> float:
-    return max(0.0, min(1.0, value))
+    lower, upper = LATENT_CODE_BOUNDS
+    return max(lower, min(upper, value))
 
 
 def _mirror_action_head_substrate_snapshot(
@@ -2319,11 +2684,62 @@ def _init_causal_action_heads(
     }
 
 
+def _bounded_initial_input_factors(
+    *,
+    rank: int,
+    n_z: int,
+    seed: int,
+    absolute_limit: float,
+) -> tuple[tuple[float, ...], ...]:
+    """低秩初始 basis 的随机抽样，按包络重标定回冻结区间。
+
+    ``_random_mat`` 是通用默认（encoder/decoder 权重也在用它，见 seed
+    100/101/103/104），本函数**不动它**：重标定只发生在 action-head 这一条
+    初始化路径上，因此其它消费者逐字节不变。
+
+    为什么是"把初始先验拉回包络"而不是"给包络开一个初始先验豁免"：
+    ``factor_absolute_limit`` 被 owner 写入路径**无条件**施加——
+    ``update_causal_action_head`` 的内联 clamp 与
+    ``project_causal_action_head_update`` 的 ``clamp_absolute``（该函数不变量 1）
+    都不看 ``update_step``。也就是说 owner 写入路径的像**恒**落在包络内，第一步
+    也不例外。若给 ``update_step == 0`` 放宽上界，validator 接受的集合就严格大于
+    owner 自己的像，而 ``update_step`` 是 restore 快照里的一个普通字段——损坏 /
+    越权 archive 只要声明 ``update_step=0`` 就能装入任意 input factor，正是包络
+    存在的理由（跨状态固定转向）被绕开的那条路。所以豁免在任何写法下都是被削弱
+    的门，构造器才是要修的一侧。
+
+    重标定用**全局正标量**，不是逐元素 clip：随机抽样的方向结构（相对幅度、
+    符号、行列几何、秩）原样保留，只有整体尺度被压进包络。已经在包络内的抽样
+    直接原样返回（不做任何浮点运算），因此那些配置逐字节不变。
+    """
+
+    draw = _random_mat(rank, n_z, seed=seed)
+    peak = max((abs(value) for row in draw for value in row), default=0.0)
+    if peak <= absolute_limit:
+        return draw
+    scale = absolute_limit / peak
+    # 末尾 clamp 不是新的松弛，而是与 owner 写入路径同一个 ``clamp_absolute``：
+    # ``peak * (absolute_limit / peak)`` 按 binary64 求值可以落在上界之上 1 ulp，
+    # 那会让重标定后的矩阵仍被 validator 拒绝。实测：在当前冻结包络与固定 seed
+    # 下，n_z<=64 的全部 (rank, n_z, track) 网格上这个 clamp 一次都没有生效；保留
+    # 它是因为该性质依赖于具体的 limit 与 seed，不是可以被继承的不变量。
+    return tuple(
+        tuple(
+            max(-absolute_limit, min(absolute_limit, value * scale))
+            for value in row
+        )
+        for row in draw
+    )
+
+
 def _initial_causal_action_head_parameters(
     *,
     n_z: int,
     track: Track,
     rank: int,
+    envelope: CausalActionHeadUpdateEnvelope = (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+    ),
 ) -> CausalZActionHeadParameters:
     track_index = (Track.WORLD, Track.SELF, Track.SHARED).index(track)
     input_factors = (
@@ -2335,10 +2751,11 @@ def _initial_causal_action_head_parameters(
             for row_index in range(n_z)
         )
         if rank == n_z
-        else _random_mat(
-            rank,
-            n_z,
+        else _bounded_initial_input_factors(
+            rank=rank,
+            n_z=n_z,
             seed=211 + track_index,
+            absolute_limit=envelope.factor_absolute_limit,
         )
     )
     return CausalZActionHeadParameters(
@@ -3162,11 +3579,24 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         exclusive_steering: bool = False,
         input_mirror_permutation: tuple[int, ...] | None = None,
         input_mirror_signs: tuple[int, ...] | None = None,
+        envelope_enforced: bool | None = None,
     ) -> None:
         if not 0.0 <= strength <= 1.0:
             raise ValueError(
                 "causal action head strength must be within [0, 1], "
                 f"got {strength!r}"
+            )
+        # domain 声明的 archive 侧幅度校验，是 domain 契约落到 owner 边界的那一跳。
+        # ``None``（默认）表示**本次调用不声明**，保留 store 已有的契约字段——
+        # 否则一个用 ``MetacontrollerParameterStore(
+        # causal_action_head_envelope_enforced=True)`` 构造出来的 store，会被任何
+        # 一个根本没提到该开关的后续 head 配置调用静默关掉强制校验（AGENTS.md §6
+        # 明令禁止的静默降级）。显式 ``True`` / ``False`` 才写入 store，其中
+        # ``False`` 精确保留历史 restore 行为（例如 runtime-replay 夹具刻意从
+        # permissive 路径装入 bias 0.35/0.4），因此该契约必须保持 opt-in。
+        if envelope_enforced is not None:
+            self._parameter_store.set_causal_action_head_envelope_enforced(
+                envelope_enforced
             )
         if rank is not None:
             self._parameter_store.configure_causal_action_head_rank(
@@ -4467,6 +4897,38 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
 def clone_full_learned_temporal_policy(source_policy: FullLearnedTemporalPolicy) -> FullLearnedTemporalPolicy:
     return FullLearnedTemporalPolicy.from_bootstrap_snapshot(
         source_policy.export_rare_heavy_snapshot()
+    )
+
+
+def clone_temporal_policy(source_policy: TemporalPolicy) -> TemporalPolicy:
+    """Clone a store-owning temporal policy, preserving its implementation mode.
+
+    ``ETANLJointLoop`` owns world and self as two *independent* tracks and
+    publishes them as two separate lanes of every learning checkpoint
+    (``world_temporal_snapshot`` / ``self_temporal_snapshot`` and the two
+    sandbox ``metacontroller_snapshot`` lanes). The two tracks must therefore
+    own distinct :class:`MetacontrollerParameterStore` instances: a shared
+    store makes the checkpoint round trip asymmetric, because restoring the
+    world lane and then the self lane collapses both onto the self lane.
+
+    Callers that only hold a single configured policy use this to build the
+    second track. Unlike :func:`clone_full_learned_temporal_policy` it does not
+    promote a ``LEARNED_LITE`` source to ``FULL_LEARNED``; a matched-control
+    ETA-off arm must stay ETA-off on both tracks.
+    """
+
+    if isinstance(source_policy, FullLearnedTemporalPolicy):
+        return clone_full_learned_temporal_policy(source_policy)
+    if isinstance(source_policy, LearnedLiteTemporalPolicy):
+        return LearnedLiteTemporalPolicy(
+            parameter_store=build_bootstrapped_parameter_store(
+                source_policy.export_rare_heavy_snapshot()
+            )
+        )
+    raise TypeError(
+        "clone_temporal_policy requires a parameter-store owning temporal "
+        "policy (FULL_LEARNED or LEARNED_LITE), got "
+        f"{type(source_policy).__name__}"
     )
 
 

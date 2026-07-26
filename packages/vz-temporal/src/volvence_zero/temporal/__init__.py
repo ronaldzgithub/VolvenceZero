@@ -29,6 +29,7 @@ from volvence_zero.temporal.interface import (
     build_temporal_runtime_state_aggregate,
     resolve_temporal_bootstrap_snapshot,
     clone_full_learned_temporal_policy,
+    clone_temporal_policy,
 )
 from volvence_zero.temporal.m3_optimizer import M3Optimizer, M3OptimizerState
 from volvence_zero.temporal.metacontroller_components import (
@@ -112,6 +113,7 @@ __all__ = [
     "build_temporal_runtime_state_aggregate",
     "resolve_temporal_bootstrap_snapshot",
     "clone_full_learned_temporal_policy",
+    "clone_temporal_policy",
     "ffn_2layer",
     "fit_policy_from_trace_dataset",
     "gru_cell",

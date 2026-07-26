@@ -63,6 +63,10 @@ BeliefAboutOtherProvider = Callable[[], BeliefAboutOtherSnapshot | None]
 IntentAboutOtherProvider = Callable[[], IntentAboutOtherSnapshot | None]
 PreferenceAboutOtherProvider = Callable[[], PreferenceAboutOtherSnapshot | None]
 AffordanceSnapshotProvider = Callable[[], AffordanceSnapshot | None]
+# Returns the decision_workspace owner's ``PanoramaRenderPlan`` for this
+# turn, or None when the panorama gate was closed. Typed as ``object`` so
+# the expression layer keeps no hard import on the cognition tier.
+PanoramaRenderPlanProvider = Callable[[], object | None]
 
 
 class GroundedResponseSynthesizer(ResponseSynthesizer):
@@ -90,6 +94,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         intent_about_other_provider: IntentAboutOtherProvider | None = None,
         preference_about_other_provider: PreferenceAboutOtherProvider | None = None,
         affordance_snapshot_provider: AffordanceSnapshotProvider | None = None,
+        panorama_render_plan_provider: PanoramaRenderPlanProvider | None = None,
         figure_bundle: object | None = None,
     ) -> None:
         self._planner = planner or PromptPlanner()
@@ -101,6 +106,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         self._intent_about_other_provider = intent_about_other_provider
         self._preference_about_other_provider = preference_about_other_provider
         self._affordance_snapshot_provider = affordance_snapshot_provider
+        self._panorama_render_plan_provider = panorama_render_plan_provider
         self._figure_bundle = figure_bundle
 
     @property
@@ -138,6 +144,10 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
     @property
     def affordance_snapshot_provider(self) -> AffordanceSnapshotProvider | None:
         return self._affordance_snapshot_provider
+
+    @property
+    def panorama_render_plan_provider(self) -> PanoramaRenderPlanProvider | None:
+        return self._panorama_render_plan_provider
 
     @property
     def figure_bundle(self) -> object | None:
@@ -345,6 +355,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         intent_snapshot = self._read_intent_about_other()
         preference_snapshot = self._read_preference_about_other()
         affordance_snapshot = self._read_affordance_snapshot()
+        panorama_render_plan = self._read_panorama_render_plan()
         plan = self._planner.plan(
             context=context,
             assembly=assembly,
@@ -356,6 +367,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             intent_snapshot=intent_snapshot,
             preference_snapshot=preference_snapshot,
             affordance_snapshot=affordance_snapshot,
+            panorama_render_plan=panorama_render_plan,
         )
 
         if plan.intent in self._DELEGATE_TO_BASE or assembly is None:
@@ -371,6 +383,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             interlocutor_state=interlocutor_state,
             section_tags=section_tags,
             affordance_snapshot=affordance_snapshot,
+            panorama_render_plan=panorama_render_plan,
         )
         if not text.strip():
             base = super().synthesize(context=context, assembly=assembly)
@@ -474,6 +487,16 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             return None
         return self._affordance_snapshot_provider()
 
+    def _read_panorama_render_plan(self) -> object | None:
+        """Pull this turn's panorama render plan (None when the gate closed).
+
+        ``None`` is the ordinary case, not a degraded one: on almost every
+        turn there is no decision structure to lay out.
+        """
+        if self._panorama_render_plan_provider is None:
+            return None
+        return self._panorama_render_plan_provider()
+
     # ------------------------------------------------------------------
     # Rendering hooks — subclass to swap in an LLM
     # ------------------------------------------------------------------
@@ -488,6 +511,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         interlocutor_state: InterlocutorState | None = None,
         section_tags: list[str] | None = None,
         affordance_snapshot: AffordanceSnapshot | None = None,
+        panorama_render_plan: object | None = None,
     ) -> str:
         sentences: list[str] = []
         for section in plan.sections:
@@ -499,6 +523,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
                 vitals=vitals,
                 interlocutor_state=interlocutor_state,
                 section_tags=section_tags,
+                panorama_render_plan=panorama_render_plan,
                 affordance_snapshot=affordance_snapshot,
             )
             if rendered:
@@ -516,6 +541,7 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         interlocutor_state: InterlocutorState | None = None,
         section_tags: list[str] | None = None,
         affordance_snapshot: AffordanceSnapshot | None = None,
+        panorama_render_plan: object | None = None,
     ) -> str:
         repair_alpha_active = _plan_uses_repair_alpha(plan)
         if section is SectionId.ACKNOWLEDGE_PRESSURE:
@@ -567,6 +593,15 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             return self._render_continuity(
                 context=context, assembly=assembly, vitals=vitals
             )
+        if section is SectionId.DECISION_PANORAMA:
+            text = self._render_decision_panorama(
+                panorama_render_plan=panorama_render_plan
+            )
+            if section_tags is not None and text:
+                tier = getattr(panorama_render_plan, "tier", "")
+                claim = getattr(panorama_render_plan, "claim_kind", "none")
+                section_tags.append(f"decision_panorama_section={tier}:{claim}")
+            return text
         if section is SectionId.AFFORDANCE_OFFER:
             text = self._render_affordance_offer(
                 affordance_snapshot=affordance_snapshot
@@ -824,6 +859,86 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
             f"If it would help, I can use {display} for this - "
             "say the word and I will."
         )
+
+    @staticmethod
+    def _render_decision_panorama(*, panorama_render_plan: object | None) -> str:
+        """Render the decision panorama under its claim licence.
+
+        Every branch here is chosen by ``claim_kind``, which the cognition
+        tier derived from the interval arithmetic. There is no path that
+        reaches a comparative sentence without the licence granting one,
+        which is the point: "don't overclaim" written into a prompt is a
+        request, and the failure it fails to prevent is fluent text that
+        asserts a result the numbers do not support.
+
+        The BRIEF tier is deliberately close to silent. It names that a
+        decision is taking shape and stops. Laying out a full panorama the
+        moment one is detected is how a system talks past someone who is
+        still deciding whether they want help thinking at all.
+        """
+        if panorama_render_plan is None:
+            return ""
+        plan = panorama_render_plan
+        options = getattr(plan, "option_count", 0)
+        unknowns = getattr(plan, "open_unknown_count", 0)
+        if getattr(plan, "safety_hold", False):
+            # The ranking is withheld above the valuation. Say that the
+            # structure exists, say nothing about which option leads.
+            return (
+                "There is a real decision here, and I am not going to rank "
+                "the options while there is something more urgent in the way."
+            )
+        if getattr(plan, "tier", "") == "brief":
+            if options < 2:
+                return ""
+            return (
+                f"There seem to be {options} live options here. "
+                "Want to lay them out properly?"
+            )
+        pieces: list[str] = []
+        if options:
+            frame = (
+                "one option on the table"
+                if options == 1
+                else f"{options} options on the table"
+            )
+            dimensions = getattr(plan, "dimension_count", 0)
+            if dimensions:
+                frame += f", weighed on {dimensions} things you have named"
+            pieces.append(frame.capitalize() + ".")
+        claim_kind = getattr(plan, "claim_kind", "none")
+        subject = getattr(plan, "subject_ref", None)
+        if claim_kind == "comparative" and subject:
+            pieces.append(f"On the numbers so far, {subject} comes out ahead.")
+        elif claim_kind == "robustness" and subject:
+            # The ranges overlap, so no option "wins". What is defensible
+            # is that one keeps the most choices open.
+            pieces.append(
+                f"The ranges overlap, so nothing wins outright - but {subject} "
+                "is the one that stays reversible and buys the most information."
+            )
+        if unknowns == 1:
+            pieces.append(
+                "One thing is still unresolved, and the ranking moves with it."
+            )
+        elif unknowns:
+            pieces.append(
+                f"{unknowns} things are still unresolved, and the ranking "
+                "moves with them."
+            )
+        next_question = getattr(plan, "next_question_ref", None)
+        if next_question:
+            pieces.append(f"The one worth settling first is {next_question}.")
+        elif unknowns == 0 and options:
+            pieces.append("Nothing left to check would change the order.")
+        unverified = getattr(plan, "unverified_dimension_refs", ())
+        if unverified:
+            pieces.append(
+                "Anything I have said about "
+                + ", ".join(unverified)
+                + " is unverified - treat it as a placeholder, not a number."
+            )
+        return " ".join(pieces)
 
 
 # ---------------------------------------------------------------------------

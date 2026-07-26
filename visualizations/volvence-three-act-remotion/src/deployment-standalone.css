@@ -1,0 +1,747 @@
+.d3-film {
+  --d3-ink: #eefaf7;
+  --d3-muted: #8aa8a5;
+  --d3-teal: #65d6c4;
+  --d3-amber: #ffb45e;
+  --d3-blue: #75a9ff;
+  overflow: hidden;
+  color: var(--d3-ink);
+  background:
+    radial-gradient(circle at 49% 32%, rgba(30, 133, 120, 0.16), transparent 34%),
+    radial-gradient(circle at 83% 77%, rgba(255, 180, 94, 0.08), transparent 28%),
+    linear-gradient(145deg, #051014, #07191d 52%, #061115);
+  font-family: "Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+}
+
+.d3-film * {
+  box-sizing: border-box;
+}
+
+.d3-ambient {
+  position: absolute;
+  width: 690px;
+  height: 690px;
+  border-radius: 50%;
+  filter: blur(130px);
+  opacity: 0.09;
+}
+
+.d3-ambient-a {
+  left: -330px;
+  top: -290px;
+  background: var(--d3-teal);
+}
+
+.d3-ambient-b {
+  right: -320px;
+  bottom: -340px;
+  background: var(--d3-amber);
+}
+
+.d3-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.27;
+  background-image:
+    linear-gradient(rgba(101, 214, 196, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(101, 214, 196, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, transparent, black 30%, black);
+}
+
+.d3-brand {
+  position: absolute;
+  top: 38px;
+  left: 56px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.d3-brand > span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(101, 214, 196, 0.48);
+  color: var(--d3-teal);
+  font-family: Georgia, serif;
+  font-size: 22px;
+  transform: rotate(45deg);
+}
+
+.d3-brand b {
+  color: rgba(238, 250, 247, 0.86);
+  font-size: 15px;
+  letter-spacing: 0.22em;
+}
+
+.d3-brand i {
+  padding-left: 12px;
+  border-left: 1px solid rgba(138, 168, 165, 0.24);
+  color: rgba(138, 168, 165, 0.68);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.d3-progress {
+  position: absolute;
+  top: 57px;
+  right: 58px;
+  z-index: 30;
+  display: flex;
+  gap: 8px;
+}
+
+.d3-progress span {
+  width: 48px;
+  height: 3px;
+  background: rgba(138, 168, 165, 0.14);
+}
+
+.d3-progress span.active {
+  width: 88px;
+  background: linear-gradient(90deg, var(--d3-teal), var(--d3-amber));
+  box-shadow: 0 0 18px rgba(101, 214, 196, 0.34);
+}
+
+.d3-intro {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at center, rgba(30, 132, 119, 0.17), transparent 38%),
+    rgba(4, 15, 19, 0.9);
+}
+
+.d3-intro span {
+  color: var(--d3-teal);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.d3-intro strong {
+  margin-top: 25px;
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 64px;
+  font-weight: 500;
+}
+
+.d3-intro b {
+  margin-top: 13px;
+  color: rgba(238, 250, 247, 0.68);
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 29px;
+  font-weight: 500;
+}
+
+.d3-content {
+  position: absolute;
+  left: 80px;
+  right: 80px;
+  top: 105px;
+  bottom: 42px;
+  z-index: 10;
+}
+
+.d3-heading {
+  height: 82px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.d3-heading > span {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border: 1px solid rgba(101, 214, 196, 0.38);
+  border-radius: 50%;
+  color: var(--d3-teal);
+  font-family: Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.d3-heading > div {
+  display: grid;
+  gap: 5px;
+}
+
+.d3-heading b {
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 32px;
+  font-weight: 500;
+}
+
+.d3-heading i {
+  color: var(--d3-muted);
+  font-size: 13px;
+  font-style: normal;
+  letter-spacing: 0.05em;
+}
+
+.d3-topology {
+  position: relative;
+  width: 1760px;
+  height: 810px;
+  margin: 0 auto;
+}
+
+.d3-flow-lines {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  width: 1760px;
+  height: 760px;
+  overflow: visible;
+}
+
+.d3-flow-lines path {
+  fill: none;
+  stroke: rgba(138, 168, 165, 0.22);
+  stroke-width: 3;
+  stroke-dasharray: 10 9;
+}
+
+.d3-flow-lines.active path {
+  stroke: var(--d3-teal);
+  stroke-width: 4;
+  filter: drop-shadow(0 0 7px rgba(101, 214, 196, 0.34));
+}
+
+.d3-flow-lines circle {
+  fill: var(--d3-teal);
+  filter: drop-shadow(0 0 8px rgba(101, 214, 196, 0.7));
+}
+
+.d3-profile-store {
+  position: absolute;
+  left: 0;
+  top: 55px;
+  z-index: 5;
+  width: 500px;
+  height: 560px;
+  padding: 19px;
+  border: 1px solid rgba(255, 180, 94, 0.2);
+  border-radius: 20px;
+  background:
+    linear-gradient(150deg, rgba(37, 31, 23, 0.82), rgba(8, 27, 31, 0.94));
+  opacity: 0.68;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+}
+
+.d3-profile-store.active {
+  border-color: rgba(255, 180, 94, 0.48);
+  opacity: 1;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.24),
+    inset 0 0 38px rgba(255, 180, 94, 0.04);
+}
+
+.d3-profile-head {
+  height: 76px;
+}
+
+.d3-profile-head span {
+  color: var(--d3-amber);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.d3-profile-head b {
+  display: block;
+  margin-top: 5px;
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.d3-profile-head i {
+  display: block;
+  margin-top: 5px;
+  color: rgba(238, 250, 247, 0.48);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.d3-profile-users {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.d3-profile-users > div {
+  position: relative;
+  height: 73px;
+  padding: 12px 9px 8px 43px;
+  border: 1px solid rgba(255, 180, 94, 0.13);
+  border-radius: 9px;
+  background: rgba(255, 180, 94, 0.035);
+}
+
+.d3-profile-users > div.loading {
+  border-color: rgba(255, 180, 94, 0.54);
+  background: rgba(255, 180, 94, 0.1);
+  box-shadow: 0 0 24px rgba(255, 180, 94, 0.1);
+}
+
+.d3-profile-users b {
+  position: absolute;
+  left: 9px;
+  top: 11px;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  color: #1b1308;
+  background: var(--d3-amber);
+  font-size: 12px;
+}
+
+.d3-profile-users span {
+  display: block;
+  color: rgba(238, 250, 247, 0.7);
+  font-size: 10px;
+}
+
+.d3-profile-users i {
+  display: block;
+  margin-top: 6px;
+  color: rgba(255, 180, 94, 0.6);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.d3-profile-fields {
+  margin-top: 15px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.d3-profile-fields span {
+  min-height: 42px;
+  padding: 11px 10px;
+  border: 1px solid rgba(255, 180, 94, 0.1);
+  border-radius: 7px;
+  color: rgba(238, 250, 247, 0.52);
+  background: rgba(4, 16, 20, 0.28);
+  font-size: 10px;
+}
+
+.d3-profile-fields span.revealed {
+  border-color: rgba(255, 180, 94, 0.26);
+  color: rgba(238, 250, 247, 0.82);
+  background: rgba(255, 180, 94, 0.06);
+}
+
+.d3-service-cluster {
+  position: absolute;
+  left: 610px;
+  top: 42px;
+  z-index: 5;
+  width: 620px;
+  height: 590px;
+}
+
+.d3-model-service {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 620px;
+  height: 570px;
+  overflow: hidden;
+  border: 1px solid rgba(101, 214, 196, 0.34);
+  border-radius: 22px;
+  background:
+    linear-gradient(155deg, rgba(10, 35, 39, 0.98), rgba(6, 23, 27, 0.96));
+  box-shadow:
+    0 28px 84px rgba(0, 0, 0, 0.28),
+    inset 0 1px rgba(101, 214, 196, 0.1);
+}
+
+.d3-model-service.replica {
+  opacity: 0.4;
+  filter: saturate(0.7);
+}
+
+.d3-service-head {
+  height: 66px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(138, 168, 165, 0.12);
+  background: rgba(4, 16, 20, 0.42);
+}
+
+.d3-service-head span {
+  color: var(--d3-teal);
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 24px;
+}
+
+.d3-service-head b {
+  margin-left: auto;
+  padding: 5px 8px;
+  border-radius: 5px;
+  color: var(--d3-teal);
+  background: rgba(101, 214, 196, 0.08);
+  font-size: 10px;
+}
+
+.d3-adapter-layer,
+.d3-base-layer {
+  margin: 14px 16px 0;
+  padding: 15px;
+  border: 1px solid rgba(101, 214, 196, 0.2);
+  border-radius: 13px;
+  background: rgba(101, 214, 196, 0.045);
+  opacity: 0.72;
+}
+
+.d3-adapter-layer {
+  height: 206px;
+}
+
+.d3-base-layer {
+  height: 164px;
+  border-color: rgba(117, 169, 255, 0.2);
+  background: rgba(117, 169, 255, 0.045);
+}
+
+.focus-adapter .d3-adapter-layer {
+  border-color: rgba(101, 214, 196, 0.62);
+  background: rgba(101, 214, 196, 0.1);
+  opacity: 1;
+  box-shadow: inset 0 0 38px rgba(101, 214, 196, 0.05);
+}
+
+.focus-adapter .d3-base-layer {
+  opacity: 0.24;
+}
+
+.focus-base .d3-base-layer {
+  border-color: rgba(117, 169, 255, 0.58);
+  background: rgba(117, 169, 255, 0.1);
+  opacity: 1;
+  box-shadow: inset 0 0 38px rgba(117, 169, 255, 0.05);
+}
+
+.focus-base .d3-adapter-layer {
+  opacity: 0.24;
+}
+
+.d3-adapter-layer > div:first-child,
+.d3-base-layer > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.d3-adapter-layer span,
+.d3-base-layer span {
+  color: var(--d3-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.d3-adapter-layer b,
+.d3-base-layer b {
+  color: rgba(238, 250, 247, 0.78);
+  font-size: 14px;
+}
+
+.d3-adapter-caps,
+.d3-base-caps {
+  margin-top: 15px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.d3-adapter-caps i,
+.d3-base-caps i {
+  padding: 9px 10px;
+  border-radius: 7px;
+  color: rgba(238, 250, 247, 0.58);
+  background: rgba(4, 16, 20, 0.3);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.focus-adapter .d3-adapter-caps i {
+  color: rgba(238, 250, 247, 0.86);
+}
+
+.focus-base .d3-base-caps i {
+  color: rgba(238, 250, 247, 0.86);
+}
+
+.d3-request-slots {
+  height: 68px;
+  margin: 14px 16px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  background: rgba(4, 16, 20, 0.42);
+}
+
+.d3-request-slots span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(101, 214, 196, 0.3);
+  border-radius: 6px;
+  color: var(--d3-teal);
+  font-family: Georgia, serif;
+  font-size: 11px;
+}
+
+.d3-request-slots b {
+  margin-left: auto;
+  color: rgba(138, 168, 165, 0.62);
+  font-size: 10px;
+}
+
+.d3-replica-stack {
+  position: absolute;
+  right: -174px;
+  top: 86px;
+  width: 158px;
+  padding: 12px;
+  border: 1px solid rgba(101, 214, 196, 0.28);
+  border-radius: 10px;
+  background: rgba(7, 27, 31, 0.94);
+}
+
+.d3-replica-stack b {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--d3-teal);
+  font-size: 10px;
+}
+
+.d3-replica-stack span {
+  display: block;
+  margin-top: 6px;
+  padding: 7px 8px;
+  border: 1px solid rgba(101, 214, 196, 0.16);
+  border-radius: 6px;
+  color: rgba(238, 250, 247, 0.72);
+  background: rgba(101, 214, 196, 0.045);
+  font-size: 10px;
+}
+
+.d3-replica-stack i {
+  display: block;
+  margin-top: 9px;
+  color: var(--d3-muted);
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.d3-output {
+  position: absolute;
+  right: 0;
+  top: 145px;
+  z-index: 5;
+  width: 350px;
+  height: 360px;
+  padding: 18px;
+  border: 1px solid rgba(138, 168, 165, 0.18);
+  border-radius: 19px;
+  background:
+    linear-gradient(145deg, rgba(9, 30, 34, 0.94), rgba(6, 22, 26, 0.94));
+  opacity: 0.68;
+}
+
+.d3-output.active {
+  border-color: rgba(101, 214, 196, 0.46);
+  opacity: 1;
+}
+
+.d3-output-head {
+  height: 58px;
+}
+
+.d3-output-head span {
+  color: var(--d3-teal);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.d3-output-head b {
+  display: block;
+  margin-top: 6px;
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.d3-output-cards {
+  display: grid;
+  gap: 9px;
+}
+
+.d3-output-cards > div {
+  height: 76px;
+  padding: 13px;
+  border: 1px solid rgba(101, 214, 196, 0.13);
+  border-radius: 9px;
+  background: rgba(101, 214, 196, 0.035);
+}
+
+.d3-output-cards span,
+.d3-result-return span {
+  color: var(--d3-muted);
+  font-size: 9px;
+}
+
+.d3-output-cards b,
+.d3-result-return b {
+  display: block;
+  margin-top: 6px;
+  color: rgba(238, 250, 247, 0.72);
+  font-size: 12px;
+}
+
+.d3-result-return {
+  margin-top: 12px;
+  height: 77px;
+  padding: 13px;
+  border-radius: 9px;
+  background: rgba(255, 180, 94, 0.06);
+}
+
+.d3-result-return b {
+  color: var(--d3-amber);
+}
+
+.d3-deployment-legend {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5px;
+  z-index: 8;
+  height: 112px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.d3-deployment-legend > div {
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  align-items: center;
+  border: 1px solid rgba(138, 168, 165, 0.13);
+  border-radius: 12px;
+  background: rgba(4, 16, 20, 0.48);
+  opacity: 0.58;
+}
+
+.d3-deployment-legend > div.active {
+  border-color: rgba(101, 214, 196, 0.42);
+  background: rgba(101, 214, 196, 0.07);
+  opacity: 1;
+}
+
+.d3-deployment-legend span {
+  color: var(--d3-teal);
+  font-family: Georgia, serif;
+  font-size: 14px;
+}
+
+.d3-deployment-legend b {
+  color: rgba(238, 250, 247, 0.76);
+  font-size: 13px;
+}
+
+.d3-deployment-legend i {
+  color: var(--d3-amber);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.d3-outro {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at center, rgba(29, 131, 119, 0.18), transparent 38%),
+    rgba(4, 15, 19, 0.95);
+}
+
+.d3-outro > span {
+  color: var(--d3-teal);
+  font-family: Georgia, serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+}
+
+.d3-outro > div {
+  margin-top: 34px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.d3-outro section {
+  width: 520px;
+  padding: 26px;
+  border: 1px solid rgba(101, 214, 196, 0.22);
+  border-radius: 16px;
+  background: rgba(101, 214, 196, 0.05);
+  text-align: center;
+}
+
+.d3-outro small {
+  color: var(--d3-amber);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.d3-outro strong {
+  display: block;
+  margin-top: 10px;
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 30px;
+  font-weight: 500;
+}
+
+.d3-outro > div > i {
+  color: rgba(138, 168, 165, 0.5);
+  font-family: Georgia, serif;
+  font-size: 28px;
+  font-style: normal;
+}
+
+.d3-outro > b {
+  margin-top: 34px;
+  color: rgba(238, 250, 247, 0.7);
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 25px;
+  font-weight: 500;
+}

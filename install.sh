@@ -18,6 +18,7 @@ echo "Python: $("$PYTHON_BIN" -c 'import sys; print(sys.executable)')"
 
 # Order matters: dependencies must be installed before dependents.
 PACKAGES=(
+  packages/companion-standard
   packages/vz-contracts
   packages/vz-substrate
   packages/vz-memory
@@ -25,6 +26,7 @@ PACKAGES=(
   packages/vz-application
   packages/vz-temporal
   packages/vz-runtime
+  packages/vz-embodiment-ant
   packages/lifeform-core
   packages/lifeform-thinking
   packages/lifeform-ingestion
@@ -41,6 +43,7 @@ PACKAGES=(
   packages/companion-ref-harness
   packages/lifeform-service
   packages/lifeform-evolution
+  packages/lifeform-synthetic-data
   packages/lifeform-openai-compat
   packages/lifeform-protocol-runtime
   packages/lifeform-mcp-bridge

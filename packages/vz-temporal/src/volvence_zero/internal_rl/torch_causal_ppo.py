@@ -30,6 +30,11 @@ from typing import Any, Sequence
 from volvence_zero.temporal.causal_action_projection import (
     normalize_causal_action_head_contrast_pairs,
 )
+from volvence_zero.temporal.interface import (
+    LATENT_CODE_BOUNDS,
+    causal_action_head_update_scales,
+    project_causal_action_head_update,
+)
 
 
 def _require_torch() -> Any:
@@ -55,6 +60,66 @@ class TorchPPOReport:
     parameter_change_rate: float
     wrote_back: bool
     description: str = ""
+
+
+# Historical signed bound for the runtime-replay reconstruction. It is the
+# exact rollback baseline, NOT a latent-code contract: the live ndim forward
+# bounds ``code`` with the temporal owner's ``LATENT_CODE_BOUNDS``. Reward and
+# advantage clamps are a different convention and stay signed in both lanes.
+_HISTORICAL_SIGNED_LATENT_BOUNDS: tuple[float, float] = (-1.0, 1.0)
+
+
+def resolve_latent_code_bounds(*, latent_unit_clamp: bool) -> tuple[float, float]:
+    """Select the replay reconstruction bound from the declared contract.
+
+    Mirrors ``InternalRLSandbox``'s ``latent_unit_clamp`` seam one-for-one:
+    ``True`` reconstructs on the live metacontroller's unit latent range,
+    ``False`` keeps the historical signed bound and is the exact rollback.
+    """
+
+    return (
+        LATENT_CODE_BOUNDS
+        if latent_unit_clamp
+        else _HISTORICAL_SIGNED_LATENT_BOUNDS
+    )
+
+
+def torch_runtime_replay_latent_mean(
+    torch: Any,
+    *,
+    base_mean: Any,
+    gain: Any,
+    previous_code: Any,
+    beta_t: Any,
+    head_residual: Any | None,
+    project_base: Any,
+    bounds: tuple[float, float],
+) -> Any:
+    """Rebuild the replayed runtime policy mean under the declared bound.
+
+    On a saturated contrast axis the signed rollback bound lets the
+    reconstructed mean leave the plant's range, so ``(action - mean)`` is
+    signed against the action actually taken and the head gradient points the
+    wrong way. Under ``LATENT_CODE_BOUNDS`` this lane reconstructs exactly what
+    the live forward could have emitted. The clamp positions match the pure
+    lane's ``runtime_replay_policy_distribution`` one-for-one.
+    """
+
+    lower, upper = bounds
+    modulated_mean = project_base(
+        torch.clamp(base_mean * gain, lower, upper)
+    )
+    if head_residual is not None:
+        modulated_mean = torch.clamp(
+            modulated_mean + head_residual,
+            lower,
+            upper,
+        )
+    return torch.clamp(
+        beta_t * modulated_mean + (1.0 - beta_t) * previous_code,
+        lower,
+        upper,
+    )
 
 
 def _transition_source(transition: Any) -> str:
@@ -91,15 +156,32 @@ def torch_causal_ppo_update(
     ) = None,
     causal_action_head_exclusive_steering: bool = False,
     causal_action_head_mirror_equivariance: bool = False,
+    latent_unit_clamp: bool = False,
 ) -> TorchPPOReport:
     """One real-autograd PPO update over a live ZTransition batch.
 
     ``value_weights`` / ``value_bias`` are the CausalZPolicy critic dicts (keyed
     by track). On ACTIVE write-back this updates ``parameter_store.track_weights``
     and the critic dicts in place.
+
+    ``latent_unit_clamp`` is the same contract the pure lane declares, and it
+    is scoped to exactly one thing: the bound used to reconstruct the
+    **runtime-replay** policy mean. ``False`` keeps the historical signed
+    bound (exact rollback); both lanes must be given the same value or they
+    reconstruct different means for the same batch, which is what
+    ``assert_runtime_replay_latent_bounds_agree`` polices.
+
+    It does **not** reach the synthetic branches: both of those have always
+    reconstructed on the temporal owner's ``LATENT_CODE_BOUNDS`` regardless of
+    this flag. That is deliberate, and it is why the cross-lane guard is
+    scoped to replay -- see the comment in ``policy_mean`` and
+    docs/specs/temporal-abstraction.md.
     """
 
     torch = _require_torch()
+    latent_code_bounds = resolve_latent_code_bounds(
+        latent_unit_clamp=latent_unit_clamp
+    )
     usable = [
         t for t in transitions
         if t.observation_signature and t.policy_action
@@ -425,31 +507,35 @@ def torch_causal_ppo_update(
                 aggregate_weights * n_z - 1.0
             )
             gain = torch.clamp(gain, 0.5, 1.5)
-            modulated_mean = base_off_contrast(
-                torch.clamp(
-                    runtime_base_mean * gain,
-                    -1.0,
-                    1.0,
-                )
+            return torch_runtime_replay_latent_mean(
+                torch,
+                base_mean=runtime_base_mean,
+                gain=gain,
+                previous_code=runtime_previous_code,
+                beta_t=runtime_beta_t,
+                head_residual=(
+                    action_head_residual()
+                    if causal_action_head_enabled
+                    else None
+                ),
+                project_base=base_off_contrast,
+                bounds=latent_code_bounds,
             )
-            if causal_action_head_enabled:
-                modulated_mean = torch.clamp(
-                    modulated_mean + action_head_residual(),
-                    -1.0,
-                    1.0,
-                )
-            return torch.clamp(
-                runtime_beta_t * modulated_mean
-                + (1.0 - runtime_beta_t) * runtime_previous_code,
-                -1.0,
-                1.0,
-            )
+        # The two synthetic branches are OUTSIDE the ``latent_unit_clamp``
+        # seam by construction: they have always reconstructed on the temporal
+        # owner's own latent range, which is what ``latent_unit_clamp=True``
+        # asks the replay lane to adopt. Routing the literal through the owner
+        # constant keeps the arithmetic byte-identical while removing the
+        # second declaration of the latent range this module is forbidden to
+        # own. Selecting ``resolve_latent_code_bounds`` here instead would move
+        # the historical default OFF the frozen plant's range, not onto it.
+        synthetic_lower, synthetic_upper = LATENT_CODE_BOUNDS
         if runtime_track_modulation_strength <= 0.0:
             # Byte-compatible historical rollback lane.
             candidate = base_off_contrast(weights.unsqueeze(0) * obs)
             if causal_action_head_enabled:
                 candidate = candidate + action_head_residual()
-            return torch.clamp(candidate, 0.0, 1.0)
+            return torch.clamp(candidate, synthetic_lower, synthetic_upper)
 
         # Match CausalZPolicy._policy_mean and the live ndim forward:
         # construct an unmodulated causal candidate, then apply the exact same
@@ -461,8 +547,8 @@ def torch_causal_ppo_update(
             )
         base_candidate = torch.clamp(
             hidden * 0.50 + obs * 0.30 + actions * 0.20,
-            0.0,
-            1.0,
+            synthetic_lower,
+            synthetic_upper,
         )
         other_tracks = [
             other_track
@@ -486,7 +572,7 @@ def torch_causal_ppo_update(
         candidate = base_off_contrast(base_candidate * gain.unsqueeze(0))
         if causal_action_head_enabled:
             candidate = candidate + action_head_residual()
-        return torch.clamp(candidate, 0.0, 1.0)
+        return torch.clamp(candidate, synthetic_lower, synthetic_upper)
 
     def policy_std(weights: Any, ls: Any) -> Any:
         if runtime_replay:
@@ -551,19 +637,124 @@ def torch_causal_ppo_update(
             else log_prob(old_mean, log_std, w)
         )
 
+    # The causal action head is deliberately NOT an Adam parameter. Adam
+    # normalises each element's step to ~lr, so folding the head into the same
+    # optimizer and then clamping to the owner envelope produced a bang-bang
+    # maximum-step controller: measured on this repo's batch, the written step
+    # equalled the per-step cap exactly (bias 0.010000, output 0.050000) at
+    # lr=0.02 and at lr=0.5, and at a 1000x-smaller gradient -- i.e. the update
+    # carried only the SIGN of the gradient, and 10 successive updates pinned
+    # bias at its absolute ceiling. A pinned bias IS the cross-state fixed
+    # steering intercept the envelope exists to prevent
+    # (docs/specs/digital-ant-embodiment.md). The head therefore takes the pure
+    # owner's PROPORTIONAL step (``causal_action_head_update_scales``) and the
+    # envelope is a guard rail on top of it, not the step size.
     optimizer_parameters = [w, log_std, cw, cb]
-    if (
-        head_input is not None
-        and head_output is not None
-        and head_bias is not None
-    ):
-        optimizer_parameters.extend(
-            [head_input, head_output, head_bias]
-        )
+    head_leaves = (
+        [head_input, head_output, head_bias]
+        if head_parameters is not None
+        else []
+    )
     opt = torch.optim.Adam(optimizer_parameters, lr=learning_rate)
+    # Resolved only when the head is declared, so a domain that declares none
+    # of this contract reaches byte-identical code to the pre-envelope lane.
+    head_scales = (
+        causal_action_head_update_scales(
+            learning_rate=learning_rate,
+            batch_size=len(usable),
+        )
+        if head_parameters is not None
+        else None
+    )
+    # Change accounting still spans the head leaves, exactly as when they were
+    # optimizer members, so ``parameter_change_rate`` keeps its old meaning.
+    tracked_parameters = optimizer_parameters + head_leaves
+
+    def current_head_parameters() -> Any:
+        return replace(
+            head_parameters,
+            input_factors=tuple(
+                tuple(float(value) for value in row)
+                for row in head_input.detach().tolist()
+            ),
+            output_factors=tuple(
+                tuple(float(value) for value in row)
+                for row in head_output.detach().tolist()
+            ),
+            bias=tuple(
+                float(value) for value in head_bias.detach().tolist()
+            ),
+        )
+
+    def project_head_onto_owner_envelope() -> None:
+        """Pull the current head leaves back into the frozen envelope.
+
+        ``head_parameters`` is this call's baseline: the write-back bumps
+        ``update_step`` by exactly one, so the whole call is ONE owner update
+        and its total displacement must satisfy the per-step bounds. Projecting
+        after every head step (not only before write-back) also keeps the
+        remaining PPO epochs' forward pass inside the envelope. The bounds
+        themselves live in ``temporal.interface``; this lane owns none of them.
+        """
+
+        if head_parameters is None:
+            return
+        projected = project_causal_action_head_update(
+            baseline=head_parameters,
+            candidate=current_head_parameters(),
+        )
+        with torch.no_grad():
+            head_input.copy_(
+                torch.tensor(projected.input_factors, dtype=dtype)
+            )
+            head_output.copy_(
+                torch.tensor(projected.output_factors, dtype=dtype)
+            )
+            head_bias.copy_(torch.tensor(projected.bias, dtype=dtype))
+
+    def step_head_within_owner_envelope() -> None:
+        """One proportional, owner-scaled gradient step on the head leaves.
+
+        The scales come from the temporal owner (``learning_rate / batch``, and
+        ``* bias_learning_rate_ratio * bias_state_path_scale`` for the bias), so
+        a small gradient produces a small step strictly inside the envelope and
+        a large gradient still saturates the cap. No threshold or scale literal
+        is duplicated here.
+        """
+
+        if head_parameters is None:
+            return
+        for name, leaf in (
+            ("input_factors", head_input),
+            ("output_factors", head_output),
+            ("bias", head_bias),
+        ):
+            if leaf.grad is None:
+                # The head is wired into ``policy_mean`` whenever it is
+                # enabled, so a missing gradient means the surrogate silently
+                # detached it -- a no-learning head, not a fallback.
+                raise RuntimeError(
+                    "causal action head parameter received no gradient from "
+                    f"the PPO surrogate: {name}"
+                )
+        with torch.no_grad():
+            head_input.add_(
+                head_input.grad,
+                alpha=-head_scales.factor_learning_rate,
+            )
+            head_output.add_(
+                head_output.grad,
+                alpha=-head_scales.factor_learning_rate,
+            )
+            head_bias.add_(
+                head_bias.grad,
+                alpha=-head_scales.bias_signal_learning_rate,
+            )
+        project_head_onto_owner_envelope()
+
     before = [
         parameter.detach().clone()
-        for parameter in optimizer_parameters
+        for parameter in tracked_parameters
     ]
     last_policy_loss = last_value_loss = last_kl = last_clip = last_entropy = 0.0
     for _ in range(ppo_epochs):
@@ -585,8 +776,13 @@ def torch_causal_ppo_update(
         )
         loss = policy_loss + value_coef * value_loss - entropy_coef * entropy
         opt.zero_grad()
+        for leaf in head_leaves:
+            # The head leaves are outside ``opt``; without this their ``.grad``
+            # would accumulate across PPO epochs.
+            leaf.grad = None
         loss.backward()
         opt.step()
+        step_head_within_owner_envelope()
         with torch.no_grad():
             last_policy_loss = float(policy_loss)
             last_value_loss = float(value_loss)
@@ -594,7 +790,7 @@ def torch_causal_ppo_update(
             last_clip = float(((ratio - 1.0).abs() > clip_epsilon).to(dtype).mean())
             last_entropy = float(entropy)
 
-    after = optimizer_parameters
+    after = tracked_parameters
     changed = 0
     total = 0
     for b, a in zip(before, after, strict=True):
@@ -614,29 +810,20 @@ def torch_causal_ppo_update(
         parameter_store.track_weights[track] = normalized
         value_weights[track] = tuple(float(v) for v in cw.detach().tolist())
         value_bias[track] = float(cb.detach()[0])
-        if (
-            head_parameters is not None
-            and head_input is not None
-            and head_output is not None
-            and head_bias is not None
-        ):
+        if head_parameters is not None:
+            # The leaves were already projected after every head step;
+            # re-project so the written value is bounded even when
+            # ``ppo_epochs == 0``, and let the owner re-validate on install so
+            # an escape fails loudly instead of persisting silently.
             parameter_store.restore_causal_action_head_parameters(
                 replace(
-                    head_parameters,
-                    input_factors=tuple(
-                        tuple(float(value) for value in row)
-                        for row in head_input.detach().tolist()
-                    ),
-                    output_factors=tuple(
-                        tuple(float(value) for value in row)
-                        for row in head_output.detach().tolist()
-                    ),
-                    bias=tuple(
-                        float(value)
-                        for value in head_bias.detach().tolist()
+                    project_causal_action_head_update(
+                        baseline=head_parameters,
+                        candidate=current_head_parameters(),
                     ),
                     update_step=head_parameters.update_step + 1,
-                )
+                ),
+                enforce_envelope=True,
             )
         parameter_store.align_temporal_from_tracks()
 

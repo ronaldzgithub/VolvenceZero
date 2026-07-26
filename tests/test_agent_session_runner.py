@@ -1655,3 +1655,34 @@ def test_run_multi_path_benchmark_compares_paths():
     assert len(report.path_reports) == 2
     assert len(report.metric_deltas_from_baseline) == 1
     assert report.description
+
+
+def test_agent_session_runner_gives_a_lite_temporal_policy_its_own_self_track_store():
+    """A single non-FULL_LEARNED policy must not alias both tracks.
+
+    ``ETANLJointLoop`` publishes world and self as two independent learning
+    checkpoint lanes and restores them one after the other, so a shared
+    ``MetacontrollerParameterStore`` drops the world lane on restore. The
+    matched-control ETA-off arm passes exactly one ``LearnedLiteTemporalPolicy``,
+    which used to be aliased onto both tracks.
+    """
+
+    from volvence_zero.temporal import (
+        LearnedLiteTemporalPolicy,
+        MetacontrollerParameterStore,
+    )
+
+    runner = AgentSessionRunner(
+        temporal_policy=LearnedLiteTemporalPolicy(
+            parameter_store=MetacontrollerParameterStore(n_z=8)
+        ),
+    )
+
+    world = runner.world_temporal_policy
+    self_track = runner.self_temporal_policy
+    assert self_track is not world
+    assert self_track.parameter_store is not world.parameter_store
+    # The ETA-off arm must stay ETA-off on both tracks.
+    assert isinstance(self_track, LearnedLiteTemporalPolicy)
+    assert runner._joint_loop.self_temporal_policy is self_track
+    assert runner._joint_loop.world_temporal_policy is world

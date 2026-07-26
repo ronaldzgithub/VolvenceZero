@@ -24,6 +24,25 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Test-only closure. The SHIPPED library never imports vz-temporal / vz-memory
+# internals — tests/test_import_boundaries.py enforces that over src/. The
+# package's own suite does import two of them, because a few tests act as
+# CALLERS of the embodiment rather than as embodiment code: they construct the
+# opaque ``JointLoopSchedule`` that ``AntSessionConfig.joint_schedule`` takes as
+# a plain ``object`` (and drive ``ETANLJointLoop`` in the mechanism audit), and
+# they name an owner-published ``Track`` while auditing kernel checkpoints.
+# Declaring the wheels here keeps the dependency closure honest instead of
+# relying on "the monorepo happens to have everything installed"; the same test
+# module asserts they stay OUT of [project].dependencies.
+# Optional-backend tests (torch / viz / app below) skip themselves when their
+# extra is absent, so they are not repeated here. Repo-root scripts/run_ant_*.py
+# are monorepo integration surface, not wheel surface, and are out of scope.
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "vz-temporal==0.1.*",
+    "vz-memory==0.1.*",
+]
 # Optional evidence lane: reuses the substrate-agnostic torch proofs
 # (run_internal_rl_proof / run_strict_eta_evidence).
 torch = ["vz-runtime[torch]==0.1.*"]

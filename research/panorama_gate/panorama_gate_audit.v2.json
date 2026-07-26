@@ -1,0 +1,187 @@
+{
+  "gate_name": "v2-decision-structure",
+  "ceiling_breaches": 0,
+  "floor_misses": 0,
+  "total_cases": 15,
+  "families": [
+    {
+      "family": "negative",
+      "total": 5,
+      "ceiling_breaches": 0,
+      "floor_misses": 0,
+      "ok": 5,
+      "ceiling_breach_rate": 0.0,
+      "floor_miss_rate": 0.0
+    },
+    {
+      "family": "boundary",
+      "total": 6,
+      "ceiling_breaches": 0,
+      "floor_misses": 0,
+      "ok": 6,
+      "ceiling_breach_rate": 0.0,
+      "floor_miss_rate": 0.0
+    },
+    {
+      "family": "positive",
+      "total": 4,
+      "ceiling_breaches": 0,
+      "floor_misses": 0,
+      "ok": 4,
+      "ceiling_breach_rate": 0.0,
+      "floor_miss_rate": 0.0
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "neg-casual-chat",
+      "family": "negative",
+      "topic": "weekend small talk",
+      "expected_min": "silent",
+      "expected_max": "silent",
+      "actual": "silent",
+      "verdict": "ok",
+      "note": "No live options at all; nothing to lay out."
+    },
+    {
+      "case_id": "neg-emotional-support",
+      "family": "negative",
+      "topic": "venting after a hard day",
+      "expected_min": "silent",
+      "expected_max": "brief",
+      "actual": "silent",
+      "verdict": "ok",
+      "note": "Options exist but the instability is emotional, not informational: no unknown gates the choice. Structuring here is the signature failure mode — turning distress into a table."
+    },
+    {
+      "case_id": "neg-single-path-execution",
+      "family": "negative",
+      "topic": "already-decided move, executing steps",
+      "expected_min": "silent",
+      "expected_max": "brief",
+      "actual": "silent",
+      "verdict": "ok",
+      "note": "One live path and a stable ranking; the user wants execution."
+    },
+    {
+      "case_id": "neg-factual-lookup",
+      "family": "negative",
+      "topic": "what time does the library close",
+      "expected_min": "silent",
+      "expected_max": "silent",
+      "actual": "silent",
+      "verdict": "ok",
+      "note": "Information request, no choice at all."
+    },
+    {
+      "case_id": "neg-cold-start",
+      "family": "negative",
+      "topic": "first turn, no owner state yet",
+      "expected_min": "silent",
+      "expected_max": "brief",
+      "actual": "silent",
+      "verdict": "ok",
+      "note": "No decision structure observed yet; must not assume one."
+    },
+    {
+      "case_id": "bnd-restaurant-choice",
+      "family": "boundary",
+      "topic": "picking a restaurant tonight",
+      "expected_min": "silent",
+      "expected_max": "brief",
+      "actual": "silent",
+      "verdict": "ok",
+      "note": "Genuinely multiple options and an unstable ranking, but the choice is cheap and reversible — the cost side of the gate has to carry this one."
+    },
+    {
+      "case_id": "bnd-consequential-but-settled",
+      "family": "boundary",
+      "topic": "signing an offer the user has already chosen",
+      "expected_min": "silent",
+      "expected_max": "brief",
+      "actual": "silent",
+      "verdict": "ok",
+      "note": "High stakes and irreversible, but the ranking is stable and nothing is waiting on information. Re-opening the panorama here reads as second-guessing the user."
+    },
+    {
+      "case_id": "bnd-early-distress-with-stakes",
+      "family": "boundary",
+      "topic": "first turn of a high-stakes crisis, still raw",
+      "expected_min": "silent",
+      "expected_max": "brief",
+      "actual": "brief",
+      "verdict": "ok",
+      "note": "All four structural signals are heading up, but it is turn 1 and the user has not been met yet. Conservatism means BRIEF now and STRUCTURED once the ranking work actually starts."
+    },
+    {
+      "case_id": "bnd-isolate-ranking-settled",
+      "family": "boundary",
+      "topic": "several heavy options, but a firm ordering",
+      "expected_min": "silent",
+      "expected_max": "brief",
+      "actual": "brief",
+      "verdict": "ok",
+      "note": "Isolates ranking_instability. Options, stakes and unknowns are all high; the user's ordering is settled. Re-opening the ranking is not help, it is second-guessing — verify the unknowns instead."
+    },
+    {
+      "case_id": "bnd-isolate-unknown-fully-informed",
+      "family": "boundary",
+      "topic": "heavy unsettled choice where every fact is already known",
+      "expected_min": "silent",
+      "expected_max": "brief",
+      "actual": "brief",
+      "verdict": "ok",
+      "note": "Isolates unknown_dominance. Options, stakes and instability are high but nothing is waiting on information, so a panorama can only restate what the user already holds."
+    },
+    {
+      "case_id": "bnd-isolate-single-option",
+      "family": "boundary",
+      "topic": "one path, high stakes, plenty still unknown",
+      "expected_min": "silent",
+      "expected_max": "brief",
+      "actual": "brief",
+      "verdict": "ok",
+      "note": "Isolates option_multiplicity. Stakes, instability and unknowns are all high but there is only one live path, so there is no panorama to lay out — the work is verification."
+    },
+    {
+      "case_id": "pos-separation-decision",
+      "family": "positive",
+      "topic": "whether and how to end a marriage",
+      "expected_min": "structured",
+      "expected_max": "structured",
+      "actual": "structured",
+      "verdict": "ok",
+      "note": "The fourth-act situation, several turns in."
+    },
+    {
+      "case_id": "pos-cofounder-split",
+      "family": "positive",
+      "topic": "dissolving a founding partnership",
+      "expected_min": "structured",
+      "expected_max": "structured",
+      "actual": "structured",
+      "verdict": "ok",
+      "note": "Structurally identical to the separation case, unrelated topic."
+    },
+    {
+      "case_id": "pos-treatment-choice",
+      "family": "positive",
+      "topic": "choosing between treatment paths",
+      "expected_min": "structured",
+      "expected_max": "structured",
+      "actual": "structured",
+      "verdict": "ok",
+      "note": "Same structure again; heavy on unknowns, low on drive."
+    },
+    {
+      "case_id": "pos-relocation-with-dependents",
+      "family": "positive",
+      "topic": "moving countries with a family",
+      "expected_min": "structured",
+      "expected_max": "structured",
+      "actual": "structured",
+      "verdict": "ok",
+      "note": "Same structure, warm and low-tension delivery."
+    }
+  ]
+}

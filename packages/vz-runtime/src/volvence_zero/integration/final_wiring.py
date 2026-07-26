@@ -99,6 +99,7 @@ from volvence_zero.reflection import (
 )
 from volvence_zero.dialogue_external_outcome import DialogueExternalOutcomeModule
 from volvence_zero.dialogue_trace import DialogueExternalOutcomeSnapshot
+from volvence_zero.decision_workspace import DecisionWorkspaceModule
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.interlocutor import (
     InterlocutorStateModule,
@@ -171,6 +172,10 @@ from volvence_zero.substrate import (
     SubstrateSelfModSnapshot,
     SubstrateSnapshot,
 )
+# Reward-eligibility contract owned by the runtime-replay settlement owner in
+# vz-temporal. Re-exported below so domain profiles can declare it through the
+# vz-runtime rollout-config facade without importing kernel internals.
+from volvence_zero.internal_rl.sandbox import RuntimeReplayRewardEligibility
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerRuntimeState,
@@ -248,6 +253,28 @@ class FinalRolloutConfig:
     evaluation_cross_generation: WiringLevel = WiringLevel.DISABLED
     prediction_error: WiringLevel = WiringLevel.ACTIVE
     regime: WiringLevel = WiringLevel.ACTIVE
+    # Which gate decides ``participation_hint.panorama_level`` — the single
+    # surface that answers "should this turn expand a decision panorama?"
+    # (docs/specs/cognitive-regime.md).
+    #
+    #   - "v1": production default. The shipped attention-posture score
+    #     (world presence / switch pressure / controller drives). Byte-for-
+    #     byte today's behaviour; this is the rollback point.
+    #   - "v2": the decision-structure gate. Reads how many live mutually
+    #     exclusive options exist, how costly a wrong choice is to undo,
+    #     how unstable the user's own ranking is, and how much that ranking
+    #     hinges on information not yet in hand.
+    #
+    # Opt-in rather than default because the expensive failure is opening a
+    # panorama into a turn that did not want one, and that failure is the
+    # one users do not report. Promotion criteria and the corpus budgets
+    # live in .cursor/plans/panorama-decision-workspace_7b41ce02.plan.md.
+    panorama_gate_mode: str = "v1"
+    # Decision-structure owner. Subscribes to the panorama gate above; it
+    # never decides its own activation. SHADOW publishes the structure for
+    # audit without any consumer reading it. Not a semantic-spine owner —
+    # it must stay out of ``semantic_spine_coverage``'s denominator.
+    decision_workspace: WiringLevel = WiringLevel.SHADOW
     credit: WiringLevel = WiringLevel.ACTIVE
     reflection: WiringLevel = WiringLevel.ACTIVE
     temporal: WiringLevel = WiringLevel.ACTIVE
@@ -275,6 +302,36 @@ class FinalRolloutConfig:
     # DISABLED preserves one-step runtime replay exactly.
     internal_rl_runtime_segment_credit: WiringLevel = WiringLevel.DISABLED
     internal_rl_runtime_segment_max_steps: int = 24
+    # Typed reward eligibility for runtime replay (docs/specs/
+    # prediction-error-loop.md §"runtime replay reward eligibility").
+    # ANY_SETTLED_OUTCOME (default) is the exact rollback: every
+    # lineage-matched settlement earns the PE owner's realized
+    # ``ActualOutcome.action_payoff``, whether or not the environment
+    # published a measurement for that tick. ENVIRONMENT_MEASURED_ONLY makes a
+    # measurement-free tick contribute realized payoff 0 and segment bonus 0,
+    # tagged with the reason, so "only an environment-published outcome payoff
+    # is eligible as realized reward" becomes checkable per transition. A
+    # domain with no environment measurement at all (every language companion)
+    # must keep the default or it would train on an all-zero reward stream.
+    internal_rl_runtime_reward_eligibility: RuntimeReplayRewardEligibility = (
+        RuntimeReplayRewardEligibility.ANY_SETTLED_OUTCOME
+    )
+    # Does the realized outcome payoff reach the optimizer? This is the
+    # orthogonal half of ``external_prediction_error_drive``, which owns only
+    # "PE drives learning signals / temporal switch pressure".
+    #   - None (default): derived from the eligibility contract. Under
+    #     ANY_SETTLED_OUTCOME it stays coupled to the PE drive exactly as
+    #     before (byte rollback); under ENVIRONMENT_MEASURED_ONLY the payoff is
+    #     environment-published by construction, so a PE-off arm keeps it.
+    #   - True / False: explicit, always wins over the derivation.
+    internal_rl_runtime_outcome_payoff_reward: bool | None = None
+    # Latent-code bound for the Internal-RL replay lane. False (default) keeps
+    # the sandbox's historic signed [-1, 1] bound on the reconstructed
+    # latent-code / modulated-mean / candidate-mean / policy-mean and is the
+    # exact rollback. True adopts the live metacontroller's [0, 1] latent
+    # bound so replay can no longer reconstruct a mean the frozen plant cannot
+    # emit. Reward / advantage bounds stay signed either way.
+    internal_rl_runtime_latent_unit_clamp: bool = False
     # Minimum optimizer batch support. Synthetic replay counts rollouts;
     # ACTIVE runtime replay counts real transitions so short closed segments
     # cannot be optimized as singleton, zero-covariance factor batches.
@@ -318,6 +375,18 @@ class FinalRolloutConfig:
     internal_rl_causal_action_head_input_mirror_signs: (
         tuple[int, ...] | None
     ) = None
+    # Archive-side magnitude validation for the frozen action-head envelope.
+    # The owner's own disciplined write paths (pure update, projected torch
+    # write-back) always enforce it; this declaration is what extends the same
+    # frozen bounds to the ARCHIVE/CHECKPOINT install path
+    # (``restore_causal_action_head_parameters`` /
+    # ``restore_parameter_snapshot``), which historically validated shape only
+    # and therefore let any archive install a fixed cross-state steering
+    # intercept. False is the exact rollback (shape-only restore, byte
+    # identical) and must stay the default: ``tests/
+    # test_runtime_transition_replay.py`` deliberately installs bias 0.35 / 0.4
+    # through the permissive path. See docs/specs/temporal-abstraction.md.
+    internal_rl_causal_action_head_envelope_enforced: bool = False
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
@@ -486,6 +555,22 @@ class FinalRolloutConfig:
     )
 
     def __post_init__(self) -> None:
+        if not isinstance(
+            self.internal_rl_runtime_reward_eligibility,
+            RuntimeReplayRewardEligibility,
+        ):
+            raise TypeError(
+                "internal_rl_runtime_reward_eligibility must be a "
+                "RuntimeReplayRewardEligibility member, got "
+                f"{self.internal_rl_runtime_reward_eligibility!r}."
+            )
+        if self.internal_rl_runtime_outcome_payoff_reward is not None and not (
+            isinstance(self.internal_rl_runtime_outcome_payoff_reward, bool)
+        ):
+            raise TypeError(
+                "internal_rl_runtime_outcome_payoff_reward must be None or "
+                f"bool, got {self.internal_rl_runtime_outcome_payoff_reward!r}."
+            )
         if self.personal_conditioning_mode not in ("residual", "text"):
             raise ValueError(
                 "personal_conditioning_mode must be 'residual' or 'text', "
@@ -556,6 +641,7 @@ class FinalRolloutConfig:
             "relationship_state": self.relationship_state,
             "goal_value": self.goal_value,
             "boundary_consent": self.boundary_consent,
+            "decision_workspace": self.decision_workspace,
             "multi_party_identity": self.multi_party_identity,
             "social_prediction": self.social_prediction,
             "social_prediction_error": self.social_prediction_error,
@@ -1645,6 +1731,9 @@ def build_final_runtime_modules(
             input_mirror_signs=(
                 config.internal_rl_causal_action_head_input_mirror_signs
             ),
+            envelope_enforced=(
+                config.internal_rl_causal_action_head_envelope_enforced
+            ),
         )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
@@ -1672,6 +1761,9 @@ def build_final_runtime_modules(
             ),
             input_mirror_signs=(
                 config.internal_rl_causal_action_head_input_mirror_signs
+            ),
+            envelope_enforced=(
+                config.internal_rl_causal_action_head_envelope_enforced
             ),
         )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded
@@ -1987,6 +2079,7 @@ def build_final_runtime_modules(
         regime_module
         or RegimeModule(
             wiring_level=config.level_for("regime", WiringLevel.SHADOW),
+            panorama_gate_mode=config.panorama_gate_mode,
         ),
         RetrievalPolicyModule(
             rare_heavy_state=application_rare_heavy_state,
@@ -2025,6 +2118,14 @@ def build_final_runtime_modules(
         BoundaryPolicyModule(
             rare_heavy_state=application_rare_heavy_state,
             wiring_level=config.level_for("boundary_policy", WiringLevel.ACTIVE),
+        ),
+        # Placed after regime (whose panorama gate decides whether this owner
+        # instantiates at all) AND after boundary_policy (whose risk band can
+        # withhold a ranking outright). Reading a stale safety band would let
+        # a turn that just went critical still publish a recommendation, so
+        # the same-turn read is the point of this position, not a detail.
+        DecisionWorkspaceModule(
+            wiring_level=config.level_for("decision_workspace", WiringLevel.SHADOW),
         ),
         ResponseAssemblyModule(
             wiring_level=config.level_for("response_assembly", WiringLevel.ACTIVE),

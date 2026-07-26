@@ -8,6 +8,48 @@ on:
 jobs:
   dialogue-paper-suite:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install CI dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Install torch from the CPU wheel index first. The default PyPI
+          # wheel now resolves to the CUDA stack (nvidia-* / triton /
+          # cuda-toolkit, several GB) and exhausts the runner disk mid-install
+          # with "[Errno 28] No space left on device". The bare `torch` pin in
+          # requirements-ci.txt is then already satisfied.
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements-ci.txt
+
+      - name: Install workspace wheels (editable)
+        run: |
+          # `volvence_zero` lives in packages/vz-*/src, so the workspace wheels
+          # must be installed or every import fails with ModuleNotFoundError.
+          python -m pip install --upgrade setuptools wheel
+          bash install.sh --no-build-isolation
+
+      - name: Run dialogue paper suite
+        run: bash scripts/run_dialogue_paper_suite.sh artifacts/dialogue-paper-suite paper-suite-small
+
+      - name: Upload dialogue paper suite artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dialogue-paper-suite
+          path: artifacts/dialogue-paper-suite
+
+  eta-paper-suite:
+    runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
@@ -24,36 +66,20 @@ jobs:
       - name: Install CI dependencies
         run: |
           python -m pip install --upgrade pip
+          # Install torch from the CPU wheel index first. The default PyPI
+          # wheel now resolves to the CUDA stack (nvidia-* / triton /
+          # cuda-toolkit, several GB) and exhausts the runner disk mid-install
+          # with "[Errno 28] No space left on device". The bare `torch` pin in
+          # requirements-ci.txt is then already satisfied.
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements-ci.txt
 
-      - name: Run dialogue paper suite
-        run: bash scripts/run_dialogue_paper_suite.sh artifacts/dialogue-paper-suite paper-suite-small
-
-      - name: Upload dialogue paper suite artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dialogue-paper-suite
-          path: artifacts/dialogue-paper-suite
-
-  eta-paper-suite:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: requirements-ci.txt
-
-      - name: Install CI dependencies
+      - name: Install workspace wheels (editable)
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-ci.txt
+          # `volvence_zero` lives in packages/vz-*/src, so the workspace wheels
+          # must be installed or every import fails with ModuleNotFoundError.
+          python -m pip install --upgrade setuptools wheel
+          bash install.sh --no-build-isolation
 
       - name: Run ETA paper suite
         run: bash scripts/run_eta_paper_suite.sh artifacts/eta-paper-suite paper-suite-small

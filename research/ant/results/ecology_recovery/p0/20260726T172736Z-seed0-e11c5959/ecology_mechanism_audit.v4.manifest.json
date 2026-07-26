@@ -1,0 +1,61 @@
+{
+  "artifact": {
+    "path": "research/ant/results/ecology_recovery/p0/20260726T172736Z-seed0-e11c5959/ecology_mechanism_audit.v4.json",
+    "sha256": "a6f7d5bf50eb186ca1904be9271669aac733eeebe93c6df76c02d1256546e658",
+    "size_bytes": 1686410
+  },
+  "externally_retainable": false,
+  "inputs": [],
+  "provenance": {
+    "config_digest": "e11c59598cdd2aeb5c0c142f580cbcc8146881b381b3c87124b96f465d7568bf",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.5.1"
+      ],
+      [
+        "torch",
+        "2.13.0"
+      ]
+    ],
+    "effective_backend": "pure:cpu",
+    "git_branch": "fix/ant-ecology-design-conformance",
+    "git_sha": "29c2d9d83a7cd875a30e0721dfe4786590bc3fe5",
+    "layout_seeds": [
+      43,
+      101,
+      307
+    ],
+    "model_fingerprint": "be4f03b2cb7df14cd619bb511caae1cc439bf393d739865ce425449076857618",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "requested_device": "cpu",
+    "seed_schedule": [
+      0,
+      10000,
+      20000,
+      43,
+      101,
+      307
+    ],
+    "training_seeds": [
+      0,
+      10000,
+      20000
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}

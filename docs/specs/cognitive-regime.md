@@ -104,6 +104,52 @@ class RegimeIdentity:
 substrate 侧的 geometry readout 监控面见 Lane D 落地项与 `docs/specs/evaluation.md` 的
 `persona_geometry_drift` readout（COG-3）。
 
+## Panorama 参与门（`panorama_level`）
+
+`ParticipationHint.panorama_level` 是回答"这一轮该不该展开全景式决策结构"的**唯一决策面**。任何其他地方出现第二个激活判断都是契约违规——那会让"何时开"变成分散在各处的场景规则。
+
+### 判据：四个与话题无关的结构信号
+
+门的价值等式是 **全景改变最终选择的概率 × 选错的代价**；成本是打断、把情绪对话变成表格、显得冷酷。以下四个信号是这个乘积的可测代理，全部由 typed semantic owner 快照派生（`regime/decision_structure.py`），**不读用户文本、不做话题分类**：
+
+| 特征 | 含义 | 来源 owner |
+|---|---|---|
+| `option_multiplicity` | 是否存在 ≥2 条互斥且都还活着的路径 | `plan_intent.candidate_plans` / `deferred_intents`，`goal_value.active_tradeoff_count` 佐证 |
+| `irreversibility` | 选错是否难以低成本撤回 | `commitment` 的义务暴露 + `boundary_consent` 的外部行动/专业范围压力 + `plan_intent.active_constraints` |
+| `ranking_instability` | 用户自己的排序是否在动 | `goal_value.value_conflict` / `goal_shift_pressure` / `decision_readiness` / `conflicted_goal_count`，`plan_intent` 修订churn |
+| `unknown_dominance` | 排名是否取决于尚未拿到的信息 | `belief_assumption.verification_needs` / `mean_confidence`，`open_loop` 未决项与确认债 |
+
+四者用**几何平均**合成，不是加权和：四项**同为必要、单项均不充分**。加权和会让三个强轴把归零的第四轴拖过线——那正是系统把别人的痛苦做成表格的机制。几何平均下任一项为 0 即关门。
+
+两个由此**自动得到、无需专门规则**的行为：情绪支持轮次被挡住，是因为没有任何未知在等信息（`unknown_dominance≈0`），不是因为写了"repair 时保持安静"；选餐厅被挡住，是因为没有难以撤回的东西（`irreversibility≈0`）。
+
+两个刻意**不用**的信号：
+- `goal_value.reversibility_need`——名字贴切但它由 `value_conflict` / `goal_shift_pressure` / `alignment_score` 算出，与 `ranking_instability` 共线，用它会让"四轴合取"变成一轴取幂。
+- "有选项但没选定"——这是最强的不稳定信号，但它是选项数的函数。第一版用了它，导致 `option_multiplicity × ranking_instability` 在审计语料上 r=0.96；移除后降到 0.69。
+
+### 代价不对称
+
+该开没开：用户少一次结构化帮助，下一轮还能开，**可恢复**。不该开却开了：关系性伤害，**用户通常不会说**。因此：
+
+- 入口有负偏置、已开有保持偏置（防抖），且**假阳性率与假阴性率分开报，禁止合成单一 F1**——合成正好掩盖这个不对称；
+- 每轮最多升一档（SILENT → BRIEF → STRUCTURED），降档不设限。会话第一轮永远到不了 STRUCTURED：先见到人，再谈结构；
+- **"未测量"不等于"测得为零"**。没有任何 semantic owner 提供观测时（冷启动、owner SHADOW/DISABLED 发 `RuntimePlaceholderValue`）门直接判 SILENT；
+- 退出条件独立于保持偏置：选项塌缩到一条时强制降档；
+- 用户显式覆盖直接胜出（写入通道待 `decision_workspace` 落地）。
+
+### 接线与回滚
+
+`FinalRolloutConfig.panorama_gate_mode`：`"v1"`（生产默认，既有 attention-posture 打分，行为不变）/ `"v2"`（本节的结构门）。两种模式下 `method_level` / `task_level` / `flow_kind` 完全一致，只有 `panorama_level` 变——回滚就是改一个字段。regime owner 新增 7 个 semantic slot 为可选依赖（`.get()` 读取 + isinstance 过滤），未接线的运行时不受影响。防抖状态不入 `RegimeCheckpoint`：重新水合从 None 起步（即从 SILENT 逐档升），把跨会话边界的偏差留在保守方向。
+
+### 证据
+
+`scripts/audit_panorama_gate.py --probe`，语料 `regime/panorama_corpus.py`（负例 5 / 边界 6 / 正例 4），产物在 `research/panorama_gate/`。语料与门由同一人所写，所以单看"v2 全过"没有意义，两个对抗探针才是可证伪的部分：
+
+- **消融**：把某个特征钉成 1.0（门对它失明）后重跑。四个特征各被一条专门的边界例抓住；任何一个消融后语料仍全过，说明该特征只是注释。
+- **共线**：四特征两两 Pearson。真实决策情境本就同向变动，所以要求的是"不重复"而非"不相关"，上限 0.85。
+
+当前读数：v1 ceiling=6 / floor=2（15 例），v2 ceiling=0 / floor=0；最大共线 0.687。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
@@ -117,6 +163,7 @@ substrate 侧的 geometry readout 监控面见 Lane D 落地项与 `docs/specs/e
 
 ## 变更日志
 
+- 2026-07-27: Panorama 参与门 v2（见上节）。`regime/decision_structure.py` 新增四个话题无关的决策结构特征；`hint_readout.readout_panorama_level` 用几何平均合成并施加不对称代价偏置、一档升级上限、选项塌缩退出与用户覆盖；`FinalRolloutConfig.panorama_gate_mode` 默认 `"v1"`（行为不变）。审计语料 + 消融/共线探针见 `regime/panorama_corpus.py`、`regime/panorama_audit.py`、`scripts/audit_panorama_gate.py`。过程中修掉一处真实缺陷：`ranking_instability` 原本读选项数，与 `option_multiplicity` 在语料上 r=0.96，使"四轴合取"名不副实；解耦后 0.69。测试 `tests/test_panorama_gate.py`。
 - 2026-07-20 (score_regimes learned 化 SHADOW 升级): `RegimeScoreLearner` SHADOW dual-run 候选从"baseline 残差 4 维"扩到消费全部共享 per-turn 特征（4+36 维）：新增 `scoring.compute_regime_feature_values` 作为特征单一计算点（`score_regimes` 固定公式与 learner 共用，行为字节不变），`_ADJUSTMENT_FEATURE_NAMES` 冻结 bootstrap 调整面，learner `_SHARED_FEATURE_ORDER` 冻结 checkpoint 权重对齐（旧 4 维 checkpoint zero-pad 兼容）。live regime 选择不读 learner；ready 门槛 settled≥50 + MAE 领先≥0.02，kill=劣化≥0.10。对应 debt #80/#44；测试 `tests/test_regime_score_learner.py`。
 - 2026-07-20: 新增 §"瞬时 substrate readout vs 持久 regime owner 的分层"（Anthropic Emotion Concepts 同步）：token-local operative concept / 持久 regime owner / expression 三层分工，geometry readout 只读、禁止反向训练。来源 `research/frontier-sweep-2026-07-20.md` §6 同步项。
 - 2026-05-02: 增加 RGM1 companion evidence gate，冻结 regime delayed attribution visibility 的自动证据口径（RegimeSnapshot delayed attribution → credit → evaluation readout）

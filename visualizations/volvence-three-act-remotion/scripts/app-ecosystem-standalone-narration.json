@@ -1,0 +1,64 @@
+{
+  "schema_version": "dialogue-export.v1",
+  "language": "zh-CN",
+  "dialogues": [
+    {
+      "id": "volvence_new_product_forms_standalone_v2",
+      "title": "Volvence 独立第六幕：五种新产品形态",
+      "audio_file": "volvence-app-ecosystem-standalone.wav",
+      "voices": {
+        "assistant": "zh_male_wennuanahu_moon_bigtts"
+      },
+      "utterances": [
+        {
+          "sequence": 1,
+          "speaker": "assistant",
+          "emotion": "好奇、开阔、直接",
+          "speech_rate": 174,
+          "pause_after_ms": 600,
+          "text": "前面已经讲清了Volvence的技术。现在只看一件事：当AI能够保持身份、积累经历、理解关系并持续学习以后，会出现哪些过去根本做不出来的产品？我们从二十八个App里，挑五种最典型的产品形态。"
+        },
+        {
+          "sequence": 2,
+          "speaker": "assistant",
+          "emotion": "温暖、具体、带一点时间感",
+          "speech_rate": 168,
+          "pause_after_ms": 620,
+          "text": "第一种，是与过去某一时刻的自己继续对话。Moonlight Box和Past Self把一个人在某个时间点留下的日记、录音、对话和选择，恢复成当时那套认知状态。几年以后，你问的不是日记里写过什么，而是，当时的我为什么会这样选择。如果不同时间的你拥有不同但连续的身份，那么个人档案第一次从被保存的资料，变成了可以重新相遇的自己。"
+        },
+        {
+          "sequence": 3,
+          "speaker": "assistant",
+          "emotion": "细腻、克制、强调关系责任",
+          "speech_rate": 168,
+          "pause_after_ms": 640,
+          "text": "第二种，是对一段关系持续负责。Elder Companion、Commitment Keeper和Repair30不只回答眼前一句话。它们记得谁答应过什么，哪次失约留下了伤害，一个人为什么不喜欢被催，以及一次修复是否真的完成。它可以在合适的时候跟进，也可以在风险出现时请求获授权的家人或专业人员介入。产品交付的不再是一次陪聊，而是关系在时间中的连续性。"
+        },
+        {
+          "sequence": 4,
+          "speaker": "assistant",
+          "emotion": "清晰、带想象力、可信",
+          "speech_rate": 170,
+          "pause_after_ms": 620,
+          "text": "第三种，是拥有生命周期的人物与角色。Historical Lifeforms、Character Lab和Novel Worlds不是让大模型临时模仿爱因斯坦或小说人物的口吻，而是从论文、书信、作者设定、人物关系和价值边界中形成一个持续存在的身份。这个人物保持自己的认知，也能记得与你共同发生的经历。于是人物产品第一次可以被创作、审核、发布、长期相处，并在不破坏人物本体的前提下形成新的关系。"
+        },
+        {
+          "sequence": 5,
+          "speaker": "assistant",
+          "emotion": "坚定、工程化、有行动感",
+          "speech_rate": 172,
+          "pause_after_ms": 640,
+          "text": "第四种，是会积累工作经验、也知道何时需要人的数字员工。Digital Employee会记住什么内容有效，哪些边界不能越过，哪类结果需要继续观察；AutoCompany让这些员工组成组织，在预算和权限内行动。更重要的是，当任务涉及法律、现实身份或不可逆风险时，不再是人四处寻找AI工具，而是数字员工主动申请一名合适的真人来咨询、复核或执行。人从操作员变成最终问责者和现实行动伙伴。"
+        },
+        {
+          "sequence": 6,
+          "speaker": "assistant",
+          "emotion": "商业化、坚定、收束有力",
+          "speech_rate": 168,
+          "pause_after_ms": 1000,
+          "text": "第五种，是数字生命本身成为可训练、可审核、可授权的资产。Lifeform Store承载生命体，Capability Exchange提供能力，Accounts完成钱包、授权和结算。用户购买的不再只是Token，而是一名拥有特定经历、明确能力边界和责任记录的数字主体。它可以被创建或领养、训练、审核、授权、出租和结算。这些App的成熟度并不相同，但它们已经让一种新产品形态变得具体：不是给旧产品加上AI，而是创造过去无法存在的新产品物种。"
+        }
+      ]
+    }
+  ]
+}

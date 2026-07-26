@@ -1618,6 +1618,41 @@ class LifeformSession:
         return None
 
     @property
+    def panorama_render_plan(self) -> Any:
+        """Read the decision panorama the workspace owner published.
+
+        Returns a ``PanoramaRenderPlan`` when the regime owner's panorama
+        gate opened AND ``decision_workspace`` published a structure;
+        ``None`` otherwise — which is the ordinary case, since on almost
+        every turn there is no decision to lay out.
+
+        ``None`` is also what a DISABLED / unwired ``decision_workspace``
+        yields, so the expression layer degrades to exactly its
+        pre-panorama behaviour rather than to an empty section.
+
+        The valuation is not attached here: intervals need a numeric
+        source (a figure the user gave, or a provenanced research claim),
+        and inventing one from the structure alone is the pseudo-precision
+        this whole design refuses. Without it the panorama describes the
+        decision and declines to rank it.
+        """
+        from volvence_zero.decision_workspace import DecisionWorkspaceSnapshot
+        from volvence_zero.decision_workspace.rendering import (
+            plan_panorama_render,
+        )
+
+        active = self._latest_active_snapshots
+        shadow = self._latest_shadow_snapshots
+        published = active.get("decision_workspace") or shadow.get(
+            "decision_workspace"
+        )
+        if published is None:
+            return None
+        if not isinstance(published.value, DecisionWorkspaceSnapshot):
+            return None
+        return plan_panorama_render(published.value)
+
+    @property
     def rupture_state(self) -> Any:
         """Phase 1 W1.B: read the typed ``rupture_state`` snapshot.
 

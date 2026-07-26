@@ -54,7 +54,10 @@ class SeedPartialStore:
                     f"partial metadata mismatch at {self._metadata_path}"
                 )
         else:
-            atomic_write_json(self._metadata_path, expected)
+            # overwrite=False: a concurrent writer that created the marker
+            # between the check above and this write must surface, not be
+            # silently replaced with our own metadata.
+            atomic_write_json(self._metadata_path, expected, overwrite=False)
 
     def load(self) -> dict[int, Mapping[str, Any]]:
         self.initialize()
@@ -96,7 +99,8 @@ class SeedPartialStore:
             if self._read_object(path) != payload:
                 raise AntResumeStateError(f"conflicting partial seed {seed}: {path}")
             return path
-        atomic_write_json(path, payload)
+        # A committed per-seed partial is immutable evidence; never replace one.
+        atomic_write_json(path, payload, overwrite=False)
         return path
 
     def _metadata(self) -> dict[str, Any]:

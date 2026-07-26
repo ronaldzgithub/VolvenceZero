@@ -21,6 +21,23 @@ from volvence_ant.substrate.sense_encode import (
     sense_encode,
 )
 
+# Frozen-substrate body sensors, shared by EVERY matched-control arm.
+#
+# ``docs/specs/digital-ant-embodiment.md`` §3 requires the sky compass and the
+# proprioceptive noise to be identical across arms: "罗盘是所有导航共用的
+# substrate 传感器 ... 同一 frozen substrate 在 matched-control 各臂间一致".
+# ``AntSessionConfig`` (kernel arms) and ``FixedRuleConfig`` (scripted arm)
+# declare exactly these values; ``RandomAnt`` (the floor arm) reads them from
+# here. This baseline used to run a noiseless, compass-less navigator, i.e. it
+# was compared on a *different body* — a strictly easier path-integration
+# problem than the arms it is meant to bound; ``RandomAnt`` had the same defect
+# until 2026-07-27. ``tests/test_frozen_functions.py`` pins EVERY arm named in
+# ``research/ant/05_ecology_p0_p1_p2_plan.md`` §5.4 (P2-B) to the same numbers.
+SHARED_HEADING_NOISE: float = 0.01
+SHARED_STEP_NOISE: float = 0.01
+SHARED_COMPASS_GAIN: float = 0.85
+SHARED_COMPASS_NOISE: float = 0.007
+
 
 @dataclass(frozen=True)
 class PPOConfig:
@@ -108,8 +125,10 @@ class E2ERLAnt:
     ) -> AntNavigator:
         navigator = AntNavigator(
             step_size=world.config.step_size,
-            heading_noise=0.0,
-            step_noise=0.0,
+            heading_noise=SHARED_HEADING_NOISE,
+            step_noise=SHARED_STEP_NOISE,
+            compass_gain=SHARED_COMPASS_GAIN,
+            compass_noise=SHARED_COMPASS_NOISE,
             seed=seed,
         )
         navigator.reset(
@@ -206,11 +225,18 @@ class E2ERLAnt:
                     turn, step = self._command(
                         raw_action.detach().numpy(), world
                     )
-                    navigator.update(turn_command=turn, step_command=step)
-                    world.act(
+                    # Act first, then integrate: the shared substrate fuses the
+                    # sky-compass reading of the POST-move absolute heading,
+                    # exactly as AntSession / FixedRuleAnt do.
+                    moved = world.act(
                         turn_command=turn,
                         step_command=step,
                         body_id=body_id,
+                    )
+                    navigator.update(
+                        turn_command=turn,
+                        step_command=step,
+                        true_heading=moved.eval_true_heading,
                     )
                     transition = world.last_transition(body_id)
                     body_slots[body_id].append(len(observations))
@@ -262,21 +288,21 @@ class E2ERLAnt:
 
     def evaluate(self, *, world: AntWorld, ticks: int, seed: int) -> E2EEvaluation:
         torch = self._torch
-        navigator = AntNavigator(
-            step_size=world.config.step_size,
-            heading_noise=0.0,
-            step_noise=0.0,
-            seed=seed,
+        navigator = self._episode_navigator(
+            world, body_id=0, seed=seed, synchronize=False
         )
-        navigator.reset(initial_heading=world.observe().eval_true_heading)
         positions: list[tuple[float, float]] = []
         with torch.no_grad():
             for _ in range(ticks):
                 encoded = self._encode(world, navigator, body_id=0)
                 mean, _ = self._forward(encoded)
                 turn, step = self._command(mean.numpy(), world)
-                navigator.update(turn_command=turn, step_command=step)
-                world.act(turn_command=turn, step_command=step)
+                moved = world.act(turn_command=turn, step_command=step)
+                navigator.update(
+                    turn_command=turn,
+                    step_command=step,
+                    true_heading=moved.eval_true_heading,
+                )
                 positions.append(world.body().position)
         return E2EEvaluation(
             food_pickups=world.food_pickups,
@@ -306,21 +332,56 @@ class E2ERLAnt:
             synchronize=synchronize_navigator,
         )
 
-    def step(self, world: AntWorld, *, body_id: int = 0) -> None:
-        """Apply one deterministic (mean-action) command to an attached body."""
+    @property
+    def navigator(self) -> AntNavigator:
+        """The frozen-substrate navigator of body 0.
 
-        navigator = self._navigators.get(body_id)
-        if navigator is None:
+        ``AntSession`` / ``FixedRuleAnt`` / ``RandomAnt`` all expose
+        ``navigator`` as a plain attribute, so duck-typed cross-arm access
+        (matched-control parity guards, colony diagnostics) must find the same
+        shape here. Multi-body callers use :meth:`navigator_for`.
+        """
+
+        return self.navigator_for(0)
+
+    def navigator_for(self, body_id: int) -> AntNavigator:
+        """Return the frozen-substrate navigator bound to ``body_id``.
+
+        Read-only accessor so matched-control guards can compare the sensor
+        parameters this arm actually constructed against the other arms.
+        """
+
+        if body_id not in self._navigators:
             raise RuntimeError(
                 f"E2ERLAnt body {body_id} was never attached to a world"
             )
+        return self._navigators[body_id]
+
+    def step(self, world: AntWorld, *, body_id: int = 0) -> None:
+        """Apply one deterministic (mean-action) command to an attached body."""
+
+        navigator = self.navigator_for(body_id)
         torch = self._torch
         with torch.no_grad():
             encoded = self._encode(world, navigator, body_id=body_id)
             mean, _ = self._forward(encoded)
             turn, step = self._command(mean.numpy(), world)
-        navigator.update(turn_command=turn, step_command=step)
-        world.act(turn_command=turn, step_command=step, body_id=body_id)
+        moved = world.act(
+            turn_command=turn, step_command=step, body_id=body_id
+        )
+        navigator.update(
+            turn_command=turn,
+            step_command=step,
+            true_heading=moved.eval_true_heading,
+        )
 
 
-__all__ = ["E2EEvaluation", "E2ERLAnt", "PPOConfig"]
+__all__ = [
+    "SHARED_COMPASS_GAIN",
+    "SHARED_COMPASS_NOISE",
+    "SHARED_HEADING_NOISE",
+    "SHARED_STEP_NOISE",
+    "E2EEvaluation",
+    "E2ERLAnt",
+    "PPOConfig",
+]

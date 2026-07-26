@@ -59,6 +59,12 @@ class SectionId(str, Enum):
     # added when the AffordanceModule owner published a non-None ``selected``
     # candidate (already past its score / margin / consent / regime gates).
     AFFORDANCE_OFFER = "affordance_offer"
+    # The decision panorama: which options are live, what they are
+    # being weighed on, what the ranking is still waiting on. Added
+    # only when the regime owner's panorama gate opened AND the
+    # decision_workspace owner actually published a structure — the
+    # section has no content of its own to fall back on.
+    DECISION_PANORAMA = "decision_panorama"
 
 
 class TurnIntent(str, Enum):
@@ -178,6 +184,11 @@ class PromptPlanner:
         intent_snapshot: IntentAboutOtherSnapshot | None = None,
         preference_snapshot: PreferenceAboutOtherSnapshot | None = None,
         affordance_snapshot: AffordanceSnapshot | None = None,
+        # Typed render plan from the decision_workspace owner
+        # (``PanoramaRenderPlan``). Kept as ``object`` so the
+        # expression layer does not take a hard import on the
+        # cognition tier for an optional advisory.
+        panorama_render_plan: object | None = None,
     ) -> PromptPlan:
         """Build a frozen ``PromptPlan``.
 
@@ -227,6 +238,9 @@ class PromptPlanner:
         sections, affordance_rationale = self._apply_affordance_snapshot(
             sections=sections, affordance_snapshot=affordance_snapshot
         )
+        sections, panorama_rationale = self._apply_panorama_render_plan(
+            sections=sections, panorama_render_plan=panorama_render_plan
+        )
         tom_rationale = self._tom_rationale_tags(
             belief_snapshot=belief_snapshot,
             intent_snapshot=intent_snapshot,
@@ -254,6 +268,7 @@ class PromptPlanner:
             common_ground_rationale=common_ground_rationale,
             tom_rationale=tom_rationale,
             affordance_rationale=affordance_rationale,
+            panorama_rationale=panorama_rationale,
         )
         return PromptPlan(
             intent=intent,
@@ -728,6 +743,42 @@ class PromptPlanner:
             )
         return new_sections, tuple(rationale)
 
+    def _apply_panorama_render_plan(
+        self,
+        *,
+        sections: list[SectionId],
+        panorama_render_plan: object | None,
+    ) -> tuple[list[SectionId], tuple[str, ...]]:
+        """Add ``DECISION_PANORAMA`` when a decision structure was published.
+
+        ``None`` — the overwhelming majority of turns — is a no-op. The
+        gate was closed, so the ``decision_workspace`` owner published no
+        structure and there is nothing to lay out. That absence is the
+        design working, not a missing input to compensate for.
+
+        The rationale tags carry the claim licence, so an auditor reading
+        the plan can see what the turn was entitled to assert without
+        re-deriving it from the rendered text — which is the only place
+        the two could ever disagree.
+        """
+        if panorama_render_plan is None:
+            return sections, ()
+        tier = getattr(panorama_render_plan, "tier", "")
+        claim_kind = getattr(panorama_render_plan, "claim_kind", "none")
+        rationale = [
+            f"panorama={tier}("
+            f"options={getattr(panorama_render_plan, 'option_count', 0)},"
+            f"unknowns={getattr(panorama_render_plan, 'open_unknown_count', 0)},"
+            f"claim={claim_kind})"
+        ]
+        if getattr(panorama_render_plan, "safety_hold", False):
+            rationale.append("panorama_safety_hold=1")
+        new_sections = list(sections)
+        if SectionId.DECISION_PANORAMA not in new_sections:
+            new_sections.append(SectionId.DECISION_PANORAMA)
+            rationale.append(f"panorama_add=decision_panorama({tier})")
+        return new_sections, tuple(rationale)
+
     # ------------------------------------------------------------------
     # Phase 2 W2.A EQ-owner uplift: typed Theory-of-Mind rationale tags
     # for BELIEF / INTENT / PREFERENCE about-other owners. These three
@@ -861,6 +912,7 @@ class PromptPlanner:
         common_ground_rationale: tuple[str, ...] = (),
         tom_rationale: tuple[str, ...] = (),
         affordance_rationale: tuple[str, ...] = (),
+        panorama_rationale: tuple[str, ...] = (),
     ) -> tuple[str, ...]:
         tags: list[str] = [f"intent={intent.value}"]
         regime_id = (
@@ -939,6 +991,8 @@ class PromptPlanner:
         # CP-04 (intent-alignment W2.E): owner-approved affordance offer
         # tags emitted by ``_apply_affordance_snapshot``. Typed snapshot
         # fields only; no user text is read.
+        for rationale in panorama_rationale:
+            tags.append(rationale)
         for rationale in affordance_rationale:
             tags.append(rationale)
         return tuple(tags)
