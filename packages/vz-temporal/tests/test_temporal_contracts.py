@@ -2142,66 +2142,162 @@ def test_rollout_config_carries_the_envelope_declaration_to_the_store() -> None:
     assert strict_self.causal_action_head_envelope_enforced is True
 
 
-def test_pristine_head_initializer_violates_the_envelope_it_is_validated_against() -> None:
-    """The blocker that keeps archive enforcement off in every domain.
+def test_pristine_head_initializer_respects_the_envelope_it_is_validated_against() -> None:
+    """The store's own constructor may never produce a head its validator rejects.
 
     ``validate_causal_action_head_magnitudes`` exists to reject a head that no
-    owner write path could produce. But the store's OWN constructor produces
-    one: ``_initial_causal_action_head_parameters`` falls back to
-    ``_random_mat(rank, n_z)`` -- an unbounded Gaussian with scale
-    ``1/sqrt(rank)`` -- whenever ``rank < n_z``, and nothing ties that draw to
-    ``factor_absolute_limit``. The seeds are fixed, so this is deterministic,
-    not flaky.
+    owner write path could produce. That argument only holds if the constructor
+    is itself inside the envelope -- otherwise the check is broader than its own
+    justification, and archive enforcement raises on the very first checkpoint
+    restore, on a pristine ``update_step=0`` head with zero steering authority.
 
-    Consequence: because ``restore_parameter_snapshot`` validates all three
-    tracks while ``internal_rl_causal_action_head_rank`` configures only the one
-    track passed to ``set_causal_action_head``, ANY domain that turns the
-    contract on raises on its first checkpoint restore -- on a head with
-    ``update_step=0``, all-zero output factors and all-zero bias, i.e. exactly
-    zero live steering authority.
-
-    This test is the forcing function for the deferral: it FAILS once the
-    initializer (or the validator's scope) is fixed, which is the point at which
-    the ant profile's declaration must be flipped to True.
+    This replaces the former forcing-function test, which asserted the opposite
+    (that the fallback ``_random_mat(rank, n_z)`` draw escaped the envelope).
+    Sweep the whole reachable grid, not just the shipped ``n_z``: ``rank`` is
+    caller-supplied via ``configure_causal_action_head_rank``, so every
+    ``rank < n_z`` takes the random fallback. 11% of that grid was out of band
+    before the fix.
     """
 
     from volvence_zero.temporal.interface import (
         CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        _initial_causal_action_head_parameters,
+        validate_causal_action_head_magnitudes,
     )
 
-    violations: dict[tuple[int, Track], float] = {}
-    for n_z in (4, 16):
-        store = MetacontrollerParameterStore(n_z=n_z)
-        for track in (Track.WORLD, Track.SELF, Track.SHARED):
-            head = store.causal_action_head_parameters(track=track)
-            peak = max(
-                abs(value) for row in head.input_factors for value in row
-            )
-            if peak > envelope.factor_absolute_limit:
-                # A pristine head: never updated, and with zero output factors
-                # and zero bias it emits an identically zero residual.
+    checked = 0
+    for n_z in range(1, 33):
+        for rank in range(1, n_z + 1):
+            for track in (Track.WORLD, Track.SELF, Track.SHARED):
+                head = _initial_causal_action_head_parameters(
+                    n_z=n_z,
+                    track=track,
+                    rank=rank,
+                )
+                # The validator itself is the assertion: a pristine head must
+                # pass the exact check a restore would apply to it.
+                validate_causal_action_head_magnitudes(head)
                 assert head.update_step == 0
                 assert not any(any(row) for row in head.output_factors)
                 assert not any(head.bias)
-                violations[(n_z, track)] = peak
+                checked += 1
+    assert checked == sum(range(1, 33)) * 3
 
-    assert violations, (
-        "the pristine initializer now respects the envelope -- the blocker is "
-        "gone, so flip ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED to True and "
-        "delete this test"
+    # The two tracks the ant's own n_z=16 used to violate, now in band.
+    store = MetacontrollerParameterStore(n_z=16)
+    for track in (Track.WORLD, Track.SELF, Track.SHARED):
+        head = store.causal_action_head_parameters(track=track)
+        peak = max(abs(value) for row in head.input_factors for value in row)
+        assert peak <= envelope.factor_absolute_limit, (n_z, track, peak)
+
+
+def test_bounded_initial_input_factors_rescales_without_reshaping() -> None:
+    """The bound is a global rescale, not a per-element clip, and it is minimal.
+
+    Two properties the fix rests on:
+
+    1. An already-in-band draw is returned *untouched* -- byte-identical, not
+       merely equal-after-rounding. That is what makes this a behaviour change
+       confined to configurations that were already invalid.
+    2. An out-of-band draw keeps its direction exactly: the result is a single
+       positive scalar multiple of the draw, so relative magnitudes, signs and
+       the rank structure survive. A per-element clip would instead flatten
+       every large entry onto the limit and distort the basis geometry.
+    """
+
+    import struct
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        _bounded_initial_input_factors,
+        _random_mat,
     )
-    # Measured on this tree; the ant's own n_z=16 is affected on two tracks.
-    assert (16, Track.SELF) in violations
-    assert (16, Track.SHARED) in violations
+
+    limit = envelope.factor_absolute_limit
+
+    def bits(matrix: tuple[tuple[float, ...], ...]) -> bytes:
+        return b"".join(struct.pack("<d", v) for row in matrix for v in row)
+
+    seen_identical = seen_rescaled = 0
+    for n_z in range(1, 33):
+        for rank in range(1, n_z):
+            for track_index in range(3):
+                seed = 211 + track_index
+                draw = _random_mat(rank, n_z, seed=seed)
+                bounded = _bounded_initial_input_factors(
+                    rank=rank, n_z=n_z, seed=seed, absolute_limit=limit
+                )
+                peak = max(abs(v) for row in draw for v in row)
+                if peak <= limit:
+                    assert bits(bounded) == bits(draw)
+                    seen_identical += 1
+                    continue
+                seen_rescaled += 1
+                expected = limit / peak
+                # Direction preserved: one common ratio across every nonzero
+                # entry, and it is exactly the ratio that puts the peak on the
+                # limit -- i.e. the smallest rescale that lands in band.
+                for bounded_row, draw_row in zip(bounded, draw, strict=True):
+                    for bounded_v, draw_v in zip(
+                        bounded_row, draw_row, strict=True
+                    ):
+                        assert bounded_v == pytest.approx(
+                            draw_v * expected, rel=1e-15, abs=1e-18
+                        )
+                assert max(
+                    abs(v) for row in bounded for v in row
+                ) == pytest.approx(limit, rel=1e-15)
+
+    # Both branches are actually exercised by the sweep.
+    assert seen_identical > 0 and seen_rescaled > 0
 
 
-def test_digital_ant_profile_defers_archive_envelope_enforcement() -> None:
-    """The intended first adopter defers, with the blocker above as the reason.
+def test_envelope_has_no_update_step_dependent_exemption() -> None:
+    """Enforcement must not be weaker for a head that claims ``update_step=0``.
 
-    Kept as an explicit assertion rather than silence so the deferral is
-    visible: the ant is the only ACTIVE-head domain and
+    The rejected alternative fix was to split the envelope into an "initial
+    prior" bound and an "update ceiling" so the validator skips pristine heads.
+    ``update_step`` is an ordinary field of a restored snapshot, so any such
+    split is a bypass exactly its own width: a corrupt or over-reaching archive
+    declares ``update_step=0`` and installs the unbounded cross-state steering
+    intercept the envelope exists to block. Pin that the gate is
+    ``update_step``-blind in both directions.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CausalZActionHeadParameters,
+        validate_causal_action_head_magnitudes,
+    )
+
+    out_of_band = CausalZActionHeadParameters(
+        track=Track.WORLD,
+        rank=1,
+        input_factors=((50.0,),),
+        output_factors=((0.0,),),
+        bias=(0.0,),
+        update_step=0,
+    )
+    with pytest.raises(ValueError, match="factor_absolute_limit"):
+        validate_causal_action_head_magnitudes(out_of_band)
+    with pytest.raises(ValueError, match="factor_absolute_limit"):
+        validate_causal_action_head_magnitudes(
+            replace(out_of_band, update_step=9999)
+        )
+
+    in_band = replace(out_of_band, input_factors=((1.5,),))
+    validate_causal_action_head_magnitudes(in_band)
+    validate_causal_action_head_magnitudes(replace(in_band, update_step=9999))
+
+
+def test_digital_ant_profile_enforces_archive_envelope() -> None:
+    """The first adopter now declares enforcement, and it reaches the config.
+
+    The ant is the only ACTIVE-head domain and
     ``docs/specs/digital-ant-embodiment.md`` freezes the very bounds the
-    validation checks, so this is the profile that must flip first.
+    validation checks, so this is the profile that flips first. It previously
+    asserted the opposite against the pristine-initializer blocker pinned by
+    ``test_pristine_head_initializer_respects_the_envelope_it_is_validated_against``;
+    that blocker is closed, so the deferral is gone rather than silently rotted.
     """
 
     profile = pytest.importorskip("volvence_ant.evidence.runtime_profile")
@@ -2215,8 +2311,8 @@ def test_digital_ant_profile_defers_archive_envelope_enforcement() -> None:
             is profile.ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED
         ), "the profile constant must actually reach the rollout config"
         assert (
-            config.internal_rl_causal_action_head_envelope_enforced is False
-        ), "still deferred; see the blocker pinned by the test above"
+            config.internal_rl_causal_action_head_envelope_enforced is True
+        )
 
 
 def test_envelope_projection_step_bound_is_conditional_on_the_baseline() -> None:

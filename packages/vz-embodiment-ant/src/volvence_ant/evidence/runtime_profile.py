@@ -37,38 +37,35 @@ ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS = ((0, 1),)
 # mode and exploration noise still proposes turns.
 ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING = True
 # Archive-side enforcement of the frozen action-head envelope. This domain is
-# the intended first adopter: it is the only one with an ACTIVE causal action
-# head, and docs/specs/digital-ant-embodiment.md freezes the very bounds the
-# validation checks. It is nevertheless declared False, and that is a MEASURED
-# deferral, not an oversight.
+# the first adopter: it is the only one with an ACTIVE causal action head, and
+# docs/specs/digital-ant-embodiment.md freezes the very bounds the validation
+# checks.
 #
-# Blocker (temporal owner, not this package): the store's own pristine head
-# initializer produces input factors outside the envelope it would then be
-# validated against. `_initial_causal_action_head_parameters` falls back to
-# `_random_mat(rank, n_z)` -- an unbounded Gaussian with scale 1/sqrt(rank) --
-# whenever rank < n_z, and nothing ties that draw to
-# `factor_absolute_limit=1.5`. The seeds are fixed, so the violation is
-# deterministic, and at this domain's own n_z=16:
+# This was previously declared False against a MEASURED blocker in the temporal
+# owner (not this package): the store's own pristine head initializer produced
+# input factors outside the envelope it would then be validated against.
+# `_initial_causal_action_head_parameters` fell back to `_random_mat(rank, n_z)`
+# -- an unbounded Gaussian with scale 1/sqrt(rank) -- whenever rank < n_z, and
+# nothing tied that draw to `factor_absolute_limit=1.5`. At this domain's own
+# n_z=16 the fixed seeds made it deterministic:
 #
 #   world  rank=4 update_step=0 max|input_factor|=1.0749  ok
-#   self   rank=4 update_step=0 max|input_factor|=1.9823  VIOLATES
-#   shared rank=4 update_step=0 max|input_factor|=1.6192  VIOLATES
+#   self   rank=4 update_step=0 max|input_factor|=1.9823  VIOLATED
+#   shared rank=4 update_step=0 max|input_factor|=1.6192  VIOLATED
 #
-# `internal_rl_causal_action_head_rank` configures only the ONE track passed to
-# `set_causal_action_head`, so the untouched SELF/SHARED heads keep the random
-# low-rank draw while `restore_parameter_snapshot` validates all three. Turning
-# enforcement on therefore makes the FIRST checkpoint restore raise on a head
-# the owner itself just created -- measured: 19 tests in this package fail,
-# every one of them on `validate_causal_action_head_magnitudes` rejecting an
-# `update_step=0` head whose output factors and bias are all zero (i.e. a head
-# with exactly zero live steering authority).
-#
-# Narrowing the validator to let that through would weaken the gate, and
-# bounding the initializer changes the generic default's arithmetic; both are
-# their own convergence package. Flip this to True in the same change that
-# closes it -- `test_digital_ant_profile_defers_archive_envelope_enforcement`
-# fails the moment the blocker is gone, so the deferral cannot rot.
-ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED = False
+# Closed by bounding the initializer, not by narrowing the validator. The
+# envelope's absolute bound is applied UNCONDITIONALLY by every owner write
+# path, so exempting `update_step == 0` heads would have made the validator's
+# accepted set strictly larger than the owner's own image -- and `update_step`
+# is an ordinary field of a restored snapshot, so that exemption is a bypass of
+# exactly its own width. `_bounded_initial_input_factors` instead rescales the
+# draw by one global positive scalar, which preserves its direction and leaves
+# every already-in-band configuration byte-identical. Differential evidence over
+# the full reachable (n_z <= 64, rank, track) grid: 6240 configurations, 5573
+# byte-identical, 667 changed -- and the 667 changed are exactly the 667 that
+# were out of band, i.e. no previously-valid configuration moved. This domain's
+# own WORLD track (1.0749) is among the untouched.
+ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED = True
 # Frozen embodiment reflection: left/right receptors swap, oriented
 # pseudoscalars (gradient, egocentric sine, prior turn) change sign. The
 # temporal owner consumes this transform without learning or reconstructing

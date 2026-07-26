@@ -139,9 +139,10 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   **校验不带任何容差**：冻结上界上不加 epsilon。owner clamp 的产物天然合法——`max(-0.1, min(0.1, x))` 精确返回 `0.1`，而 `abs(0.1) > 0.1` 为 `False`；`1e-9` 的 slack 只会悄悄把冻结上界放宽（`math.nextafter(0.1, inf)` 与 `0.1` 之差远小于 `1e-9`，会被吞掉）。
   **非有限值一律 fail loudly，且不受该开关支配**：(1) `_envelope_bounded_value` 此前只检查 candidate；非有限 **baseline** 会让 `max(nan-step, min(nan+step, candidate))` 得到 `nan`，再被绝对 clamp 静默压成 `+absolute_limit`——一个损坏基线因此被洗成“合法的、钉在绝对上界上的截距”（实测 `nan`/`inf` baseline 都得到 `0.1`）。现 baseline 与 candidate 同样校验。(2) `restore_causal_action_head_parameters` 补齐 `restore_parameter_snapshot` 早就有的有限性校验，NaN/Inf 无法直接写进 live head。
   **开关的可达路径（opt-in，已贯通到生产配置）**：`MetacontrollerParameterStore.set_causal_action_head_envelope_enforced(bool)` 是构造后的显式切换点；`FinalRolloutConfig.internal_rl_causal_action_head_envelope_enforced: bool = False`（`packages/vz-runtime/src/volvence_zero/integration/final_wiring.py`，与 `internal_rl_causal_action_head_rank` 等字段同处）是 domain 唯一的声明入口，经四个 `set_causal_action_head(...)` 调用点落到 store：`final_wiring.py` 的 WORLD / SELF 两处、`packages/vz-runtime/src/volvence_zero/agent/session.py` 的 WORLD / SELF 两处。**两轨都必须收到**，否则一条 lane 仍可被装入越界 archive。通用默认 `False` 精确保留历史 restore 行为（`tests/test_runtime_transition_replay.py` 刻意从 permissive 路径装入 bias `0.35 / 0.4`），因此该契约必须保持 opt-in。
-  **⚠ 目前没有任何域能真正打开它——阻塞项在本 owner 自己身上（已实测，未修复）**：`_initial_causal_action_head_parameters` 在 `rank < n_z` 时回落到 `_random_mat(rank, n_z)`，即 scale `1/sqrt(rank)` 的**无界高斯**，与 `factor_absolute_limit=1.5` 毫无关联。种子固定，因此违例是确定性的；实测（`n_z=16`，即数字蚂蚁正式配置）：`world rank=4 max|input_factor|=1.0749` 合规，`self=1.9823`、`shared=1.6192` **越界**（`n_z=4` 时 `self=1.5976` 越界）。而 `internal_rl_causal_action_head_rank` 只配置传给 `set_causal_action_head` 的那**一个** track，`restore_parameter_snapshot` 却校验全部三个 track，于是未被配置的 SELF/SHARED 头保留随机低秩初值。结果：任何域一旦声明 `True`，**第一次 checkpoint 恢复就会在 owner 刚刚自己创建的头上抛错**——实测数字蚂蚁 profile 声明 `True` 会让 `packages/vz-embodiment-ant/tests` 中 19 个测试失败，全部来自 `validate_causal_action_head_magnitudes` 拒绝一个 `update_step=0`、output factor 与 bias 全零（即 live steering 权限精确为零）的头。
-  换言之 `validate_causal_action_head_magnitudes` 的口径宽于它自己的立论：它声称拒绝"owner 更新路径永远产生不出来的映射"，但 owner 的**构造函数**恰好能产生一个。收窄校验口径会削弱这道 gate，给初始化加界会改变通用默认的算术，两者都需要单独的收敛包。数字蚂蚁 profile 因此显式声明 `False` 并在原地记录该阻塞与实测数字；`tests/test_temporal_contracts.py::test_pristine_head_initializer_violates_the_envelope_it_is_validated_against` 是强制函数——阻塞项一旦修好该测试立即失败，迫使同批把 profile 翻成 `True`。
-  **声明的优先级：`None` 表示“本次不声明”**。`set_causal_action_head(..., envelope_enforced: bool | None = None)` 只在显式传 `True`/`False` 时写入 store。此前它把 `False` 默认值无条件写入，于是一个用 `MetacontrollerParameterStore(causal_action_head_envelope_enforced=True)` 构造出来的 store，会被任何一个根本没提到该开关的后续 head 配置调用（改 rank、改 strength、配第二轨）静默关掉强制校验——AGENTS.md §6 明令禁止的静默降级。`FinalRolloutConfig` 走的是显式路径，因此 rollout 配置仍是 domain 声明的权威边界。证据：`tests/test_temporal_contracts.py::test_head_configuration_without_a_declaration_leaves_the_store_alone`、`::test_rollout_config_carries_the_envelope_declaration_to_the_store`、`::test_digital_ant_profile_declares_archive_envelope_enforcement`。
+  **初始化越界阻塞项已解除（2026-07-27，修构造器而非收窄校验）**：此前 `_initial_causal_action_head_parameters` 在 `rank < n_z` 时回落到 `_random_mat(rank, n_z)`，即 scale `1/sqrt(rank)` 的**无界高斯**，与 `factor_absolute_limit=1.5` 毫无关联。种子固定，违例是确定性的；实测（`n_z=16`，即数字蚂蚁正式配置）：`world rank=4 max|input_factor|=1.0749` 合规，`self=1.9823`、`shared=1.6192` **越界**（`n_z=4` 时 `self=1.5976` 越界）。而 `internal_rl_causal_action_head_rank` 只配置传给 `set_causal_action_head` 的那**一个** track，`restore_parameter_snapshot` 却校验全部三个 track，于是未被配置的 SELF/SHARED 头保留随机低秩初值——任何域一旦声明 `True`，第一次 checkpoint 恢复就会在 owner 刚刚自己创建的、`update_step=0` 且 output/bias 全零（live steering 权限精确为零）的头上抛错（实测蚂蚁包 19 个测试失败）。
+  **为什么修构造器而不是给 `update_step == 0` 开豁免**：`factor_absolute_limit` 被 owner 写入路径**无条件**施加——pure `update_causal_action_head` 的内联 clamp 与 `project_causal_action_head_update` 的 `clamp_absolute`（该函数不变量 1）都不看 `update_step`，因此 owner 写入路径的像**恒**落在包络内，第一步也不例外。若给初始先验放宽上界，validator 接受的集合就严格大于 owner 自身的像；而 `update_step` 只是 restore 快照里的一个普通字段，越权/损坏 archive 只需声明 `update_step=0` 即可装入任意 input factor——豁免在任何写法下都是宽度等于自身的旁路，正是"跨状态固定转向截距"这条立论要挡的东西。故 gate 保持 `update_step` 盲，由 `test_envelope_has_no_update_step_dependent_exemption` 双向锚定。
+  **修法与差分证据**：新增 `_bounded_initial_input_factors`，对随机抽样施加**单个全局正标量**重标定（`limit / peak`，仅在越界时生效），方向结构（相对幅度、符号、行列几何、秩）原样保留，不是逐元素 clip。`_random_mat` 本身**不动**（encoder/decoder 权重 seed 100/101/103/104 仍在消费它，逐字节不变）。全网格差分（`n_z <= 64` × 全部 `rank` × 三轨，共 6240 个配置，`struct.pack` 后按 sha256 比对）：**5573 个逐字节不变，667 个改变，且改变的 667 个恰好等于原先越界的 667 个**——没有任何一个原先合法的配置被移动，数字蚂蚁自己的 WORLD 轨（1.0749）在不变的那一侧。附带效果是把 basis 推离 tanh 饱和区（`n_z=64, rank=1` 的最坏 pre-activation `7.552 -> 2.857`，`tanh` 从 `1.00000` 退回 `0.99342`，即该 basis 坐标从零梯度死区里回来）。证据：`tests/test_temporal_contracts.py::test_pristine_head_initializer_respects_the_envelope_it_is_validated_against`（全网格逐个过 validator）、`::test_bounded_initial_input_factors_rescales_without_reshaping`（合规抽样逐字节原样返回 + 越界抽样保持共同比例）。数字蚂蚁 profile 因此在同一批翻成 `True`。
+  **声明的优先级：`None` 表示“本次不声明”**。`set_causal_action_head(..., envelope_enforced: bool | None = None)` 只在显式传 `True`/`False` 时写入 store。此前它把 `False` 默认值无条件写入，于是一个用 `MetacontrollerParameterStore(causal_action_head_envelope_enforced=True)` 构造出来的 store，会被任何一个根本没提到该开关的后续 head 配置调用（改 rank、改 strength、配第二轨）静默关掉强制校验——AGENTS.md §6 明令禁止的静默降级。`FinalRolloutConfig` 走的是显式路径，因此 rollout 配置仍是 domain 声明的权威边界。证据：`tests/test_temporal_contracts.py::test_head_configuration_without_a_declaration_leaves_the_store_alone`、`::test_rollout_config_carries_the_envelope_declaration_to_the_store`、`::test_digital_ant_profile_enforces_archive_envelope`。
 - **latent code 值域的唯一 owner**：`temporal/interface.py` 的 `LATENT_CODE_BOUNDS = (0.0, 1.0)` 是 live ndim forward 对 `code` 的冻结值域（`_clamp` 由它派生）。torch runtime-replay lane 此前硬编码三处 `[-1,1]`，而同一函数的两条 synthetic lane 用 `[0,1]`；在饱和 contrast 轴上重建出的均值会离开冻结 plant 的值域，使 `(action - mean)` 相对真实动作反号、head 梯度指向错误方向。现该 lane 经 `resolve_latent_code_bounds(latent_unit_clamp=...)` 选择边界，与 pure lane 的 `latent_unit_clamp` 契约同名同义：`False` 保持历史 signed 边界（精确回滚基线），`True` 在 owner 的单位值域上重建。reward/advantage 的 `[-1,1]` clamp 是另一套约定，两条 lane 都不变。**pure 与 torch 两条 runtime-replay lane 必须收到同一个 `latent_unit_clamp`**，否则同一 batch 会重建出不同均值；这正是 `assert_runtime_replay_latent_bounds_agree` 所执行的范围。
   **该不变量精确限定在 runtime-replay 重建上，不覆盖 synthetic 分支**（此前这句话没有限定作用域，读起来像是覆盖全函数）：torch 的两条 synthetic lane 历来就在 owner 的 `LATENT_CODE_BOUNDS` 上做 clamp，与 `latent_unit_clamp` 无关；pure 的 synthetic lane 则按 `latent_unit_clamp` 选择 `_clamp`（signed，历史默认）或 `_clamp_unit`（= `LATENT_CODE_BOUNDS`）。因此：声明 `True`（数字蚂蚁 evidence profile）时四条 lane 全部落在 `LATENT_CODE_BOUNDS` 上；保持历史默认 `False` 时两条 synthetic lane 的边界不一致，**这一不对称本身就是精确回滚基线**，不是新缺陷。把 torch synthetic 也接到 `resolve_latent_code_bounds` 是错误修法：默认下它会把该 lane 从冻结 plant 的值域上**移走**（改成 signed），实测使 818 行字节探针中 88 行改变，直接破坏通用默认的字节等价。本包只把该 lane 里写死的 `0.0, 1.0` 字面量换成 owner 常量 `LATENT_CODE_BOUNDS`（算术逐字节不变），以满足“值域只有一个 owner、禁止在第二个文件里写死边界”的约束。证据：`tests/test_temporal_contracts.py::test_torch_synthetic_lane_reconstructs_on_the_owner_latent_range`（差分锚定：两组令未 clamp 均值都落到地板以下但数值不同的 track weights 必须给出同一 surrogate；signed 地板下则不会）。
 - **ndim drift 语义**：`n_z>3` 的 serving path 只消费 Ndim encoder/switch/decoder 与正式 `track_weights` modulation；Internal-RL 对 track 的更新不得再同步写入仅供 legacy 3-D controller 使用的 `temporal_weights/switch_bias`。否则 `switch_bias=1-persistence` 的无效兼容字段跳变会被 rollback gate 当成真实 metacontroller drift，回滚同批 action-head 更新。dual-track aggregate 的 `track_parameters` 必须发布两个 owner 的正式 track weights（shared 取两 owner 均值），禁止用逐拍 `latent_mean` 冒充参数；state variation 与 parameter drift 必须隔离。legacy `n_z<=3` 的 alignment 行为保持不变。
@@ -203,6 +204,52 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-27: 给初始先验加界，解除包络强制的最后一个阻塞项，数字蚂蚁翻成 `True`
+  （收敛包 envelope-pristine-init）。缺陷：`validate_causal_action_head_magnitudes`
+  的立论是"拒绝 owner 更新路径永远产生不出来的映射"，但 owner 的**构造函数**恰好能产生
+  一个——`_initial_causal_action_head_parameters` 在 `rank < n_z` 时回落到无界高斯
+  `_random_mat(rank, n_z)`，与 `factor_absolute_limit=1.5` 毫无关联。实测这不是角落
+  情形：全可达网格（`n_z <= 64` × 全部 `rank` × 三轨，6048 个走随机回落的配置）里
+  **11.0%（667 个）越界**，最坏 `n_z=64, rank=1` 达 `3.965`；数字蚂蚁自己的 `n_z=16`
+  上 `self=1.9823`、`shared=1.6192` 越界。
+  **选定方向：修构造器，不给 `update_step == 0` 开豁免。** 理由是可判定的而非风格偏好：
+  `factor_absolute_limit` 被 owner 写入路径**无条件**施加（pure `update_causal_action_head`
+  的内联 clamp 与 `project_causal_action_head_update` 的 `clamp_absolute` 都不读
+  `update_step`），因此 owner 写入路径的像恒落在包络内，第一步也不例外——构造器是唯一
+  的例外，也就是唯一该修的一侧。反向若给初始先验放宽上界，validator 接受的集合就严格大于
+  owner 自身的像，而 `update_step` 只是 restore 快照里的普通字段，越权/损坏 archive 声明
+  `update_step=0` 即可装入任意 input factor：豁免在任何写法下都是宽度等于自身的旁路，
+  正是"跨状态固定转向截距"这条立论要挡的东西。
+  **修法**：新增 `_bounded_initial_input_factors`，仅在越界时按**单个全局正标量**
+  `limit / peak` 重标定，方向结构（相对幅度、符号、行列几何、秩）原样保留；已在包络内的
+  抽样**原样返回，不做任何浮点运算**。`_random_mat` 本身不动——encoder/decoder 权重
+  （seed 100/101/103/104）仍在消费它，逐字节不变。末尾保留一次 `clamp_absolute` 兜住
+  `peak * (limit/peak)` 可能高出上界 1 ulp 的情形（实测当前包络与种子下全网格一次未触发，
+  保留是因为该性质依赖具体 limit 与 seed，不是可继承的不变量）。
+  **差分证据（逐字节，非断言）**：全网格 6240 个配置的 input factor 按 `struct.pack("<d")`
+  取 sha256 前后比对——**5573 个逐字节不变，667 个改变，且改变的 667 个恰好等于原先越界的
+  667 个**；"改变了但原本合法"的计数为 0，"修完仍越界"的计数为 0。数字蚂蚁的 WORLD 轨
+  （1.0749）在不变的那一侧。附带效果：basis 被推离 tanh 饱和区（`n_z=64, rank=1` 最坏
+  pre-activation `7.552 -> 2.857`，`tanh 1.00000 -> 0.99342`，该坐标从零梯度死区回来）。
+  **`ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED` 由 `False` 翻成 `True`**；通用默认
+  `internal_rl_causal_action_head_envelope_enforced` 保持 `False`（opt-in 契约不变，
+  `tests/test_runtime_transition_replay.py` 仍从 permissive 路径装入 bias `0.35/0.4`）。
+  强制函数 `test_pristine_head_initializer_violates_...` 如期失败，已替换为
+  `test_pristine_head_initializer_respects_the_envelope_it_is_validated_against`
+  （全网格逐个过 validator）；另新增 `test_bounded_initial_input_factors_rescales_without_reshaping`
+  与 `test_envelope_has_no_update_step_dependent_exemption`（双向锚定 gate 对 `update_step` 盲）。
+  验证：`packages/vz-embodiment-ant/tests` 240 passed / 1 failed（原 19 个包络失败清零；
+  剩下的 `test_forbidden_list_covers_every_kernel_wheel_module` 缺
+  `volvence_zero.decision_workspace`，属并行 wave 既存失败）；`packages/vz-temporal/tests`
+  109 passed；`tests/test_runtime_transition_replay.py` + `tests/test_temporal_interface.py` +
+  `packages/vz-runtime/tests` 187 passed；`tests/contracts` 失败/错误集合 = 既存基线
+  （4 failed + 5 errors，名单逐条一致）；ruff 对改动文件的发现集合与改动前完全相同
+  （interface.py 20 条既存，无新增；另两个文件 0 条）。
+  负对照（三项，每项都实测会失败）：还原成无界 `_random_mat` →
+  `..._respects_the_envelope...` 失败；把重标定换成**逐元素 clip**（同样落在包络内，但破坏
+  方向结构）→ `..._rescales_without_reshaping` 失败，即该测试锚定的是重标定语义而不只是
+  "在界内"；给 validator 加 `update_step == 0` 豁免 →
+  `..._has_no_update_step_dependent_exemption` 失败。
 - 2026-07-27: 打通包络开关的生产可达路径，并把三处过度声明的不变量改写成真的
   （收敛包 W3-b-fix-follow-up，对抗评审残留项闭环）。五项：
   (1) **包络强制此前在生产中不可达**：`grep -rn envelope_enforced packages scripts tests`
@@ -220,6 +267,9 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   给初始化加界会改动通用默认算术，故数字蚂蚁 profile 显式声明 `False` 并原地记录该阻塞，
   由 `test_pristine_head_initializer_violates_the_envelope_it_is_validated_against` 作强制
   函数（阻塞一修该测试即失败，迫使同批翻成 `True`）。
+  〔后续：该阻塞已由 2026-07-27「给初始先验加界」收敛包解除，强制函数如期失败并被替换成
+  `test_pristine_head_initializer_respects_the_envelope_it_is_validated_against`，蚂蚁 profile
+  已翻成 `True`。见本日志首条。〕
   (2) **后一次调用会静默清掉前一次声明**：`set_causal_action_head(..., envelope_enforced)`
   把 `False` 默认值无条件写进 store，于是
   `MetacontrollerParameterStore(causal_action_head_envelope_enforced=True)` 会被任何一次
@@ -267,6 +317,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   `0.01 / 0.05 / 0.02` 不再增长），与原记录一致。
   **未收敛（本包不改，已单列，两项）**：(a) 上述 pristine head 初始化越界，导致包络强制在任何
   域都还打不开——这是本包唯一没有完全闭合的评审项（配置跳已落地并有测试，声明那一步被挡）。
+  〔已由 2026-07-27「给初始先验加界」收敛包关闭，见本日志首条。〕
   (b) `_clamp` 对非有限值做静默 laundering——实测
   `_clamp(nan) = _clamp(inf) = 1.0`、`_clamp(-inf) = -1.0`（`nan < 1.0` 与 `nan > -1.0`
   均为 False，两个界各自保留自身操作数）。一个 NaN 的 `EnvironmentMeasurement.action_payoff`

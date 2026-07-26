@@ -2684,11 +2684,62 @@ def _init_causal_action_heads(
     }
 
 
+def _bounded_initial_input_factors(
+    *,
+    rank: int,
+    n_z: int,
+    seed: int,
+    absolute_limit: float,
+) -> tuple[tuple[float, ...], ...]:
+    """低秩初始 basis 的随机抽样，按包络重标定回冻结区间。
+
+    ``_random_mat`` 是通用默认（encoder/decoder 权重也在用它，见 seed
+    100/101/103/104），本函数**不动它**：重标定只发生在 action-head 这一条
+    初始化路径上，因此其它消费者逐字节不变。
+
+    为什么是"把初始先验拉回包络"而不是"给包络开一个初始先验豁免"：
+    ``factor_absolute_limit`` 被 owner 写入路径**无条件**施加——
+    ``update_causal_action_head`` 的内联 clamp 与
+    ``project_causal_action_head_update`` 的 ``clamp_absolute``（该函数不变量 1）
+    都不看 ``update_step``。也就是说 owner 写入路径的像**恒**落在包络内，第一步
+    也不例外。若给 ``update_step == 0`` 放宽上界，validator 接受的集合就严格大于
+    owner 自己的像，而 ``update_step`` 是 restore 快照里的一个普通字段——损坏 /
+    越权 archive 只要声明 ``update_step=0`` 就能装入任意 input factor，正是包络
+    存在的理由（跨状态固定转向）被绕开的那条路。所以豁免在任何写法下都是被削弱
+    的门，构造器才是要修的一侧。
+
+    重标定用**全局正标量**，不是逐元素 clip：随机抽样的方向结构（相对幅度、
+    符号、行列几何、秩）原样保留，只有整体尺度被压进包络。已经在包络内的抽样
+    直接原样返回（不做任何浮点运算），因此那些配置逐字节不变。
+    """
+
+    draw = _random_mat(rank, n_z, seed=seed)
+    peak = max((abs(value) for row in draw for value in row), default=0.0)
+    if peak <= absolute_limit:
+        return draw
+    scale = absolute_limit / peak
+    # 末尾 clamp 不是新的松弛，而是与 owner 写入路径同一个 ``clamp_absolute``：
+    # ``peak * (absolute_limit / peak)`` 按 binary64 求值可以落在上界之上 1 ulp，
+    # 那会让重标定后的矩阵仍被 validator 拒绝。实测：在当前冻结包络与固定 seed
+    # 下，n_z<=64 的全部 (rank, n_z, track) 网格上这个 clamp 一次都没有生效；保留
+    # 它是因为该性质依赖于具体的 limit 与 seed，不是可以被继承的不变量。
+    return tuple(
+        tuple(
+            max(-absolute_limit, min(absolute_limit, value * scale))
+            for value in row
+        )
+        for row in draw
+    )
+
+
 def _initial_causal_action_head_parameters(
     *,
     n_z: int,
     track: Track,
     rank: int,
+    envelope: CausalActionHeadUpdateEnvelope = (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+    ),
 ) -> CausalZActionHeadParameters:
     track_index = (Track.WORLD, Track.SELF, Track.SHARED).index(track)
     input_factors = (
@@ -2700,10 +2751,11 @@ def _initial_causal_action_head_parameters(
             for row_index in range(n_z)
         )
         if rank == n_z
-        else _random_mat(
-            rank,
-            n_z,
+        else _bounded_initial_input_factors(
+            rank=rank,
+            n_z=n_z,
             seed=211 + track_index,
+            absolute_limit=envelope.factor_absolute_limit,
         )
     )
     return CausalZActionHeadParameters(
