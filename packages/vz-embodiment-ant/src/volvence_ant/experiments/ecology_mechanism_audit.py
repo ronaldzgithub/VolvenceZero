@@ -20,6 +20,24 @@ means, and every one of them was missing from the v1/v2 audit:
 * every owner published in ``learning_owner_fingerprints`` is compared **per
   tick**, not endpoint-to-endpoint, and anything outside the declared
   allow-list blocks.
+
+Backend evidence is split into two separately named gates.  Fusing them made
+the admissible band ``0 < delta <= 1e-3``: a lane had to DIFFER from the pure
+reference to count as evaluated, so a torch lane that ran correctly and agreed
+exactly was reported as non-evaluation and blocked.  Now
+``backend_lane_coverage`` asks "did this lane's declared backends execute?" and
+answers it only from owner-published execution evidence, while
+``backend_parity`` asks "do the measured lanes agree on final code, action
+distribution and turn?" and lets exact agreement pass.  The parity probe also
+carries a frozen number of optimization ticks, because
+``temporal_ssl_backend`` / ``internal_rl_backend`` do no work outside an
+optimization cycle and a single no-optimize probe step could never observe
+them.
+
+Requirements this audit knowingly does not meet are published in every
+artifact as ``ECOLOGY_AUDIT_DECLARED_GAPS`` rather than living in a comment,
+and every surface that is recorded but gates nothing is declared in
+``EcologyMechanismAuditReport.diagnostic_surfaces``.
 """
 
 from __future__ import annotations
@@ -1639,27 +1657,37 @@ async def _backend_parity(
             lane=lane,
             execution=execution,
         )
+        # A lane that ran on wiring other than the one it declares did not
+        # measure the lane it claims to, so its numbers are published as "no
+        # measurement" rather than as a parity result. ``None`` keeps the
+        # invariant "a delta is None exactly when the lane was not measured",
+        # and keeps a non-standard NaN token out of the canonical artifact.
+        measured = not not_measured_reason
         lanes.append(
             EcologyBackendParityLane(
                 lane=lane.value,
-                measured=not not_measured_reason,
+                measured=measured,
                 covered=not not_covered_reason,
                 not_measured_reason=not_measured_reason,
                 not_covered_reason=not_covered_reason,
                 declared_active_backends=declared,
-                max_code_delta=code_delta,
-                max_turn_delta=turn_delta,
-                max_step_delta=step_delta,
-                max_action_head_residual_delta=residual_delta,
-                max_action_distribution_delta=distribution_delta,
-                abstract_actions_agree=actions_agree,
+                max_code_delta=code_delta if measured else None,
+                max_turn_delta=turn_delta if measured else None,
+                max_step_delta=step_delta if measured else None,
+                max_action_head_residual_delta=(
+                    residual_delta if measured else None
+                ),
+                max_action_distribution_delta=(
+                    distribution_delta if measured else None
+                ),
+                abstract_actions_agree=measured and actions_agree,
                 within_tolerance=(
-                    not not_measured_reason
+                    measured
                     and actions_agree
                     and worst <= config.backend_parity_tolerance
                 ),
                 observed_backend_wiring=observed_wiring,
-                distinguishable_from_reference=worst > 0.0,
+                distinguishable_from_reference=measured and worst > 0.0,
                 backend_execution=execution,
             )
         )

@@ -36,6 +36,39 @@ ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS = ((0, 1),)
 # head is the only learned steering writer; the base keeps the speed/common
 # mode and exploration noise still proposes turns.
 ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING = True
+# Archive-side enforcement of the frozen action-head envelope. This domain is
+# the intended first adopter: it is the only one with an ACTIVE causal action
+# head, and docs/specs/digital-ant-embodiment.md freezes the very bounds the
+# validation checks. It is nevertheless declared False, and that is a MEASURED
+# deferral, not an oversight.
+#
+# Blocker (temporal owner, not this package): the store's own pristine head
+# initializer produces input factors outside the envelope it would then be
+# validated against. `_initial_causal_action_head_parameters` falls back to
+# `_random_mat(rank, n_z)` -- an unbounded Gaussian with scale 1/sqrt(rank) --
+# whenever rank < n_z, and nothing ties that draw to
+# `factor_absolute_limit=1.5`. The seeds are fixed, so the violation is
+# deterministic, and at this domain's own n_z=16:
+#
+#   world  rank=4 update_step=0 max|input_factor|=1.0749  ok
+#   self   rank=4 update_step=0 max|input_factor|=1.9823  VIOLATES
+#   shared rank=4 update_step=0 max|input_factor|=1.6192  VIOLATES
+#
+# `internal_rl_causal_action_head_rank` configures only the ONE track passed to
+# `set_causal_action_head`, so the untouched SELF/SHARED heads keep the random
+# low-rank draw while `restore_parameter_snapshot` validates all three. Turning
+# enforcement on therefore makes the FIRST checkpoint restore raise on a head
+# the owner itself just created -- measured: 19 tests in this package fail,
+# every one of them on `validate_causal_action_head_magnitudes` rejecting an
+# `update_step=0` head whose output factors and bias are all zero (i.e. a head
+# with exactly zero live steering authority).
+#
+# Narrowing the validator to let that through would weaken the gate, and
+# bounding the initializer changes the generic default's arithmetic; both are
+# their own convergence package. Flip this to True in the same change that
+# closes it -- `test_digital_ant_profile_defers_archive_envelope_enforcement`
+# fails the moment the blocker is gone, so the deferral cannot rot.
+ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED = False
 # Frozen embodiment reflection: left/right receptors swap, oriented
 # pseudoscalars (gradient, egocentric sine, prior turn) change sign. The
 # temporal owner consumes this transform without learning or reconstructing
@@ -129,6 +162,9 @@ def ant_runtime_replay_rollout_config(
         ),
         internal_rl_causal_action_head_input_mirror_signs=(
             input_mirror[1]
+        ),
+        internal_rl_causal_action_head_envelope_enforced=(
+            ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED
         ),
         internal_rl_runtime_modulation_strength=(
             ANT_RUNTIME_MODULATION_STRENGTH
