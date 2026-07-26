@@ -845,3 +845,185 @@ def test_joint_loop_no_optimize_reports_but_does_not_persist_rl_update() -> None
         disabled_before.self_policy_checkpoint.policy_optimization_fingerprint
         == disabled_after.self_policy_checkpoint.policy_optimization_fingerprint
     )
+
+
+# ---------------------------------------------------------------------------
+# 5. Exclusive steering: the head is the only learned contrast writer
+# ---------------------------------------------------------------------------
+
+
+def test_project_base_code_off_contrast_keeps_common_mode_only() -> None:
+    from volvence_zero.temporal.causal_action_projection import (
+        project_base_code_off_contrast,
+        project_causal_action_head_vector,
+    )
+
+    values = (0.8, 0.2, 0.5, 0.9)
+    base = project_base_code_off_contrast(values, contrast_pairs=((0, 1),))
+    head = project_causal_action_head_vector(values, contrast_pairs=((0, 1),))
+
+    assert base == pytest.approx((0.5, 0.5, 0.5, 0.9))
+    # Complementary decomposition: base common mode + head contrast == input.
+    assert tuple(
+        base_value + head_value
+        for base_value, head_value in zip(base[:2], head[:2], strict=True)
+    ) == pytest.approx(values[:2])
+
+
+def test_set_causal_action_head_exclusive_steering_validation() -> None:
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    with pytest.raises(ValueError, match="contrast_pairs"):
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=Track.WORLD,
+            strength=1.0,
+            exclusive_steering=True,
+        )
+    with pytest.raises(ValueError, match="ACTIVE"):
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.SHADOW,
+            track=Track.WORLD,
+            strength=1.0,
+            contrast_pairs=((0, 1),),
+            exclusive_steering=True,
+        )
+    policy.set_causal_action_head(
+        wiring_level=WiringLevel.ACTIVE,
+        track=Track.WORLD,
+        strength=1.0,
+        contrast_pairs=((0, 1),),
+        exclusive_steering=True,
+    )
+    assert policy.causal_action_head_exclusive_steering is True
+
+
+def test_exclusive_steering_changes_only_contrast_dims_of_live_code() -> None:
+    """Live forward: projection touches the pair dims and nothing else."""
+
+    snapshot = _trace_step_snapshot(_trace())
+
+    def first_code(exclusive: bool) -> tuple[float, ...]:
+        policy = FullLearnedTemporalPolicy(
+            parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+        )
+        policy.set_runtime_track_modulation(0.3)
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=Track.WORLD,
+            strength=1.0,
+            effective_dims=(0, 1, 2),
+            contrast_pairs=((0, 1),),
+            exclusive_steering=exclusive,
+        )
+        return _first_code(policy, snapshot)
+
+    baseline = first_code(False)
+    projected = first_code(True)
+
+    assert projected[2:] == pytest.approx(baseline[2:])
+    # The cold head residual is exactly zero, so any change on the pair dims
+    # comes from removing the deterministic base contrast.
+    assert projected[:2] != pytest.approx(baseline[:2])
+
+
+def test_runtime_replay_distribution_projects_base_mean_before_head() -> None:
+    from volvence_zero.internal_rl.sandbox import (
+        runtime_replay_policy_distribution,
+    )
+
+    n = 4
+    kwargs = dict(
+        base_mean=(0.9, 0.1, 0.4, 0.6),
+        base_std=(0.1, 0.1, 0.1, 0.1),
+        previous_code=(0.0, 0.0, 0.0, 0.0),
+        beta_t=1.0,
+        track_weights=tuple(1.0 / n for _ in range(n)),
+        other_track_sum=tuple(2.0 / n for _ in range(n)),
+        modulation_strength=0.0,
+        action_head_residual=(0.2, -0.2, 0.0, 0.0),
+    )
+    plain_mean, plain_std = runtime_replay_policy_distribution(**kwargs)
+    exclusive_mean, exclusive_std = runtime_replay_policy_distribution(
+        **kwargs,
+        exclusive_contrast_pairs=((0, 1),),
+    )
+
+    assert plain_mean == pytest.approx((1.0, -0.1, 0.4, 0.6))
+    # Base pair mean (0.9, 0.1) collapses to its common mode 0.5; the head
+    # residual is then the only contrast source: (0.5 + 0.2, 0.5 - 0.2).
+    assert exclusive_mean == pytest.approx((0.7, 0.3, 0.4, 0.6))
+    assert exclusive_std == pytest.approx(plain_std)
+
+
+def test_exclusive_steering_gate_cannot_manufacture_contrast() -> None:
+    """A per-dim beta gate must not re-create contrast the projection removed.
+
+    With a zero-parameter head the contrast axis must stay exactly zero: the
+    blend ``gate_i * candidate_i + (1 - gate_i) * previous_i`` otherwise leaks
+    ``(gate_0 - gate_1) * (candidate - previous)`` onto the pair.
+    """
+
+    snapshot = _trace_step_snapshot(_trace())
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    policy.set_runtime_track_modulation(0.3)
+    policy.set_causal_action_head(
+        wiring_level=WiringLevel.ACTIVE,
+        track=Track.WORLD,
+        strength=1.0,
+        effective_dims=(0, 1, 2),
+        contrast_pairs=((0, 1),),
+        exclusive_steering=True,
+    )
+    head = policy.parameter_store.causal_action_head_parameters(
+        track=Track.WORLD
+    )
+    assert all(value == 0.0 for row in head.output_factors for value in row)
+    assert all(value == 0.0 for value in head.bias)
+
+    # previous_snapshot=None keeps the owner-local previous code, so the blend
+    # really runs across steps.
+    for _ in range(4):
+        code = policy.step(
+            substrate_snapshot=snapshot, previous_snapshot=None
+        ).controller_state.code
+        assert code[0] == pytest.approx(code[1], abs=1e-12)
+
+
+def test_causal_z_policy_exclusive_steering_requires_active_head() -> None:
+    from volvence_zero.internal_rl.sandbox import CausalZPolicy
+
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    with pytest.raises(ValueError, match="ACTIVE"):
+        CausalZPolicy(
+            parameter_store=store,
+            causal_action_head_wiring=WiringLevel.DISABLED,
+            causal_action_head_contrast_pairs=((0, 1),),
+            causal_action_head_exclusive_steering=True,
+        )
+    policy = CausalZPolicy(
+        parameter_store=store,
+        causal_action_head_wiring=WiringLevel.ACTIVE,
+        causal_action_head_strength=1.0,
+        causal_action_head_contrast_pairs=((0, 1),),
+        causal_action_head_exclusive_steering=True,
+    )
+    hidden = tuple(0.3 for _ in range(_NDIM))
+    surface = tuple(0.6 for _ in range(_NDIM))
+    previous = tuple(0.1 for _ in range(_NDIM))
+    weights = tuple(
+        (0.9 if index == 0 else 0.1) for index in range(_NDIM)
+    )
+    mean = policy._policy_mean(
+        track=Track.WORLD,
+        hidden_state=hidden,
+        surface=surface,
+        previous_action=previous,
+        weights=weights,
+    )
+    # Cold head residual is zero and the skewed weights only touched the
+    # pair dims through the base -- exclusive steering must equalize them.
+    assert mean[0] == pytest.approx(mean[1])

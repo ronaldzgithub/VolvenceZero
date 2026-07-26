@@ -89,6 +89,7 @@ def torch_causal_ppo_update(
     causal_action_head_contrast_pairs: (
         tuple[tuple[int, int], ...] | None
     ) = None,
+    causal_action_head_exclusive_steering: bool = False,
 ) -> TorchPPOReport:
     """One real-autograd PPO update over a live ZTransition batch.
 
@@ -150,6 +151,10 @@ def torch_causal_ppo_update(
         n_z=n_z,
         effective_dims=effective_dims,
     )
+    if causal_action_head_exclusive_steering and not contrast_pairs:
+        raise ValueError(
+            "exclusive steering requires non-empty contrast_pairs"
+        )
 
     dtype = torch.float64
     effective_dim_mask = torch.tensor(
@@ -328,6 +333,19 @@ def torch_causal_ppo_update(
             columns[right] = -contrast
         return torch.stack(columns, dim=1)
 
+    def base_off_contrast(candidate: Any) -> Any:
+        # In-graph mirror of the serving-side exclusive-steering projection:
+        # the deterministic base mean keeps only each pair's common mode, so
+        # autograd routes all contrast-axis credit to the head parameters.
+        if not causal_action_head_exclusive_steering:
+            return candidate
+        columns = [candidate[:, index] for index in range(n_z)]
+        for left, right in contrast_pairs:
+            common = 0.5 * (columns[left] + columns[right])
+            columns[left] = common
+            columns[right] = common
+        return torch.stack(columns, dim=1)
+
     def policy_mean(weights: Any) -> Any:
         if runtime_replay:
             if (
@@ -346,10 +364,12 @@ def torch_causal_ppo_update(
                 aggregate_weights * n_z - 1.0
             )
             gain = torch.clamp(gain, 0.5, 1.5)
-            modulated_mean = torch.clamp(
-                runtime_base_mean * gain,
-                -1.0,
-                1.0,
+            modulated_mean = base_off_contrast(
+                torch.clamp(
+                    runtime_base_mean * gain,
+                    -1.0,
+                    1.0,
+                )
             )
             if causal_action_head_enabled:
                 modulated_mean = torch.clamp(
@@ -365,7 +385,7 @@ def torch_causal_ppo_update(
             )
         if runtime_track_modulation_strength <= 0.0:
             # Byte-compatible historical rollback lane.
-            candidate = weights.unsqueeze(0) * obs
+            candidate = base_off_contrast(weights.unsqueeze(0) * obs)
             if causal_action_head_enabled:
                 candidate = candidate + action_head_residual()
             return torch.clamp(candidate, 0.0, 1.0)
@@ -402,7 +422,7 @@ def torch_causal_ppo_update(
             mean_weights * n_z - 1.0
         )
         gain = torch.clamp(gain, 0.5, 1.5)
-        candidate = base_candidate * gain.unsqueeze(0)
+        candidate = base_off_contrast(base_candidate * gain.unsqueeze(0))
         if causal_action_head_enabled:
             candidate = candidate + action_head_residual()
         return torch.clamp(candidate, 0.0, 1.0)

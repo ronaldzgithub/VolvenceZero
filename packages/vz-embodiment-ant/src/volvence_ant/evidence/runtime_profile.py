@@ -24,6 +24,15 @@ ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS = (0, 1, 2)
 # Steering consumes only the opponent-coded z[1] - z[0] axis. Its orthogonal
 # common mode is actuator-null and must not absorb policy credit.
 ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS = ((0, 1),)
+# Ownership transfer measured in v22/v22r: with the base policy free to write
+# the contrast axis, credit competition always favored its degenerate
+# non-directional solution (baseline turn amplified 0.083 -> ~0.147 rad under
+# both fixed and randomized forced-approach geometry) while the head's
+# food->turn authority stayed pinned at ~1e-3 and never grew. Exclusive
+# steering removes the deterministic base contrast so the state-conditioned
+# head is the only learned steering writer; the base keeps the speed/common
+# mode and exploration noise still proposes turns.
+ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING = True
 
 
 def ant_runtime_replay_rollout_config(
@@ -68,6 +77,9 @@ def ant_runtime_replay_rollout_config(
         internal_rl_causal_action_head_contrast_pairs=(
             ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS
         ),
+        internal_rl_causal_action_head_exclusive_steering=(
+            ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING
+        ),
         internal_rl_runtime_modulation_strength=(
             ANT_RUNTIME_MODULATION_STRENGTH
         ),
@@ -85,6 +97,7 @@ def ant_runtime_replay_rollout_config(
 __all__ = [
     "ANT_CAUSAL_ACTION_HEAD_STRENGTH",
     "ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS",
+    "ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING",
     "ANT_CAUSAL_ACTION_HEAD_RANK",
     "ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS",
     "ANT_RUNTIME_EXPLORATION_STRENGTH",

@@ -51,6 +51,7 @@ from volvence_zero.temporal.metacontroller_components import (
 )
 from volvence_zero.temporal.causal_action_projection import (
     normalize_causal_action_head_contrast_pairs,
+    project_base_code_off_contrast,
     project_causal_action_head_vector,
 )
 from volvence_zero.temporal.m3_optimizer import M3OptimizerState
@@ -2928,6 +2929,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._causal_action_head_contrast_pairs: tuple[
             tuple[int, int], ...
         ] = ()
+        self._causal_action_head_exclusive_steering = False
         self._latest_causal_action_head_state = _nz_zeros(n_z)
         self._latest_causal_action_head_residual = _nz_zeros(n_z)
 
@@ -3036,6 +3038,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     ) -> tuple[tuple[int, int], ...]:
         return self._causal_action_head_contrast_pairs
 
+    @property
+    def causal_action_head_exclusive_steering(self) -> bool:
+        return self._causal_action_head_exclusive_steering
+
     def set_causal_action_head(
         self,
         *,
@@ -3045,6 +3051,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         rank: int | None = None,
         effective_dims: tuple[int, ...] | None = None,
         contrast_pairs: tuple[tuple[int, int], ...] | None = None,
+        exclusive_steering: bool = False,
     ) -> None:
         if not 0.0 <= strength <= 1.0:
             raise ValueError(
@@ -3088,6 +3095,21 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 effective_dims=effective_dims,
             )
         )
+        if exclusive_steering:
+            # Exclusive steering transfers ownership of the opponent-coded
+            # actuator axes to the head. Without contrast pairs there is no
+            # axis to transfer; without an ACTIVE head nothing can steer the
+            # plant at all -- both are contract violations, not fallbacks.
+            if not self._causal_action_head_contrast_pairs:
+                raise ValueError(
+                    "exclusive steering requires non-empty contrast_pairs"
+                )
+            if wiring_level is not WiringLevel.ACTIVE:
+                raise ValueError(
+                    "exclusive steering requires an ACTIVE causal action "
+                    f"head, got wiring_level={wiring_level!r}"
+                )
+        self._causal_action_head_exclusive_steering = bool(exclusive_steering)
         self._latest_causal_action_head_state = _nz_zeros(
             self._parameter_store.n_z
         )
@@ -3745,6 +3767,45 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             z_candidate = self._parameter_store.runtime_track_modulated_code(
                 z_candidate, strength=self._runtime_track_modulation
             )
+        if (
+            latent_override is None
+            and self._causal_action_head_exclusive_steering
+        ):
+            # Exclusive steering: remove the deterministic base contrast so
+            # the state-conditioned head is the only learned writer of the
+            # opponent-coded actuator axes (the base keeps the common mode /
+            # speed). The correction is computed from the modulated
+            # deterministic policy mean, NOT from the sampled candidate:
+            # exploration noise must keep proposing turns on the contrast
+            # axes, otherwise replay sees zero (action - mean) signal there
+            # and the head can never earn steering credit. Causal overrides
+            # skip this block -- the sandbox already builds them from the
+            # projected policy mean.
+            if self._runtime_exploration_strength > 0.0:
+                deterministic_candidate = tuple(
+                    _clamp(value) for value in runtime_posterior_mean
+                )
+                if self._runtime_track_modulation > 0.0:
+                    deterministic_candidate = (
+                        self._parameter_store.runtime_track_modulated_code(
+                            deterministic_candidate,
+                            strength=self._runtime_track_modulation,
+                        )
+                    )
+            else:
+                deterministic_candidate = z_candidate
+            projected_candidate = project_base_code_off_contrast(
+                deterministic_candidate,
+                contrast_pairs=self._causal_action_head_contrast_pairs,
+            )
+            z_candidate = tuple(
+                _clamp(
+                    value
+                    + projected_candidate[index]
+                    - deterministic_candidate[index]
+                )
+                for index, value in enumerate(z_candidate)
+            )
         self._latest_causal_action_head_residual = _nz_zeros(n_z)
         if (
             latent_override is None
@@ -3796,6 +3857,19 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             effective_scalar_beta = scalar_beta
             is_switching_scalar = scalar_beta >= self._parameter_store.beta_threshold
             persistence_window = 0.0 if is_switching_scalar else float(previous_steps + 1)
+        if self._causal_action_head_exclusive_steering:
+            # An opponent-coded pair is ONE actuator axis and must switch as a
+            # unit. A per-dimension gate re-creates contrast out of nothing:
+            # with a fully projected candidate and a symmetric previous code,
+            # the blend still yields (gate_i - gate_j) * (candidate - previous)
+            # on the pair. Measured on a zero-parameter head, that leak was
+            # +-0.005 rad -- the same magnitude as the learned food response it
+            # was masking. Sharing the pair mean keeps the head the only writer
+            # of the contrast axis through the gate as well.
+            effective_gate = project_base_code_off_contrast(
+                effective_gate,
+                contrast_pairs=self._causal_action_head_contrast_pairs,
+            )
         latent_code = tuple(
             _clamp(effective_gate[i] * z_candidate[i] + (1.0 - effective_gate[i]) * previous_code[i])
             for i in range(n_z)

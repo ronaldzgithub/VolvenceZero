@@ -42,6 +42,7 @@ from volvence_zero.temporal.metacontroller_components import (
 )
 from volvence_zero.temporal.causal_action_projection import (
     normalize_causal_action_head_contrast_pairs,
+    project_base_code_off_contrast,
     project_causal_action_head_vector,
 )
 
@@ -276,13 +277,17 @@ def runtime_replay_policy_distribution(
     modulation_strength: float,
     action_head_residual: tuple[float, ...] = (),
     posterior_sample_scale: float = 0.5,
+    exclusive_contrast_pairs: tuple[tuple[int, int], ...] = (),
 ) -> tuple[tuple[float, ...], tuple[float, ...]]:
     """Reconstruct the ndim runtime behavior distribution.
 
     The posterior is the stochastic source used by the real runtime forward.
     Track modulation is applied before the captured beta gate blends the
     candidate with the previous code.  Pure and torch PPO mirror this formula;
-    synthetic transitions never enter it.
+    synthetic transitions never enter it.  ``exclusive_contrast_pairs``
+    mirrors the serving-side exclusive-steering projection: the deterministic
+    base mean loses its antisymmetric part before the head residual is added,
+    so replay credit on the contrast axes can only flow to the head.
     """
 
     n = len(base_mean)
@@ -345,6 +350,11 @@ def runtime_replay_policy_distribution(
         _clamp(base_mean[index] * gains[index])
         for index in range(n)
     )
+    if exclusive_contrast_pairs:
+        modulated_mean = project_base_code_off_contrast(
+            modulated_mean,
+            contrast_pairs=exclusive_contrast_pairs,
+        )
     candidate_mean = tuple(
         _clamp(
             modulated_mean[index]
@@ -463,6 +473,7 @@ class CausalZPolicy:
         causal_action_head_contrast_pairs: (
             tuple[tuple[int, int], ...] | None
         ) = None,
+        causal_action_head_exclusive_steering: bool = False,
     ) -> None:
         self._parameter_store = parameter_store
         self._rl_backend = rl_backend
@@ -519,6 +530,28 @@ class CausalZPolicy:
                 effective_dims=self._causal_action_head_effective_dims,
             )
         )
+        if causal_action_head_exclusive_steering:
+            if not self._causal_action_head_contrast_pairs:
+                raise ValueError(
+                    "exclusive steering requires non-empty contrast_pairs"
+                )
+            if causal_action_head_wiring is not WiringLevel.ACTIVE:
+                raise ValueError(
+                    "exclusive steering requires an ACTIVE causal action "
+                    f"head, got wiring_level={causal_action_head_wiring!r}"
+                )
+        self._causal_action_head_exclusive_steering = bool(
+            causal_action_head_exclusive_steering
+        )
+        self._exclusive_contrast_dims = frozenset(
+            index
+            for pair in (
+                self._causal_action_head_contrast_pairs
+                if causal_action_head_exclusive_steering
+                else ()
+            )
+            for index in pair
+        )
         self._value_weights: dict[Track, tuple[float, ...]] = {
             track: tuple(weight * 0.8 for weight in parameter_store.track_weights[track])
             for track in (Track.WORLD, Track.SELF, Track.SHARED)
@@ -565,6 +598,10 @@ class CausalZPolicy:
         self,
     ) -> tuple[tuple[int, int], ...]:
         return self._causal_action_head_contrast_pairs
+
+    @property
+    def causal_action_head_exclusive_steering(self) -> bool:
+        return self._causal_action_head_exclusive_steering
 
     @property
     def n_z(self) -> int:
@@ -834,6 +871,14 @@ class CausalZPolicy:
                 )
                 for index in range(len(hidden_state))
             )
+        if self._causal_action_head_exclusive_steering:
+            # Mean/std are separated here, so projecting the full mean is
+            # exact: sampled noise keeps the contrast axes explorable while
+            # the deterministic base loses them to the head.
+            candidate = project_base_code_off_contrast(
+                candidate,
+                contrast_pairs=self._causal_action_head_contrast_pairs,
+            )
         if (
             self._causal_action_head_wiring is WiringLevel.ACTIVE
         ):
@@ -1017,6 +1062,11 @@ class CausalZPolicy:
                             * dims
                             / 3.0
                         )
+                    if index in self._exclusive_contrast_dims:
+                        # Exclusive steering: the pair mean halves this
+                        # weight's influence on its own dim; the antisymmetric
+                        # part (steering credit) no longer reaches the base.
+                        policy_sensitivity *= 0.5
                 elif self._runtime_track_modulation_strength > 0.0:
                     base_candidate = _clamp(
                         transition.hidden_state[index] * 0.50
@@ -1074,6 +1124,11 @@ class CausalZPolicy:
                     ),
                     posterior_sample_scale=(
                         transition.runtime_posterior_sample_scale
+                    ),
+                    exclusive_contrast_pairs=(
+                        self._causal_action_head_contrast_pairs
+                        if self._causal_action_head_exclusive_steering
+                        else ()
                     ),
                 )
             elif transition.transition_source == "synthetic":
@@ -1655,6 +1710,9 @@ class CausalZPolicy:
             causal_action_head_contrast_pairs=(
                 self._causal_action_head_contrast_pairs
             ),
+            causal_action_head_exclusive_steering=(
+                self._causal_action_head_exclusive_steering
+            ),
         )
         return {
             "backend": self._rl_backend.value,
@@ -1711,6 +1769,11 @@ class InternalRLSandbox:
             if isinstance(self._policy, FullLearnedTemporalPolicy)
             else None
         )
+        causal_action_head_exclusive_steering = (
+            self._policy.causal_action_head_exclusive_steering
+            if isinstance(self._policy, FullLearnedTemporalPolicy)
+            else False
+        )
         self._causal_policy = CausalZPolicy(
             parameter_store=self._policy.parameter_store,
             rl_backend=rl_backend,
@@ -1721,6 +1784,9 @@ class InternalRLSandbox:
             causal_action_head_effective_dims=causal_action_head_effective_dims,
             causal_action_head_contrast_pairs=(
                 causal_action_head_contrast_pairs
+            ),
+            causal_action_head_exclusive_steering=(
+                causal_action_head_exclusive_steering
             ),
         )
         self._env = env or InternalRLEnvironment()
@@ -1921,6 +1987,11 @@ class InternalRLSandbox:
             action_head_residual=action_head_residual,
             posterior_sample_scale=(
                 self._causal_policy.runtime_posterior_sample_scale
+            ),
+            exclusive_contrast_pairs=(
+                self._causal_policy.causal_action_head_contrast_pairs
+                if self._causal_policy.causal_action_head_exclusive_steering
+                else ()
             ),
         )
         observation_signature = _surface_signature(substrate_snapshot, n)

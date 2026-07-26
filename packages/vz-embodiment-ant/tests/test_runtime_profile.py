@@ -9,6 +9,7 @@ from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
 
 from volvence_ant.evidence import (
     ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS,
+    ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING,
     ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS,
     ANT_CAUSAL_ACTION_HEAD_RANK,
     ANT_CAUSAL_ACTION_HEAD_STRENGTH,
@@ -77,6 +78,11 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         == ANT_CAUSAL_ACTION_HEAD_STRENGTH
         == 1.0
     )
+    assert (
+        config.internal_rl_causal_action_head_exclusive_steering
+        is ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING
+        is True
+    )
     # A 24-turn ecology episode has 23 settled transitions.  The segment
     # must close before the final turn so a later scheduled step can optimize
     # it before the cross-episode checkpoint discards pending replay.
@@ -109,6 +115,11 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         session.runner.world_temporal_policy
         .causal_action_head_contrast_pairs
         == ((0, 1),)
+    )
+    assert (
+        session.runner.world_temporal_policy
+        .causal_action_head_exclusive_steering
+        is True
     )
     assert (
         session.runner.joint_loop._world_sandbox.causal_policy

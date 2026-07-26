@@ -215,6 +215,17 @@ async def test_ecology_step_publishes_owner_authored_diagnostics() -> None:
 
 
 async def test_paired_ecology_channels_reach_code_and_motor_output() -> None:
+    """Cold probes prove sensory reachability, not steering.
+
+    Under exclusive steering the state-conditioned head owns the actuator
+    contrast axis and its cold parameters are exactly zero, so a cold
+    controller emits zero turn by construction. Demanding cold
+    ``action_sensitive`` would assert that steering exists before any
+    training -- the opposite of the capability the curriculum must produce.
+    Turn sensitivity and direction are asserted on trained checkpoints by the
+    P1 ``paired_action_sensitivity`` / ``food_steering_alignment`` gates.
+    """
+
     probes = await run_ecology_action_probes(
         temporal_latent_dim=8,
         seed=9,
@@ -222,7 +233,8 @@ async def test_paired_ecology_channels_reach_code_and_motor_output() -> None:
 
     assert tuple(item.kind for item in probes) == tuple(EcologyProbeKind)
     assert all(item.input_reachable for item in probes)
-    assert all(item.action_sensitive for item in probes)
+    assert all(item.code_l1_delta > 0.0 for item in probes)
+    assert not any(item.action_sensitive for item in probes)
     by_kind = {item.kind: item for item in probes}
     assert by_kind[EcologyProbeKind.FOOD].target_aligned is (
         by_kind[EcologyProbeKind.FOOD].left_turn > 0.0

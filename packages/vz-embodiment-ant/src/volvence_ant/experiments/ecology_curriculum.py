@@ -44,7 +44,7 @@ from volvence_ant.runtime import (
 )
 
 
-ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v6"
+ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v7"
 ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY = 8192
 ECOLOGY_REQUIRED_GATE_NAMES = (
     "training_event_coverage",
@@ -241,6 +241,7 @@ class EcologyTrainingEpisodePlan:
     interleaved: bool
     forced_escape: bool
     forced_return: bool = False
+    forced_approach: bool = False
 
 
 @dataclass(frozen=True)
@@ -431,10 +432,11 @@ def _world(
     tier: EcologyTrainingTier,
     forced_escape: bool = False,
     forced_return: bool = False,
+    forced_approach: bool = False,
 ) -> ColonyWorld:
-    if forced_escape and forced_return:
+    if sum((forced_escape, forced_return, forced_approach)) > 1:
         raise ValueError(
-            "an ecology episode cannot force escape and return together"
+            "an ecology episode can force at most one start condition"
         )
     split_offset = {
         EcologyDataSplit.TRAIN: 17,
@@ -502,13 +504,63 @@ def _world(
                 heading=home_bearing - side * bearing_offset,
                 carrying_food=True,
             )
+    elif forced_approach:
+        # Food-steering pressure bootstrap. Near layouts alone cannot demand
+        # steering: the pickup disc (butter radius 1.1 around a point
+        # 0.95-1.35 from the nest) overlaps the nest, so undirected wandering
+        # is rewarded without any gradient following. Here each body spawns
+        # OUTSIDE the pickup disc with its heading rotated well past the food
+        # bearing: the scent gradient is clearly sensable, but a straight or
+        # drifting default trajectory diverges from the source, so the only
+        # reward path is an active turn toward the gradient. Like
+        # forced_return, this initializes STATE only -- no coordinates,
+        # target bearing or action labels leak downstream.
+        butters = tuple(
+            item for item in objects if isinstance(item, ButterSource)
+        )
+        if len(butters) != 1:
+            raise RuntimeError(
+                "forced approach scene requires exactly one butter source"
+            )
+        butter = butters[0]
+        # Randomized geometry: a FIXED spawn ring is solvable by one tuned
+        # constant-curvature orbit -- the first v22 run measured the base
+        # policy amplifying its same-direction baseline turn (0.083 -> 0.15
+        # rad) and harvesting the block with zero gradient following. With
+        # radius and angular offset drawn per body from the layout seed, no
+        # single curvature solves the ensemble; gradient steering solves
+        # every draw. The lower bounds keep the straight-path miss guarantee
+        # for every draw: closest approach >= 1.45*R*sin(0.4*pi) = 1.38*R
+        # stays outside the pickup disc of radius R.
+        rng = np.random.default_rng(seed + 5_000_011)
+        for body_id in range(config.n_ants):
+            angle = (
+                (body_id + 1) * 2.399963229728653
+                + seed * 0.017
+            )
+            spawn_radius = butter.radius * float(rng.uniform(1.45, 2.9))
+            bearing_offset = float(rng.uniform(0.4 * math.pi, 0.8 * math.pi))
+            # From the spawn point the butter lies at bearing angle + pi.
+            food_bearing = angle + math.pi
+            side = 1.0 if (seed + body_id) % 2 == 0 else -1.0
+            world.set_body_pose(
+                body_id=body_id,
+                x=butter.x + math.cos(angle) * spawn_radius,
+                y=butter.y + math.sin(angle) * spawn_radius,
+                heading=food_bearing + side * bearing_offset,
+            )
     return world
 
 
-def _synchronize_forced_return_navigators(
+def _synchronize_curriculum_navigators(
     runner: KernelColonyRunner,
 ) -> None:
-    """Initialize PI at a curriculum reset without leaking pose downstream."""
+    """Initialize PI at a curriculum reset without leaking pose downstream.
+
+    Required whenever a forced start condition (forced_return or
+    forced_approach) repositions bodies away from the nest: path integration
+    must agree with the true pose or the post-pickup homing leg is corrupted.
+    """
 
     for body_id, session in enumerate(runner.sessions):
         body = runner.world.body(body_id)
@@ -878,6 +930,7 @@ async def _run_training_episode(
             tier=plan.tier,
             forced_escape=plan.forced_escape,
             forced_return=plan.forced_return,
+            forced_approach=plan.forced_approach,
         ),
         base_config=_session_config(
             config=config,
@@ -891,8 +944,8 @@ async def _run_training_episode(
             segment_credit_enabled=segment_credit_enabled,
         ),
     )
-    if plan.forced_return:
-        _synchronize_forced_return_navigators(runner)
+    if plan.forced_return or plan.forced_approach:
+        _synchronize_curriculum_navigators(runner)
     runner.restore_learning_checkpoints(checkpoints)
     before = _policy_fingerprints(checkpoints)
     await runner.run(config.stage_rounds)
@@ -2123,7 +2176,13 @@ async def train_and_evaluate_ecology_checkpoint(
         include_runtime_replay=False,
     )
     # Causal reachability gate: refuse long training when food/obstacle/heat
-    # paired swaps cannot reach code or motor turn from the shared initial.
+    # paired swaps cannot reach code from the shared initial. Under exclusive
+    # steering the head is the only deterministic steering writer and its cold
+    # parameters are exactly zero, so cold action sensitivity is 0 BY DESIGN:
+    # turning is a capability the run must learn, not a precondition. The
+    # cold gate therefore checks input reachability only; the post-training
+    # required gates (paired_action_sensitivity, food_steering_alignment,
+    # carrying_home_action_alignment) keep the strict learned-steering truth.
     pretraining_probes = await run_ecology_action_probes(
         temporal_latent_dim=config.temporal_latent_dim,
         seed=config.seed + 700_003,
@@ -2132,11 +2191,7 @@ async def train_and_evaluate_ecology_checkpoint(
     failed_probes = tuple(
         item
         for item in pretraining_probes
-        if not (
-            item.input_reachable and item.action_sensitive
-            if item.kind is EcologyProbeKind.HOME
-            else _probe_requirement_met(item)
-        )
+        if not item.input_reachable
     )
     if failed_probes:
         detail = tuple(

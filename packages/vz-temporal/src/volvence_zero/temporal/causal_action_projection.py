@@ -70,7 +70,30 @@ def project_causal_action_head_vector(
     return tuple(projected)
 
 
+def project_base_code_off_contrast(
+    values: Sequence[float],
+    *,
+    contrast_pairs: tuple[tuple[int, int], ...],
+) -> tuple[float, ...]:
+    """Orthogonally remove the antisymmetric part of each opponent-coded pair.
+
+    Complement of :func:`project_causal_action_head_vector`: the head keeps
+    only the contrast, the base keeps only the common mode. Under exclusive
+    steering the temporal owner applies this to the deterministic base policy
+    mean so the state-conditioned head is the single learned writer of the
+    actuator contrast axes, while the base retains the common mode (speed).
+    """
+
+    projected = [float(value) for value in values]
+    for left, right in contrast_pairs:
+        common = 0.5 * (projected[left] + projected[right])
+        projected[left] = common
+        projected[right] = common
+    return tuple(projected)
+
+
 __all__ = [
     "normalize_causal_action_head_contrast_pairs",
+    "project_base_code_off_contrast",
     "project_causal_action_head_vector",
 ]

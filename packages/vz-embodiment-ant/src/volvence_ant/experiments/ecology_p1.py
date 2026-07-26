@@ -44,8 +44,8 @@ from volvence_ant.experiments.ecology_curriculum import (
 from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 
 
-ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v21"
-ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v16"
+ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v24"
+ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v20"
 ECOLOGY_P1_ARM_NAMES = (
     "learned",
     "no_optimize",
@@ -66,6 +66,7 @@ ECOLOGY_P1_GATE_NAMES = (
     "diagnostic_layout_solvability",
     "p0_action_sensitivity",
     "carrying_home_action_alignment",
+    "food_steering_alignment",
     "temporal_non_timeout_closure",
     "frozen_evaluation",
     "replay_lineage",
@@ -400,6 +401,9 @@ def _save_arm_progress(
                 "forced_return": (
                     last_episode_report.plan.forced_return
                 ),
+                "forced_approach": (
+                    last_episode_report.plan.forced_approach
+                ),
                 "pickups": last_episode_report.pickups,
                 "deliveries": last_episode_report.deliveries,
                 "heat_entries": last_episode_report.heat_entries,
@@ -565,9 +569,9 @@ def _curriculum_config(config: EcologyP1Config) -> EcologyCurriculumConfig:
 
 def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan, ...]:
     specs: list[
-        tuple[EcologyStage, EcologyTrainingTier, bool, bool]
+        tuple[EcologyStage, EcologyTrainingTier, bool, bool, bool]
     ] = [
-        (stage, EcologyTrainingTier.NEAR, forced_escape, False)
+        (stage, EcologyTrainingTier.NEAR, forced_escape, False, False)
         for stage, forced_escape in (
             (EcologyStage.BUTTER, False),
             (EcologyStage.BURNING_MATCH, True),
@@ -581,16 +585,34 @@ def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan
             EcologyTrainingTier.NEAR,
             False,
             True,
+            False,
+        )
+        for _ in range(config.layouts_per_tier)
+    )
+    # Food-steering pressure block: bodies spawn outside the pickup disc,
+    # heading rotated away from the butter, so the only reward path is an
+    # active turn toward the scent gradient. This is the counterpart of
+    # forced_return (homing) for the outbound leg; without it every near
+    # pickup is reachable by undirected wandering and food steering never
+    # receives training pressure (measured food->turn authority stayed ~0
+    # across v10-v21 while pickups looked healthy).
+    specs.extend(
+        (
+            EcologyStage.BUTTER,
+            EcologyTrainingTier.NEAR,
+            False,
+            False,
+            True,
         )
         for _ in range(config.layouts_per_tier)
     )
     specs.extend(
-        (EcologyStage.BUTTER, tier, False, False)
+        (EcologyStage.BUTTER, tier, False, False, False)
         for tier in (EcologyTrainingTier.MEDIUM, EcologyTrainingTier.FAR)
         for _ in range(config.layouts_per_tier)
     )
     specs.extend(
-        (stage, tier, forced_escape, False)
+        (stage, tier, forced_escape, False, False)
         for stage, tier, forced_escape in (
             (EcologyStage.BURNING_MATCH, EcologyTrainingTier.NEAR, True),
             (EcologyStage.COMPOSITE, EcologyTrainingTier.FAR, False),
@@ -608,12 +630,14 @@ def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan
             interleaved=False,
             forced_escape=forced_escape,
             forced_return=forced_return,
+            forced_approach=forced_approach,
         )
         for index, (
             stage,
             tier,
             forced_escape,
             forced_return,
+            forced_approach,
         ) in enumerate(specs)
     )
 
@@ -1406,6 +1430,52 @@ async def run_ecology_p1(
         ),
         threshold=(
             "every carrying-state probe changes action and turns toward home"
+        ),
+    ))
+    # Near-range food-steering honesty gate. Near pickups can be produced by a
+    # small exploration circle that sweeps over nearby food WITHOUT any learned
+    # food-gradient steering; that false positive has historically masked the
+    # absence of the exact capability medium/far require. This gate reads the
+    # already-computed absolute-direction probe truth (left food -> left turn,
+    # right food -> right turn) and never feeds learning.
+    food_probes = tuple(
+        probe
+        for body in final_action_probes
+        for probe in body.probes
+        if probe.kind is EcologyProbeKind.FOOD
+    )
+    required_food_bodies = max(
+        1, math.ceil(config.n_ants * config.body_success_ratio)
+    )
+    aligned_food_bodies = sum(
+        probe.input_reachable
+        and probe.action_sensitive
+        and probe.target_aligned
+        for probe in food_probes
+    )
+    gates.append(EcologyP1Gate(
+        name="food_steering_alignment",
+        passed=(
+            bool(food_probes)
+            and aligned_food_bodies >= required_food_bodies
+        ),
+        observed=(
+            f"aligned_bodies={aligned_food_bodies}/{len(food_probes)}, "
+            + repr(
+                tuple(
+                    (
+                        probe.left_turn,
+                        probe.right_turn,
+                        probe.target_aligned,
+                    )
+                    for probe in food_probes
+                )
+            )
+        ),
+        threshold=(
+            f">={required_food_bodies} bodies steer toward near food "
+            "(left food -> left turn, right food -> right turn); near "
+            "pickups alone do not prove this"
         ),
     ))
     learned_results = tuple(item for item in result_tuple if item.arm == "learned")

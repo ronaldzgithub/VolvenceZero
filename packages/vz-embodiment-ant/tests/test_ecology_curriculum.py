@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import math
+
+from volvence_ant.env.world_objects import ButterSource
 from volvence_ant.experiments.ecology_curriculum import (
     ECOLOGY_REQUIRED_GATE_NAMES,
     EcologyCurriculumConfig,
     EcologyDataSplit,
     EcologyStage,
     EcologyTrainingTier,
-    _synchronize_forced_return_navigators,
+    _synchronize_curriculum_navigators,
     _world,
     _session_config,
     train_and_evaluate_ecology_checkpoint,
@@ -47,7 +50,7 @@ def test_forced_return_curriculum_balances_state_without_action_labels() -> None
         ),
     )
 
-    _synchronize_forced_return_navigators(runner)
+    _synchronize_curriculum_navigators(runner)
 
     assert all(world.body(body_id).carrying_food for body_id in range(2))
     assert all(
@@ -59,6 +62,81 @@ def test_forced_return_curriculum_balances_state_without_action_labels() -> None
         for session in runner.sessions
     )
     assert home_sides[0] * home_sides[1] < 0.0
+
+
+def test_forced_approach_curriculum_demands_steering_without_action_labels() -> None:
+    config = EcologyCurriculumConfig(
+        n_ants=2,
+        temporal_latent_dim=4,
+        stage_rounds=1,
+        stage_episodes=1,
+        mastery_min_episodes=1,
+        validation_rounds=1,
+        validation_seeds=(13,),
+        heldout_rounds=1,
+        heldout_seeds=(19,),
+        seed=2,
+    )
+    world = _world(
+        config=config,
+        stage=EcologyStage.BUTTER,
+        seed=10,
+        data_split=EcologyDataSplit.TRAIN,
+        tier=EcologyTrainingTier.NEAR,
+        forced_approach=True,
+    )
+    runner = KernelColonyRunner(
+        world,
+        base_config=_session_config(
+            config=config,
+            seed=10,
+            session_id="forced-approach-test",
+            optimize=False,
+        ),
+    )
+
+    _synchronize_curriculum_navigators(runner)
+
+    butter = next(
+        item
+        for item in world.world_objects()
+        if isinstance(item, ButterSource)
+    )
+    relative_bearings = []
+    for body_id in range(2):
+        body = world.body(body_id)
+        # State only: nothing to carry, no free pickup at spawn.
+        assert not body.carrying_food
+        distance = math.hypot(body.x - butter.x, body.y - butter.y)
+        assert butter.radius * 1.45 <= distance <= butter.radius * 2.9
+        observation = world.observe(body_id)
+        assert not observation.at_food
+        # The scent gradient must be sensable from the spawn pose.
+        assert observation.food_left + observation.food_right > 0.05
+        # A straight path can never enter the pickup disc: the butter is
+        # either behind the body or its closest approach stays outside the
+        # disc, so only an active turn toward the gradient reaches reward.
+        to_food = math.atan2(butter.y - body.y, butter.x - body.x)
+        forward_projection = distance * math.cos(to_food - body.heading)
+        if forward_projection > 0.0:
+            closest_approach = distance * abs(
+                math.sin(to_food - body.heading)
+            )
+            assert closest_approach > butter.radius
+        # Path integration agrees with the true forced pose.
+        assert (
+            abs(
+                runner.sessions[body_id].navigator.state.home_distance
+                - observation.eval_home_distance
+            )
+            < 1e-6
+        )
+        relative_bearings.append(
+            (to_food - body.heading + math.pi) % (2.0 * math.pi) - math.pi
+        )
+    # The required correction turn is side-balanced across bodies, so no
+    # single turning direction can solve the block by accident.
+    assert relative_bearings[0] * relative_bearings[1] < 0.0
 
 
 async def test_ecology_curriculum_exports_checkpoint_and_honest_gates() -> None:

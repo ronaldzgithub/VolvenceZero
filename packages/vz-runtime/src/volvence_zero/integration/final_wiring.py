@@ -272,6 +272,15 @@ class FinalRolloutConfig:
     internal_rl_causal_action_head_contrast_pairs: (
         tuple[tuple[int, int], ...] | None
     ) = None
+    # Exclusive steering ownership transfer (R2): when True the temporal
+    # owner removes the deterministic base policy's antisymmetric component
+    # on every contrast pair (live forward, sandbox policy mean, pure and
+    # torch replay), making the state-conditioned action head the single
+    # learned writer of the opponent-coded actuator axes. The base keeps the
+    # common mode. Requires non-empty contrast pairs and an ACTIVE head;
+    # exploration noise still proposes contrast so the head can earn credit.
+    # False is the exact rollback path.
+    internal_rl_causal_action_head_exclusive_steering: bool = False
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
@@ -1564,6 +1573,9 @@ def build_final_runtime_modules(
             contrast_pairs=(
                 config.internal_rl_causal_action_head_contrast_pairs
             ),
+            exclusive_steering=(
+                config.internal_rl_causal_action_head_exclusive_steering
+            ),
         )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
@@ -1581,6 +1593,9 @@ def build_final_runtime_modules(
             effective_dims=config.internal_rl_causal_action_head_effective_dims,
             contrast_pairs=(
                 config.internal_rl_causal_action_head_contrast_pairs
+            ),
+            exclusive_steering=(
+                config.internal_rl_causal_action_head_exclusive_steering
             ),
         )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded

@@ -312,9 +312,24 @@ promotion gate：
   未达到则在最大预算处显式 BLOCK；已经掌握的阶段按固定频率交错回放。木棍不再是独立训练
   阶段——它作为中性物理几何出现在组合布局中，不设 contact mastery。跨 episode 仅携带
   owner-exported checkpoint。learned、no-optimize、local-valence-off 与 segment-credit-off 从同一
-  初始 checkpoint 分叉，并重放 learned 冻结下来的完全相同训练布局/seed 日程。长训练启动前必须
-  先通过 food/heat 成对探针（输入可达且转向可区分）；obstacle 成对探针只要求输入可达
-  （中性几何进入感知即可，不要求驱动转向）；探针失败时拒绝投入后续预算。
+  初始 checkpoint 分叉，并重放 learned 冻结下来的完全相同训练布局/seed 日程。长训练启动前的
+  冷启探针门只验 **input reachability**（food/heat/home/obstacle 成对交换必须到达 code）；
+  探针失败时拒绝投入后续预算。exclusive steering（temporal-abstraction spec）下冷启 head
+  参数精确为零、确定性策略无转向,冷启 `action_sensitive` 为 False、`turn_delta` 精确为 0
+  是**设计使然**——转向是训练必须习得的能力,不是开跑前置条件；学到与否由训练后 `paired_action_sensitivity`（food/heat
+  转向可区分、home 方向对齐）与 `food_steering_alignment` 硬门验收。历史注意事项：heat
+  逃逸与 carrying-home 转向在 v22 及以前由 base policy 承载,exclusive steering 转移
+  contrast 轴所有权后需经 head 重新习得,若训练后这两项 gate 失败即为能力回退证据。
+  P1 固定 schedule 含两类强制起点 bootstrap，均只初始化身体状态并同步 body-side PI，
+  不发布坐标/目标方位/动作标签：`forced_return`（巢外携食，练归巢）与 `forced_approach`
+  （butter-near 专用，练觅食转向：body 生成在蝶油拾取盘外、朝向偏离食物方位、
+  左右修正方向按 body 交替平衡；生成半径 `1.45–2.9×拾取半径`、偏离角 `0.4π–0.8π`
+  由 layout seed 逐 body 随机抽样——固定生成环可被单一"固定曲率轨道"非定向解收割，
+  随机 ensemble 下唯一通解是梯度转向；每次抽样仍保证直线路径最近距离
+  ≥1.38×拾取半径、必然错过拾取盘；气味梯度全程可感）。forced_approach 的动机是几何事实：near tier
+  的拾取盘（蝶油半径 1.1，圆心距巢 0.95–1.35）与巢（半径 1.0）重叠，无方向游走即可拾取，
+  因此普通 near 布局对食物梯度转向**零训练压力**——v10–v21 实测 food→turn authority
+  始终 ≈0 且不随训练增长，而 pickup 数字看起来健康。
 - training、validation、正式 held-out 使用三个不重叠的 seed/布局命名空间。held-out 拆成
   butter-only、butter-with-neutral-stick、burning-match route avoidance、burning-match forced
   escape 和 composite 五类：butter-with-neutral-stick 只验证有中性物理阻挡时觅食仍成功（不比
@@ -326,7 +341,12 @@ promotion gate：
   `obstacle_left/right`，不强制 `obstacle_contact`——不得为过门强迫碰撞）、最近对象距离、首次
   事件 tick、局部 ecology payoff 数、switch/persistence、闭合 segment 长度、food/heat 成对左右
   action sensitivity（obstacle 只作 input-reachability 诊断）、动作平滑度、archive roundtrip/事务
-  rollback 以及 runtime replay settled/lineage ≥ 0.99。综合 outcome score 与 composite/
+  rollback 以及 runtime replay settled/lineage ≥ 0.99。P1 报告另加 `food_steering_alignment`
+  硬门：near 距离 food 成对探针不仅要 input-reachable + action-sensitive，还必须**绝对方向对齐**
+  （左食→左转、右食→右转）在 ≥60% body 上成立。理由是 near tier 的 pickup 可以由一个只在巢附近
+  巡游的小圆偶然扫过近处食物产生，**不需要**任何学到的食物梯度转向；该假阳性长期掩盖了 medium/far
+  真正要求的同一能力。此门只读已发布的 probe 方向 truth，绝不回灌学习（evaluation 仍是 PE 的下游
+  readout）。综合 outcome score 与 composite/
   matched-ablation 比较不含 obstacle-contact 惩罚项。外层 bundle/report schema 为
   `digital-ant-ecology-checkpoint.v4` / `digital-ant-ecology-curriculum.v3`（v3/v2 是木棍仍作
   回避目标的历史语义，其 artifact 只作诊断，loader 必须拒绝）。

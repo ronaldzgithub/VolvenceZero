@@ -110,6 +110,12 @@ async def test_p1_uses_fixed_schedule_per_body_mastery(
         item.tier.value == "near" for item in report.schedule[:3]
     )
     assert sum(item.forced_return for item in report.schedule) == 1
+    assert sum(item.forced_approach for item in report.schedule) == 1
+    assert all(
+        item.stage.value == "butter" and item.tier.value == "near"
+        for item in report.schedule
+        if item.forced_approach
+    )
     for arm in ECOLOGY_P1_ARM_NAMES:
         state = json.loads(
             (progress_dir / f"{arm}.json").read_text(

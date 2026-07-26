@@ -649,6 +649,10 @@ class AgentSessionRunner(
                     self._config
                     .internal_rl_causal_action_head_contrast_pairs
                 ),
+                exclusive_steering=(
+                    self._config
+                    .internal_rl_causal_action_head_exclusive_steering
+                ),
             )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy.set_learning_writes_enabled(
@@ -673,6 +677,10 @@ class AgentSessionRunner(
                 contrast_pairs=(
                     self._config
                     .internal_rl_causal_action_head_contrast_pairs
+                ),
+                exclusive_steering=(
+                    self._config
+                    .internal_rl_causal_action_head_exclusive_steering
                 ),
             )
         self._evaluation_backbone = EvaluationBackbone()
