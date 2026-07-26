@@ -10,6 +10,20 @@
 
 ---
 
+## 新增重要研究：Sutton / Era of Experience 专项 2026-07
+
+- [`sutton-era-of-experience-2026-07/`](sutton-era-of-experience-2026-07/) — Silver & Sutton《Welcome to the Era of Experience》论纲、OaK / STOMP 递进、Alberta Plan 十二步、大世界假设、可塑性丧失、streaming RL，及其批评与 LLM 阵营的实验回应（20 篇 PDF + 4 条 link-only；**OaK 至今无论文，只有讲座**）。**核心发现是一个文本事实：论文与 Sutton 本人的播客立场不是同一个主张**——论文脚注 1 明确把"基于环境反馈的 in-context 适应"算作 RL，因此论文版与我们的 R2（冻结基底 + 自适应控制器）完全兼容，播客版才不兼容；`Reward Is Enough`（ICLR 2026）是该脚注的实验证实。第二个发现：grounded reward 的分界线是**"预判 vs 后果"而非"人 vs 环境"**（脚注 2：狗完全从经验学习，但人的互动是它经验的一部分），这既给 R7 关系轨发了合法性，也判定 **LLM judge 打分属于 prejudgement 不可入 gate**。第三个发现是**我们自己的盲区**：Nature 2024 的可塑性丧失证明持续更新的网络会学不动且有效秩单调下降，而 R2 只保护了基底——我们的 credit head / CMS band / metacontroller 完整继承该缺陷，且代码库里 `effective_rank` 一次都没出现过。PDF 位于 [`papers/sutton-experience-2607/`](papers/sutton-experience-2607/)，下载脚本为 [`download_sutton_experience_2607.sh`](download_sutton_experience_2607.sh)。建议从 [`sutton-era-of-experience-2026-07/README.md`](sutton-era-of-experience-2026-07/README.md) 开始读。
+
+---
+
+## 新增重要研究：持续学习（Continual Learning）业界路径专项 2026-07
+
+- [`continual-learning-2026-07/`](continual-learning-2026-07/) — 对业界持续学习路径的横扫，25 篇严格去重后的新增论文，分七派（评测立场 / 稀疏定位写入 / 自编辑 RL / 机理诊断 / 持续预训练 / 模块化合并 / 测试时训练 / Agent 记忆）。**核心结论是两条负面结果**：CL-BENCH 证明 naive ICL 打败所有专用记忆系统（最好的系统只吃到 25.4% headroom，累积 state 经常帮倒忙），Spurious Forgetting 证明多数"灾难性遗忘"是任务对齐被底层近正交更新掀翻而非知识丢失（冻结底层 11%→44%，超过所有正则/replay/merge 方法的 22%）。对我们最高价值的借鉴是 Meta 的 Sparse Memory Finetuning（held-out 只掉 11%，LoRA 掉 71%、full FT 掉 89%），它构造性地满足 R10（槽数即预算）与 R15（回滚代价 O(t)）；以及 Janus 的"记忆更新 = 部署决策"补上我们唯一没有门的写面。PDF 位于 [`papers/continual-learning-2607/`](papers/continual-learning-2607/)，下载脚本为 [`download_continual_learning_2607.sh`](download_continual_learning_2607.sh)。建议从 [`continual-learning-2026-07/README.md`](continual-learning-2026-07/README.md) 与 [`continual-learning-2026-07/02_VZ_DELTA.md`](continual-learning-2026-07/02_VZ_DELTA.md) 开始读。
+
+  **第二轮专项（22 篇，个人参数化路线）**：[`continual-learning-2026-07/03_PERSONAL_PARAMETRIC.md`](continual-learning-2026-07/03_PERSONAL_PARAMETRIC.md) 拆解 Mindverse Second Me（三层记忆 L0/L1/L2 + PEFT SFT→DPO 离线管线，本质是我们 rare-heavy persona LoRA 的同构物但无 gate）及其七族替代方案。核心判断：该领域已从"给每个用户训一个 LoRA"翻转到"用超网络一次前向生成 LoRA"（Profile-to-PEFT 零 per-user 训练、Drag-and-Drop 低 12,000× 开销、Text-to-LoRA、Generative Adapter），OPPU 作者本人发文否定了自己的前作。Cartridges 给出关键负面经验（朴素 next-token prediction 打不过 ICL，必须用合成对话 + context-distillation 目标）与可组合性；知识编辑（WISE/AlphaEdit）已被 WikiBigEdit 证伪，与 R10/R15 不兼容，列入排除清单。PDF 位于 [`papers/personal-parametric-2607/`](papers/personal-parametric-2607/)，下载脚本为 [`download_personal_parametric_2607.sh`](download_personal_parametric_2607.sh)。
+
+---
+
 ## 新增重要研究：All Cognitive 106 篇详尽分析包
 
 - [`allcognitive/`](allcognitive/) — 对本轮 106 篇新增论文逐篇按统一九项模板深读，形成五卷专题（架构学习 25、安全治理 26、关系多主体 21、具身世界模型 19、脑科学 15）、跨轴综合与可审计覆盖索引，共约 3,700 行。核心结论不是“AGI 已解决”，而是 frozen/adaptive 写面、PE readout 分层、latent controllability、记忆生命周期、关系健康 veto、监控器可欺骗性和 R15 发布门都已有可直接转化为 benchmark / kill condition 的外部证据。建议从 [`allcognitive/README.md`](allcognitive/README.md)、[`allcognitive/06_CROSS_AXIS_SYNTHESIS.md`](allcognitive/06_CROSS_AXIS_SYNTHESIS.md) 与单独的 [`allcognitive/08_VOLVENCE_IMPLICATIONS.md`](allcognitive/08_VOLVENCE_IMPLICATIONS.md) 开始阅读。
