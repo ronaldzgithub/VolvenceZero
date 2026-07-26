@@ -46,10 +46,12 @@ owner 只能读取上游公开 typed readout，禁止读取原始对话、遍历
 2. `PersonalConditioningModule` 编译 16 维状态并发布审计快照。
 3. `SHADOW` 时快照只进入 runtime evidence map，模型输出必须保持原路径。
 4. `ACTIVE` 时 session 只把非 cold-start 快照传给 open-weight runtime。
-5. runtime 使用固定、确定性的有界投影把 16 维状态映射到 hidden width。
-6. 投影只注入到最早配置的那一个 residual hook 层；该层的 forward hook 在
-   prefill 和每个 decode step 都会触发，因此投影是整段生成期恒定的加性偏置，
-   不是只作用于第一个生成 token 的一次性前置条件。
+5. 默认 runtime 使用固定、确定性的有界投影把 16 维状态映射到 hidden width；
+   只有显式加载兼容的版本化 projector artifact 时才替换该 basis。
+6. 默认投影只注入最早配置的一个 residual hook 层；实验 artifact 可以声明已
+   hook 的多个层及每层 `[0, 1]` gain。所有目标层的 forward hook 在 prefill 和
+   每个 decode step 都会触发，因此投影是整段生成期恒定的加性偏置，不是只作用
+   于第一个生成 token 的一次性前置条件。
 7. `DISABLED` 是立即回滚路径；任何不支持 residual hook 的 runtime（包括 vLLM
    和抽象基类默认实现）收到个人条件化输入时必须 fail loudly，不能静默丢弃或
    退回 prompt 拼接。唯一例外是 synthetic 测试 runtime：它以 trace-only 方式
@@ -106,9 +108,77 @@ prompt 逐字节相同，差异只在 residual 通道。`personal_conditioning_m
 实验设计、载体清单与判据见
 [`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md)。
 
-已知限制：当前 Transformers 与 vLLM runtime 均无跨调用 prefix KV cache，
-B′ 的“前缀 KV 缓存”延迟对齐属于包 C / State KV P3 的工程范围；本阶段只保证
-状态段位于 system prompt 的稳定早段（cache 友好位置）。
+已知限制：当前 Transformers 与 vLLM runtime 均无**跨调用**的 prompt prefix KV
+复用，B′ 的“前缀 KV 缓存”延迟对齐仍属包 C 的工程范围；本阶段只保证状态段位于
+system prompt 的稳定早段（cache 友好位置）。§3.4 的 State-KV 前缀是另一回事：
+它是逐调用生成的状态载体，不是对 prompt 前缀的缓存复用。
+
+### 3.3 版本化 projector artifact（证据专用）
+
+`vz-substrate` 是 16 维状态到冻结模型 hidden width 映射的唯一 owner。显式
+artifact 使用 `personal-conditioning-projector.v1`，冻结以下兼容字段：
+
+- 精确 `model_id`、`hidden_size` 与 16 个有序 `vector_labels`；
+- L2 归一化的 16 行 basis、目标 `layer_indices` 与逐层 `(0, 1]` gain；
+- `training_mode`、训练素材指纹、样本数与 canonical SHA-256 `artifact_id`。
+
+runtime 加载时对 schema、artifact hash、模型、宽度和 hook 层逐项 fail loudly；
+未知字段、缺少 hash、非归一化行或不支持的训练模式均拒绝。artifact 只保存浮点
+投影与出处元数据，不保存用户事实、对话或 torch tensor，也不修改基底权重。
+
+当前 `contrastive-residual-v1` 由冻结 Qwen 的正/负语义 anchor 残差差向量烘焙，
+并在三个 middle hook 层以 gain 1.0 复用同一 basis。它是方向初始化实验，不是
+由 evaluation 分数反向训练的长期策略，也未经过 `ModificationGate`，因此不得
+成为默认 ACTIVE 路径。省略 `personal_conditioning_projector` 参数即可原子回滚
+到 `fixed-sine-cosine-v1` 的单层行为；无需改快照 owner、runtime wiring 或权重。
+
+### 3.4 版本化 Prefix-KV artifact 与单一 substrate owner（证据专用）
+
+§3.3 的 projector 只能改注入**方向**，改不了幅度：`clamp_personal_conditioning_scale`
+把 residual 通道硬钉在 `[0, 0.12]`，实测相对扰动约 0.25%，两条 artifact 都没能让
+双人输出分叉。带宽侧的处置是换载体，而不是抬 cap。
+
+`vz-substrate` 同时是 State-KV 前缀载体的唯一 owner——16 维 readout 到 KV 空间的
+映射只在 `prefix_kv_artifact.py` 定义一次，`personal_conditioning` owner 仍然只
+产出那一份快照，不新增第二个语义 owner。artifact 使用 `state-kv-prefix.v1`：
+
+- 精确 `model_id` 与注意力几何（`num_layers` / `num_kv_heads` / `head_dim` / `num_slots`）；
+- 低秩生成器：`tanh(encoder · state + bias)` 经 `bottleneck_rank` 瓶颈，再由逐层
+  低秩解码器展开成 K/V；秩是契约项而非超参细节，它限定 16 维 readout 能有多少
+  信息到达 attention；
+- **逐层实测参考范数**与 `norm_cap ≤ 0.5`：生成的每个 head 向量按
+  `norm_cap × reference_norm` 只缩不放；
+- `training_mode`、素材指纹、样本数与 canonical SHA-256 `artifact_id`。
+
+逐层参考范数不是形式主义。Qwen2.5-0.5B 的实测 key 范数从 layer 0 的 259.7 降到
+中层的约 14，单一全局上限会同时过松和过紧；而范数匹配的**随机**前缀在 gain 0.25
+就已经把输出打成 `'......'`，gain 1.0 完全崩坏。因此 `reference_*_norms` 必须为正
+且有限，否则该层的 cap 会在 artifact 仍自称有界的情况下静默失效——契约层直接拒绝。
+
+载体由 `ResponseContext.personal_conditioning_carrier` 选择（`"residual"` 默认 /
+`"prefix_kv"`）。两条载体互斥：同一轮只会构建其中一个 delta，否则无法归因是哪条
+通道带的状态。快照准入条件完全相同（缺失 / cold-start / 零置信度都不注入），所以
+两臂的差别只有载体本身。缺少 artifact 时请求 `prefix_kv` 直接 raise，不回落到
+residual——静默回落会发布一条标着 prefix-KV 而证据来自另一条通道的臂。
+
+**已知非对称：解码路径。** prefix 载体不能用 `model.generate`：预填充 cache 会让它
+把 prompt 前 `num_slots` 个 token 当成已缓存而截断 prompt，并从加宽后的 mask 推出
+被整体后移的 `position_ids`——单是这个位移就会改变输出，让内容全零的前缀也看起来
+像个能用的载体。因此该臂走自带的贪心循环，把真实 token 钉在位置 `0..n-1`。守门
+测试断言：不给前缀时，该循环与 `model.generate` 的贪心输出**逐字节相同**。这条
+等价性是 arm G 可以和 A / E / B′ 相比的前提，一旦破了，臂间差异就可能来自解码器
+而不是被测载体。该循环只支持 greedy，`temperature > 0` 直接 raise。
+
+`personal-conditioning-prefix-kv` capability 与 `personal-conditioning-off` /
+`-text` / `-residual` 互斥，守门测试断言除 `state-kv-arm-g-prefix-pure` 外没有任何
+profile 选它。省略 `personal_conditioning_prefix` 参数即原子回滚：已加载但未被
+请求的 artifact 对默认载体完全惰性，这一点也有守门测试。
+
+当前 `teacher-distilled-prefix-v1` 由 B′ 文本臂教师蒸馏而来（基底冻结，只训
+122,948 个生成器参数）。它在 p0 / p2 两条探针上取得了跨 CPU/MPS 稳定的双人分叉，
+是第一条做到这点的潜通道；但 p1 仍双人同文，错用户负对照停在 0.508（随机），
+因此判据 2 未过，不得晋升默认 ACTIVE，也不触发盲裁判预算。完整数据与反主张边界见
+[`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3。
 
 ## 4. 完整目标架构
 
@@ -135,7 +205,8 @@ flowchart LR
 
 | 包 | 能力 | 退出门槛 |
 |----|------|----------|
-| A：当前 residual bootstrap | 最终生成前单层有界注入；建立 owner、契约、审计和 SHADOW 基线 | cold-start 严格无效；SHADOW byte-equivalent；ACTIVE 有可测 steering 且无安全回归 |
+| A：当前 residual bootstrap | 最终生成前默认单层有界注入；建立 owner、契约、审计和 SHADOW 基线 | cold-start 严格无效；SHADOW byte-equivalent；ACTIVE 有可测 steering 且无安全回归 |
+| A.1：证据用 projector artifact | 冻结基底上的版本化 contrastive basis 与显式多层 gain；默认路径不变 | matched ablation 过输出分叉门槛才允许进入盲裁判；失败则保留否证 artifact 并转 Prefix-KV |
 | B：首轮感知前水合 | session 开始时加载上一轮已审计快照，让 substrate capture、temporal 和最终生成消费同一条件版本 | 同版本 lineage 贯穿 perception→decision→generation；跨用户隔离；撤销后下一轮归零 |
 | C：可训练多层前缀 | 用受 gate 管理的 profile encoder / Prefix-KV 取代固定投影，在多个选定层形成更强但仍有界的条件 | matched ablation 显著优于 prompt-only 与固定投影；跨任务迁移成立；回滚可恢复冻结基线 |
 

@@ -1,28 +1,34 @@
 #!/usr/bin/env python3
-"""Run the State KV carrier-identification arms and emit verdict_identification.json.
+"""Run State-KV carrier-identification evidence on smoke or frozen Qwen.
 
-Stage P0-smoke of ``docs/specs/state-kv-identification-evidence.md`` §执行阶段:
-four arms, two personas, K probe sentences, on a deterministic fake substrate.
-Cost is zero and the expected verdict is ``insufficient_data`` -- the run exists
-to prove that the pure arms' prompts are byte-identical and that all three
-attestation tags are emitted on every turn, which is what P1-directional needs
-before any money is spent on a frozen model plus a cross-family judge.
+``smoke`` keeps the original deterministic fake lane. ``p1`` resolves one
+local weight snapshot, loads one frozen Transformers runtime, and reuses that
+same runtime object for all four arms. P1 also gives both personas the exact
+same response assembly so carrier C5 is closed by construction; their only
+per-user input is the personal-conditioning snapshot.
 
-The personas here are hand-written probe material, not the longitudinal
-harness: they carry divergent typed readouts and divergent assemblies so that a
-prompt-carrier leak would show up as a ``prompt_fp`` mismatch. Swapping in the
-20-session harness and a real runtime is a change of two arguments to
-``run_identification_smoke``, not a change to the claim logic.
+The runner writes three independently inspectable artifacts next to each other:
+
+* ``verdict_identification.json`` -- the four computed claim states;
+* ``transcript_identification.json`` -- response text and emitted audit tags;
+* ``substrate_fingerprint.json`` -- the content hash of the loaded weight files.
+
+No cross-family judge is invented here. Without an explicitly wired judge,
+claims 3/4 and the overall verdict remain ``insufficient_data`` even on real
+Qwen. That is the honest P1 substrate lane, ready for a later blind-judge pass.
 
 Usage:
+    python scripts/run_state_kv_identification.py --lane smoke
     python scripts/run_state_kv_identification.py \
-        --output artifacts/state_kv/verdict_identification.json
+        --lane p1 --device cpu \
+        --model-id Qwen/Qwen2.5-0.5B-Instruct
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -51,11 +57,22 @@ from volvence_zero.personal_conditioning_rendering import (  # noqa: E402
     render_personal_conditioning_statement,
 )
 from volvence_zero.state_kv_identification import (  # noqa: E402
+    DEFAULT_CANDIDATE_ARM_LABEL,
     IDENTIFICATION_ARM_LABELS,
+    PREFIX_ARM_LABEL,
+    PREFIX_IDENTIFICATION_ARM_LABELS,
     ProbeCase,
     SubstrateEvidenceKind,
     run_identification_smoke,
 )
+from volvence_zero.substrate import (  # noqa: E402
+    PersonalConditioningProjectorArtifact,
+    PrefixKVArtifact,
+    TransformersOpenWeightResidualRuntime,
+)
+
+DEFAULT_MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct"
+WEIGHT_SUFFIXES = frozenset({".safetensors", ".bin", ".pt", ".pth"})
 
 # Probe sentences: identical for both users, so any per-user difference in the
 # response must come from state, not from what was asked.
@@ -65,19 +82,54 @@ PROBE_SENTENCES: tuple[tuple[str, str], ...] = (
     ("p2", "你觉得我该继续吗"),
 )
 
-# Two divergent personas. The 16 coordinates are typed owner readouts; the
-# values differ per persona so the residual carrier has something to carry and
-# the rendered statement (arm B-prime) has the same information content.
-PERSONAS: tuple[tuple[str, float, str, str], ...] = (
+# Two coherent, counterfactual relationship states. Coordinates follow
+# PERSONAL_CONDITIONING_VECTOR_LABELS exactly. They are not "all high" versus
+# "all low": risk/readiness dimensions have opposite valence, so moving every
+# coordinate together would describe an internally contradictory person.
+PERSONAS: tuple[tuple[str, tuple[float, ...], str, str], ...] = (
     (
         "persona-a",
-        0.82,
+        (
+            0.28,  # user_stability
+            0.82,  # user_overwhelm
+            0.30,  # user_control
+            0.32,  # relationship_trust
+            0.68,  # relationship_continuity
+            0.90,  # relationship_repair_need
+            0.88,  # relationship_emotional_load
+            0.76,  # relationship_attunement_gap
+            0.36,  # goal_alignment
+            0.78,  # goal_value_conflict
+            0.22,  # goal_decision_readiness
+            0.90,  # goal_reversibility_need
+            0.76,  # boundary_compliance
+            0.92,  # boundary_autonomy_risk
+            0.46,  # boundary_consent_clarity
+            0.86,  # boundary_overreach_risk
+        ),
         "Carry forward continuity from prior context: her cat died last week.",
         "continuum-support-first",
     ),
     (
         "persona-b",
-        0.24,
+        (
+            0.86,
+            0.20,
+            0.84,
+            0.90,
+            0.92,
+            0.08,
+            0.24,
+            0.10,
+            0.90,
+            0.14,
+            0.92,
+            0.24,
+            0.96,
+            0.08,
+            0.94,
+            0.06,
+        ),
         "Carry forward continuity from prior context: he starts a new job Monday.",
         "continuum-structure-first",
     ),
@@ -151,11 +203,16 @@ def _assembly(*, residue: str, ordering_driver: str) -> ResponseAssemblySnapshot
     )
 
 
-def _conditioning(*, user_id: str, fill: float) -> PersonalConditioningSnapshot:
-    state_vector = tuple(
-        min(1.0, max(0.0, fill + 0.01 * index))
-        for index in range(len(PERSONAL_CONDITIONING_VECTOR_LABELS))
-    )
+def _conditioning(
+    *,
+    user_id: str,
+    state_vector: tuple[float, ...],
+) -> PersonalConditioningSnapshot:
+    if len(state_vector) != len(PERSONAL_CONDITIONING_VECTOR_LABELS):
+        raise ValueError(
+            f"probe persona {user_id!r} has {len(state_vector)} coordinates; "
+            f"expected {len(PERSONAL_CONDITIONING_VECTOR_LABELS)}"
+        )
     statement = render_personal_conditioning_statement(
         state_vector=state_vector,
         vector_labels=PERSONAL_CONDITIONING_VECTOR_LABELS,
@@ -175,11 +232,31 @@ def _conditioning(*, user_id: str, fill: float) -> PersonalConditioningSnapshot:
     )
 
 
-def build_probe_cases() -> tuple[ProbeCase, ...]:
+def build_probe_cases(*, strict_carriers: bool = False) -> tuple[ProbeCase, ...]:
+    """Build probe cases for smoke or strict real-substrate evidence.
+
+    Smoke deliberately keeps divergent assemblies to prove
+    ``prompt_state_delivery="suppressed"`` closes a genuine leak opportunity.
+    P1 uses one shared assembly for both personas: otherwise
+    ``GenerationConstraints`` would carry per-user response shaping through C5
+    even when the prompt bytes match.
+    """
+
     cases: list[ProbeCase] = []
-    for user_id, fill, residue, ordering_driver in PERSONAS:
-        assembly = _assembly(residue=residue, ordering_driver=ordering_driver)
-        conditioning = _conditioning(user_id=user_id, fill=fill)
+    shared_assembly = (
+        _assembly(residue="", ordering_driver="playbook-only")
+        if strict_carriers
+        else None
+    )
+    for user_id, state_vector, residue, ordering_driver in PERSONAS:
+        assembly = shared_assembly or _assembly(
+            residue=residue,
+            ordering_driver=ordering_driver,
+        )
+        conditioning = _conditioning(
+            user_id=user_id,
+            state_vector=state_vector,
+        )
         for probe_id, sentence in PROBE_SENTENCES:
             cases.append(
                 ProbeCase(
@@ -191,6 +268,134 @@ def build_probe_cases() -> tuple[ProbeCase, ...]:
                 )
             )
     return tuple(cases)
+
+
+class RecordingSynthesizer:
+    """Record the actual responses while preserving the synthesizer contract."""
+
+    def __init__(self, inner: LLMResponseSynthesizer) -> None:
+        self._inner = inner
+        self.responses: list[object] = []
+
+    def synthesize(self, **kwargs: Any) -> object:
+        response = self._inner.synthesize(**kwargs)
+        self.responses.append(response)
+        return response
+
+
+def _resolve_local_weights(
+    *,
+    model_id: str,
+    model_source: str,
+    allow_download: bool,
+) -> Path:
+    if model_source:
+        source = Path(model_source).expanduser().resolve()
+        if not source.is_dir():
+            raise FileNotFoundError(
+                f"--model-source is not a model directory: {source}"
+            )
+        return source
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError as exc:
+        raise RuntimeError(
+            "P1 requires huggingface_hub to resolve the frozen local snapshot."
+        ) from exc
+    resolved = snapshot_download(
+        repo_id=model_id,
+        local_files_only=not allow_download,
+    )
+    return Path(resolved).resolve()
+
+
+def _fingerprint_weights(*, model_id: str, weights_root: Path) -> dict[str, object]:
+    files = sorted(
+        path
+        for path in weights_root.rglob("*")
+        if path.is_file() and path.suffix.casefold() in WEIGHT_SUFFIXES
+    )
+    if not files:
+        raise RuntimeError(f"no model weight files found under {weights_root}")
+    digest = hashlib.sha256()
+    for path in files:
+        relative = path.relative_to(weights_root).as_posix()
+        encoded_relative = relative.encode("utf-8")
+        digest.update(len(encoded_relative).to_bytes(4, "big"))
+        digest.update(encoded_relative)
+        with path.open("rb") as handle:
+            while chunk := handle.read(8 * 1024 * 1024):
+                digest.update(chunk)
+    return {
+        "schema_version": "state-kv-substrate-fingerprint.v1",
+        "model_id": model_id,
+        "weights_root": str(weights_root),
+        "weights_sha256": digest.hexdigest(),
+        "weight_file_count": len(files),
+        "weight_files": [path.relative_to(weights_root).as_posix() for path in files],
+    }
+
+
+def _artifact_paths(*, output: Path) -> tuple[Path, Path, Path]:
+    return (
+        output,
+        output.with_name("transcript_identification.json"),
+        output.with_name("substrate_fingerprint.json"),
+    )
+
+
+def _write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _transcript_payload(
+    *,
+    lane: str,
+    cases: tuple[ProbeCase, ...],
+    responses: list[object],
+    projector_id: str,
+    projector_training_mode: str,
+    arm_labels: tuple[str, ...],
+    prefix_artifact_id: str = "",
+) -> dict[str, object]:
+    expected_count = len(arm_labels) * len(cases)
+    if len(responses) != expected_count:
+        raise RuntimeError(
+            "identification transcript count mismatch: "
+            f"expected {expected_count}, got {len(responses)}"
+        )
+    turns: list[dict[str, object]] = []
+    response_index = 0
+    for arm_label in arm_labels:
+        for case in cases:
+            response = responses[response_index]
+            response_index += 1
+            turns.append(
+                {
+                    "arm": arm_label,
+                    "user": case.user_id,
+                    "probe": case.probe_id,
+                    "input": case.user_input,
+                    "response": str(getattr(response, "text", "")),
+                    "rationale_tags": list(
+                        getattr(response, "rationale_tags", ())
+                    ),
+                }
+            )
+    return {
+        "schema_version": "state-kv-identification-transcript.v1",
+        "lane": lane,
+        "personal_conditioning_projector_id": projector_id,
+        "personal_conditioning_projector_training_mode": (
+            projector_training_mode
+        ),
+        "personal_conditioning_prefix_id": prefix_artifact_id,
+        "turns": turns,
+    }
 
 
 def _base_context() -> ResponseContext:
@@ -214,8 +419,17 @@ def _base_context() -> ResponseContext:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--lane",
+        choices=("smoke", "p1", "p3"),
+        default="smoke",
+        help=(
+            "synthetic wiring smoke, one frozen local Qwen runtime (p1), or "
+            "the same runtime plus the prefix-KV arm G (p3)"
+        ),
+    )
+    parser.add_argument(
         "--output",
-        default=str(REPO_ROOT / "artifacts/state_kv/verdict_identification.json"),
+        default="",
         help="where to write verdict_identification.json",
     )
     parser.add_argument(
@@ -226,22 +440,202 @@ def main(argv: list[str] | None = None) -> int:
             "fake; the verdict is still capped at insufficient_data)"
         ),
     )
+    parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
+    parser.add_argument(
+        "--model-source",
+        default="",
+        help="explicit local HF snapshot directory; otherwise resolve local cache",
+    )
+    parser.add_argument("--device", default="auto")
+    parser.add_argument("--max-new-tokens", type=int, default=64)
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument(
+        "--personal-conditioning-scale",
+        type=float,
+        default=0.08,
+    )
+    parser.add_argument(
+        "--projector-artifact",
+        default="",
+        help=(
+            "optional learned personal-conditioning projector JSON; P1 only. "
+            "Omit to roll back to the fixed single-layer basis"
+        ),
+    )
+    parser.add_argument(
+        "--prefix-kv-artifact",
+        default="",
+        help=(
+            "learned State-KV prefix generator JSON; required by the P3 lane, "
+            "which adds arm G and makes it the candidate arm"
+        ),
+    )
+    parser.add_argument(
+        "--allow-download",
+        action="store_true",
+        help="allow Hugging Face to download a missing P1 model snapshot",
+    )
     args = parser.parse_args(argv)
 
-    runtime = DeterministicFakeSubstrate(applies_conditioning=args.inject)
-    verdict = run_identification_smoke(
-        cases=build_probe_cases(),
-        synthesizer=LLMResponseSynthesizer(runtime=runtime),
-        base_context=_base_context(),
-        substrate_kind=SubstrateEvidenceKind.TRACE_ONLY,
-        substrate_fingerprint=runtime.fingerprint,
-        arm_labels=IDENTIFICATION_ARM_LABELS,
-        judge=None,
-    )
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(verdict.to_json() + "\n", encoding="utf-8")
+    frozen_lane = args.lane in ("p1", "p3")
+    if args.max_new_tokens <= 0:
+        parser.error("--max-new-tokens must be positive")
+    if frozen_lane and args.inject:
+        parser.error("--inject only applies to the smoke lane")
+    if args.lane == "smoke" and args.projector_artifact:
+        parser.error("--projector-artifact only applies to the frozen lanes")
+    if args.lane != "p3" and args.prefix_kv_artifact:
+        parser.error("--prefix-kv-artifact only applies to the P3 lane")
+    if args.lane == "p3" and not args.prefix_kv_artifact:
+        # Arm G without an artifact could only run by falling back to another
+        # carrier, which would publish a mislabelled arm.
+        parser.error("--prefix-kv-artifact is required by the P3 lane")
+    if frozen_lane and args.temperature != 0.0:
+        parser.error(
+            "the frozen lanes require --temperature 0 so C5 is deterministic; "
+            "matched multi-seed sampling belongs to the blind-judge package"
+        )
 
+    if args.lane == "p3":
+        run_directory = "p3"
+    elif args.lane == "p1":
+        run_directory = "p1-learned" if args.projector_artifact else "p1"
+    else:
+        run_directory = ""
+    output = Path(args.output).expanduser() if args.output else (
+        REPO_ROOT
+        / "artifacts"
+        / "state_kv"
+        / run_directory
+        / "verdict_identification.json"
+    )
+    output = output.resolve()
+    verdict_path, transcript_path, fingerprint_path = _artifact_paths(
+        output=output
+    )
+
+    if args.lane == "smoke":
+        runtime: object = DeterministicFakeSubstrate(
+            applies_conditioning=args.inject
+        )
+        substrate_kind = SubstrateEvidenceKind.TRACE_ONLY
+        substrate_fingerprint = runtime.fingerprint
+        fingerprint_payload: dict[str, object] = {
+            "schema_version": "state-kv-substrate-fingerprint.v1",
+            "model_id": runtime.model_id,
+            "runtime_kind": "trace-only",
+            "weights_sha256": "",
+            "runtime_fingerprint": runtime.fingerprint,
+        }
+        cases = build_probe_cases(strict_carriers=False)
+        projector_id = "trace-only"
+        projector_training_mode = "none"
+        prefix_artifact_id = ""
+    else:
+        weights_root = _resolve_local_weights(
+            model_id=args.model_id,
+            model_source=args.model_source,
+            allow_download=args.allow_download,
+        )
+        fingerprint_payload = _fingerprint_weights(
+            model_id=args.model_id,
+            weights_root=weights_root,
+        )
+        projector = None
+        if args.projector_artifact:
+            projector_path = Path(args.projector_artifact).expanduser().resolve()
+            projector = PersonalConditioningProjectorArtifact.from_json(
+                projector_path.read_text(encoding="utf-8")
+            )
+        prefix_artifact = None
+        if args.prefix_kv_artifact:
+            prefix_path = Path(args.prefix_kv_artifact).expanduser().resolve()
+            prefix_artifact = PrefixKVArtifact.from_json(
+                prefix_path.read_text(encoding="utf-8")
+            )
+        runtime = TransformersOpenWeightResidualRuntime(
+            model_id=args.model_id,
+            pretrained_source=str(weights_root),
+            device=args.device,
+            hook_layer_selection="middle",
+            personal_conditioning_scale=args.personal_conditioning_scale,
+            personal_conditioning_projector=projector,
+            personal_conditioning_prefix=prefix_artifact,
+            local_files_only=True,
+            runtime_origin="hf-local",
+        )
+        projector_id = runtime.personal_conditioning_projector_id
+        projector_training_mode = (
+            runtime.personal_conditioning_projector_training_mode
+        )
+        prefix_artifact_id = runtime.personal_conditioning_prefix_id
+        fingerprint_payload.update(
+            {
+                "runtime_origin": runtime.runtime_origin,
+                "is_frozen": runtime.is_frozen,
+                "device_request": args.device,
+                "personal_conditioning_scale": args.personal_conditioning_scale,
+                "personal_conditioning_projector_id": projector_id,
+                "personal_conditioning_projector_training_mode": (
+                    projector_training_mode
+                ),
+                "personal_conditioning_prefix_id": prefix_artifact_id,
+                "personal_conditioning_prefix_norm_cap": (
+                    prefix_artifact.norm_cap
+                    if prefix_artifact is not None
+                    else None
+                ),
+            }
+        )
+        substrate_kind = SubstrateEvidenceKind.FROZEN_WEIGHTS
+        substrate_fingerprint = (
+            f"{args.model_id}@"
+            f"{str(fingerprint_payload['weights_sha256'])[:16]}"
+        )
+        cases = build_probe_cases(strict_carriers=True)
+
+    arm_labels = (
+        PREFIX_IDENTIFICATION_ARM_LABELS
+        if args.lane == "p3"
+        else IDENTIFICATION_ARM_LABELS
+    )
+    candidate_arm_label = (
+        PREFIX_ARM_LABEL if args.lane == "p3" else DEFAULT_CANDIDATE_ARM_LABEL
+    )
+    recording = RecordingSynthesizer(
+        LLMResponseSynthesizer(
+            runtime=runtime,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+        )
+    )
+    verdict = run_identification_smoke(
+        cases=cases,
+        synthesizer=recording,
+        base_context=_base_context(),
+        substrate_kind=substrate_kind,
+        substrate_fingerprint=substrate_fingerprint,
+        arm_labels=arm_labels,
+        judge=None,
+        candidate_arm_label=candidate_arm_label,
+    )
+    verdict_path.parent.mkdir(parents=True, exist_ok=True)
+    verdict_path.write_text(verdict.to_json() + "\n", encoding="utf-8")
+    _write_json(
+        transcript_path,
+        _transcript_payload(
+            lane=args.lane,
+            cases=cases,
+            responses=recording.responses,
+            projector_id=projector_id,
+            projector_training_mode=projector_training_mode,
+            arm_labels=arm_labels,
+            prefix_artifact_id=prefix_artifact_id,
+        ),
+    )
+    _write_json(fingerprint_path, fingerprint_payload)
+
+    print(f"candidate arm = {verdict.candidate_arm_label}")
     print(f"verdict_state = {verdict.verdict_state.value}")
     for claim in verdict.claims:
         print(f"  {claim.name:38s} {claim.state.value:18s} {claim.detail}")
@@ -249,7 +643,9 @@ def main(argv: list[str] | None = None) -> int:
     for note in verdict.notes:
         print(f"  note: {note}")
     print(f"turns recorded: {len(verdict.prompt_fp_table)}")
-    print(f"written: {output}")
+    print(f"verdict: {verdict_path}")
+    print(f"transcript: {transcript_path}")
+    print(f"substrate fingerprint: {fingerprint_path}")
     return 0
 
 

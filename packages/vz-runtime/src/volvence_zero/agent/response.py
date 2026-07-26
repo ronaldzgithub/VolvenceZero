@@ -122,8 +122,21 @@ class ResponseContext:
     # suppression also drops boundary/disclaimer prompt steering, which then
     # rests on the substrate-side GenerationConstraints post-processing.
     prompt_state_delivery: str = "text"
+    # Which model-layer channel carries an ACTIVE snapshot into the substrate.
+    # "residual" is the production default and byte-for-byte the historical
+    # behaviour; "prefix_kv" routes the same snapshot to the bounded per-layer
+    # key/value prefix (State KV arm G). The snapshot itself is identical in
+    # both cases -- only the carrier differs, which is what makes the two arms
+    # a controlled comparison rather than two different experiments.
+    personal_conditioning_carrier: str = "residual"
 
     def __post_init__(self) -> None:
+        if self.personal_conditioning_carrier not in ("residual", "prefix_kv"):
+            raise ValueError(
+                "ResponseContext personal_conditioning_carrier must be "
+                "'residual' or 'prefix_kv', got "
+                f"{self.personal_conditioning_carrier!r}."
+            )
         if self.prompt_state_delivery not in ("text", "suppressed"):
             raise ValueError(
                 "ResponseContext prompt_state_delivery must be 'text' or "
@@ -535,6 +548,16 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             else None
         )
 
+        # Only forwarded when a non-default carrier is requested, so every
+        # existing runtime keeps its current signature and the production path
+        # is byte-for-byte unchanged. A runtime that cannot honour the prefix
+        # carrier then fails loudly on the arm that asked for it, rather than
+        # quietly answering from the residual channel.
+        carrier_kwargs: dict[str, object] = {}
+        if context.personal_conditioning_carrier != "residual":
+            carrier_kwargs["personal_conditioning_carrier"] = (
+                context.personal_conditioning_carrier
+            )
         result = self._runtime.generate(
             prompt=user_input,
             system_context=system_prompt,
@@ -550,6 +573,7 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             # hooked hidden state during long benchmark arcs can crash native
             # torch/CUDA on Windows.
             capture_residuals=False,
+            **carrier_kwargs,
         )
 
         generated_text = result.text.strip()
