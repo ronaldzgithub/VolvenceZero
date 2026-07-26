@@ -23,7 +23,7 @@ export type HumanMeaningNarrationLine = {
 
 export const HUMAN_MEANING_FPS = 30;
 export const HUMAN_MEANING_INTRO_FRAMES = 150;
-export const HUMAN_MEANING_AUDIO_FRAMES = 7350;
+export const HUMAN_MEANING_AUDIO_FRAMES = 6015;
 export const HUMAN_MEANING_OUTRO_FRAMES = 240;
 export const HUMAN_MEANING_DURATION_FRAMES =
   HUMAN_MEANING_INTRO_FRAMES +
@@ -34,7 +34,7 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   {
     sequence: 1,
     start: 0,
-    end: 15,
+    end: 18.314,
     stage: 'parents',
     image: '01-parents-night.png',
     chapter: '来到世界之前',
@@ -44,8 +44,8 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   },
   {
     sequence: 2,
-    start: 15,
-    end: 35,
+    start: 18.314,
+    end: 25.683,
     stage: 'parents',
     image: '01-parents-night.png',
     chapter: '给每一位父母',
@@ -55,8 +55,8 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   },
   {
     sequence: 3,
-    start: 35,
-    end: 55,
+    start: 25.683,
+    end: 47.281,
     stage: 'child-growth',
     image: '02-child-growth.png',
     chapter: '孩子出生以后',
@@ -66,8 +66,8 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   },
   {
     sequence: 4,
-    start: 55,
-    end: 80,
+    start: 47.281,
+    end: 69.168,
     stage: 'child-understood',
     image: '03-child-understood.png',
     chapter: '当他不敢说、说不清、没人懂',
@@ -77,8 +77,8 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   },
   {
     sequence: 5,
-    start: 80,
-    end: 105,
+    start: 69.168,
+    end: 90.654,
     stage: 'youth',
     image: '04-youth-city.png',
     chapter: '再后来，他走进人海',
@@ -88,8 +88,8 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   },
   {
     sequence: 6,
-    start: 105,
-    end: 130,
+    start: 90.654,
+    end: 114.708,
     stage: 'startup',
     image: '05-startup-team.png',
     chapter: '当他创业、承担、不肯认输',
@@ -99,8 +99,8 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   },
   {
     sequence: 7,
-    start: 130,
-    end: 160,
+    start: 114.708,
+    end: 134.529,
     stage: 'moonlight',
     image: '06-moonlight-box.png',
     chapter: '到了老去的那一天',
@@ -110,8 +110,8 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   },
   {
     sequence: 8,
-    start: 160,
-    end: 182,
+    start: 134.529,
+    end: 144.095,
     stage: 'past-self',
     image: '07-past-self.png',
     chapter: '与过去的自己，再说一次话',
@@ -121,8 +121,8 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   },
   {
     sequence: 9,
-    start: 182,
-    end: 205,
+    start: 144.095,
+    end: 160.658,
     stage: 'ancestor',
     image: '08-ancestor-guidance.png',
     chapter: '甚至在一个人离开之后',
@@ -132,8 +132,8 @@ export const humanMeaningNarration: HumanMeaningNarrationLine[] = [
   },
   {
     sequence: 10,
-    start: 205,
-    end: 245,
+    start: 160.658,
+    end: 200.489,
     stage: 'legacy',
     image: '09-ordinary-lives.png',
     chapter: '每一个普通人',

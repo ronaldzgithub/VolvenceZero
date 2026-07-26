@@ -4,6 +4,7 @@ import {
   Audio,
   Img,
   interpolate,
+  Sequence,
   staticFile,
   useCurrentFrame,
 } from 'remotion';
@@ -123,6 +124,14 @@ export const VolvenceHumanMeaningStandalone: React.FC = () => {
           interpolate(audioFrame, [0, 30, 360, 510], [0, 0.7, 0.45, 0], clamp)
         }
       />
+      <Sequence from={HUMAN_MEANING_INTRO_FRAMES}>
+        <Audio
+          src={staticFile(
+            'human-meaning-standalone/volvence-should-be-remembered-doubao-tts.wav',
+          )}
+          volume={0.98}
+        />
+      </Sequence>
 
       {humanMeaningNarration.map((line) => (
         <CinematicScene key={line.sequence} frame={frame} line={line} />

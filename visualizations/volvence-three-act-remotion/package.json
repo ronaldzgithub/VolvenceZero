@@ -18,6 +18,7 @@
     "render:app-ecosystem": "remotion render src/index.ts VolvenceAppEcosystemStandalone out/volvence-app-ecosystem-standalone.mp4 --codec=h264",
     "still:app-ecosystem": "remotion still src/index.ts VolvenceAppEcosystemStandalone out/volvence-app-ecosystem-standalone-cover.png --frame=4200",
     "render:human-meaning": "remotion render src/index.ts VolvenceHumanMeaningStandalone out/volvence-human-meaning-standalone.mp4 --codec=h264",
+    "render:human-meaning:fast": "node scripts/render-human-meaning-static.mjs",
     "still:human-meaning": "remotion still src/index.ts VolvenceHumanMeaningStandalone out/volvence-human-meaning-standalone-cover.png --frame=5800"
   },
   "dependencies": {
