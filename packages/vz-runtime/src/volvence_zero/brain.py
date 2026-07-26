@@ -276,6 +276,11 @@ class BrainSession:
         monetary_cost: float = 0.0,
         reversibility: str = "reversible",
         environment_state_delta_kind: str = "none",
+        # Per-claim provenance for findings-shaped tools. Threaded through
+        # the existing outcome path rather than a side channel: a claim
+        # that reaches belief_assumption without lineage is exactly the
+        # thing the provenance rule exists to catch.
+        provenance: tuple[object, ...] = (),
     ) -> tuple[str, ...]:
         outcome = EnvironmentOutcome(
             outcome_id=f"{event_id}:outcome",
@@ -314,6 +319,7 @@ class BrainSession:
                     f"environment_outcome:{outcome.outcome_id}",
                 ),
                 plan_ref=plan_ref,
+                provenance=provenance,
             )
         )
 

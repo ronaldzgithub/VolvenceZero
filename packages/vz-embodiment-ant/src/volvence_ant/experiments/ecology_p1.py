@@ -42,10 +42,15 @@ from volvence_ant.experiments.ecology_curriculum import (
     _world,
 )
 from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
+from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
 ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v25"
-ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v21"
+# v22 binds sense schema and input dim into the resume archive compatibility
+# (spec sections 3 and 8: archive compatibility binds sense schema / input dim
+# / latent dim / ant count). Journals written by v21 carry neither key and are
+# therefore refused rather than rehydrated into a different sensory body.
+ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v22"
 ECOLOGY_P1_ARM_NAMES = (
     "learned",
     "no_optimize",
@@ -201,12 +206,16 @@ def _json_ready(value: Any) -> Any:
 
 
 def _stable_json_bytes(value: Any) -> bytes:
+    # allow_nan=False: a NaN would otherwise be written into a journal or
+    # digested into a shard fingerprint as the non-standard ``NaN`` token and
+    # silently compare unequal to itself on reload.
     return (
         json.dumps(
             _json_ready(value),
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
+            allow_nan=False,
         )
         + "\n"
     ).encode("utf-8")
@@ -252,8 +261,19 @@ def _progress_compatibility(
     *,
     include_memory_capacity: bool = True,
 ) -> tuple[tuple[str, str], ...]:
+    # sense_schema and input_dim are part of the frozen compatibility contract
+    # (docs/specs/digital-ant-embodiment.md: archive compatibility binds sense
+    # schema, input dim, latent dim and ant count). A resume journal is an
+    # archive an interrupted formal run rehydrates from, so it must bind the
+    # same four; binding only latent dim would let a 19-channel ecology-v2 body
+    # rehydrate from a 14-channel v1 checkpoint.
     values = [
         ("artifact_kind", ECOLOGY_P1_PROGRESS_SCHEMA_VERSION),
+        ("sense_schema", AntSenseSchema.ECOLOGY_V2.value),
+        (
+            "input_dim",
+            str(len(sense_channels(AntSenseSchema.ECOLOGY_V2))),
+        ),
         ("n_ants", str(config.n_ants)),
         ("latent_dim", str(config.temporal_latent_dim)),
         ("runtime_replay", "excluded"),
@@ -334,15 +354,26 @@ def _read_progress_archive(
             "checkpoint_memory_entry_capacity" in state
         ),
     )
-    collection = decode_agent_learning_checkpoint_archive(
-        payload,
-        expected_compatibility=expected_compatibility,
-    )
+    try:
+        collection = decode_agent_learning_checkpoint_archive(
+            payload,
+            expected_compatibility=expected_compatibility,
+        )
+    except ValueError as exc:
+        raise ValueError(
+            "P1 progress checkpoint is not compatible with this run "
+            f"({archive_path.name}): {exc}. Journals written before "
+            f"{ECOLOGY_P1_PROGRESS_SCHEMA_VERSION} do not bind sense schema "
+            "and input dim and cannot be resumed; start a new "
+            "--progress-dir for this configuration."
+        ) from exc
     if dict(collection.metadata.compatibility) != dict(
         expected_compatibility
     ):
         raise ValueError(
-            "P1 progress checkpoint compatibility mismatch"
+            "P1 progress checkpoint compatibility mismatch: "
+            f"expected={dict(expected_compatibility)!r}, "
+            f"actual={dict(collection.metadata.compatibility)!r}"
         )
     return collection.checkpoint_archives
 

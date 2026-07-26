@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
+from enum import Enum
+import inspect
 import math
 import os
 
@@ -11,7 +14,7 @@ from volvence_zero.credit.gate import (
     ModificationGate,
     SelfModificationRecord,
 )
-from volvence_zero.environment import EnvironmentOutcome
+from volvence_zero.environment import EnvironmentMeasurement, EnvironmentOutcome
 from volvence_zero.internal_rl.environment import (
     InternalRLDelayedCreditAssignment,
     InternalRLEnvStep,
@@ -35,6 +38,7 @@ from volvence_zero.temporal import (
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
 )
+from volvence_zero.temporal.interface import LATENT_CODE_BOUNDS
 from volvence_zero.temporal.metacontroller_components import (
     _project_to_ndim,
     residual_sequence_from_snapshot,
@@ -101,6 +105,12 @@ class ZTransition:
     runtime_action_head_state: tuple[float, ...] = ()
     runtime_action_head_mirror_state: tuple[float, ...] = ()
     runtime_posterior_sample_scale: float = 0.5
+    # Typed reward-eligibility audit tags (runtime-replay transitions only).
+    # ``runtime_reward_eligibility_reason`` is a
+    # ``RuntimeReplayRewardEligibilityReason`` value; the empty string means
+    # the transition never went through eligibility (synthetic / proof lanes).
+    runtime_reward_eligible: bool = True
+    runtime_reward_eligibility_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -149,6 +159,47 @@ class RuntimeReplayLineageError(RuntimeError):
     """A runtime outcome/PE lineage does not match the captured action."""
 
 
+class RuntimeReplayLatentBoundContractError(RuntimeError):
+    """The pure and torch replay lanes would reconstruct on different bounds."""
+
+
+class RuntimeReplayRewardEligibilityError(RuntimeError):
+    """The reward the gate authorized is not the reward the payout consumes."""
+
+
+class RuntimeReplayRewardEligibility(str, Enum):
+    """Typed declaration of which settled transitions may earn realized reward.
+
+    Generic algebra only: the kernel never learns what a domain's environment
+    measures, it only distinguishes "an environment published an outcome
+    payoff for this transition" from "it did not".
+
+    * ``ANY_SETTLED_OUTCOME`` — every lineage-matched settlement is eligible.
+      The realized payoff is whatever the PE owner published on
+      ``ActualOutcome.action_payoff``; when the environment published nothing
+      that value is the PE owner's internally synthesized action axis. This is
+      the historical behaviour and the exact rollback default.
+    * ``ENVIRONMENT_MEASURED_ONLY`` — only a transition whose
+      ``EnvironmentOutcome.measurement`` carries an ``action_payoff`` is
+      eligible. An ineligible transition still settles (it keeps its lineage,
+      its dynamics and its diagnostics) but contributes realized payoff 0 and
+      no segment bonus, and is tagged with the reason so an auditor can count
+      eligible vs ineligible transitions per
+      ``docs/specs/prediction-error-loop.md``.
+    """
+
+    ANY_SETTLED_OUTCOME = "any-settled-outcome"
+    ENVIRONMENT_MEASURED_ONLY = "environment-measured-only"
+
+
+class RuntimeReplayRewardEligibilityReason(str, Enum):
+    """Per-transition audit tag for the eligibility verdict."""
+
+    ELIGIBLE = "eligible"
+    NO_ENVIRONMENT_MEASUREMENT = "ineligible:no-environment-measurement"
+    NO_ENVIRONMENT_ACTION_PAYOFF = "ineligible:no-environment-action-payoff"
+
+
 @dataclass(frozen=True)
 class RuntimeActionCapture:
     capture_id: str
@@ -183,6 +234,16 @@ class RuntimeReplaySettlement:
     lineage_matched: bool
     environment_outcome_id: str = ""
     drop_reason: str = ""
+    # The reward stream the optimizer actually consumed for this settlement.
+    # ``reward`` is exactly the ``ZTransition.reward`` that entered the batch;
+    # ``realized_action_payoff`` and ``segment_bonus`` are its two additive
+    # components. Defaults describe "nothing settled" (drop / no capture).
+    realized_action_payoff: float = 0.0
+    segment_bonus: float = 0.0
+    reward: float = 0.0
+    reward_eligible: bool = False
+    reward_eligibility: str = ""
+    reward_eligibility_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -266,7 +327,208 @@ class PolicyOptimizationResult:
 
 
 def _clamp(value: float) -> float:
+    """Signed bound for rewards, advantages and signed diagnostics."""
+
     return max(-1.0, min(1.0, value))
+
+
+# Historical signed bound for the runtime-replay reconstruction. It is the
+# exact rollback baseline, NOT a latent-code contract; the latent-code range
+# has exactly one owner (``LATENT_CODE_BOUNDS``) and is never re-declared
+# here. Kept in the same shape as the torch lane's constant of the same role
+# so ``_assert_latent_bounds_agree`` can compare the two lanes literally.
+_HISTORICAL_SIGNED_LATENT_BOUNDS: tuple[float, float] = (-1.0, 1.0)
+
+
+def resolve_latent_code_bounds(*, latent_unit_clamp: bool) -> tuple[float, float]:
+    """Select the replay reconstruction bound from the declared contract.
+
+    The unit branch returns the temporal owner's ``LATENT_CODE_BOUNDS``
+    verbatim — this module declares no latent range of its own. ``False``
+    keeps the historical signed bound and is the exact rollback.
+    """
+
+    return (
+        LATENT_CODE_BOUNDS
+        if latent_unit_clamp
+        else _HISTORICAL_SIGNED_LATENT_BOUNDS
+    )
+
+
+def _clamp_unit(value: float) -> float:
+    """Unit bound for latent codes, derived from the owner constant.
+
+    The live metacontroller bounds ``z_t`` to ``LATENT_CODE_BOUNDS``
+    (``volvence_zero.temporal.interface._clamp`` /
+    ``metacontroller_components.clamp_unit``).  The sandbox's signed
+    ``_clamp`` is correct for rewards and advantages but lets the replay lane
+    reconstruct a mean the frozen plant can never emit.  Callers select this
+    bound through the ``latent_unit_clamp`` contract; ``False`` keeps the
+    historical signed bound and is the exact rollback.
+    """
+
+    lower, upper = LATENT_CODE_BOUNDS
+    return max(lower, min(upper, value))
+
+
+def assert_runtime_replay_latent_bounds_agree(
+    *,
+    torch_update: Callable[..., object],
+    call_kwargs: Mapping[str, object],
+    latent_unit_clamp: bool,
+) -> tuple[float, float]:
+    """Fail loudly unless both replay lanes reconstruct on the same bound.
+
+    ``docs/specs/temporal-abstraction.md`` states the invariant normatively:
+    两条 lane 必须收到同一个值，否则同一 batch 会重建出不同均值.  Nothing in the
+    type system enforces it — ``torch_causal_ppo_update``'s ``latent_unit_clamp``
+    is an ordinary defaulted kwarg, so a call site that simply omits it trains
+    the torch lane on the historical signed bound while the pure lane
+    reconstructs on the owner's unit bound, for the same batch.
+
+    This binds the payload that is about to be sent against the torch callee's
+    own signature and compares the *resolved bounds*, not the flag.  It
+    therefore catches an omitted kwarg, a wrong value, and a divergence in
+    either lane's ``resolve_latent_code_bounds``.  Returns the agreed bounds.
+    """
+
+    pure_bounds = resolve_latent_code_bounds(latent_unit_clamp=latent_unit_clamp)
+    from volvence_zero.internal_rl.torch_causal_ppo import (
+        resolve_latent_code_bounds as torch_resolve_latent_code_bounds,
+    )
+
+    # ``bind_partial``: this guard polices exactly one kwarg. Arity mistakes
+    # stay the callee's own TypeError one line later, undisguised.
+    bound_arguments = inspect.signature(torch_update).bind_partial(**call_kwargs)
+    if "latent_unit_clamp" not in bound_arguments.arguments:
+        raise RuntimeReplayLatentBoundContractError(
+            "torch causal-PPO call omits latent_unit_clamp while the pure "
+            f"lane declares latent_unit_clamp={latent_unit_clamp!r} "
+            f"(bounds {pure_bounds}); both replay lanes must receive the same "
+            "value or the same batch reconstructs two different policy means"
+        )
+    torch_declaration = bound_arguments.arguments["latent_unit_clamp"]
+    torch_bounds = torch_resolve_latent_code_bounds(
+        latent_unit_clamp=bool(torch_declaration)
+    )
+    if bool(torch_declaration) != latent_unit_clamp or torch_bounds != pure_bounds:
+        raise RuntimeReplayLatentBoundContractError(
+            "runtime replay latent bound contract violated: pure lane "
+            f"latent_unit_clamp={latent_unit_clamp!r} -> {pure_bounds}, torch "
+            f"lane latent_unit_clamp={torch_declaration!r} -> {torch_bounds}; "
+            "both lanes must reconstruct the runtime policy mean on the same "
+            "bound (docs/specs/temporal-abstraction.md, latent code 值域的唯一 owner)"
+        )
+    return pure_bounds
+
+
+def _resolve_reward_eligibility(
+    *,
+    eligibility: RuntimeReplayRewardEligibility,
+    measurement: EnvironmentMeasurement | None,
+) -> tuple[bool, RuntimeReplayRewardEligibilityReason]:
+    """Return ``(eligible, reason)`` for one settled runtime transition.
+
+    ``measurement`` is the ``EnvironmentOutcome.measurement`` the environment
+    published for this transition (``None`` when it published nothing). The
+    kernel reads only its presence and its ``action_payoff`` field; it never
+    interprets what the domain measured.
+    """
+
+    if eligibility is RuntimeReplayRewardEligibility.ANY_SETTLED_OUTCOME:
+        return True, RuntimeReplayRewardEligibilityReason.ELIGIBLE
+    if eligibility is RuntimeReplayRewardEligibility.ENVIRONMENT_MEASURED_ONLY:
+        if measurement is None:
+            return (
+                False,
+                RuntimeReplayRewardEligibilityReason.NO_ENVIRONMENT_MEASUREMENT,
+            )
+        if measurement.action_payoff is None:
+            return (
+                False,
+                RuntimeReplayRewardEligibilityReason.NO_ENVIRONMENT_ACTION_PAYOFF,
+            )
+        return True, RuntimeReplayRewardEligibilityReason.ELIGIBLE
+    raise ValueError(
+        "unsupported runtime replay reward eligibility "
+        f"{eligibility!r}; declare a RuntimeReplayRewardEligibility member"
+    )
+
+
+def _resolve_realized_action_payoff(
+    *,
+    eligibility: RuntimeReplayRewardEligibility,
+    reward_eligible: bool,
+    measurement: EnvironmentMeasurement | None,
+    prediction_error_snapshot: PredictionErrorSnapshot,
+    capture_id: str,
+    environment_outcome_id: str,
+) -> float:
+    """Return the realized payoff this settlement may pay, and police the seam.
+
+    Under ``ANY_SETTLED_OUTCOME`` the authoritative quantity is the PE owner's
+    ``ActualOutcome.action_payoff`` — the exact historical value, byte for byte.
+
+    Under ``ENVIRONMENT_MEASURED_ONLY`` the eligibility gate authorized this
+    transition by reading ``EnvironmentOutcome.measurement.action_payoff``, so
+    that is the field the payout consumes.  Historically the payout read the PE
+    owner's axis instead, and the two agreed only through an unenforced
+    coupling of two other files: ``final_wiring`` forwards
+    ``measurement.action_payoff`` into ``PredictionActionContext`` and
+    ``prediction/error.py`` overrides its synthesized action axis only when
+    that field is not ``None``.  A domain that assembles its own
+    ``PredictionActionContext`` — or any future edit in either file — silently
+    reinstates the original defect: a substrate-derived reward paid under an
+    ``eligible`` tag.  So the strict lane both consumes the gate's own field
+    and fails loudly when the PE owner published a different number, because
+    that divergence means the audit tag no longer describes the paid reward.
+
+    The agreement check is **exact, with no tolerance**.  On the wired path the
+    two quantities are bit-equal by construction, not merely close: the payout
+    reads ``_clamp(measurement.action_payoff)`` while the PE owner stores
+    ``_clamp_signed(measurement.action_payoff)`` (``prediction/error.py``,
+    identical ``max(-1.0, min(1.0, x))`` arithmetic) and the payout clamps that
+    a second time — an idempotent clamp over the same bounds, so no arithmetic
+    ever separates them.  A tolerance would therefore only ever absorb a *real*
+    divergence, i.e. exactly the defect this guard exists to name.  Outcome
+    lineage (``capture_id`` / ``environment_outcome_id`` matching) is enforced
+    separately, so this comparison never straddles two different measurements.
+
+    Scope: this is an AGREEMENT check, not a finiteness check.  ``_clamp``
+    washes a non-finite payoff to a bound (measured: ``nan`` and ``inf`` both
+    become ``1.0``), so both lanes agree on the laundered value and this seam
+    stays silent.  That laundering lives upstream in the shared ``_clamp``, is
+    unchanged by this comparison, and is pinned in
+    ``test_exact_agreement_is_not_a_finiteness_check``.
+    """
+
+    owner_payoff = _clamp(prediction_error_snapshot.actual_outcome.action_payoff)
+    if eligibility is not RuntimeReplayRewardEligibility.ENVIRONMENT_MEASURED_ONLY:
+        return owner_payoff
+    if not reward_eligible:
+        # Nothing is payable; the gate already published the reason.
+        return 0.0
+    if measurement is None or measurement.action_payoff is None:
+        raise RuntimeReplayRewardEligibilityError(
+            "runtime replay eligibility gate marked "
+            f"{capture_id} eligible under {eligibility.value} without an "
+            f"environment measurement payoff (outcome={environment_outcome_id!r})"
+        )
+    measured_payoff = _clamp(measurement.action_payoff)
+    if measured_payoff != owner_payoff:
+        raise RuntimeReplayRewardEligibilityError(
+            "runtime replay realized payoff diverges from the environment "
+            f"measurement that authorized it: capture={capture_id!r} "
+            f"outcome={environment_outcome_id!r} "
+            f"measurement.action_payoff={measured_payoff!r} vs "
+            "prediction_error.actual_outcome.action_payoff="
+            f"{owner_payoff!r}; under "
+            f"{RuntimeReplayRewardEligibility.ENVIRONMENT_MEASURED_ONLY.value} "
+            "the paid reward must be the environment-published quantity, not "
+            "the PE owner's synthesized action axis "
+            "(docs/specs/prediction-error-loop.md)"
+        )
+    return measured_payoff
 
 
 def runtime_replay_policy_distribution(
@@ -281,6 +543,7 @@ def runtime_replay_policy_distribution(
     action_head_residual: tuple[float, ...] = (),
     posterior_sample_scale: float = 0.5,
     exclusive_contrast_pairs: tuple[tuple[int, int], ...] = (),
+    latent_unit_clamp: bool = False,
 ) -> tuple[tuple[float, ...], tuple[float, ...]]:
     """Reconstruct the ndim runtime behavior distribution.
 
@@ -291,6 +554,13 @@ def runtime_replay_policy_distribution(
     mirrors the serving-side exclusive-steering projection: the deterministic
     base mean loses its antisymmetric part before the head residual is added,
     so replay credit on the contrast axes can only flow to the head.
+
+    ``latent_unit_clamp`` selects the bound applied to the modulated mean, the
+    candidate mean and the policy mean.  ``False`` (default) keeps the signed
+    ``[-1, 1]`` bound this lane has always used and is the exact rollback;
+    ``True`` uses the live owner's ``[0, 1]`` latent bound so a head residual
+    can no longer push the reconstructed mean below anything the plant can
+    emit.  Reward and advantage bounds are untouched either way.
     """
 
     n = len(base_mean)
@@ -349,8 +619,9 @@ def runtime_replay_policy_distribution(
         )
         for index in range(n)
     )
+    code_clamp = _clamp_unit if latent_unit_clamp else _clamp
     modulated_mean = tuple(
-        _clamp(base_mean[index] * gains[index])
+        code_clamp(base_mean[index] * gains[index])
         for index in range(n)
     )
     if exclusive_contrast_pairs:
@@ -359,7 +630,7 @@ def runtime_replay_policy_distribution(
             contrast_pairs=exclusive_contrast_pairs,
         )
     candidate_mean = tuple(
-        _clamp(
+        code_clamp(
             modulated_mean[index]
             + (
                 action_head_residual[index]
@@ -370,7 +641,7 @@ def runtime_replay_policy_distribution(
         for index in range(n)
     )
     policy_mean = tuple(
-        _clamp(
+        code_clamp(
             beta_vector[index] * candidate_mean[index]
             + (1.0 - beta_vector[index]) * previous_code[index]
         )
@@ -478,9 +749,17 @@ class CausalZPolicy:
         ) = None,
         causal_action_head_exclusive_steering: bool = False,
         causal_action_head_mirror_equivariance: bool = False,
+        latent_unit_clamp: bool = False,
     ) -> None:
         self._parameter_store = parameter_store
         self._rl_backend = rl_backend
+        # Latent-code bound contract. False is the exact rollback (historic
+        # signed [-1, 1] bound); True adopts the live owner's [0, 1] latent
+        # bound for latent-code / mean reconstruction only.
+        self._latent_unit_clamp = bool(latent_unit_clamp)
+        self._latent_code_clamp = (
+            _clamp_unit if self._latent_unit_clamp else _clamp
+        )
         if runtime_track_modulation_strength < 0.0:
             raise ValueError(
                 "runtime_track_modulation_strength must be >= 0, "
@@ -598,6 +877,10 @@ class CausalZPolicy:
     @property
     def runtime_posterior_sample_scale(self) -> float:
         return self._runtime_posterior_sample_scale
+
+    @property
+    def latent_unit_clamp(self) -> bool:
+        return self._latent_unit_clamp
 
     @property
     def causal_action_head_wiring(self) -> WiringLevel:
@@ -867,9 +1150,10 @@ class CausalZPolicy:
         previous_action: tuple[float, ...],
         weights: tuple[float, ...],
     ) -> tuple[float, ...]:
+        code_clamp = self._latent_code_clamp
         if self._runtime_track_modulation_strength > 0.0:
             base_candidate = tuple(
-                _clamp(
+                code_clamp(
                     hidden_state[index] * 0.50
                     + surface[index] * 0.30
                     + previous_action[index] * 0.20
@@ -885,7 +1169,7 @@ class CausalZPolicy:
             )
         else:
             candidate = tuple(
-                _clamp(
+                code_clamp(
                     hidden_state[index] * 0.40
                     + surface[index] * 0.25
                     + previous_action[index] * 0.15
@@ -921,7 +1205,7 @@ class CausalZPolicy:
                 contrast_pairs=self._causal_action_head_contrast_pairs,
             )
             return tuple(
-                _clamp(
+                code_clamp(
                     value + delta
                 )
                 for value, delta in (
@@ -1090,7 +1374,9 @@ class CausalZPolicy:
                         # part (steering credit) no longer reaches the base.
                         policy_sensitivity *= 0.5
                 elif self._runtime_track_modulation_strength > 0.0:
-                    base_candidate = _clamp(
+                    # Mirrors ``_policy_mean``'s modulated branch, so it must
+                    # use the same latent bound contract.
+                    base_candidate = self._latent_code_clamp(
                         transition.hidden_state[index] * 0.50
                         + value * 0.30
                         + transition.policy_action[index] * 0.20
@@ -1152,6 +1438,7 @@ class CausalZPolicy:
                         if self._causal_action_head_exclusive_steering
                         else ()
                     ),
+                    latent_unit_clamp=self._latent_unit_clamp,
                 )
             elif transition.transition_source == "synthetic":
                 new_mean = self._policy_mean(
@@ -1732,7 +2019,7 @@ class CausalZPolicy:
         from volvence_zero.internal_rl.torch_causal_ppo import torch_causal_ppo_update
 
         write_back = self._rl_backend is WiringLevel.ACTIVE
-        report = torch_causal_ppo_update(
+        torch_call_kwargs = dict(
             parameter_store=self._parameter_store,
             value_weights=self._value_weights,
             value_bias=self._value_bias,
@@ -1762,7 +2049,20 @@ class CausalZPolicy:
             causal_action_head_mirror_equivariance=(
                 self._causal_action_head_mirror_equivariance
             ),
+            latent_unit_clamp=self._latent_unit_clamp,
         )
+        # The two replay lanes must reconstruct the same mean for the same
+        # batch (docs/specs/temporal-abstraction.md, latent-code owner). This
+        # inspects the payload that is about to be sent, so dropping the
+        # kwarg, sending the wrong value, or either lane changing what its
+        # declaration resolves to all fail loudly here instead of silently
+        # training two different policies.
+        assert_runtime_replay_latent_bounds_agree(
+            torch_update=torch_causal_ppo_update,
+            call_kwargs=torch_call_kwargs,
+            latent_unit_clamp=self._latent_unit_clamp,
+        )
+        report = torch_causal_ppo_update(**torch_call_kwargs)
         return {
             "backend": self._rl_backend.value,
             "parameters_changed": report.parameters_changed,
@@ -1783,6 +2083,7 @@ class InternalRLSandbox:
         env: InternalRLEnvironment | None = None,
         residual_runtime: OpenWeightResidualRuntime | None = None,
         rl_backend: WiringLevel = WiringLevel.DISABLED,
+        latent_unit_clamp: bool = False,
     ) -> None:
         self._policy = policy or FullLearnedTemporalPolicy()
         runtime_track_modulation_strength = (
@@ -1845,6 +2146,7 @@ class InternalRLSandbox:
             causal_action_head_mirror_equivariance=(
                 causal_action_head_mirror_equivariance
             ),
+            latent_unit_clamp=latent_unit_clamp,
         )
         self._env = env or InternalRLEnvironment()
         self._residual_runtime = residual_runtime
@@ -2066,6 +2368,7 @@ class InternalRLSandbox:
                 if self._causal_policy.causal_action_head_exclusive_steering
                 else ()
             ),
+            latent_unit_clamp=self._causal_policy.latent_unit_clamp,
         )
         observation_signature = _surface_signature(substrate_snapshot, n)
         log_prob = self._causal_policy._log_prob(
@@ -2118,6 +2421,10 @@ class InternalRLSandbox:
         prediction_error_snapshot: PredictionErrorSnapshot | None,
         credit_snapshot: CreditSnapshot | None,
         prediction_error_reward_enabled: bool = True,
+        outcome_payoff_reward_enabled: bool | None = None,
+        reward_eligibility: RuntimeReplayRewardEligibility = (
+            RuntimeReplayRewardEligibility.ANY_SETTLED_OUTCOME
+        ),
     ) -> RuntimeReplaySettlement:
         """Settle the prior action using only matching PE-owner evidence.
 
@@ -2129,6 +2436,31 @@ class InternalRLSandbox:
         ``ActualOutcome.action_payoff`` and retains signed PE as a diagnostic
         component.  The environment measurement is never consumed directly as
         optimizer reward here.
+
+        Two orthogonal, explicitly named contracts gate that stream:
+
+        ``prediction_error_reward_enabled``
+            PE drives learning signals.  ``False`` removes the PE-derived
+            segment-credit bonus (and, on the joint-loop owner, the PE→beta
+            switch pressure).  PE remains a readout.
+
+        ``outcome_payoff_reward_enabled``
+            The realized outcome payoff reaches the optimizer.  ``None``
+            derives it from the eligibility contract: under
+            ``ANY_SETTLED_OUTCOME`` the realized payoff may be the PE owner's
+            internally synthesized action axis, so it stays coupled to
+            ``prediction_error_reward_enabled`` (exact historical rollback);
+            under ``ENVIRONMENT_MEASURED_ONLY`` it is by construction an
+            environment-published quantity, so it is independent of PE drive
+            and a PE-off arm keeps earning it.  An explicit ``True`` / ``False``
+            always wins over the derivation.
+
+        ``reward_eligibility`` declares which settled transitions may earn a
+        realized payoff at all.  An ineligible transition still settles with
+        full lineage and dynamics, contributes realized payoff 0 and segment
+        bonus 0, and is tagged with a
+        ``RuntimeReplayRewardEligibilityReason`` so nonzero reward can be
+        audited transition by transition.
         """
 
         capture = self._pending_runtime_capture
@@ -2191,8 +2523,28 @@ class InternalRLSandbox:
                 and record.source_event == f"segment:{action_context.segment_id}"
             )
         )
+        runtime_state = capture.runtime_state
+        measurement = environment_outcome.measurement
+        reward_eligible, eligibility_reason = _resolve_reward_eligibility(
+            eligibility=reward_eligibility,
+            measurement=measurement,
+        )
+        payoff_reward_enabled = (
+            bool(outcome_payoff_reward_enabled)
+            if outcome_payoff_reward_enabled is not None
+            else (
+                True
+                if reward_eligibility
+                is RuntimeReplayRewardEligibility.ENVIRONMENT_MEASURED_ONLY
+                else prediction_error_reward_enabled
+            )
+        )
         segment_bonus = 0.0
-        if prediction_error_reward_enabled and segment_records:
+        if (
+            prediction_error_reward_enabled
+            and reward_eligible
+            and segment_records
+        ):
             segment_bonus = _clamp(
                 (
                     sum(record.credit_value for record in segment_records)
@@ -2201,9 +2553,20 @@ class InternalRLSandbox:
                 * 0.1
                 * (1.0 + max(0.0, prediction_error_snapshot.error.magnitude))
             )
+        # Gate/payout invariant. Resolved (and, under strict eligibility,
+        # policed) before the ablation switches are applied, so a broken
+        # wiring cannot lie dormant behind ``outcome_payoff_reward_enabled``.
+        authorized_action_payoff = _resolve_realized_action_payoff(
+            eligibility=reward_eligibility,
+            reward_eligible=reward_eligible,
+            measurement=measurement,
+            prediction_error_snapshot=prediction_error_snapshot,
+            capture_id=capture.capture_id,
+            environment_outcome_id=environment_outcome.outcome_id,
+        )
         realized_action_payoff = (
-            _clamp(prediction_error_snapshot.actual_outcome.action_payoff)
-            if prediction_error_reward_enabled
+            authorized_action_payoff
+            if (payoff_reward_enabled and reward_eligible)
             else 0.0
         )
         pe_residual = _clamp(
@@ -2224,8 +2587,6 @@ class InternalRLSandbox:
         ]
         if abs(segment_bonus) > 1e-12:
             reward_components.append(("abstract_action_credit", segment_bonus))
-        runtime_state = capture.runtime_state
-        measurement = environment_outcome.measurement
         transition = ZTransition(
             step_index=0,
             track=capture.track,
@@ -2286,6 +2647,8 @@ class InternalRLSandbox:
             runtime_posterior_sample_scale=(
                 capture.runtime_posterior_sample_scale
             ),
+            runtime_reward_eligible=reward_eligible,
+            runtime_reward_eligibility_reason=eligibility_reason.value,
         )
         rollout = ZRollout(
             rollout_id=(
@@ -2310,6 +2673,12 @@ class InternalRLSandbox:
             rollout=rollout,
             lineage_matched=True,
             environment_outcome_id=environment_outcome.outcome_id,
+            realized_action_payoff=realized_action_payoff,
+            segment_bonus=segment_bonus,
+            reward=reward,
+            reward_eligible=reward_eligible,
+            reward_eligibility=reward_eligibility.value,
+            reward_eligibility_reason=eligibility_reason.value,
         )
 
     def observe_runtime_transition(
@@ -2325,6 +2694,10 @@ class InternalRLSandbox:
         prediction_error_snapshot: PredictionErrorSnapshot | None,
         credit_snapshot: CreditSnapshot | None,
         prediction_error_reward_enabled: bool = True,
+        outcome_payoff_reward_enabled: bool | None = None,
+        reward_eligibility: RuntimeReplayRewardEligibility = (
+            RuntimeReplayRewardEligibility.ANY_SETTLED_OUTCOME
+        ),
     ) -> tuple[RuntimeReplaySettlement, RuntimeActionCapture]:
         """Settle the previous action, then capture the current runtime action."""
 
@@ -2334,6 +2707,8 @@ class InternalRLSandbox:
             prediction_error_snapshot=prediction_error_snapshot,
             credit_snapshot=credit_snapshot,
             prediction_error_reward_enabled=prediction_error_reward_enabled,
+            outcome_payoff_reward_enabled=outcome_payoff_reward_enabled,
+            reward_eligibility=reward_eligibility,
         )
         capture = self.capture_runtime_action(
             turn_index=turn_index,

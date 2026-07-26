@@ -1,0 +1,80 @@
+{
+  "schema_version": "dialogue-export.v1",
+  "language": "zh-CN",
+  "dialogues": [
+    {
+      "id": "volvence_digital_twin_standalone_v1",
+      "title": "Volvence 独立第五幕：数字分身",
+      "audio_file": "volvence-digital-twin-standalone.wav",
+      "voices": {
+        "assistant": "zh_male_wennuanahu_moon_bigtts"
+      },
+      "utterances": [
+        {
+          "sequence": 1,
+          "speaker": "assistant",
+          "emotion": "克制、辨析、有重量",
+          "speech_rate": 172,
+          "pause_after_ms": 600,
+          "text": "今天多数数字人，复刻的是脸、声音和说话口气。它可能很像一个人，却不一定是那个人。Volvence要迁移的不是表面风格，而是能够被证据验证、还能继续生长的认知连续性。"
+        },
+        {
+          "sequence": 2,
+          "speaker": "assistant",
+          "emotion": "清晰、展开、逐步深入",
+          "speech_rate": 176,
+          "pause_after_ms": 560,
+          "text": "我们从一个人留下的六类证据开始：录音里有他的语气、叙事方式和亲历记忆；视频里有他在真实情境中的行为和反应；对话记录里有他的关系模式、承诺和边界；论文里有他的概念体系和证据标准；工作记录里有他的判断、方法、取舍和结果；小说则帮助理解他的价值倾向和因果观，但系统会严格区分角色、作者和事实。"
+        },
+        {
+          "sequence": 3,
+          "speaker": "assistant",
+          "emotion": "理性、可信、强调边界",
+          "speech_rate": 174,
+          "pause_after_ms": 600,
+          "text": "这些资料不会被简单塞进一个检索库。系统先确认它们说的是不是同一个人，再对齐时间、人物、事件和来源；分开事实、观点与虚构；保留互相矛盾的证据，并为每个结论记录出处和置信度。碎片到这里，才开始成为一个人的生命轨迹。"
+        },
+        {
+          "sequence": 4,
+          "speaker": "assistant",
+          "emotion": "沉稳、解释、逐层强调",
+          "speech_rate": 170,
+          "pause_after_ms": 640,
+          "text": "然后，Volvence把证据编译成四个可以运行、也可以更新的个人内核。认知，是他的世界模型、价值排序和决策方式；记忆，是具体的人和事、情感意义与未完成事项；科学观，是他的概念体系、证据标准、不确定性，以及什么证据会让他改变判断；经验，是他做过的案例、使用的方法、经历的取舍和真实结果。声音、形象和口吻只是外壳，这四层才是这个人的为什么。"
+        },
+        {
+          "sequence": 5,
+          "speaker": "assistant",
+          "emotion": "坚定、反问后收束",
+          "speech_rate": 168,
+          "pause_after_ms": 640,
+          "text": "所以，为什么我们说它是这个人，而不只是像这个人？不是因为它会重复原话，而是因为面对从未见过的问题，它仍然记得正确的人和事，沿用同一套因果模型，作出相近的价值取舍，也知道自己在哪些地方并不确定。这不是一句无法检验的意识上传，而是可以被逐项验证的认知连续性。"
+        },
+        {
+          "sequence": 6,
+          "speaker": "assistant",
+          "emotion": "严谨、审慎、有结论",
+          "speech_rate": 172,
+          "pause_after_ms": 620,
+          "text": "验证时，我们会拿掉原始答案，用训练阶段没有见过的问题测试；重演本人过去的重要选择，看模型能否还原他的判断路径；再由本人，或获授权的家人、同事和同行校正。每个回答都能回到原文、时间和场景。证据不够，就明确说不知道；验证不过，就不能叫这个人的数字分身。"
+        },
+        {
+          "sequence": 7,
+          "speaker": "assistant",
+          "emotion": "清晰、工程化、简洁",
+          "speech_rate": 176,
+          "pause_after_ms": 600,
+          "text": "部署时，语言、推理、决策和学习机制由共享的Base加Volvence Adapter承载；这个人的认知、记忆、科学观、经验、关系和边界，则保存在独立的个人状态中，按请求动态加载。不是为每个人复制一套大模型，而是让同一套模型真正成为不同的人。"
+        },
+        {
+          "sequence": 8,
+          "speaker": "assistant",
+          "emotion": "温暖、坚定、面向未来",
+          "speech_rate": 166,
+          "pause_after_ms": 1000,
+          "text": "数字分身上线以后也不会被冻结。每一次新交互，系统都会先形成预期，再观察行动后的真实结果；预期和结果的差异，会更新他的记忆与策略。所有学习都限定在授权范围内，保留版本、来源和撤销能力。我们不是只保存一个人的过去，而是让他的认知、记忆、科学观与经验，继续面对未来。"
+        }
+      ]
+    }
+  ]
+}

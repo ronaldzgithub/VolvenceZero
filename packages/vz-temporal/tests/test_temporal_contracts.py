@@ -17,6 +17,7 @@ Torch-dependent tests SKIP when torch is missing (never silently pass).
 from __future__ import annotations
 
 import asyncio
+import math
 from dataclasses import dataclass, replace
 
 import pytest
@@ -1169,3 +1170,1304 @@ def test_live_action_head_residual_is_mirror_equivariant() -> None:
     assert mirrored[1] == pytest.approx(direct[0])
     assert mirrored[2] == pytest.approx(direct[2])
     assert direct[3] == pytest.approx(0.0)
+
+
+def test_clone_temporal_policy_preserves_mode_and_splits_the_store() -> None:
+    """The second track must be an independent store in the source mode.
+
+    ``ETANLJointLoop`` publishes world/self as two independent checkpoint
+    lanes, so a shared ``MetacontrollerParameterStore`` makes the round trip
+    asymmetric. ``clone_temporal_policy`` is the owner-side way to build the
+    second track without promoting a LEARNED_LITE arm to FULL_LEARNED.
+    """
+
+    from volvence_zero.temporal import clone_temporal_policy
+
+    lite = LearnedLiteTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=8)
+    )
+    lite_clone = clone_temporal_policy(lite)
+    assert isinstance(lite_clone, LearnedLiteTemporalPolicy)
+    assert lite_clone.parameter_store is not lite.parameter_store
+    assert lite_clone.parameter_store.n_z == 8
+    assert (
+        lite_clone.export_rare_heavy_snapshot()
+        == lite.export_rare_heavy_snapshot()
+    )
+
+    full = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=8)
+    )
+    full_clone = clone_temporal_policy(full)
+    assert isinstance(full_clone, FullLearnedTemporalPolicy)
+    assert full_clone.parameter_store is not full.parameter_store
+
+
+def test_joint_loop_rejects_a_shared_dual_track_parameter_store() -> None:
+    """A shared store silently drops the world lane on checkpoint restore."""
+
+    from volvence_zero.joint_loop import ETANLJointLoop
+
+    shared = LearnedLiteTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=8)
+    )
+    with pytest.raises(ValueError, match="distinct"):
+        ETANLJointLoop(world_policy=shared, self_policy=shared)
+
+
+def test_joint_loop_learning_checkpoint_round_trips_per_track_heads() -> None:
+    """World and self action heads must both survive restore (regression).
+
+    Each track promotes its *own* head to full rank, so the two lanes carry
+    genuinely different head shapes. Restoring them into one store used to
+    overwrite the world lane with the self lane, which the session-level
+    re-export fingerprint guard then reported as a mismatch.
+    """
+
+    from volvence_zero.joint_loop import ETANLJointLoop
+    from volvence_zero.temporal import clone_temporal_policy
+
+    n_z = 8
+    world = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=n_z)
+    )
+    self_policy = clone_temporal_policy(world)
+    assert isinstance(self_policy, FullLearnedTemporalPolicy)
+    for policy, track in ((world, Track.WORLD), (self_policy, Track.SELF)):
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=track,
+            strength=1.0,
+            rank=n_z,
+        )
+    loop = ETANLJointLoop(world_policy=world, self_policy=self_policy)
+
+    def head_ranks(snapshot) -> dict[str, int]:
+        return {
+            head.track.value: head.rank
+            for head in snapshot.causal_action_heads
+        }
+
+    checkpoint = loop.create_learning_checkpoint(checkpoint_id="round-trip")
+    expected_world = head_ranks(checkpoint.world_temporal_snapshot)
+    expected_self = head_ranks(checkpoint.self_temporal_snapshot)
+    # Each track promoted only its own head, so the lanes really do differ.
+    assert expected_world["world"] == n_z
+    assert expected_self["self"] == n_z
+    assert expected_world != expected_self
+
+    loop.restore_learning_checkpoint(checkpoint)
+    restored = loop.create_learning_checkpoint(checkpoint_id="round-trip")
+    assert head_ranks(restored.world_temporal_snapshot) == expected_world
+    assert head_ranks(restored.self_temporal_snapshot) == expected_self
+    assert (
+        head_ranks(
+            restored.world_policy_checkpoint.metacontroller_snapshot
+        )
+        == expected_world
+    )
+
+
+# ---------------------------------------------------------------------------
+# 5. Frozen causal-action-head update envelope (W3-b)
+#
+# The envelope's single owner is ``temporal.interface``. The pure update path
+# and the torch autograd lane must both satisfy it; an unconstrained intercept
+# installs a cross-state fixed turn, which is the failure the whole v10-v22
+# debugging chain chased (docs/specs/digital-ant-embodiment.md).
+# ---------------------------------------------------------------------------
+
+
+def _head_with(store: MetacontrollerParameterStore, **overrides):
+    return replace(
+        store.causal_action_head_parameters(track=Track.WORLD), **overrides
+    )
+
+
+def test_causal_action_head_envelope_projection_bounds_step_and_absolute() -> None:
+    """One owner update may move each parameter by at most its step limit."""
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        project_causal_action_head_update,
+    )
+
+    store = MetacontrollerParameterStore(n_z=4)
+    store.configure_causal_action_head_rank(track=Track.WORLD, rank=4)
+    baseline = store.causal_action_head_parameters(track=Track.WORLD)
+    # A wildly out-of-envelope candidate, as an unconstrained Adam step or a
+    # hand-edited archive would produce.
+    runaway = replace(
+        baseline,
+        input_factors=tuple(
+            tuple(value + 9.0 for value in row) for row in baseline.input_factors
+        ),
+        output_factors=tuple(
+            tuple(value - 9.0 for value in row)
+            for row in baseline.output_factors
+        ),
+        bias=tuple(7.0 for _ in baseline.bias),
+    )
+
+    projected = project_causal_action_head_update(
+        baseline=baseline, candidate=runaway
+    )
+
+    # Per-step displacement is capped, and every cap is actually binding here.
+    assert all(
+        abs(after - before) == pytest.approx(envelope.input_factor_step_limit)
+        for after_row, before_row in zip(
+            projected.input_factors, baseline.input_factors, strict=True
+        )
+        for after, before in zip(after_row, before_row, strict=True)
+    )
+    assert all(
+        abs(after - before) == pytest.approx(envelope.output_factor_step_limit)
+        for after_row, before_row in zip(
+            projected.output_factors, baseline.output_factors, strict=True
+        )
+        for after, before in zip(after_row, before_row, strict=True)
+    )
+    assert all(
+        abs(after - before) == pytest.approx(envelope.bias_step_limit)
+        for after, before in zip(projected.bias, baseline.bias, strict=True)
+    )
+    # ...and the absolute ceilings hold on the projected result.
+    assert max(
+        abs(value)
+        for matrix in (projected.input_factors, projected.output_factors)
+        for row in matrix
+        for value in row
+    ) <= envelope.factor_absolute_limit
+    assert max(abs(value) for value in projected.bias) <= (
+        envelope.bias_absolute_limit
+    )
+
+
+def test_causal_action_head_envelope_projection_clamps_absolute_over_step() -> None:
+    """Repeated in-step moves still cannot escape the absolute bias ceiling."""
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        project_causal_action_head_update,
+    )
+
+    store = MetacontrollerParameterStore(n_z=4)
+    parameters = _head_with(
+        store, bias=tuple(envelope.bias_absolute_limit for _ in range(4))
+    )
+    # Each step is individually legal; the absolute ceiling must still bind.
+    for _ in range(20):
+        parameters = project_causal_action_head_update(
+            baseline=parameters,
+            candidate=replace(
+                parameters,
+                bias=tuple(
+                    value + envelope.bias_step_limit for value in parameters.bias
+                ),
+            ),
+        )
+
+    assert parameters.bias == pytest.approx(
+        tuple(envelope.bias_absolute_limit for _ in range(4))
+    )
+
+
+def test_causal_action_head_envelope_projection_rejects_non_finite() -> None:
+    """Both sides of the projection must be finite, not just the candidate.
+
+    ``max(nan - step, min(nan + step, candidate))`` is ``nan``, and the
+    following absolute clamp silently turns that into ``+absolute_limit``: a
+    corrupt baseline would be laundered into a legal parameter pinned at the
+    ceiling, which is exactly the fixed intercept the envelope forbids.
+    """
+
+    from volvence_zero.temporal.interface import (
+        project_causal_action_head_update,
+    )
+
+    store = MetacontrollerParameterStore(n_z=4)
+    baseline = store.causal_action_head_parameters(track=Track.WORLD)
+
+    with pytest.raises(ValueError, match="candidate must be finite"):
+        project_causal_action_head_update(
+            baseline=baseline,
+            candidate=replace(
+                baseline, bias=(float("nan"),) + baseline.bias[1:]
+            ),
+        )
+    for poison in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="baseline must be finite"):
+            project_causal_action_head_update(
+                baseline=replace(
+                    baseline, bias=(poison,) + baseline.bias[1:]
+                ),
+                candidate=replace(baseline, bias=(0.0,) + baseline.bias[1:]),
+            )
+
+
+def test_causal_action_head_validation_has_no_slack_at_the_frozen_bound() -> None:
+    """The frozen bound is exact: no epsilon may widen it.
+
+    The clamp outputs the owner writes are exactly the limit
+    (``max(-0.1, min(0.1, x)) == 0.1`` and ``abs(0.1) > 0.1`` is ``False``), so
+    no tolerance is needed to accept them -- any slack only widens a frozen
+    bound.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        validate_causal_action_head_magnitudes,
+    )
+
+    store = MetacontrollerParameterStore(n_z=4)
+    store.configure_causal_action_head_rank(track=Track.WORLD, rank=4)
+    baseline = store.causal_action_head_parameters(track=Track.WORLD)
+
+    # Exactly at both ceilings: legal, and reachable from the owner's clamps.
+    at_bound = replace(
+        baseline,
+        bias=tuple(envelope.bias_absolute_limit for _ in baseline.bias),
+        output_factors=tuple(
+            tuple(-envelope.factor_absolute_limit for _ in row)
+            for row in baseline.output_factors
+        ),
+    )
+    validate_causal_action_head_magnitudes(at_bound)
+
+    # One ULP above: rejected. A 1e-9 tolerance would have accepted this.
+    just_over = math.nextafter(envelope.bias_absolute_limit, math.inf)
+    assert just_over - envelope.bias_absolute_limit < 1e-9
+    with pytest.raises(ValueError, match="bias_absolute_limit"):
+        validate_causal_action_head_magnitudes(
+            replace(baseline, bias=(just_over,) + baseline.bias[1:])
+        )
+    factor_over = math.nextafter(envelope.factor_absolute_limit, math.inf)
+    assert factor_over - envelope.factor_absolute_limit < 1e-9
+    with pytest.raises(ValueError, match="factor_absolute_limit"):
+        validate_causal_action_head_magnitudes(
+            replace(
+                baseline,
+                output_factors=((factor_over, 0.0, 0.0, 0.0),)
+                + baseline.output_factors[1:],
+            )
+        )
+
+
+def test_restore_causal_action_head_rejects_non_finite_parameters() -> None:
+    """The direct install path must reject NaN/Inf like the checkpoint path.
+
+    ``restore_parameter_snapshot`` has always refused non-finite heads; this
+    path did not, so a diverged optimizer could write NaN straight into the
+    live head and only surface it somewhere downstream. Finiteness is not
+    governed by the opt-in envelope switch: it is never a legal parameter.
+    """
+
+    store = MetacontrollerParameterStore(n_z=4)
+    store.configure_causal_action_head_rank(track=Track.WORLD, rank=4)
+    baseline = store.causal_action_head_parameters(track=Track.WORLD)
+
+    for poison in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="non-finite"):
+            store.restore_causal_action_head_parameters(
+                replace(baseline, bias=(poison,) + baseline.bias[1:])
+            )
+        with pytest.raises(ValueError, match="non-finite"):
+            store.restore_causal_action_head_parameters(
+                replace(
+                    baseline,
+                    input_factors=((poison, 0.0, 0.0, 0.0),)
+                    + baseline.input_factors[1:],
+                )
+            )
+    # The live head is untouched by the rejected installs.
+    assert store.causal_action_head_parameters(track=Track.WORLD) == baseline
+
+
+def test_domain_can_turn_on_envelope_enforcement_through_the_policy() -> None:
+    """The contract must be reachable, and must stay opt-in.
+
+    ``FullLearnedTemporalPolicy.set_causal_action_head`` is the seam a domain's
+    rollout config already flows through, so it is where the declaration lands
+    on the store. Default ``False`` keeps the historical permissive restore --
+    ``tests/test_runtime_transition_replay.py`` deliberately installs bias
+    0.35/0.4 through it.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+    )
+
+    def configured(*, envelope_enforced: bool) -> FullLearnedTemporalPolicy:
+        policy = FullLearnedTemporalPolicy(
+            parameter_store=MetacontrollerParameterStore(n_z=4)
+        )
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=Track.WORLD,
+            strength=0.5,
+            envelope_enforced=envelope_enforced,
+        )
+        return policy
+
+    forged = replace(
+        MetacontrollerParameterStore(n_z=4).causal_action_head_parameters(
+            track=Track.WORLD
+        ),
+        bias=(envelope.bias_absolute_limit * 4.0, 0.0, 0.0, 0.0),
+        update_step=1,
+    )
+
+    permissive = configured(envelope_enforced=False)
+    assert (
+        permissive.parameter_store.causal_action_head_envelope_enforced
+        is False
+    )
+    permissive.parameter_store.restore_causal_action_head_parameters(forged)
+    assert permissive.parameter_store.causal_action_head_parameters(
+        track=Track.WORLD
+    ).bias == forged.bias
+
+    strict = configured(envelope_enforced=True)
+    assert (
+        strict.parameter_store.causal_action_head_envelope_enforced is True
+    )
+    with pytest.raises(ValueError, match="bias_absolute_limit"):
+        strict.parameter_store.restore_causal_action_head_parameters(forged)
+    with pytest.raises(ValueError, match="bias_absolute_limit"):
+        strict.parameter_store.restore_parameter_snapshot(
+            _snapshot_carrying_head(forged)
+        )
+    # Reversible: flipping the declaration back restores history exactly.
+    strict.parameter_store.set_causal_action_head_envelope_enforced(False)
+    strict.parameter_store.restore_causal_action_head_parameters(forged)
+    assert strict.parameter_store.causal_action_head_parameters(
+        track=Track.WORLD
+    ).bias == forged.bias
+
+
+def _snapshot_carrying_head(parameters) -> object:
+    source = MetacontrollerParameterStore(n_z=4)
+    source.configure_causal_action_head_rank(
+        track=Track.WORLD, rank=parameters.rank
+    )
+    source.restore_causal_action_head_parameters(parameters)
+    return source.export_parameter_snapshot()
+
+
+def test_causal_action_head_update_scales_are_owner_sourced() -> None:
+    """Both lanes must read the same proportional step scale, one owner.
+
+    The scale is what makes the update proportional; the envelope only bounds
+    it. Duplicating ``/ batch``, ``0.12`` or ``0.05`` in the torch lane would
+    let the two backends drift apart silently.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        causal_action_head_update_scales,
+    )
+
+    scales = causal_action_head_update_scales(
+        learning_rate=0.02, batch_size=8
+    )
+    assert scales.factor_learning_rate == pytest.approx(0.02 / 8)
+    assert scales.bias_learning_rate == pytest.approx(
+        (0.02 / 8) * envelope.bias_learning_rate_ratio
+    )
+    assert scales.bias_signal_learning_rate == pytest.approx(
+        (0.02 / 8)
+        * envelope.bias_learning_rate_ratio
+        * envelope.bias_state_path_scale
+    )
+    # Bias moves far slower than the factors -- that asymmetry is the whole
+    # point of the intercept discipline, not an accident of the optimizer.
+    assert scales.bias_signal_learning_rate < scales.factor_learning_rate / 100
+
+    with pytest.raises(ValueError, match="non-empty batch"):
+        causal_action_head_update_scales(learning_rate=0.02, batch_size=0)
+    with pytest.raises(ValueError, match="finite"):
+        causal_action_head_update_scales(
+            learning_rate=float("nan"), batch_size=4
+        )
+
+
+def test_restore_rejects_out_of_envelope_archive_naming_the_bound() -> None:
+    """An archive the owner update path could never produce must fail loudly."""
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+    )
+
+    store = MetacontrollerParameterStore(n_z=4)
+    store.configure_causal_action_head_rank(track=Track.WORLD, rank=4)
+    forged_bias = _head_with(
+        store,
+        bias=(envelope.bias_absolute_limit * 4.0, 0.0, 0.0, 0.0),
+        update_step=1,
+    )
+    forged_factors = _head_with(
+        store,
+        output_factors=(
+            (envelope.factor_absolute_limit * 2.0, 0.0, 0.0, 0.0),
+        )
+        + tuple((0.0, 0.0, 0.0, 0.0) for _ in range(3)),
+        update_step=1,
+    )
+
+    with pytest.raises(ValueError, match="bias_absolute_limit"):
+        store.restore_causal_action_head_parameters(
+            forged_bias, enforce_envelope=True
+        )
+    with pytest.raises(ValueError, match="factor_absolute_limit"):
+        store.restore_causal_action_head_parameters(
+            forged_factors, enforce_envelope=True
+        )
+    # The rejection really is the envelope check, not a shape check: the same
+    # archive installs fine on the default (historical) contract.
+    store.restore_causal_action_head_parameters(forged_bias)
+    assert store.causal_action_head_parameters(track=Track.WORLD).bias == (
+        forged_bias.bias
+    )
+
+
+def test_envelope_enforced_store_rejects_out_of_envelope_checkpoint() -> None:
+    """The declared contract also gates the archive/checkpoint restore path."""
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+    )
+
+    source = MetacontrollerParameterStore(n_z=4)
+    source.configure_causal_action_head_rank(track=Track.WORLD, rank=4)
+    source.restore_causal_action_head_parameters(
+        _head_with(
+            source,
+            bias=(envelope.bias_absolute_limit * 5.0, 0.0, 0.0, 0.0),
+            update_step=1,
+        )
+    )
+    snapshot = source.export_parameter_snapshot()
+
+    # Default contract: byte-compatible with today, the archive still loads.
+    permissive = MetacontrollerParameterStore(n_z=4)
+    permissive.configure_causal_action_head_rank(track=Track.WORLD, rank=4)
+    permissive.restore_parameter_snapshot(snapshot)
+    assert permissive.causal_action_head_parameters(
+        track=Track.WORLD
+    ).bias[0] == pytest.approx(envelope.bias_absolute_limit * 5.0)
+
+    strict = MetacontrollerParameterStore(
+        n_z=4, causal_action_head_envelope_enforced=True
+    )
+    strict.configure_causal_action_head_rank(track=Track.WORLD, rank=4)
+    with pytest.raises(ValueError, match="bias_absolute_limit"):
+        strict.restore_parameter_snapshot(snapshot)
+
+
+def test_pure_owner_update_never_leaves_the_frozen_envelope() -> None:
+    """The pure path is the reference implementation of the same envelope."""
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        validate_causal_action_head_magnitudes,
+    )
+
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    state = tuple(0.5 for _ in range(_NDIM))
+    mirrored = tuple(-value for value in state)
+    gradient = (4.0, -4.0) + tuple(0.0 for _ in range(_NDIM - 2))
+    for _ in range(200):
+        store.update_causal_action_head(
+            track=Track.WORLD,
+            state_feature_batch=(state, mirrored),
+            action_gradients=(gradient, gradient),
+            advantages=(1.0, 1.0),
+        )
+
+    parameters = store.causal_action_head_parameters(track=Track.WORLD)
+    validate_causal_action_head_magnitudes(parameters)
+    # The bias ceiling is reached, so the bound is binding rather than vacuous.
+    assert max(abs(value) for value in parameters.bias) == pytest.approx(
+        envelope.bias_absolute_limit
+    )
+
+
+@dataclass(frozen=True)
+class _HeadStep:
+    """Largest per-parameter displacement of one torch head write-back."""
+
+    bias: float
+    output: float
+    input: float
+
+
+def _torch_head_step(
+    *,
+    learning_rate: float = 0.02,
+    action_gain: float = 1.0,
+    strength: float = 0.35,
+    ppo_epochs: int = 1,
+) -> _HeadStep:
+    """One ACTIVE torch update; return the head's per-parameter displacement.
+
+    ``action_gain`` scales the recorded actions away from the reconstructed
+    policy mean, which is the head gradient's magnitude knob: the surrogate's
+    sensitivity is ``advantage * (action - mean) / variance`` and the ratio is
+    exactly 1 on the first epoch, so the head gradient is affine in the gain
+    with everything else (batch, advantages, learning rate) held fixed.
+
+    The baseline head is seeded with non-zero output factors so all three
+    parameter blocks carry gradient on the very first epoch (from an all-zero
+    output factor the bilinear input path has no feedback yet -- the pure owner
+    handles that with its block-coordinate step, the torch lane does not).
+    """
+
+    from volvence_zero.internal_rl.torch_causal_ppo import torch_causal_ppo_update
+
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    seed = store.causal_action_head_parameters(track=Track.WORLD)
+    store.restore_causal_action_head_parameters(
+        replace(
+            seed,
+            output_factors=tuple(
+                tuple(
+                    0.20 if output_index % seed.rank == rank_index else -0.10
+                    for rank_index in range(seed.rank)
+                )
+                for output_index in range(_NDIM)
+            ),
+            update_step=1,
+        )
+    )
+    before = store.causal_action_head_parameters(track=Track.WORLD)
+    torch_causal_ppo_update(
+        parameter_store=store,
+        value_weights={Track.WORLD: tuple(0.1 for _ in range(_NDIM))},
+        value_bias={Track.WORLD: 0.05},
+        track=Track.WORLD,
+        transitions=tuple(
+            replace(
+                transition,
+                policy_action=tuple(
+                    value * action_gain
+                    for value in transition.policy_action
+                ),
+            )
+            for transition in _transitions(_NDIM)
+        ),
+        n_z=_NDIM,
+        write_back=True,
+        ppo_epochs=ppo_epochs,
+        learning_rate=learning_rate,
+        causal_action_head_enabled=True,
+        causal_action_head_strength=strength,
+        causal_action_head_effective_dims=(0, 1, 2),
+        causal_action_head_contrast_pairs=((0, 1),),
+    )
+    after = store.causal_action_head_parameters(track=Track.WORLD)
+    assert after.update_step == before.update_step + 1
+
+    def max_step(after_values, before_values) -> float:
+        return max(
+            abs(a - b)
+            for a, b in zip(after_values, before_values, strict=True)
+        )
+
+    def max_matrix_step(after_rows, before_rows) -> float:
+        return max(
+            max_step(after_row, before_row)
+            for after_row, before_row in zip(
+                after_rows, before_rows, strict=True
+            )
+        )
+
+    return _HeadStep(
+        bias=max_step(after.bias, before.bias),
+        output=max_matrix_step(after.output_factors, before.output_factors),
+        input=max_matrix_step(after.input_factors, before.input_factors),
+    )
+
+
+@torch_only
+def test_torch_head_step_is_proportional_not_bang_bang() -> None:
+    """The envelope must bound the torch step, not BE the torch step.
+
+    Folding the head into the same Adam optimizer and clamping the result made
+    the write-back a bang-bang maximum-step controller: Adam normalises every
+    element's step to ~lr, so the clamp bound every update at exactly the cap
+    and the update carried only the SIGN of the gradient. Measured on this
+    batch before the fix: ``bias_step=0.010000 out_step=0.050000
+    in_step=0.020000`` at lr=0.02 AND the identical numbers at lr=0.5, and 15
+    successive updates walked bias to its absolute 0.1 ceiling in 10 steps -- a
+    pinned bias IS the cross-state fixed steering intercept the envelope exists
+    to prevent (docs/specs/digital-ant-embodiment.md).
+
+    Compare the pure owner on comparable signal: ``bias_step`` two to three
+    orders of magnitude below the cap, i.e. a guard rail rather than the value.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+    )
+
+    # (a) An ordinary batch at the production default learning rate: every
+    #     displacement is strictly inside the envelope, by a wide margin.
+    ordinary = _torch_head_step()
+    assert 0.0 < ordinary.bias < envelope.bias_step_limit
+    assert 0.0 < ordinary.output < envelope.output_factor_step_limit
+    assert 0.0 < ordinary.input < envelope.input_factor_step_limit
+    # Not merely "inside": two orders of magnitude below, so the cap is a guard
+    # rail. A bang-bang controller scores exactly 1.0 on each of these.
+    assert ordinary.bias < envelope.bias_step_limit / 100.0
+    assert ordinary.output < envelope.output_factor_step_limit / 50.0
+    assert ordinary.input < envelope.input_factor_step_limit / 100.0
+
+    # (b) The step scales with the gradient. Doubling the recorded action's
+    #     distance from the reconstructed mean doubles the head gradient, and
+    #     therefore the step. A sign-only controller returns the same number.
+    single = _torch_head_step(action_gain=20.0)
+    double = _torch_head_step(action_gain=40.0)
+    for scaled, base in (
+        (double.bias, single.bias),
+        (double.output, single.output),
+        (double.input, single.input),
+    ):
+        assert base < scaled < envelope.output_factor_step_limit
+        assert scaled / base == pytest.approx(2.0, rel=5e-3)
+
+    # (c) The step scales with the learning rate too, exactly. This is the
+    #     sharpest regression guard: pre-fix, lr=0.02 and lr=0.5 produced
+    #     byte-identical steps because both saturated the cap.
+    slow = _torch_head_step(learning_rate=0.02)
+    fast = _torch_head_step(learning_rate=0.5)
+    assert fast.bias / slow.bias == pytest.approx(25.0, rel=1e-9)
+    assert fast.output / slow.output == pytest.approx(25.0, rel=1e-9)
+    assert fast.input / slow.input == pytest.approx(25.0, rel=1e-9)
+
+
+@torch_only
+def test_torch_head_step_still_saturates_the_frozen_envelope() -> None:
+    """A large gradient must still be cut off exactly at the frozen bound.
+
+    Proportional does not mean unbounded: at the SAME production default
+    learning rate, a batch whose recorded actions sit far from the
+    reconstructed mean drives every block to its per-step cap and no further.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+    )
+
+    saturated = _torch_head_step(action_gain=1000.0)
+
+    assert saturated.bias == pytest.approx(envelope.bias_step_limit)
+    assert saturated.output == pytest.approx(
+        envelope.output_factor_step_limit
+    )
+    assert saturated.input == pytest.approx(envelope.input_factor_step_limit)
+    # An even larger gradient buys nothing: the bound, not the gradient, is
+    # what terminates the step.
+    harder = _torch_head_step(action_gain=5000.0)
+    assert harder.bias == pytest.approx(saturated.bias)
+    assert harder.output == pytest.approx(saturated.output)
+    assert harder.input == pytest.approx(saturated.input)
+
+
+@torch_only
+def test_torch_head_update_stays_inside_the_absolute_ceiling_over_time() -> None:
+    """Repeated updates must not walk the bias to the absolute ceiling.
+
+    Pre-fix, 15 successive updates at the production default lr=0.02 pinned
+    ``bias[2]`` at 0.1 by update 10 (0.01, 0.0166, ... 0.0966, 0.1). A bias
+    pinned at the ceiling is a constant turn on every state.
+    """
+
+    from volvence_zero.internal_rl.torch_causal_ppo import torch_causal_ppo_update
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        validate_causal_action_head_magnitudes,
+    )
+
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    trajectory = []
+    for _ in range(15):
+        torch_causal_ppo_update(
+            parameter_store=store,
+            value_weights={Track.WORLD: tuple(0.1 for _ in range(_NDIM))},
+            value_bias={Track.WORLD: 0.05},
+            track=Track.WORLD,
+            transitions=_transitions(_NDIM),
+            n_z=_NDIM,
+            write_back=True,
+            learning_rate=0.02,
+            causal_action_head_enabled=True,
+            causal_action_head_strength=0.35,
+            causal_action_head_effective_dims=(0, 1, 2),
+            causal_action_head_contrast_pairs=((0, 1),),
+        )
+        parameters = store.causal_action_head_parameters(track=Track.WORLD)
+        validate_causal_action_head_magnitudes(parameters)
+        trajectory.append(max(abs(value) for value in parameters.bias))
+
+    assert trajectory[-1] < envelope.bias_absolute_limit / 10.0
+    assert store.causal_action_head_parameters(
+        track=Track.WORLD
+    ).update_step == 15
+
+
+@torch_only
+def test_torch_head_update_is_installed_through_the_owner_validation() -> None:
+    """SHADOW must still not write, and ACTIVE must land inside the envelope."""
+
+    from volvence_zero.internal_rl.torch_causal_ppo import torch_causal_ppo_update
+
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    before = store.causal_action_head_parameters(track=Track.WORLD)
+
+    torch_causal_ppo_update(
+        parameter_store=store,
+        value_weights={Track.WORLD: tuple(0.1 for _ in range(_NDIM))},
+        value_bias={Track.WORLD: 0.05},
+        track=Track.WORLD,
+        transitions=_transitions(_NDIM),
+        n_z=_NDIM,
+        write_back=False,
+        learning_rate=0.5,
+        causal_action_head_enabled=True,
+        causal_action_head_strength=0.35,
+        causal_action_head_effective_dims=(0, 1, 2),
+        causal_action_head_contrast_pairs=((0, 1),),
+    )
+
+    assert store.causal_action_head_parameters(track=Track.WORLD) == before
+
+
+# ---------------------------------------------------------------------------
+# 6. Runtime-replay latent-code reconstruction bound (W3-b)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_latent_code_bounds_defaults_to_the_signed_rollback() -> None:
+    from volvence_zero.internal_rl.torch_causal_ppo import (
+        resolve_latent_code_bounds,
+    )
+    from volvence_zero.temporal.interface import LATENT_CODE_BOUNDS
+
+    assert resolve_latent_code_bounds(latent_unit_clamp=False) == (-1.0, 1.0)
+    assert resolve_latent_code_bounds(latent_unit_clamp=True) == (
+        LATENT_CODE_BOUNDS
+    )
+
+
+@torch_only
+def test_torch_replay_reconstruction_matches_live_code_range_when_saturated() -> None:
+    """A saturated contrast axis must not reconstruct an unreachable mean.
+
+    The live ndim forward bounds ``code`` to ``LATENT_CODE_BOUNDS``, so a mean
+    of -0.15 is something the frozen plant can never have emitted; signing
+    ``(action - mean)`` against it points the head gradient the wrong way.
+    """
+
+    import torch
+
+    from volvence_zero.internal_rl.torch_causal_ppo import (
+        resolve_latent_code_bounds,
+        torch_runtime_replay_latent_mean,
+    )
+    from volvence_zero.temporal.interface import (
+        LATENT_CODE_BOUNDS,
+        MetacontrollerParameterStore,
+    )
+
+    n_z = 4
+    base_mean = (0.9, 0.05, 0.4, 0.6)
+    head_residual = (0.2, -0.2, 0.0, 0.0)
+    store = MetacontrollerParameterStore(n_z=n_z)
+
+    def reconstruct(latent_unit_clamp: bool) -> tuple[float, ...]:
+        result = torch_runtime_replay_latent_mean(
+            torch,
+            base_mean=torch.tensor([base_mean], dtype=torch.float64),
+            gain=torch.ones((1, n_z), dtype=torch.float64),
+            previous_code=torch.zeros((1, n_z), dtype=torch.float64),
+            beta_t=torch.ones((1, n_z), dtype=torch.float64),
+            head_residual=torch.tensor([head_residual], dtype=torch.float64),
+            project_base=lambda value: value,
+            bounds=resolve_latent_code_bounds(
+                latent_unit_clamp=latent_unit_clamp
+            ),
+        )
+        return tuple(float(value) for value in result[0])
+
+    # Rollback baseline: the historical signed bound leaks a negative mean.
+    assert reconstruct(False) == pytest.approx((1.0, -0.15, 0.4, 0.6))
+    # Declared contract: agrees with what the live forward could have emitted.
+    assert reconstruct(True) == pytest.approx((1.0, 0.0, 0.4, 0.6))
+
+    # ...and "what the live forward could have emitted" is the owner's own
+    # unit bound, not a literal repeated in the torch lane.
+    lower, upper = LATENT_CODE_BOUNDS
+    live_equivalent = store.runtime_track_modulated_code(
+        base_mean, strength=0.0
+    )
+    assert live_equivalent == pytest.approx(base_mean)
+    assert reconstruct(True) == pytest.approx(
+        tuple(
+            max(lower, min(upper, live + residual))
+            for live, residual in zip(
+                live_equivalent, head_residual, strict=True
+            )
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# 7. W3-b-fix follow-up: reachability, declaration precedence, exact bounds
+# ---------------------------------------------------------------------------
+
+
+def test_head_configuration_without_a_declaration_leaves_the_store_alone() -> None:
+    """A later call that never mentions enforcement must not clear it.
+
+    ``MetacontrollerParameterStore(causal_action_head_envelope_enforced=True)``
+    is a real public contract field. Before this fix
+    ``set_causal_action_head`` wrote its ``False`` default into the store
+    unconditionally, so ANY later head-configuration call -- a rank change, a
+    strength change, a second track wiring -- silently turned archive-side
+    enforcement back off. That is the exact silent-downgrade AGENTS.md §6
+    forbids: the domain's declaration disappears with no error and no log.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+    )
+
+    store = MetacontrollerParameterStore(
+        n_z=4, causal_action_head_envelope_enforced=True
+    )
+    policy = FullLearnedTemporalPolicy(parameter_store=store)
+
+    # A configuration call that says nothing about enforcement.
+    policy.set_causal_action_head(
+        wiring_level=WiringLevel.ACTIVE,
+        track=Track.WORLD,
+        strength=0.5,
+    )
+    assert store.causal_action_head_envelope_enforced is True
+
+    forged = replace(
+        store.causal_action_head_parameters(track=Track.WORLD),
+        bias=(envelope.bias_absolute_limit * 4.0, 0.0, 0.0, 0.0),
+        update_step=1,
+    )
+    # The declaration survived, so the archive path still refuses the forgery.
+    with pytest.raises(ValueError, match="bias_absolute_limit"):
+        store.restore_causal_action_head_parameters(forged)
+
+    # An EXPLICIT declaration still wins in both directions -- ``None`` means
+    # "not declared here", not "unreachable".
+    policy.set_causal_action_head(
+        wiring_level=WiringLevel.ACTIVE,
+        track=Track.WORLD,
+        strength=0.5,
+        envelope_enforced=False,
+    )
+    assert store.causal_action_head_envelope_enforced is False
+    store.restore_causal_action_head_parameters(forged)
+    assert store.causal_action_head_parameters(track=Track.WORLD).bias == (
+        forged.bias
+    )
+
+    policy.set_causal_action_head(
+        wiring_level=WiringLevel.ACTIVE,
+        track=Track.WORLD,
+        strength=0.5,
+        envelope_enforced=True,
+    )
+    assert store.causal_action_head_envelope_enforced is True
+
+
+def test_rollout_config_carries_the_envelope_declaration_to_the_store() -> None:
+    """The contract must be reachable from a real configuration, not just tests.
+
+    This is a CONSUMER-side contract check: the seam is owned here, but the
+    defect it closes was that no production configuration could reach it
+    (``grep -rn envelope_enforced`` found hits only inside vz-temporal). The
+    static import-boundary linter scopes itself to ``src`` trees precisely so a
+    test may verify its downstream consumer; the import is skipped rather than
+    hard-required so a standalone vz-temporal wheel run still passes.
+    """
+
+    integration = pytest.importorskip("volvence_zero.integration.final_wiring")
+    from volvence_zero.substrate.adapter import PlaceholderSubstrateAdapter
+
+    def stores_after_wiring(**config_kwargs) -> tuple[
+        MetacontrollerParameterStore, MetacontrollerParameterStore
+    ]:
+        # Two independent stores: sharing one is itself a checkpoint-lineage
+        # violation the temporal owner fails loudly on.
+        world = FullLearnedTemporalPolicy(
+            parameter_store=MetacontrollerParameterStore(n_z=4)
+        )
+        own = FullLearnedTemporalPolicy(
+            parameter_store=MetacontrollerParameterStore(n_z=4)
+        )
+        integration.build_final_runtime_modules(
+            config=integration.FinalRolloutConfig(**config_kwargs),
+            substrate_adapter=PlaceholderSubstrateAdapter(
+                model_id="envelope-declaration"
+            ),
+            world_temporal_policy=world,
+            self_temporal_policy=own,
+        )
+        return world.parameter_store, own.parameter_store
+
+    # Exact rollback: a domain declaring none of this keeps the permissive
+    # archive path, byte for byte.
+    assert (
+        integration.FinalRolloutConfig()
+        .internal_rl_causal_action_head_envelope_enforced
+        is False
+    )
+    default_world, default_self = stores_after_wiring()
+    assert default_world.causal_action_head_envelope_enforced is False
+    assert default_self.causal_action_head_envelope_enforced is False
+
+    # Declared: BOTH tracks must receive it, or one lane stays installable.
+    strict_world, strict_self = stores_after_wiring(
+        internal_rl_causal_action_head_envelope_enforced=True
+    )
+    assert strict_world.causal_action_head_envelope_enforced is True
+    assert strict_self.causal_action_head_envelope_enforced is True
+
+
+def test_pristine_head_initializer_respects_the_envelope_it_is_validated_against() -> None:
+    """The store's own constructor may never produce a head its validator rejects.
+
+    ``validate_causal_action_head_magnitudes`` exists to reject a head that no
+    owner write path could produce. That argument only holds if the constructor
+    is itself inside the envelope -- otherwise the check is broader than its own
+    justification, and archive enforcement raises on the very first checkpoint
+    restore, on a pristine ``update_step=0`` head with zero steering authority.
+
+    This replaces the former forcing-function test, which asserted the opposite
+    (that the fallback ``_random_mat(rank, n_z)`` draw escaped the envelope).
+    Sweep the whole reachable grid, not just the shipped ``n_z``: ``rank`` is
+    caller-supplied via ``configure_causal_action_head_rank``, so every
+    ``rank < n_z`` takes the random fallback. 11% of that grid was out of band
+    before the fix.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        _initial_causal_action_head_parameters,
+        validate_causal_action_head_magnitudes,
+    )
+
+    checked = 0
+    for n_z in range(1, 33):
+        for rank in range(1, n_z + 1):
+            for track in (Track.WORLD, Track.SELF, Track.SHARED):
+                head = _initial_causal_action_head_parameters(
+                    n_z=n_z,
+                    track=track,
+                    rank=rank,
+                )
+                # The validator itself is the assertion: a pristine head must
+                # pass the exact check a restore would apply to it.
+                validate_causal_action_head_magnitudes(head)
+                assert head.update_step == 0
+                assert not any(any(row) for row in head.output_factors)
+                assert not any(head.bias)
+                checked += 1
+    assert checked == sum(range(1, 33)) * 3
+
+    # The two tracks the ant's own n_z=16 used to violate, now in band.
+    store = MetacontrollerParameterStore(n_z=16)
+    for track in (Track.WORLD, Track.SELF, Track.SHARED):
+        head = store.causal_action_head_parameters(track=track)
+        peak = max(abs(value) for row in head.input_factors for value in row)
+        assert peak <= envelope.factor_absolute_limit, (n_z, track, peak)
+
+
+def test_bounded_initial_input_factors_rescales_without_reshaping() -> None:
+    """The bound is a global rescale, not a per-element clip, and it is minimal.
+
+    Two properties the fix rests on:
+
+    1. An already-in-band draw is returned *untouched* -- byte-identical, not
+       merely equal-after-rounding. That is what makes this a behaviour change
+       confined to configurations that were already invalid.
+    2. An out-of-band draw keeps its direction exactly: the result is a single
+       positive scalar multiple of the draw, so relative magnitudes, signs and
+       the rank structure survive. A per-element clip would instead flatten
+       every large entry onto the limit and distort the basis geometry.
+    """
+
+    import struct
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        _bounded_initial_input_factors,
+        _random_mat,
+    )
+
+    limit = envelope.factor_absolute_limit
+
+    def bits(matrix: tuple[tuple[float, ...], ...]) -> bytes:
+        return b"".join(struct.pack("<d", v) for row in matrix for v in row)
+
+    seen_identical = seen_rescaled = 0
+    for n_z in range(1, 33):
+        for rank in range(1, n_z):
+            for track_index in range(3):
+                seed = 211 + track_index
+                draw = _random_mat(rank, n_z, seed=seed)
+                bounded = _bounded_initial_input_factors(
+                    rank=rank, n_z=n_z, seed=seed, absolute_limit=limit
+                )
+                peak = max(abs(v) for row in draw for v in row)
+                if peak <= limit:
+                    assert bits(bounded) == bits(draw)
+                    seen_identical += 1
+                    continue
+                seen_rescaled += 1
+                expected = limit / peak
+                # Direction preserved: one common ratio across every nonzero
+                # entry, and it is exactly the ratio that puts the peak on the
+                # limit -- i.e. the smallest rescale that lands in band.
+                for bounded_row, draw_row in zip(bounded, draw, strict=True):
+                    for bounded_v, draw_v in zip(
+                        bounded_row, draw_row, strict=True
+                    ):
+                        assert bounded_v == pytest.approx(
+                            draw_v * expected, rel=1e-15, abs=1e-18
+                        )
+                assert max(
+                    abs(v) for row in bounded for v in row
+                ) == pytest.approx(limit, rel=1e-15)
+
+    # Both branches are actually exercised by the sweep.
+    assert seen_identical > 0 and seen_rescaled > 0
+
+
+def test_envelope_has_no_update_step_dependent_exemption() -> None:
+    """Enforcement must not be weaker for a head that claims ``update_step=0``.
+
+    The rejected alternative fix was to split the envelope into an "initial
+    prior" bound and an "update ceiling" so the validator skips pristine heads.
+    ``update_step`` is an ordinary field of a restored snapshot, so any such
+    split is a bypass exactly its own width: a corrupt or over-reaching archive
+    declares ``update_step=0`` and installs the unbounded cross-state steering
+    intercept the envelope exists to block. Pin that the gate is
+    ``update_step``-blind in both directions.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CausalZActionHeadParameters,
+        validate_causal_action_head_magnitudes,
+    )
+
+    out_of_band = CausalZActionHeadParameters(
+        track=Track.WORLD,
+        rank=1,
+        input_factors=((50.0,),),
+        output_factors=((0.0,),),
+        bias=(0.0,),
+        update_step=0,
+    )
+    with pytest.raises(ValueError, match="factor_absolute_limit"):
+        validate_causal_action_head_magnitudes(out_of_band)
+    with pytest.raises(ValueError, match="factor_absolute_limit"):
+        validate_causal_action_head_magnitudes(
+            replace(out_of_band, update_step=9999)
+        )
+
+    in_band = replace(out_of_band, input_factors=((1.5,),))
+    validate_causal_action_head_magnitudes(in_band)
+    validate_causal_action_head_magnitudes(replace(in_band, update_step=9999))
+
+
+def test_digital_ant_profile_enforces_archive_envelope() -> None:
+    """The first adopter now declares enforcement, and it reaches the config.
+
+    The ant is the only ACTIVE-head domain and
+    ``docs/specs/digital-ant-embodiment.md`` freezes the very bounds the
+    validation checks, so this is the profile that flips first. It previously
+    asserted the opposite against the pristine-initializer blocker pinned by
+    ``test_pristine_head_initializer_respects_the_envelope_it_is_validated_against``;
+    that blocker is closed, so the deferral is gone rather than silently rotted.
+    """
+
+    profile = pytest.importorskip("volvence_ant.evidence.runtime_profile")
+
+    for sparse in (False, True):
+        config = profile.ant_runtime_replay_rollout_config(
+            enable_sparse_exploration=sparse
+        )
+        assert (
+            config.internal_rl_causal_action_head_envelope_enforced
+            is profile.ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED
+        ), "the profile constant must actually reach the rollout config"
+        assert (
+            config.internal_rl_causal_action_head_envelope_enforced is True
+        )
+
+
+def test_envelope_projection_step_bound_is_conditional_on_the_baseline() -> None:
+    """The per-step displacement bound holds only INSIDE the envelope.
+
+    The docstring and the spec used to state it unconditionally. When the
+    baseline is already outside the frozen band the absolute clamp wins and one
+    update moves the parameter by ``|baseline| - absolute_limit`` -- 25x the
+    per-step limit for the permissive ``bias=0.35`` fixture. The direction is
+    always INTO the frozen region, and the pure owner has always behaved this
+    way, so the invariant is restated, not the behaviour changed.
+    """
+
+    from volvence_zero.temporal.interface import (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE as envelope,
+        project_causal_action_head_update,
+    )
+
+    store = MetacontrollerParameterStore(n_z=4)
+    zero = store.causal_action_head_parameters(track=Track.WORLD)
+
+    # (1) Unconditional: the absolute ceiling always holds.
+    # (2) Baseline inside the envelope -> the per-step bound holds, stated on
+    # the binary64 interval the projection actually computes. Exact-arithmetic
+    # ``|result - baseline| <= step_limit`` is NOT the invariant: for
+    # ``baseline=0.05`` the representable ``0.05 + 0.01`` is
+    # ``0.060000000000000005``, one ulp past the exact sum.
+    inside = replace(zero, bias=(0.05, -0.05, 0.0, 0.0), update_step=1)
+    projected = project_causal_action_head_update(
+        baseline=inside,
+        candidate=replace(inside, bias=(9.0, -9.0, 9.0, -9.0)),
+    )
+    for baseline_value, result in zip(
+        inside.bias, projected.bias, strict=True
+    ):
+        assert abs(result) <= envelope.bias_absolute_limit
+        assert (
+            baseline_value - envelope.bias_step_limit
+            <= result
+            <= baseline_value + envelope.bias_step_limit
+        )
+        assert abs(result - baseline_value) <= envelope.bias_step_limit + 1e-15
+
+    # (3) Baseline OUTSIDE the envelope by more than one step -> the absolute
+    # clamp wins and the displacement legitimately exceeds the step limit.
+    outside = replace(zero, bias=(0.35, -0.4, 0.0, 0.0), update_step=1)
+    pulled = project_causal_action_head_update(
+        baseline=outside,
+        # Even a candidate that asks to stay put is pulled in.
+        candidate=outside,
+    )
+    assert pulled.bias[0] == pytest.approx(envelope.bias_absolute_limit)
+    assert pulled.bias[1] == pytest.approx(-envelope.bias_absolute_limit)
+    displacement = abs(pulled.bias[0] - outside.bias[0])
+    assert displacement == pytest.approx(
+        abs(outside.bias[0]) - envelope.bias_absolute_limit
+    )
+    assert displacement > envelope.bias_step_limit
+    # 25x on this fixture: the bound really is violated, not marginally missed.
+    assert displacement / envelope.bias_step_limit == pytest.approx(25.0)
+    # ...and the move is always toward the frozen region, never past it.
+    for baseline_value, result in zip(
+        outside.bias[:2], pulled.bias[:2], strict=True
+    ):
+        assert abs(result) < abs(baseline_value)
+        assert math.copysign(1.0, result) == math.copysign(1.0, baseline_value)
+
+    # The combined statement: the result is the intersection of the step band
+    # and the absolute band, or the nearest absolute endpoint when empty.
+    for baseline_value, result in zip(
+        outside.bias, pulled.bias, strict=True
+    ):
+        low = max(-envelope.bias_absolute_limit, baseline_value - envelope.bias_step_limit)
+        high = min(envelope.bias_absolute_limit, baseline_value + envelope.bias_step_limit)
+        if low <= high:
+            assert low <= result <= high
+        else:
+            assert result == pytest.approx(
+                math.copysign(envelope.bias_absolute_limit, baseline_value)
+            )
+
+
+@torch_only
+def test_torch_synthetic_lane_reconstructs_on_the_owner_latent_range() -> None:
+    """The synthetic branches sit OUTSIDE the ``latent_unit_clamp`` seam.
+
+    ``assert_runtime_replay_latent_bounds_agree`` polices the runtime-REPLAY
+    reconstruction only, and the spec sentence is scoped to match. Both torch
+    synthetic branches have always bounded the candidate on the temporal
+    owner's ``LATENT_CODE_BOUNDS``; routing that literal through the owner
+    constant is byte-identical, and selecting ``resolve_latent_code_bounds``
+    here instead would move the historical default OFF the frozen plant's
+    range rather than onto it.
+
+    Pinned differentially: two track-weight vectors whose UNCLAMPED synthetic
+    means differ but are both below the floor must produce the same surrogate.
+    Under a signed ``[-1, 1]`` floor they would not.
+    """
+
+    from volvence_zero.internal_rl.torch_causal_ppo import (
+        resolve_latent_code_bounds,
+        torch_causal_ppo_update,
+    )
+    from volvence_zero.temporal.interface import LATENT_CODE_BOUNDS
+
+    def report(weight: float, *, latent_unit_clamp: bool):
+        store = MetacontrollerParameterStore(n_z=_NDIM)
+        store.track_weights[Track.WORLD] = tuple(
+            weight for _ in range(_NDIM)
+        )
+        return torch_causal_ppo_update(
+            parameter_store=store,
+            value_weights={Track.WORLD: tuple(0.1 for _ in range(_NDIM))},
+            value_bias={Track.WORLD: 0.05},
+            track=Track.WORLD,
+            transitions=_transitions(_NDIM),
+            n_z=_NDIM,
+            write_back=False,
+            latent_unit_clamp=latent_unit_clamp,
+        )
+
+    def surrogate(result) -> tuple[float, float, float, float]:
+        return (
+            result.policy_loss,
+            result.approx_kl,
+            result.clip_fraction,
+            result.entropy,
+        )
+
+    # The observation signatures are strictly positive, so both negative
+    # weight vectors drive the unclamped mean below the floor by different
+    # amounts. Floored at LATENT_CODE_BOUNDS[0] they collapse to one mean.
+    shallow = report(-0.5, latent_unit_clamp=False)
+    deep = report(-0.9, latent_unit_clamp=False)
+    assert surrogate(shallow) == pytest.approx(surrogate(deep))
+
+    # A positive weight is not floored, so the collapse above is the clamp
+    # doing work, not an insensitive surrogate.
+    positive = report(0.5, latent_unit_clamp=False)
+    assert surrogate(positive) != pytest.approx(surrogate(shallow))
+
+    # The declared replay contract does not reach this lane either way.
+    assert surrogate(report(-0.5, latent_unit_clamp=True)) == pytest.approx(
+        surrogate(shallow)
+    )
+    assert surrogate(report(0.5, latent_unit_clamp=True)) == pytest.approx(
+        surrogate(positive)
+    )
+
+    # ...and the floor the synthetic lane uses is the owner's, which is also
+    # what the replay lane adopts once a domain declares the contract.
+    assert LATENT_CODE_BOUNDS == (0.0, 1.0)
+    assert resolve_latent_code_bounds(latent_unit_clamp=True) == (
+        LATENT_CODE_BOUNDS
+    )
+    assert resolve_latent_code_bounds(latent_unit_clamp=False) != (
+        LATENT_CODE_BOUNDS
+    )

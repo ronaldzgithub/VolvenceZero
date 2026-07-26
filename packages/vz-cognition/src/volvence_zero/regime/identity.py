@@ -122,6 +122,13 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
     # externally-confirmed outcomes inside its own ``process``. No
     # external writer mutates ``_pending_outcomes``; the queue stays
     # single-writer (R8).
+    # The semantic-owner slots feed the panorama gate's decision-structure
+    # features (``panorama_gate_mode="v2"``). They are read defensively via
+    # ``.get()`` and every one is optional: a runtime that has not wired
+    # them simply leaves the gate with no decision-structure observation,
+    # which the gate reads as "stay quiet". They also run BEFORE regime in
+    # ``final_wiring``'s module list, so this is a same-turn read, not a
+    # stale one.
     dependencies = (
         "memory",
         "dual_track",
@@ -129,6 +136,22 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         "prediction_error",
         "experience_fast_prior",
         "dialogue_external_outcome",
+        "plan_intent",
+        "goal_value",
+        "open_loop",
+        "belief_assumption",
+        "commitment",
+        "boundary_consent",
+        "user_model",
+    )
+    _PANORAMA_GATE_SLOTS = (
+        "plan_intent",
+        "goal_value",
+        "open_loop",
+        "belief_assumption",
+        "commitment",
+        "boundary_consent",
+        "user_model",
     )
     default_wiring_level = WiringLevel.SHADOW
 
@@ -139,6 +162,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         wiring_level: WiringLevel | None = None,
         bootstrap: "RegimeBootstrap | None" = None,
         hint_readout_mode: str = "readout",
+        panorama_gate_mode: str = "v1",
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._attribution_horizons = tuple(min(max(h, 1), 8) for h in attribution_horizons) or (2,)
@@ -158,6 +182,30 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
                 f"'scaffold', got {hint_readout_mode!r}"
             )
         self._hint_readout_mode = hint_readout_mode
+        # Which gate decides ``participation_hint.panorama_level``.
+        #
+        # * ``v1`` (default) — the attention-posture score that has always
+        #   shipped. Unchanged behaviour; this is the rollback point.
+        # * ``v2`` — the decision-structure gate
+        #   (``docs/specs/cognitive-regime.md``). Opening a panorama into a
+        #   turn that did not want one is the expensive failure, so this
+        #   stays opt-in until the corpus budgets hold on real traffic.
+        #
+        # Only ``panorama_level`` moves between modes; ``method_level`` /
+        # ``task_level`` / ``flow_kind`` are identical either way.
+        if panorama_gate_mode not in {"v1", "v2"}:
+            raise ValueError(
+                f"RegimeModule.panorama_gate_mode must be 'v1' or 'v2', "
+                f"got {panorama_gate_mode!r}"
+            )
+        self._panorama_gate_mode = panorama_gate_mode
+        # Hysteresis state: the level published last turn. Deliberately not
+        # part of ``RegimeCheckpoint`` — a rehydrated session starts from
+        # None, i.e. from SILENT with one-tier escalation, which is the
+        # conservative direction. Carrying an open panorama across a
+        # session boundary would re-open it before the user has said
+        # anything.
+        self._previous_panorama_level: ParticipationLevel | None = None
         # Historical defaults; overridden below if a bootstrap is provided.
         self._historical_effectiveness: dict[str, float] = {
             template.regime_id: 0.5 for template in REGIME_TEMPLATES
@@ -344,6 +392,12 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             dual_track=dual_track_value,
             evaluation=evaluation_value,
             prediction_error=pe_value,
+            semantic=self._semantic_owner_snapshots(
+                {
+                    slot: getattr(upstream.get(slot), "value", None)
+                    for slot in self._PANORAMA_GATE_SLOTS
+                }
+            ),
         )
         return self.publish(
             RegimeSnapshot(
@@ -462,6 +516,12 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             dual_track=dual_track_snapshot,
             evaluation=evaluation_snapshot,
             prediction_error=prediction_error_snapshot,
+            semantic=self._semantic_owner_snapshots(
+                {
+                    slot: kwargs.get(f"{slot}_snapshot")
+                    for slot in self._PANORAMA_GATE_SLOTS
+                }
+            ),
         )
         return self.publish(
             RegimeSnapshot(
@@ -828,6 +888,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         dual_track: "DualTrackSnapshot | None",
         evaluation: "EvaluationSnapshot | None",
         prediction_error: "PredictionErrorSnapshot | None",
+        semantic: Mapping[str, object] | None = None,
     ) -> tuple[ParticipationHint, CognitiveDepthHint]:
         """Produce the participation + depth hints for the current turn.
 
@@ -839,6 +900,10 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
           lowers its confidence.
         * ``scaffold`` \u2014 pre-slice-2 static regime_id lookup.
           Kept for rollback parity.
+
+        ``semantic`` carries the semantic-owner snapshots the v2
+        panorama gate reads. Absent or empty leaves the gate without a
+        decision-structure observation.
         """
         if self._hint_readout_mode == "scaffold":
             return (
@@ -852,6 +917,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             readout_cognitive_depth_hint,
             readout_participation_hint,
         )
+        owners = dict(semantic or {})
         context = build_hint_readout_context(
             regime_id=regime_id,
             turns_in_current_regime=self._turns_in_current_regime,
@@ -860,11 +926,63 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             dual_track=dual_track,
             evaluation=evaluation,
             prediction_error=prediction_error,
+            plan_intent=owners.get("plan_intent"),  # type: ignore[arg-type]
+            goal_value=owners.get("goal_value"),  # type: ignore[arg-type]
+            open_loop=owners.get("open_loop"),  # type: ignore[arg-type]
+            belief_assumption=owners.get("belief_assumption"),  # type: ignore[arg-type]
+            commitment=owners.get("commitment"),  # type: ignore[arg-type]
+            boundary_consent=owners.get("boundary_consent"),  # type: ignore[arg-type]
+            user_model=owners.get("user_model"),  # type: ignore[arg-type]
+            previous_panorama_level=self._previous_panorama_level,
         )
-        return (
-            readout_participation_hint(context),
-            readout_cognitive_depth_hint(context),
+        participation = readout_participation_hint(
+            context, panorama_gate=self._panorama_gate_mode
         )
+        # Single writer for the hysteresis state: whatever we publish this
+        # turn is what the next turn escalates from.
+        self._previous_panorama_level = participation.panorama_level
+        return (participation, readout_cognitive_depth_hint(context))
+
+    def _semantic_owner_snapshots(
+        self, values: Mapping[str, object]
+    ) -> dict[str, object]:
+        """Filter raw semantic-owner values down to real snapshots.
+
+        Single filter for both entry paths: ``process`` unwraps
+        ``Snapshot.value`` first, ``process_standalone`` passes its
+        kwargs straight through.
+
+        Every slot is optional. A runtime that has not wired an owner, or
+        one whose owner is SHADOW / DISABLED (and therefore publishes a
+        ``RuntimePlaceholderValue``), contributes nothing rather than a
+        zero \u2014 the gate distinguishes "not measured" from "measured as
+        zero", and downstream must never reach into an inactive owner's
+        private state.
+        """
+        from companion_standard.semantic_state import (
+            BeliefAssumptionSnapshot,
+            BoundaryConsentSnapshot,
+            CommitmentSnapshot,
+            GoalValueSnapshot,
+            OpenLoopSnapshot,
+            PlanIntentSnapshot,
+            UserModelSnapshot,
+        )
+
+        expected: dict[str, type] = {
+            "plan_intent": PlanIntentSnapshot,
+            "goal_value": GoalValueSnapshot,
+            "open_loop": OpenLoopSnapshot,
+            "belief_assumption": BeliefAssumptionSnapshot,
+            "commitment": CommitmentSnapshot,
+            "boundary_consent": BoundaryConsentSnapshot,
+            "user_model": UserModelSnapshot,
+        }
+        return {
+            slot: value
+            for slot in self._PANORAMA_GATE_SLOTS
+            if isinstance((value := values.get(slot)), expected[slot])
+        }
 
     def _update_active_regime(
         self,

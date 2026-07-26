@@ -118,6 +118,15 @@ artifacts/companion_bench_smoke/*
 !/tests/test_runtime_transition_replay.py
 !/tests/test_personal_conditioning_module.py
 !/tests/test_personal_conditioning_rendering.py
+# Panorama participation gate: the corpus verdicts, the per-feature
+# ablation and the collinearity bound are the only falsifiable part of
+# that design (corpus and gate share an author), so they must stay
+# versioned alongside it.
+!/tests/test_panorama_gate.py
+!/tests/test_decision_workspace.py
+!/tests/test_decision_valuation.py
+!/tests/test_research_evidence_path.py
+!/tests/test_panorama_render.py
 *.pyc
 /.venv-ant
 /.conda-volvence-gpu
@@ -132,3 +141,9 @@ visualizations/volvence-core-remotion/public/architecture-deep-dive/
 # 三幕影片的 TTS 产物：public/voiceover/ 由 scripts/build-voiceover.py
 # 从场景脚本重新合成（37 MB 拼接 wav + raw 分段 mp3），属渲染产物。
 visualizations/volvence-three-act-remotion/public/voiceover/
+
+# 三幕影片各独立分镜的 TTS / 音效产物：与 public/voiceover/ 同属渲染产物，
+# 由 scripts/ 下的配音构建脚本从场景脚本重新合成（合计约 121 MB wav），
+# 不入库；需要时走外部存储或对象存储分发。
+visualizations/volvence-three-act-remotion/public/**/*.wav
+visualizations/volvence-three-act-remotion/public/**/*.mp3

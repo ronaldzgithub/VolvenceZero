@@ -130,6 +130,21 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - **exclusive steering（contrast 轴所有权转移，R2）**：`FinalRolloutConfig.internal_rl_causal_action_head_exclusive_steering` 默认 `False`（精确回滚路径，字节不变）。`True` 时 temporal owner 对每个 contrast pair 施加 base 侧互补投影 `(x_i+x_j)/2`——**确定性 base policy mean**（posterior mean + track modulation）失去反对称分量，state-conditioned head 成为 contrast 轴上唯一的学习型写入者，base 保留 common mode（速度）。投影必须在四条路径上一致：live ndim forward（从调制后的确定性均值算修正 delta，加回含噪候选码）、sandbox `CausalZPolicy._policy_mean`（mean/std 分离，直接投影 mean）、pure `runtime_replay_policy_distribution`（modulated_mean 在 head residual 加法前投影）、torch PPO in-graph 三条 lane（autograd 因此把 contrast 轴信用全部路由给 head 参数）；pure `_trajectory_gradient` 的 runtime-replay 敏感度在 pair 维乘 0.5（pair 均值使本维权重影响减半）。**关键不变量：投影只作用于确定性均值，不得吞掉探索噪声的反对称分量**——否则 `(action-mean)` 在 contrast 维恒为 0，head 的 PPO 梯度永远为零，冷启策略也无法提出转向。要求非空 `contrast_pairs` 且 head wiring `ACTIVE`，否则 fail loudly（SHADOW/DISABLED head 下无人能转向冻结 plant）。causal latent override 跳过 live 侧均值投影（sandbox 构造 override 时已投影）。
   **β 门必须按 pair 共享**：opponent-coded pair 是**一根**执行器轴，必须整体切换。逐维门控会凭空造出 contrast——即使候选码已投影、上一拍码对称，`β_i·候选_i + (1-β_i)·旧码_i` 仍留下 `(β_i-β_j)·(候选-旧码)`。因此 exclusive steering 下 `effective_gate` 在每个 pair 上取共享均值（binary override 路径本就是标量门，天然满足）；override 路径同样适用，因为该不变量属于执行器轴语义而非候选来源。实测证据：修复前用**参数精确为零**的 head 仍能测到 ±0.005 rad 转向，与当时学到的 food 响应同量级，直接掩盖能力读数；修复后零参数 head 输出精确为 `0.000000`，同一 v23 checkpoint 的 near 绝对方向对齐从 0/4 变为 2/4、残余基线从 0.024 降到 0.008。动机：v22/v22r 两组受控实验（固定/随机 forced-approach 几何）证明信用竞争下无约束 base 总用"放大同向基线转向"的非定向退化解吸走转向信用（0.083→~0.147 rad），head 增益钉死 ≈1e-3 不增长。
 - **action-head 镜像等变约束**：`internal_rl_causal_action_head_input_mirror_permutation/signs=None` 保持历史行为并作为即时回滚路径；embodiment 可在冻结 sense schema 上发布一个完整、带符号、二次作用为恒等的输入镜像，temporal owner 只校验/执行该代数变换，不解释 food、heat、home 或左右语义。启用时必须同时启用 ACTIVE head、非空 `contrast_pairs` 与 exclusive steering。owner 用相同 Ndim encoder、零 recurrent preimage 和相同 head 参数分别计算 `f(s)`、`f(mirror(s))`；每个 opponent-coded pair 只保留 `0.5·(f(s)-f(mirror(s)))`，未成 pair 的 actuator 维保留 `0.5·(f(s)+f(mirror(s)))`。由此，世界镜像时转向 pair 必须交换/翻号，速度等标量轴保持不变；head bias 与任意 state-path 镜像对称分量在 contrast 轴上按构造精确抵消。live forward、pure replay batch augmentation 和 torch in-graph forward 必须共享该投影；pure replay 对每个 transition 追加镜像 state + 输出镜像后的 gradient lane，torch 对两个 state 共用同一参数图。runtime state、capture、settled transition、open segment 与 canonical archive 同时持久化 `causal_action_head_mirror_state`，禁止 serving 现算镜像但 replay 仍训练单 lane。该 shape 变化把 `joint_loop.learning` persistence schema 升为 v5；v4 及更早带 replay 的 checkpoint 必须拒绝恢复。
+- **action-head 更新包络的唯一 owner**：冻结的 bias/factor 纪律由 `temporal/interface.py` 的 `CausalActionHeadUpdateEnvelope` / `CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE` 单点持有（`factor_absolute_limit=1.5`、`input_factor_step_limit=0.02`、`output_factor_step_limit=0.05`、`bias_absolute_limit=0.1`、`bias_step_limit=0.01`、`bias_learning_rate_ratio=0.12`、`bias_state_path_scale=0.05`）。pure owner 路径 `update_causal_action_head` 与 torch autograd lane 必须消费同一组常数，**禁止在第二个文件里复制这些数字**。torch lane 此前把 `head_input/head_output/head_bias` 当作普通 requires_grad 叶子塞进同一个 `torch.optim.Adam`，写回时逐字节还原 detached 张量，因而完全绕过上述纪律：实测同一 batch 单次更新在生产默认 `lr=0.02` 下把 bias 移动 `0.029`（冻结单步上界 `0.01` 的 2.9 倍），`lr=0.5` 下移动 `1.32`（绝对上界 `0.1` 的 13 倍）——这正是无约束截距安装跨状态固定转向、v10–v22 调试链一直追的失效模式。
+  **包络是护栏，不是步长（W3-b 修正）**：只把 Adam 步长 clamp 回包络仍然是错的。Adam 把每个元素的步长归一化到约 `lr`，因此“先 Adam 再 clamp”是一个 bang-bang 最大步长控制器——更新只携带梯度的**符号**。实测：同一 batch 单次更新在 `lr=0.02` 与 `lr=0.5` 下给出**完全相同**的 `bias_step=0.010000 / out_step=0.050000 / in_step=0.020000`（三个单步上界精确顶满），把梯度缩小 1000 倍数值仍不变；生产默认 `lr=0.02` 连续 15 次更新在第 10 次就把 bias 走到绝对上界 `0.1` 并钉死。**钉死的 bias 就是跨状态固定转向截距本身**（`docs/specs/digital-ant-embodiment.md` 冻结这些数字正是为此），即包络要阻止的失效模式被包络自己制造了出来。
+  因此步长尺度也收敛为唯一 owner：`causal_action_head_update_scales(learning_rate=, batch_size=)` 返回 `factor_learning_rate = learning_rate / batch_size`、`bias_learning_rate = factor_learning_rate * bias_learning_rate_ratio`、`bias_signal_learning_rate = bias_learning_rate * bias_state_path_scale`。pure 路径消费前两项（保留历史乘法顺序，逐字节不变）；torch lane 的 head 三组参数**不再是 Adam 参数**（`w/log_std/cw/cb` 仍走 Adam，Adam 是逐元素的，移出 head 不改变其余参数的算术），改为在 `loss.backward()` 后按同一尺度做比例梯度步，再调用 `project_causal_action_head_update(baseline=本次调用入口参数, candidate=当前叶子)` 投影。head 叶子不在 optimizer 内，故每个 epoch 前显式清零其 `.grad`；`parameters_changed / parameter_change_rate` 的统计范围仍覆盖 head 叶子，语义不变。单次调用写回时 `update_step` 只 +1，因此整次调用就是一次 owner 更新；逐 step 投影同时保证后续 PPO epoch 的前向也落在包络内。写回前再投影一次（覆盖 `ppo_epochs==0`）并显式 `enforce_envelope=True`，任何逃逸 fail loudly 而不是静默落盘。
+  **单步位移上界是有条件的，绝对上界才是无条件的**（勿把二者混为一谈）：`project_causal_action_head_update` 计算 `clamp_absolute(clamp_step(candidate))`，因此 (1) `|result| <= absolute_limit` 无条件成立；(2) baseline 已在包络内时 `result` 落在 `[baseline - step_limit, baseline + step_limit]`——该区间按 binary64 求值，`0.05 + 0.01` 的可表示值是 `0.060000000000000005`，所以精确算术下的 `|result - baseline| <= step_limit` 会以 1 ulp 之差为假，不变量属于区间而不属于差的绝对值；(3) baseline 已在包络**外**且距离超过一个 step 时，step 区间与绝对区间不相交，绝对 clamp 获胜，单次调用位移为 `|baseline| - absolute_limit`，**可以远大于** `step_limit`（实测：permissive 路径装入的 `bias=0.35` 在 `bias_step_limit=0.01` 下一次即被拉回 `0.1`，位移 25 倍上界）。方向恒为朝冻结区收敛（`|result| = absolute_limit < |baseline|`，冻结包络下符号不翻转），pure owner 历来如此，属按设计行为，故记述向行为对齐而非反过来改行为。证据：`tests/test_temporal_contracts.py::test_envelope_projection_step_bound_is_conditional_on_the_baseline`。
+  实测（`packages/vz-temporal/tests/test_temporal_contracts.py::_torch_head_step`，`n_z=16`、batch 6、`ppo_epochs=1`、生产默认 `lr=0.02`）：普通 batch 下 `bias_step=1.2305e-5`（上界 `0.01` 的 1/813）、`out_step=5.6579e-4`（1/88）、`in_step=8.3640e-5`（1/239）；把动作与重建均值的距离放大一倍（gain 20→40），三项步长同步放大 `1.991x / 1.997x / 2.003x`；`lr` 从 `0.02` 提到 `0.5`（25 倍），三项步长精确放大 `25.000000x`（修复前是 `1.000000x`）；梯度足够大时（action gain 1000）三项仍精确顶在 `0.01 / 0.05 / 0.02`，再放大 5 倍不再增加。连续 15 次更新后 `max|bias|` 只走到 `0.000302`（轨迹 `0.000014, 0.000075, ... 0.000278, 0.000302`），而非在第 10 次钉死于 `0.1`。**已知残余差异（未收敛）**：pure 路径还额外保证“batch mean 只更新 bias、factor 只消费 centered covariance、block-coordinate 先 output 后 input”，torch lane 的 autograd 梯度不做去均值分解；投影只约束幅度，不约束该分解。torch lane 在 `output_factors` 全零时首个 epoch 也拿不到 input 侧梯度（pure 路径用 block-coordinate 步专门处理该冷启），本包未收敛。
+- **action-head 幅度校验（`causal_action_head_envelope_enforced`，默认 `False`）**：`restore_causal_action_head_parameters` 历史上只校验 rank/width 五项 shape，任何 archive（包括无约束 torch lane 产出的、或被手工编辑/损坏的）都能装入违反冻结包络的参数。现新增 `validate_causal_action_head_magnitudes`，越界时 fail loudly 并在消息里点名被违反的具体上界（`factor_absolute_limit` / `bias_absolute_limit`）。`MetacontrollerParameterStore(causal_action_head_envelope_enforced=...)` 是显式契约字段，默认 `False` **精确保留历史 restore 行为**（只校验 shape），`True` 时 `restore_causal_action_head_parameters` 与 `restore_parameter_snapshot` 的 archive/checkpoint 路径同时执行幅度校验；恢复为 `False` 即精确回滚。owner 自己的受纪律写入路径（pure 更新、torch 投影后写回）与该开关无关，始终按 `True` 校验，因此越权 archive 无法借它们落地。
+  **校验不带任何容差**：冻结上界上不加 epsilon。owner clamp 的产物天然合法——`max(-0.1, min(0.1, x))` 精确返回 `0.1`，而 `abs(0.1) > 0.1` 为 `False`；`1e-9` 的 slack 只会悄悄把冻结上界放宽（`math.nextafter(0.1, inf)` 与 `0.1` 之差远小于 `1e-9`，会被吞掉）。
+  **非有限值一律 fail loudly，且不受该开关支配**：(1) `_envelope_bounded_value` 此前只检查 candidate；非有限 **baseline** 会让 `max(nan-step, min(nan+step, candidate))` 得到 `nan`，再被绝对 clamp 静默压成 `+absolute_limit`——一个损坏基线因此被洗成“合法的、钉在绝对上界上的截距”（实测 `nan`/`inf` baseline 都得到 `0.1`）。现 baseline 与 candidate 同样校验。(2) `restore_causal_action_head_parameters` 补齐 `restore_parameter_snapshot` 早就有的有限性校验，NaN/Inf 无法直接写进 live head。
+  **开关的可达路径（opt-in，已贯通到生产配置）**：`MetacontrollerParameterStore.set_causal_action_head_envelope_enforced(bool)` 是构造后的显式切换点；`FinalRolloutConfig.internal_rl_causal_action_head_envelope_enforced: bool = False`（`packages/vz-runtime/src/volvence_zero/integration/final_wiring.py`，与 `internal_rl_causal_action_head_rank` 等字段同处）是 domain 唯一的声明入口，经四个 `set_causal_action_head(...)` 调用点落到 store：`final_wiring.py` 的 WORLD / SELF 两处、`packages/vz-runtime/src/volvence_zero/agent/session.py` 的 WORLD / SELF 两处。**两轨都必须收到**，否则一条 lane 仍可被装入越界 archive。通用默认 `False` 精确保留历史 restore 行为（`tests/test_runtime_transition_replay.py` 刻意从 permissive 路径装入 bias `0.35 / 0.4`），因此该契约必须保持 opt-in。
+  **初始化越界阻塞项已解除（2026-07-27，修构造器而非收窄校验）**：此前 `_initial_causal_action_head_parameters` 在 `rank < n_z` 时回落到 `_random_mat(rank, n_z)`，即 scale `1/sqrt(rank)` 的**无界高斯**，与 `factor_absolute_limit=1.5` 毫无关联。种子固定，违例是确定性的；实测（`n_z=16`，即数字蚂蚁正式配置）：`world rank=4 max|input_factor|=1.0749` 合规，`self=1.9823`、`shared=1.6192` **越界**（`n_z=4` 时 `self=1.5976` 越界）。而 `internal_rl_causal_action_head_rank` 只配置传给 `set_causal_action_head` 的那**一个** track，`restore_parameter_snapshot` 却校验全部三个 track，于是未被配置的 SELF/SHARED 头保留随机低秩初值——任何域一旦声明 `True`，第一次 checkpoint 恢复就会在 owner 刚刚自己创建的、`update_step=0` 且 output/bias 全零（live steering 权限精确为零）的头上抛错（实测蚂蚁包 19 个测试失败）。
+  **为什么修构造器而不是给 `update_step == 0` 开豁免**：`factor_absolute_limit` 被 owner 写入路径**无条件**施加——pure `update_causal_action_head` 的内联 clamp 与 `project_causal_action_head_update` 的 `clamp_absolute`（该函数不变量 1）都不看 `update_step`，因此 owner 写入路径的像**恒**落在包络内，第一步也不例外。若给初始先验放宽上界，validator 接受的集合就严格大于 owner 自身的像；而 `update_step` 只是 restore 快照里的一个普通字段，越权/损坏 archive 只需声明 `update_step=0` 即可装入任意 input factor——豁免在任何写法下都是宽度等于自身的旁路，正是"跨状态固定转向截距"这条立论要挡的东西。故 gate 保持 `update_step` 盲，由 `test_envelope_has_no_update_step_dependent_exemption` 双向锚定。
+  **修法与差分证据**：新增 `_bounded_initial_input_factors`，对随机抽样施加**单个全局正标量**重标定（`limit / peak`，仅在越界时生效），方向结构（相对幅度、符号、行列几何、秩）原样保留，不是逐元素 clip。`_random_mat` 本身**不动**（encoder/decoder 权重 seed 100/101/103/104 仍在消费它，逐字节不变）。全网格差分（`n_z <= 64` × 全部 `rank` × 三轨，共 6240 个配置，`struct.pack` 后按 sha256 比对）：**5573 个逐字节不变，667 个改变，且改变的 667 个恰好等于原先越界的 667 个**——没有任何一个原先合法的配置被移动，数字蚂蚁自己的 WORLD 轨（1.0749）在不变的那一侧。附带效果是把 basis 推离 tanh 饱和区（`n_z=64, rank=1` 的最坏 pre-activation `7.552 -> 2.857`，`tanh` 从 `1.00000` 退回 `0.99342`，即该 basis 坐标从零梯度死区里回来）。证据：`tests/test_temporal_contracts.py::test_pristine_head_initializer_respects_the_envelope_it_is_validated_against`（全网格逐个过 validator）、`::test_bounded_initial_input_factors_rescales_without_reshaping`（合规抽样逐字节原样返回 + 越界抽样保持共同比例）。数字蚂蚁 profile 因此在同一批翻成 `True`。
+  **声明的优先级：`None` 表示“本次不声明”**。`set_causal_action_head(..., envelope_enforced: bool | None = None)` 只在显式传 `True`/`False` 时写入 store。此前它把 `False` 默认值无条件写入，于是一个用 `MetacontrollerParameterStore(causal_action_head_envelope_enforced=True)` 构造出来的 store，会被任何一个根本没提到该开关的后续 head 配置调用（改 rank、改 strength、配第二轨）静默关掉强制校验——AGENTS.md §6 明令禁止的静默降级。`FinalRolloutConfig` 走的是显式路径，因此 rollout 配置仍是 domain 声明的权威边界。证据：`tests/test_temporal_contracts.py::test_head_configuration_without_a_declaration_leaves_the_store_alone`、`::test_rollout_config_carries_the_envelope_declaration_to_the_store`、`::test_digital_ant_profile_enforces_archive_envelope`。
+- **latent code 值域的唯一 owner**：`temporal/interface.py` 的 `LATENT_CODE_BOUNDS = (0.0, 1.0)` 是 live ndim forward 对 `code` 的冻结值域（`_clamp` 由它派生）。torch runtime-replay lane 此前硬编码三处 `[-1,1]`，而同一函数的两条 synthetic lane 用 `[0,1]`；在饱和 contrast 轴上重建出的均值会离开冻结 plant 的值域，使 `(action - mean)` 相对真实动作反号、head 梯度指向错误方向。现该 lane 经 `resolve_latent_code_bounds(latent_unit_clamp=...)` 选择边界，与 pure lane 的 `latent_unit_clamp` 契约同名同义：`False` 保持历史 signed 边界（精确回滚基线），`True` 在 owner 的单位值域上重建。reward/advantage 的 `[-1,1]` clamp 是另一套约定，两条 lane 都不变。**pure 与 torch 两条 runtime-replay lane 必须收到同一个 `latent_unit_clamp`**，否则同一 batch 会重建出不同均值；这正是 `assert_runtime_replay_latent_bounds_agree` 所执行的范围。
+  **该不变量精确限定在 runtime-replay 重建上，不覆盖 synthetic 分支**（此前这句话没有限定作用域，读起来像是覆盖全函数）：torch 的两条 synthetic lane 历来就在 owner 的 `LATENT_CODE_BOUNDS` 上做 clamp，与 `latent_unit_clamp` 无关；pure 的 synthetic lane 则按 `latent_unit_clamp` 选择 `_clamp`（signed，历史默认）或 `_clamp_unit`（= `LATENT_CODE_BOUNDS`）。因此：声明 `True`（数字蚂蚁 evidence profile）时四条 lane 全部落在 `LATENT_CODE_BOUNDS` 上；保持历史默认 `False` 时两条 synthetic lane 的边界不一致，**这一不对称本身就是精确回滚基线**，不是新缺陷。把 torch synthetic 也接到 `resolve_latent_code_bounds` 是错误修法：默认下它会把该 lane 从冻结 plant 的值域上**移走**（改成 signed），实测使 818 行字节探针中 88 行改变，直接破坏通用默认的字节等价。本包只把该 lane 里写死的 `0.0, 1.0` 字面量换成 owner 常量 `LATENT_CODE_BOUNDS`（算术逐字节不变），以满足“值域只有一个 owner、禁止在第二个文件里写死边界”的约束。证据：`tests/test_temporal_contracts.py::test_torch_synthetic_lane_reconstructs_on_the_owner_latent_range`（差分锚定：两组令未 clamp 均值都落到地板以下但数值不同的 track weights 必须给出同一 surrogate；signed 地板下则不会）。
 - **ndim drift 语义**：`n_z>3` 的 serving path 只消费 Ndim encoder/switch/decoder 与正式 `track_weights` modulation；Internal-RL 对 track 的更新不得再同步写入仅供 legacy 3-D controller 使用的 `temporal_weights/switch_bias`。否则 `switch_bias=1-persistence` 的无效兼容字段跳变会被 rollback gate 当成真实 metacontroller drift，回滚同批 action-head 更新。dual-track aggregate 的 `track_parameters` 必须发布两个 owner 的正式 track weights（shared 取两 owner 均值），禁止用逐拍 `latent_mean` 冒充参数；state variation 与 parameter drift 必须隔离。legacy `n_z<=3` 的 alignment 行为保持不变。
 - **有界 posterior 探索**：`FinalRolloutConfig.internal_rl_runtime_exploration_strength` 默认 `0.0`（精确回滚基线），`(0,1]` 时由 `FullLearnedTemporalPolicy` 把原 sample noise 与可复现 low-discrepancy sample 混合，并设置有界 latent entropy floor（`0.4 * strength`），防止获得首个稀疏 milestone 前 posterior 方差塌缩。采样按 8-step coherent option 分段：sample residual 只由 owner-local `segment + latent dimension` 决定并在整段保持；posterior mean/std 仍逐拍消费当前状态，因此 option 连续性不得抹平 state-conditioned policy。调用方可以附加不透明、非语义的 exploration context；temporal owner 只保存其 SHA256 摘要并把摘要纳入 option identity，禁止保留原文或解释业务含义。未提供 context 时必须保持历史全局序列精确不变；matched arms 必须共享 context，而独立 episode/body 应使用不同 context，避免同一噪声序列被重复奖励成全局固定转向。禁止把连续变化的 posterior mean 写入 option identity，也禁止在 coast 阶段把逐维 residual 换成 common-mode residual；前者令同一 option 每拍跳变，后者会撤销 opponent-coded latent steering。该 horizon 保证 16/24-step 的有界稀疏实验至少覆盖 2/3 个方向 option，而不是把整个 episode 退化成一条射线。该机制是通用 temporal option 探索，不读取任务真值或动作语义。有效 posterior mean/std、最终 sample noise 与 `z_tilde` 均由 owner runtime state 发布，runtime replay likelihood 可精确重建。实验对照各臂必须共享该值，探索本身不算学习收益；已有 dense PE 的任务应保持 `0.0`。
 - **真实 no-optimize 对照**：`apply_writeback` 只负责 reflection/memory/regime consolidation，不能冒充 Internal-RL 消融。此前 `no_optimize` 仅设 `joint_apply_writeback=False`，但 `run_cycle()` 已在该门之前直接执行 sandbox optimizer，因此 learned/no-optimize 都会更新 PPO，因果对照无效。现新增独立 `apply_policy_optimization` gate：两臂运行相同 SSL、substrate rollout、PE、optimizer 与报告；gate=False 时在 SSL 后/RL 前建立 owner checkpoint，并在 optimizer 后恢复 policy+critic，使 RL 更新不持久化，同时保留 SSL 更新与完整候选证据。默认 True 不改变生产行为。数字蚂蚁正式 no-optimize 令此 gate=False、reflection writeback 与 learned 保持一致，仅隔离 Internal-RL policy optimization。`CausalPolicyCheckpoint.policy_optimization_fingerprint` 由 Internal-RL owner 仅基于 update step 与 critic 参数生成；共享 reflection prior 可以合法改变 temporal track weights，但不会因此把 no-optimize 误判为 RL 写回。
@@ -147,6 +162,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 proof harness 允许把这两层 scaffold 分别关掉：`pe-eta-no-semantic-label` 保留 latent/full path 但剥离语义标签扶手；`pe-eta-no-reflection-cache` 保留 latent/full path 但禁用 cached reflection bridge，用于检查 family 与 PE schedule 的稳健性
 - 当前 stronger proof matrix 已把 `pe-eta-no-semantic-label`、`pe-eta-no-reflection-cache` 与 `pe-eta-pe-readout-only` 提升为正式 proof-oriented profiles：它们不替代轻量默认 ablation，但用于更直接地区分“latent mechanism 仍成立”与“只是 scaffold 或 PE readout 在撑”
 - 当前 `AgentSessionRunner`、`ETANLJointLoop` 和 final wiring 的默认 self-track controller 不再从独立随机 policy 起步；若用户未显式传入 self-track policy，则默认从 world-track discovered metacontroller snapshot 克隆，保证默认 runtime 的双轨 temporal owner 共享同一条 discovered lineage，同时仍保留两个独立 owner/store
+- **双轨 store 分离是持久化不变量，不只是初始化偏好**：`ETANLJointLoop` 的每个 learning checkpoint 都把 world/self 作为两条独立 lane 发布（`world_temporal_snapshot` / `self_temporal_snapshot` 加两条 sandbox `metacontroller_snapshot`），而 `rollback_rare_heavy_import` 逐条恢复。因此两轨**禁止**共享同一个 `MetacontrollerParameterStore`：共享时先恢复的 world lane 会被随后恢复的 self lane 原地覆盖，checkpoint 不再 round-trip，`AgentSessionRunner.restore_learning_checkpoint` 的 re-export fingerprint 守卫会（正确地）报 mismatch。owner 在构造时对共享 store 直接 fail loudly，不做静默克隆修复——静默克隆会丢掉调用方已施加在那个唯一 policy 对象上的 per-track runtime 配置。需要第二轨的调用方必须用 `volvence_zero.temporal.clone_temporal_policy()` 克隆；它保留源实现模式（`LEARNED_LITE` 不被提升为 `FULL_LEARNED`），使 matched-control 的 ETA-off 臂两轨都保持 ETA-off。此前 `AgentSessionRunner` 对非 `FULL_LEARNED` 的单 policy 入参回退为两轨别名同一对象，正是这条不对称的来源
 - 当前 `internal_rl` 已新增 paper-like proof mode：`InternalRLProofEpisode / InternalRLProofSubgoal / InternalRLDelayedCreditAssignment` 允许用结构化分层 sparse-reward episode 驱动 rollout，而不改变 live session 默认 dense reward 语义
 - 当前 `InternalRLSandbox` 在 proof mode 下已支持 sequence-aware causal observation（优先读 `residual_sequence` 摘要）与 delayed-return optimization；这条路径用于验证 internal RL 是否真的在抽象动作层解决延迟奖励，而不是只在 turn 级 dense shaping 下工作
 - 当前 ETA proof harness 已新增 real open-weight evidence lane：`transformers-open-weight` backend 通过 `OpenWeightResidualRuntime.capture/apply_control` 生成真实 residual `SubstrateSnapshot` 序列；time step 暂定为 source prefix steps，快照内显式发布 `eta_real_runtime_step_index`、`eta_real_runtime_capture_present`、`eta_real_runtime_fallback_active`、`eta_real_runtime_intervention_protocol_valid` 与 runtime hook evidence。`trace` / `synthetic-open-weight` 仍保留为 matched fallback/control，不再承担真实 residual-control claim 的唯一证据面；real claim 现在要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、prefix capture 与 intervention source 对齐。`planned_layer_fraction` 只是选层比例诊断，不再被误当作 hook 健康度
@@ -188,6 +204,188 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-27: 给初始先验加界，解除包络强制的最后一个阻塞项，数字蚂蚁翻成 `True`
+  （收敛包 envelope-pristine-init）。缺陷：`validate_causal_action_head_magnitudes`
+  的立论是"拒绝 owner 更新路径永远产生不出来的映射"，但 owner 的**构造函数**恰好能产生
+  一个——`_initial_causal_action_head_parameters` 在 `rank < n_z` 时回落到无界高斯
+  `_random_mat(rank, n_z)`，与 `factor_absolute_limit=1.5` 毫无关联。实测这不是角落
+  情形：全可达网格（`n_z <= 64` × 全部 `rank` × 三轨，6048 个走随机回落的配置）里
+  **11.0%（667 个）越界**，最坏 `n_z=64, rank=1` 达 `3.965`；数字蚂蚁自己的 `n_z=16`
+  上 `self=1.9823`、`shared=1.6192` 越界。
+  **选定方向：修构造器，不给 `update_step == 0` 开豁免。** 理由是可判定的而非风格偏好：
+  `factor_absolute_limit` 被 owner 写入路径**无条件**施加（pure `update_causal_action_head`
+  的内联 clamp 与 `project_causal_action_head_update` 的 `clamp_absolute` 都不读
+  `update_step`），因此 owner 写入路径的像恒落在包络内，第一步也不例外——构造器是唯一
+  的例外，也就是唯一该修的一侧。反向若给初始先验放宽上界，validator 接受的集合就严格大于
+  owner 自身的像，而 `update_step` 只是 restore 快照里的普通字段，越权/损坏 archive 声明
+  `update_step=0` 即可装入任意 input factor：豁免在任何写法下都是宽度等于自身的旁路，
+  正是"跨状态固定转向截距"这条立论要挡的东西。
+  **修法**：新增 `_bounded_initial_input_factors`，仅在越界时按**单个全局正标量**
+  `limit / peak` 重标定，方向结构（相对幅度、符号、行列几何、秩）原样保留；已在包络内的
+  抽样**原样返回，不做任何浮点运算**。`_random_mat` 本身不动——encoder/decoder 权重
+  （seed 100/101/103/104）仍在消费它，逐字节不变。末尾保留一次 `clamp_absolute` 兜住
+  `peak * (limit/peak)` 可能高出上界 1 ulp 的情形（实测当前包络与种子下全网格一次未触发，
+  保留是因为该性质依赖具体 limit 与 seed，不是可继承的不变量）。
+  **差分证据（逐字节，非断言）**：全网格 6240 个配置的 input factor 按 `struct.pack("<d")`
+  取 sha256 前后比对——**5573 个逐字节不变，667 个改变，且改变的 667 个恰好等于原先越界的
+  667 个**；"改变了但原本合法"的计数为 0，"修完仍越界"的计数为 0。数字蚂蚁的 WORLD 轨
+  （1.0749）在不变的那一侧。附带效果：basis 被推离 tanh 饱和区（`n_z=64, rank=1` 最坏
+  pre-activation `7.552 -> 2.857`，`tanh 1.00000 -> 0.99342`，该坐标从零梯度死区回来）。
+  **`ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED` 由 `False` 翻成 `True`**；通用默认
+  `internal_rl_causal_action_head_envelope_enforced` 保持 `False`（opt-in 契约不变，
+  `tests/test_runtime_transition_replay.py` 仍从 permissive 路径装入 bias `0.35/0.4`）。
+  强制函数 `test_pristine_head_initializer_violates_...` 如期失败，已替换为
+  `test_pristine_head_initializer_respects_the_envelope_it_is_validated_against`
+  （全网格逐个过 validator）；另新增 `test_bounded_initial_input_factors_rescales_without_reshaping`
+  与 `test_envelope_has_no_update_step_dependent_exemption`（双向锚定 gate 对 `update_step` 盲）。
+  验证：`packages/vz-embodiment-ant/tests` 240 passed / 1 failed（原 19 个包络失败清零；
+  剩下的 `test_forbidden_list_covers_every_kernel_wheel_module` 缺
+  `volvence_zero.decision_workspace`，属并行 wave 既存失败）；`packages/vz-temporal/tests`
+  109 passed；`tests/test_runtime_transition_replay.py` + `tests/test_temporal_interface.py` +
+  `packages/vz-runtime/tests` 187 passed；`tests/contracts` 失败/错误集合 = 既存基线
+  （4 failed + 5 errors，名单逐条一致）；ruff 对改动文件的发现集合与改动前完全相同
+  （interface.py 20 条既存，无新增；另两个文件 0 条）。
+  负对照（三项，每项都实测会失败）：还原成无界 `_random_mat` →
+  `..._respects_the_envelope...` 失败；把重标定换成**逐元素 clip**（同样落在包络内，但破坏
+  方向结构）→ `..._rescales_without_reshaping` 失败，即该测试锚定的是重标定语义而不只是
+  "在界内"；给 validator 加 `update_step == 0` 豁免 →
+  `..._has_no_update_step_dependent_exemption` 失败。
+- 2026-07-27: 打通包络开关的生产可达路径，并把三处过度声明的不变量改写成真的
+  （收敛包 W3-b-fix-follow-up，对抗评审残留项闭环）。五项：
+  (1) **包络强制此前在生产中不可达**：`grep -rn envelope_enforced packages scripts tests`
+  只在 vz-temporal 内部命中，因此 owner 写入路径虽始终强制，ARCHIVE/CHECKPOINT 安装路径
+  在任何真实部署里仍接受越界 head——正是"任何 archive 都能装入固定转向截距"这一缺陷本身。
+  新增 `FinalRolloutConfig.internal_rl_causal_action_head_envelope_enforced: bool = False`
+  并在四个 `set_causal_action_head(...)` 调用点（`final_wiring.py` 与 `agent/session.py`
+  各 WORLD/SELF 两处）传下。**打开它的那一步被一个更深的缺陷挡住，本包不修但已量化**：
+  owner 自己的 `_initial_causal_action_head_parameters` 在 `rank < n_z` 时用无界高斯初始化
+  input factor，实测 `n_z=16` 下 `self=1.9823`、`shared=1.6192` 越过
+  `factor_absolute_limit=1.5`，而 `restore_parameter_snapshot` 校验全部三轨、
+  `internal_rl_causal_action_head_rank` 只配置一轨，因此任何域声明 `True` 都会在第一次
+  checkpoint 恢复时炸在 owner 刚创建的头上（实测蚂蚁包 19 个测试失败，全部是
+  `update_step=0`、output/bias 全零、live steering 权限精确为零的头）。收窄校验会削弱 gate，
+  给初始化加界会改动通用默认算术，故数字蚂蚁 profile 显式声明 `False` 并原地记录该阻塞，
+  由 `test_pristine_head_initializer_violates_the_envelope_it_is_validated_against` 作强制
+  函数（阻塞一修该测试即失败，迫使同批翻成 `True`）。
+  〔后续：该阻塞已由 2026-07-27「给初始先验加界」收敛包解除，强制函数如期失败并被替换成
+  `test_pristine_head_initializer_respects_the_envelope_it_is_validated_against`，蚂蚁 profile
+  已翻成 `True`。见本日志首条。〕
+  (2) **后一次调用会静默清掉前一次声明**：`set_causal_action_head(..., envelope_enforced)`
+  把 `False` 默认值无条件写进 store，于是
+  `MetacontrollerParameterStore(causal_action_head_envelope_enforced=True)` 会被任何一次
+  不提该开关的 head 配置调用关掉强制校验。改为 `bool | None = None`，`None` = 不声明。
+  (3) **给精确不变量留了 slack**：删除 `sandbox.py` 的
+  `_REALIZED_PAYOFF_AGREEMENT_TOLERANCE = 1e-9`，改用 `!=`。两个量在接通路径上按构造逐位
+  相等（`prediction/error.py::_clamp_signed` 与 sandbox `_clamp` 是同一组界的幂等 clamp），
+  outcome lineage 另行强制，容差只可能吞掉真实分歧。见 `prediction-error-loop.md`。
+  (4) **synthetic torch 分支不在跨 lane 契约内**：把该分支写死的三处 `0.0, 1.0` 换成 owner
+  常量 `LATENT_CODE_BOUNDS`（算术逐字节不变），并把跨 lane 那句话的作用域精确限定到
+  runtime-replay 重建（见上文条目）。接到 `resolve_latent_code_bounds` 是错误修法，实测会
+  改变 818 行字节探针中的 88 行。
+  (5) **两处记述失真**：`project_causal_action_head_update` 的单步位移上界改写为有条件成立
+  （baseline 在包络外时绝对 clamp 获胜，实测 `0.35 -> 0.1` 一次位移 25 倍上界；且区间按
+  binary64 求值，精确算术下会以 1 ulp 之差为假）；`tests/contracts 3668 passed` 改记为
+  失败/错误集合等于既存基线（该 pass 计数当日复测已漂到 `3682`）。
+  验证：`packages/vz-temporal/tests` 107 passed（本包新增 9 个测试，6 个 torch-free）；
+  `packages/vz-embodiment-ant/tests` 240 passed / 1 failed（`test_forbidden_list_covers_every_kernel_wheel_module`，
+  缺 `volvence_zero.decision_workspace`，属并行 wave 的既存失败）；
+  `tests/test_runtime_transition_replay.py` + `tests/test_temporal_interface.py` +
+  `packages/vz-runtime/tests` 217 passed；`tests/contracts` 失败/错误集合 = 既存基线
+  （4 failed + 5 errors）；ruff 对 8 个改动文件的发现集合与干净 HEAD 完全相同
+  （117 条既存，无新增；`S110/S112/E722` 为 0）。
+  顺带为上一条的 pass-count 论点提供了当场证据：同一会话内 `tests/contracts` 的 passed
+  先后测到 `3682` 与 `3672`（并行 wave 正在增删测试），而失败/错误集合三次完全一致。
+  pass 计数不可核验，失败/错误集合可核验。
+  **通用默认逐字节不变（已证明，非断言）**：818 行 `float.hex()` 探针覆盖 pure
+  `update_causal_action_head`（`n_z∈{3,4,16}` × 梯度尺度 `1e-6/1/1e6` × 120 次更新）、
+  `project_causal_action_head_update`（5 baseline × 4 candidate，含包络内/边界/外）、
+  permissive restore + snapshot round-trip、`FullLearnedTemporalPolicy.step()`
+  （head wiring `None/DISABLED/SHADOW/ACTIVE` 各 6 拍）、torch PPO synthetic lane
+  （`n_z × lr × action gain × modulation × track weight × head` 共 128 组）、默认
+  eligibility 结算、默认 `build_final_runtime_modules`；干净 HEAD worktree 与本树输出
+  `diff` 完全相同，md5 均为 `65517dc30205941b079883fd860422d1`。
+  负对照（每项都验证过会失败）：还原 `envelope_enforced=False` 默认写入 →
+  `..._leaves_the_store_alone` 以 `assert False is True` 失败；删掉两处 `final_wiring`
+  转发 → `..._carries_the_envelope_declaration_to_the_store` 失败；把 torch synthetic 接到
+  `latent_code_bounds` → `..._reconstructs_on_the_owner_latent_range` 失败且探针 md5 变为
+  `1a8e3ded5a0a1bd19ee5c8695d715c85`（88 行不同）；放回 `1e-9` 容差 →
+  `..._has_no_tolerance` 以 `DID NOT RAISE` 失败；去掉绝对 clamp →
+  `..._is_conditional_on_the_baseline` 以 `0.35 != 0.1` 失败。
+  复验上一包的两项结论：torch head step 仍是**比例**而非 bang-bang（`lr=0.02` 普通 batch
+  `bias=1.230494e-05 / out=5.657864e-04 / in=8.364014e-05`；gain `20→40` →
+  `1.9910x / 1.9968x / 2.0034x`；`lr` ×25 → 精确 `25.000000x`；gain 1000 与 5000 均精确顶在
+  `0.01 / 0.05 / 0.02` 不再增长），与原记录一致。
+  **未收敛（本包不改，已单列，两项）**：(a) 上述 pristine head 初始化越界，导致包络强制在任何
+  域都还打不开——这是本包唯一没有完全闭合的评审项（配置跳已落地并有测试，声明那一步被挡）。
+  〔已由 2026-07-27「给初始先验加界」收敛包关闭，见本日志首条。〕
+  (b) `_clamp` 对非有限值做静默 laundering——实测
+  `_clamp(nan) = _clamp(inf) = 1.0`、`_clamp(-inf) = -1.0`（`nan < 1.0` 与 `nan > -1.0`
+  均为 False，两个界各自保留自身操作数）。一个 NaN 的 `EnvironmentMeasurement.action_payoff`
+  因此被当作**最大奖励** `+1.0` 支付，且 `_require_signed_unit_interval` 同样漏过。两条 lane
+  laundering 方式相同，故 gate/payout 一致性检查（正确地）保持沉默——这不是该 seam 的职责。
+  现状由 `test_exact_agreement_is_not_a_finiteness_check` 记述性锚定，修复需另开收敛包
+  （`_clamp` 同时约束 reward/advantage，字节兼容面很宽；应在 ingress 契约处校验）。
+- 2026-07-27: 修复 W3-b 自身引入的 bang-bang 更新，并补齐三处 fail-loudly 缺口
+  （收敛包 W3-b-fix，对抗评审跟进）。缺陷：W3-b 用“Adam 步 + clamp 回包络”实现 torch
+  head 纪律，而 Adam 把每元素步长归一化到约 `lr`，结果是一个只携带梯度符号的最大步长
+  控制器——实测 `lr=0.02` 与 `lr=0.5` 给出**完全相同**的 `bias_step=0.010000 /
+  out_step=0.050000 / in_step=0.020000`（三个上界同时精确顶满），梯度缩小 1000 倍数值
+  仍不变；生产默认 `lr=0.02` 连续 15 次更新在第 10 次把 bias 走到绝对上界 `0.1` 并钉死，
+  即包络自己制造了它要阻止的跨状态固定转向截距。对照 pure owner 在同量级信号上的
+  `bias_step` 比上界低两到三个数量级。修法：新增唯一 owner
+  `causal_action_head_update_scales`，pure 与 torch 两条 lane 共享 `learning_rate /
+  batch_size`、`bias_learning_rate_ratio`、`bias_state_path_scale`；torch lane 把 head
+  三组参数移出 Adam，改为按该尺度做比例梯度步，投影仅作为上界。证据（`n_z=16`、batch 6、
+  `ppo_epochs=1`、`lr=0.02`）：普通 batch `bias_step=1.2305e-5`（上界的 1/813）、
+  `out_step=5.6579e-4`（1/88）、`in_step=8.3640e-5`（1/239）；梯度翻倍 → 步长
+  `1.991x/1.997x/2.003x`；`lr` 提 25 倍 → 步长精确 `25.000000x`（修复前 `1.000000x`）；
+  梯度足够大时三项仍精确顶在 `0.01/0.05/0.02` 且不再增长。另修三处：移除
+  `validate_causal_action_head_magnitudes` 的 `1e-9` 容差（冻结上界不加 slack，clamp 产物
+  本就精确合法）；`_envelope_bounded_value` 对非有限 **baseline** 也 fail loudly（此前
+  `nan`/`inf` baseline 被静默洗成 `+absolute_limit=0.1`，实测复现）；
+  `restore_causal_action_head_parameters` 补齐有限性校验。包络开关经
+  `MetacontrollerParameterStore.set_causal_action_head_envelope_enforced` 与
+  `FullLearnedTemporalPolicy.set_causal_action_head(envelope_enforced=)` 暴露，仍缺
+  `FinalRolloutConfig` 一跳（见上文条目，属 `vz-runtime`）。
+  验证：`packages/vz-temporal/tests` 83 passed（本文件 58，W3-b 后为 52）；
+  `tests/test_runtime_transition_replay.py` + `tests/test_temporal_interface.py` 全绿；
+  `tests/contracts` 的**失败/错误集合**等于既存基线（4 failed + 5 errors：`dlaas_dispatch`、
+  `feeling_about_other_active_matched_control`、`no_lscb_strings`、`predictive_heads_shadow`、
+  `openai_compat_streaming_sse`），均与本包无关。
+  （原文此处记为 `3668 passed`。pass 计数不是不变量——并行 wave 每天都在加测试，2026-07-27
+  复测同一基线已是 `3682 passed`。可核验的断言是失败/错误集合相等，之后一律记这个。）
+  **通用默认逐字节不变（已证明，非断言）**：在 HEAD 的干净 worktree 与本树上运行同一个
+  只使用 Wave-3 之前公开 API 的探针（pure `update_causal_action_head` 在 `n_z∈{3,4,16}`
+  各 120 次更新 + 梯度尺度 `1e-6/1/1e6`、permissive restore 与 snapshot round-trip、
+  `FullLearnedTemporalPolicy.step()` 在 head wiring `None/DISABLED/SHADOW/ACTIVE` 各 6 步、
+  torch PPO 在 `causal_action_head_enabled=False` 下 `n_z×lr×action gain×modulation` 共
+  16 组），全部以 `float.hex()` 逐位比对：651 行输出 md5 相同
+  (`32e218856a52a029355de5fdaa9baf1b`)。
+  负对照：把 head 三组参数放回 Adam，`test_torch_head_step_is_proportional_not_bang_bang`
+  立刻以 `bias=0.01`（精确等于上界）失败，`..._stays_inside_the_absolute_ceiling_over_time`
+  以 15 次更新后 `bias=0.0389` 失败；把 `1e-9` 容差放回，
+  `..._has_no_slack_at_the_frozen_bound` 立刻 `DID NOT RAISE` 失败。
+- 2026-07-26: torch causal-PPO lane 收敛到冻结 action-head 纪律，并在 restore 侧补齐幅度校验
+  （收敛包 W3-b）。三处缺陷：(1) torch lane 把 head 三组参数与 track weights/log_std/critic
+  一起塞进同一个 Adam 并逐字节写回，完全绕过 pure owner 的 bias/factor 包络——实测生产默认
+  `lr=0.02` 下单次更新把 bias 移动 `0.029`（单步上界 `0.01` 的 2.9 倍），`lr=0.5` 下移动
+  `1.32`（绝对上界 `0.1` 的 13 倍）；(2) `restore_causal_action_head_parameters` 只校验 shape，
+  任何 archive 都能装入越界参数；(3) runtime-replay lane 硬编码三处 `[-1,1]`，与同函数两条
+  synthetic lane 的 `[0,1]` 及 live forward 不一致。修法：把包络常数收敛为
+  `CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE` 单一 owner，pure 路径改为消费它（数值逐字节不变），
+  torch lane 在每个 optimizer step 后调用 owner 的
+  `project_causal_action_head_update`，写回时 `enforce_envelope=True`；latent code 值域收敛为
+  `LATENT_CODE_BOUNDS`，torch replay lane 经 `resolve_latent_code_bounds(latent_unit_clamp=)`
+  与 pure lane 共享同名契约。三条新行为全部 opt-in 且默认精确回滚：head 未声明时
+  `head_parameters is None`，`causal_action_head_envelope_enforced` 与 `latent_unit_clamp`
+  默认 `False`。证据：`packages/vz-temporal/tests/test_temporal_contracts.py` 52 测试通过
+  （新增 10 个，其中 7 个不依赖 torch）；负对照关掉投影后 torch 包络测试立即以
+  `1.3229 > 0.01` 失败，证明该上界是紧的而非空断言。
+  **未收敛项**：pure lane 的 PPO surrogate 消费 capture 时固化的 action-head residual
+  （`sandbox.py`），head 参数移动时其 `approx_kl` / clip fraction 不会变，而 torch lane 在图内
+  重算 residual，两个 backend 因此对同一 batch 报告结构性不同的 KL；收敛它需要改
+  `sandbox.py`，本包不拥有该文件。torch lane 也仍未复制 pure 路径的“batch mean 只进 bias、
+  factor 只消费 centered covariance”分解，投影只约束幅度。
 - 2026-07-24: 冻结调度、探索均值与 runtime actor 方向修复。`joint_learning_enabled=False`
   现在进入 joint-loop owner 的硬边界，带 pending batch 的恢复态也只能发布
   `frozen-evidence-only`；posterior 探索仅扰动 sample residual，不再在 coast 阶段抹平 learned

@@ -1,0 +1,96 @@
+{
+  "schema_version": "dialogue-export.v1",
+  "language": "zh-CN",
+  "dialogues": [
+    {
+      "id": "volvence_should_be_remembered_v2",
+      "title": "应该被记住",
+      "audio_file": "volvence-should-be-remembered.wav",
+      "voices": {
+        "assistant": "zh_male_wennuanahu_moon_bigtts"
+      },
+      "utterances": [
+        {
+          "sequence": 1,
+          "speaker": "assistant",
+          "emotion": "轻声、克制、像在面对一个新生命",
+          "speech_rate": 152,
+          "pause_after_ms": 800,
+          "text": "一个孩子来到这个世界之前，父母真的准备好了吗？第一次产检，第一次争吵，第一次深夜不安，谁来告诉他们，怎样成为父母，怎样守住一个家？"
+        },
+        {
+          "sequence": 2,
+          "speaker": "assistant",
+          "emotion": "温暖、坚定、给出希望",
+          "speech_rate": 156,
+          "pause_after_ms": 700,
+          "text": "我们让每一位父母，都拥有一个高认知的育儿顾问、家庭顾问、婚姻顾问。"
+        },
+        {
+          "sequence": 3,
+          "speaker": "assistant",
+          "emotion": "温柔、带着初为父母的珍惜",
+          "speech_rate": 154,
+          "pause_after_ms": 760,
+          "text": "孩子出生以后，第一声啼哭，第一次咿呀，第一次叫爸爸妈妈，这些声音，会不会有一天，只剩下模糊的回忆？我们记录孩子成长的每一个瞬间，理解他的情绪、表达和需要。"
+        },
+        {
+          "sequence": 4,
+          "speaker": "assistant",
+          "emotion": "关切、真诚、稍微停顿",
+          "speech_rate": 154,
+          "pause_after_ms": 780,
+          "text": "等他长大一点，当他不敢说、说不清、没人懂的时候，谁能真正站在他的世界里，看见他？我们让每一个孩子，都有一个真正懂他的老师、朋友和家长。教他学习，也陪他面对生活。"
+        },
+        {
+          "sequence": 5,
+          "speaker": "assistant",
+          "emotion": "年轻、明亮、先疑问再笃定",
+          "speech_rate": 160,
+          "pause_after_ms": 720,
+          "text": "再后来，他走进人海。他会爱上谁？谁真的懂他？谁不是擦肩而过，而是命运里那个对的人？我们让每一个青年，都有一个懂他的红娘，一个知心的朋友，帮助他在茫茫人海中，找到真实的另一半。"
+        },
+        {
+          "sequence": 6,
+          "speaker": "assistant",
+          "emotion": "有力量、现实、逐渐昂扬",
+          "speech_rate": 162,
+          "pause_after_ms": 740,
+          "text": "当他创业，当他承担，当他不肯认输，谁能和他一起写内容、做销售、写代码，把梦想变成收入，把想法变成事业？我们让每一个创业青年和企业家，都有高认知、勤奋、能带来收益的销售员、内容专员和程序员。"
+        },
+        {
+          "sequence": 7,
+          "speaker": "assistant",
+          "emotion": "怀念、温柔、像打开一段旧时光",
+          "speech_rate": 150,
+          "pause_after_ms": 900,
+          "text": "到了老去的那一天，如果能打开一只月光宝盒，你想回到哪一刻？不只是看见孩子小时候的样子，还可以和那个稚嫩、天真、满眼有光的孩子，再说一次话。"
+        },
+        {
+          "sequence": 8,
+          "speaker": "assistant",
+          "emotion": "内省、缓慢、问题之间留出空间",
+          "speech_rate": 146,
+          "pause_after_ms": 900,
+          "text": "也可以回到过去，问问那时的自己：你为什么那么勇敢？又为什么那么怯懦？"
+        },
+        {
+          "sequence": 9,
+          "speaker": "assistant",
+          "emotion": "庄重、克制、带着思念",
+          "speech_rate": 150,
+          "pause_after_ms": 1100,
+          "text": "甚至在一个人离开之后，他的后辈仍然可以在真实的生活困境里，得到来自前辈的理解、判断和指导。我们做这一切，是因为一件事。"
+        },
+        {
+          "sequence": 10,
+          "speaker": "assistant",
+          "emotion": "先克制后升华，最后一句清晰而有重量",
+          "speech_rate": 146,
+          "pause_after_ms": 1500,
+          "text": "从来不是那个名字最重要。不是那本书最重要。不是那些被写进历史的人，才重要。而是每一个来到这个世界上的人，他如何爱，如何选择，如何害怕，如何坚持，如何一次又一次面对这个世界，都值得，也应该被记住。我们记录的，不只是数据。我们理解的，不只是行为。我们迁移的，是一个人面对世界的反馈模式。"
+        }
+      ]
+    }
+  ]
+}

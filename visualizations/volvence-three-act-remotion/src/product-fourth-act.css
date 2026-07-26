@@ -1,0 +1,973 @@
+.p4-film {
+  --p4-ink: #effbf8;
+  --p4-muted: #89a8a5;
+  --p4-teal: #65d6c4;
+  --p4-amber: #ffb45e;
+  --p4-coral: #ff7a73;
+  --p4-blue: #78a9ff;
+  overflow: hidden;
+  color: var(--p4-ink);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(40, 137, 125, 0.16), transparent 34%),
+    radial-gradient(circle at 82% 76%, rgba(255, 180, 94, 0.09), transparent 30%),
+    linear-gradient(145deg, #051014 0%, #071a1e 48%, #061115 100%);
+  font-family: "Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+}
+
+.p4-film * {
+  box-sizing: border-box;
+}
+
+.p4-ambient {
+  position: absolute;
+  width: 680px;
+  height: 680px;
+  border-radius: 50%;
+  filter: blur(130px);
+  opacity: 0.1;
+}
+
+.p4-ambient-a {
+  left: -320px;
+  top: -270px;
+  background: var(--p4-teal);
+}
+
+.p4-ambient-b {
+  right: -300px;
+  bottom: -330px;
+  background: var(--p4-amber);
+}
+
+.p4-grid-bg {
+  position: absolute;
+  inset: 0;
+  opacity: 0.28;
+  background-image:
+    linear-gradient(rgba(101, 214, 196, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(101, 214, 196, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 28%, black 100%);
+}
+
+.p4-brand {
+  position: absolute;
+  top: 35px;
+  left: 54px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.p4-brand > span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(101, 214, 196, 0.48);
+  color: var(--p4-teal);
+  font-family: Georgia, serif;
+  font-size: 22px;
+  transform: rotate(45deg);
+}
+
+.p4-brand b {
+  color: rgba(239, 251, 248, 0.86);
+  font-size: 15px;
+  letter-spacing: 0.22em;
+}
+
+.p4-brand i {
+  padding-left: 12px;
+  border-left: 1px solid rgba(137, 168, 165, 0.24);
+  color: rgba(137, 168, 165, 0.72);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.p4-stage-progress {
+  position: absolute;
+  top: 34px;
+  right: 52px;
+  z-index: 30;
+  display: flex;
+  gap: 7px;
+}
+
+.p4-stage-progress > div {
+  width: 118px;
+  height: 38px;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-top: 2px solid rgba(137, 168, 165, 0.13);
+  opacity: 0.35;
+}
+
+.p4-stage-progress > div.visited {
+  border-color: rgba(101, 214, 196, 0.34);
+  opacity: 0.68;
+}
+
+.p4-stage-progress > div.active {
+  border-color: var(--p4-teal);
+  background: linear-gradient(180deg, rgba(101, 214, 196, 0.09), transparent);
+  opacity: 1;
+}
+
+.p4-stage-progress span {
+  color: var(--p4-teal);
+  font-family: Georgia, serif;
+  font-size: 10px;
+}
+
+.p4-stage-progress b {
+  color: rgba(239, 251, 248, 0.76);
+  font-size: 11px;
+}
+
+.p4-time {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  z-index: 80;
+  color: rgba(137, 168, 165, 0.25);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+}
+
+.p4-intro {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at center, rgba(29, 128, 116, 0.16), transparent 38%),
+    rgba(4, 15, 19, 0.88);
+}
+
+.p4-intro span {
+  color: var(--p4-teal);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.p4-intro strong {
+  margin-top: 25px;
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 67px;
+  font-weight: 500;
+}
+
+.p4-intro b {
+  margin-top: 12px;
+  color: rgba(239, 251, 248, 0.68);
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.p4-content {
+  position: absolute;
+  left: 58px;
+  right: 58px;
+  top: 105px;
+  bottom: 42px;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 620px 1fr;
+  gap: 22px;
+}
+
+.p4-conversation,
+.p4-workspace {
+  overflow: hidden;
+  border: 1px solid rgba(101, 214, 196, 0.2);
+  border-radius: 22px;
+  background:
+    linear-gradient(155deg, rgba(10, 33, 38, 0.95), rgba(6, 23, 27, 0.92));
+  box-shadow:
+    0 26px 80px rgba(0, 0, 0, 0.28),
+    inset 0 1px rgba(101, 214, 196, 0.08);
+}
+
+.p4-conversation {
+  position: relative;
+}
+
+.p4-conversation-head {
+  height: 76px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border-bottom: 1px solid rgba(137, 168, 165, 0.13);
+  background: rgba(4, 16, 20, 0.4);
+}
+
+.p4-conversation-head > span {
+  display: grid;
+  place-items: center;
+  width: 43px;
+  height: 43px;
+  border-radius: 14px;
+  color: #061417;
+  background: linear-gradient(145deg, var(--p4-teal), #2b978c);
+  font-family: Georgia, serif;
+  font-size: 24px;
+}
+
+.p4-conversation-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.p4-conversation-head b {
+  font-size: 18px;
+}
+
+.p4-conversation-head small {
+  color: var(--p4-muted);
+  font-size: 12px;
+}
+
+.p4-conversation-head i {
+  margin-left: auto;
+  color: rgba(101, 214, 196, 0.64);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.p4-conversation-head i::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--p4-teal);
+  box-shadow: 0 0 14px rgba(101, 214, 196, 0.7);
+}
+
+.p4-message-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 76px;
+  bottom: 185px;
+  padding: 24px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.p4-message {
+  position: relative;
+  max-width: 90%;
+  padding: 15px 17px 17px;
+  border: 1px solid rgba(137, 168, 165, 0.16);
+  border-radius: 17px;
+  opacity: 0.5;
+}
+
+.p4-message.active {
+  opacity: 1;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
+}
+
+.p4-message.user {
+  align-self: flex-end;
+  border-color: rgba(255, 180, 94, 0.22);
+  border-bottom-right-radius: 4px;
+  background: rgba(255, 180, 94, 0.09);
+}
+
+.p4-message.assistant {
+  align-self: flex-start;
+  border-color: rgba(101, 214, 196, 0.22);
+  border-bottom-left-radius: 4px;
+  background: rgba(101, 214, 196, 0.09);
+}
+
+.p4-message > span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--p4-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.p4-message p {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.55;
+}
+
+.p4-speaking {
+  position: absolute;
+  right: 13px;
+  bottom: 9px;
+  height: 13px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.p4-speaking b {
+  width: 2px;
+  border-radius: 2px;
+  background: var(--p4-teal);
+  animation: p4-speaking 0.72s ease-in-out infinite alternate;
+}
+
+.p4-speaking b:nth-child(1) {height: 5px;}
+.p4-speaking b:nth-child(2) {height: 12px; animation-delay: -0.18s;}
+.p4-speaking b:nth-child(3) {height: 8px; animation-delay: -0.36s;}
+.p4-speaking b:nth-child(4) {height: 11px; animation-delay: -0.54s;}
+
+@keyframes p4-speaking {
+  from {transform: scaleY(0.42);}
+  to {transform: scaleY(1);}
+}
+
+.p4-communication {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 105px;
+  height: 61px;
+  padding: 0 15px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid rgba(101, 214, 196, 0.14);
+  border-radius: 13px;
+  background: rgba(4, 16, 20, 0.4);
+}
+
+.p4-communication > span,
+.p4-user-journey > span {
+  color: var(--p4-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.p4-communication > div {
+  display: flex;
+  gap: 7px;
+}
+
+.p4-communication b {
+  padding: 6px 9px;
+  border: 1px solid rgba(101, 214, 196, 0.24);
+  border-radius: 999px;
+  color: var(--p4-teal);
+  font-size: 12px;
+}
+
+.p4-user-journey {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 22px;
+  height: 63px;
+  padding: 0 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.p4-user-journey > div {
+  display: flex;
+  align-items: center;
+}
+
+.p4-user-journey b {
+  color: rgba(137, 168, 165, 0.32);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.p4-user-journey b.active {
+  color: var(--p4-amber);
+}
+
+.p4-user-journey i {
+  width: 42px;
+  height: 1px;
+  margin: 0 8px;
+  background: rgba(137, 168, 165, 0.18);
+}
+
+.p4-workspace {
+  position: relative;
+  padding: 18px 20px;
+}
+
+.p4-workspace-head {
+  height: 48px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.p4-workspace-head > div {
+  display: flex;
+  align-items: baseline;
+  gap: 13px;
+}
+
+.p4-workspace-head span {
+  color: var(--p4-teal);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.p4-workspace-head b {
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 21px;
+  font-weight: 500;
+}
+
+.p4-workspace-head > i {
+  margin-left: auto;
+  padding: 6px 9px;
+  border-radius: 5px;
+  background: rgba(101, 214, 196, 0.08);
+  color: var(--p4-teal);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.p4-unknowns {
+  height: 116px;
+  padding: 11px 13px;
+  border: 1px solid rgba(137, 168, 165, 0.12);
+  border-radius: 13px;
+  background: rgba(4, 16, 20, 0.3);
+  opacity: 0.22;
+}
+
+.p4-unknowns.visible {
+  opacity: 1;
+}
+
+.p4-section-kicker {
+  height: 26px;
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+}
+
+.p4-section-kicker span {
+  color: var(--p4-amber);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.p4-section-kicker b {
+  color: rgba(239, 251, 248, 0.68);
+  font-size: 12px;
+}
+
+.p4-unknown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.p4-unknown-grid > div {
+  position: relative;
+  min-width: 0;
+  height: 62px;
+  padding: 9px 26px 8px 10px;
+  border: 1px solid rgba(137, 168, 165, 0.12);
+  border-radius: 8px;
+  background: rgba(137, 168, 165, 0.035);
+}
+
+.p4-unknown-grid > div.active {
+  border-color: rgba(255, 180, 94, 0.42);
+  background: rgba(255, 180, 94, 0.08);
+  box-shadow: 0 0 22px rgba(255, 180, 94, 0.08);
+}
+
+.p4-unknown-grid > div.resolved {
+  border-color: rgba(101, 214, 196, 0.28);
+  background: rgba(101, 214, 196, 0.07);
+}
+
+.p4-unknown-grid span {
+  display: block;
+  color: var(--p4-muted);
+  font-size: 10px;
+}
+
+.p4-unknown-grid b {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: rgba(239, 251, 248, 0.72);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p4-unknown-grid i {
+  position: absolute;
+  right: 9px;
+  top: 21px;
+  color: rgba(137, 168, 165, 0.38);
+  font-family: Georgia, serif;
+  font-size: 17px;
+  font-style: normal;
+}
+
+.p4-unknown-grid .active i {
+  color: var(--p4-amber);
+}
+
+.p4-unknown-grid .resolved i {
+  color: var(--p4-teal);
+}
+
+.p4-framework-note,
+.p4-company-ev,
+.p4-relation-eval,
+.p4-final-plan {
+  height: 174px;
+  margin-top: 10px;
+  border: 1px solid rgba(137, 168, 165, 0.12);
+  border-radius: 13px;
+  background: rgba(4, 16, 20, 0.32);
+}
+
+.p4-framework-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.22;
+}
+
+.p4-framework-note.visible {
+  opacity: 1;
+}
+
+.p4-framework-note span {
+  color: var(--p4-amber);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.p4-framework-note b {
+  margin-top: 13px;
+  width: 88%;
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 25px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.p4-company-ev {
+  padding: 11px 13px;
+  opacity: 0.25;
+}
+
+.p4-company-ev.visible {
+  opacity: 1;
+}
+
+.p4-ev-formula {
+  height: 42px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.p4-ev-formula span {
+  color: var(--p4-amber);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.p4-ev-formula b {
+  color: rgba(239, 251, 248, 0.7);
+  font-family: Georgia, "Songti SC", serif;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.p4-ev-formula i {
+  margin-left: auto;
+  color: rgba(137, 168, 165, 0.52);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.p4-scenario-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+}
+
+.p4-scenario-cards > div {
+  position: relative;
+  height: 102px;
+  padding: 10px 12px;
+  border: 1px solid rgba(137, 168, 165, 0.14);
+  border-radius: 9px;
+  background: rgba(137, 168, 165, 0.035);
+}
+
+.p4-scenario-cards > div.selected {
+  border-color: rgba(101, 214, 196, 0.5);
+  background: rgba(101, 214, 196, 0.09);
+  box-shadow: inset 0 0 25px rgba(101, 214, 196, 0.06);
+}
+
+.p4-scenario-cards span {
+  color: rgba(239, 251, 248, 0.68);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.p4-scenario-cards strong {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  font-family: Georgia, serif;
+  font-size: 24px;
+}
+
+.p4-scenario-cards .high strong {color: var(--p4-teal);}
+.p4-scenario-cards .variable strong {color: var(--p4-amber);}
+.p4-scenario-cards .low strong {color: var(--p4-coral);}
+
+.p4-scenario-cards small {
+  display: block;
+  margin-top: 12px;
+  color: var(--p4-muted);
+  font-size: 10px;
+}
+
+.p4-scenario-cards i {
+  display: block;
+  margin-top: 8px;
+  color: var(--p4-amber);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.p4-relation-eval {
+  padding: 15px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px;
+}
+
+.p4-relation-eval > div {
+  padding: 17px;
+  border: 1px solid rgba(137, 168, 165, 0.14);
+  border-radius: 10px;
+  background: rgba(137, 168, 165, 0.035);
+}
+
+.p4-relation-eval > div.active {
+  border-color: rgba(255, 180, 94, 0.36);
+  background: rgba(255, 180, 94, 0.07);
+}
+
+.p4-relation-eval > div.resolved {
+  border-color: rgba(101, 214, 196, 0.3);
+  background: rgba(101, 214, 196, 0.07);
+}
+
+.p4-relation-eval span {
+  color: var(--p4-muted);
+  font-size: 11px;
+}
+
+.p4-relation-eval b {
+  display: block;
+  margin-top: 11px;
+  color: var(--p4-ink);
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.p4-relation-eval small {
+  display: block;
+  margin-top: 11px;
+  color: rgba(239, 251, 248, 0.58);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.p4-final-plan {
+  padding: 13px 15px;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 15px;
+  border-color: rgba(101, 214, 196, 0.32);
+  background: rgba(101, 214, 196, 0.055);
+}
+
+.p4-final-plan > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid rgba(101, 214, 196, 0.17);
+}
+
+.p4-final-plan span {
+  color: var(--p4-teal);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.p4-final-plan strong {
+  margin-top: 10px;
+  color: var(--p4-ink);
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 28px;
+  font-weight: 500;
+}
+
+.p4-final-plan ul {
+  margin: 0;
+  padding: 4px 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 7px 12px;
+  list-style: none;
+}
+
+.p4-final-plan li {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(4, 16, 20, 0.35);
+  color: rgba(239, 251, 248, 0.74);
+  font-size: 11px;
+}
+
+.p4-final-plan li::before {
+  content: "✓";
+  margin-right: 7px;
+  color: var(--p4-teal);
+}
+
+.p4-matrix {
+  height: 414px;
+  margin-top: 10px;
+  opacity: 0.24;
+}
+
+.p4-matrix.visible {
+  opacity: 1;
+}
+
+.p4-matrix-title {
+  height: 50px;
+  display: flex;
+  align-items: center;
+}
+
+.p4-matrix-title > div {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.p4-matrix-title span {
+  color: var(--p4-teal);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.p4-matrix-title b {
+  color: rgba(239, 251, 248, 0.7);
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.p4-matrix-title > i {
+  margin-left: auto;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: rgba(255, 180, 94, 0.08);
+  color: var(--p4-amber);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.p4-matrix-grid {
+  display: grid;
+  grid-template-columns: 220px repeat(4, 1fr);
+  grid-auto-rows: 44px;
+  overflow: hidden;
+  border: 1px solid rgba(137, 168, 165, 0.14);
+  border-radius: 11px;
+}
+
+.p4-matrix-grid > div {
+  border-right: 1px solid rgba(137, 168, 165, 0.1);
+  border-bottom: 1px solid rgba(137, 168, 165, 0.1);
+}
+
+.p4-matrix-corner,
+.p4-option,
+.p4-dimension,
+.p4-score,
+.p4-total-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.p4-matrix-corner {
+  padding: 0 14px;
+  justify-content: space-between;
+  color: var(--p4-muted);
+  font-size: 10px;
+}
+
+.p4-matrix-corner span {
+  color: rgba(255, 180, 94, 0.55);
+}
+
+.p4-option {
+  background: rgba(4, 16, 20, 0.38);
+  color: rgba(239, 251, 248, 0.56);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.p4-option.leading {
+  color: var(--p4-teal);
+  background: rgba(101, 214, 196, 0.09);
+}
+
+.p4-dimension,
+.p4-total-label {
+  padding: 0 14px;
+  justify-content: space-between;
+  opacity: 0.3;
+  filter: blur(1px);
+}
+
+.p4-dimension.revealed,
+.p4-total-label {
+  opacity: 1;
+  filter: none;
+}
+
+.p4-dimension b,
+.p4-total-label b {
+  font-size: 11px;
+}
+
+.p4-dimension span,
+.p4-total-label span {
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: rgba(255, 180, 94, 0.08);
+  color: var(--p4-amber);
+  font-size: 9px;
+}
+
+.p4-score {
+  color: rgba(239, 251, 248, 0.16);
+  font-family: Georgia, serif;
+  font-size: 16px;
+}
+
+.p4-score.revealed {
+  color: rgba(239, 251, 248, 0.72);
+  background: rgba(101, 214, 196, 0.02);
+}
+
+.p4-score.leading {
+  color: var(--p4-teal);
+  background: rgba(101, 214, 196, 0.08);
+}
+
+.p4-total-label,
+.p4-score.total {
+  background: rgba(4, 16, 20, 0.46);
+}
+
+.p4-score.winner {
+  color: #041316;
+  background: linear-gradient(135deg, var(--p4-teal), #8de7d9);
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.p4-outro {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at center, rgba(32, 137, 124, 0.18), transparent 38%),
+    rgba(4, 15, 19, 0.95);
+}
+
+.p4-outro > span {
+  color: var(--p4-teal);
+  font-family: Georgia, serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+}
+
+.p4-outro > strong {
+  margin-top: 22px;
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 58px;
+  font-weight: 500;
+}
+
+.p4-outro > b {
+  margin-top: 8px;
+  color: rgba(239, 251, 248, 0.68);
+  font-family: "STKaiti", "Kaiti SC", serif;
+  font-size: 31px;
+  font-weight: 500;
+}
+
+.p4-outro > div {
+  margin-top: 42px;
+  display: flex;
+  gap: 10px;
+}
+
+.p4-outro i {
+  padding: 9px 14px;
+  border: 1px solid rgba(101, 214, 196, 0.22);
+  border-radius: 999px;
+  color: rgba(239, 251, 248, 0.65);
+  font-size: 12px;
+  font-style: normal;
+}

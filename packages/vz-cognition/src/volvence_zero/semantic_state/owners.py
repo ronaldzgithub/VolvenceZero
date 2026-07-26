@@ -27,6 +27,7 @@ from volvence_zero.social_cognition import MultiPartyIdentitySnapshot
 from volvence_zero.substrate import SubstrateSnapshot
 
 from volvence_zero.semantic_state.contracts import (
+    BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD,
     FUNNEL_STAGE_CONVERTING,
     FUNNEL_STAGE_DISCOVERY,
     FUNNEL_STAGE_NURTURING,
@@ -818,7 +819,11 @@ class BeliefAssumptionModule(SemanticOwnerModule):
     owner_prediction_track: ClassVar[str] = "world"
 
     def _build_snapshot(self, *, records: tuple[SemanticRecord, ...], batch: SemanticProposalBatch) -> BeliefAssumptionSnapshot:
-        verification = tuple(record for record in records if record.confidence < 0.55)
+        verification = tuple(
+            record
+            for record in records
+            if record.confidence < BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD
+        )
         mean_confidence = self._mean_confidence(records)
         verification_ratio = _clamp(len(verification) / max(len(records), 1))
         prediction_signals = self._owner_prediction_signals(
@@ -831,7 +836,11 @@ class BeliefAssumptionModule(SemanticOwnerModule):
             ),
         )
         return BeliefAssumptionSnapshot(
-            beliefs=tuple(record for record in records if record.confidence >= 0.55),
+            beliefs=tuple(
+                record
+                for record in records
+                if record.confidence >= BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD
+            ),
             assumptions=records,
             verification_needs=verification,
             contradiction_refs=tuple(record.record_id for record in _records_with_status(records, "blocked")),

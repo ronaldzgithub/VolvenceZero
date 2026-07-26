@@ -27,6 +27,8 @@ from volvence_zero.memory import MemorySnapshot
 from volvence_zero.substrate import SubstrateSnapshot
 
 from volvence_zero.semantic_state.contracts import (
+    BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD,
+    EvidenceProvenance,
     ExternalSemanticEvent,
     ExternalSemanticEventBatch,
     GenericSemanticEvent,
@@ -137,6 +139,22 @@ def _proposal(
 
 
 class ToolResultSemanticAdapter(SemanticEventAdapter):
+    # Just under the owner's belief/verification boundary. A claim that
+    # cannot say where it came from, when it was true, and what it
+    # applies to is not evidence, so it is admitted at a confidence that
+    # lands it in ``verification_needs`` rather than ``beliefs``.
+    #
+    # This is deliberately a cap on an honest confidence rather than a
+    # rule that routes such claims somewhere special. The owner's
+    # existing bucketing then does the work, and the downstream effects
+    # follow on their own: the claim becomes an open unknown, which
+    # raises ``unknown_dominance``, which the panorama gate reads, which
+    # the value-of-information ranking then targets. The system ends up
+    # chasing its own unverified claims without anywhere being told to.
+    _UNPROVENANCED_CONFIDENCE_CAP: float = (
+        BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD - 0.05
+    )
+
     def adapt(
         self,
         *,
@@ -165,6 +183,10 @@ class ToolResultSemanticAdapter(SemanticEventAdapter):
                 ),
             )
         if target_slot == "belief_assumption":
+            if event.provenance:
+                return self._provenanced_belief_proposals(
+                    event=event, turn_index=turn_index
+                )
             return (
                 _proposal(
                     event_id=event.event_id,
@@ -208,6 +230,53 @@ class ToolResultSemanticAdapter(SemanticEventAdapter):
                 ),
             )
         return ()
+
+    def _provenanced_belief_proposals(
+        self,
+        *,
+        event: ToolResultSemanticEvent,
+        turn_index: int,
+    ) -> tuple[SemanticProposal, ...]:
+        """One belief proposal per claim, confidence capped by provenance.
+
+        Findings arrive as separate claims rather than one blob because
+        a research call routinely returns a mix: a filing date that is
+        checkable, a valuation that is a guess, and a comparison whose
+        scope is a different company. Merging them into one record forces
+        a single confidence onto all three, and the checkable part drags
+        the guess across the belief threshold with it.
+
+        The ``evidence`` string names the missing fields explicitly, so
+        an audit reads "this was admitted as unverified because it has
+        no as_of" rather than just seeing a low number.
+        """
+        proposals: list[SemanticProposal] = []
+        for claim in event.provenance:
+            missing = claim.missing_fields()
+            confidence = float(claim.confidence)
+            if missing:
+                confidence = min(confidence, self._UNPROVENANCED_CONFIDENCE_CAP)
+            evidence = (
+                f"tool={event.tool_name} action={event.action_id} "
+                f"claim={claim.claim_id} source={claim.source or '-'} "
+                f"as_of={claim.as_of or '-'} scope={claim.scope or '-'}"
+            )
+            if missing:
+                evidence += f" incomplete_provenance={','.join(missing)}"
+            proposals.append(
+                _proposal(
+                    event_id=f"{event.event_id}:{claim.claim_id}",
+                    target_slot="belief_assumption",
+                    operation=SemanticProposalOperation.OBSERVE,
+                    summary=f"tool-evidence:{event.tool_name}:{claim.claim_id}",
+                    detail=event.summary,
+                    confidence=confidence,
+                    evidence=evidence,
+                    turn_index=turn_index,
+                    control_signal=0.18,
+                )
+            )
+        return tuple(proposals)
 
 
 class ProfileSemanticAdapter(SemanticEventAdapter):
@@ -550,6 +619,7 @@ def semantic_events_from_tool_result(
     confidence: float = 0.8,
     artifact_refs: tuple[str, ...] = (),
     plan_ref: str | None = None,
+    provenance: tuple[EvidenceProvenance, ...] = (),
 ) -> ExternalSemanticEventBatch:
     return ExternalSemanticEventBatch(
         events=(
@@ -563,6 +633,7 @@ def semantic_events_from_tool_result(
                 confidence=confidence,
                 artifact_refs=artifact_refs,
                 plan_ref=plan_ref,
+                provenance=provenance,
             ),
         ),
         source="tool-result",

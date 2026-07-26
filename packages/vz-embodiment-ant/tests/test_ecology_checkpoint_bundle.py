@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -20,8 +21,10 @@ from volvence_ant.evidence.ecology_checkpoint import (
     write_ecology_checkpoint_bundle,
 )
 from volvence_ant.evidence.provenance import (
+    AntArtifactExistsError,
     AntArtifactIntegrityError,
     AntRunProvenance,
+    file_digest,
 )
 from volvence_ant.experiments.ecology_curriculum import (
     ECOLOGY_CURRICULUM_SCHEMA_VERSION,
@@ -209,3 +212,122 @@ def test_checkpoint_loader_rejects_legacy_curriculum_schema() -> None:
 
     with pytest.raises(AntArtifactIntegrityError, match="unexpected ecology"):
         _validated_report_verdict(payload)
+
+
+def test_promotion_bundle_records_training_and_layout_seeds_separately(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _capture(**kwargs: object) -> AntRunProvenance:
+        captured.update(kwargs)
+        return _provenance()
+
+    monkeypatch.setattr(
+        "volvence_ant.evidence.ecology_checkpoint.collect_ant_provenance",
+        _capture,
+    )
+    write_ecology_checkpoint_bundle(
+        candidate=_candidate("PASS"),
+        archive_path=tmp_path / "ecology.vzac",
+        report_path=tmp_path / "ecology.json",
+        repo_root=tmp_path,
+    )
+
+    # The curriculum seed drives training; validation and held-out layout seeds
+    # are a disjoint namespace and must stay separately recoverable instead of
+    # collapsing into the one seed_schedule digest.
+    assert captured["training_seeds"] == (0,)
+    assert captured["layout_seeds"] == (5, 7)
+
+
+def test_promotion_bundle_refuses_to_replace_an_existing_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_path = _write(tmp_path, monkeypatch, verdict="BLOCK")
+    archive_path = tmp_path / "ecology.vzac"
+    original = archive_path.read_bytes()
+
+    with pytest.raises(AntArtifactExistsError, match="verdict"):
+        write_ecology_checkpoint_bundle(
+            candidate=_candidate("PASS"),
+            archive_path=archive_path,
+            report_path=report_path,
+            repo_root=tmp_path,
+        )
+    # Both halves of the refused bundle are intact -- the archive is checked
+    # before its bytes are written, so no half-replaced bundle can exist.
+    assert archive_path.read_bytes() == original
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["promotion_verdict"] == "BLOCK"
+
+
+def test_promotion_bundle_refuses_an_orphan_archive_without_its_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_path = _write(tmp_path, monkeypatch, verdict="BLOCK")
+    archive_path = tmp_path / "ecology.vzac"
+    report_path.unlink()
+    report_path.with_suffix(".manifest.json").unlink()
+
+    with pytest.raises(AntArtifactExistsError, match="report absent"):
+        write_ecology_checkpoint_bundle(
+            candidate=_candidate("PASS"),
+            archive_path=archive_path,
+            report_path=report_path,
+            repo_root=tmp_path,
+        )
+
+
+def test_promotion_bundle_replaces_only_with_explicit_overwrite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report_path = _write(tmp_path, monkeypatch, verdict="BLOCK")
+    write_ecology_checkpoint_bundle(
+        candidate=_candidate("PASS"),
+        archive_path=tmp_path / "ecology.vzac",
+        report_path=report_path,
+        repo_root=tmp_path,
+        overwrite=True,
+    )
+
+    assert (
+        load_promoted_ecology_checkpoint(
+            report_path=report_path,
+            repo_root=tmp_path,
+        ).verdict
+        == "PASS"
+    )
+
+
+def test_promotion_loader_rejects_a_pre_v3_evidence_envelope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An artifact whose envelope predates ``v3`` cannot be promoted.
+
+    Its provenance block has no ``requested_device`` / ``effective_backend`` /
+    ``training_seeds`` / ``layout_seeds``, so it cannot answer the questions
+    plan section 2.1 asks of a formal artifact. The manifest is regenerated
+    here so the envelope check is what fires, not the digest check.
+    """
+
+    report_path = _write(tmp_path, monkeypatch, verdict="PASS")
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    payload["evidence_envelope_schema_version"] = "digital-ant-evidence.v2"
+    report_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    manifest_path = report_path.with_suffix(".manifest.json")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact"] = asdict(file_digest(report_path, relative_to=tmp_path))
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(AntArtifactIntegrityError, match="unsupported evidence envelope"):
+        load_promoted_ecology_checkpoint(
+            report_path=report_path,
+            repo_root=tmp_path,
+        )
