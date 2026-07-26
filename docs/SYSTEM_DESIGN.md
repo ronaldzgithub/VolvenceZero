@@ -113,6 +113,277 @@
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+### 2.0 Mermaid 架构视图
+
+以下 Mermaid 图是当前系统边界的可渲染版本。它保持与上方总览一致：`vz-*`
+是认知内核，`lifeform-*` 是数字生命体 / 产品适配层，`dlaas-platform-*`
+是平台治理层；跨 owner 的运行时交换只通过不可变 snapshot。
+
+```mermaid
+flowchart TB
+    user[用户 / 外部客户端 / Arena] --> ingress{入口}
+
+    ingress --> openai[lifeform-openai-compat<br/>OpenAI Chat Completions facade]
+    ingress --> dlaas_api[dlaas-platform-api<br/>/dlaas/* typed API]
+    ingress --> service[lifeform-service<br/>SessionManager + vertical registry]
+
+    subgraph bench[外部评估 / 基准]
+        companion_bench[companion-bench<br/>system-agnostic 6轴 benchmark]
+        external_arena[EQ-Bench / EmpathyBench / Chatbot Arena]
+    end
+
+    openai --> service
+    dlaas_api --> service
+    companion_bench -.OpenAI-compatible.-> openai
+    external_arena -.OpenAI-compatible.-> openai
+
+    subgraph dlaas[dlaas-platform-* 平台治理层]
+        dlaas_contracts[dlaas-platform-contracts<br/>InteractionEnvelope / OutputAct]
+        registry[dlaas-platform-registry<br/>tenant / shell / asset / contract SSOT]
+        launcher[dlaas-platform-launcher<br/>InstanceManager ai_id -> Lifeform]
+        ops[dlaas-platform-ops<br/>pause / handoff / SSE]
+        dlaas_eval[dlaas-platform-eval<br/>audience / exam / license readout]
+    end
+
+    dlaas_api --> dlaas_contracts
+    dlaas_api --> registry
+    dlaas_api --> launcher
+    dlaas_api --> ops
+    dlaas_eval --> service
+    launcher --> service
+
+    subgraph lifeform[lifeform-* 数字生命体层]
+        lf_core[lifeform-core<br/>Lifeform / LifeformSession]
+        vitals[VitalsModule<br/>always-on slow PE source]
+        followup[FollowupManager]
+        scene[Scene / Tick engine]
+        expression[lifeform-expression<br/>prompt / response rendering]
+        affordance[lifeform-affordance<br/>Tool / Action / Organ / Shell]
+        ingestion[lifeform-ingestion<br/>book / web / task_result]
+        thinking[lifeform-thinking<br/>mid-reflection workers]
+        evolution[lifeform-evolution<br/>benchmark / super-loop / family report]
+        domains[lifeform-domain-*<br/>emogpt / coding / character / figure / growth-advisor]
+    end
+
+    service --> lf_core
+    lf_core --> vitals
+    lf_core --> followup
+    lf_core --> scene
+    lf_core --> expression
+    lf_core --> affordance
+    lf_core --> ingestion
+    lf_core --> thinking
+    evolution --> lf_core
+    domains --> lf_core
+    domains -.DomainExperiencePackage.-> app
+    domains -.VitalsBootstrap.-> vitals
+
+    subgraph standard[公开 / 共享表征基础]
+        companion_standard[companion-standard<br/>Snapshot / 9 semantic value types / ToM types]
+        contracts[vz-contracts<br/>RuntimeModule / WiringLevel / propagate / guards]
+    end
+
+    companion_standard --> contracts
+
+    subgraph kernel[vz-* 认知内核]
+        runtime[vz-runtime<br/>Brain / BrainSession / Orchestrator]
+        substrate[vz-substrate<br/>Frozen LLM / residual stream / adapter-delta]
+        temporal[vz-temporal<br/>Metacontroller / beta_t / z_t / Internal RL]
+        memory[vz-memory<br/>CMS continuum memory / ReflectionEngine]
+        cognition[vz-cognition<br/>PE / credit / dual-track / regime / semantic owners / evaluation]
+        app[vz-application<br/>domain knowledge / case memory / playbook / boundary policy]
+    end
+
+    lf_core --> runtime
+    runtime --> contracts
+    runtime --> substrate
+    runtime --> temporal
+    runtime --> memory
+    runtime --> cognition
+    runtime --> app
+
+    substrate -.SubstrateSnapshot.-> temporal
+    substrate -.SubstrateSnapshot.-> memory
+    substrate -.SubstrateSnapshot.-> cognition
+    temporal -.TemporalAbstractionSnapshot.-> memory
+    temporal -.TemporalAbstractionSnapshot.-> cognition
+    memory -.MemorySnapshot.-> cognition
+    cognition -.PredictionError / Regime / Credit / Evaluation snapshots.-> temporal
+    cognition -.PredictionError / Semantic snapshots.-> memory
+    app -.Application snapshots.-> cognition
+    app -.Retrieval / Case / Playbook / Boundary snapshots.-> expression
+
+    cognition -.rupture_state snapshot.-> ops
+    vitals -.VitalsSnapshot, lifeform-side only.-> followup
+    vitals -.drift readout.-> evolution
+```
+
+```mermaid
+flowchart LR
+    input[Environment Event<br/>user / observe / feedback / tool result] --> brain[BrainSession / Orchestrator]
+    brain --> propagate[propagate(auto_sort=True)<br/>Snapshot guards]
+
+    propagate --> substrate[substrate<br/>SubstrateSnapshot]
+    substrate --> world_temporal[world_temporal]
+    substrate --> self_temporal[self_temporal]
+
+    memory[memory<br/>CMS / continuum profile] --> world_temporal
+    memory --> self_temporal
+    world_temporal --> temporal_agg[temporal_abstraction<br/>aggregate public state]
+    self_temporal --> temporal_agg
+
+    temporal_agg --> dual[dual_track<br/>world / self tracks]
+    memory --> dual
+
+    subgraph semantic[9 semantic owners]
+        plan[plan_intent]
+        commit[commitment]
+        openloop[open_loop]
+        usermodel[user_model]
+        exec[execution_result]
+        belief[belief_assumption]
+        relation[relationship_state]
+        goal[goal_value]
+        consent[boundary_consent]
+    end
+
+    semantic --> temporal_agg
+    semantic --> response_assembly[response_assembly]
+
+    substrate --> pe[prediction_error<br/>prediction -> actual -> next -> error]
+    dual --> pe
+    regime[regime] --> pe
+    evaluation[evaluation<br/>readout / gate] -.enrichment.-> pe
+
+    pe --> memory
+    pe --> temporal_agg
+    pe --> regime
+    pe --> credit[credit<br/>PE-derived aggregation]
+    pe --> reflection[reflection<br/>session-post proposal]
+
+    credit --> reflection
+    temporal_agg --> reflection
+    regime --> reflection
+
+    retrieval[retrieval_policy] --> domain[domain_knowledge]
+    retrieval --> case[case_memory]
+    domain --> boundary[boundary_policy]
+    case --> playbook[strategy_playbook]
+    playbook --> response_assembly
+    boundary --> response_assembly
+    domain --> response_assembly
+    case --> response_assembly
+    retrieval --> response_assembly
+
+    response_assembly --> response[AgentResponse / expression layer]
+
+    reflection --> slow[session_post_slow_loop]
+    slow --> exp_consol[experience_consolidation]
+    exp_consol --> fast_prior[experience_fast_prior]
+    fast_prior --> temporal_agg
+    fast_prior --> retrieval
+    fast_prior --> regime
+
+    external_outcome[dialogue_external_outcome] --> pe
+    external_outcome --> rupture[rupture_state]
+    rupture -.ops readout.-> handoff[DLaaS handoff queue]
+```
+
+#### 单轮交互时序
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 用户
+    participant API as OpenAI / DLaaS / Service 入口
+    participant LF as LifeformSession
+    participant Vitals as VitalsModule
+    participant Brain as BrainSession / Orchestrator
+    participant Prop as propagate + Guards
+    participant Sub as vz-substrate
+    participant Temp as vz-temporal
+    participant Mem as vz-memory
+    participant Cog as vz-cognition
+    participant App as vz-application
+    participant Expr as lifeform-expression
+    participant Out as 客户端输出
+
+    User->>API: chat / observe / feedback / teach / task
+    API->>LF: typed interaction / run_turn(...)
+    LF->>Vitals: on_turn(regime)
+    Vitals-->>LF: VitalsSnapshot
+
+    LF->>Brain: run_turn(canonical event)
+    Brain->>Prop: build wave context
+
+    Prop->>Sub: process(upstream snapshots)
+    Sub-->>Prop: SubstrateSnapshot
+
+    Prop->>Temp: process(substrate, memory carryover, PE carryover)
+    Temp-->>Prop: world/self temporal + temporal_abstraction snapshots
+
+    Prop->>Mem: process(substrate, temporal, PE)
+    Mem-->>Prop: MemorySnapshot
+
+    Prop->>Cog: process(dual_track, regime, semantic owners, prediction_error, credit, evaluation)
+    Cog-->>Prop: PE / regime / semantic / credit / evaluation snapshots
+
+    Prop->>App: process(retrieval_policy, domain_knowledge, case_memory, playbook, boundary_policy)
+    App-->>Prop: application snapshots
+
+    Prop->>Cog: final wiring enrichment
+    Cog-->>Prop: updated PE evidence / readout surfaces
+
+    Prop-->>Brain: guarded snapshot map
+    Brain->>Expr: response_assembly + expression render
+    Expr-->>LF: AgentResponse + rationale_tags
+    LF-->>API: TurnSummary / AgentResponse
+    API-->>Out: OutputAct / chat completion
+```
+
+#### 会话后慢环时序
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant LF as LifeformSession
+    participant Brain as BrainSession
+    participant Slow as session_post_slow_loop
+    participant Refl as ReflectionModule
+    participant Mem as Memory owner
+    participant Regime as Regime owner
+    participant Temp as Temporal owner
+    participant App as Application owners
+    participant Credit as Credit / gates
+    participant Report as reports / evaluation readouts
+
+    LF->>Brain: end_scene(drain_slow_loop=true)
+    Brain->>Slow: enqueue session-post jobs
+    Slow-->>Brain: SessionPostSlowLoopSnapshot<br/>pending / running counts
+
+    Slow->>Refl: consume public trace snapshots
+    Refl-->>Slow: ReflectionSnapshot<br/>memory + strategy proposals
+
+    Slow->>Credit: check PE-derived credit / gates
+    Credit-->>Slow: allowed writeback targets
+
+    Slow->>Mem: owner-side bounded apply<br/>durable promotion / belief writeback / decay
+    Mem-->>Slow: MemorySnapshot / checkpoint evidence
+
+    Slow->>Regime: owner-side apply<br/>identity / regime prior updates
+    Regime-->>Slow: RegimeSnapshot / rollback evidence
+
+    Slow->>Temp: owner-side TemporalPriorUpdate<br/>controller prior / family payoff
+    Temp-->>Slow: Temporal checkpoint / updated public state
+
+    Slow->>App: experience_consolidation<br/>ApplicationPriorUpdate
+    App-->>Slow: experience_consolidation + experience_fast_prior
+
+    Slow-->>Brain: completed summaries
+    Brain-->>LF: refreshed session_post_slow_loop snapshot
+    LF-->>Report: session report / family report / audit readouts
+```
+
 ### 2.1 分层原则
 
 系统严格遵循 **R2（稳定基底 + 自适应控制器）** 分层：
