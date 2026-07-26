@@ -455,12 +455,6 @@ def _resolve_reward_eligibility(
     )
 
 
-# The gate and the payout must read the same number, not merely two numbers
-# that happen to be equal.  A float tolerance only absorbs representation
-# noise on a value that travelled through the PE owner unchanged.
-_REALIZED_PAYOFF_AGREEMENT_TOLERANCE = 1e-9
-
-
 def _resolve_realized_action_payoff(
     *,
     eligibility: RuntimeReplayRewardEligibility,
@@ -488,6 +482,24 @@ def _resolve_realized_action_payoff(
     ``eligible`` tag.  So the strict lane both consumes the gate's own field
     and fails loudly when the PE owner published a different number, because
     that divergence means the audit tag no longer describes the paid reward.
+
+    The agreement check is **exact, with no tolerance**.  On the wired path the
+    two quantities are bit-equal by construction, not merely close: the payout
+    reads ``_clamp(measurement.action_payoff)`` while the PE owner stores
+    ``_clamp_signed(measurement.action_payoff)`` (``prediction/error.py``,
+    identical ``max(-1.0, min(1.0, x))`` arithmetic) and the payout clamps that
+    a second time — an idempotent clamp over the same bounds, so no arithmetic
+    ever separates them.  A tolerance would therefore only ever absorb a *real*
+    divergence, i.e. exactly the defect this guard exists to name.  Outcome
+    lineage (``capture_id`` / ``environment_outcome_id`` matching) is enforced
+    separately, so this comparison never straddles two different measurements.
+
+    Scope: this is an AGREEMENT check, not a finiteness check.  ``_clamp``
+    washes a non-finite payoff to a bound (measured: ``nan`` and ``inf`` both
+    become ``1.0``), so both lanes agree on the laundered value and this seam
+    stays silent.  That laundering lives upstream in the shared ``_clamp``, is
+    unchanged by this comparison, and is pinned in
+    ``test_exact_agreement_is_not_a_finiteness_check``.
     """
 
     owner_payoff = _clamp(prediction_error_snapshot.actual_outcome.action_payoff)
@@ -503,7 +515,7 @@ def _resolve_realized_action_payoff(
             f"environment measurement payoff (outcome={environment_outcome_id!r})"
         )
     measured_payoff = _clamp(measurement.action_payoff)
-    if abs(measured_payoff - owner_payoff) > _REALIZED_PAYOFF_AGREEMENT_TOLERANCE:
+    if measured_payoff != owner_payoff:
         raise RuntimeReplayRewardEligibilityError(
             "runtime replay realized payoff diverges from the environment "
             f"measurement that authorized it: capture={capture_id!r} "

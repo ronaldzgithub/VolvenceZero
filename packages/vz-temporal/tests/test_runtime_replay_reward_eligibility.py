@@ -15,6 +15,7 @@ contract must reproduce the historical value exactly.
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 
 import pytest
@@ -1070,3 +1071,139 @@ def test_latent_unit_clamp_does_not_touch_reward_or_advantage_bounds() -> None:
     assert settlement.realized_action_payoff == pytest.approx(-0.6)
     assert settlement.segment_bonus == pytest.approx(-0.06)
     assert settlement.reward == pytest.approx(-0.66)
+
+
+# --------------------------------------------------------------------------
+# the gate/payout agreement is EXACT (W3-b-fix follow-up)
+# --------------------------------------------------------------------------
+
+
+def test_gate_payout_agreement_has_no_tolerance() -> None:
+    """A sub-1e-9 divergence is still a divergence, and must fail loudly.
+
+    The removed ``_REALIZED_PAYOFF_AGREEMENT_TOLERANCE = 1e-9`` could only ever
+    absorb a REAL divergence: on the wired path the two quantities are bit-equal
+    by construction (see the next test), so any gap at all means the audit tag
+    no longer describes the paid reward. This is the same argument that deleted
+    ``_CAUSAL_ACTION_HEAD_ENVELOPE_TOLERANCE`` two files over.
+    """
+
+    one_ulp_apart = math.nextafter(_MEASURED.action_payoff, 1.0)
+    assert one_ulp_apart != _MEASURED.action_payoff
+    assert abs(one_ulp_apart - _MEASURED.action_payoff) < 1e-9
+
+    with pytest.raises(RuntimeReplayRewardEligibilityError) as excinfo:
+        _settle(
+            _captured_sandbox(),
+            environment_outcome=_outcome(measurement=_MEASURED),
+            prediction_error_snapshot=_prediction_error(
+                action_payoff=one_ulp_apart
+            ),
+            reward_eligibility=(
+                RuntimeReplayRewardEligibility.ENVIRONMENT_MEASURED_ONLY
+            ),
+        )
+
+    # Both readings still named, so the seam stays diagnosable.
+    assert "measurement.action_payoff=" in str(excinfo.value)
+    assert "prediction_error.actual_outcome.action_payoff=" in str(
+        excinfo.value
+    )
+
+
+@pytest.mark.parametrize(
+    "payoff",
+    (0.0, 0.2, -0.2, 1.0, -1.0, 0.1 + 0.2, 1e-17, 5.0, -5.0),
+)
+def test_clamp_composition_cannot_separate_the_two_axes(payoff: float) -> None:
+    """The construction-level proof the exactness rests on.
+
+    ``final_wiring`` forwards ``measurement.action_payoff`` into
+    ``PredictionActionContext``; ``prediction/error.py`` stores
+    ``_clamp_signed(x) = max(-1.0, min(1.0, float(x)))``; the payout applies the
+    sandbox's ``_clamp``, the SAME bounds. Clamping is idempotent, so the owner
+    axis and the measurement axis land on the identical float -- there is no
+    arithmetic anywhere on this path that could produce a legitimate 1e-10 gap
+    for a tolerance to absorb. Out-of-range inputs are included even though the
+    ``EnvironmentMeasurement`` contract rejects them, because the identity must
+    not depend on that second gate.
+    """
+
+    from volvence_zero.internal_rl.sandbox import _clamp
+    from volvence_zero.prediction.error import _clamp_signed
+
+    assert _clamp(_clamp_signed(payoff)) == _clamp(payoff)
+    assert _clamp(_clamp(payoff)) == _clamp(payoff)
+
+
+@pytest.mark.parametrize(
+    "payoff",
+    (0.0, 0.2, -0.2, 1.0, -1.0, 0.1 + 0.2, 1e-17),
+)
+def test_wired_path_agrees_bit_for_bit_without_any_slack(payoff: float) -> None:
+    """No false positives: end to end, the legitimate wiring settles silently.
+
+    The exact comparison must not turn a correctly wired domain into a crash
+    loop, so the same identity is exercised through ``settle_runtime_action``
+    under the strict contract, across the representable payoff range.
+    """
+
+    from volvence_zero.internal_rl.sandbox import _clamp
+    from volvence_zero.prediction.error import _clamp_signed
+
+    settlement = _settle(
+        _captured_sandbox(),
+        environment_outcome=_outcome(
+            measurement=EnvironmentMeasurement(
+                task_progress=0.7,
+                action_payoff=payoff,
+                terminal=False,
+            )
+        ),
+        # Exactly what the PE owner publishes on the wired path.
+        prediction_error_snapshot=_prediction_error(
+            action_payoff=_clamp_signed(payoff)
+        ),
+        reward_eligibility=(
+            RuntimeReplayRewardEligibility.ENVIRONMENT_MEASURED_ONLY
+        ),
+    )
+
+    assert settlement.realized_action_payoff == _clamp(payoff)
+
+
+def test_exact_agreement_is_not_a_finiteness_check() -> None:
+    """Scope boundary, measured rather than assumed.
+
+    Removing the tolerance does NOT make this seam reject a corrupted payoff.
+    ``max(-1.0, min(1.0, nan))`` returns ``1.0`` in CPython (``nan < 1.0`` and
+    ``nan > -1.0`` are both False, so each bound keeps its own operand), so BOTH
+    lanes wash a NaN measurement to ``1.0`` and legitimately agree. The
+    agreement invariant holds; the laundering happens upstream in the shared
+    ``_clamp``, which also bounds rewards and advantages, and closing it is a
+    separate change with its own byte-compatibility surface. Pinned here so the
+    exactness claim is not over-read.
+    """
+
+    from volvence_zero.internal_rl.sandbox import _clamp
+
+    assert _clamp(math.nan) == 1.0
+    assert _clamp(math.inf) == 1.0
+    assert _clamp(-math.inf) == -1.0
+
+    settlement = _settle(
+        _captured_sandbox(),
+        environment_outcome=_outcome(
+            measurement=EnvironmentMeasurement(
+                task_progress=0.7,
+                action_payoff=math.nan,
+                terminal=False,
+            )
+        ),
+        prediction_error_snapshot=_prediction_error(action_payoff=math.nan),
+        reward_eligibility=(
+            RuntimeReplayRewardEligibility.ENVIRONMENT_MEASURED_ONLY
+        ),
+    )
+
+    assert settlement.realized_action_payoff == 1.0

@@ -258,9 +258,25 @@ evaluation family 信号的混合）→ `settle_runtime_action` 把该值直接�
 因此严格模式下 `settle_runtime_action`：
 
 - **消费 gate 自己读的那个字段**（`measurement.action_payoff`），不再依赖上述耦合；
-- 同时与 PE owner 发布的 `actual_outcome.action_payoff` 比对，偏差 > `1e-9` 即抛
-  `RuntimeReplayRewardEligibilityError` fail loudly（AGENTS.md §6），因为该偏差意味着审计标签
-  已经不描述被支付的 reward；
+- 同时与 PE owner 发布的 `actual_outcome.action_payoff` **精确比对（`!=`，不带任何容差）**，
+  不等即抛 `RuntimeReplayRewardEligibilityError` fail loudly（AGENTS.md §6），因为该偏差意味着
+  审计标签已经不描述被支付的 reward；
+
+  **为什么不该有容差**：接通路径上两个量按构造逐位相等，而不只是接近——payout 读
+  `_clamp(measurement.action_payoff)`，PE owner 存的是
+  `_clamp_signed(measurement.action_payoff)`（`prediction/error.py`，与 sandbox `_clamp` 是同一句
+  `max(-1.0, min(1.0, x))`），payout 再 clamp 一次；同界 clamp 幂等，这条路径上没有任何算术能把
+  两者分开。outcome lineage（`capture_id` / `environment_outcome_id` 匹配）另行强制，比对不会跨两次
+  测量。因此 `1e-9` 的 slack 只可能吞掉**真实**分歧，也就是本守卫存在的理由本身；这与 W3-b-fix
+  删除 `_CAUSAL_ACTION_HEAD_ENVELOPE_TOLERANCE` 是同一条论证。证据：
+  `test_gate_payout_agreement_has_no_tolerance`（相差 1 ulp、远小于 `1e-9`，现在抛错）、
+  `test_clamp_composition_cannot_separate_the_two_axes`、
+  `test_wired_path_agrees_bit_for_bit_without_any_slack`（端到端无误报）。
+
+  **作用域：这是一致性校验，不是有限性校验**。`_clamp` 会把非有限值静默压到界上（实测
+  `_clamp(nan) = _clamp(inf) = 1.0`、`_clamp(-inf) = -1.0`），两条 lane 压法相同因而合法地一致，
+  本 seam 保持沉默。该 laundering 属于共享 `_clamp` 的上游问题（它同时约束 reward/advantage），
+  由 `test_exact_agreement_is_not_a_finiteness_check` 记述性锚定，需另开收敛包在 ingress 契约处修；
 - 该校验在 **eligible 即执行**，与 `outcome_payoff_reward_enabled` 无关——否则一条坏接线可以
   躲在消融开关后面，等开关打开时才开始付错数。
 
@@ -407,14 +423,27 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 
 ## 变更日志
 
+- 2026-07-27: gate/payout 一致性校验去掉 `1e-9` 容差，改为精确 `!=`
+  （收敛包 W3-b-fix-follow-up）。理由：接通路径上两个量按构造逐位相等（同一句
+  `max(-1.0, min(1.0, x))` 的幂等 clamp，见上文），outcome lineage 另行强制，容差只可能吞掉
+  真实分歧。证据：相差 1 ulp（`math.nextafter(0.2, 1.0)`，远小于 `1e-9`）现在 fail loudly；
+  端到端在 `0.0 / ±0.2 / ±1.0 / 0.1+0.2 / 1e-17` 上无误报；默认 `any-settled-outcome` 契约
+  逐字节不变（818 行 `float.hex()` 探针在干净 HEAD worktree 与本树上 md5 同为
+  `65517dc30205941b079883fd860422d1`）。负对照：放回 `1e-9`，
+  `test_gate_payout_agreement_has_no_tolerance` 立刻以 `DID NOT RAISE` 失败。
+  **同批披露、不在本包修**：`_clamp` 对非有限值静默 laundering（实测 `_clamp(nan) = 1.0`），
+  一个 NaN measurement payoff 会被当作最大奖励支付，且 `_require_signed_unit_interval` 也漏过；
+  两条 lane laundering 相同，故本 seam（正确地）不响。由
+  `test_exact_agreement_is_not_a_finiteness_check` 锚定现状，修复应在 ingress 契约处另开包。
 - 2026-07-27: W3 follow-up（对抗评审闭环，4 处）。(1) **死接缝**：`latent_unit_clamp` 的 torch lane
   从未被唯一生产调用点 `CausalZPolicy._maybe_run_torch_ppo` 转发，spec 要求"两条 lane 必须收到同一个
   值"却无人执行；现转发并新增 `assert_runtime_replay_latent_bounds_agree`——按 callee 签名
   `bind_partial` 检查即将发出的 payload、比较解析出的边界，漏传/传错/语义漂移一律抛
   `RuntimeReplayLatentBoundContractError`。负对照：撤掉转发后跨 lane 测试在两个参数化下都失败。
   (2) **门读一个字段、付另一个字段**：严格模式改为消费 gate 自己读的
-  `measurement.action_payoff`，并与 PE owner 的 `actual_outcome.action_payoff` 比对，偏差 > 1e-9 抛
-  `RuntimeReplayRewardEligibilityError`；校验在 eligible 即执行，不受
+  `measurement.action_payoff`，并与 PE owner 的 `actual_outcome.action_payoff` 比对不等即抛
+  `RuntimeReplayRewardEligibilityError`（当时带 `1e-9` 容差，2026-07-27 已收紧为精确比对，见上一条）；
+  校验在 eligible 即执行，不受
   `outcome_payoff_reward_enabled` 影响。该校验立刻在既有 reward-stream fixture 上抓到一处真实发散
   （measurement 0.2 vs PE 轴 0.42）。默认契约不受影响，逐字节回滚。
   (3) `_clamp_unit` 与新的 `resolve_latent_code_bounds` 从 owner 常量 `LATENT_CODE_BOUNDS` 派生，

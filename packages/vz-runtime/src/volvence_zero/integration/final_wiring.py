@@ -375,6 +375,18 @@ class FinalRolloutConfig:
     internal_rl_causal_action_head_input_mirror_signs: (
         tuple[int, ...] | None
     ) = None
+    # Archive-side magnitude validation for the frozen action-head envelope.
+    # The owner's own disciplined write paths (pure update, projected torch
+    # write-back) always enforce it; this declaration is what extends the same
+    # frozen bounds to the ARCHIVE/CHECKPOINT install path
+    # (``restore_causal_action_head_parameters`` /
+    # ``restore_parameter_snapshot``), which historically validated shape only
+    # and therefore let any archive install a fixed cross-state steering
+    # intercept. False is the exact rollback (shape-only restore, byte
+    # identical) and must stay the default: ``tests/
+    # test_runtime_transition_replay.py`` deliberately installs bias 0.35 / 0.4
+    # through the permissive path. See docs/specs/temporal-abstraction.md.
+    internal_rl_causal_action_head_envelope_enforced: bool = False
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
@@ -1719,6 +1731,9 @@ def build_final_runtime_modules(
             input_mirror_signs=(
                 config.internal_rl_causal_action_head_input_mirror_signs
             ),
+            envelope_enforced=(
+                config.internal_rl_causal_action_head_envelope_enforced
+            ),
         )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
@@ -1746,6 +1761,9 @@ def build_final_runtime_modules(
             ),
             input_mirror_signs=(
                 config.internal_rl_causal_action_head_input_mirror_signs
+            ),
+            envelope_enforced=(
+                config.internal_rl_causal_action_head_envelope_enforced
             ),
         )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded

@@ -164,11 +164,18 @@ def torch_causal_ppo_update(
     by track). On ACTIVE write-back this updates ``parameter_store.track_weights``
     and the critic dicts in place.
 
-    ``latent_unit_clamp`` is the same contract the pure lane declares: it
-    selects the bound used to reconstruct the runtime-replay policy mean.
-    ``False`` keeps the historical signed bound (exact rollback); both lanes
-    must be given the same value or they reconstruct different means for the
-    same batch.
+    ``latent_unit_clamp`` is the same contract the pure lane declares, and it
+    is scoped to exactly one thing: the bound used to reconstruct the
+    **runtime-replay** policy mean. ``False`` keeps the historical signed
+    bound (exact rollback); both lanes must be given the same value or they
+    reconstruct different means for the same batch, which is what
+    ``assert_runtime_replay_latent_bounds_agree`` polices.
+
+    It does **not** reach the synthetic branches: both of those have always
+    reconstructed on the temporal owner's ``LATENT_CODE_BOUNDS`` regardless of
+    this flag. That is deliberate, and it is why the cross-lane guard is
+    scoped to replay -- see the comment in ``policy_mean`` and
+    docs/specs/temporal-abstraction.md.
     """
 
     torch = _require_torch()
@@ -514,12 +521,21 @@ def torch_causal_ppo_update(
                 project_base=base_off_contrast,
                 bounds=latent_code_bounds,
             )
+        # The two synthetic branches are OUTSIDE the ``latent_unit_clamp``
+        # seam by construction: they have always reconstructed on the temporal
+        # owner's own latent range, which is what ``latent_unit_clamp=True``
+        # asks the replay lane to adopt. Routing the literal through the owner
+        # constant keeps the arithmetic byte-identical while removing the
+        # second declaration of the latent range this module is forbidden to
+        # own. Selecting ``resolve_latent_code_bounds`` here instead would move
+        # the historical default OFF the frozen plant's range, not onto it.
+        synthetic_lower, synthetic_upper = LATENT_CODE_BOUNDS
         if runtime_track_modulation_strength <= 0.0:
             # Byte-compatible historical rollback lane.
             candidate = base_off_contrast(weights.unsqueeze(0) * obs)
             if causal_action_head_enabled:
                 candidate = candidate + action_head_residual()
-            return torch.clamp(candidate, 0.0, 1.0)
+            return torch.clamp(candidate, synthetic_lower, synthetic_upper)
 
         # Match CausalZPolicy._policy_mean and the live ndim forward:
         # construct an unmodulated causal candidate, then apply the exact same
@@ -531,8 +547,8 @@ def torch_causal_ppo_update(
             )
         base_candidate = torch.clamp(
             hidden * 0.50 + obs * 0.30 + actions * 0.20,
-            0.0,
-            1.0,
+            synthetic_lower,
+            synthetic_upper,
         )
         other_tracks = [
             other_track
@@ -556,7 +572,7 @@ def torch_causal_ppo_update(
         candidate = base_off_contrast(base_candidate * gain.unsqueeze(0))
         if causal_action_head_enabled:
             candidate = candidate + action_head_residual()
-        return torch.clamp(candidate, 0.0, 1.0)
+        return torch.clamp(candidate, synthetic_lower, synthetic_upper)
 
     def policy_std(weights: Any, ls: Any) -> Any:
         if runtime_replay:

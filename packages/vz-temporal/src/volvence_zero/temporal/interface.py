@@ -469,9 +469,32 @@ def project_causal_action_head_update(
     """把一次候选更新投影回 ``baseline`` 周围的冻结包络。
 
     ``baseline`` 是本次 owner 更新开始时的参数，``candidate`` 是任意优化器
-    （例如 torch Adam）提出的新参数。单次更新的每参数位移受 step 上界约束、
-    绝对幅度受 absolute 上界约束，语义与 pure owner 路径完全一致，因此
-    torch lane 无需复制任何阈值即可满足同一包络。
+    （例如 torch Adam）提出的新参数。语义与 pure owner 路径完全一致（同一组
+    常数、同样的 clamp 顺序），因此 torch lane 无需复制任何阈值。
+
+    投影是 ``clamp_absolute(clamp_step(candidate))``，两条上界的成立条件**不
+    对称**，不要把逐步位移当成无条件不变量：
+
+    1. ``|result| <= absolute_limit`` —— **无条件成立**。
+    2. baseline 已在包络内（``|baseline| <= absolute_limit``）时
+       ``result`` 落在 ``[baseline - step_limit, baseline + step_limit]``
+       —— 这是每步位移上界的成立域，也是 owner 自身写入路径的稳态。区间按
+       binary64 求值，不是精确算术：``0.05 + 0.01`` 的可表示值是
+       ``0.060000000000000005``，因此 ``|result - baseline| <= step_limit``
+       会以 1 ulp 之差为假；不变量属于区间，不属于差的绝对值。
+    3. baseline 已在包络**外**且距离超过 ``step_limit`` 时，step 区间与绝对区
+       间不相交，绝对 clamp 获胜：``result == sign(baseline) * absolute_limit``，
+       单次调用的位移是 ``|baseline| - absolute_limit``，**可以远大于**
+       ``step_limit``。实测：permissive 路径装入的 ``bias=0.35`` 在
+       ``bias_step_limit=0.01`` 下一次更新即被拉回 ``0.1``（25 倍单步上界）。
+       方向恒为**朝冻结区收敛**：``|result| = absolute_limit < |baseline|``；在
+       冻结包络下（三个 step 上界均严格小于对应 absolute 上界）符号也不会翻转
+       到对侧上界。因此这是安全方向；pure owner 路径历来如此，属于按设计行为，
+       文档记述必须与之一致而不是反过来改行为。
+
+    合并起来即：``result`` 落在 ``[baseline - step, baseline + step]`` 与
+    ``[-absolute, absolute]`` 的交集里；交集为空时取 ``[-absolute, absolute]``
+    中离 ``baseline`` 最近的端点。
     """
 
     if baseline.track is not candidate.track:
@@ -3504,19 +3527,25 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         exclusive_steering: bool = False,
         input_mirror_permutation: tuple[int, ...] | None = None,
         input_mirror_signs: tuple[int, ...] | None = None,
-        envelope_enforced: bool = False,
+        envelope_enforced: bool | None = None,
     ) -> None:
         if not 0.0 <= strength <= 1.0:
             raise ValueError(
                 "causal action head strength must be within [0, 1], "
                 f"got {strength!r}"
             )
-        # domain 声明的 archive 侧幅度校验。默认 ``False`` 精确保留历史 restore
-        # 行为（例如 runtime-replay 夹具刻意从 permissive 路径装入 bias 0.35/0.4），
-        # 因此这必须是 opt-in；这里是 domain 契约落到 owner 边界的那一跳。
-        self._parameter_store.set_causal_action_head_envelope_enforced(
-            envelope_enforced
-        )
+        # domain 声明的 archive 侧幅度校验，是 domain 契约落到 owner 边界的那一跳。
+        # ``None``（默认）表示**本次调用不声明**，保留 store 已有的契约字段——
+        # 否则一个用 ``MetacontrollerParameterStore(
+        # causal_action_head_envelope_enforced=True)`` 构造出来的 store，会被任何
+        # 一个根本没提到该开关的后续 head 配置调用静默关掉强制校验（AGENTS.md §6
+        # 明令禁止的静默降级）。显式 ``True`` / ``False`` 才写入 store，其中
+        # ``False`` 精确保留历史 restore 行为（例如 runtime-replay 夹具刻意从
+        # permissive 路径装入 bias 0.35/0.4），因此该契约必须保持 opt-in。
+        if envelope_enforced is not None:
+            self._parameter_store.set_causal_action_head_envelope_enforced(
+                envelope_enforced
+            )
         if rank is not None:
             self._parameter_store.configure_causal_action_head_rank(
                 track=track,
