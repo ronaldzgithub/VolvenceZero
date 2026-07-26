@@ -30,6 +30,13 @@ jobs:
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements-ci.txt
 
+      - name: Install workspace wheels (editable)
+        run: |
+          # `volvence_zero` lives in packages/vz-*/src, so the workspace wheels
+          # must be installed or every import fails with ModuleNotFoundError.
+          python -m pip install --upgrade setuptools wheel
+          bash install.sh --no-build-isolation
+
       - name: Run dialogue paper suite full
         run: bash scripts/run_dialogue_paper_suite.sh artifacts/dialogue-paper-suite-full paper-suite-full
 

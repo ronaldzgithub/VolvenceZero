@@ -34,6 +34,17 @@ jobs:
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements-ci.txt
 
+      - name: Install workspace wheels (editable)
+        run: |
+          # `volvence_zero` lives in packages/vz-*/src, so the workspace wheels
+          # must be installed or every import fails with ModuleNotFoundError.
+          # install.sh is the repo's single entry point (two-pass editable
+          # install that breaks the circular workspace deps); --no-build-isolation
+          # reuses the already-present setuptools instead of building one
+          # isolated env per wheel.
+          python -m pip install --upgrade setuptools wheel
+          bash install.sh --no-build-isolation
+
       - name: Run dialogue benchmark regression tests
         run: python -m pytest tests/test_dialogue_benchmark.py -q
 
