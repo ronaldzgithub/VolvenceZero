@@ -122,3 +122,9 @@ artifacts/companion_bench_smoke/*
 /.venv-ant
 /.conda-volvence-gpu
 *.pyc
+
+# Remotion 架构影片的 TTS 产物：public/architecture-deep-dive/ 全部由
+# visualizations/volvence-core-remotion/scripts/build-architecture-voiceover.py
+# 从 src/data/architectureVoiceover.json 重新合成（54 MB 的 wav/mp3），
+# 与 out/ 同属渲染产物，不入库。
+visualizations/volvence-core-remotion/public/architecture-deep-dive/

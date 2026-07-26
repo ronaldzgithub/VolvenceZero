@@ -1,0 +1,5 @@
+node_modules/
+out/
+public/voiceover/raw/
+.DS_Store
+

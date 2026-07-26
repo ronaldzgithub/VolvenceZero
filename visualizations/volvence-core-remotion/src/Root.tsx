@@ -2,6 +2,12 @@ import React from 'react';
 import {Composition} from 'remotion';
 import {CognitiveAgiFilm} from './CognitiveAgiFilm';
 import {
+  ARCHITECTURE_DEEP_DIVE_DURATION_FRAMES,
+  ARCHITECTURE_DEEP_DIVE_FPS,
+  VolvenceArchitectureDeepDive,
+  VolvenceArchitectureDeepDiveNarrated,
+} from './VolvenceArchitectureDeepDive';
+import {
   ContinuousLearningMechanism,
   CONTINUOUS_LEARNING_DURATION_FRAMES,
   CONTINUOUS_LEARNING_FPS,
@@ -26,6 +32,24 @@ export const VIDEO_DURATION_FRAMES = Math.ceil(
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      <Composition
+        id="VolvenceArchitectureDeepDive"
+        component={VolvenceArchitectureDeepDive}
+        durationInFrames={ARCHITECTURE_DEEP_DIVE_DURATION_FRAMES}
+        fps={ARCHITECTURE_DEEP_DIVE_FPS}
+        width={1920}
+        height={1080}
+        defaultProps={{}}
+      />
+      <Composition
+        id="VolvenceArchitectureDeepDiveNarrated"
+        component={VolvenceArchitectureDeepDiveNarrated}
+        durationInFrames={ARCHITECTURE_DEEP_DIVE_DURATION_FRAMES}
+        fps={ARCHITECTURE_DEEP_DIVE_FPS}
+        width={1920}
+        height={1080}
+        defaultProps={{}}
+      />
       <Composition
         id="ContinuousLearningMechanism"
         component={ContinuousLearningMechanism}

@@ -6,12 +6,16 @@
   "scripts": {
     "dev": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts VolvenceCoreMechanism out/volvence-affair-mechanism.mp4",
+    "render:architecture": "remotion render src/index.ts VolvenceArchitectureDeepDive out/volvence-architecture-deep-dive.mp4 --codec=h264",
+    "render:architecture:narrated": "remotion render src/index.ts VolvenceArchitectureDeepDiveNarrated out/volvence-architecture-deep-dive-narrated.mp4 --codec=h264",
     "render:continuous": "remotion render src/index.ts ContinuousLearningMechanism out/volvence-continuous-learning.mp4 --codec=h264",
     "render:cognitive": "remotion render src/index.ts CognitiveAGI out/volvence-cognitive-agi.mp4 --codec=h264",
     "still": "remotion still src/index.ts VolvenceCoreMechanism out/volvence-affair-cover.png --frame=1020",
+    "still:architecture": "remotion still src/index.ts VolvenceArchitectureDeepDive out/volvence-architecture-deep-dive-cover.png --frame=2500",
     "still:continuous": "remotion still src/index.ts ContinuousLearningMechanism out/volvence-continuous-learning-cover.png --frame=120",
     "still:cognitive": "remotion still src/index.ts CognitiveAGI out/volvence-cognitive-agi-cover.png --frame=150",
     "voiceover": "node scripts/generate-voiceover.mjs",
+    "voiceover:architecture": "python3 scripts/build-architecture-voiceover.py",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
