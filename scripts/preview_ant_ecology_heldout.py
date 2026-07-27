@@ -6,10 +6,11 @@ That is the right bar for a verdict, but it is the wrong instrument for the
 single open question after the ``learned`` arm finishes: does the far tier
 still deliver zero on held-out layouts?
 
-Far training episodes run 24 rounds while the frozen evaluation runs 40, and a
-far round trip needs ``2*d - 3.4`` units of path at 0.4 per round -- 6.5 rounds
-at the near edge of the far band and 13.5 at the far edge, before any search
-cost. A far zero in the training log is therefore weak evidence on its own.
+Far training episodes run 24 rounds while the frozen evaluation runs the P1
+formal held-out budget (``ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS``), and a far
+round trip needs ``2*d - 3.4`` units of path at 0.4 per round -- 6.5 rounds at
+the near edge of the far band and 13.5 at the far edge, before any search cost.
+A far zero in the training log is therefore weak evidence on its own.
 This script runs the exact evaluation specs, seeds, data split and round count
 the formal report uses, for one arm, so the far question can be answered in
 minutes instead of after the remaining three arms have trained.
@@ -39,6 +40,7 @@ from volvence_ant.experiments.ecology_curriculum import (
     _evaluate_arm,
 )
 from volvence_ant.experiments.ecology_p1 import (
+    ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS,
     EcologyP1Config,
     _curriculum_config,
     _evaluation_specs,
@@ -222,7 +224,16 @@ def main() -> int:
     )
     parser.add_argument("--n-ants", type=int, default=4)
     parser.add_argument("--temporal-latent-dim", type=int, default=16)
-    parser.add_argument("--evaluation-rounds", type=int, default=40)
+    # Must track the frozen held-out budget, not a retired literal: the point
+    # of this preview is to run "the exact evaluation specs, seeds, data split
+    # and round count the formal report uses". A 40-round default silently
+    # previewed a third of the formal budget and would answer the far-tier
+    # question on a rollout too short to complete a far round trip.
+    parser.add_argument(
+        "--evaluation-rounds",
+        type=int,
+        default=ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS,
+    )
     parser.add_argument("--layouts-per-tier", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--progress-dir", type=Path, required=True)

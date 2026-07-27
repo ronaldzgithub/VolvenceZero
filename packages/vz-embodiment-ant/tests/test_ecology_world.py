@@ -24,6 +24,7 @@ from volvence_ant.runtime.ant_session import (
     AntSession,
     AntSessionConfig,
 )
+from volvence_ant.substrate.motor_decode import motor_decode
 from volvence_ant.substrate.navigator import AntNavigator
 from volvence_ant.substrate.sense_encode import (
     SENSE_CHANNELS_ECOLOGY_V2,
@@ -236,17 +237,151 @@ async def test_paired_ecology_channels_reach_code_and_motor_output() -> None:
     assert all(item.code_l1_delta > 0.0 for item in probes)
     assert not any(item.action_sensitive for item in probes)
     by_kind = {item.kind: item for item in probes}
-    assert by_kind[EcologyProbeKind.FOOD].target_aligned is (
-        by_kind[EcologyProbeKind.FOOD].left_turn > 0.0
-        and by_kind[EcologyProbeKind.FOOD].right_turn < 0.0
+    # A cold checkpoint has NO steering authority, so no valenced probe may
+    # report direction alignment. Asserting the published truth directly is
+    # stronger than restating the probe's own alignment rule inline: a sign
+    # comparison against 0.0 calls a denormal 1e-18 turn "aligned", which is
+    # exactly the false positive the frozen turn-delta threshold exists to
+    # reject. The neutral obstacle probe is alignment-exempt by contract.
+    assert all(
+        not by_kind[kind].target_aligned
+        for kind in (
+            EcologyProbeKind.FOOD,
+            EcologyProbeKind.HEAT,
+            EcologyProbeKind.HOME,
+        )
     )
-    assert by_kind[EcologyProbeKind.HEAT].target_aligned is (
-        by_kind[EcologyProbeKind.HEAT].left_turn < 0.0
-        and by_kind[EcologyProbeKind.HEAT].right_turn > 0.0
+    assert all(item.turn_delta < 1e-8 for item in probes)
+    # The probe's OWN alignment expressions, restated against its published
+    # turns. On a cold head this pins the rule's shape (nothing may report
+    # aligned by default); the direction convention it encodes is proved in
+    # ``test_target_alignment_is_toward_food_and_away_from_heat`` below.
+    threshold = 1e-4
+    food = by_kind[EcologyProbeKind.FOOD]
+    heat = by_kind[EcologyProbeKind.HEAT]
+    home = by_kind[EcologyProbeKind.HOME]
+    assert food.target_aligned is (
+        food.left_turn > threshold and food.right_turn < -threshold
     )
-    assert by_kind[EcologyProbeKind.HOME].target_aligned is (
-        by_kind[EcologyProbeKind.HOME].right_turn > 0.0
+    assert heat.target_aligned is (
+        heat.left_turn < -threshold and heat.right_turn > threshold
     )
+    assert home.target_aligned is (home.right_turn > threshold)
+    # Neutral geometry is reachability evidence, never a steering target.
+    assert by_kind[EcologyProbeKind.OBSTACLE].target_aligned
+
+
+async def test_target_alignment_is_toward_food_and_away_from_heat() -> None:
+    """Prove the direction convention the three alignment gates consume.
+
+    ``target_aligned`` is the only published statement of WHICH WAY a trained
+    ecology policy must steer, and three P1/P2 gates read it.  A cold head
+    emits exactly zero turn by design, so no assertion on cold turns can tell
+    the convention from its mirror image.  What CAN be proved without a
+    trained head is the two halves the convention is built out of:
+
+    1. which lane of a paired probe carries the stimulus on the body's LEFT
+       (read off the probe's own published sensor pairs and sense vectors);
+    2. which sign of ``turn_command`` rotates the frozen plant to its left.
+
+    Together those fix the meaning of the rule: ``food`` aligned means the
+    lane that smells food on the left turns left (toward it), ``heat`` aligned
+    means that lane turns right (away from it), and ``home`` aligned means the
+    carrying lane turns toward home.  Flip either half and this test fails.
+    """
+
+    probes = await run_ecology_action_probes(
+        temporal_latent_dim=8,
+        seed=9,
+    )
+    by_kind = {item.kind: item for item in probes}
+
+    # (1) The probe's "left" lane really is the stimulus-on-the-left lane.
+    food = by_kind[EcologyProbeKind.FOOD]
+    assert food.left_sensor_pair[0] > food.left_sensor_pair[1]
+    assert food.right_sensor_pair[1] > food.right_sensor_pair[0]
+    left_food = dict(food.left_sense)
+    right_food = dict(food.right_sense)
+    assert left_food["food_left"] > left_food["food_right"]
+    assert right_food["food_right"] > right_food["food_left"]
+
+    heat = by_kind[EcologyProbeKind.HEAT]
+    assert heat.left_sensor_pair[0] > heat.left_sensor_pair[1]
+    assert heat.right_sensor_pair[1] > heat.right_sensor_pair[0]
+    left_heat = dict(heat.left_sense)
+    right_heat = dict(heat.right_sense)
+    assert left_heat["heat_left"] > left_heat["heat_right"]
+    assert right_heat["heat_right"] > right_heat["heat_left"]
+
+    # The HOME pair shares one geometry; only the carrying state differs, and
+    # the carrying lane -- the one the convention names -- is the right one.
+    home = by_kind[EcologyProbeKind.HOME]
+    assert home.right_sensor_pair[0] == pytest.approx(1.0)
+    assert home.left_sensor_pair[0] == pytest.approx(0.0)
+    right_home = dict(home.right_sense)
+    # Pinned at (2, 0) facing +y, so home is a quarter turn to the LEFT:
+    # the egocentric sine of the home bearing is positive.
+    assert right_home["home_ego_sin"] > 0.0
+
+    # (2) A positive turn_command rotates the frozen plant counter-clockwise,
+    # which is the body's left.
+    world = AntWorld(
+        config=AntWorldConfig(
+            seed=0,
+            antenna_offset_deg=45.0,
+            antenna_reach=0.9,
+        )
+    )
+    world.set_body_pose(body_id=0, x=0.0, y=0.0, heading=0.0)
+    world.act(turn_command=0.3, step_command=0.2, body_id=0)
+    turned_left = world.body(0)
+    assert turned_left.heading == pytest.approx(0.3)
+    assert turned_left.y > 0.0
+    world.set_body_pose(body_id=0, x=0.0, y=0.0, heading=0.0)
+    world.act(turn_command=-0.3, step_command=0.2, body_id=0)
+    turned_right = world.body(0)
+    assert turned_right.heading == pytest.approx(2.0 * math.pi - 0.3)
+    assert turned_right.y < 0.0
+
+    # (1) + (2): the published rules are approach-food / avoid-heat /
+    # approach-home. A convention flipped on any kind contradicts one of the
+    # two halves above.
+    assert food.target_aligned is (
+        food.left_turn > 1e-4 and food.right_turn < -1e-4
+    )
+    assert heat.target_aligned is (
+        heat.left_turn < -1e-4 and heat.right_turn > 1e-4
+    )
+    assert home.target_aligned is (home.right_turn > 1e-4)
+
+
+def test_graded_motor_decode_cannot_stop_or_slow_below_half_speed() -> None:
+    """The graded controller has no stop and no crawl.
+
+    ``motor_decode`` reads ``step_command = sigmoid(4*z2) * step_size`` and
+    ``z2`` is bounded to ``LATENT_CODE_BOUNDS = (0.0, 1.0)``, so the plant's
+    reachable speed band is [0.5, 0.982] of ``step_size``.  Any solvability
+    argument that relies on stopping to turn in place -- the ecology oracle
+    diagnostic does exactly that -- proves a manoeuvre the learned policy
+    structurally cannot execute, and therefore cannot certify a layout for
+    the graded arm.
+    """
+
+    step_size = 0.4
+    commands = tuple(
+        motor_decode(
+            (0.0, 0.0, code),
+            max_turn_rate=math.radians(45.0),
+            step_size=step_size,
+        ).step_command
+        for code in (0.0, 0.25, 0.5, 0.75, 1.0)
+    )
+
+    assert min(commands) == pytest.approx(0.5 * step_size)
+    assert max(commands) == pytest.approx(
+        step_size / (1.0 + math.exp(-4.0))
+    )
+    assert all(value > 0.0 for value in commands)
 
 
 def test_environment_publishes_local_valence_without_target_direction() -> None:
@@ -288,7 +423,11 @@ def test_environment_publishes_local_valence_without_target_direction() -> None:
     assert outcome.measurement.action_payoff > 0.0
     assert all("direction" not in item for item in outcome.evidence)
 
-    valence_off = AntSession(
+    # ``ecology_local_valence_enabled=False`` is the DENSE-LOCAL-SHAPING-OFF
+    # arm, not a "no reward" arm: only the dense per-tick local-progress
+    # measurement disappears. The sparse milestone reward (pickup/delivery/
+    # escape) is published elsewhere and is untouched by this lever.
+    dense_local_shaping_off = AntSession(
         world,
         config=AntSessionConfig(
             objective=AntObjectiveKind.ECOLOGY,
@@ -299,7 +438,7 @@ def test_environment_publishes_local_valence_without_target_direction() -> None:
         transition=transition,
         prediction_id="prediction-1",
     )
-    assert valence_off.measurement is None
+    assert dense_local_shaping_off.measurement is None
 
 
 def test_ecology_neutral_stick_contact_is_observable_but_valence_free() -> None:

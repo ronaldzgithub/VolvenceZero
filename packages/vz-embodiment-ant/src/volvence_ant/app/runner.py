@@ -213,6 +213,36 @@ class AntAppRun:
             or self.config.arm is not AppArm.LEARNED
         ):
             return
+        # Defence in depth at the admission point.  ``load_promoted_ecology_
+        # checkpoint`` already refuses anything that is not a P2-certified
+        # PASS, but this is the boundary where a checkpoint actually enters the
+        # live demo, and plan section 5.7 makes a non-PASS checkpoint
+        # unloadable rather than merely unlabelled.
+        if checkpoint.verdict != "PASS":
+            raise ValueError(
+                "refusing to load a non-promoted ecology checkpoint: "
+                f"verdict={checkpoint.verdict}"
+            )
+        promotion = checkpoint.p2_promotion
+        if promotion is None:
+            # ``p2_promotion`` is optional on the dataclass only so a fixture
+            # can be built in-process; it is NOT optional at the admission
+            # point.  Skipping the check when it is absent made the whole
+            # defence conditional on the one field an in-process caller can
+            # simply omit -- which is exactly the shape that reaches this
+            # method when someone bypasses the loader.
+            raise ValueError(
+                "refusing to load an ecology checkpoint that carries no P2 "
+                "confirmatory evidence; plan section 5.7 makes the full P2 "
+                "gate set the admission condition, and "
+                "load_promoted_ecology_checkpoint always populates it"
+            )
+        if promotion.verdict != "PASS":
+            raise ValueError(
+                "refusing to load an ecology checkpoint whose P2 confirmatory "
+                f"verdict is {promotion.verdict}: "
+                f"{list(promotion.failed_gates)}"
+            )
         if self.config.n_ants != checkpoint.config.n_ants:
             raise ValueError(
                 "ecology checkpoint ant count mismatch: "

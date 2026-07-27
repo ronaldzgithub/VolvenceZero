@@ -1,15 +1,19 @@
 """Run the P2 formal confirmatory ecology matrix.
 
-Three sub-commands mirror the three batches of the plan:
+Four sub-commands mirror the batches of the plan:
 
 * ``preflight``  -- P2-A: one training seed, full stack, timing/size/determinism.
 * ``shard``      -- P2-B/P2-C: one ``(training_seed, arm)`` cell, resumable.
 * ``aggregate``  -- P2.4: fold complete shards into the promotion verdict.
+* ``promote``    -- P2.4: turn a ``PASS`` verdict into the loadable bundle.
 
 Every sub-command demands a P1 report whose verdict is ``PASS``; without it the
-run exits non-zero before spending any budget. P1 reports are run-id suffixed,
-so ``--p1-report`` has no constant default: it resolves to the newest report in
-the P1 result directory and prints the file it chose.
+run exits non-zero before spending any budget. P1 reports are run-id suffixed
+*and per-seed*, so ``--p1-report`` has no constant default: it resolves to the
+newest report **of the shard's own training seed** and prints the file it chose.
+Binding the seed matters -- one seed's PASS must not unlock another seed's
+budget, and ``load_p1_prerequisite`` re-checks the binding against the report's
+own ``config.seed``.
 
 Every artifact this driver writes goes through the evidence bundle writer, so
 each preflight report, each shard report and the confirmatory report carries
@@ -17,6 +21,18 @@ its own provenance and a sidecar manifest. A shard's provenance is collected in
 the process that ran that shard -- the ``provenance_clean`` gate must certify
 the tree each shard was produced from, not the tree the aggregator happens to
 sit on.
+
+Failure still produces an artifact (plan section 2.3):
+
+* ``preflight`` on a set that contains an arm whose pre-registered levers the
+  curriculum session builder cannot express yet writes a ``passed=False``
+  report naming the arm, its levers and the missing hop, and spends no budget.
+* ``aggregate`` on an incomplete matrix writes the diagnostic ``BLOCK`` report
+  rather than aborting: the absent cells are named, each affected paired
+  comparison is marked NOT COMPUTED, and nothing is imputed.
+
+Only ``shard`` still exits non-zero with no artifact when its single arm cannot
+run -- a one-cell run has no report to carry the diagnosis.
 """
 
 from __future__ import annotations
@@ -38,15 +54,23 @@ from volvence_ant.evidence.provenance import (
     verify_ant_artifact_manifest,
     write_ant_artifact_bundle,
 )
+from volvence_ant.evidence.ecology_checkpoint import (
+    p2_promotion_evidence,
+    write_ecology_p2_promotion_bundle,
+)
 from volvence_ant.experiments.ecology_p2 import (
     ECOLOGY_P2_ABLATION_ARM_NAMES,
     ECOLOGY_P2_ARM_NAMES,
     ECOLOGY_P2_CORE_ARM_NAMES,
+    EcologyP2ArmLeverUnavailableError,
     EcologyP2Config,
     EcologyP2PrerequisiteError,
     EcologyP2ProgressPaused,
+    EcologyP2SourceProvenance,
     aggregate_ecology_p2_shards,
     heldout_layout_seeds,
+    load_p1_prerequisite,
+    load_shard_checkpoint_archives,
     preregistration_digest,
     run_ecology_p2_preflight,
     run_ecology_p2_shard,
@@ -59,13 +83,14 @@ _P1_RESULT_DIR = Path("research/ant/results/ecology_recovery/p1")
 #: ``run_ant_ecology_p1.py`` writes ``ecology_p1.seed<N>.<run-id>.json``; its
 #: diagnostics reports carry a ``diagnostics.`` infix and therefore do not
 #: match, which is deliberate -- a diagnostics run never unlocks P2.
-_P1_REPORT_GLOB = "ecology_p1.seed*.json"
+_P1_REPORT_GLOB_TEMPLATE = "ecology_p1.seed{training_seed}.*.json"
 _DEFAULT_OUTPUT_DIR = Path("research/ant/results/ecology_recovery/p2")
 _MANIFEST_SUFFIX = ".manifest.json"
 _P1_REPORT_HELP = (
     "P1 report that unlocks P2. Defaults to the most recently modified "
-    f"{_P1_REPORT_GLOB!r} under {_P1_RESULT_DIR}; the resolved path is printed "
-    "before any budget is spent."
+    "'ecology_p1.seed<training-seed>.*.json' under "
+    f"{_P1_RESULT_DIR}; the resolved path is printed before any budget is "
+    "spent, and the report's own config.seed must match."
 )
 
 
@@ -73,23 +98,49 @@ def _default_run_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _resolve_p1_report(explicit: Path | None) -> Path:
-    """The P1 artifact that unlocks P2 budget.
+def _source_provenance() -> EcologyP2SourceProvenance:
+    """The tree this shard process is executing.
+
+    Plan section 5.4: any code change invalidates the whole batch. Collected
+    here, in the process that actually runs the shard, and carried inside the
+    shard report so the aggregator -- not just this driver -- can enforce it.
+    """
+
+    provenance = collect_ant_provenance(
+        repo_root=_ROOT,
+        seeds=(),
+        config={},
+    )
+    return EcologyP2SourceProvenance(
+        git_sha=provenance.git_sha,
+        git_branch=provenance.git_branch,
+        worktree_dirty=provenance.working_tree_dirty,
+    )
+
+
+def _resolve_p1_report(explicit: Path | None, *, training_seed: int) -> Path:
+    """The P1 artifact that unlocks this shard's P2 budget.
 
     There is no fixed default filename to fall back on: P1 reports are run-id
     suffixed, so a constant default would name a path that can never exist and
     would fail with "P1 report not found" no matter how many P1 runs had
     succeeded. The default is therefore resolved against the directory, and the
     chosen file is printed so an operator can see which run is being trusted.
+
+    The glob is bound to ``training_seed``. Picking "the newest P1 report" over
+    all seeds would let seed 0's PASS unlock seed 2's confirmatory budget,
+    which is not a serial constraint at all -- and it would do so silently,
+    because every P1 report shares the same schema and gate set.
     """
 
     if explicit is not None:
         return _resolve(explicit)
     directory = _ROOT / _P1_RESULT_DIR
+    pattern = _P1_REPORT_GLOB_TEMPLATE.format(training_seed=training_seed)
     candidates = (
         tuple(
             path
-            for path in sorted(directory.glob(_P1_REPORT_GLOB))
+            for path in sorted(directory.glob(pattern))
             if not path.name.endswith(_MANIFEST_SUFFIX)
         )
         if directory.is_dir()
@@ -97,15 +148,16 @@ def _resolve_p1_report(explicit: Path | None) -> Path:
     )
     if not candidates:
         raise SystemExit(
-            f"no P1 report found under {_P1_RESULT_DIR} matching "
-            f"{_P1_REPORT_GLOB!r}; run scripts/run_ant_ecology_p1.py first, or "
-            "pass --p1-report explicitly. P2 must not spend budget without a "
-            "PASS P1 artifact."
+            f"no P1 report found under {_P1_RESULT_DIR} matching {pattern!r}; "
+            f"run scripts/run_ant_ecology_p1.py --seed {training_seed} first, "
+            "or pass --p1-report explicitly. P2 must not spend budget without "
+            "a PASS P1 artifact for its own training seed."
         )
     newest = max(candidates, key=lambda path: (path.stat().st_mtime_ns, path.name))
     print(
         f"p1-report: {newest.relative_to(_ROOT)} "
-        f"(newest of {len(candidates)} candidate(s) in {_P1_RESULT_DIR})"
+        f"(newest of {len(candidates)} candidate(s) for training seed "
+        f"{training_seed} in {_P1_RESULT_DIR})"
     )
     return newest
 
@@ -155,10 +207,18 @@ async def _run_preflight(args: argparse.Namespace) -> int:
     )
     # Refuse a colliding artifact before spending the rehearsal budget.
     ensure_artifact_writable(_resolve(output_path), overwrite=args.overwrite)
+    training_seed = (
+        args.training_seed
+        if args.training_seed is not None
+        else config.training_seeds[0]
+    )
     report = await run_ecology_p2_preflight(
         config,
-        training_seed=args.training_seed,
-        p1_report_path=_resolve_p1_report(args.p1_report),
+        source_provenance=_source_provenance(),
+        training_seed=training_seed,
+        p1_report_path=_resolve_p1_report(
+            args.p1_report, training_seed=training_seed
+        ),
         repo_root=_ROOT,
         progress_dir=(
             _resolve(args.progress_dir) if args.progress_dir else None
@@ -180,6 +240,8 @@ async def _run_preflight(args: argparse.Namespace) -> int:
         overwrite=args.overwrite,
     )
     print(report.description)
+    for breakpoint_name in report.breakpoints:
+        print(f"  [BLOCK] {breakpoint_name}")
     print(f"report: {output.relative_to(_ROOT)}")
     print(f"manifest: {manifest.relative_to(_ROOT)}")
     return 0 if report.passed else 1
@@ -203,7 +265,10 @@ async def _run_shard(args: argparse.Namespace) -> int:
             config,
             training_seed=args.training_seed,
             arm=args.arm,
-            p1_report_path=_resolve_p1_report(args.p1_report),
+            source_provenance=_source_provenance(),
+            p1_report_path=_resolve_p1_report(
+                args.p1_report, training_seed=args.training_seed
+            ),
             repo_root=_ROOT,
             progress_dir=(
                 _resolve(args.progress_dir) if args.progress_dir else None
@@ -290,6 +355,21 @@ def _run_aggregate(args: argparse.Namespace) -> int:
     shard_provenance = tuple(
         (path, _shard_provenance(path, payload)) for path, payload in payloads
     )
+    # The envelope provenance and the provenance the shard report carries must
+    # describe the same tree. They are written by the same process, so a
+    # disagreement means one of them was edited after the fact.
+    by_path = dict(zip((path for path, _ in payloads), shards, strict=True))
+    for path, envelope in shard_provenance:
+        shard = by_path[path]
+        if (
+            str(envelope["git_sha"]) != shard.source_provenance.git_sha
+            or bool(envelope["working_tree_dirty"])
+            != shard.source_provenance.worktree_dirty
+        ):
+            raise SystemExit(
+                "P2 shard envelope provenance disagrees with the provenance "
+                f"inside the shard report: {path}"
+            )
     dirty_shards = tuple(
         str(path.relative_to(_ROOT))
         for path, item in shard_provenance
@@ -297,9 +377,11 @@ def _run_aggregate(args: argparse.Namespace) -> int:
     )
     shard_shas = {str(item["git_sha"]) for _, item in shard_provenance}
     if len(shard_shas) != 1:
-        # Plan section 5.4: any code change invalidates the whole batch. A
-        # mixed-SHA aggregate would silently average two implementations.
-        raise SystemExit(
+        # Plan section 5.4: any code change invalidates the whole batch. The
+        # aggregator's provenance_clean gate now owns this decision, so the
+        # batch still produces a diagnostic BLOCK artifact (section 5.7)
+        # instead of exiting with nothing on disk.
+        print(
             "P2 shards were produced from different commits "
             f"({sorted(shard_shas)}); the confirmatory batch is invalid and "
             "must be rerun in full"
@@ -342,9 +424,100 @@ def _run_aggregate(args: argparse.Namespace) -> int:
     for endpoint in report.primary_endpoints:
         status = "PASS" if endpoint.passed else "BLOCK"
         print(f"  [{status}] {endpoint.name}")
+    # A cell that is absent because its arm cannot be executed as
+    # pre-registered is a different diagnosis from one nobody ran, and the
+    # aggregate now says which. Surface it, because it is the thing an
+    # operator has to act on.
+    completeness = next(
+        (item for item in report.gates if item.name == "shard_completeness"),
+        None,
+    )
+    if completeness is not None and not completeness.passed:
+        print(f"  shard_completeness: {completeness.observed}")
+    for effect in report.paired_effects:
+        if not effect.complete:
+            print(
+                f"  {effect.comparison}: NOT COMPUTED, "
+                f"{len(effect.missing_cells)} matched cells absent"
+            )
     print(f"report: {output.relative_to(_ROOT)}")
     print(f"manifest: {manifest.relative_to(_ROOT)}")
     return 0 if report.verdict == "PASS" else 1
+
+
+def _run_promote(args: argparse.Namespace) -> int:
+    """P2.4: turn a confirmatory ``PASS`` into the loadable promotion bundle.
+
+    The checkpoint shipped here is the learned shard's own journalled colony
+    archive, not a retrained one: promotion must carry the exact parameters the
+    confirmatory statistics were computed on.
+    """
+
+    config = _config(args)
+    confirmatory_path = _resolve(args.confirmatory_report)
+    verify_ant_artifact_manifest(
+        manifest_path=confirmatory_path.with_suffix(_MANIFEST_SUFFIX),
+        repo_root=_ROOT,
+    )
+    payload = json.loads(confirmatory_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise SystemExit(
+            f"P2 confirmatory report must be a JSON object: {confirmatory_path}"
+        )
+    require_ant_artifact_envelope(payload, path=confirmatory_path)
+    evidence = p2_promotion_evidence(
+        payload,
+        report_path=str(confirmatory_path.relative_to(_ROOT)),
+        report_sha256=stable_json_digest(payload),
+    )
+    if evidence.verdict != "PASS":
+        raise SystemExit(
+            "refusing to promote a BLOCK confirmatory report "
+            f"({confirmatory_path}): failed gates "
+            f"{list(evidence.failed_gates)}. The BLOCK artifact is retained "
+            "for diagnosis; the loader must reject it."
+        )
+    if evidence.preregistration_digest != preregistration_digest(config):
+        raise SystemExit(
+            "the confirmatory report was pre-registered under a different "
+            "digest than this invocation's config; pass the same flags the "
+            "shards were run with"
+        )
+    prerequisite = load_p1_prerequisite(
+        _resolve_p1_report(args.p1_report, training_seed=args.training_seed),
+        repo_root=_ROOT,
+        expected_training_seed=args.training_seed,
+    )
+    archives = load_shard_checkpoint_archives(
+        progress_dir=_resolve(args.progress_dir),
+        config=config,
+        training_seed=args.training_seed,
+        arm="learned",
+        prerequisite=prerequisite,
+    )
+    archive_path = _resolve(
+        args.archive
+        or _DEFAULT_OUTPUT_DIR
+        / f"ecology_p2.promoted.seed{args.training_seed}.{args.run_id}.vzac"
+    )
+    report_path = _resolve(
+        args.report
+        or _DEFAULT_OUTPUT_DIR
+        / f"ecology_p2.promoted.seed{args.training_seed}.{args.run_id}.json"
+    )
+    manifest = write_ecology_p2_promotion_bundle(
+        checkpoint_archives=archives,
+        p2_promotion=evidence,
+        archive_path=archive_path,
+        report_path=report_path,
+        repo_root=_ROOT,
+        overwrite=args.overwrite,
+    )
+    print(f"promotion verdict: {evidence.verdict}")
+    print(f"checkpoint: {archive_path.relative_to(_ROOT)}")
+    print(f"report: {report_path.relative_to(_ROOT)}")
+    print(f"manifest: {manifest.relative_to(_ROOT)}")
+    return 0
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
@@ -445,6 +618,33 @@ def main() -> int:
         default=_DEFAULT_OUTPUT_DIR / "shards",
     )
 
+    promote = sub.add_parser(
+        "promote",
+        help="write the loadable bundle for a PASS confirmatory report",
+    )
+    _add_common(promote)
+    promote.add_argument("--confirmatory-report", type=Path, required=True)
+    promote.add_argument("--progress-dir", type=Path, required=True)
+    promote.add_argument(
+        "--training-seed",
+        type=int,
+        required=True,
+        help=(
+            "the training seed whose learned shard supplies the promoted "
+            "checkpoint"
+        ),
+    )
+    promote.add_argument("--p1-report", type=Path, default=None, help=_P1_REPORT_HELP)
+    promote.add_argument(
+        "--archive",
+        type=Path,
+        default=None,
+        help=(
+            "Explicit .vzac path. Defaults to a run-id suffixed file under "
+            f"{_DEFAULT_OUTPUT_DIR}."
+        ),
+    )
+
     args = parser.parse_args()
     if args.run_id is None:
         args.run_id = _default_run_id()
@@ -455,9 +655,16 @@ def main() -> int:
             return asyncio.run(_run_shard(args))
         if args.command == "aggregate":
             return _run_aggregate(args)
+        if args.command == "promote":
+            return _run_promote(args)
     except EcologyP2PrerequisiteError as error:
         print(f"P2 blocked by the serial constraint: {error}")
         return 2
+    except EcologyP2ArmLeverUnavailableError as error:
+        # No budget was spent. Running the arm anyway would publish a row
+        # under a pre-registered name whose construction is something else.
+        print(f"P2 arm cannot be run as pre-registered: {error}")
+        return 3
     raise SystemExit(f"unknown command: {args.command}")
 
 

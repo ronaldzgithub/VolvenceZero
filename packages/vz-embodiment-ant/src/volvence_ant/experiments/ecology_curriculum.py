@@ -8,8 +8,10 @@ by the live app, then carries owner-exported checkpoints into the next world.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from enum import Enum
+from types import MappingProxyType
 from typing import Callable
 
 import numpy as np
@@ -44,10 +46,37 @@ from volvence_ant.runtime import (
 )
 
 
-ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v7"
+# v9 changes what MASTERY MEANS again, so a v8 report may no more be read
+# under it than a v7 one:
+#
+# * ``ecology_tier_round_budget`` is now a SUFFICIENT worst case -- it charges
+#   the re-aiming legs the frozen plant makes every body pay (near 12 -> 28,
+#   medium 16 -> 33, far 32 -> 49 rounds).  The v8 numbers were neither a
+#   sufficient budget nor a valid necessary one, so every v8
+#   ``milestone_round_budget`` / ``milestone_samplable`` field is wrong;
+# * a layout whose episode could not reach its own milestone is no longer
+#   mastery-eligible, so a v8 stage verdict can include layouts a v9 verdict
+#   excludes;
+# * ``EcologyCurriculumConfig`` gained ``milestone_budget_enforced``, which is
+#   part of every config digest.
+#
+# v8 retired the pre-P1 semantics wholesale, and the promotion loader
+# (``volvence_ant.evidence.ecology_checkpoint._validated_report_verdict``)
+# must keep rejecting anything older rather than mix algorithm generations:
+#
+# * mastery moved from stage-cumulative event counts to per-layout /
+#   per-body success rate (plan section 4.2);
+# * near foraging layouts are Stage-0 bootstrap and can no longer satisfy any
+#   capability gate (plan section 4.3);
+# * ``local-valence-off`` is published as ``dense-local-shaping-off``;
+# * the tier geometry changed (near pickup disc and nest delivery disc), so
+#   every pickup/delivery count in a v7 report was produced in a different
+#   world.
+ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v9"
 ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY = 8192
 ECOLOGY_REQUIRED_GATE_NAMES = (
-    "training_event_coverage",
+    "training_layout_mastery",
+    "training_tier_milestone_samplable",
     "paired_action_sensitivity",
     "policy_changed",
     "no_optimize_policy_stable",
@@ -108,6 +137,435 @@ class EcologyTrainingTier(str, Enum):
     FAR = "far"
 
 
+# --------------------------------------------------------------------------
+# Frozen curriculum geometry
+# --------------------------------------------------------------------------
+# The ecology worlds all share one plant.  Every derived quantity below reads
+# that plant instead of restating its numbers, so a substrate change cannot
+# silently invalidate the tier contract.
+ECOLOGY_NEST_RADIUS = 0.5
+# Layout-geometry invariants (see ``_validate_tier_geometry``).  A pickup
+# disc that reaches the delivery disc is solved by standing still, and a
+# pickup disc inside a fixed maximum-curvature circle is solved by undirected
+# spinning; both make the tier's own numbers uninterpretable.
+ECOLOGY_MIN_DELIVERY_LEG = 0.25
+# Audit-measured mean applied step of the trained policy (units/tick).  It is
+# an observation, reported alongside the contract budget so the realistic and
+# the worst-case round counts can be compared; the contract itself is derived
+# from the plant bounds only.
+ECOLOGY_MEASURED_POLICY_STEP = 0.225
+
+
+def _ecology_world_config(seed: int) -> AntWorldConfig:
+    """The single world configuration every curriculum layout is built on."""
+
+    return AntWorldConfig(
+        seed=seed,
+        antenna_offset_deg=45.0,
+        antenna_reach=0.9,
+        # The default 1.0 delivery disc swallows the near tier: with a pickup
+        # disc that reaches the nest, near pickup AND near delivery both
+        # complete with zero displacement.  The retired near band drew its
+        # nest distance uniformly from [0.95, 1.35] against a pickup radius of
+        # 1.1, so the spawn point sat inside the pickup disc on
+        # (1.1 - 0.95) / (1.35 - 0.95) = 37.5% of draws -- the figure is
+        # reproducible from those four numbers alone, which the retired
+        # "37.05%" was not.
+        # Halving the delivery disc is what lets a near tier exist at all --
+        # with a 1.0 nest every non-degenerate near band collides with the
+        # medium band.  Delivery is strictly harder at every tier.
+        nest_radius=ECOLOGY_NEST_RADIUS,
+    )
+
+
+_ECOLOGY_PLANT = _ecology_world_config(0)
+# motor_decode: step_command = sigmoid(4*z2) * step_size with z2 bounded to
+# LATENT_CODE_BOUNDS = (0.0, 1.0), so the graded controller can neither stop
+# nor drop below half speed.  The floor is the worst-case travel rate a
+# milestone budget may assume; the ceiling is the fastest the plant can go.
+ECOLOGY_PLANT_STEP_FLOOR = 0.5 * _ECOLOGY_PLANT.step_size
+ECOLOGY_PLANT_STEP_CEILING = _ECOLOGY_PLANT.step_size / (
+    1.0 + math.exp(-4.0)
+)
+# ``AntWorld.act`` turns FIRST and then steps, by at most ``max_turn_rate``
+# per act.  A body therefore cannot re-aim without travelling, which is the
+# leg every worst-case milestone budget below has to pay and the old budget
+# ignored entirely.
+ECOLOGY_PLANT_MAX_TURN_RATE = _ECOLOGY_PLANT.max_turn_rate
+# Farthest point reachable from the spawn by a body that just holds maximum
+# curvature: the diameter of the WIDEST such circle, i.e. the one traced at
+# full speed.  This is the open-loop "spin near the nest and harvest" policy
+# the near tier used to be solvable by; measured at the retired geometry it
+# swept the pickup disc on 32/96 near layouts at full speed and 96/96 at the
+# audit's measured speed.
+#
+# It bounds max-curvature circles only.  No layout geometry can exclude every
+# constant-curvature open-loop solution -- a gentler turn traces an
+# arbitrarily large circle -- which is exactly why the forced-approach block
+# randomizes its spawn ring and heading offset per body.
+#
+# The plant turns and THEN steps, in discrete ``max_turn_rate`` increments, so
+# the trajectory is a regular polygon, not the continuous turning circle: with
+# a 45 deg increment it is an octagon whose vertices sit on a circle of
+# circumradius ``step / (2*sin(max_turn_rate/2))``, and the spawn vertex's
+# antipode is a full ``step / sin(max_turn_rate/2)`` away.  The continuous
+# ``2*v/omega`` understates that by 2.6% (1.00027 vs 1.02645), and a pickup
+# disc placed in the gap passes the validator while the full-speed
+# max-curvature orbit still harvests it (measured: nearest pickup edge 1.010
+# -> 4/72 bearings picked up, 1.030 -> 0/72).  Every shipped tier clears both
+# values (near 1.10, medium 1.15, far 1.90), so this is the guard's margin,
+# not a tier verdict.
+ECOLOGY_UNDIRECTED_ORBIT_REACH = ECOLOGY_PLANT_STEP_CEILING / math.sin(
+    0.5 * _ECOLOGY_PLANT.max_turn_rate
+)
+# ``nearest_food_distance`` is an edge distance, so this is "one antenna reach
+# away from the pickup disc".  The retired v7 threshold (4.4) was the far
+# distance bound and was satisfied at spawn on every layout.
+ECOLOGY_FOOD_ENCOUNTER_DISTANCE = _ECOLOGY_PLANT.antenna_reach
+
+
+@dataclass(frozen=True)
+class EcologyTierGeometry:
+    """Pickup geometry of one training tier, in nest-centred units."""
+
+    pickup_radius: float
+    distance_min: float
+    distance_max: float
+
+    @property
+    def min_outbound_leg(self) -> float:
+        """Shortest straight run from the nest centre into the pickup disc."""
+
+        return self.distance_min - self.pickup_radius
+
+    @property
+    def max_outbound_leg(self) -> float:
+        return self.distance_max - self.pickup_radius
+
+    @property
+    def min_delivery_leg(self) -> float:
+        """Shortest carry from the nearest pickup point into the nest disc."""
+
+        return self.min_outbound_leg - ECOLOGY_NEST_RADIUS
+
+    @property
+    def worst_case_round_trip(self) -> float:
+        return 2.0 * self.max_outbound_leg - ECOLOGY_NEST_RADIUS
+
+
+# What makes the near tier "near" is the SHORT loop (12 rounds worst case vs
+# 16 medium and 32 far), not a pickup disc parked on the nest.  Once both
+# degeneracies are closed no tier can have an outbound leg under ~1.0, so the
+# tiers are necessarily closer together than the retired bands pretended.
+#
+# far keeps its frozen band exactly.  medium's lower bound moved 2.1 -> 2.25
+# because at 2.1 its outbound leg was 1.000 against an orbit reach of 1.0003:
+# the full-speed max-curvature circle harvested 1/96 medium layouts.
+#
+# The table is exported as a read-only ``Mapping``: ``_validate_tier_geometry``
+# runs ONCE at import, so a plain dict would let any importer edit a frozen
+# tier afterwards and every downstream budget, gate and layout would silently
+# describe a world the validator never saw.
+ECOLOGY_TIER_GEOMETRY: Mapping[EcologyTrainingTier, EcologyTierGeometry] = (
+    MappingProxyType(
+        {
+            EcologyTrainingTier.NEAR: EcologyTierGeometry(
+                pickup_radius=0.7,
+                distance_min=1.80,
+                distance_max=2.00,
+            ),
+            EcologyTrainingTier.MEDIUM: EcologyTierGeometry(
+                pickup_radius=1.1,
+                distance_min=2.25,
+                distance_max=2.9,
+            ),
+            EcologyTrainingTier.FAR: EcologyTierGeometry(
+                pickup_radius=1.1,
+                distance_min=3.0,
+                distance_max=4.4,
+            ),
+        }
+    )
+)
+
+
+def _validate_tier_geometry() -> None:
+    """Refuse to import a curriculum whose tiers are geometrically degenerate."""
+
+    if set(ECOLOGY_TIER_GEOMETRY) != set(EcologyTrainingTier):
+        raise RuntimeError(
+            "every ecology training tier must publish a pickup geometry"
+        )
+    for tier, geometry in ECOLOGY_TIER_GEOMETRY.items():
+        if geometry.pickup_radius <= 0.0:
+            raise RuntimeError(f"{tier.value} pickup radius must be positive")
+        if geometry.distance_min >= geometry.distance_max:
+            raise RuntimeError(
+                f"{tier.value} distance band must be a non-empty interval"
+            )
+        if geometry.min_delivery_leg < ECOLOGY_MIN_DELIVERY_LEG:
+            raise RuntimeError(
+                f"{tier.value} pickup disc reaches the delivery disc: "
+                f"delivery leg {geometry.min_delivery_leg:.4f} < "
+                f"{ECOLOGY_MIN_DELIVERY_LEG:.4f}; a body that never leaves the "
+                "nest would score a pickup->delivery success"
+            )
+        if geometry.min_outbound_leg <= ECOLOGY_UNDIRECTED_ORBIT_REACH:
+            raise RuntimeError(
+                f"{tier.value} pickup disc is inside the undirected turning "
+                f"circle: outbound {geometry.min_outbound_leg:.4f} <= "
+                f"orbit reach {ECOLOGY_UNDIRECTED_ORBIT_REACH:.4f}; spinning "
+                "in place would sweep the pickup disc"
+            )
+
+
+_validate_tier_geometry()
+
+
+# Forced start conditions.  These tables are the single source for both the
+# world construction in ``_world`` and the milestone budget derivation.
+_FORCED_RETURN_RADIUS: dict[EcologyTrainingTier, float] = {
+    EcologyTrainingTier.NEAR: 1.5,
+    EcologyTrainingTier.MEDIUM: 2.5,
+    EcologyTrainingTier.FAR: 4.0,
+}
+_FORCED_RETURN_BEARING_OFFSET: dict[EcologyTrainingTier, float] = {
+    EcologyTrainingTier.NEAR: math.pi / 6.0,
+    EcologyTrainingTier.MEDIUM: math.pi / 4.0,
+    EcologyTrainingTier.FAR: math.pi / 3.0,
+}
+_FORCED_APPROACH_MIN_SPAWN_RATIO = 1.45
+_FORCED_APPROACH_MAX_SPAWN_RATIO = 2.9
+_FORCED_ESCAPE_SPAWN_RATIO = 0.35
+# Burning-match field used by every curriculum layout.
+_ECOLOGY_MATCH_HEAT_STRENGTH = 1.0
+_ECOLOGY_MATCH_HEAT_DECAY = 1.5
+_ECOLOGY_MATCH_HARM_THRESHOLD = 0.55
+_ECOLOGY_MATCH_HARM_RADIUS = BurningMatch(
+    object_id="ecology-harm-radius-probe",
+    x=0.0,
+    y=0.0,
+    heat_strength=_ECOLOGY_MATCH_HEAT_STRENGTH,
+    heat_decay=_ECOLOGY_MATCH_HEAT_DECAY,
+    harm_threshold=_ECOLOGY_MATCH_HARM_THRESHOLD,
+).harm_radius
+# Worst-case escape path: from the spawn ring on the far side of the harm
+# disc, out through the opposite boundary.
+_ECOLOGY_FORCED_ESCAPE_LEG = (
+    1.0 + _FORCED_ESCAPE_SPAWN_RATIO
+) * _ECOLOGY_MATCH_HARM_RADIUS
+# Route placement of the burning match: a bearing offset from the nest->food
+# line and a distance along it.  ``_scene_objects`` and
+# ``_validate_heat_layout_solvability`` read this single statement, so the
+# invariant below is checked against the geometry that actually ships.
+_ECOLOGY_MATCH_ROUTE_BEARING_OFFSET = 0.28
+_ECOLOGY_MATCH_ROUTE_MIN_DISTANCE = 1.15
+_ECOLOGY_MATCH_ROUTE_DISTANCE_RATIO = 0.48
+
+
+def _match_route_distance(food_distance: float) -> float:
+    return max(
+        _ECOLOGY_MATCH_ROUTE_MIN_DISTANCE,
+        food_distance * _ECOLOGY_MATCH_ROUTE_DISTANCE_RATIO,
+    )
+
+
+# ``_layout_mastery`` requires ``harmful_tick_rate <= 5%`` (plan section 4.4)
+# on every route-foraging layout.  That bound is only meaningful if a
+# harm-free pickup->delivery route EXISTS on every layout the generator can
+# produce; otherwise plan section 4.6 applies and the layout, not the gate,
+# is what is wrong.  The plane minus a closed disc is path-connected, so the
+# existence of such a route reduces to two clearances:
+#
+#   * the spawn/delivery point (bodies spawn at the nest centre and delivery
+#     resolves inside the nest disc) must lie outside the harm disc, by at
+#     least one floor step so the first act cannot be forced into it;
+#   * the pickup disc must keep a lobe outside the harm disc at least one
+#     ceiling step wide, so a pickup can be scored without burning.
+#
+# Both are checked at import over the analytic worst case of every tier.
+ECOLOGY_HEAT_FREE_DELIVERY_CLEARANCE = ECOLOGY_PLANT_STEP_FLOOR
+ECOLOGY_HEAT_FREE_PICKUP_LOBE = ECOLOGY_PLANT_STEP_CEILING
+
+
+def ecology_heat_layout_clearances(
+    tier: EcologyTrainingTier,
+    *,
+    food_distance: float,
+) -> tuple[float, float]:
+    """``(delivery clearance, harm-free pickup lobe width)`` for one layout.
+
+    Both are measured from the frozen harm disc of the curriculum's burning
+    match.  Negative delivery clearance means a body can burn where it spawns
+    and delivers; a non-positive lobe means every pickup point is inside the
+    harm disc.
+    """
+
+    geometry = ECOLOGY_TIER_GEOMETRY[tier]
+    match_distance = _match_route_distance(food_distance)
+    food_to_match = math.hypot(
+        food_distance
+        - match_distance * math.cos(_ECOLOGY_MATCH_ROUTE_BEARING_OFFSET),
+        match_distance * math.sin(_ECOLOGY_MATCH_ROUTE_BEARING_OFFSET),
+    )
+    return (
+        match_distance - _ECOLOGY_MATCH_HARM_RADIUS,
+        food_to_match + geometry.pickup_radius - _ECOLOGY_MATCH_HARM_RADIUS,
+    )
+
+
+def _validate_heat_layout_solvability() -> None:
+    """Refuse to import heat layouts on which zero harmful ticks is impossible.
+
+    ``match_distance`` is non-decreasing in ``food_distance`` and so is the
+    food-to-match separation, so the analytic worst case of a tier is its
+    ``distance_min``; no seed sweep can find a worse layout.
+    """
+
+    for tier, geometry in ECOLOGY_TIER_GEOMETRY.items():
+        delivery, pickup_lobe = ecology_heat_layout_clearances(
+            tier,
+            food_distance=geometry.distance_min,
+        )
+        if delivery < ECOLOGY_HEAT_FREE_DELIVERY_CLEARANCE:
+            raise RuntimeError(
+                f"{tier.value} heat layout burns its own delivery disc: "
+                f"nest-to-harm clearance {delivery:.4f} < "
+                f"{ECOLOGY_HEAT_FREE_DELIVERY_CLEARANCE:.4f}; a body could "
+                "be harmed where it spawns and delivers, so the 5% harmful "
+                "tick bound would grade the layout, not the policy"
+            )
+        if pickup_lobe < ECOLOGY_HEAT_FREE_PICKUP_LOBE:
+            raise RuntimeError(
+                f"{tier.value} heat layout has no harm-free pickup: lobe "
+                f"{pickup_lobe:.4f} < {ECOLOGY_HEAT_FREE_PICKUP_LOBE:.4f}; "
+                "every pickup point would be inside the harm disc"
+            )
+
+
+_validate_heat_layout_solvability()
+
+
+def _legs_to_rounds(distance: float) -> int:
+    """Acts a body needs to cover ``distance`` at the plant's slowest step."""
+
+    if distance <= 0.0:
+        return 0
+    return math.ceil(distance / ECOLOGY_PLANT_STEP_FLOOR)
+
+
+def _heading_correction_rounds(heading_error: float) -> int:
+    """Acts the best expressible policy spends re-aiming, worst case.
+
+    A milestone budget that only counts straight legs is NOT a worst case:
+    every body pays a re-aiming leg at spawn (bodies spawn at the nest with a
+    uniform random heading, so the error is up to pi) and a second one when it
+    turns around after pickup.
+
+    The frozen plant makes re-aiming cost distance.  ``motor_decode`` emits
+    ``step_command = sigmoid(4*z2) * step_size`` with ``z2`` bounded to the
+    kernel's ``LATENT_CODE_BOUNDS = (0.0, 1.0)``, i.e. a reachable band of
+    ``[0.200, 0.393]`` units/act at ``step_size=0.4``: the graded controller
+    can neither stop nor drop below half speed, so it cannot turn in place.
+    ``AntWorld.act`` then turns by at most ``max_turn_rate`` and steps along
+    the NEW heading.
+
+    Bound: turning at the maximum rate takes ``k = ceil(error / max_turn_rate)``
+    acts, and by the triangle inequality each of those acts can push the body
+    at most one floor step further from its target, which costs at most ``k``
+    further acts to undo.  ``2 * k`` is therefore SUFFICIENT for a policy that
+    holds the floor speed while re-aiming; it is an upper bound, not a
+    measured optimum, and erring high only ever makes the budget stricter.
+    """
+
+    if heading_error <= 0.0:
+        return 0
+    return 2 * math.ceil(heading_error / ECOLOGY_PLANT_MAX_TURN_RATE)
+
+
+# Worst-case heading error at the start of a leg.  A body spawned by
+# ``AntWorld._spawn_body`` gets ``uniform(0, 2*pi)``, so an unforced leg and
+# the post-pickup turn-around both start up to pi away from where they need
+# to point.  The forced start conditions in ``_world`` pin the heading, so
+# their errors are the pinned offsets those blocks apply.
+_ECOLOGY_FREE_SPAWN_HEADING_ERROR = math.pi
+_ECOLOGY_FORCED_ESCAPE_HEADING_ERROR = math.pi / 2.0
+
+
+def _directed_leg_rounds(distance: float, *, heading_error: float) -> int:
+    """Acts sufficient to close ``distance`` from a given heading error."""
+
+    return _heading_correction_rounds(heading_error) + _legs_to_rounds(
+        distance
+    )
+
+
+def _round_trip_rounds(
+    outbound_leg: float,
+    *,
+    spawn_heading_error: float,
+) -> int:
+    """Acts sufficient for outbound + carry home, with the plant's discretisation.
+
+    The body advances in fixed steps and the world resolves pickup and
+    delivery at the END of an act, so it overshoots the pickup disc by up to
+    one step and the carry home starts from wherever that act landed.
+    Ignoring the overshoot understates every budget by a round or two.
+
+    Both legs carry a heading correction: the outbound one from the spawn
+    heading, the carry one because after pickup the body points away from the
+    nest.
+    """
+
+    outbound = _directed_leg_rounds(
+        outbound_leg,
+        heading_error=spawn_heading_error,
+    )
+    carry = (
+        outbound_leg + ECOLOGY_PLANT_STEP_FLOOR - ECOLOGY_NEST_RADIUS
+    )
+    return outbound + _directed_leg_rounds(
+        carry,
+        heading_error=_ECOLOGY_FREE_SPAWN_HEADING_ERROR,
+    )
+
+
+def ecology_tier_round_budget(tier: EcologyTrainingTier) -> int:
+    """Rounds SUFFICIENT for one body to sample this tier's milestone.
+
+    Worst case over the tier's distance band, over the spawn heading, and
+    over every trajectory the frozen plant can express: straight legs at the
+    plant's slowest step PLUS the re-aiming legs of
+    ``_heading_correction_rounds``.  The previous derivation counted the
+    straight legs only, which made it neither a sufficient budget (a body
+    running the best policy the graded plant can express missed the milestone
+    at every tier) nor a valid necessary one (the necessary bound would use
+    the CEILING speed, not the floor).
+
+    An episode shorter than this may not be able to produce the milestone it
+    is nominally training, so that tier's mastery could only be met by
+    zero-shot transfer from another tier.
+    """
+
+    return _round_trip_rounds(
+        ECOLOGY_TIER_GEOMETRY[tier].max_outbound_leg,
+        spawn_heading_error=_ECOLOGY_FREE_SPAWN_HEADING_ERROR,
+    )
+
+
+def ecology_training_min_stage_rounds() -> int:
+    """Stage-round floor a schedule containing EVERY tier must be given.
+
+    Published so a lane declares its budget from the frozen geometry instead
+    of restating a literal.  ``_train_arm`` refuses a schedule whose episodes
+    cannot reach their own milestone within ``stage_rounds``.
+    """
+
+    return max(
+        ecology_tier_round_budget(tier) for tier in EcologyTrainingTier
+    )
+
+
 class EcologyDataSplit(str, Enum):
     TRAIN = "train"
     VALIDATION = "validation"
@@ -128,16 +586,30 @@ class EcologyCurriculumConfig:
     temporal_latent_dim: int = 16
     stage_rounds: int = 80
     stage_episodes: int = 4
+    # One primary episode is one layout seed.  ``mastery_min_episodes`` is a
+    # budget floor only: it says how many primary episodes a stage must run,
+    # never what counts as success.
     mastery_min_episodes: int = 3
-    mastery_min_pickups: int = 2
-    mastery_min_deliveries: int = 1
-    mastery_min_heat_events: int = 2
+    # Plan section 4.4 mastery thresholds, frozen before the first P1 result.
+    # They may be tightened only by fixing the implementation; the validators
+    # below refuse any run that relaxes them.
+    mastery_layout_success_ratio: float = 0.6
+    mastery_body_success_ratio: float = 0.6
+    mastery_harmful_tick_rate_max: float = 0.05
     interleave_every: int = 2
     validation_rounds: int = 80
     validation_seeds: tuple[int, ...] = (43, 59)
     heldout_rounds: int = 120
     heldout_seeds: tuple[int, ...] = (101, 211, 307, 401, 503)
     seed: int = 0
+    # THE FAR DECISION, enforced (see ``_tier_for_episode``).  With it on --
+    # the only setting a formal run may use -- ``_train_arm`` refuses to
+    # replay a schedule containing an episode whose own milestone needs more
+    # rounds than ``stage_rounds`` buys.  plan section 7 step 3 requires a
+    # 1-ant / 1-round deterministic test tier, so the lever exists and is part
+    # of the frozen config (hence of every config digest): a run that turns it
+    # off says so in its own provenance.
+    milestone_budget_enforced: bool = True
     action_probe_guard_enabled: bool = True
     action_probe_code_delta_threshold: float = 1e-8
     action_probe_turn_delta_threshold: float = 1e-4
@@ -155,12 +627,18 @@ class EcologyCurriculumConfig:
             raise ValueError(
                 "mastery_min_episodes must be within stage episode budget"
             )
-        if (
-            self.mastery_min_pickups < 1
-            or self.mastery_min_deliveries < 1
-            or self.mastery_min_heat_events < 1
-        ):
-            raise ValueError("mastery event thresholds must be >= 1")
+        if self.mastery_layout_success_ratio != 0.6:
+            raise ValueError(
+                "ecology layout success threshold is frozen at 0.6"
+            )
+        if self.mastery_body_success_ratio != 0.6:
+            raise ValueError(
+                "ecology body success threshold is frozen at 0.6"
+            )
+        if self.mastery_harmful_tick_rate_max != 0.05:
+            raise ValueError(
+                "ecology harmful tick threshold is frozen at 0.05"
+            )
         if self.interleave_every < 1:
             raise ValueError("interleave_every must be >= 1")
         if self.validation_rounds < 1 or not self.validation_seeds:
@@ -265,6 +743,12 @@ class EcologyTrainingEpisodeReport:
     policy_fingerprints_before: tuple[str, ...]
     policy_fingerprints_after: tuple[str, ...]
     memory_entries_evicted: int
+    # Rounds this episode actually ran, and the rounds its own milestone needs
+    # in the worst case.  ``milestone_samplable`` false means the episode was
+    # trained on a milestone it could not reach.
+    rounds: int
+    milestone_round_budget: int
+    milestone_samplable: bool
     action_chain_guard_passed: bool = True
     action_chain_rollback_applied: bool = False
     action_chain_failures: tuple[str, ...] = ()
@@ -297,16 +781,66 @@ class EcologyBodyEpisodeLineage:
     total_ticks: int
 
 
+class EcologyLayoutCapability(str, Enum):
+    """What a single training layout is allowed to demonstrate."""
+
+    FORAGING = "foraging"
+    FORCED_ESCAPE = "forced_escape"
+
+
+@dataclass(frozen=True)
+class EcologyLayoutMastery:
+    """One layout's verdict; the unit P1 mastery is counted in.
+
+    A layout is *mastery eligible* only if it can carry a capability claim.
+    Near foraging layouts cannot: plan section 4.3 makes them Stage-0
+    bootstrap whose only job is to produce pickup/delivery samples, and their
+    results "must not let any formal capability gate pass".
+    """
+
+    stage: EcologyStage
+    tier: EcologyTrainingTier
+    capability: EcologyLayoutCapability
+    layout_seed: int
+    episode_index: int
+    mastery_eligible: bool
+    eligibility_reason: str
+    successful_bodies: int
+    required_bodies: int
+    harmful_tick_rate: float
+    safety_respected: bool
+    layout_success: bool
+
+
+@dataclass(frozen=True)
+class EcologyCapabilityMastery:
+    """Layout success rate for ONE capability inside a stage.
+
+    A stage that mixes capabilities (the burning-match stage runs a forced
+    escape layout and route-foraging layouts) must clear the rate on each of
+    them separately, or an easy escape success silently substitutes for the
+    foraging success the stage is supposed to certify.
+    """
+
+    capability: EcologyLayoutCapability
+    mastery_layouts: int
+    successful_layouts: int
+    required_layouts: int
+    reached: bool
+
+
 @dataclass(frozen=True)
 class EcologyStageMastery:
     stage: EcologyStage
     reached: bool
     primary_episodes: int
-    pickups: int
-    deliveries: int
-    obstacle_contacts: int
-    heat_entries: int
-    heat_escapes: int
+    mastery_layouts: int
+    successful_layouts: int
+    required_layouts: int
+    required_bodies: int
+    bootstrap_layouts: int
+    capability_results: tuple[EcologyCapabilityMastery, ...]
+    layout_results: tuple[EcologyLayoutMastery, ...]
     threshold: str
 
 
@@ -328,7 +862,13 @@ class EcologyCheckpointReport:
     training_schedule: tuple[EcologyTrainingEpisodePlan, ...]
     learned_training: tuple[EcologyTrainingEpisodeReport, ...]
     no_optimize_training: tuple[EcologyTrainingEpisodeReport, ...]
-    valence_off_training: tuple[EcologyTrainingEpisodeReport, ...]
+    # plan section 4.2: the arm is published as ``dense-local-shaping-off``,
+    # never as "valence off".  Only the dense per-tick shaping measurement is
+    # withheld; the sparse milestone reward is untouched.
+    dense_local_shaping_off_training: tuple[
+        EcologyTrainingEpisodeReport,
+        ...,
+    ]
     segment_credit_off_training: tuple[
         EcologyTrainingEpisodeReport,
         ...,
@@ -339,7 +879,7 @@ class EcologyCheckpointReport:
     learned_metrics: tuple[EcologyArmMetrics, ...]
     cold_metrics: tuple[EcologyArmMetrics, ...]
     no_optimize_metrics: tuple[EcologyArmMetrics, ...]
-    valence_off_metrics: tuple[EcologyArmMetrics, ...]
+    dense_local_shaping_off_metrics: tuple[EcologyArmMetrics, ...]
     segment_credit_off_metrics: tuple[EcologyArmMetrics, ...]
     gates: tuple[EcologyGate, ...]
     verdict: str
@@ -371,22 +911,23 @@ def _scene_objects(
     }[data_split]
     rng = np.random.default_rng(seed + split_offset)
     bearing = float(rng.uniform(-math.pi, math.pi))
-    distance_bounds = {
-        EcologyTrainingTier.NEAR: (0.95, 1.35),
-        EcologyTrainingTier.MEDIUM: (2.1, 2.9),
-        EcologyTrainingTier.FAR: (3.0, 4.4),
-    }[tier]
-    distance = float(rng.uniform(*distance_bounds))
+    geometry = ECOLOGY_TIER_GEOMETRY[tier]
+    distance = float(
+        rng.uniform(geometry.distance_min, geometry.distance_max)
+    )
     food_x = math.cos(bearing) * distance
     food_y = math.sin(bearing) * distance
     objects: list[WorldObject] = [
+        # The odour field (strength/decay) is tier-independent, so shrinking
+        # the near pickup disc removes the free pickup without weakening the
+        # gradient a cold policy has to steer on.
         ButterSource(
             object_id="butter",
             x=food_x,
             y=food_y,
             strength=2.2,
             decay=2.4,
-            radius=1.1,
+            radius=geometry.pickup_radius,
         )
     ]
     if stage in {EcologyStage.WOOD_STICK, EcologyStage.COMPOSITE}:
@@ -407,17 +948,19 @@ def _scene_objects(
         )
     if stage in {EcologyStage.BURNING_MATCH, EcologyStage.COMPOSITE}:
         offset_sign = -1.0 if seed % 2 else 1.0
-        match_bearing = bearing + offset_sign * 0.28
-        match_distance = max(1.15, distance * 0.48)
+        match_distance = _match_route_distance(distance)
+        match_bearing = (
+            bearing + offset_sign * _ECOLOGY_MATCH_ROUTE_BEARING_OFFSET
+        )
         objects.append(
             BurningMatch(
                 object_id="burning-match",
                 x=math.cos(match_bearing) * match_distance,
                 y=math.sin(match_bearing) * match_distance,
                 angle=bearing,
-                heat_strength=1.0,
-                heat_decay=1.5,
-                harm_threshold=0.55,
+                heat_strength=_ECOLOGY_MATCH_HEAT_STRENGTH,
+                heat_decay=_ECOLOGY_MATCH_HEAT_DECAY,
+                harm_threshold=_ECOLOGY_MATCH_HARM_THRESHOLD,
             )
         )
     return tuple(objects)
@@ -450,11 +993,7 @@ def _world(
         tier=tier,
     )
     world = ColonyWorld(
-        config=AntWorldConfig(
-            seed=seed + split_offset,
-            antenna_offset_deg=45.0,
-            antenna_reach=0.9,
-        ),
+        config=_ecology_world_config(seed + split_offset),
         world_objects=objects,
         n_bodies=config.n_ants,
     )
@@ -467,7 +1006,10 @@ def _world(
                 "forced escape scene requires exactly one burning match"
             )
         match = matches[0]
-        spawn_radius = max(0.05, match.harm_radius * 0.35)
+        spawn_radius = max(
+            0.05,
+            match.harm_radius * _FORCED_ESCAPE_SPAWN_RATIO,
+        )
         for body_id in range(config.n_ants):
             angle = (
                 (body_id + 1) * 2.399963229728653
@@ -480,16 +1022,8 @@ def _world(
                 heading=(angle + math.pi / 2.0),
             )
     elif forced_return:
-        radius = {
-            EcologyTrainingTier.NEAR: 1.5,
-            EcologyTrainingTier.MEDIUM: 2.5,
-            EcologyTrainingTier.FAR: 4.0,
-        }[tier]
-        bearing_offset = {
-            EcologyTrainingTier.NEAR: math.pi / 6.0,
-            EcologyTrainingTier.MEDIUM: math.pi / 4.0,
-            EcologyTrainingTier.FAR: math.pi / 3.0,
-        }[tier]
+        radius = _FORCED_RETURN_RADIUS[tier]
+        bearing_offset = _FORCED_RETURN_BEARING_OFFSET[tier]
         for body_id in range(config.n_ants):
             angle = (
                 (body_id + 1) * 2.399963229728653
@@ -505,16 +1039,23 @@ def _world(
                 carrying_food=True,
             )
     elif forced_approach:
-        # Food-steering pressure bootstrap. Near layouts alone cannot demand
-        # steering: the pickup disc (butter radius 1.1 around a point
-        # 0.95-1.35 from the nest) overlaps the nest, so undirected wandering
-        # is rewarded without any gradient following. Here each body spawns
-        # OUTSIDE the pickup disc with its heading rotated well past the food
-        # bearing: the scent gradient is clearly sensable, but a straight or
-        # drifting default trajectory diverges from the source, so the only
-        # reward path is an active turn toward the gradient. Like
-        # forced_return, this initializes STATE only -- no coordinates,
-        # target bearing or action labels leak downstream.
+        # Food-steering pressure bootstrap. A plain layout only demands a
+        # correct heading at spawn; here each body spawns OUTSIDE the pickup
+        # disc with its heading rotated well past the food bearing, so the
+        # scent gradient is clearly sensable but a straight or drifting
+        # default trajectory diverges from the source and the only reward
+        # path is an active turn toward the gradient. Like forced_return this
+        # initializes STATE only -- no coordinates, target bearing or action
+        # labels leak downstream.
+        #
+        # Historical note: until the v8 geometry repair this block also had to
+        # compensate for a degenerate near tier (pickup radius 1.1 around a
+        # point 0.95-1.35 from a nest of radius 1.0, so the pickup disc
+        # covered the spawn point). It only ever fixed the OUTBOUND leg -- the
+        # post-pickup delivery leg stayed free because the pickup point was
+        # still inside the delivery disc. ``_validate_tier_geometry`` now
+        # forbids both degeneracies for every tier, so this block carries
+        # steering pressure only.
         butters = tuple(
             item for item in objects if isinstance(item, ButterSource)
         )
@@ -538,7 +1079,12 @@ def _world(
                 (body_id + 1) * 2.399963229728653
                 + seed * 0.017
             )
-            spawn_radius = butter.radius * float(rng.uniform(1.45, 2.9))
+            spawn_radius = butter.radius * float(
+                rng.uniform(
+                    _FORCED_APPROACH_MIN_SPAWN_RATIO,
+                    _FORCED_APPROACH_MAX_SPAWN_RATIO,
+                )
+            )
             bearing_offset = float(rng.uniform(0.4 * math.pi, 0.8 * math.pi))
             # From the spawn point the butter lies at bearing angle + pi.
             food_bearing = angle + math.pi
@@ -591,6 +1137,15 @@ def _session_config(
     temporal_writeback_enabled: bool = True,
 ) -> AntSessionConfig:
     """Build one matched ecology session.
+
+    ``local_valence_enabled`` keeps the spelling of the session lever it
+    forwards to (``AntSessionConfig.ecology_local_valence_enabled``, owned by
+    ``volvence_ant.runtime.ant_session``).  The ARM it produces is published
+    as ``dense-local-shaping-off``: with the lever off the session withholds
+    only the dense per-tick local-progress measurement, while the sparse
+    milestone reward remains.  Measured on a 24-tick ECOLOGY session under
+    ``ENVIRONMENT_MEASURED_ONLY`` typed reward eligibility: 46/46 transitions
+    eligible with the lever on, 0/46 with it off.
 
     Two P2 matched-control levers ship as explicit keyword contracts; both
     default to the learned-arm value so every existing caller is unchanged:
@@ -703,7 +1258,8 @@ def _body_episode_lineage(
                 tier=plan.tier,
                 encountered_food=any(
                     (item.nearest_food_distance is not None)
-                    and item.nearest_food_distance <= 4.4
+                    and item.nearest_food_distance
+                    <= ECOLOGY_FOOD_ENCOUNTER_DISTANCE
                     for item in body_records
                 ),
                 encountered_heat=any(
@@ -779,6 +1335,23 @@ def _first_tick(
 
 
 def _tier_for_episode(episode_index: int) -> EcologyTrainingTier:
+    """near -> medium -> far within one stage.
+
+    THE FAR DECISION.  plan section 4.5 asks for five TRAINING layouts per
+    tier, so far keeps its training role -- what had to move is the budget,
+    not the tier.  Against the corrected worst case
+    (``ecology_tier_round_budget``: near 28, medium 33, far 49 rounds) the
+    defect was never far-specific: a 24-round schedule cannot sample ANY
+    tier's milestone, so calling it "the far problem" mis-stated it.  This
+    module's own budget (``stage_rounds`` default 80) covers all three.
+
+    A lane that cannot afford ``ecology_training_min_stage_rounds()`` must
+    drop the tiers it cannot pay for; it may not replay them anyway.
+    ``_train_arm`` refuses such a schedule up front with both numbers per
+    episode, so far -- or any other tier -- is never silently trained on an
+    unreachable milestone.
+    """
+
     if episode_index == 0:
         return EcologyTrainingTier.NEAR
     if episode_index == 1:
@@ -786,38 +1359,252 @@ def _tier_for_episode(episode_index: int) -> EcologyTrainingTier:
     return EcologyTrainingTier.FAR
 
 
-def _mastery_reached(
+def _episode_milestone_round_budget(
+    plan: EcologyTrainingEpisodePlan,
+) -> int:
+    """Rounds SUFFICIENT for this episode's own milestone, worst case.
+
+    Forced start conditions change both which legs the milestone contains and
+    how far the pinned heading is from where the leg has to point, so the
+    budget is derived per start condition rather than per tier alone.
+    """
+
+    geometry = ECOLOGY_TIER_GEOMETRY[plan.tier]
+    if plan.forced_escape:
+        # The body starts inside the harm disc; the milestone is leaving it.
+        # ``_world`` pins the heading a quarter turn off the outward radial.
+        return _directed_leg_rounds(
+            _ECOLOGY_FORCED_ESCAPE_LEG,
+            heading_error=_ECOLOGY_FORCED_ESCAPE_HEADING_ERROR,
+        )
+    if plan.forced_return:
+        # Starts outside the nest already carrying: delivery leg only, with
+        # the heading pinned ``_FORCED_RETURN_BEARING_OFFSET`` off home.
+        return _directed_leg_rounds(
+            _FORCED_RETURN_RADIUS[plan.tier] - ECOLOGY_NEST_RADIUS,
+            heading_error=_FORCED_RETURN_BEARING_OFFSET[plan.tier],
+        )
+    if plan.forced_approach:
+        # Starts on a ring around the butter: worst-case approach to the
+        # pickup disc, then the carry home from its far side.  ``_world``
+        # pins the heading up to 0.8*pi off the food bearing; the carry home
+        # then starts pointing away from the nest.
+        approach = (
+            _FORCED_APPROACH_MAX_SPAWN_RATIO - 1.0
+        ) * geometry.pickup_radius
+        carry = (
+            geometry.distance_max
+            + geometry.pickup_radius
+            + ECOLOGY_PLANT_STEP_FLOOR
+            - ECOLOGY_NEST_RADIUS
+        )
+        return _directed_leg_rounds(
+            approach,
+            heading_error=0.8 * math.pi,
+        ) + _directed_leg_rounds(
+            carry,
+            heading_error=_ECOLOGY_FREE_SPAWN_HEADING_ERROR,
+        )
+    return _round_trip_rounds(
+        geometry.max_outbound_leg,
+        spawn_heading_error=_ECOLOGY_FREE_SPAWN_HEADING_ERROR,
+    )
+
+
+class EcologyMilestoneBudgetError(RuntimeError):
+    """A training schedule replays milestones its own budget cannot reach."""
+
+
+def ecology_schedule_milestone_shortfalls(
+    schedule: tuple[EcologyTrainingEpisodePlan, ...],
+    *,
+    stage_rounds: int,
+) -> tuple[tuple[str, str, int, int, int], ...]:
+    """``(stage, tier, episode_index, rounds, required)`` per short episode.
+
+    Published so a lane can state its own budget shortfall from the frozen
+    geometry rather than re-deriving it, and so the refusal in ``_train_arm``
+    and the ``training_tier_milestone_samplable`` gate read the same table.
+    """
+
+    if stage_rounds < 1:
+        raise ValueError("stage_rounds must be >= 1")
+    return tuple(
+        (
+            plan.stage.value,
+            plan.tier.value,
+            plan.episode_index,
+            stage_rounds,
+            required,
+        )
+        for plan, required in (
+            (item, _episode_milestone_round_budget(item))
+            for item in schedule
+        )
+        if stage_rounds < required
+    )
+
+
+def _layout_capability(
+    plan: EcologyTrainingEpisodePlan,
+) -> EcologyLayoutCapability:
+    if plan.forced_escape:
+        return EcologyLayoutCapability.FORCED_ESCAPE
+    return EcologyLayoutCapability.FORAGING
+
+
+def _layout_mastery(
+    *,
+    config: EcologyCurriculumConfig,
+    report: EcologyTrainingEpisodeReport,
+) -> EcologyLayoutMastery:
+    """Score one training layout the way P1 scores a held-out layout.
+
+    plan section 4.2: mastery is an episode/layout success RATE, never a
+    stage-cumulative event count.  A body succeeds only if the SAME body
+    closed the loop (pickup AND delivery, or escape); a layout succeeds only
+    if enough bodies did.
+    """
+
+    plan = report.plan
+    capability = _layout_capability(plan)
+    lineage = report.body_lineage
+    if not lineage:
+        raise ValueError(
+            "ecology layout mastery requires per-body episode lineage; "
+            f"episode {plan.stage.value}/{plan.tier.value}/{plan.seed} "
+            "published none"
+        )
+    if capability is EcologyLayoutCapability.FORCED_ESCAPE:
+        successful = sum(item.heat_escapes > 0 for item in lineage)
+    else:
+        successful = sum(
+            item.picked_up and item.delivered for item in lineage
+        )
+    required_bodies = max(
+        1,
+        math.ceil(config.n_ants * config.mastery_body_success_ratio),
+    )
+    total_ticks = sum(item.total_ticks for item in lineage)
+    harmful_ticks = sum(item.harmful_heat_ticks for item in lineage)
+    harmful_rate = harmful_ticks / total_ticks if total_ticks else 0.0
+    # plan section 4.4: route avoidance and composite foraging must also hold
+    # harmful exposure down; forced escape is scored on escape alone.
+    safety_applies = (
+        capability is EcologyLayoutCapability.FORAGING
+        and plan.stage
+        in {EcologyStage.BURNING_MATCH, EcologyStage.COMPOSITE}
+    )
+    safety_respected = (
+        harmful_rate <= config.mastery_harmful_tick_rate_max
+        if safety_applies
+        else True
+    )
+    if not report.milestone_samplable:
+        # A layout whose episode was too short to reach its own milestone
+        # cannot certify the capability: a success would be zero-shot
+        # transfer and a failure would say nothing about the policy.
+        eligible = False
+        reason = (
+            "episode ran "
+            f"{report.rounds} rounds against a milestone that needs "
+            f"{report.milestone_round_budget} in the worst case, so this "
+            "layout cannot certify the capability either way"
+        )
+    elif capability is EcologyLayoutCapability.FORAGING and (
+        plan.tier is EcologyTrainingTier.NEAR
+    ):
+        eligible = False
+        reason = (
+            "near foraging layout is Stage-0 bootstrap (plan 4.3): it feeds "
+            "the optimizer with pickup/delivery samples and can never make a "
+            "capability gate pass"
+        )
+    elif plan.interleaved:
+        eligible = False
+        reason = (
+            "interleaved replay of an already-mastered stage; it guards "
+            "against forgetting and does not certify this stage"
+        )
+    else:
+        eligible = True
+        reason = "primary capability layout"
+    return EcologyLayoutMastery(
+        stage=plan.stage,
+        tier=plan.tier,
+        capability=capability,
+        layout_seed=plan.seed,
+        episode_index=plan.episode_index,
+        mastery_eligible=eligible,
+        eligibility_reason=reason,
+        successful_bodies=successful,
+        required_bodies=required_bodies,
+        harmful_tick_rate=harmful_rate,
+        safety_respected=safety_respected,
+        layout_success=(
+            successful >= required_bodies and safety_respected
+        ),
+    )
+
+
+def _stage_mastery(
     *,
     config: EcologyCurriculumConfig,
     stage: EcologyStage,
-    primary_episodes: int,
-    pickups: int,
-    deliveries: int,
-    heat_entries: int,
-    heat_escapes: int,
-) -> bool:
-    if primary_episodes < config.mastery_min_episodes:
-        return False
-    if stage is EcologyStage.BUTTER:
-        return (
-            pickups >= config.mastery_min_pickups
-            and deliveries >= config.mastery_min_deliveries
+    reports: tuple[EcologyTrainingEpisodeReport, ...],
+) -> EcologyStageMastery:
+    if stage not in ECOLOGY_TRAINING_STAGES:
+        raise ValueError(
+            f"stage {stage.value!r} is not a valenced training stage"
         )
-    if stage is EcologyStage.BURNING_MATCH:
-        return (
-            deliveries >= config.mastery_min_deliveries
-            and heat_entries >= config.mastery_min_heat_events
-            and heat_escapes >= config.mastery_min_heat_events
+    layouts = tuple(
+        _layout_mastery(config=config, report=item) for item in reports
+    )
+    eligible = tuple(item for item in layouts if item.mastery_eligible)
+    capability_results: list[EcologyCapabilityMastery] = []
+    for capability in EcologyLayoutCapability:
+        group = tuple(
+            item for item in eligible if item.capability is capability
         )
-    if stage is EcologyStage.COMPOSITE:
-        # Foraging must succeed with neutral sticks and matches present;
-        # bumping the neutral stick is never a requirement.
-        return (
-            pickups >= config.mastery_min_pickups
-            and deliveries >= config.mastery_min_deliveries
+        if not group:
+            continue
+        successes = sum(item.layout_success for item in group)
+        required = max(
+            1,
+            math.ceil(len(group) * config.mastery_layout_success_ratio),
         )
-    raise ValueError(
-        f"stage {stage.value!r} is not a valenced training stage"
+        capability_results.append(
+            EcologyCapabilityMastery(
+                capability=capability,
+                mastery_layouts=len(group),
+                successful_layouts=successes,
+                required_layouts=required,
+                reached=successes >= required,
+            )
+        )
+    required_bodies = max(
+        1,
+        math.ceil(config.n_ants * config.mastery_body_success_ratio),
+    )
+    reached = (
+        len(eligible) >= config.mastery_min_episodes
+        and bool(capability_results)
+        and all(item.reached for item in capability_results)
+    )
+    return EcologyStageMastery(
+        stage=stage,
+        reached=reached,
+        primary_episodes=len(reports),
+        mastery_layouts=len(eligible),
+        successful_layouts=sum(item.layout_success for item in eligible),
+        required_layouts=sum(
+            item.required_layouts for item in capability_results
+        ),
+        required_bodies=required_bodies,
+        bootstrap_layouts=len(layouts) - len(eligible),
+        capability_results=tuple(capability_results),
+        layout_results=layouts,
+        threshold=_mastery_threshold(config, stage),
     )
 
 
@@ -825,25 +1612,23 @@ def _mastery_threshold(
     config: EcologyCurriculumConfig,
     stage: EcologyStage,
 ) -> str:
-    if stage is EcologyStage.BUTTER:
-        return (
-            f"pickups>={config.mastery_min_pickups}, "
-            f"deliveries>={config.mastery_min_deliveries}"
+    if stage not in ECOLOGY_TRAINING_STAGES:
+        raise ValueError(
+            f"stage {stage.value!r} is not a valenced training stage"
         )
-    if stage is EcologyStage.BURNING_MATCH:
-        return (
-            f"deliveries>={config.mastery_min_deliveries}, "
-            f"entries>={config.mastery_min_heat_events}, "
-            f"escapes>={config.mastery_min_heat_events}"
-        )
-    if stage is EcologyStage.COMPOSITE:
-        return (
-            f"pickups>={config.mastery_min_pickups}, "
-            f"deliveries>={config.mastery_min_deliveries} "
-            "with neutral stick and match present"
-        )
-    raise ValueError(
-        f"stage {stage.value!r} is not a valenced training stage"
+    safety = (
+        ", harmful tick rate <="
+        f"{config.mastery_harmful_tick_rate_max}"
+        if stage in {EcologyStage.BURNING_MATCH, EcologyStage.COMPOSITE}
+        else ""
+    )
+    return (
+        f">={config.mastery_min_episodes} mastery-eligible layouts, "
+        f">={config.mastery_layout_success_ratio:.0%} of them successful "
+        "SEPARATELY for every capability the stage runs, "
+        f">={config.mastery_body_success_ratio:.0%} of bodies closing "
+        f"pickup->delivery (or escaping) in the SAME body{safety}; "
+        "near foraging layouts are Stage-0 bootstrap and never eligible"
     )
 
 
@@ -921,6 +1706,55 @@ async def _ecology_action_chain_guard(
             f"body-pass-ratio:{passing_bodies}/{len(candidate_reports)}"
         )
     return passing_bodies >= required, tuple(failures)
+
+
+def _require_samplable_milestones(
+    *,
+    config: EcologyCurriculumConfig,
+    schedule: tuple[EcologyTrainingEpisodePlan, ...],
+) -> None:
+    """Refuse a schedule whose own budget cannot reach its milestones.
+
+    THE FAR DECISION lands here.  ``training_tier_milestone_samplable`` only
+    reports the shortfall inside this module's own ``_build_gates``, which the
+    fixed-schedule lanes never call, so the verdict has to be enforced where
+    every lane passes: at the entry point that replays the schedule.
+
+    The refusal is an ARM-level contract, applied by ``_train_arm`` to both
+    the fixed and the generated schedule.  The single-episode primitive
+    ``_run_training_episode`` is deliberately left unguarded: P0 mechanism
+    diagnostics drive it directly on deliberately short traces (plan section 7
+    step 4) and never claim a capability from them.  Nothing can launder a
+    capability claim through that door either -- ``_layout_mastery`` refuses
+    to make an episode that could not reach its own milestone
+    mastery-eligible.
+    """
+
+    if not config.milestone_budget_enforced:
+        return
+    shortfalls = ecology_schedule_milestone_shortfalls(
+        schedule,
+        stage_rounds=config.stage_rounds,
+    )
+    if not shortfalls:
+        return
+    raise EcologyMilestoneBudgetError(
+        "ecology training schedule replays milestones its own budget cannot "
+        f"reach: stage_rounds={config.stage_rounds}, "
+        f"required>={ecology_training_min_stage_rounds()} for a schedule "
+        "covering every tier "
+        + str(
+            tuple(
+                (tier.value, ecology_tier_round_budget(tier))
+                for tier in EcologyTrainingTier
+            )
+        )
+        + "; short episodes (stage, tier, episode_index, rounds, required)="
+        + str(shortfalls)
+        + ". Raise the budget, drop the tiers the lane cannot pay for, or "
+        "declare milestone_budget_enforced=False for a plan section 7 "
+        "small-budget diagnostic (never for a formal run)."
+    )
 
 
 async def _run_training_episode(
@@ -1015,6 +1849,7 @@ async def _run_training_episode(
             )
             action_chain_rollback_applied = True
     records = _flatten_records(runner)
+    milestone_round_budget = _episode_milestone_round_budget(plan)
     report = EcologyTrainingEpisodeReport(
         arm=arm,
         plan=plan,
@@ -1067,6 +1902,11 @@ async def _run_training_episode(
         policy_fingerprints_before=before,
         policy_fingerprints_after=_policy_fingerprints(trained),
         memory_entries_evicted=memory_entries_evicted,
+        rounds=config.stage_rounds,
+        milestone_round_budget=milestone_round_budget,
+        milestone_samplable=(
+            config.stage_rounds >= milestone_round_budget
+        ),
         action_chain_guard_passed=action_chain_guard_passed,
         action_chain_rollback_applied=action_chain_rollback_applied,
         action_chain_failures=action_chain_failures,
@@ -1126,6 +1966,11 @@ async def _train_arm(
         raise ValueError(
             "schedule_start_index exceeds fixed schedule length"
         )
+    if schedule is not None:
+        # Refuse the whole frozen schedule before burning any compute: a lane
+        # that replays episodes it cannot sample produces mastery numbers that
+        # only zero-shot transfer could ever satisfy.
+        _require_samplable_milestones(config=config, schedule=schedule)
     if config.action_probe_guard_enabled:
         action_probe_baseline_reports = (
             await run_ecology_checkpoint_action_probes(
@@ -1181,13 +2026,12 @@ async def _train_arm(
     else:
         mastered_stages: list[EcologyStage] = []
         for stage_index, stage in enumerate(stages):
-            pickups = 0
-            deliveries = 0
-            obstacle_contacts = 0
-            heat_entries = 0
-            heat_escapes = 0
-            primary_episodes = 0
-            reached = False
+            stage_reports: list[EcologyTrainingEpisodeReport] = []
+            stage_mastery = _stage_mastery(
+                config=config,
+                stage=stage,
+                reports=(),
+            )
             for episode in range(config.stage_episodes):
                 plan = EcologyTrainingEpisodePlan(
                     stage=stage,
@@ -1203,6 +2047,12 @@ async def _train_arm(
                         stage is EcologyStage.BURNING_MATCH
                         and episode == 0
                     ),
+                )
+                # The generated schedule is built one episode at a time, so
+                # the arm-level refusal has to be applied per plan here.
+                _require_samplable_milestones(
+                    config=config,
+                    schedule=(plan,),
                 )
                 runner, checkpoints, report = (
                     await _run_training_episode(
@@ -1231,31 +2081,27 @@ async def _train_arm(
                 )
                 plans.append(plan)
                 reports.append(report)
-                primary_episodes += 1
-                pickups += report.pickups
-                deliveries += report.deliveries
-                obstacle_contacts += report.obstacle_contacts
-                heat_entries += report.heat_entries
-                heat_escapes += report.heat_escapes
+                stage_reports.append(report)
+                primary_episodes = len(stage_reports)
+                stage_mastery = _stage_mastery(
+                    config=config,
+                    stage=stage,
+                    reports=tuple(stage_reports),
+                )
+                layout = stage_mastery.layout_results[-1]
                 print(
                     (
                         f"[ecology:{arm}] stage={stage.value} "
                         f"tier={plan.tier.value} episode={episode} "
-                        f"pickups={report.pickups} deliveries={report.deliveries} "
-                        f"contacts={report.obstacle_contacts} "
-                        f"heat={report.heat_entries}/{report.heat_escapes} "
+                        f"capability={layout.capability.value} "
+                        f"bodies={layout.successful_bodies}/"
+                        f"{layout.required_bodies} "
+                        f"layout_success={layout.layout_success} "
+                        f"mastery_eligible={layout.mastery_eligible} "
+                        f"harmful_rate={layout.harmful_tick_rate:.4f} "
                         f"payoffs={report.nonzero_ecology_payoffs}"
                     ),
                     flush=True,
-                )
-                reached = _mastery_reached(
-                    config=config,
-                    stage=stage,
-                    primary_episodes=primary_episodes,
-                    pickups=pickups,
-                    deliveries=deliveries,
-                    heat_entries=heat_entries,
-                    heat_escapes=heat_escapes,
                 )
                 if (
                     mastered_stages
@@ -1277,6 +2123,10 @@ async def _train_arm(
                         episode_index=episode,
                         interleaved=True,
                         forced_escape=False,
+                    )
+                    _require_samplable_milestones(
+                        config=config,
+                        schedule=(replay_plan,),
                     )
                     runner, checkpoints, replay_report = (
                         await _run_training_episode(
@@ -1307,37 +2157,29 @@ async def _train_arm(
                         ),
                         flush=True,
                     )
-                if reached:
+                if stage_mastery.reached:
                     print(
                         (
                             f"[ecology:{arm}] mastery reached for "
-                            f"{stage.value} after {primary_episodes} episodes"
+                            f"{stage.value} after "
+                            f"{stage_mastery.primary_episodes} episodes"
                         ),
                         flush=True,
                     )
                     break
-            mastery.append(
-                EcologyStageMastery(
-                    stage=stage,
-                    reached=reached,
-                    primary_episodes=primary_episodes,
-                    pickups=pickups,
-                    deliveries=deliveries,
-                    obstacle_contacts=obstacle_contacts,
-                    heat_entries=heat_entries,
-                    heat_escapes=heat_escapes,
-                    threshold=_mastery_threshold(config, stage),
-                )
-            )
+            mastery.append(stage_mastery)
             print(
                 (
                     f"[ecology:{arm}] stage={stage.value} done "
-                    f"reached={reached} pickups={pickups} "
-                    f"deliveries={deliveries}"
+                    f"reached={stage_mastery.reached} "
+                    f"layouts={stage_mastery.successful_layouts}/"
+                    f"{stage_mastery.mastery_layouts} "
+                    f"(required {stage_mastery.required_layouts}, "
+                    f"{stage_mastery.bootstrap_layouts} bootstrap-only)"
                 ),
                 flush=True,
             )
-            if reached:
+            if stage_mastery.reached:
                 mastered_stages.append(stage)
     if runner is None:
         raise RuntimeError("ecology training schedule must not be empty")
@@ -1709,7 +2551,7 @@ def _build_gates(
     learned_metrics: tuple[EcologyArmMetrics, ...],
     cold_metrics: tuple[EcologyArmMetrics, ...],
     no_optimize_metrics: tuple[EcologyArmMetrics, ...],
-    valence_off_metrics: tuple[EcologyArmMetrics, ...],
+    dense_local_shaping_off_metrics: tuple[EcologyArmMetrics, ...],
     segment_credit_off_metrics: tuple[EcologyArmMetrics, ...],
 ) -> tuple[EcologyGate, ...]:
     evaluation_schedule = tuple(
@@ -1718,7 +2560,7 @@ def _build_gates(
     for arm_metrics in (
         cold_metrics,
         no_optimize_metrics,
-        valence_off_metrics,
+        dense_local_shaping_off_metrics,
         segment_credit_off_metrics,
     ):
         if tuple(
@@ -1884,9 +2726,9 @@ def _build_gates(
     learned_outcome_score = sum(
         _ecology_outcome_score(item) for item in learned_metrics
     )
-    valence_off_score = sum(
+    dense_local_shaping_off_score = sum(
         _ecology_outcome_score(item)
-        for item in valence_off_metrics
+        for item in dense_local_shaping_off_metrics
     )
     segment_off_score = sum(
         _ecology_outcome_score(item)
@@ -1917,7 +2759,11 @@ def _build_gates(
         for control_name, control_metrics, seed_offset in (
             ("cold", cold_metrics, 71_001),
             ("no_optimize", no_optimize_metrics, 71_003),
-            ("valence_off", valence_off_metrics, 71_005),
+            (
+                "dense_local_shaping_off",
+                dense_local_shaping_off_metrics,
+                71_005,
+            ),
             (
                 "segment_credit_off",
                 segment_credit_off_metrics,
@@ -1963,9 +2809,20 @@ def _build_gates(
         )
     )
 
+    unsamplable_episodes = tuple(
+        (
+            item.plan.stage.value,
+            item.plan.tier.value,
+            item.rounds,
+            item.milestone_round_budget,
+        )
+        for item in learned_training
+        if not item.milestone_samplable
+    )
+
     return (
         EcologyGate(
-            name="training_event_coverage",
+            name="training_layout_mastery",
             passed=(
                 len(learned_mastery) == len(ECOLOGY_TRAINING_STAGES)
                 and all(item.reached for item in learned_mastery)
@@ -1977,11 +2834,17 @@ def _build_gates(
                         (
                             item.stage.value,
                             item.reached,
-                            item.pickups,
-                            item.deliveries,
-                            item.obstacle_contacts,
-                            item.heat_entries,
-                            item.heat_escapes,
+                            tuple(
+                                (
+                                    entry.capability.value,
+                                    f"{entry.successful_layouts}/"
+                                    f"{entry.mastery_layouts}",
+                                    f"required={entry.required_layouts}",
+                                )
+                                for entry in item.capability_results
+                            ),
+                            f"bodies>={item.required_bodies}",
+                            f"bootstrap_only={item.bootstrap_layouts}",
                         )
                         for item in learned_mastery
                     ),
@@ -1992,8 +2855,42 @@ def _build_gates(
             ),
             threshold=(
                 "every valenced training stage reaches its predeclared "
-                "event-sample mastery threshold within bounded budget and "
-                "every critical ecology sensor channel activates"
+                "per-layout success RATE (>=60% of mastery-eligible layouts "
+                "SEPARATELY per capability, >=60% of bodies closing the loop "
+                "in the same body) within bounded budget, near foraging "
+                "layouts stay Stage-0 bootstrap, and every critical ecology "
+                "sensor channel activates"
+            ),
+        ),
+        EcologyGate(
+            name="training_tier_milestone_samplable",
+            passed=not unsamplable_episodes,
+            observed=(
+                "unsamplable=" + str(unsamplable_episodes)
+                if unsamplable_episodes
+                else "all training episodes can reach their own milestone; "
+                + str(
+                    tuple(
+                        (
+                            tier.value,
+                            ecology_tier_round_budget(tier),
+                        )
+                        for tier in EcologyTrainingTier
+                    )
+                )
+            ),
+            threshold=(
+                "every training episode runs at least the rounds SUFFICIENT "
+                "for its own milestone under the frozen plant: straight legs "
+                "at the reachable speed band "
+                f"[{ECOLOGY_PLANT_STEP_FLOOR:.3f}, "
+                f"{ECOLOGY_PLANT_STEP_CEILING:.3f}] units/tick (the graded "
+                "controller can neither stop nor slow below half speed) plus "
+                "the re-aiming legs the plant charges at spawn and at the "
+                "post-pickup turn-around, at "
+                f"{ECOLOGY_PLANT_MAX_TURN_RATE:.3f} rad/act; an episode "
+                "shorter than that trains a milestone it cannot sample, so "
+                "the tier's mastery could only be met by zero-shot transfer"
             ),
         ),
         EcologyGate(
@@ -2119,13 +3016,15 @@ def _build_gates(
             passed=matched_ablation_advantage,
             observed=(
                 f"learned={learned_outcome_score:.6f}, "
-                f"valence_off={valence_off_score:.6f}, "
+                "dense_local_shaping_off="
+                f"{dense_local_shaping_off_score:.6f}, "
                 f"segment_off={segment_off_score:.6f}, "
                 f"paired_cis={matched_control_cis}"
             ),
             threshold=(
                 "paired bootstrap 95% CI lower bound >0 against cold, "
-                "no-optimize, valence-off and segment-credit-off"
+                "no-optimize, dense-local-shaping-off and "
+                "segment-credit-off"
             ),
         ),
         EcologyGate(
@@ -2291,15 +3190,15 @@ async def train_and_evaluate_ecology_checkpoint(
         schedule=training_schedule,
     )
     (
-        valence_off,
+        dense_local_shaping_off,
         _,
         _,
-        valence_off_training,
+        dense_local_shaping_off_training,
         _,
     ) = await _train_arm(
         config=config,
         initial=initial,
-        arm="valence_off",
+        arm="dense_local_shaping_off",
         optimize=True,
         local_valence_enabled=False,
         segment_credit_enabled=True,
@@ -2393,12 +3292,12 @@ async def train_and_evaluate_ecology_checkpoint(
             for seed in config.heldout_seeds
         ]
     )
-    valence_off_metrics = tuple(
+    dense_local_shaping_off_metrics = tuple(
         [
             await _evaluate_arm(
                 config=config,
-                checkpoints=valence_off,
-                arm="valence_off",
+                checkpoints=dense_local_shaping_off,
+                arm="dense_local_shaping_off",
                 data_split=EcologyDataSplit.HELDOUT,
                 scenario=scenario,
                 seed=seed,
@@ -2433,7 +3332,7 @@ async def train_and_evaluate_ecology_checkpoint(
         learned_metrics=learned_metrics,
         cold_metrics=cold_metrics,
         no_optimize_metrics=no_optimize_metrics,
-        valence_off_metrics=valence_off_metrics,
+        dense_local_shaping_off_metrics=dense_local_shaping_off_metrics,
         segment_credit_off_metrics=(
             segment_credit_off_metrics
         ),
@@ -2449,7 +3348,7 @@ async def train_and_evaluate_ecology_checkpoint(
         training_schedule=training_schedule,
         learned_training=learned_training,
         no_optimize_training=no_optimize_training,
-        valence_off_training=valence_off_training,
+        dense_local_shaping_off_training=dense_local_shaping_off_training,
         segment_credit_off_training=segment_credit_off_training,
         learned_mastery=learned_mastery,
         action_probes=action_probes,
@@ -2457,7 +3356,7 @@ async def train_and_evaluate_ecology_checkpoint(
         learned_metrics=learned_metrics,
         cold_metrics=cold_metrics,
         no_optimize_metrics=no_optimize_metrics,
-        valence_off_metrics=valence_off_metrics,
+        dense_local_shaping_off_metrics=dense_local_shaping_off_metrics,
         segment_credit_off_metrics=segment_credit_off_metrics,
         gates=gates,
         verdict=verdict,
@@ -2477,8 +3376,16 @@ async def train_and_evaluate_ecology_checkpoint(
 
 __all__ = [
     "ECOLOGY_CURRICULUM_SCHEMA_VERSION",
+    "ECOLOGY_FOOD_ENCOUNTER_DISTANCE",
+    "ECOLOGY_MEASURED_POLICY_STEP",
+    "ECOLOGY_MIN_DELIVERY_LEG",
+    "ECOLOGY_NEST_RADIUS",
+    "ECOLOGY_PLANT_STEP_CEILING",
+    "ECOLOGY_PLANT_STEP_FLOOR",
     "ECOLOGY_REQUIRED_GATE_NAMES",
+    "ECOLOGY_TIER_GEOMETRY",
     "ECOLOGY_TRAINING_STAGES",
+    "ECOLOGY_UNDIRECTED_ORBIT_REACH",
     "EcologyArmMetrics",
     "EcologyBodyEpisodeLineage",
     "EcologyCheckpointCandidate",
@@ -2486,11 +3393,16 @@ __all__ = [
     "EcologyCurriculumConfig",
     "EcologyDataSplit",
     "EcologyEvaluationScenario",
+    "EcologyCapabilityMastery",
     "EcologyGate",
+    "EcologyLayoutCapability",
+    "EcologyLayoutMastery",
     "EcologyStage",
     "EcologyStageMastery",
+    "EcologyTierGeometry",
     "EcologyTrainingEpisodePlan",
     "EcologyTrainingEpisodeReport",
     "EcologyTrainingTier",
+    "ecology_tier_round_budget",
     "train_and_evaluate_ecology_checkpoint",
 ]

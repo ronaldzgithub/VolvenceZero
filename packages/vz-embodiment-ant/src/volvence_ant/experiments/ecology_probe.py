@@ -51,6 +51,39 @@ ECOLOGY_PROBE_LANE_WIRING_KEYS: tuple[str, ...] = (
     "internal_rl_backend",
 )
 
+# Frozen sensor geometry of the ecology body.
+#
+# EVERY curriculum world -- training, validation and held-out alike -- is built
+# with ``antenna_offset_deg=45.0, antenna_reach=0.9``.  The paired probe used to
+# fall back to the ``AntWorldConfig`` defaults (30 deg / 0.6), so three P1 gates
+# and the whole P0 action-chain audit graded the learned policy on a sensory
+# body that no world it was trained or evaluated in ever had: an
+# off-distribution measurement presented as the frozen sensitivity truth.
+#
+# The curriculum world owns this geometry; these constants restate it for the
+# probe, which cannot import the curriculum (the curriculum imports the probe).
+# ``test_ecology_p1.test_probe_world_matches_curriculum_sensor_geometry``
+# constructs a real curriculum world and asserts equality, so any future drift
+# on either side fails loudly instead of silently reopening the gap.
+ECOLOGY_PROBE_ANTENNA_OFFSET_DEG = 45.0
+ECOLOGY_PROBE_ANTENNA_REACH = 0.9
+ECOLOGY_PROBE_STEP_SIZE = 0.4
+
+
+def ecology_probe_world_config(*, seed: int) -> AntWorldConfig:
+    """The world config every ecology probe must run in.
+
+    Published so consumers (and the drift test) read the same single statement
+    of the probe's sensory body instead of re-deriving it from literals.
+    """
+
+    return AntWorldConfig(
+        seed=seed,
+        step_size=ECOLOGY_PROBE_STEP_SIZE,
+        antenna_offset_deg=ECOLOGY_PROBE_ANTENNA_OFFSET_DEG,
+        antenna_reach=ECOLOGY_PROBE_ANTENNA_REACH,
+    )
+
 
 class EcologyProbeKind(str, Enum):
     FOOD = "food"
@@ -188,6 +221,21 @@ class EcologyCheckpointActionProbe:
     backend_execution: EcologyBackendExecutionEvidence | None = None
 
 
+def _antenna_sample_offset() -> tuple[float, float]:
+    """Where the left antenna samples for the pinned probe pose.
+
+    ``_pin_probe_pose`` puts every non-HOME probe body at the origin facing
+    +x, so the left antenna samples at ``(+dx, +dy)`` and the right one at
+    ``(+dx, -dy)`` for the frozen geometry below.
+    """
+
+    phi = math.radians(ECOLOGY_PROBE_ANTENNA_OFFSET_DEG)
+    return (
+        ECOLOGY_PROBE_ANTENNA_REACH * math.cos(phi),
+        ECOLOGY_PROBE_ANTENNA_REACH * math.sin(phi),
+    )
+
+
 def _paired_objects(
     kind: EcologyProbeKind,
 ) -> tuple[WorldObject, WorldObject]:
@@ -197,20 +245,30 @@ def _paired_objects(
             ButterSource(object_id="probe-butter", x=0.6, y=-0.35),
         )
     if kind is EcologyProbeKind.OBSTACLE:
+        # ``obstacle_left/right`` is a BINARY containment test at the antenna
+        # sample point, so unlike the smooth food/heat fields the stick has to
+        # physically cover one antenna and miss the other.  The old literal
+        # capsule was placed for the 30 deg / 0.6 default antennae; under the
+        # frozen curriculum geometry both antennae fall outside it and the
+        # probe reports ``input_reachable=False`` -- a broken instrument, not a
+        # broken policy.  Derive the capsule from the antenna sample point so
+        # the stimulus can never drift away from the sensor again.
+        offset_x, offset_y = _antenna_sample_offset()
+        half_length = 0.2
         return (
             WoodStick(
                 object_id="probe-stick",
-                start_x=0.5,
-                start_y=0.15,
-                end_x=0.8,
-                end_y=0.45,
+                start_x=offset_x - half_length,
+                start_y=offset_y,
+                end_x=offset_x + half_length,
+                end_y=offset_y,
             ),
             WoodStick(
                 object_id="probe-stick",
-                start_x=0.5,
-                start_y=-0.15,
-                end_x=0.8,
-                end_y=-0.45,
+                start_x=offset_x - half_length,
+                start_y=-offset_y,
+                end_x=offset_x + half_length,
+                end_y=-offset_y,
             ),
         )
     if kind is EcologyProbeKind.HEAT:
@@ -663,10 +721,7 @@ async def run_ecology_action_probes(
         actuator: AntActuator | None = None
         for side_index, world_object in enumerate(objects):
             world = AntWorld(
-                config=AntWorldConfig(
-                    seed=seed,
-                    step_size=0.4,
-                ),
+                config=ecology_probe_world_config(seed=seed),
                 world_objects=(world_object,),
             )
             session = AntSession(
@@ -898,9 +953,12 @@ async def run_ecology_checkpoint_action_probes(
 
 
 __all__ = [
+    "ECOLOGY_PROBE_ANTENNA_OFFSET_DEG",
+    "ECOLOGY_PROBE_ANTENNA_REACH",
     "ECOLOGY_PROBE_FINITE_DIFFERENCE_EPSILON",
     "ECOLOGY_PROBE_LANE_WIRING_KEYS",
     "ECOLOGY_PROBE_NEAR_NULL_SPACE_ALIGNMENT",
+    "ECOLOGY_PROBE_STEP_SIZE",
     "EcologyActionProbe",
     "EcologyBackendExecutionEvidence",
     "EcologyCheckpointActionProbe",
@@ -909,6 +967,7 @@ __all__ = [
     "EcologyProbeKind",
     "ecology_probe_lane_declared_active_backends",
     "ecology_probe_lane_expected_wiring",
+    "ecology_probe_world_config",
     "merge_ecology_backend_execution",
     "run_ecology_checkpoint_action_probes",
     "run_ecology_action_probes",
