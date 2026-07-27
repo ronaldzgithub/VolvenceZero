@@ -8,6 +8,7 @@ import math
 import os
 import statistics
 import tempfile
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from volvence_zero.agent import (
+    AgentLearningArchiveError,
     decode_agent_learning_checkpoint_archive,
     encode_agent_learning_checkpoint_archive,
 )
@@ -45,12 +47,27 @@ from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
-ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v25"
-# v22 binds sense schema and input dim into the resume archive compatibility
+# v26 changes what a P1 verdict MEANS (plan section 4.4/4.7), so every older
+# report and journal must be refused rather than reinterpreted:
+#   * three new gates (formal_configuration, checkpoint_archive_roundtrip,
+#     repeat_run_same_direction) enter ECOLOGY_P1_GATE_NAMES;
+#   * ``heat_route_foraging`` finally evaluates HEAT_ROUTE_AVOIDANCE instead of
+#     a byte-identical copy of ``composite``, so the held-out layouts behind
+#     that capability's numbers are different layouts;
+#   * ``composite`` gains the matched no-optimize exposure conjunct and
+#     ``temporal_non_timeout_closure`` becomes a per-layout ratio;
+#   * the held-out budget is aligned to P2's frozen 120 rounds.
+ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v26"
+# v23 follows the v26 report bump: EcologyP1LayoutResult gained
+# ``closed_segment_layouts`` semantics via the new gate set, the frozen
+# evaluation budget moved from 40 to 120 rounds, and the journal now also
+# carries regime-diagnostic rows. A v22 journal describes a different
+# experiment and is refused, not resumed.
+# v22 bound sense schema and input dim into the resume archive compatibility
 # (spec sections 3 and 8: archive compatibility binds sense schema / input dim
-# / latent dim / ant count). Journals written by v21 carry neither key and are
-# therefore refused rather than rehydrated into a different sensory body.
-ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v22"
+# / latent dim / ant count).
+ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v23"
+ECOLOGY_P1_DIAGNOSTICS_SCHEMA_VERSION = "digital-ant-ecology-p1-diagnostics.v3"
 ECOLOGY_P1_ARM_NAMES = (
     "learned",
     "no_optimize",
@@ -59,6 +76,7 @@ ECOLOGY_P1_ARM_NAMES = (
     "segment_credit_off",
 )
 ECOLOGY_P1_GATE_NAMES = (
+    "formal_configuration",
     "butter_medium",
     "butter_far",
     "forced_escape",
@@ -75,6 +93,49 @@ ECOLOGY_P1_GATE_NAMES = (
     "temporal_non_timeout_closure",
     "frozen_evaluation",
     "replay_lineage",
+    "checkpoint_archive_roundtrip",
+    "repeat_run_same_direction",
+)
+
+# --- the formal P1 budget (plan section 4.4 line 1 and section 4.5) ---------
+#
+# These are thresholds, not defaults, and they are enforced by the
+# ``formal_configuration`` GATE rather than by ``__post_init__``.  The plan's
+# own test ladder (section 7 step 3) requires a "1 ant, fixed seed" small-budget
+# deterministic test, and section 3.5/7 requires the P0 audit and the unit
+# tests to construct this very config at tiny budgets; raising in
+# ``__post_init__`` would delete that whole tier of verification.  A gate keeps
+# development runs executable while making it structurally impossible for an
+# under-budget run to emit ``verdict="PASS"`` -- and because
+# ``load_p1_prerequisite`` refuses any P1 report with an unpassed gate, it also
+# closes the hole that let a 1-ant smoke unlock P2.
+ECOLOGY_P1_FORMAL_MIN_ANTS = 4
+ECOLOGY_P1_FORMAL_LATENT_DIM = 16
+ECOLOGY_P1_FORMAL_MIN_LAYOUTS_PER_TIER = 5
+ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS = 24
+# Owner decision: P1's held-out budget is aligned to P2's frozen floor
+# (``ECOLOGY_P2_FORMAL_MIN_HELDOUT_ROUNDS``). The deterministic policy the
+# capability gates grade has a measured steering authority of 0.0055-0.033
+# rad/tick, so 40 ticks buy at most ~1.3 rad of cumulative heading change while
+# a directed medium/far round trip needs ~3.4-4.0 rad: at 40 rounds the gates
+# could not have been satisfied by any policy, learned or not.
+# ``test_ecology_p1`` asserts this equals the P2 constant.
+ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS = 120
+
+# Plan section 4.4: "held-out 必须出现真实 beta switch，且不能全部由 timeout
+# 关闭 segment". Expressed as a ratio over held-out layouts rather than one
+# existence test aggregated over all of them. The ceiling is the complement of
+# the plan's frozen 0.6 layout ratio -- at least 60% of learned held-out
+# layouts must individually show a real switch and a non-timeout closure -- so
+# it introduces no new free number.
+ECOLOGY_P1_TIMEOUT_ONLY_LAYOUT_RATE_MAX = 1.0 - 0.6
+
+# The regime-diagnostic lanes (read-only, never a gate, never fed back).
+ECOLOGY_P1_REGIME_DETERMINISTIC = "deterministic_frozen"
+ECOLOGY_P1_REGIME_STOCHASTIC = "training_stochastic"
+ECOLOGY_P1_REGIME_NAMES = (
+    ECOLOGY_P1_REGIME_DETERMINISTIC,
+    ECOLOGY_P1_REGIME_STOCHASTIC,
 )
 
 
@@ -83,7 +144,7 @@ class EcologyP1Config:
     n_ants: int = 4
     temporal_latent_dim: int = 16
     training_rounds: int = 24
-    evaluation_rounds: int = 40
+    evaluation_rounds: int = ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS
     layouts_per_tier: int = 5
     seed: int = 0
     layout_success_ratio: float = 0.6
@@ -105,6 +166,95 @@ class EcologyP1Config:
             raise ValueError("P1 body success threshold is frozen at 0.6")
         if self.harmful_tick_rate_max != 0.05:
             raise ValueError("P1 harmful tick threshold is frozen at 0.05")
+
+
+#: The config fields the formal P1 budget is defined over. Named once so the
+#: predicate below and a JSON consumer read the same list.
+ECOLOGY_P1_FORMAL_BUDGET_FIELDS = (
+    "n_ants",
+    "temporal_latent_dim",
+    "layouts_per_tier",
+    "training_rounds",
+    "evaluation_rounds",
+)
+
+
+def _formal_budget_values(
+    config: EcologyP1Config | Mapping[str, Any],
+) -> dict[str, int]:
+    """The five budget integers, from a config object OR its JSON mapping.
+
+    A report's ``config`` block is the only self-describing record of what a
+    run actually spent, so a consumer that re-derives the budget verdict from
+    it cannot be fooled by a hand-edited ``passed`` boolean. Missing, boolean
+    or non-integer fields are a contract violation and raise -- a report whose
+    config cannot be read is not a report whose budget can be trusted.
+    """
+
+    if isinstance(config, EcologyP1Config):
+        source: Mapping[str, Any] = asdict(config)
+    elif isinstance(config, Mapping):
+        source = config
+    else:
+        raise TypeError(
+            "P1 formal budget expects an EcologyP1Config or a config mapping, "
+            f"got {type(config).__name__}"
+        )
+    values: dict[str, int] = {}
+    for field in ECOLOGY_P1_FORMAL_BUDGET_FIELDS:
+        if field not in source:
+            raise ValueError(
+                "P1 config is missing formal budget field "
+                f"{field!r}; the budget verdict cannot be re-derived"
+            )
+        raw = source[field]
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise ValueError(
+                f"P1 config field {field!r} must be an integer, got {raw!r}"
+            )
+        values[field] = int(raw)
+    return values
+
+
+def ecology_p1_formal_budget_failures(
+    config: EcologyP1Config | Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Every way ``config`` falls short of the frozen formal P1 budget.
+
+    Accepts the live ``EcologyP1Config`` *or* the ``config`` mapping parsed
+    out of a written P1 report, so a promotion gate can re-derive this verdict
+    from the artifact instead of trusting the artifact's own gate row. A
+    report whose config says ``n_ants=1, layouts_per_tier=1`` returns failures
+    here no matter what its ``formal_configuration`` gate claims.
+    """
+
+    values = _formal_budget_values(config)
+    failures: list[str] = []
+    if values["n_ants"] < ECOLOGY_P1_FORMAL_MIN_ANTS:
+        failures.append(
+            f"n_ants={values['n_ants']}<{ECOLOGY_P1_FORMAL_MIN_ANTS}"
+        )
+    if values["temporal_latent_dim"] != ECOLOGY_P1_FORMAL_LATENT_DIM:
+        failures.append(
+            f"temporal_latent_dim={values['temporal_latent_dim']}"
+            f"!={ECOLOGY_P1_FORMAL_LATENT_DIM}"
+        )
+    if values["layouts_per_tier"] < ECOLOGY_P1_FORMAL_MIN_LAYOUTS_PER_TIER:
+        failures.append(
+            f"layouts_per_tier={values['layouts_per_tier']}"
+            f"<{ECOLOGY_P1_FORMAL_MIN_LAYOUTS_PER_TIER}"
+        )
+    if values["training_rounds"] < ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS:
+        failures.append(
+            f"training_rounds={values['training_rounds']}"
+            f"<{ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS}"
+        )
+    if values["evaluation_rounds"] < ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS:
+        failures.append(
+            f"evaluation_rounds={values['evaluation_rounds']}"
+            f"<{ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS}"
+        )
+    return tuple(failures)
 
 
 @dataclass(frozen=True)
@@ -152,12 +302,105 @@ class EcologyP1DiagnosticResult:
 
 
 @dataclass(frozen=True)
+class EcologyP1EscapeLatencySummary:
+    """Plan section 4.4 asks for median AND p90 escape latency, per source.
+
+    ``median`` / ``p90`` are ``None`` when the source produced no escape at
+    all: a JSON report is written with ``allow_nan=False``, so an infinite
+    sentinel could not be serialised, and 0 would read as an instant escape.
+    """
+
+    source: str
+    sample_count: int
+    median: float | None
+    p90: float | None
+
+
+@dataclass(frozen=True)
+class EcologyP1TurnMagnitudeDistribution:
+    """Per-tick |turn| distribution of one rollout regime."""
+
+    sample_count: int
+    mean_abs: float
+    median_abs: float
+    p90_abs: float
+    max_abs: float
+
+
+@dataclass(frozen=True)
+class EcologyP1RegimeDiagnosticRow:
+    """One held-out layout replayed under one kinematic regime.
+
+    READ-ONLY. Never a gate, never an input to learning: the rollout runs with
+    ``optimize=False`` and ``learning_enabled=False`` and the FROZEN-LEARNED
+    owner set (``policy_fingerprint`` + ``temporal_learning_fingerprint``) is
+    asserted unchanged afterwards -- the same set the ``frozen_evaluation``
+    gate and ``ecology_mechanism_audit`` use.
+
+    ``memory_fingerprint`` is deliberately NOT in that set. It drifts during a
+    frozen rollout today (measured owners: credit, dual-track-gate,
+    joint-loop/memory, prediction, reflection, regime), and that defect is
+    already owned and BLOCKED by the P0 ``frozen_evaluation`` gate. This
+    diagnostic exists to quantify the training/evaluation kinematic gap, so it
+    PUBLISHES the memory drift as evidence on its own row instead of being
+    made permanently unable to report by a defect another gate blocks on.
+    Nothing is silently accepted either way.
+    """
+
+    regime: str
+    capability: str
+    tier: str
+    seed: int
+    successful_bodies: int
+    required_bodies: int
+    layout_success: bool
+    harmful_tick_rate: float
+    turn_magnitude: EcologyP1TurnMagnitudeDistribution
+    #: False when any body's ``memory_fingerprint`` moved during the frozen
+    #: rollout. Evidence, not a verdict -- see the class docstring.
+    memory_fingerprint_stable: bool
+    #: Indices (colony body order) of the checkpoints whose memory drifted.
+    drifted_memory_bodies: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class EcologyP1RegimeGapSummary:
+    """The training/evaluation kinematic gap, per capability, as numbers."""
+
+    capability: str
+    deterministic_successful_layouts: int
+    stochastic_successful_layouts: int
+    layouts: int
+    deterministic_median_abs_turn: float
+    stochastic_median_abs_turn: float
+    #: stochastic / deterministic median |turn|; ``None`` when the
+    #: deterministic median is exactly 0 and the ratio is undefined.
+    median_abs_turn_ratio: float | None
+
+
+@dataclass(frozen=True)
+class EcologyP1RepeatReference:
+    """A previous P1 report used as the independent repetition (plan 4.7)."""
+
+    report_path: str
+    report_sha256: str
+    schema_version: str
+    seed: int
+    verdict: str
+    direction_signature: tuple[tuple[str, int], ...]
+
+
+@dataclass(frozen=True)
 class EcologyP1Report:
     schema_version: str
     config: EcologyP1Config
     schedule: tuple[EcologyTrainingEpisodePlan, ...]
     layout_results: tuple[EcologyP1LayoutResult, ...]
     diagnostic_results: tuple[EcologyP1DiagnosticResult, ...]
+    escape_latency_summaries: tuple[EcologyP1EscapeLatencySummary, ...]
+    regime_diagnostic: tuple[EcologyP1RegimeDiagnosticRow, ...]
+    regime_gap_summary: tuple[EcologyP1RegimeGapSummary, ...]
+    repeat_reference: EcologyP1RepeatReference | None
     gates: tuple[EcologyP1Gate, ...]
     verdict: str
     diagnostic_breakpoints: tuple[str, ...]
@@ -577,6 +820,93 @@ def _save_evaluation_progress(
     )
 
 
+def _regime_row_from_dict(
+    payload: dict[str, Any],
+) -> EcologyP1RegimeDiagnosticRow:
+    turn = dict(payload["turn_magnitude"])
+    return EcologyP1RegimeDiagnosticRow(
+        regime=str(payload["regime"]),
+        capability=str(payload["capability"]),
+        tier=str(payload["tier"]),
+        seed=int(payload["seed"]),
+        successful_bodies=int(payload["successful_bodies"]),
+        required_bodies=int(payload["required_bodies"]),
+        layout_success=bool(payload["layout_success"]),
+        harmful_tick_rate=float(payload["harmful_tick_rate"]),
+        turn_magnitude=EcologyP1TurnMagnitudeDistribution(
+            sample_count=int(turn["sample_count"]),
+            mean_abs=float(turn["mean_abs"]),
+            median_abs=float(turn["median_abs"]),
+            p90_abs=float(turn["p90_abs"]),
+            max_abs=float(turn["max_abs"]),
+        ),
+        memory_fingerprint_stable=bool(
+            payload["memory_fingerprint_stable"]
+        ),
+        drifted_memory_bodies=tuple(
+            int(value) for value in payload["drifted_memory_bodies"]
+        ),
+    )
+
+
+def _regime_progress_path(progress_dir: Path) -> Path:
+    return progress_dir / "regime_diagnostic.json"
+
+
+def _load_regime_progress(
+    *,
+    progress_dir: Path,
+    config: EcologyP1Config,
+    schedule_sha256: str,
+    arm_checkpoint_sha256: dict[str, str],
+) -> list[EcologyP1RegimeDiagnosticRow]:
+    path = _regime_progress_path(progress_dir)
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    expected = {
+        "schema_version": ECOLOGY_P1_PROGRESS_SCHEMA_VERSION,
+        "config": _progress_config_payload(config),
+        "schedule_sha256": schedule_sha256,
+    }
+    for field, value in expected.items():
+        if payload.get(field) != value:
+            raise ValueError(
+                f"P1 regime diagnostic progress mismatch: field={field}"
+            )
+    if payload.get("arm_checkpoint_sha256") != arm_checkpoint_sha256:
+        # The learned checkpoint changed; rows measured against the previous
+        # one describe a different policy and are not eligible for reuse.
+        return []
+    raw_rows = payload.get("regime_diagnostic")
+    if not isinstance(raw_rows, list):
+        raise ValueError(
+            "P1 regime diagnostic progress rows must be a list"
+        )
+    return [_regime_row_from_dict(item) for item in raw_rows]
+
+
+def _save_regime_progress(
+    *,
+    progress_dir: Path,
+    config: EcologyP1Config,
+    schedule_sha256: str,
+    arm_checkpoint_sha256: dict[str, str],
+    rows: list[EcologyP1RegimeDiagnosticRow],
+) -> None:
+    payload = {
+        "schema_version": ECOLOGY_P1_PROGRESS_SCHEMA_VERSION,
+        "config": _progress_config_payload(config),
+        "schedule_sha256": schedule_sha256,
+        "arm_checkpoint_sha256": arm_checkpoint_sha256,
+        "regime_diagnostic": [asdict(item) for item in rows],
+    }
+    _atomic_write(
+        _regime_progress_path(progress_dir),
+        _stable_json_bytes(payload),
+    )
+
+
 def _curriculum_config(config: EcologyP1Config) -> EcologyCurriculumConfig:
     return EcologyCurriculumConfig(
         n_ants=config.n_ants,
@@ -595,6 +925,21 @@ def _curriculum_config(config: EcologyP1Config) -> EcologyCurriculumConfig:
         # the final checkpoint below. Otherwise every learned episode is
         # restored to the shared initial checkpoint and no capability can form.
         action_probe_guard_enabled=False,
+        # THE FAR DECISION (curriculum owner): ``_train_arm`` refuses a
+        # schedule whose ``stage_rounds`` cannot reach its own milestones, and
+        # the owner documents ``milestone_budget_enforced=False`` as the lever
+        # for "a plan section 7 small-budget diagnostic (never for a formal
+        # run)".  Bind the lever to the SAME predicate the
+        # ``formal_configuration`` gate uses instead of hardcoding either
+        # value: a run at the frozen formal budget keeps the milestone gate
+        # fully enforced, and the only runs that turn it off are the tiny
+        # ones plan section 7 step 3 requires -- which already fail
+        # ``formal_configuration`` and therefore can never emit PASS or
+        # unlock P2.  The flag is part of the frozen config digest, so a run
+        # that turned it off says so in its own provenance.
+        milestone_budget_enforced=not ecology_p1_formal_budget_failures(
+            config
+        ),
     )
 
 
@@ -676,11 +1021,27 @@ def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan
 def _evaluation_specs() -> tuple[
     tuple[str, EcologyEvaluationScenario, EcologyTrainingTier], ...
 ]:
+    """The five held-out classes plan section 4.3 asks P1 (and P2) to grade.
+
+    ``heat_route_foraging`` maps to ``HEAT_ROUTE_AVOIDANCE`` -- a butter source
+    plus a burning match and NO wood stick (``_scene_objects``). Until v26 it
+    was byte-identical to ``composite`` (COMPOSITE/FAR), which made
+    ``HEAT_ROUTE_AVOIDANCE`` dead code at the P1/P2 layer, collapsed the five
+    held-out classes to four and double-weighted the composite layout inside
+    ``learned_not_worse_than_no_optimize`` and
+    ``paired_capability_effect_positive``. P2 imports this function, so the
+    same defect was inherited by the confirmatory matrix.
+    """
+
     return (
         ("butter_medium", EcologyEvaluationScenario.BUTTER_ONLY, EcologyTrainingTier.MEDIUM),
         ("butter_far", EcologyEvaluationScenario.BUTTER_ONLY, EcologyTrainingTier.FAR),
         ("forced_escape", EcologyEvaluationScenario.HEAT_FORCED_ESCAPE, EcologyTrainingTier.NEAR),
-        ("heat_route_foraging", EcologyEvaluationScenario.COMPOSITE, EcologyTrainingTier.FAR),
+        (
+            "heat_route_foraging",
+            EcologyEvaluationScenario.HEAT_ROUTE_AVOIDANCE,
+            EcologyTrainingTier.FAR,
+        ),
         (
             "neutral_stick",
             EcologyEvaluationScenario.BUTTER_WITH_NEUTRAL_STICK,
@@ -690,10 +1051,51 @@ def _evaluation_specs() -> tuple[
     )
 
 
+def _scenario_stage(scenario: EcologyEvaluationScenario) -> EcologyStage:
+    return {
+        EcologyEvaluationScenario.BUTTER_ONLY: EcologyStage.BUTTER,
+        EcologyEvaluationScenario.BUTTER_WITH_NEUTRAL_STICK: (
+            EcologyStage.WOOD_STICK
+        ),
+        EcologyEvaluationScenario.HEAT_ROUTE_AVOIDANCE: (
+            EcologyStage.BURNING_MATCH
+        ),
+        EcologyEvaluationScenario.HEAT_FORCED_ESCAPE: (
+            EcologyStage.BURNING_MATCH
+        ),
+        EcologyEvaluationScenario.COMPOSITE: EcologyStage.COMPOSITE,
+    }[scenario]
+
+
+def _required_bodies(config: EcologyP1Config) -> int:
+    return max(1, math.ceil(config.n_ants * config.body_success_ratio))
+
+
+def _median_or_none(values: tuple[int, ...]) -> float | None:
+    return float(statistics.median(values)) if values else None
+
+
+def _p90_or_none(values: tuple[int, ...]) -> float | None:
+    if not values:
+        return None
+    return float(np.percentile(np.asarray(values, dtype=float), 90.0))
+
+
+def _escape_latency_summary(
+    *, source: str, latencies: tuple[int, ...]
+) -> EcologyP1EscapeLatencySummary:
+    return EcologyP1EscapeLatencySummary(
+        source=source,
+        sample_count=len(latencies),
+        median=_median_or_none(latencies),
+        p90=_p90_or_none(latencies),
+    )
+
+
 def _layout_result(
     *, config: EcologyP1Config, capability: str, metrics: EcologyArmMetrics
 ) -> EcologyP1LayoutResult:
-    required = max(1, math.ceil(config.n_ants * config.body_success_ratio))
+    required = _required_bodies(config)
     if capability == "forced_escape":
         successful = sum(item.heat_escapes > 0 for item in metrics.body_lineage)
     else:
@@ -741,6 +1143,67 @@ def _success_count(
         item.layout_success
         for item in results
         if item.arm == arm and item.capability == capability
+    )
+
+
+def _temporal_non_timeout_closure_gate(
+    learned_results: tuple[EcologyP1LayoutResult, ...],
+) -> EcologyP1Gate:
+    """Plan 4.4: held-out segments must not "all" be closed by timeout.
+
+    Graded PER LAYOUT, not aggregated. The aggregated form
+    (``sum(switch_count) > 0 and sum(non_timeout_segment_closures) > 0``) was
+    satisfied by a SINGLE non-timeout closure anywhere in the whole held-out
+    matrix, which is exactly the "全部由 timeout 关闭" state the plan forbids,
+    only stated over a sum.
+
+    A layout QUALIFIES when it individually shows both a real beta switch and
+    a non-timeout segment closure. The gate passes when the complementary
+    timeout-only rate stays at or below
+    ``ECOLOGY_P1_TIMEOUT_ONLY_LAYOUT_RATE_MAX`` (0.4), i.e. when at least 60%
+    of learned held-out layouts qualify on their own. An empty learned matrix
+    FAILS: there is no evidence, and a vacuous pass is the failure mode this
+    replaces.
+    """
+
+    total = len(learned_results)
+    qualifying = tuple(
+        item
+        for item in learned_results
+        if item.switch_count > 0 and item.non_timeout_segment_closures > 0
+    )
+    timeout_only = total - len(qualifying)
+    # 1.0 when there is nothing to grade, so the empty matrix fails the
+    # ceiling rather than dividing by zero or passing vacuously.
+    timeout_only_rate = timeout_only / total if total else 1.0
+    return EcologyP1Gate(
+        name="temporal_non_timeout_closure",
+        # The 1e-12 is float-representation slack for exact boundaries such as
+        # 12/30 vs 1.0-0.6; it is not threshold slack.
+        passed=(
+            total > 0
+            and timeout_only_rate
+            <= ECOLOGY_P1_TIMEOUT_ONLY_LAYOUT_RATE_MAX + 1e-12
+        ),
+        observed=(
+            f"layouts={total}, "
+            f"layouts_with_switch_and_non_timeout_closure={len(qualifying)}, "
+            f"timeout_only_layouts={timeout_only}, "
+            f"timeout_only_rate={timeout_only_rate}, "
+            f"switches={sum(item.switch_count for item in learned_results)}, "
+            "non_timeout_closures="
+            + str(
+                sum(
+                    item.non_timeout_segment_closures
+                    for item in learned_results
+                )
+            )
+        ),
+        threshold=(
+            "per learned held-out layout: a real beta switch AND a "
+            "non-timeout segment closure; timeout-only layout rate <= "
+            f"{ECOLOGY_P1_TIMEOUT_ONLY_LAYOUT_RATE_MAX}"
+        ),
     )
 
 
@@ -878,15 +1341,9 @@ def _run_diagnostic_layout(
     tier: EcologyTrainingTier,
     seed: int,
 ) -> EcologyP1DiagnosticResult:
-    stage = {
-        EcologyEvaluationScenario.BUTTER_ONLY: EcologyStage.BUTTER,
-        EcologyEvaluationScenario.BUTTER_WITH_NEUTRAL_STICK: EcologyStage.WOOD_STICK,
-        EcologyEvaluationScenario.HEAT_FORCED_ESCAPE: EcologyStage.BURNING_MATCH,
-        EcologyEvaluationScenario.COMPOSITE: EcologyStage.COMPOSITE,
-    }[scenario]
     world = _world(
         config=curriculum,
-        stage=stage,
+        stage=_scenario_stage(scenario),
         seed=seed,
         data_split=EcologyDataSplit.HELDOUT,
         tier=tier,
@@ -933,7 +1390,7 @@ def _run_diagnostic_layout(
             if first_escape:
                 escape_latencies.append(round_index + 1)
             harmful_ticks += int(transition.heat_harmful_after)
-    required = max(1, math.ceil(config.n_ants * config.body_success_ratio))
+    required = _required_bodies(config)
     successful = (
         sum(escaped)
         if capability == "forced_escape"
@@ -1001,7 +1458,7 @@ def run_ecology_p1_diagnostics(
         for capability, _, _ in _evaluation_specs()
     )
     return EcologyP1DiagnosticReport(
-        schema_version="digital-ant-ecology-p1-diagnostics.v2",
+        schema_version=ECOLOGY_P1_DIAGNOSTICS_SCHEMA_VERSION,
         config=config,
         results=results,
         oracle_success_by_capability=oracle_success,
@@ -1010,11 +1467,574 @@ def run_ecology_p1_diagnostics(
     )
 
 
+# ---------------------------------------------------------------------------
+# Plan section 4.7 conjunct: checkpoint roundtrip
+# ---------------------------------------------------------------------------
+
+
+def _archive_state_fingerprints(
+    checkpoints: tuple[AntLearningCheckpoint, ...],
+) -> tuple[tuple[str, str, str], ...]:
+    """Full owner identity an ARCHIVE must reproduce byte-for-byte.
+
+    An export/restore roundtrip performs no rollout, so every published owner
+    fingerprint -- policy, temporal AND memory -- must come back identical. An
+    archive that silently drops memory is a broken archive. This is a
+    different question from "did a frozen rollout keep the learned owners
+    frozen"; see ``_frozen_learned_fingerprints``.
+    """
+
+    return tuple(
+        (
+            item.policy_fingerprint,
+            item.temporal_fingerprint,
+            item.memory_fingerprint,
+        )
+        for item in checkpoints
+    )
+
+
+def _frozen_learned_fingerprints(
+    checkpoints: tuple[AntLearningCheckpoint, ...],
+) -> tuple[tuple[str, str], ...]:
+    """The owner set a frozen rollout must not move.
+
+    This is the module's established frozen-owner notion: the same
+    ``policy_fingerprint`` + ``temporal_learning_fingerprint`` pair the
+    ``frozen_evaluation`` gate grades and ``ecology_mechanism_audit`` asserts.
+    ``temporal_fingerprint`` is deliberately excluded --
+    docs/specs/digital-ant-embodiment.md excludes the PE-driven turn-local
+    mixture from the temporal-LEARNING fingerprint, so the full temporal
+    fingerprint moving during a frozen rollout is EXPECTED inference
+    telemetry, not a freeze violation. Comparing it would make a read-only
+    diagnostic raise on correct behaviour.
+    """
+
+    return tuple(
+        (item.policy_fingerprint, item.temporal_learning_fingerprint)
+        for item in checkpoints
+    )
+
+
+def _drifted_memory_bodies(
+    *,
+    before: tuple[AntLearningCheckpoint, ...],
+    after: tuple[AntLearningCheckpoint, ...],
+) -> tuple[int, ...]:
+    """Colony indices whose ``memory_fingerprint`` moved between two exports."""
+
+    return tuple(
+        index
+        for index, (start, end) in enumerate(
+            zip(before, after, strict=True)
+        )
+        if start.memory_fingerprint != end.memory_fingerprint
+    )
+
+
+def _verify_p1_checkpoint_archives(
+    *,
+    config: EcologyP1Config,
+    curriculum: EcologyCurriculumConfig,
+    checkpoints: tuple[AntLearningCheckpoint, ...],
+) -> tuple[bool, str]:
+    """Hydrate the learned colony from its own archives, then corrupt one.
+
+    Plan section 4.7 requires "checkpoint roundtrip 与 replay lineage 继续通过"
+    as a P1 conjunct; only replay lineage was gated. This runs entirely through
+    the archive API the runtime owner publishes
+    (``export_learning_checkpoint_archives`` /
+    ``restore_learning_checkpoint_archives`` and ``AgentLearningArchiveError``)
+    -- no curriculum internals -- so P1 states the property itself instead of
+    inheriting an unrelated report's claim.
+    """
+
+    def fresh_runner(*, offset: int, session_id: str) -> KernelColonyRunner:
+        return KernelColonyRunner(
+            _world(
+                config=curriculum,
+                stage=EcologyStage.COMPOSITE,
+                seed=config.seed + offset,
+                data_split=EcologyDataSplit.TRAIN,
+                tier=EcologyTrainingTier.FAR,
+            ),
+            base_config=_session_config(
+                config=curriculum,
+                seed=config.seed + offset,
+                session_id=session_id,
+                optimize=False,
+                learning_enabled=False,
+                sparse_exploration_enabled=False,
+            ),
+        )
+
+    source = fresh_runner(
+        offset=900_001,
+        session_id="ecology:p1:archive-roundtrip:source",
+    )
+    source.restore_learning_checkpoints(checkpoints)
+    archives = source.export_learning_checkpoint_archives(
+        checkpoint_prefix="ecology:p1:archive-roundtrip"
+    )
+    verifier = fresh_runner(
+        offset=900_002,
+        session_id="ecology:p1:archive-roundtrip:verifier",
+    )
+    verifier.restore_learning_checkpoint_archives(archives)
+    restored = verifier.export_learning_checkpoints(
+        checkpoint_prefix="ecology:p1:archive-roundtrip:restored",
+        include_runtime_replay=False,
+    )
+    if _archive_state_fingerprints(restored) != _archive_state_fingerprints(
+        checkpoints
+    ):
+        return (
+            False,
+            "fresh-session hydration changed policy/temporal/memory "
+            "fingerprints",
+        )
+    pre_failure = verifier.export_learning_checkpoints(
+        checkpoint_prefix="ecology:p1:archive-roundtrip:pre-failure",
+        include_runtime_replay=False,
+    )
+    corrupted = list(archives)
+    corrupted[-1] = corrupted[-1][:-1] + b"!"
+    try:
+        verifier.restore_learning_checkpoint_archives(tuple(corrupted))
+    except AgentLearningArchiveError:
+        pass
+    else:
+        return (False, "a corrupted archive collection was accepted")
+    post_failure = verifier.export_learning_checkpoints(
+        checkpoint_prefix="ecology:p1:archive-roundtrip:post-failure",
+        include_runtime_replay=False,
+    )
+    if _archive_state_fingerprints(
+        post_failure
+    ) != _archive_state_fingerprints(pre_failure):
+        return (
+            False,
+            "rejected archive restore did not roll back atomically",
+        )
+    return (True, "hydration verified and corrupt restore rolled back")
+
+
+# ---------------------------------------------------------------------------
+# Read-only regime diagnostic (never a gate, never fed back into learning)
+# ---------------------------------------------------------------------------
+
+
+def _turn_magnitude_distribution(
+    magnitudes: tuple[float, ...],
+) -> EcologyP1TurnMagnitudeDistribution:
+    if not magnitudes:
+        return EcologyP1TurnMagnitudeDistribution(
+            sample_count=0,
+            mean_abs=0.0,
+            median_abs=0.0,
+            p90_abs=0.0,
+            max_abs=0.0,
+        )
+    values = np.asarray(magnitudes, dtype=float)
+    return EcologyP1TurnMagnitudeDistribution(
+        sample_count=int(values.size),
+        mean_abs=float(values.mean()),
+        median_abs=float(np.median(values)),
+        p90_abs=float(np.percentile(values, 90.0)),
+        max_abs=float(values.max()),
+    )
+
+
+async def _run_regime_layout(
+    *,
+    config: EcologyP1Config,
+    curriculum: EcologyCurriculumConfig,
+    checkpoints: tuple[AntLearningCheckpoint, ...],
+    regime: str,
+    capability: str,
+    scenario: EcologyEvaluationScenario,
+    tier: EcologyTrainingTier,
+    seed: int,
+) -> EcologyP1RegimeDiagnosticRow:
+    """Replay ONE held-out layout with ONE action-sampling regime.
+
+    ``ECOLOGY_P1_REGIME_DETERMINISTIC`` is exactly what the capability gates
+    grade (deterministic mean action, exclusive steering).
+    ``ECOLOGY_P1_REGIME_STOCHASTIC`` is the sparse-exploration regime the
+    policy was OPTIMIZED in: a hash-fixed residual held for 8 ticks, i.e.
+    piecewise constant-curvature arcs whose per-tick turn reaches ~0.5 rad.
+    Everything else -- checkpoint, world, seed, tier, budget -- is identical,
+    so the published |turn| distributions isolate the kinematic regime gap that
+    is the leading candidate explanation for "healthy training pickups, 0/5
+    frozen medium/far layouts" across v10-v25.
+    """
+
+    if regime not in ECOLOGY_P1_REGIME_NAMES:
+        raise ValueError(f"unsupported P1 regime: {regime!r}")
+    forced_escape = (
+        scenario is EcologyEvaluationScenario.HEAT_FORCED_ESCAPE
+    )
+    runner = KernelColonyRunner(
+        _world(
+            config=curriculum,
+            stage=_scenario_stage(scenario),
+            seed=seed,
+            data_split=EcologyDataSplit.HELDOUT,
+            tier=tier,
+            forced_escape=forced_escape,
+        ),
+        base_config=_session_config(
+            config=curriculum,
+            seed=seed,
+            session_id=(
+                f"ecology:p1:regime:{regime}:{capability}:{seed}"
+            ),
+            optimize=False,
+            learning_enabled=False,
+            sparse_exploration_enabled=(
+                regime == ECOLOGY_P1_REGIME_STOCHASTIC
+            ),
+        ),
+    )
+    runner.restore_learning_checkpoints(checkpoints)
+    await runner.run(curriculum.heldout_rounds)
+    after = runner.export_learning_checkpoints(
+        checkpoint_prefix=(
+            f"ecology:p1:regime:{regime}:{capability}:{seed}:frozen-check"
+        ),
+        include_runtime_replay=False,
+    )
+    # The diagnostic must never feed back into LEARNING. Learning is off by
+    # construction; this proves it instead of assuming it, against the same
+    # frozen-learned owner set the ``frozen_evaluation`` gate grades.
+    if _frozen_learned_fingerprints(after) != _frozen_learned_fingerprints(
+        checkpoints
+    ):
+        raise RuntimeError(
+            "the P1 regime diagnostic mutated learned owner state "
+            f"(regime={regime}, capability={capability}, seed={seed}); it is "
+            "read-only by contract"
+        )
+    # Memory drift under learning_enabled=False is a real defect, but it is
+    # the P0 ``frozen_evaluation`` gate's BLOCK to own. Publish it as evidence
+    # on this row rather than crash a diagnostic that exists to measure
+    # something else.
+    drifted_memory = _drifted_memory_bodies(
+        before=checkpoints, after=after
+    )
+    records = tuple(
+        step
+        for round_record in runner.rounds
+        for step in round_record.ant_steps
+    )
+    picked = [False] * config.n_ants
+    delivered = [False] * config.n_ants
+    escaped = [False] * config.n_ants
+    harmful_ticks = 0
+    for record in records:
+        body_id = record.body_id
+        picked[body_id] = picked[body_id] or record.picked_up
+        delivered[body_id] = delivered[body_id] or record.delivered
+        escaped[body_id] = escaped[body_id] or record.escaped_harmful_heat
+        harmful_ticks += int(record.heat_harmful)
+    successful = (
+        sum(escaped)
+        if capability == "forced_escape"
+        else sum(
+            did_pickup and did_deliver
+            for did_pickup, did_deliver in zip(
+                picked, delivered, strict=True
+            )
+        )
+    )
+    required = _required_bodies(config)
+    return EcologyP1RegimeDiagnosticRow(
+        regime=regime,
+        capability=capability,
+        tier=tier.value,
+        seed=seed,
+        successful_bodies=successful,
+        required_bodies=required,
+        layout_success=successful >= required,
+        harmful_tick_rate=(
+            harmful_ticks / len(records) if records else 0.0
+        ),
+        turn_magnitude=_turn_magnitude_distribution(
+            tuple(
+                abs(record.command.turn_command) for record in records
+            )
+        ),
+        memory_fingerprint_stable=not drifted_memory,
+        drifted_memory_bodies=drifted_memory,
+    )
+
+
+def _regime_gap_summary(
+    rows: tuple[EcologyP1RegimeDiagnosticRow, ...],
+) -> tuple[EcologyP1RegimeGapSummary, ...]:
+    summaries: list[EcologyP1RegimeGapSummary] = []
+    for capability, _, _ in _evaluation_specs():
+        by_regime = {
+            regime: tuple(
+                row
+                for row in rows
+                if row.capability == capability and row.regime == regime
+            )
+            for regime in ECOLOGY_P1_REGIME_NAMES
+        }
+        deterministic = by_regime[ECOLOGY_P1_REGIME_DETERMINISTIC]
+        stochastic = by_regime[ECOLOGY_P1_REGIME_STOCHASTIC]
+        if len(deterministic) != len(stochastic):
+            raise RuntimeError(
+                "regime diagnostic lanes are not matched for capability "
+                f"{capability}: deterministic={len(deterministic)}, "
+                f"stochastic={len(stochastic)}"
+            )
+        deterministic_median = (
+            float(
+                np.median(
+                    [row.turn_magnitude.median_abs for row in deterministic]
+                )
+            )
+            if deterministic
+            else 0.0
+        )
+        stochastic_median = (
+            float(
+                np.median(
+                    [row.turn_magnitude.median_abs for row in stochastic]
+                )
+            )
+            if stochastic
+            else 0.0
+        )
+        summaries.append(
+            EcologyP1RegimeGapSummary(
+                capability=capability,
+                deterministic_successful_layouts=sum(
+                    row.layout_success for row in deterministic
+                ),
+                stochastic_successful_layouts=sum(
+                    row.layout_success for row in stochastic
+                ),
+                layouts=len(deterministic),
+                deterministic_median_abs_turn=deterministic_median,
+                stochastic_median_abs_turn=stochastic_median,
+                median_abs_turn_ratio=(
+                    stochastic_median / deterministic_median
+                    if deterministic_median > 0.0
+                    else None
+                ),
+            )
+        )
+    return tuple(summaries)
+
+
+# ---------------------------------------------------------------------------
+# Plan section 4.7 conjunct: an independent repetition in the same direction
+# ---------------------------------------------------------------------------
+
+
+def _direction_signature(
+    results: tuple[EcologyP1LayoutResult, ...],
+) -> tuple[tuple[str, int], ...]:
+    """Sign of every learned-vs-control contrast the P1 verdict rests on.
+
+    A repetition "in the same direction" is machine-checkable exactly when the
+    direction is a finite, ordered vector of signs rather than prose: one sign
+    per capability for learned-vs-no-optimize, plus the aggregate paired effect
+    against the better of no-optimize and cold.
+    """
+
+    def sign(value: int) -> int:
+        return (value > 0) - (value < 0)
+
+    signature: list[tuple[str, int]] = []
+    learned_total = 0
+    no_optimize_total = 0
+    cold_total = 0
+    for capability, _, _ in _evaluation_specs():
+        learned = _success_count(results, "learned", capability)
+        no_optimize = _success_count(results, "no_optimize", capability)
+        cold = _success_count(results, "cold", capability)
+        learned_total += learned
+        no_optimize_total += no_optimize
+        cold_total += cold
+        signature.append((capability, sign(learned - no_optimize)))
+    signature.append(
+        (
+            "aggregate_paired_effect",
+            sign(learned_total - max(no_optimize_total, cold_total)),
+        )
+    )
+    return tuple(signature)
+
+
+def _repeat_run_same_direction_gate(
+    *,
+    reference: EcologyP1RepeatReference | None,
+    results: tuple[EcologyP1LayoutResult, ...],
+) -> EcologyP1Gate:
+    """Plan 4.7: "P1 重跑一次能够得到同方向结果".
+
+    A run with NO reference report FAILS. It is not skipped and it does not
+    pass vacuously: a single training run is exactly the single-run accident
+    the conjunct exists to rule out, so "we did not repeat it" is a negative
+    result, not an absent one. Supply ``--repeat-reference-report`` pointing
+    at a previous P1 report produced with a DIFFERENT training seed.
+    """
+
+    signature = _direction_signature(results)
+    if reference is None:
+        return EcologyP1Gate(
+            name="repeat_run_same_direction",
+            passed=False,
+            observed=(
+                "no repeat reference report supplied; this run is a single "
+                f"repetition. direction={signature!r}"
+            ),
+            threshold=(
+                "an independent P1 report (different training seed, same "
+                "budget) whose per-capability learned-vs-no-optimize signs "
+                "and aggregate paired-effect sign match this run"
+            ),
+        )
+    mismatched = tuple(
+        name
+        for (name, sign), (reference_name, reference_sign) in zip(
+            signature, reference.direction_signature, strict=True
+        )
+        if name != reference_name or sign != reference_sign
+    )
+    return EcologyP1Gate(
+        name="repeat_run_same_direction",
+        passed=not mismatched,
+        observed=(
+            f"reference_seed={reference.seed}, "
+            f"reference_verdict={reference.verdict}, "
+            f"reference_sha256={reference.report_sha256}, "
+            f"direction={signature!r}, "
+            f"reference_direction={reference.direction_signature!r}, "
+            f"mismatched={mismatched!r}"
+        ),
+        threshold=(
+            "an independent P1 report (different training seed, same budget) "
+            "whose per-capability learned-vs-no-optimize signs and aggregate "
+            "paired-effect sign match this run"
+        ),
+    )
+
+
+def load_p1_repeat_reference(
+    report_path: Path,
+    *,
+    repo_root: Path | None = None,
+) -> EcologyP1RepeatReference:
+    """Load a previous P1 report as the independent repetition, or fail loudly.
+
+    Rejects -- never silently reinterprets -- a report from a different schema
+    version, a different gate set, or an incomparable configuration. A report
+    produced with the SAME seed is refused too: replaying one training seed is
+    not an independent repetition and cannot satisfy plan section 4.7.
+    """
+
+    resolved = (
+        report_path
+        if report_path.is_absolute() or repo_root is None
+        else repo_root / report_path
+    )
+    if not resolved.exists():
+        raise ValueError(f"P1 repeat reference not found: {resolved}")
+    raw = resolved.read_bytes()
+    payload = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("P1 repeat reference must be a JSON object")
+    schema_version = payload.get("schema_version")
+    if schema_version != ECOLOGY_P1_SCHEMA_VERSION:
+        raise ValueError(
+            "P1 repeat reference schema mismatch: "
+            f"expected={ECOLOGY_P1_SCHEMA_VERSION!r}, "
+            f"actual={schema_version!r}. Reports written before "
+            f"{ECOLOGY_P1_SCHEMA_VERSION} grade a different held-out matrix "
+            "and cannot be compared with this run."
+        )
+    raw_gates = payload.get("gates")
+    if not isinstance(raw_gates, list) or not all(
+        isinstance(gate, dict) for gate in raw_gates
+    ):
+        raise ValueError(
+            "P1 repeat reference gates must be structured objects"
+        )
+    gate_names = tuple(str(gate.get("name", "")) for gate in raw_gates)
+    if gate_names != ECOLOGY_P1_GATE_NAMES:
+        raise ValueError(
+            f"P1 repeat reference gate set mismatch: {gate_names!r}"
+        )
+    raw_config = payload.get("config")
+    if not isinstance(raw_config, dict):
+        raise ValueError("P1 repeat reference config must be an object")
+    raw_results = payload.get("layout_results")
+    if not isinstance(raw_results, list):
+        raise ValueError(
+            "P1 repeat reference layout_results must be a list"
+        )
+    return EcologyP1RepeatReference(
+        report_path=str(report_path),
+        report_sha256=_sha256(raw),
+        schema_version=str(schema_version),
+        seed=int(raw_config["seed"]),
+        verdict=str(payload.get("verdict", "BLOCK")).upper(),
+        direction_signature=_direction_signature(
+            tuple(
+                _layout_result_from_dict(item) for item in raw_results
+            )
+        ),
+    )
+
+
+def _assert_repeat_reference_comparable(
+    *,
+    config: EcologyP1Config,
+    reference_path: Path,
+    repo_root: Path | None,
+) -> EcologyP1RepeatReference:
+    reference = load_p1_repeat_reference(
+        reference_path, repo_root=repo_root
+    )
+    resolved = (
+        reference_path
+        if reference_path.is_absolute() or repo_root is None
+        else repo_root / reference_path
+    )
+    payload = json.loads(resolved.read_text(encoding="utf-8"))
+    reference_config = dict(payload["config"])
+    expected = _progress_config_payload(config)
+    mismatched = tuple(
+        field
+        for field, value in expected.items()
+        if field != "seed" and reference_config.get(field) != value
+    )
+    if mismatched:
+        raise ValueError(
+            "P1 repeat reference was produced under a different budget and "
+            f"cannot be compared: fields={mismatched}"
+        )
+    if reference.seed == config.seed:
+        raise ValueError(
+            "P1 repeat reference uses the same training seed "
+            f"({config.seed}); plan section 4.7 requires an INDEPENDENT "
+            "repetition"
+        )
+    return reference
+
+
 async def run_ecology_p1(
     config: EcologyP1Config,
     *,
     progress_dir: Path | None = None,
     max_new_work_items: int | None = None,
+    repeat_reference_report: Path | None = None,
+    repo_root: Path | None = None,
 ) -> EcologyP1Report:
     if max_new_work_items is not None and max_new_work_items < 1:
         raise ValueError("max_new_work_items must be positive")
@@ -1022,6 +2042,17 @@ async def run_ecology_p1(
         raise ValueError(
             "max_new_work_items requires a resumable progress_dir"
         )
+    # Validate the repetition reference BEFORE spending the run's budget: an
+    # incomparable reference is a configuration error, not a gate failure.
+    repeat_reference = (
+        _assert_repeat_reference_comparable(
+            config=config,
+            reference_path=repeat_reference_report,
+            repo_root=repo_root,
+        )
+        if repeat_reference_report is not None
+        else None
+    )
     completed_work_items = 0
     curriculum = _curriculum_config(config)
     bootstrap = KernelColonyRunner(
@@ -1278,6 +2309,82 @@ async def run_ecology_p1(
             ),
         )
     )
+    # --- read-only regime diagnostic (published, never a gate) -------------
+    regime_rows = (
+        _load_regime_progress(
+            progress_dir=resolved_progress,
+            config=config,
+            schedule_sha256=schedule_sha256,
+            arm_checkpoint_sha256=arm_checkpoint_sha256,
+        )
+        if resolved_progress is not None
+        else []
+    )
+    existing_regime_keys = {
+        (item.regime, item.capability, item.seed) for item in regime_rows
+    }
+    if len(existing_regime_keys) != len(regime_rows):
+        raise ValueError(
+            "P1 regime diagnostic progress contains duplicates"
+        )
+    for regime in ECOLOGY_P1_REGIME_NAMES:
+        for capability_index, (capability, scenario, tier) in enumerate(
+            _evaluation_specs()
+        ):
+            for index in range(config.layouts_per_tier):
+                regime_seed = (
+                    config.seed
+                    + 2_000_003
+                    + capability_index * 10_007
+                    + index * 103
+                )
+                regime_key = (regime, capability, regime_seed)
+                if regime_key in existing_regime_keys:
+                    continue
+                regime_rows.append(
+                    await _run_regime_layout(
+                        config=config,
+                        curriculum=curriculum,
+                        checkpoints=arms["learned"],
+                        regime=regime,
+                        capability=capability,
+                        scenario=scenario,
+                        tier=tier,
+                        seed=regime_seed,
+                    )
+                )
+                existing_regime_keys.add(regime_key)
+                if resolved_progress is not None:
+                    _save_regime_progress(
+                        progress_dir=resolved_progress,
+                        config=config,
+                        schedule_sha256=schedule_sha256,
+                        arm_checkpoint_sha256=arm_checkpoint_sha256,
+                        rows=regime_rows,
+                    )
+                    completed_work_items += 1
+                    if (
+                        max_new_work_items is not None
+                        and completed_work_items >= max_new_work_items
+                    ):
+                        raise EcologyP1ProgressPaused(
+                            completed_work_items=completed_work_items
+                        )
+    regime_order = {
+        regime: index
+        for index, regime in enumerate(ECOLOGY_P1_REGIME_NAMES)
+    }
+    regime_tuple = tuple(
+        sorted(
+            regime_rows,
+            key=lambda item: (
+                regime_order[item.regime],
+                capability_order[item.capability],
+                item.seed,
+            ),
+        )
+    )
+    regime_summary = _regime_gap_summary(regime_tuple)
     diagnostics = tuple(
         _run_diagnostic_layout(
             config=config,
@@ -1302,18 +2409,79 @@ async def run_ecology_p1(
     required_layouts = math.ceil(
         config.layouts_per_tier * config.layout_success_ratio
     )
+    required_bodies = _required_bodies(config)
     gates: list[EcologyP1Gate] = []
+    budget_failures = ecology_p1_formal_budget_failures(config)
+    gates.append(
+        EcologyP1Gate(
+            name="formal_configuration",
+            passed=not budget_failures,
+            observed=(
+                "pass" if not budget_failures else repr(budget_failures)
+            ),
+            threshold=(
+                f">={ECOLOGY_P1_FORMAL_MIN_ANTS} ants, latent dim "
+                f"=={ECOLOGY_P1_FORMAL_LATENT_DIM}, "
+                f">={ECOLOGY_P1_FORMAL_MIN_LAYOUTS_PER_TIER} layout seeds per "
+                f"tier, >={ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS} training "
+                f"rounds, >={ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS} held-out "
+                "rounds"
+            ),
+        )
+    )
+
+    def _mean_composite_harmful_rate(arm: str) -> float | None:
+        rows = tuple(
+            item
+            for item in result_tuple
+            if item.arm == arm and item.capability == "composite"
+        )
+        if not rows:
+            return None
+        return sum(item.harmful_tick_rate for item in rows) / len(rows)
+
+    learned_composite_rate = _mean_composite_harmful_rate("learned")
+    no_optimize_composite_rate = _mean_composite_harmful_rate("no_optimize")
     for capability, _, _ in _evaluation_specs():
         success = _success_count(result_tuple, "learned", capability)
+        passed = success >= required_layouts
+        observed = (
+            f"successful_layouts={success}/{config.layouts_per_tier}"
+        )
+        threshold = (
+            f">={required_layouts} layouts; each requires "
+            f">={required_bodies} bodies"
+        )
+        if capability == "composite":
+            # plan section 4.4: "Composite：至少 60% layout 完成 foraging，且
+            # harmful ticks 不高于 matched no-optimize". Only the absolute 5%
+            # cap was applied; the matched comparison -- which is what makes
+            # the number evidence about the OPTIMIZER rather than about the
+            # layout -- was missing. Same semantics as P2's
+            # ``heat_exposure_bounded``.
+            exposure_ok = (
+                learned_composite_rate is not None
+                and no_optimize_composite_rate is not None
+                and learned_composite_rate
+                <= no_optimize_composite_rate + 1e-12
+            )
+            passed = passed and exposure_ok
+            observed += (
+                ", learned_composite_harmful_rate="
+                f"{learned_composite_rate}"
+                ", no_optimize_composite_harmful_rate="
+                f"{no_optimize_composite_rate}"
+            )
+            threshold += (
+                "; learned composite harmful tick rate <= matched "
+                "no-optimize"
+            )
         gates.append(
             EcologyP1Gate(
                 name=capability,
-                passed=success >= required_layouts,
-                observed=f"successful_layouts={success}/{config.layouts_per_tier}",
-                threshold=(
-                    f">={required_layouts} layouts; each requires "
-                    f">={math.ceil(config.n_ants * 0.6)} bodies"
-                ),
+                passed=passed,
+                observed=observed,
+                threshold=threshold,
             )
         )
     learned_escape = tuple(
@@ -1339,14 +2507,27 @@ async def run_ecology_p1(
     random_escape_latencies = tuple(
         latency for item in random_escape for latency in item.escape_latencies
     )
+    # plan section 4.4 requires median AND p90 escape latency to be reported;
+    # only the median existed, and only inside this gate's observed string.
+    escape_latency_summaries = (
+        _escape_latency_summary(
+            source="learned",
+            latencies=learned_escape_latencies,
+        ),
+        _escape_latency_summary(
+            source="random",
+            latencies=random_escape_latencies,
+        ),
+    )
+    learned_escape_summary, random_escape_summary = escape_latency_summaries
     learned_escape_median = (
-        statistics.median(learned_escape_latencies)
-        if learned_escape_latencies
+        learned_escape_summary.median
+        if learned_escape_summary.median is not None
         else math.inf
     )
     random_escape_median = (
-        statistics.median(random_escape_latencies)
-        if random_escape_latencies
+        random_escape_summary.median
+        if random_escape_summary.median is not None
         else math.inf
     )
     escape_above_floor = (
@@ -1363,8 +2544,10 @@ async def run_ecology_p1(
         observed=(
             f"learned_bodies={learned_escape_bodies}, "
             f"random_bodies={random_escape_bodies}, "
-            f"learned_median={learned_escape_median}, "
-            f"random_median={random_escape_median}"
+            f"learned_median={learned_escape_summary.median}, "
+            f"learned_p90={learned_escape_summary.p90}, "
+            f"random_median={random_escape_summary.median}, "
+            f"random_p90={random_escape_summary.p90}"
         ),
         threshold=(
             "more escaped bodies than random, or equal nonzero success with "
@@ -1510,23 +2693,7 @@ async def run_ecology_p1(
         ),
     ))
     learned_results = tuple(item for item in result_tuple if item.arm == "learned")
-    gates.append(EcologyP1Gate(
-        name="temporal_non_timeout_closure",
-        passed=(
-            sum(item.switch_count for item in learned_results) > 0
-            and sum(
-                item.non_timeout_segment_closures
-                for item in learned_results
-            )
-            > 0
-        ),
-        observed=(
-            f"switches={sum(item.switch_count for item in learned_results)}, "
-            "non_timeout_closures="
-            f"{sum(item.non_timeout_segment_closures for item in learned_results)}"
-        ),
-        threshold="held-out has a real switch and non-timeout segment closure",
-    ))
+    gates.append(_temporal_non_timeout_closure_gate(learned_results))
     gates.append(EcologyP1Gate(
         name="frozen_evaluation",
         passed=all(
@@ -1554,6 +2721,32 @@ async def run_ecology_p1(
         observed=f"evaluations={len(learned_results)}",
         threshold="settlement/lineage >=0.99 and drop=0",
     ))
+    # plan 4.7: "checkpoint roundtrip 与 replay lineage 继续通过" -- both are
+    # conjuncts, and only replay lineage was ever graded here.
+    archive_roundtrip_passed, archive_roundtrip_detail = (
+        _verify_p1_checkpoint_archives(
+            config=config,
+            curriculum=curriculum,
+            checkpoints=arms["learned"],
+        )
+    )
+    gates.append(EcologyP1Gate(
+        name="checkpoint_archive_roundtrip",
+        passed=archive_roundtrip_passed,
+        observed=archive_roundtrip_detail,
+        threshold=(
+            "a fresh session hydrated from the learned colony's own archives "
+            "reproduces policy/temporal/memory fingerprints, a corrupted "
+            "archive collection is rejected, and the rejected restore rolls "
+            "back atomically"
+        ),
+    ))
+    gates.append(
+        _repeat_run_same_direction_gate(
+            reference=repeat_reference,
+            results=result_tuple,
+        )
+    )
     gate_tuple = tuple(gates)
     if tuple(item.name for item in gate_tuple) != ECOLOGY_P1_GATE_NAMES:
         raise RuntimeError("P1 gate schema drift")
@@ -1565,6 +2758,10 @@ async def run_ecology_p1(
         schedule=schedule,
         layout_results=result_tuple,
         diagnostic_results=diagnostics,
+        escape_latency_summaries=escape_latency_summaries,
+        regime_diagnostic=regime_tuple,
+        regime_gap_summary=regime_summary,
+        repeat_reference=repeat_reference,
         gates=gate_tuple,
         verdict=verdict,
         diagnostic_breakpoints=breakpoints,
@@ -1578,15 +2775,34 @@ async def run_ecology_p1(
 
 __all__ = [
     "ECOLOGY_P1_ARM_NAMES",
+    "ECOLOGY_P1_DIAGNOSTICS_SCHEMA_VERSION",
+    "ECOLOGY_P1_FORMAL_BUDGET_FIELDS",
+    "ECOLOGY_P1_FORMAL_LATENT_DIM",
+    "ECOLOGY_P1_FORMAL_MIN_ANTS",
+    "ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS",
+    "ECOLOGY_P1_FORMAL_MIN_LAYOUTS_PER_TIER",
+    "ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS",
     "ECOLOGY_P1_GATE_NAMES",
+    "ECOLOGY_P1_PROGRESS_SCHEMA_VERSION",
+    "ECOLOGY_P1_REGIME_DETERMINISTIC",
+    "ECOLOGY_P1_REGIME_NAMES",
+    "ECOLOGY_P1_REGIME_STOCHASTIC",
     "ECOLOGY_P1_SCHEMA_VERSION",
+    "ECOLOGY_P1_TIMEOUT_ONLY_LAYOUT_RATE_MAX",
     "EcologyP1Config",
-    "EcologyP1Gate",
-    "EcologyP1DiagnosticResult",
     "EcologyP1DiagnosticReport",
+    "EcologyP1DiagnosticResult",
+    "EcologyP1EscapeLatencySummary",
+    "EcologyP1Gate",
     "EcologyP1LayoutResult",
     "EcologyP1ProgressPaused",
+    "EcologyP1RegimeDiagnosticRow",
+    "EcologyP1RegimeGapSummary",
+    "EcologyP1RepeatReference",
     "EcologyP1Report",
+    "EcologyP1TurnMagnitudeDistribution",
+    "ecology_p1_formal_budget_failures",
+    "load_p1_repeat_reference",
     "run_ecology_p1",
     "run_ecology_p1_diagnostics",
 ]
