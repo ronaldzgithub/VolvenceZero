@@ -24,6 +24,7 @@ from volvence_ant.evidence.provenance import (
     write_ant_artifact_bundle,
 )
 from volvence_ant.experiments.ecology_p1 import (
+    ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS,
     EcologyP1Config,
     EcologyP1ProgressPaused,
     run_ecology_p1,
@@ -62,6 +63,14 @@ async def _run(args: argparse.Namespace) -> int:
     progress_dir = None
     if args.progress_dir is not None:
         progress_dir = _resolve(args.progress_dir)
+    repeat_reference_report = None
+    if args.repeat_reference_report is not None:
+        # Validate containment, then hand the loader a REPO-RELATIVE path:
+        # the reference is recorded verbatim in the report, and an absolute
+        # path would pin a versioned artifact to one machine's checkout.
+        repeat_reference_report = _resolve(
+            args.repeat_reference_report
+        ).relative_to(_ROOT)
     output = _resolve(
         args.report
         if args.report is not None
@@ -81,6 +90,8 @@ async def _run(args: argparse.Namespace) -> int:
                 config,
                 progress_dir=progress_dir,
                 max_new_work_items=args.max_new_work_items,
+                repeat_reference_report=repeat_reference_report,
+                repo_root=_ROOT,
             )
         )
     except EcologyP1ProgressPaused as paused:
@@ -125,7 +136,15 @@ def main() -> int:
     parser.add_argument("--n-ants", type=int, default=4)
     parser.add_argument("--temporal-latent-dim", type=int, default=16)
     parser.add_argument("--training-rounds", type=int, default=24)
-    parser.add_argument("--evaluation-rounds", type=int, default=40)
+    # The held-out budget is a frozen threshold, not a driver preference: the
+    # ``formal_configuration`` gate refuses any run below
+    # ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS, so a driver default of 40 would
+    # have made every CLI-launched P1 run BLOCK on its own argparse default.
+    parser.add_argument(
+        "--evaluation-rounds",
+        type=int,
+        default=ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS,
+    )
     parser.add_argument("--layouts-per-tier", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--diagnostics-only", action="store_true")
@@ -145,6 +164,17 @@ def main() -> int:
         help=(
             "Stop cleanly after this many newly committed training episodes "
             "or evaluation layouts; requires --progress-dir."
+        ),
+    )
+    parser.add_argument(
+        "--repeat-reference-report",
+        type=Path,
+        default=None,
+        help=(
+            "A previous P1 report, produced with a DIFFERENT training seed at "
+            "the same budget, used as plan section 4.7's independent "
+            "repetition. Without it the repeat_run_same_direction gate FAILS: "
+            "a single run cannot rule out training accident."
         ),
     )
     parser.add_argument(

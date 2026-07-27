@@ -72,6 +72,7 @@ _FORBIDDEN_PREFIXES: tuple[str, ...] = (
     # vz-cognition
     "volvence_zero.prediction.",
     "volvence_zero.credit.",
+    "volvence_zero.decision_workspace.",
     "volvence_zero.dual_track.",
     "volvence_zero.regime.",
     "volvence_zero.semantic_state.",

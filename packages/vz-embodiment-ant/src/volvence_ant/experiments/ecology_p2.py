@@ -20,11 +20,14 @@ is complete, non-preflight and digest-identical to its siblings.
 
 from __future__ import annotations
 
+import inspect
 import json
 import math
 import os
+import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +71,7 @@ from volvence_ant.experiments.ecology_p1 import (
     _schedule_digest,
     _sha256,
     _stable_json_bytes,
+    ecology_p1_formal_budget_failures,
 )
 from volvence_ant.experiments.ecology_probe import (
     EcologyProbeKind,
@@ -77,12 +81,32 @@ from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
-ECOLOGY_P2_SCHEMA_VERSION = "digital-ant-ecology-p2-confirmatory.v1"
-ECOLOGY_P2_SHARD_SCHEMA_VERSION = "digital-ant-ecology-p2-shard.v1"
+#: v2 adds the cross-arm lever-effectiveness gates, the ``random`` floor
+#: comparison, the FixedRule learning-advantage gate, the corruption-rollback
+#: gate, per-shard source provenance and the declared secondary-endpoint
+#: block. A v1 confirmatory report cannot answer "did the ablation lever take
+#: effect" or "which commit produced this shard", so it is refused rather than
+#: reinterpreted.
+#:
+#: v3 records the per-seed P1 prerequisites individually (``p1_prerequisites``)
+#: plus the frozen held-out layout seeds, and marks each paired effect as
+#: complete or incomplete. A v2 report pinned "one identical P1 *file*", which
+#: a multi-seed matrix can never satisfy, and it carried no way to recover the
+#: held-out device/layout namespace a promotion bundle has to record.
+ECOLOGY_P2_SCHEMA_VERSION = "digital-ant-ecology-p2-confirmatory.v3"
+#: v2 carries ``source_provenance``, ``archive_corruption_rejected`` and the
+#: widened layout rows (secondary endpoints). v1 shards are refused by
+#: :func:`shard_report_from_dict`.
+#: v3 carries the P1 prerequisite's *configuration* identity, which is what the
+#: aggregate pins across seeds; a v2 shard carries only the file digest and
+#: therefore cannot be checked against its siblings.
+ECOLOGY_P2_SHARD_SCHEMA_VERSION = "digital-ant-ecology-p2-shard.v3"
 # v2 binds sense schema and input dim into the shard resume compatibility, so
 # an interrupted formal shard cannot rehydrate from a checkpoint trained on a
 # different sensory body. v1 journals carry neither key and are refused.
-ECOLOGY_P2_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p2-progress.v2"
+# v3 journals the widened layout rows; a v2 journal would silently drop the
+# secondary endpoints of every already-evaluated layout.
+ECOLOGY_P2_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p2-progress.v3"
 ECOLOGY_P2_PREFLIGHT_SCHEMA_VERSION = "digital-ant-ecology-p2-preflight.v1"
 
 #: Held-out namespace. Disjoint from the P1 held-out base (``2_000_003`` plus a
@@ -101,9 +125,18 @@ class EcologyP2ArmSpec:
     """One pre-registered arm.
 
     ``learning`` arms fork from the shared initial checkpoint of their training
-    seed and replay the identical frozen schedule; the four boolean levers are
-    the only permitted differences between them. Baseline arms carry no VZ
+    seed and replay the identical frozen schedule; the declared levers are the
+    only permitted differences between them. Baseline arms carry no VZ
     checkpoint and exist to calibrate the floor and the non-VZ ceiling.
+
+    ``temporal_policy_kind`` / ``joint_ssl_interval`` / ``joint_rl_interval``
+    are the ETA-off construction the spec freezes (``digital-ant-embodiment``
+    section 7: *``eta_off`` 使用 frozen learned-lite 且
+    ``ssl_interval=rl_interval=0``*). They are **not** booleans on the session
+    contract today -- see :data:`ECOLOGY_P2_ARM_LEVER_PARAMETERS` and
+    :class:`EcologyP2ArmLeverUnavailableError`: an arm that needs one is
+    refused before it spends budget rather than silently degraded onto a
+    different lever.
     """
 
     name: str
@@ -113,9 +146,60 @@ class EcologyP2ArmSpec:
     local_valence_enabled: bool = True
     segment_credit_enabled: bool = True
     prediction_error_enabled: bool = True
+    #: Reflection/memory/regime consolidation writeback. This is **not** the
+    #: ETA lever: the kernel gates the reflection engine and the temporal-prior
+    #: writeback behind the same boolean, so flipping it removes more than the
+    #: named mechanism. It stays here as the declared reflection-consolidation
+    #: lever; no pre-registered arm flips it.
     temporal_writeback_enabled: bool = True
+    #: ``"full"`` = the learned metacontroller. ``"learned_lite"`` = the frozen
+    #: legacy readout projected to the configured ``n_z``.
+    temporal_policy_kind: str = "full"
+    #: ``None`` = the curriculum owner's frozen joint-loop schedule. ``0``
+    #: freezes that phase, which is what makes ETA-off an actual ablation of
+    #: the emergent temporal abstraction rather than of reflection memory.
+    joint_ssl_interval: int | None = None
+    joint_rl_interval: int | None = None
     trains: bool = True
     description: str = ""
+
+
+class EcologyP2ArmLeverUnavailableError(RuntimeError):
+    """A pre-registered arm needs a lever the session contract cannot express.
+
+    Raised *before* any budget is spent. Running the arm anyway would emit a
+    row labelled with the pre-registered arm name whose actual construction is
+    something else -- exactly the ``以 random 代理消融，或策略参数未按预期改变``
+    kill condition the spec freezes in section 6.
+    """
+
+
+#: Arm levers that must be forwarded by the curriculum owner's session builder
+#: before the arm that needs them can run. ``_session_config`` /
+#: ``_train_arm`` / ``_evaluate_arm`` are owned by ``ecology_curriculum``; P2
+#: probes their signatures rather than asserting a version, so the guard
+#: releases by itself the moment the hop lands.
+ECOLOGY_P2_ARM_LEVER_PARAMETERS: tuple[str, ...] = (
+    "temporal_policy_kind",
+    "joint_ssl_interval",
+    "joint_rl_interval",
+)
+
+#: The learned-arm value of each gated lever, read off the dataclass itself so
+#: "this arm deviates from the learned construction" cannot drift away from
+#: "this field's default". :func:`unreachable_arm_levers` iterates
+#: :data:`ECOLOGY_P2_ARM_LEVER_PARAMETERS` against this map rather than
+#: re-listing the field names inline.
+_ECOLOGY_P2_ARM_LEVER_DEFAULTS: dict[str, Any] = {
+    field.name: field.default
+    for field in fields(EcologyP2ArmSpec)
+    if field.name in ECOLOGY_P2_ARM_LEVER_PARAMETERS
+}
+if set(_ECOLOGY_P2_ARM_LEVER_DEFAULTS) != set(ECOLOGY_P2_ARM_LEVER_PARAMETERS):
+    raise RuntimeError(
+        "ECOLOGY_P2_ARM_LEVER_PARAMETERS names a field EcologyP2ArmSpec does "
+        f"not declare: {sorted(set(ECOLOGY_P2_ARM_LEVER_PARAMETERS) - set(_ECOLOGY_P2_ARM_LEVER_DEFAULTS))}"
+    )
 
 
 ECOLOGY_P2_ARM_SPECS: tuple[EcologyP2ArmSpec, ...] = (
@@ -156,10 +240,21 @@ ECOLOGY_P2_ARM_SPECS: tuple[EcologyP2ArmSpec, ...] = (
         name="eta_off",
         batch="core",
         learning=True,
-        temporal_writeback_enabled=False,
+        # The spec's frozen ETA-off construction (section 7): a frozen
+        # learned-lite temporal policy with ssl_interval = rl_interval = 0, so
+        # the emergent temporal abstraction genuinely cannot adapt. The
+        # historical `temporal_writeback_enabled=False` arm was wrong from both
+        # sides: it removed reflection/memory/regime consolidation as well
+        # (superset), while SSL and Internal-RL kept optimising the same
+        # `_world_policy` every cycle (incomplete).
+        temporal_policy_kind="learned_lite",
+        joint_ssl_interval=0,
+        joint_rl_interval=0,
+        optimize=False,
         description=(
-            "bounded temporal-metacontroller writeback withheld; the emergent "
-            "temporal abstraction cannot adapt while Internal-RL stays matched"
+            "frozen learned-lite temporal policy, ssl_interval=rl_interval=0: "
+            "the emergent temporal abstraction cannot adapt, while the "
+            "substrate, sense schema and runtime replay stay matched"
         ),
     ),
     EcologyP2ArmSpec(
@@ -211,14 +306,53 @@ ECOLOGY_P2_ABLATION_ARM_NAMES: tuple[str, ...] = tuple(
     spec.name for spec in ECOLOGY_P2_ARM_SPECS if spec.batch == "ablation"
 )
 
+#: Checkpoint-bearing arms whose construction persists **no** policy update, so
+#: their final policy digest must equal the shared initial fork point.
+#:
+#: ``optimize=False`` is one such construction (``no_optimize``), and so is
+#: ``trains=False`` (``cold``). ``eta_off`` is a third: the spec's frozen ETA-off
+#: construction is a learned-lite policy with ``ssl_interval=rl_interval=0``
+#: **and** ``optimize=False``, so by this module's own semantics its digest must
+#: land on the initial too. Classifying it as an ablation that has to *diverge*
+#: (which the previous ``ablation_arms`` rule did) made the two gates
+#: contradict each other: ``no_optimize_policy_stable`` demanded the initial
+#: digest for ``optimize=False`` arms while ``ablation_policy_divergence``
+#: called exactly that digest ``never_trained``.
+ECOLOGY_P2_FROZEN_POLICY_ARM_NAMES: tuple[str, ...] = tuple(
+    spec.name
+    for spec in ECOLOGY_P2_ARM_SPECS
+    if spec.learning and (not spec.trains or not spec.optimize)
+)
+#: Checkpoint-bearing ablation arms that DO persist policy updates, so their
+#: lever is only demonstrably live if their digest differs from both the shared
+#: initial and the learned arm's.
+ECOLOGY_P2_DIVERGENT_POLICY_ARM_NAMES: tuple[str, ...] = tuple(
+    spec.name
+    for spec in ECOLOGY_P2_ARM_SPECS
+    if spec.learning
+    and spec.trains
+    and spec.optimize
+    and spec.name != "learned"
+)
+
 #: Every paired comparison entering multiplicity correction, pre-registered in
-#: this order. ``random`` is deliberately absent: the plan forbids substituting
-#: a random baseline for a real PE/ETA ablation.
+#: this order.
+#:
+#: ``learned`` vs ``random`` is a *floor* comparison, not an ablation: the plan
+#: forbids substituting a random baseline **for** a real PE/ETA ablation, which
+#: is why the four mechanism comparisons above it are all real levers. It does
+#: not forbid -- and P1's ``forced_escape_above_random_floor`` already requires
+#: -- showing that the learned arm exceeds the encounter floor. Without it the
+#: FORMAL stage would be strictly less rigorous than the development stage that
+#: unlocks it, and the ``random`` arm would burn full budget while entering no
+#: gate. Adding it also widens the Holm family from four to five, which
+#: tightens every other comparison.
 ECOLOGY_P2_PAIRED_COMPARISONS: tuple[tuple[str, str], ...] = (
     ("learned", "no_optimize"),
     ("learned", "cold"),
     ("learned", "pe_off"),
     ("learned", "eta_off"),
+    ("learned", "random"),
 )
 
 #: Primary endpoints in pre-registered priority order (plan section 5.5).
@@ -233,6 +367,15 @@ ECOLOGY_P2_PRIMARY_ENDPOINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("composite_foraging", ("composite",)),
     ("learned_paired_effect", ("learned_paired_effect",)),
     ("pe_eta_causal_degradation", ("pe_eta_causal_degradation",)),
+    (
+        "ablation_levers_took_effect",
+        (
+            "policy_changed",
+            "no_optimize_policy_stable",
+            "ablation_policy_divergence",
+        ),
+    ),
+    ("above_random_floor", ("above_random_floor",)),
     ("temporal_abstraction_behavior", ("temporal_non_timeout_closure",)),
     (
         "engineering_integrity",
@@ -240,6 +383,7 @@ ECOLOGY_P2_PRIMARY_ENDPOINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "frozen_evaluation",
             "replay_lineage",
             "archive_integrity",
+            "archive_corruption_rollback",
             "provenance_clean",
         ),
     ),
@@ -259,7 +403,12 @@ ECOLOGY_P2_GATE_NAMES: tuple[str, ...] = (
     "heat_exposure_bounded",
     "learned_paired_effect",
     "pe_eta_causal_degradation",
+    "above_random_floor",
+    "policy_changed",
+    "no_optimize_policy_stable",
+    "ablation_policy_divergence",
     "fixed_rule_safety_floor",
+    "fixed_rule_learning_advantage",
     "e2e_rl_baseline_present",
     "p0_action_sensitivity",
     "carrying_home_action_alignment",
@@ -268,7 +417,22 @@ ECOLOGY_P2_GATE_NAMES: tuple[str, ...] = (
     "frozen_evaluation",
     "replay_lineage",
     "archive_integrity",
+    "archive_corruption_rollback",
     "provenance_clean",
+)
+
+#: Plan section 5.5 secondary endpoints. They are diagnostics: they never enter
+#: the verdict and can never rescue a failed primary. Each one is either
+#: collected into the report or explicitly declared not-collected with the
+#: reason -- silence is not an option, and ``test_ecology_p2`` pins this tuple
+#: against the plan text.
+ECOLOGY_P2_SECONDARY_ENDPOINT_NAMES: tuple[str, ...] = (
+    "path_efficiency",
+    "first_pickup_tick",
+    "escape_latency",
+    "per_ant_variance",
+    "action_smoothness",
+    "action_probe_sensitivity",
 )
 
 #: Formal budget frozen by plan section 5.2. A run below it can still execute
@@ -283,6 +447,17 @@ ECOLOGY_P2_FORMAL_MIN_HELDOUT_LAYOUTS = 5
 ECOLOGY_P2_FORMAL_MIN_TRAINING_SEEDS = 3
 
 ECOLOGY_P2_SIGNIFICANCE_ALPHA = 0.05
+
+#: Frozen ``outcome_score`` weighting. It is the estimand every paired
+#: comparison is computed on, so it belongs *inside* the pre-registration
+#: digest: two shards built with different weights would otherwise merge
+#: silently and the aggregate would average two different statistics.
+ECOLOGY_P2_OUTCOME_SCORE_WEIGHTS: tuple[tuple[str, float], ...] = (
+    ("pickups", 0.5),
+    ("deliveries", 1.0),
+    ("heat_escapes", 0.25),
+    ("harmful_heat_ticks", -0.02),
+)
 
 
 class EcologyP2PrerequisiteError(RuntimeError):
@@ -348,12 +523,52 @@ class EcologyP2Config:
 
 @dataclass(frozen=True)
 class EcologyP2Prerequisite:
-    """The frozen P1 artifact that unlocks P2."""
+    """The frozen P1 artifact that unlocks P2.
+
+    Two identities travel together and they answer different questions.
+
+    ``report_sha256`` identifies the *file*: which P1 artifact was consumed by
+    this shard. It is necessarily per-seed, because a P1 report is a per-seed
+    artifact and ``load_p1_prerequisite`` binds each shard to the report of its
+    own training seed.
+
+    ``configuration_digest`` identifies the *run*: the P1 schema, the frozen
+    gate set and every configured budget **except** the training seed. Plan
+    section 5.4's "any code or threshold change invalidates the whole batch" is
+    a statement about the configuration, not about the file -- a formal matrix
+    has one P1 report per training seed by construction, so pinning the file
+    across shards would make PASS unreachable. The aggregate therefore records
+    each seed's file digest individually and pins this one across all of them.
+    """
 
     report_path: str
     report_sha256: str
     schema_version: str
     verdict: str
+    #: The training seed the P1 run was executed on, read from the report's own
+    #: config. A shard binds its ``--training-seed`` to this, so "the newest P1
+    #: report on disk" can never unlock a different seed's P2 budget.
+    training_seed: int = -1
+    #: See the class docstring. Empty only on a hand-built fixture; the
+    #: aggregate's ``p1_prerequisite_pass`` gate refuses an empty value, so an
+    #: unidentified P1 configuration cannot reach a confirmatory verdict.
+    configuration_digest: str = ""
+
+
+@dataclass(frozen=True)
+class EcologyP2SourceProvenance:
+    """The tree a shard's numbers were produced from.
+
+    Plan section 5.4: *any code or threshold change invalidates the whole
+    batch*. The pre-registration digest covers the declared configuration; this
+    covers the source the declaration was executed by. Both are needed -- a
+    digest match across two different commits is exactly the silent merge the
+    rule forbids.
+    """
+
+    git_sha: str
+    git_branch: str
+    worktree_dirty: bool
 
 
 @dataclass(frozen=True)
@@ -381,6 +596,27 @@ class EcologyP2LayoutResult:
     replay_settlement_coverage: float
     replay_lineage_coverage: float
     replay_drop_count: int
+    # --- plan section 5.5 secondary endpoints (diagnostics only) -----------
+    #: First tick any body picked food up on this layout; ``None`` = never.
+    first_pickup_tick: int | None = None
+    #: Action smoothness. ``None`` on the non-kernel baseline arms, whose
+    #: controllers publish no per-tick turn-delta record.
+    mean_absolute_turn_delta: float | None = None
+    #: Raw path length. ``None`` on the non-kernel baseline arms.
+    applied_distance: float | None = None
+    #: Per-body capability outcome, so per-ant variance is recoverable instead
+    #: of being hidden behind the colony aggregate.
+    per_body_success: tuple[bool, ...] = ()
+
+
+@dataclass(frozen=True)
+class EcologyP2SecondaryEndpoint:
+    """One plan section 5.5 diagnostic; never part of the verdict."""
+
+    name: str
+    collected: bool
+    observed: str
+    note: str
 
 
 @dataclass(frozen=True)
@@ -411,8 +647,16 @@ class EcologyP2ShardReport:
     completed_training_episodes: int
     scheduled_training_episodes: int
     policy_digest: str
+    #: Digest of the shared initial checkpoint this arm forked from. Compared
+    #: across arms so ``policy_changed`` / ``no_optimize_policy_stable`` can be
+    #: evaluated without trusting a second, unrelated fork point.
+    initial_policy_digest: str
     archive_roundtrip_ok: bool | None
+    #: A byte-corrupted archive and a compatibility-mismatched archive must
+    #: both be *refused* by the decoder. ``None`` = arm holds no archive.
+    archive_corruption_rejected: bool | None
     archive_size_bytes: int | None
+    source_provenance: EcologyP2SourceProvenance
     wall_clock_seconds: float
     layout_results: tuple[EcologyP2LayoutResult, ...]
     probe_summary: EcologyP2ProbeSummary | None
@@ -435,6 +679,16 @@ class EcologyP2PairedEffect:
     p_value: float
     holm_adjusted_p_value: float
     significant: bool
+    #: ``False`` when at least one pre-registered ``(seed, capability, layout)``
+    #: cell was absent from the matrix. An incomplete comparison is **not**
+    #: computed over the cells that happen to survive -- that would silently
+    #: redefine the estimand -- so its statistics are reported as the null and
+    #: ``significant`` is forced ``False``.
+    complete: bool = True
+    #: The absent cells, named. Plan section 2.3 requires an artifact even on
+    #: failure, and a diagnostic BLOCK is only useful if it says what is
+    #: missing.
+    missing_cells: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -467,14 +721,27 @@ class EcologyP2Report:
     schema_version: str
     config: EcologyP2Config
     preregistration_digest: str
+    #: Representative prerequisite (the first shard's). Kept for continuity;
+    #: ``p1_prerequisites`` is the authoritative record.
     prerequisite: EcologyP2Prerequisite
+    #: One entry per distinct P1 artifact consumed by the matrix, sorted by
+    #: training seed. A formal matrix has one per training seed by
+    #: construction, so their ``report_sha256`` values differ and their
+    #: ``configuration_digest`` values must not.
+    p1_prerequisites: tuple[EcologyP2Prerequisite, ...]
     device: str
     training_seeds: tuple[int, ...]
+    #: The frozen held-out layout namespace this verdict was scored on (plan
+    #: section 2.1). Recorded here so a promotion bundle can carry it forward
+    #: instead of losing the 30 held-out seeds at the promotion boundary.
+    heldout_layout_seeds: tuple[int, ...]
     arms: tuple[str, ...]
     shard_digests: tuple[tuple[str, str], ...]
     capability_results: tuple[EcologyP2CapabilityResult, ...]
     paired_effects: tuple[EcologyP2PairedEffect, ...]
     primary_endpoints: tuple[EcologyP2PrimaryEndpoint, ...]
+    secondary_endpoints: tuple[EcologyP2SecondaryEndpoint, ...]
+    source_git_sha: str
     gates: tuple[EcologyP2Gate, ...]
     verdict: str
     diagnostic_breakpoints: tuple[str, ...]
@@ -510,16 +777,68 @@ class EcologyP2PreflightReport:
 # ---------------------------------------------------------------------------
 
 
+def _p1_budget_failures(raw_config: dict[str, Any]) -> tuple[str, ...]:
+    """Re-derive the frozen P1 budget verdict from the report's config block.
+
+    The predicate is the P1 owner's own
+    (:func:`ecology_p1.ecology_p1_formal_budget_failures`), called on the
+    mapping the report already carries: P2 re-checks the verdict without
+    becoming a second owner of a single P1 threshold. A config block that
+    cannot be read is not a config whose budget can be trusted, so the owner's
+    ``ValueError`` is re-raised as the serial-constraint failure it is.
+    """
+
+    try:
+        return ecology_p1_formal_budget_failures(raw_config)
+    except (TypeError, ValueError) as exc:
+        raise EcologyP2PrerequisiteError(
+            "P1 report config block cannot be re-derived into the frozen "
+            f"budget: {exc}. The formal budget must be recomputed from the "
+            "configuration, not read off the report's own "
+            "'formal_configuration' boolean"
+        ) from exc
+
+
+def _p1_configuration_digest(
+    *,
+    schema_version: str,
+    gate_names: tuple[str, ...],
+    raw_config: dict[str, Any],
+) -> str:
+    """Identity of the P1 *run configuration*, seed excluded.
+
+    Every shard of a formal matrix must have been unlocked by a P1 run of the
+    same frozen configuration and code. The training seed is the one field that
+    is *required* to differ across the matrix, so it is the one field left out.
+    """
+
+    payload = {
+        "schema_version": schema_version,
+        "gate_names": list(gate_names),
+        "config": {
+            str(key): value
+            for key, value in raw_config.items()
+            if key != "seed"
+        },
+    }
+    return _sha256(_stable_json_bytes(payload))
+
+
 def load_p1_prerequisite(
     report_path: Path,
     *,
     repo_root: Path | None = None,
+    expected_training_seed: int | None = None,
 ) -> EcologyP2Prerequisite:
     """Return the P1 artifact that unlocks P2, or fail loudly.
 
     The serial constraint is a hard contract, not documentation: a P1 report
     with drifted schema, an incomplete gate set, an unpassed gate or a
     non-``PASS`` verdict cannot unlock P2 budget.
+
+    ``expected_training_seed`` binds the report to the shard that is about to
+    consume it. P1 reports are per-seed artifacts, so accepting any of them for
+    any shard would let one seed's PASS unlock every other seed's budget.
     """
 
     resolved = (
@@ -569,11 +888,44 @@ def load_p1_prerequisite(
         raise EcologyP2PrerequisiteError(
             f"P1 verdict is {verdict}; P2 must not start"
         )
+    raw_config = payload.get("config")
+    if not isinstance(raw_config, dict) or "seed" not in raw_config:
+        raise EcologyP2PrerequisiteError(
+            "P1 report carries no config.seed, so the shard it unlocks cannot "
+            f"be bound to a training seed: {resolved}"
+        )
+    training_seed = int(raw_config["seed"])
+    if expected_training_seed is not None and training_seed != expected_training_seed:
+        raise EcologyP2PrerequisiteError(
+            "P1 report belongs to a different training seed: "
+            f"report_seed={training_seed}, shard_seed={expected_training_seed} "
+            f"({resolved}). Each P2 shard must be unlocked by the P1 run of "
+            "its own seed."
+        )
+    # Re-derive the formal budget from the configuration the report carries,
+    # instead of trusting its own ``formal_configuration`` gate boolean. The
+    # gate above already refuses an unpassed gate; this refuses a report whose
+    # boolean says PASS while its recorded configuration is below the frozen
+    # P1 budget -- the two can only disagree if the artifact was edited or the
+    # threshold moved after the run.
+    budget_failures = _p1_budget_failures(raw_config)
+    if budget_failures:
+        raise EcologyP2PrerequisiteError(
+            "P1 report claims formal_configuration passed, but its own config "
+            f"block is below the frozen P1 budget: {list(budget_failures)} "
+            f"({resolved}). P2 must not start."
+        )
     return EcologyP2Prerequisite(
         report_path=str(report_path),
         report_sha256=_sha256(raw),
         schema_version=schema_version,
         verdict=verdict,
+        training_seed=training_seed,
+        configuration_digest=_p1_configuration_digest(
+            schema_version=schema_version,
+            gate_names=gate_names,
+            raw_config=raw_config,
+        ),
     )
 
 
@@ -620,6 +972,65 @@ def p2_training_schedule(
     )
 
 
+#: Every function whose body defines what a P2 number *means*: the scoring
+#: weighting, how a layout row is derived from an arm's metrics, which world a
+#: baseline arm is evaluated in, what curriculum a shard trains under, how a
+#: baseline layout is run, the two-level bootstrap, the multiplicity correction
+#: and the whole gate/verdict body. Plan section 5.4 makes any change to these
+#: fatal to an in-flight batch.
+#:
+#: This tuple is the *coverage claim*, not the hashing unit. Hashing exactly
+#: these functions left a transitive hole: ``_run_baseline_layout`` calls
+#: ``_scenario_stage`` and every lane calls ``_curriculum_config``, so the two
+#: functions that decide which world a baseline arm is scored in and what
+#: curriculum every shard trains under could be rewritten under a byte-identical
+#: digest, and pre-change and post-change shards would merge silently. The
+#: hashing unit is therefore the whole module (see
+#: :func:`_frozen_logic_source`) -- coarser than necessary, but complete, and a
+#: coarse-but-complete freeze is the only honest reading of section 5.4's "任何
+#: 代码或门槛变化都会使整批失效". ``test_ecology_p2`` pins that every name below
+#: is genuinely inside the hashed text.
+_ECOLOGY_P2_FROZEN_LOGIC = (
+    "outcome_score",
+    "_layout_result_from_metrics",
+    "_scenario_stage",
+    "_curriculum_config",
+    "_run_baseline_layout",
+    "_paired_differences",
+    "_hierarchical_paired_bootstrap",
+    "_holm_adjusted",
+    "_required_bodies",
+    "_required_layouts",
+    "_formal_configuration_failures",
+    "aggregate_ecology_p2_shards",
+)
+
+
+def _frozen_logic_source() -> str:
+    """The exact text hashed into the pre-registration digest.
+
+    Deliberately the entire module, transitive helpers included. A per-function
+    allow-list cannot be complete without walking the call graph, and a call
+    graph walk that stops at the module boundary is itself incomplete; the
+    remaining cross-module surface (the curriculum owner and the world) is
+    pinned by ``schedule_sha256``, the declared capability list and the
+    per-shard ``source_provenance.git_sha`` that ``provenance_clean`` enforces.
+    """
+
+    return inspect.getsource(sys.modules[__name__])
+
+
+@lru_cache(maxsize=1)
+def _frozen_logic_digest() -> str:
+    """SHA-256 over :func:`_frozen_logic_source`.
+
+    Cached: the source cannot change inside a process, and
+    :func:`preregistration_digest` is called on every journal commit.
+    """
+
+    return _sha256(_frozen_logic_source().encode("utf-8"))
+
+
 def preregistration_digest(config: EcologyP2Config) -> str:
     """Freeze config, arms, endpoints, gates, layouts and schedules into one id."""
 
@@ -634,6 +1045,7 @@ def preregistration_digest(config: EcologyP2Config) -> str:
             [name, list(gates)]
             for name, gates in ECOLOGY_P2_PRIMARY_ENDPOINTS
         ],
+        "secondary_endpoints": list(ECOLOGY_P2_SECONDARY_ENDPOINT_NAMES),
         "gates": list(ECOLOGY_P2_GATE_NAMES),
         "capabilities": [
             [capability, scenario.value, tier.value]
@@ -646,6 +1058,12 @@ def preregistration_digest(config: EcologyP2Config) -> str:
         ],
         "significance_alpha": ECOLOGY_P2_SIGNIFICANCE_ALPHA,
         "memory_entry_capacity": ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY,
+        # The estimand and the code that computes it, not just the declared
+        # configuration (plan section 5.4).
+        "outcome_score_weights": [
+            list(item) for item in ECOLOGY_P2_OUTCOME_SCORE_WEIGHTS
+        ],
+        "frozen_logic_sha256": _frozen_logic_digest(),
     }
     return _sha256(_stable_json_bytes(payload))
 
@@ -704,15 +1122,52 @@ def outcome_score(
     Identical to the curriculum owner's ``_ecology_outcome_score`` weighting;
     ``test_ecology_p2`` pins the two together so the formal statistic cannot
     drift away from the curriculum definition. Neutral wood-stick contacts are
-    diagnostics and are never scored.
+    diagnostics and are never scored. The weights live in
+    :data:`ECOLOGY_P2_OUTCOME_SCORE_WEIGHTS` so the pre-registration digest
+    binds them.
     """
 
-    return (
-        pickups * 0.5
-        + deliveries
-        + heat_escapes * 0.25
-        - harmful_heat_ticks * 0.02
+    counts = {
+        "pickups": pickups,
+        "deliveries": deliveries,
+        "heat_escapes": heat_escapes,
+        "harmful_heat_ticks": harmful_heat_ticks,
+    }
+    return sum(
+        counts[name] * weight
+        for name, weight in ECOLOGY_P2_OUTCOME_SCORE_WEIGHTS
     )
+
+
+def unreachable_arm_levers(spec: EcologyP2ArmSpec) -> tuple[str, ...]:
+    """Levers ``spec`` needs that the curriculum session builder cannot express.
+
+    The ETA-off construction the spec freezes needs a ``JointLoopSchedule`` and
+    a ``LearnedLiteTemporalPolicy``. Both are ``vz-temporal`` internals, which
+    ``docs/specs/digital-ant-embodiment.md`` section 2 forbids this package
+    from importing (enforced by ``test_import_boundaries.py``), and
+    ``AntSessionConfig`` takes them only as opaque ``object`` passthroughs. The
+    hop therefore has to be opened by the curriculum owner
+    (``ecology_curriculum._session_config`` / ``_train_arm`` / ``_evaluate_arm``)
+    or by a vz-runtime facade factory.
+
+    Signature probing rather than a version assertion, so the guard releases
+    itself the moment the hop lands.
+    """
+
+    required = tuple(
+        name
+        for name in ECOLOGY_P2_ARM_LEVER_PARAMETERS
+        if getattr(spec, name) != _ECOLOGY_P2_ARM_LEVER_DEFAULTS[name]
+    )
+    if not required:
+        return ()
+    accepted = frozenset(
+        name
+        for builder in (_session_config, _train_arm, _evaluate_arm)
+        for name in inspect.signature(builder).parameters
+    )
+    return tuple(name for name in required if name not in accepted)
 
 
 def _required_bodies(config: EcologyP2Config) -> int:
@@ -757,11 +1212,14 @@ def _layout_result_from_metrics(
 ) -> EcologyP2LayoutResult:
     required = _required_bodies(config)
     if capability == "forced_escape":
-        successful = sum(item.heat_escapes > 0 for item in metrics.body_lineage)
+        per_body_success = tuple(
+            item.heat_escapes > 0 for item in metrics.body_lineage
+        )
     else:
-        successful = sum(
+        per_body_success = tuple(
             item.picked_up and item.delivered for item in metrics.body_lineage
         )
+    successful = sum(per_body_success)
     total_ticks = sum(item.total_ticks for item in metrics.body_lineage)
     harmful_ticks = sum(
         item.harmful_heat_ticks for item in metrics.body_lineage
@@ -807,6 +1265,10 @@ def _layout_result_from_metrics(
         replay_settlement_coverage=metrics.replay_settlement_coverage,
         replay_lineage_coverage=metrics.replay_lineage_coverage,
         replay_drop_count=metrics.replay_drop_count,
+        first_pickup_tick=metrics.first_pickup_tick,
+        mean_absolute_turn_delta=metrics.mean_absolute_turn_delta,
+        applied_distance=metrics.applied_distance,
+        per_body_success=per_body_success,
     )
 
 
@@ -843,6 +1305,24 @@ def _layout_result_from_dict(payload: dict[str, Any]) -> EcologyP2LayoutResult:
         ),
         replay_lineage_coverage=float(payload["replay_lineage_coverage"]),
         replay_drop_count=int(payload["replay_drop_count"]),
+        first_pickup_tick=(
+            None
+            if payload["first_pickup_tick"] is None
+            else int(payload["first_pickup_tick"])
+        ),
+        mean_absolute_turn_delta=(
+            None
+            if payload["mean_absolute_turn_delta"] is None
+            else float(payload["mean_absolute_turn_delta"])
+        ),
+        applied_distance=(
+            None
+            if payload["applied_distance"] is None
+            else float(payload["applied_distance"])
+        ),
+        per_body_success=tuple(
+            bool(value) for value in payload["per_body_success"]
+        ),
     )
 
 
@@ -976,10 +1456,13 @@ def _run_baseline_layout(
     escape_latencies: list[int] = []
     harmful_ticks = 0
     heat_escape_events = 0
+    first_pickup_tick: int | None = None
     for round_index in range(config.heldout_rounds):
         for body_id in range(config.n_ants):
             step(body_id)
             transition = world.last_transition(body_id)
+            if transition.picked_up and first_pickup_tick is None:
+                first_pickup_tick = round_index + 1
             picked[body_id] = picked[body_id] or transition.picked_up
             delivered[body_id] = delivered[body_id] or transition.delivered
             heat_escape_events += int(transition.escaped_harmful_heat)
@@ -991,14 +1474,15 @@ def _run_baseline_layout(
                 escape_latencies.append(round_index + 1)
             harmful_ticks += int(transition.heat_harmful_after)
     required = _required_bodies(config)
-    successful = (
-        sum(escaped)
+    per_body_success = (
+        tuple(escaped)
         if capability == "forced_escape"
-        else sum(
+        else tuple(
             did_pickup and did_deliver
             for did_pickup, did_deliver in zip(picked, delivered, strict=True)
         )
     )
+    successful = sum(per_body_success)
     total_ticks = config.heldout_rounds * config.n_ants
     harmful_rate = harmful_ticks / total_ticks if total_ticks else 0.0
     safe = capability not in {"heat_route_foraging", "composite"} or (
@@ -1036,6 +1520,13 @@ def _run_baseline_layout(
         replay_settlement_coverage=1.0,
         replay_lineage_coverage=1.0,
         replay_drop_count=0,
+        first_pickup_tick=first_pickup_tick,
+        # FixedRule / random / E2E-RL controllers publish no per-tick
+        # turn-delta or path-integral record, so the two motion diagnostics are
+        # explicitly absent rather than zero-filled.
+        mean_absolute_turn_delta=None,
+        applied_distance=None,
+        per_body_success=per_body_success,
     )
 
 
@@ -1231,7 +1722,6 @@ def _save_shard_state(
 
 def _hydrate_shard_checkpoints(
     *,
-    config: EcologyP2Config,
     curriculum: EcologyCurriculumConfig,
     archives: tuple[bytes, ...],
     training_seed: int,
@@ -1339,11 +1829,51 @@ async def _probe_summary(
     )
 
 
+def _corruption_rollback_ok(
+    *,
+    archive: bytes,
+    expected: tuple[tuple[str, str], ...],
+) -> bool:
+    """A corrupted or mis-declared archive must be refused, not decoded.
+
+    Plan section 5.7 requires ``corruption rollback`` and ``schema
+    compatibility`` alongside the archive round trip. Both are probed on the
+    shard's own bytes: a single flipped byte, and an otherwise-valid archive
+    presented under a different compatibility declaration.
+    """
+
+    if not archive:
+        raise ValueError("corruption probe needs a non-empty archive")
+    corrupted = bytearray(archive)
+    corrupted[len(corrupted) // 2] ^= 0xFF
+    try:
+        decode_agent_learning_checkpoint_archive(
+            bytes(corrupted),
+            expected_compatibility=expected,
+        )
+    except (ValueError, KeyError):
+        byte_corruption_refused = True
+    else:
+        byte_corruption_refused = False
+    mismatched = (*expected, ("corruption_probe", "unexpected"))
+    try:
+        decode_agent_learning_checkpoint_archive(
+            archive,
+            expected_compatibility=mismatched,
+        )
+    except (ValueError, KeyError):
+        compatibility_mismatch_refused = True
+    else:
+        compatibility_mismatch_refused = False
+    return byte_corruption_refused and compatibility_mismatch_refused
+
+
 async def run_ecology_p2_shard(
     config: EcologyP2Config,
     *,
     training_seed: int,
     arm: str,
+    source_provenance: EcologyP2SourceProvenance,
     p1_report_path: Path | None = None,
     prerequisite: EcologyP2Prerequisite | None = None,
     repo_root: Path | None = None,
@@ -1367,6 +1897,27 @@ async def run_ecology_p2_shard(
     spec = ECOLOGY_P2_ARM_SPEC_BY_NAME.get(arm)
     if spec is None:
         raise ValueError(f"unknown P2 arm: {arm}")
+    unreachable = unreachable_arm_levers(spec)
+    if unreachable:
+        raise EcologyP2ArmLeverUnavailableError(
+            f"P2 arm {arm!r} declares levers the curriculum session contract "
+            f"cannot express: {list(unreachable)}. The frozen construction is "
+            f"temporal_policy_kind={spec.temporal_policy_kind!r}, "
+            f"ssl_interval={spec.joint_ssl_interval!r}, "
+            f"rl_interval={spec.joint_rl_interval!r}; it needs "
+            "ecology_curriculum._session_config / _train_arm / _evaluate_arm "
+            "to accept and forward them (AntSessionConfig already carries "
+            "opaque joint_schedule / temporal_policy passthroughs, but "
+            "JointLoopSchedule and LearnedLiteTemporalPolicy are vz-temporal "
+            "internals this package may not import). Running the arm without "
+            "them would label a different construction with this arm's name."
+        )
+    if not source_provenance.git_sha:
+        raise ValueError(
+            "P2 shard requires a source git SHA; plan section 5.4 makes any "
+            "code change fatal to the batch, which cannot be checked from an "
+            "unidentified tree"
+        )
     if max_new_work_items is not None and max_new_work_items < 1:
         raise ValueError("max_new_work_items must be positive")
     if max_new_work_items is not None and progress_dir is None:
@@ -1382,6 +1933,7 @@ async def run_ecology_p2_shard(
         prerequisite = load_p1_prerequisite(
             p1_report_path,
             repo_root=repo_root,
+            expected_training_seed=training_seed,
         )
     if prerequisite.verdict != "PASS":
         raise EcologyP2PrerequisiteError(
@@ -1424,7 +1976,9 @@ async def run_ecology_p2_shard(
     completed_work_items = 0
     layout_results: list[EcologyP2LayoutResult] = []
     policy_digest = ""
+    initial_policy_digest = ""
     archive_roundtrip_ok: bool | None = None
+    archive_corruption_rejected: bool | None = None
     archive_size: int | None = None
     probe_summary: EcologyP2ProbeSummary | None = None
     completed_episodes = 0
@@ -1435,6 +1989,9 @@ async def run_ecology_p2_shard(
         initial = _shared_initial_checkpoints(
             curriculum=curriculum,
             training_seed=training_seed,
+        )
+        initial_policy_digest = _sha256(
+            _stable_json_bytes([item.policy_fingerprint for item in initial])
         )
         checkpoints = initial
         if state is not None:
@@ -1451,7 +2008,6 @@ async def run_ecology_p2_shard(
                 )
             if state.get("checkpoint_archive"):
                 checkpoints = _hydrate_shard_checkpoints(
-                    config=config,
                     curriculum=curriculum,
                     archives=_read_shard_archive(
                         shard_dir=shard_dir,
@@ -1546,7 +2102,6 @@ async def run_ecology_p2_shard(
             archive_roundtrip_ok = tuple(
                 item.policy_fingerprint
                 for item in _hydrate_shard_checkpoints(
-                    config=config,
                     curriculum=curriculum,
                     archives=_read_shard_archive(
                         shard_dir=shard_dir,
@@ -1557,6 +2112,12 @@ async def run_ecology_p2_shard(
                     arm=arm,
                 )
             ) == tuple(item.policy_fingerprint for item in checkpoints)
+            archive_corruption_rejected = _corruption_rollback_ok(
+                archive=(
+                    shard_dir / str(state["checkpoint_archive"])
+                ).read_bytes(),
+                expected=_progress_compatibility(config),
+            )
         if arm == "learned":
             probe_summary = await _probe_summary(
                 config=config,
@@ -1710,8 +2271,11 @@ async def run_ecology_p2_shard(
         completed_training_episodes=completed_episodes,
         scheduled_training_episodes=scheduled_episodes,
         policy_digest=policy_digest,
+        initial_policy_digest=initial_policy_digest,
         archive_roundtrip_ok=archive_roundtrip_ok,
+        archive_corruption_rejected=archive_corruption_rejected,
         archive_size_bytes=archive_size,
+        source_provenance=source_provenance,
         wall_clock_seconds=time.monotonic() - started,
         layout_results=ordered,
         probe_summary=probe_summary,
@@ -1797,8 +2361,20 @@ def _paired_differences(
     control: str,
     capabilities: tuple[str, ...],
     layout_seeds: dict[str, tuple[int, ...]],
-) -> tuple[tuple[float, ...], ...]:
+) -> tuple[tuple[tuple[float, ...], ...], tuple[str, ...]]:
+    """Per-seed paired outcome differences, plus the cells that were absent.
+
+    A missing cell is **reported, not raised**. Raising aborted the whole
+    aggregation, so a matrix with one unrunnable arm produced no artifact at
+    all -- which plan section 2.3 forbids ("任何异常退出都保留 partial log,
+    并标记 incomplete"): a formal batch that cannot complete must still leave a
+    diagnostic ``BLOCK`` on disk naming what is missing. The caller refuses to
+    compute a statistic for an incomplete comparison, so nothing is imputed in
+    a favourable direction (section 5.6).
+    """
+
     per_seed: list[tuple[float, ...]] = []
+    missing: list[str] = []
     for training_seed in training_seeds:
         differences: list[float] = []
         for capability in capabilities:
@@ -1810,16 +2386,21 @@ def _paired_differences(
                     (control, training_seed, capability, layout_seed)
                 )
                 if treatment_row is None or control_row is None:
-                    raise ValueError(
-                        "P2 paired comparison is missing a matched layout: "
-                        f"{treatment}/{control} seed={training_seed} "
-                        f"capability={capability} layout={layout_seed}"
+                    absent = tuple(
+                        arm
+                        for arm, row in ((treatment, treatment_row), (control, control_row))
+                        if row is None
                     )
+                    missing.append(
+                        f"{'+'.join(absent)}@{training_seed}:"
+                        f"{capability}:{layout_seed}"
+                    )
+                    continue
                 differences.append(
                     treatment_row.outcome_score - control_row.outcome_score
                 )
         per_seed.append(tuple(differences))
-    return tuple(per_seed)
+    return tuple(per_seed), tuple(missing)
 
 
 # ---------------------------------------------------------------------------
@@ -1832,6 +2413,132 @@ def _gate(
 ) -> EcologyP2Gate:
     return EcologyP2Gate(
         name=name, passed=passed, observed=observed, threshold=threshold
+    )
+
+
+def _mean_or_none(values: list[float]) -> float | None:
+    return float(np.mean(values)) if values else None
+
+
+def _secondary_endpoints(
+    *,
+    rows: dict[tuple[str, int, str, int], EcologyP2LayoutResult],
+    probe_summaries: tuple[EcologyP2ProbeSummary, ...],
+) -> tuple[EcologyP2SecondaryEndpoint, ...]:
+    """Plan section 5.5 diagnostics, in the pre-registered order.
+
+    These never enter the verdict -- the all-or-nothing primary gate already
+    forbids a secondary readout from rescuing a failed primary. What they may
+    not do is go missing: an endpoint the plan names is either reported with a
+    number or declared not-collected with the reason.
+    """
+
+    learned = tuple(row for key, row in rows.items() if key[0] == "learned")
+    first_pickups = [
+        float(row.first_pickup_tick)
+        for row in learned
+        if row.first_pickup_tick is not None
+    ]
+    latencies = [
+        float(value) for row in learned for value in row.escape_latencies
+    ]
+    smoothness = [
+        row.mean_absolute_turn_delta
+        for row in learned
+        if row.mean_absolute_turn_delta is not None
+    ]
+    distances = [
+        row.applied_distance
+        for row in learned
+        if row.applied_distance is not None
+    ]
+    per_ant_variances = [
+        float(np.var([float(value) for value in row.per_body_success]))
+        for row in learned
+        if row.per_body_success
+    ]
+    probe_ratio = [
+        item.food_aligned_bodies / item.food_probe_count
+        for item in probe_summaries
+        if item.food_probe_count
+    ]
+
+    def _fmt(value: float | None) -> str:
+        return "unavailable" if value is None else f"{value:.4f}"
+
+    return (
+        EcologyP2SecondaryEndpoint(
+            name="path_efficiency",
+            collected=False,
+            observed=(
+                "raw learned path length mean="
+                f"{_fmt(_mean_or_none(distances))} over {len(distances)} rows"
+            ),
+            note=(
+                "NOT COLLECTED as a ratio: the world owner publishes no "
+                "per-layout optimal path length, and inventing a denominator "
+                "here would make the embodiment a second owner of layout "
+                "geometry. The raw applied distance is reported instead; the "
+                "ratio needs an oracle path published by the AntWorld owner."
+            ),
+        ),
+        EcologyP2SecondaryEndpoint(
+            name="first_pickup_tick",
+            collected=True,
+            observed=(
+                f"learned mean={_fmt(_mean_or_none(first_pickups))} over "
+                f"{len(first_pickups)}/{len(learned)} layouts with a pickup"
+            ),
+            note="per-layout first pickup tick; None when no body ever picked up",
+        ),
+        EcologyP2SecondaryEndpoint(
+            name="escape_latency",
+            collected=True,
+            observed=(
+                f"learned mean={_fmt(_mean_or_none(latencies))} over "
+                f"{len(latencies)} escape events"
+            ),
+            note="per-body harmful-heat escape latencies",
+        ),
+        EcologyP2SecondaryEndpoint(
+            name="per_ant_variance",
+            collected=True,
+            observed=(
+                "learned mean per-layout variance of per-body success="
+                f"{_fmt(_mean_or_none(per_ant_variances))} over "
+                f"{len(per_ant_variances)} layouts"
+            ),
+            note=(
+                "per-body outcome is journalled per layout, so pseudo-"
+                "replication across ants stays visible"
+            ),
+        ),
+        EcologyP2SecondaryEndpoint(
+            name="action_smoothness",
+            collected=bool(smoothness),
+            observed=(
+                f"learned mean |turn delta|={_fmt(_mean_or_none(smoothness))} "
+                f"over {len(smoothness)} kernel layouts"
+            ),
+            note=(
+                "collected on checkpoint-bearing arms only; FixedRule / "
+                "random / E2E-RL publish no per-tick turn-delta record and "
+                "report None rather than a zero fill"
+            ),
+        ),
+        EcologyP2SecondaryEndpoint(
+            name="action_probe_sensitivity",
+            collected=bool(probe_ratio),
+            observed=(
+                "learned food-probe aligned fraction="
+                f"{_fmt(_mean_or_none(probe_ratio))} over "
+                f"{len(probe_ratio)} training seeds"
+            ),
+            note=(
+                "the same probe distribution the food_steering_alignment hard "
+                "gate reads; reported here as a graded diagnostic"
+            ),
+        ),
     )
 
 
@@ -1897,34 +2604,109 @@ def aggregate_ecology_p2_shards(
         )
     )
 
-    prerequisites = {item.prerequisite.report_sha256 for item in shards}
+    # --- P1 identity: same frozen configuration, one report per seed --------
+    # A P1 report is a per-seed artifact and every shard is bound to the report
+    # of its OWN training seed, so their file digests necessarily differ. What
+    # the plan actually freezes (section 5.4) is the configuration and the code,
+    # so that is what is pinned across seeds; the file digests are recorded
+    # individually instead of being collapsed into one.
     prerequisite = shards[0].prerequisite
-    p1_ok = len(prerequisites) == 1 and all(
-        item.prerequisite.verdict == "PASS"
-        and item.prerequisite.schema_version == ECOLOGY_P1_SCHEMA_VERSION
+    p1_by_seed: dict[int, set[str]] = {}
+    for item in shards:
+        p1_by_seed.setdefault(item.training_seed, set()).add(
+            item.prerequisite.report_sha256
+        )
+    p1_prerequisites = tuple(
+        sorted(
+            {
+                (
+                    item.prerequisite.training_seed,
+                    item.prerequisite.report_sha256,
+                ): item.prerequisite
+                for item in shards
+            }.values(),
+            key=lambda item: (item.training_seed, item.report_sha256),
+        )
+    )
+    configuration_digests = {
+        item.prerequisite.configuration_digest for item in shards
+    }
+    unidentified_p1 = tuple(
+        f"{item.arm}@{item.training_seed}"
         for item in shards
+        if not item.prerequisite.configuration_digest
+    )
+    unbound_p1 = tuple(
+        f"{item.arm}@{item.training_seed}"
+        f":p1_seed={item.prerequisite.training_seed}"
+        for item in shards
+        if item.prerequisite.training_seed != item.training_seed
+    )
+    split_p1 = tuple(
+        f"seed{training_seed}:{len(digests)}_reports"
+        for training_seed, digests in sorted(p1_by_seed.items())
+        if len(digests) != 1
+    )
+    p1_ok = (
+        len(configuration_digests) == 1
+        and not unidentified_p1
+        and not unbound_p1
+        and not split_p1
+        and all(
+            item.prerequisite.verdict == "PASS"
+            and item.prerequisite.schema_version == ECOLOGY_P1_SCHEMA_VERSION
+            for item in shards
+        )
     )
     gates.append(
         _gate(
             "p1_prerequisite_pass",
             passed=p1_ok,
             observed=(
-                f"distinct_p1_reports={len(prerequisites)}, "
-                f"verdict={prerequisite.verdict}"
+                f"p1_configuration_digests={len(configuration_digests)}, "
+                f"p1_reports={len(p1_prerequisites)}, "
+                f"verdict={prerequisite.verdict}, "
+                f"unidentified={list(unidentified_p1)}, "
+                f"seed_mismatch={list(unbound_p1)}, "
+                f"split_seeds={list(split_p1)}"
             ),
             threshold=(
-                "every shard references one identical P1 report with "
-                "verdict=PASS"
+                "every shard is unlocked by a PASS P1 run of the identical "
+                "frozen configuration (one configuration digest across the "
+                "matrix), by the report of its own training seed, and each "
+                "training seed references exactly one P1 report"
             ),
         )
     )
 
     present = {(item.training_seed, item.arm) for item in shards}
+
+    def _missing_cell(training_seed: int, arm: str) -> str:
+        # An arm that cannot be executed as pre-registered is a different
+        # diagnosis from an arm someone forgot to run, and the artifact has to
+        # say which one it is.
+        levers = unreachable_arm_levers(ECOLOGY_P2_ARM_SPEC_BY_NAME[arm])
+        if levers:
+            return (
+                f"{arm}@{training_seed}:unexecutable"
+                f"(levers={'+'.join(levers)})"
+            )
+        return f"{arm}@{training_seed}"
+
     missing = tuple(
-        f"{arm}@{training_seed}"
+        _missing_cell(training_seed, arm)
         for training_seed in resolved.training_seeds
         for arm in expected_arms
         if (training_seed, arm) not in present
+    )
+    unexecutable_arms = tuple(
+        arm
+        for arm in expected_arms
+        if unreachable_arm_levers(ECOLOGY_P2_ARM_SPEC_BY_NAME[arm])
+        and any(
+            (training_seed, arm) not in present
+            for training_seed in resolved.training_seeds
+        )
     )
     incomplete = tuple(
         f"{item.arm}@{item.training_seed}"
@@ -1938,12 +2720,16 @@ def aggregate_ecology_p2_shards(
             passed=not missing and not incomplete and not duplicates,
             observed=(
                 f"shards={len(shards)}, missing={list(missing)}, "
+                f"unexecutable_arms={list(unexecutable_arms)}, "
                 f"incomplete_or_preflight={list(incomplete)}, "
                 f"duplicates={duplicates}"
             ),
             threshold=(
                 "every (training_seed, arm) cell present exactly once, "
-                "complete and non-preflight"
+                "complete and non-preflight. An 'unexecutable' cell is an arm "
+                "whose pre-registered levers the curriculum session builder "
+                "cannot express yet (see unreachable_arm_levers); it blocks "
+                "the matrix rather than being dropped or substituted"
             ),
         )
     )
@@ -2065,7 +2851,7 @@ def aggregate_ecology_p2_shards(
         )
     )
 
-    paired_inputs = tuple(
+    paired_pairs = tuple(
         _paired_differences(
             rows=rows,
             training_seeds=resolved.training_seeds,
@@ -2076,12 +2862,28 @@ def aggregate_ecology_p2_shards(
         )
         for treatment, control in ECOLOGY_P2_PAIRED_COMPARISONS
     )
+    paired_inputs = tuple(item[0] for item in paired_pairs)
+    paired_missing = tuple(item[1] for item in paired_pairs)
+    # A comparison is computable only if EVERY pre-registered cell is present
+    # in EVERY training seed. Bootstrapping the surviving subset would change
+    # the estimand between shards and would be an implicit favourable
+    # imputation of the absent ones (plan section 5.6 forbids both).
+    paired_complete = tuple(
+        not paired_missing[index]
+        and bool(differences)
+        and all(bool(item) for item in differences)
+        for index, differences in enumerate(paired_inputs)
+    )
     raw_statistics = tuple(
         _hierarchical_paired_bootstrap(
             differences,
             seed=index * 9_973 + 11,
             samples=resolved.bootstrap_samples,
         )
+        if paired_complete[index]
+        # The null, explicitly: no effect, no interval, p=1. It never reaches
+        # ``significant`` because ``complete`` is False as well.
+        else (0.0, 0.0, 0.0, 1.0)
         for index, differences in enumerate(paired_inputs)
     )
     adjusted = _holm_adjusted(
@@ -2094,7 +2896,8 @@ def aggregate_ecology_p2_shards(
             control=control,
             training_seeds=resolved.training_seeds,
             per_seed_mean_difference=tuple(
-                float(np.mean(values)) for values in paired_inputs[index]
+                float(np.mean(values)) if values else 0.0
+                for values in paired_inputs[index]
             ),
             mean_difference=raw_statistics[index][0],
             ci_low=raw_statistics[index][1],
@@ -2102,10 +2905,13 @@ def aggregate_ecology_p2_shards(
             p_value=raw_statistics[index][3],
             holm_adjusted_p_value=adjusted[index],
             significant=(
-                raw_statistics[index][0] > 0.0
+                paired_complete[index]
+                and raw_statistics[index][0] > 0.0
                 and raw_statistics[index][1] > 0.0
                 and adjusted[index] < ECOLOGY_P2_SIGNIFICANCE_ALPHA
             ),
+            complete=paired_complete[index],
+            missing_cells=paired_missing[index],
         )
         for index, (treatment, control) in enumerate(
             ECOLOGY_P2_PAIRED_COMPARISONS
@@ -2114,6 +2920,20 @@ def aggregate_ecology_p2_shards(
     effect_by_comparison = {
         item.comparison: item for item in paired_effects
     }
+
+    def _effect_observed(item: EcologyP2PairedEffect) -> str:
+        if not item.complete:
+            return (
+                f"{item.comparison}: NOT COMPUTED, "
+                f"{len(item.missing_cells)} matched cells absent "
+                f"({list(item.missing_cells[:6])}"
+                f"{', ...' if len(item.missing_cells) > 6 else ''})"
+            )
+        return (
+            f"{item.comparison}: mean={item.mean_difference:.4f} "
+            f"ci=[{item.ci_low:.4f},{item.ci_high:.4f}] "
+            f"holm_p={item.holm_adjusted_p_value:.4f}"
+        )
 
     learning_effects = (
         effect_by_comparison["learned_vs_no_optimize"],
@@ -2124,10 +2944,7 @@ def aggregate_ecology_p2_shards(
             "learned_paired_effect",
             passed=all(item.significant for item in learning_effects),
             observed=", ".join(
-                f"{item.comparison}: mean={item.mean_difference:.4f} "
-                f"ci=[{item.ci_low:.4f},{item.ci_high:.4f}] "
-                f"holm_p={item.holm_adjusted_p_value:.4f}"
-                for item in learning_effects
+                _effect_observed(item) for item in learning_effects
             ),
             threshold=(
                 "learned beats no-optimize and cold with paired CI lower "
@@ -2144,14 +2961,115 @@ def aggregate_ecology_p2_shards(
             "pe_eta_causal_degradation",
             passed=all(item.significant for item in causal_effects),
             observed=", ".join(
-                f"{item.comparison}: mean={item.mean_difference:.4f} "
-                f"ci=[{item.ci_low:.4f},{item.ci_high:.4f}] "
-                f"holm_p={item.holm_adjusted_p_value:.4f}"
-                for item in causal_effects
+                _effect_observed(item) for item in causal_effects
             ),
             threshold=(
-                "removing PE drive or ETA writeback degrades the learned gain "
-                "with paired CI lower bound >0 after Holm correction"
+                "removing the PE drive or freezing the temporal abstraction "
+                "degrades the learned gain with paired CI lower bound >0 "
+                "after Holm correction"
+            ),
+        )
+    )
+
+    floor_effect = effect_by_comparison["learned_vs_random"]
+    gates.append(
+        _gate(
+            "above_random_floor",
+            passed=floor_effect.significant,
+            observed=_effect_observed(floor_effect),
+            threshold=(
+                "learned exceeds the random encounter floor with paired CI "
+                f"lower bound >0 and Holm-adjusted p<"
+                f"{ECOLOGY_P2_SIGNIFICANCE_ALPHA}; P1 already requires this of "
+                "forced escape, so the formal stage may not be weaker"
+            ),
+        )
+    )
+
+    # --- the ablation levers must actually have moved the policy -----------
+    # spec section 6 kill condition: "以 random 代理消融，或策略参数未按预期改变".
+    # A per-arm policy digest that is only ever compared with itself cannot
+    # detect a lever that did nothing, so the digests are compared ACROSS arms
+    # at the same training seed.
+    digest_by_arm_seed = {
+        (item.arm, item.training_seed): item for item in shards
+    }
+
+    def _shard_of(arm: str, training_seed: int) -> EcologyP2ShardReport | None:
+        return digest_by_arm_seed.get((arm, training_seed))
+
+    learned_changed: list[str] = []
+    for training_seed in resolved.training_seeds:
+        shard = _shard_of("learned", training_seed)
+        if (
+            shard is None
+            or not shard.policy_digest
+            or not shard.initial_policy_digest
+            or shard.policy_digest == shard.initial_policy_digest
+        ):
+            learned_changed.append(f"learned@{training_seed}")
+    gates.append(
+        _gate(
+            "policy_changed",
+            passed=not learned_changed,
+            observed=f"unchanged_or_missing={learned_changed}",
+            threshold=(
+                "the learned arm's policy digest differs from the shared "
+                "initial checkpoint it forked from, in every training seed"
+            ),
+        )
+    )
+
+    frozen_drift: list[str] = []
+    for training_seed in resolved.training_seeds:
+        for arm in ECOLOGY_P2_FROZEN_POLICY_ARM_NAMES:
+            shard = _shard_of(arm, training_seed)
+            if (
+                shard is None
+                or not shard.policy_digest
+                or shard.policy_digest != shard.initial_policy_digest
+            ):
+                frozen_drift.append(f"{arm}@{training_seed}")
+    gates.append(
+        _gate(
+            "no_optimize_policy_stable",
+            passed=not frozen_drift,
+            observed=f"drifted_or_missing={frozen_drift}",
+            threshold=(
+                "every arm that persists no policy update lands back on the "
+                "shared initial checkpoint digest in every training seed "
+                f"({list(ECOLOGY_P2_FROZEN_POLICY_ARM_NAMES)}): "
+                "``optimize=False`` and ``trains=False`` both mean 'the "
+                "parameters must not have moved'"
+            ),
+        )
+    )
+
+    inert_levers: list[str] = []
+    for training_seed in resolved.training_seeds:
+        learned_shard = _shard_of("learned", training_seed)
+        for arm in ECOLOGY_P2_DIVERGENT_POLICY_ARM_NAMES:
+            shard = _shard_of(arm, training_seed)
+            if shard is None or not shard.policy_digest:
+                inert_levers.append(f"{arm}@{training_seed}:missing")
+                continue
+            if learned_shard is None:
+                inert_levers.append(f"{arm}@{training_seed}:no_learned_peer")
+                continue
+            if shard.policy_digest == learned_shard.policy_digest:
+                inert_levers.append(f"{arm}@{training_seed}:same_as_learned")
+            elif shard.policy_digest == shard.initial_policy_digest:
+                inert_levers.append(f"{arm}@{training_seed}:never_trained")
+    gates.append(
+        _gate(
+            "ablation_policy_divergence",
+            passed=not inert_levers,
+            observed=f"inert={inert_levers}",
+            threshold=(
+                "every ablation arm that DOES persist policy updates reaches a "
+                "digest that is neither the learned arm's nor the untouched "
+                "shared initial one: the declared lever demonstrably changed "
+                f"the parameters ({list(ECOLOGY_P2_DIVERGENT_POLICY_ARM_NAMES)})"
             ),
         )
     )
@@ -2176,16 +3094,56 @@ def aggregate_ecology_p2_shards(
     gates.append(
         _gate(
             "fixed_rule_safety_floor",
+            # ``min``, not ``max``. Plan section 5.7 requires learned to be
+            # *not weaker* than FixedRule's safety threshold; taking the max
+            # let learned be strictly less safe than the hand-written FSM and
+            # still pass, as long as it stayed under the absolute cap.
             passed=bool(fixed_rule_rows)
             and learned_exposure_rate
-            <= max(fixed_rule_rate, resolved.harmful_tick_rate_max) + 1e-12,
+            <= min(fixed_rule_rate, resolved.harmful_tick_rate_max) + 1e-12,
             observed=(
                 f"learned={learned_exposure_rate:.4f}, "
                 f"fixed_rule={fixed_rule_rate:.4f}"
             ),
             threshold=(
-                "learned heat exposure <= max(FixedRule exposure, "
-                f"{resolved.harmful_tick_rate_max})"
+                "learned heat exposure <= min(FixedRule exposure, "
+                f"{resolved.harmful_tick_rate_max}): not weaker than the "
+                "hand-written baseline, and inside the absolute cap"
+            ),
+        )
+    )
+
+    def _mean_outcome(arm: str, training_seed: int) -> float | None:
+        values = [
+            row.outcome_score
+            for key, row in rows.items()
+            if key[0] == arm and key[1] == training_seed
+        ]
+        return float(np.mean(values)) if values else None
+
+    advantage_failures: list[str] = []
+    for training_seed in resolved.training_seeds:
+        learned_mean = _mean_outcome("learned", training_seed)
+        fixed_mean = _mean_outcome("fixed_rule", training_seed)
+        if learned_mean is None or fixed_mean is None:
+            advantage_failures.append(f"seed{training_seed}:missing")
+        elif learned_mean <= fixed_mean:
+            advantage_failures.append(
+                f"seed{training_seed}:learned={learned_mean:.4f}"
+                f"<=fixed_rule={fixed_mean:.4f}"
+            )
+    gates.append(
+        _gate(
+            "fixed_rule_learning_advantage",
+            passed=not advantage_failures,
+            observed=f"failures={advantage_failures}",
+            threshold=(
+                "plan section 5.7 also requires learned to show its own "
+                "advantage on the pre-declared learning metric: its mean "
+                "held-out outcome score exceeds FixedRule's in every training "
+                "seed. A learned checkpoint that a hand-written FSM outscores "
+                "on the frozen endpoint is not promotable evidence of learned "
+                "capability"
             ),
         )
     )
@@ -2378,10 +3336,67 @@ def aggregate_ecology_p2_shards(
     )
     gates.append(
         _gate(
+            "archive_corruption_rollback",
+            passed=bool(training_shards)
+            and all(
+                item.archive_corruption_rejected is True
+                for item in training_shards
+            ),
+            observed=repr(
+                tuple(
+                    (
+                        item.arm,
+                        item.training_seed,
+                        item.archive_corruption_rejected,
+                    )
+                    for item in training_shards
+                )
+            ),
+            threshold=(
+                "every trained shard refuses a byte-corrupted archive and an "
+                "archive presented under a mismatched compatibility "
+                "declaration (plan section 5.7 corruption rollback / schema "
+                "compatibility)"
+            ),
+        )
+    )
+
+    shard_shas = {item.source_provenance.git_sha for item in shards}
+    dirty_shards = tuple(
+        f"{item.arm}@{item.training_seed}"
+        for item in shards
+        if item.source_provenance.worktree_dirty
+    )
+    unidentified = tuple(
+        f"{item.arm}@{item.training_seed}"
+        for item in shards
+        if not item.source_provenance.git_sha
+    )
+    source_git_sha = (
+        next(iter(shard_shas)) if len(shard_shas) == 1 else ""
+    )
+    gates.append(
+        _gate(
             "provenance_clean",
-            passed=worktree_clean,
-            observed=f"worktree_clean={worktree_clean}",
-            threshold="formal shards run from a clean, hashable working tree",
+            # Plan section 5.4: any code change invalidates the whole batch.
+            # The aggregator owns that check rather than delegating it to a
+            # driver, so a library caller cannot merge two implementations.
+            passed=(
+                worktree_clean
+                and len(shard_shas) == 1
+                and not dirty_shards
+                and not unidentified
+            ),
+            observed=(
+                f"aggregate_worktree_clean={worktree_clean}, "
+                f"shard_git_shas={sorted(shard_shas)}, "
+                f"dirty={list(dirty_shards)}, "
+                f"unidentified={list(unidentified)}"
+            ),
+            threshold=(
+                "every shard reports the same non-empty git SHA and a clean "
+                "worktree, and the aggregating tree is clean too"
+            ),
         )
     )
 
@@ -2400,6 +3415,14 @@ def aggregate_ecology_p2_shards(
         )
         for name, supporting in ECOLOGY_P2_PRIMARY_ENDPOINTS
     )
+    secondary = _secondary_endpoints(
+        rows=rows,
+        probe_summaries=probe_summaries,
+    )
+    if tuple(item.name for item in secondary) != (
+        ECOLOGY_P2_SECONDARY_ENDPOINT_NAMES
+    ):
+        raise RuntimeError("P2 secondary endpoint schema drift")
     breakpoints = tuple(item.name for item in gate_tuple if not item.passed)
     verdict = "PASS" if not breakpoints else "BLOCK"
     return EcologyP2Report(
@@ -2407,8 +3430,10 @@ def aggregate_ecology_p2_shards(
         config=resolved,
         preregistration_digest=digest,
         prerequisite=prerequisite,
+        p1_prerequisites=p1_prerequisites,
         device=resolved.device,
         training_seeds=resolved.training_seeds,
+        heldout_layout_seeds=heldout_layout_seeds(resolved),
         arms=expected_arms,
         shard_digests=tuple(
             sorted(
@@ -2422,6 +3447,8 @@ def aggregate_ecology_p2_shards(
         capability_results=tuple(capability_results),
         paired_effects=paired_effects,
         primary_endpoints=endpoints,
+        secondary_endpoints=secondary,
+        source_git_sha=source_git_sha,
         gates=gate_tuple,
         verdict=verdict,
         diagnostic_breakpoints=breakpoints,
@@ -2441,6 +3468,7 @@ def aggregate_ecology_p2_shards(
 async def run_ecology_p2_preflight(
     config: EcologyP2Config,
     *,
+    source_provenance: EcologyP2SourceProvenance,
     training_seed: int | None = None,
     p1_report_path: Path | None = None,
     prerequisite: EcologyP2Prerequisite | None = None,
@@ -2457,6 +3485,11 @@ async def run_ecology_p2_preflight(
     the aggregator refuses to merge them into confirmatory statistics.
     """
 
+    seed = (
+        training_seed
+        if training_seed is not None
+        else config.training_seeds[0]
+    )
     if prerequisite is None:
         if p1_report_path is None:
             raise EcologyP2PrerequisiteError(
@@ -2465,15 +3498,68 @@ async def run_ecology_p2_preflight(
         prerequisite = load_p1_prerequisite(
             p1_report_path,
             repo_root=repo_root,
+            expected_training_seed=seed,
         )
-    seed = (
-        training_seed
-        if training_seed is not None
-        else config.training_seeds[0]
-    )
     unknown = tuple(arm for arm in arms if arm not in ECOLOGY_P2_ARM_SPEC_BY_NAME)
     if unknown:
         raise ValueError(f"unknown P2 preflight arms: {list(unknown)}")
+    # Every requested arm is checked here, not when its turn comes round: by
+    # the time an unexecutable arm's turn arrived, the arms ahead of it in
+    # ``arms`` would already have spent their full training budget.
+    #
+    # The rehearsal is refused, but it is refused *with an artifact*. Plan
+    # section 2.3 requires every stage to leave a report even when it fails, so
+    # the blocked preflight returns a complete ``passed=False`` report naming
+    # each unexecutable arm and the exact levers it needs -- and spends zero
+    # budget doing it. ``run_ecology_p2_shard`` still raises
+    # :class:`EcologyP2ArmLeverUnavailableError`, because a single-cell run has
+    # no report to carry the diagnosis.
+    blocked = tuple(
+        (arm, levers)
+        for arm, levers in (
+            (arm, unreachable_arm_levers(ECOLOGY_P2_ARM_SPEC_BY_NAME[arm]))
+            for arm in arms
+        )
+        if levers
+    )
+    if blocked:
+        detail = "; ".join(
+            f"{arm} needs {'+'.join(levers)}" for arm, levers in blocked
+        )
+        return EcologyP2PreflightReport(
+            schema_version=ECOLOGY_P2_PREFLIGHT_SCHEMA_VERSION,
+            config=config,
+            preregistration_digest=preregistration_digest(config),
+            prerequisite=prerequisite,
+            training_seed=seed,
+            device=config.device,
+            arms=tuple(arms),
+            shard_wall_clock_seconds=(),
+            shard_archive_size_bytes=(),
+            determinism_repeat_matches=False,
+            determinism_detail=(
+                "not evaluated: the rehearsal was refused before any arm ran"
+            ),
+            passed=False,
+            breakpoints=(
+                "unexecutable_arms="
+                + str([f"{arm}({'+'.join(levers)})" for arm, levers in blocked]),
+            ),
+            description=(
+                "P2-A preflight blocked before spending any budget: these "
+                "pre-registered arms declare levers the curriculum session "
+                f"builder cannot express -- {detail}. The missing hop is "
+                "ecology_curriculum._session_config / _train_arm / "
+                "_evaluate_arm accepting and forwarding them onto "
+                "AntSessionConfig.temporal_policy / .joint_schedule (both are "
+                "already opaque passthroughs; JointLoopSchedule and "
+                "LearnedLiteTemporalPolicy are vz-temporal internals this "
+                "package may not import, so the objects must be built by the "
+                "curriculum owner or by a vz-runtime facade factory). "
+                "Rehearsing the remaining arms would spend the formal budget "
+                "on a matrix that cannot be completed as pre-registered."
+            ),
+        )
 
     shard_reports: list[EcologyP2ShardReport] = []
     for arm in arms:
@@ -2482,6 +3568,7 @@ async def run_ecology_p2_preflight(
                 config,
                 training_seed=seed,
                 arm=arm,
+                source_provenance=source_provenance,
                 prerequisite=prerequisite,
                 progress_dir=progress_dir,
                 preflight=True,
@@ -2571,6 +3658,16 @@ def shard_report_from_dict(payload: dict[str, Any]) -> EcologyP2ShardReport:
     fails loudly here rather than silently producing a thinner matrix.
     """
 
+    schema_version = payload.get("schema_version")
+    if schema_version != ECOLOGY_P2_SHARD_SCHEMA_VERSION:
+        raise ValueError(
+            "P2 shard schema mismatch: "
+            f"expected={ECOLOGY_P2_SHARD_SCHEMA_VERSION!r}, "
+            f"actual={schema_version!r}. A shard written before this version "
+            "carries neither source provenance nor the corruption-rollback "
+            "and secondary-endpoint fields, so it cannot be folded into a "
+            "confirmatory verdict; rerun the shard."
+        )
     config = EcologyP2Config(
         n_ants=int(payload["config"]["n_ants"]),
         temporal_latent_dim=int(payload["config"]["temporal_latent_dim"]),
@@ -2596,6 +3693,17 @@ def shard_report_from_dict(payload: dict[str, Any]) -> EcologyP2ShardReport:
         temporal_writeback_enabled=bool(
             raw_spec["temporal_writeback_enabled"]
         ),
+        temporal_policy_kind=str(raw_spec["temporal_policy_kind"]),
+        joint_ssl_interval=(
+            None
+            if raw_spec["joint_ssl_interval"] is None
+            else int(raw_spec["joint_ssl_interval"])
+        ),
+        joint_rl_interval=(
+            None
+            if raw_spec["joint_rl_interval"] is None
+            else int(raw_spec["joint_rl_interval"])
+        ),
         trains=bool(raw_spec["trains"]),
         description=str(raw_spec["description"]),
     )
@@ -2620,6 +3728,9 @@ def shard_report_from_dict(payload: dict[str, Any]) -> EcologyP2ShardReport:
         else None
     )
     raw_prerequisite = payload["prerequisite"]
+    raw_provenance = payload["source_provenance"]
+    if not isinstance(raw_provenance, dict):
+        raise ValueError("P2 shard source_provenance must be an object")
     return EcologyP2ShardReport(
         schema_version=str(payload["schema_version"]),
         config=config,
@@ -2634,6 +3745,10 @@ def shard_report_from_dict(payload: dict[str, Any]) -> EcologyP2ShardReport:
             report_sha256=str(raw_prerequisite["report_sha256"]),
             schema_version=str(raw_prerequisite["schema_version"]),
             verdict=str(raw_prerequisite["verdict"]),
+            training_seed=int(raw_prerequisite["training_seed"]),
+            configuration_digest=str(
+                raw_prerequisite["configuration_digest"]
+            ),
         ),
         device=str(payload["device"]),
         preflight=bool(payload["preflight"]),
@@ -2645,15 +3760,26 @@ def shard_report_from_dict(payload: dict[str, Any]) -> EcologyP2ShardReport:
             payload["scheduled_training_episodes"]
         ),
         policy_digest=str(payload["policy_digest"]),
+        initial_policy_digest=str(payload["initial_policy_digest"]),
         archive_roundtrip_ok=(
             None
             if payload["archive_roundtrip_ok"] is None
             else bool(payload["archive_roundtrip_ok"])
         ),
+        archive_corruption_rejected=(
+            None
+            if payload["archive_corruption_rejected"] is None
+            else bool(payload["archive_corruption_rejected"])
+        ),
         archive_size_bytes=(
             None
             if payload["archive_size_bytes"] is None
             else int(payload["archive_size_bytes"])
+        ),
+        source_provenance=EcologyP2SourceProvenance(
+            git_sha=str(raw_provenance["git_sha"]),
+            git_branch=str(raw_provenance["git_branch"]),
+            worktree_dirty=bool(raw_provenance["worktree_dirty"]),
         ),
         wall_clock_seconds=float(payload["wall_clock_seconds"]),
         layout_results=tuple(
@@ -2665,19 +3791,73 @@ def shard_report_from_dict(payload: dict[str, Any]) -> EcologyP2ShardReport:
     )
 
 
+def load_shard_checkpoint_archives(
+    *,
+    progress_dir: Path,
+    config: EcologyP2Config,
+    training_seed: int,
+    arm: str,
+    prerequisite: EcologyP2Prerequisite,
+) -> tuple[bytes, ...]:
+    """The journalled colony archives of a completed shard.
+
+    This is how a P2 ``PASS`` becomes a loadable promotion bundle: the learned
+    shard already committed its trained colony to the two-slot journal, digest
+    checked and compatibility bound. Re-running training to produce a
+    promotable archive would be a second, unaudited fork point.
+
+    Every resume invariant is re-checked, so a partially trained or
+    differently pre-registered shard cannot be promoted.
+    """
+
+    shard_dir = _shard_dir(
+        progress_dir.resolve(), training_seed=training_seed, arm=arm
+    )
+    state = _load_shard_state(
+        shard_dir=shard_dir,
+        config=config,
+        training_seed=training_seed,
+        arm=arm,
+        digest=preregistration_digest(config),
+        schedule_sha256=_schedule_digest(
+            p2_training_schedule(config, training_seed=training_seed)
+        ),
+        prerequisite=prerequisite,
+    )
+    if state is None:
+        raise ValueError(
+            f"no P2 shard journal at {shard_dir}; a promotion bundle may only "
+            "carry a checkpoint an audited confirmatory shard produced"
+        )
+    if not bool(state.get("training_complete")):
+        raise ValueError(
+            f"P2 shard {arm}@{training_seed} is not training-complete; an "
+            "incomplete shard must never be promoted"
+        )
+    return _read_shard_archive(
+        shard_dir=shard_dir, state=state, config=config
+    )
+
+
 __all__ = [
     "ECOLOGY_P2_ABLATION_ARM_NAMES",
+    "ECOLOGY_P2_ARM_LEVER_PARAMETERS",
     "ECOLOGY_P2_ARM_NAMES",
     "ECOLOGY_P2_ARM_SPECS",
     "ECOLOGY_P2_CORE_ARM_NAMES",
+    "ECOLOGY_P2_DIVERGENT_POLICY_ARM_NAMES",
+    "ECOLOGY_P2_FROZEN_POLICY_ARM_NAMES",
     "ECOLOGY_P2_GATE_NAMES",
     "ECOLOGY_P2_HELDOUT_SEED_BASE",
+    "ECOLOGY_P2_OUTCOME_SCORE_WEIGHTS",
     "ECOLOGY_P2_PAIRED_COMPARISONS",
     "ECOLOGY_P2_PREFLIGHT_SCHEMA_VERSION",
     "ECOLOGY_P2_PRIMARY_ENDPOINTS",
     "ECOLOGY_P2_PROGRESS_SCHEMA_VERSION",
     "ECOLOGY_P2_SCHEMA_VERSION",
+    "ECOLOGY_P2_SECONDARY_ENDPOINT_NAMES",
     "ECOLOGY_P2_SHARD_SCHEMA_VERSION",
+    "EcologyP2ArmLeverUnavailableError",
     "EcologyP2ArmSpec",
     "EcologyP2CapabilityResult",
     "EcologyP2Config",
@@ -2691,14 +3871,18 @@ __all__ = [
     "EcologyP2ProbeSummary",
     "EcologyP2ProgressPaused",
     "EcologyP2Report",
+    "EcologyP2SecondaryEndpoint",
     "EcologyP2ShardReport",
+    "EcologyP2SourceProvenance",
     "aggregate_ecology_p2_shards",
     "heldout_layout_seeds",
     "load_p1_prerequisite",
+    "load_shard_checkpoint_archives",
     "outcome_score",
     "p2_training_schedule",
     "preregistration_digest",
     "run_ecology_p2_preflight",
     "run_ecology_p2_shard",
     "shard_report_from_dict",
+    "unreachable_arm_levers",
 ]

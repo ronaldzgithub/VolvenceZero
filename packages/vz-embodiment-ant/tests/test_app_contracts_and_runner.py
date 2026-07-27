@@ -25,10 +25,17 @@ from volvence_ant.app import (
 )
 from volvence_ant.env import AntWorld, ButterSource
 from volvence_ant.evidence.ecology_checkpoint import (
+    EcologyP2PromotionEvidence,
     LoadedEcologyCheckpoint,
 )
 from volvence_ant.experiments.ecology_curriculum import (
     EcologyCurriculumConfig,
+)
+from volvence_ant.experiments.ecology_p2 import (
+    ECOLOGY_P2_GATE_NAMES,
+    ECOLOGY_P2_SCHEMA_VERSION,
+    EcologyP2Config,
+    heldout_layout_seeds,
 )
 from volvence_ant.runtime import (
     AntObjectiveKind,
@@ -36,6 +43,36 @@ from volvence_ant.runtime import (
     AntSession,
     AntSessionConfig,
 )
+
+
+def _p2_promotion(
+    *, verdict: str = "PASS", n_ants: int = 1
+) -> EcologyP2PromotionEvidence:
+    """The confirmatory evidence a loadable checkpoint always carries.
+
+    ``load_promoted_ecology_checkpoint`` refuses a bundle without it, so an
+    in-process fixture that omits it is not a shape the admission point should
+    accept either.  Synthetic: it exercises the admission contract and is never
+    evidence that the real confirmatory matrix passed.
+    """
+
+    failed = () if verdict == "PASS" else (ECOLOGY_P2_GATE_NAMES[0],)
+    return EcologyP2PromotionEvidence(
+        schema_version=ECOLOGY_P2_SCHEMA_VERSION,
+        preregistration_digest="d" * 64,
+        verdict=verdict,
+        gate_names=ECOLOGY_P2_GATE_NAMES,
+        failed_gates=failed,
+        training_seeds=(0, 1, 2),
+        arms=("learned",),
+        n_ants=n_ants,
+        temporal_latent_dim=4,
+        device="cpu",
+        heldout_layout_seeds=heldout_layout_seeds(EcologyP2Config()),
+        source_git_sha="a" * 40,
+        report_path="synthetic-p2.json",
+        report_sha256="b" * 64,
+    )
 
 
 def test_app_contracts_are_frozen_and_reject_motor_commands() -> None:
@@ -265,6 +302,7 @@ async def test_learned_ecology_drag_drop_three_objects_keeps_kernel_arm() -> Non
             heldout_seeds=(1,),
         ),
         report_path="local-drag-demo",
+        p2_promotion=_p2_promotion(),
     )
     manager = AntAppManager(ecology_checkpoint=loaded)
     run = await manager.create_run(
@@ -378,6 +416,7 @@ async def test_promoted_ecology_checkpoint_is_restored_and_projected() -> None:
         verdict="PASS",
         config=curriculum_config,
         report_path="local-test",
+        p2_promotion=_p2_promotion(),
     )
     manager = AntAppManager(ecology_checkpoint=loaded)
     run = await manager.create_run(
@@ -401,3 +440,71 @@ async def test_promoted_ecology_checkpoint_is_restored_and_projected() -> None:
     )
     assert "runtime_replay_pending_captures" in frame["evidence"]
     await manager.close()
+
+
+async def test_a_checkpoint_without_p2_evidence_is_refused_at_admission() -> None:
+    """The defence-in-depth check may not be optional on its own evidence.
+
+    ``p2_promotion`` is optional on ``LoadedEcologyCheckpoint`` only so a
+    fixture can be built in-process.  Skipping the verdict check when it is
+    absent made the whole defence conditional on the one field an in-process
+    caller can simply omit -- and this test file used to construct exactly that
+    shape twice and be admitted.
+    """
+
+    bootstrap = AntSession(
+        AntWorld(world_objects=(ButterSource(object_id="butter", x=2.0, y=0.0),)),
+        config=AntSessionConfig(
+            temporal_latent_dim=4,
+            objective=AntObjectiveKind.ECOLOGY,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+        ),
+    )
+    archive = bootstrap.export_learning_checkpoint_archive(
+        checkpoint_id="ecology-unconfirmed"
+    )
+    info = decode_agent_learning_archive(archive).info
+    curriculum_config = EcologyCurriculumConfig(
+        n_ants=1,
+        temporal_latent_dim=4,
+        stage_rounds=1,
+        stage_episodes=1,
+        mastery_min_episodes=1,
+        heldout_rounds=1,
+        heldout_seeds=(1,),
+    )
+
+    run_config = AppExperimentConfig(
+        objective=AppObjective.ECOLOGY,
+        arm=AppArm.LEARNED,
+        temporal_latent_dim=4,
+        autostart=False,
+        max_ticks=1,
+    )
+
+    unconfirmed = AntAppManager(
+        ecology_checkpoint=LoadedEcologyCheckpoint(
+            checkpoint_archives=(archive,),
+            fingerprint=info.state_fingerprint,
+            verdict="PASS",
+            config=curriculum_config,
+            report_path="no-p2-evidence",
+        )
+    )
+    with pytest.raises(ValueError, match="carries no P2 confirmatory evidence"):
+        await unconfirmed.create_run(run_config, run_id="no-p2")
+    await unconfirmed.close()
+
+    blocked = AntAppManager(
+        ecology_checkpoint=LoadedEcologyCheckpoint(
+            checkpoint_archives=(archive,),
+            fingerprint=info.state_fingerprint,
+            verdict="PASS",
+            config=curriculum_config,
+            report_path="blocked-p2",
+            p2_promotion=_p2_promotion(verdict="BLOCK"),
+        )
+    )
+    with pytest.raises(ValueError, match="P2 confirmatory verdict is BLOCK"):
+        await blocked.create_run(run_config, run_id="blocked-p2")
+    await blocked.close()
