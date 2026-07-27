@@ -334,6 +334,11 @@ promotion gate：
   阶段——它作为中性物理几何出现在组合布局中，不设 contact mastery。跨 episode 仅携带
   owner-exported checkpoint。learned、no-optimize、local-valence-off 与 segment-credit-off 从同一
   初始 checkpoint 分叉，并重放 learned 冻结下来的完全相同训练布局/seed 日程。长训练启动前的
+  P1 正式单 episode 预算不得另写字面量，必须消费 curriculum owner 发布的
+  `ecology_training_min_stage_rounds()`；当前冻结几何与 plant 推导出的 near/medium/far
+  充分预算分别为 `28/33/49`，所以覆盖所有 tier 的正式 P1 下限及 CLI 默认值均为 `49`。
+  小于该值的 plan-section-7 diagnostic 可以执行但必须由 `formal_configuration` 明确 BLOCK，
+  正式 lane 则在训练前 fail loudly，禁止用不可采样的 milestone 生成能力结论。长训练启动前的
   冷启探针门只验 **input reachability**（food/heat/home/obstacle 成对交换必须到达 code）；
   探针失败时拒绝投入后续预算。exclusive steering（temporal-abstraction spec）下冷启 head
   参数精确为零、确定性策略无转向,冷启 `action_sensitive` 为 False、`turn_delta` 精确为 0

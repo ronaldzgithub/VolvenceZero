@@ -42,6 +42,7 @@ from volvence_ant.experiments.ecology_curriculum import (
     _session_config,
     _train_arm,
     _world,
+    ecology_training_min_stage_rounds,
 )
 from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
@@ -112,7 +113,11 @@ ECOLOGY_P1_GATE_NAMES = (
 ECOLOGY_P1_FORMAL_MIN_ANTS = 4
 ECOLOGY_P1_FORMAL_LATENT_DIM = 16
 ECOLOGY_P1_FORMAL_MIN_LAYOUTS_PER_TIER = 5
-ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS = 24
+# The curriculum owner derives this floor from the frozen tier geometry and
+# plant.  P1 must not restate a literal: doing so left the former 24-round
+# "formal" default unable to sample even the near milestone after the v9
+# geometry correction (near/medium/far require 28/33/49 rounds).
+ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS = ecology_training_min_stage_rounds()
 # Owner decision: P1's held-out budget is aligned to P2's frozen floor
 # (``ECOLOGY_P2_FORMAL_MIN_HELDOUT_ROUNDS``). The deterministic policy the
 # capability gates grade has a measured steering authority of 0.0055-0.033
@@ -143,7 +148,7 @@ ECOLOGY_P1_REGIME_NAMES = (
 class EcologyP1Config:
     n_ants: int = 4
     temporal_latent_dim: int = 16
-    training_rounds: int = 24
+    training_rounds: int = ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS
     evaluation_rounds: int = ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS
     layouts_per_tier: int = 5
     seed: int = 0

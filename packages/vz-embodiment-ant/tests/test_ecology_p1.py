@@ -16,6 +16,8 @@ from volvence_ant.experiments.ecology_curriculum import (
     EcologyTrainingTier,
     _session_config,
     _world,
+    ecology_schedule_milestone_shortfalls,
+    ecology_training_min_stage_rounds,
 )
 from volvence_ant.experiments.ecology_p1 import (
     ECOLOGY_P1_ARM_NAMES,
@@ -36,6 +38,7 @@ from volvence_ant.experiments.ecology_p1 import (
     _curriculum_config,
     _direction_signature,
     _evaluation_specs,
+    _fixed_schedule,
     _frozen_learned_fingerprints,
     _regime_row_from_dict,
     _repeat_run_same_direction_gate,
@@ -355,7 +358,10 @@ def test_formal_budget_fails_small_and_passes_frozen_budget() -> None:
         "n_ants=1<4",
         "temporal_latent_dim=4!=16",
         "layouts_per_tier=1<5",
-        "training_rounds=1<24",
+        (
+            "training_rounds=1<"
+            f"{ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS}"
+        ),
         "evaluation_rounds=3<120",
     )
     assert ecology_p1_formal_budget_failures(_FROZEN_BUDGET) == ()
@@ -754,7 +760,17 @@ def test_milestone_budget_lever_is_bound_to_the_formal_budget_predicate() -> (
     it off.
     """
 
-    assert _curriculum_config(_FROZEN_BUDGET).milestone_budget_enforced is True
+    curriculum = _curriculum_config(_FROZEN_BUDGET)
+    assert curriculum.milestone_budget_enforced is True
+    assert (
+        ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS
+        == ecology_training_min_stage_rounds()
+    )
+    assert curriculum.stage_rounds == ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS
+    assert ecology_schedule_milestone_shortfalls(
+        _fixed_schedule(_FROZEN_BUDGET),
+        stage_rounds=curriculum.stage_rounds,
+    ) == ()
     assert _curriculum_config(_TINY).milestone_budget_enforced is False
     # Any single under-budget field is enough to make the run a diagnostic.
     for field, value in (

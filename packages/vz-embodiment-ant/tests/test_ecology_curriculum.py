@@ -483,7 +483,8 @@ def test_tier_round_budget_exposes_the_far_training_shortfall() -> None:
     assert budgets[EcologyTrainingTier.NEAR] < budgets[
         EcologyTrainingTier.MEDIUM
     ] < budgets[EcologyTrainingTier.FAR]
-    # P1 runs training episodes at training_rounds=24.
+    # The retired P1 budget was 24; the curriculum owner now publishes the
+    # sufficient floor and the formal P1 default consumes it.
     assert min(budgets.values()) > 24
     assert ecology_training_min_stage_rounds() == max(budgets.values())
     far = ECOLOGY_TIER_GEOMETRY[EcologyTrainingTier.FAR]

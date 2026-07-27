@@ -25,6 +25,7 @@ from volvence_ant.evidence.provenance import (
 )
 from volvence_ant.experiments.ecology_p1 import (
     ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS,
+    ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS,
     EcologyP1Config,
     EcologyP1ProgressPaused,
     run_ecology_p1,
@@ -135,7 +136,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run ant ecology P1 matrix")
     parser.add_argument("--n-ants", type=int, default=4)
     parser.add_argument("--temporal-latent-dim", type=int, default=16)
-    parser.add_argument("--training-rounds", type=int, default=24)
+    parser.add_argument(
+        "--training-rounds",
+        type=int,
+        default=ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS,
+    )
     # The held-out budget is a frozen threshold, not a driver preference: the
     # ``formal_configuration`` gate refuses any run below
     # ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS, so a driver default of 40 would

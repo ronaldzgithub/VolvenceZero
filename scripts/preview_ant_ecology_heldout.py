@@ -6,11 +6,11 @@ That is the right bar for a verdict, but it is the wrong instrument for the
 single open question after the ``learned`` arm finishes: does the far tier
 still deliver zero on held-out layouts?
 
-Far training episodes run 24 rounds while the frozen evaluation runs the P1
-formal held-out budget (``ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS``), and a far
-round trip needs ``2*d - 3.4`` units of path at 0.4 per round -- 6.5 rounds at
-the near edge of the far band and 13.5 at the far edge, before any search cost.
-A far zero in the training log is therefore weak evidence on its own.
+Formal training episodes consume the curriculum owner's geometry-derived
+round floor, while frozen evaluation runs the P1 formal held-out budget
+(``ECOLOGY_P1_FORMAL_MIN_HELDOUT_ROUNDS``). A far zero in the training log is
+therefore meaningful behavior evidence, but still not a verdict without the
+matched held-out arms.
 This script runs the exact evaluation specs, seeds, data split and round count
 the formal report uses, for one arm, so the far question can be answered in
 minutes instead of after the remaining three arms have trained.
@@ -22,8 +22,8 @@ with learning, optimization and sparse exploration all disabled.
 Usage:
 
     python scripts/preview_ant_ecology_heldout.py \
-        --progress-dir research/ant/results/.partials/ecology_p1_v25/seed0 \
-        --json-out research/ant/results/.partials/heldout_preview.v25-55.json
+        --progress-dir research/ant/results/.partials/ecology_p1_v26/seed0 \
+        --json-out research/ant/results/.partials/heldout_preview.v26-55.json
 
 Restrict the work with ``--capability butter_far --capability butter_medium``.
 """
