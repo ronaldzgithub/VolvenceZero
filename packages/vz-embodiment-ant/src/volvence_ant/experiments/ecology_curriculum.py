@@ -46,6 +46,13 @@ from volvence_ant.runtime import (
 )
 
 
+# v10 changes the forced-return training pressure: the retired +/-30 degree
+# heading let a zero-turn body collect positive home-progress for several
+# ticks while its straight line provably missed the 0.5-radius delivery disc.
+# The +/-90 degree tangent start makes zero steering move away from home; only
+# an active, correctly signed home turn can earn progress. v9 reports were
+# trained under the degenerate pressure and must not be reinterpreted.
+#
 # v9 changes what MASTERY MEANS again, so a v8 report may no more be read
 # under it than a v7 one:
 #
@@ -72,7 +79,7 @@ from volvence_ant.runtime import (
 # * the tier geometry changed (near pickup disc and nest delivery disc), so
 #   every pickup/delivery count in a v7 report was produced in a different
 #   world.
-ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v9"
+ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v10"
 ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY = 8192
 ECOLOGY_REQUIRED_GATE_NAMES = (
     "training_layout_mastery",
@@ -330,9 +337,12 @@ _FORCED_RETURN_RADIUS: dict[EcologyTrainingTier, float] = {
     EcologyTrainingTier.FAR: 4.0,
 }
 _FORCED_RETURN_BEARING_OFFSET: dict[EcologyTrainingTier, float] = {
-    EcologyTrainingTier.NEAR: math.pi / 6.0,
-    EcologyTrainingTier.MEDIUM: math.pi / 4.0,
-    EcologyTrainingTier.FAR: math.pi / 3.0,
+    # Tangent starts eliminate the "approach without delivering" loophole:
+    # at any radius a zero-turn step increases home distance, while the
+    # alternating side still balances left/right steering credit.
+    EcologyTrainingTier.NEAR: math.pi / 2.0,
+    EcologyTrainingTier.MEDIUM: math.pi / 2.0,
+    EcologyTrainingTier.FAR: math.pi / 2.0,
 }
 _FORCED_APPROACH_MIN_SPAWN_RATIO = 1.45
 _FORCED_APPROACH_MAX_SPAWN_RATIO = 2.9

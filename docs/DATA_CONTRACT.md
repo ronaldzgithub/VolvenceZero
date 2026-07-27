@@ -839,6 +839,13 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 | evidence manifest | `vz-embodiment-ant` | `digital-ant-manifest.v2` sidecar 绑定 artifact/input digest 与运行 provenance |
 | realtime app DTO | `vz-embodiment-ant` | `digital-ant-app.v2` 的 frozen config/frame/status/command/disturbance；新增 typed object upsert/move/remove、`AppFrame.objects` 和 checkpoint provenance；**不**进入 §3/§6 slot 注册表 |
 
+**Ecology evidence 当前代际（2026-07-28）**：curriculum owner 的现行 schema 为
+`digital-ant-ecology-curriculum.v10`；P1 report/progress 为
+`digital-ant-ecology-p1-development.v27` / `digital-ant-ecology-p1-progress.v24`；
+P2 confirmatory/shard/progress 为 v4。v10 将 forced-return 冻结为左右均衡的
+`±π/2` tangent start，使零转向不能领取正 home-progress；该世界语义覆盖上表历史迁移说明中的
+旧 current literal，所有旧 journal/report 必须 fail loudly，禁止跨代恢复或聚合。
+
 **关键不变量**：
 
 - `semantic_*_pull` 由 embodiment 发布为感觉/动机预测通道，但不能作为 task outcome 的代理。

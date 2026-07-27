@@ -170,6 +170,8 @@ def _episode(
 @pytest.mark.parametrize(
     "retired",
     [
+        # v9's forced-return pressure rewarded a straight non-delivery path.
+        "digital-ant-ecology-curriculum.v9",
         # v8's milestone budgets and mastery eligibility are not v9's.
         "digital-ant-ecology-curriculum.v8",
         "digital-ant-ecology-curriculum.v7",
@@ -178,10 +180,10 @@ def _episode(
 def test_curriculum_schema_bump_rejects_earlier_reports(
     retired: str,
 ) -> None:
-    """v9 semantics must never be read out of a v8 (or older) journal."""
+    """v10 semantics must never be read out of a v9 (or older) journal."""
 
     assert ECOLOGY_CURRICULUM_SCHEMA_VERSION == (
-        "digital-ant-ecology-curriculum.v9"
+        "digital-ant-ecology-curriculum.v10"
     )
     legacy = {
         "schema_version": retired,
@@ -995,6 +997,31 @@ def test_forced_return_curriculum_balances_state_without_action_labels() -> None
         for session in runner.sessions
     )
     assert home_sides[0] * home_sides[1] < 0.0
+    assert all(abs(value) == pytest.approx(1.0) for value in home_sides)
+
+    # A zero-turn policy must not harvest dense home-progress while still
+    # missing the delivery disc. Tangent starts make the first straight step
+    # increase home distance for both left/right-balanced bodies.
+    before = tuple(
+        session.navigator.state.home_distance for session in runner.sessions
+    )
+    for body_id in range(2):
+        world.act(
+            turn_command=0.0,
+            step_command=world.config.step_size * 0.5,
+            body_id=body_id,
+        )
+    after = tuple(
+        math.hypot(
+            world.body(body_id).x - world.nest[0],
+            world.body(body_id).y - world.nest[1],
+        )
+        for body_id in range(2)
+    )
+    assert all(
+        current > initial
+        for initial, current in zip(before, after, strict=True)
+    )
 
 
 def test_forced_approach_curriculum_demands_steering_without_action_labels() -> None:
