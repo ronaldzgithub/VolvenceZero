@@ -14,7 +14,11 @@
     "description"
   ],
   "properties": {
-    "schema_id": {"type": "string", "minLength": 1},
+    "schema_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
     "action_family_id": {"type": "string", "minLength": 1},
     "action_family_version": {"type": "integer", "minimum": 1},
     "applicability_conditions": {

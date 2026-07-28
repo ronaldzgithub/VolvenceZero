@@ -259,6 +259,15 @@ CaseMemory 最终分别晋升：
 张无忌的 bake 没有被单一 protection schema 垄断，但仍不是 external reviewed
 五维行为保真结论。
 
+真实 structured-provider 包进一步移除了决定答案的冻结 provider，只让本地冻结 HF
+模型看到正式 action-abstraction / applicability prompt，并把其他 semantic 协议隔离为
+no-proposal。发布的 0.5B 证据运行至 ch-12 首个两经历抽象点；模型输出空 schema id、
+复述 episode，CaseMemory owner 因而零晋升并按退出条件停止，三个 family 保持 pending。
+1.5B 定向探针也仍产生地点化、格式不合格的 schema；value contract 与 JSON Schema 已
+共同冻结 kebab-case 标识符约束。当前状态明确为 `diagnostic-fail`：证明了真实 provider
+已进入正式解码边界且 owner 会拒绝伪抽象，但尚未证明真实模型能完成 multi-family
+bake。不得用冻结 portfolio 的 `2/2` 替代这项缺口。
+
 ## Character Migration Scenario Package（人物迁移验收包，2026-07-29）
 
 `lifeform-domain-character` 现在发布
@@ -282,6 +291,7 @@ reviewed profile、主观 live-through、关系语义脊柱、多经历动作抽
 
 ## 变更日志
 
+- 2026-07-29: 增加真实本地 structured-provider 证据包；0.5B 全链零 promotion、1.5B 定向 schema 仍不通用，状态保持 diagnostic-fail，冻结 provider 的通过结果不再冒充真实模型通过。
 - 2026-07-29: 新增 `zhang_wuji_character_migration_v1` 人物迁移验收包，冻结 SSOT、
   主观经历、关系脊柱、动作抽象和行为保真正负例的 SHADOW 包格式；新增结构测试防止
   关键词路由、孤儿 path、phase 断序和缺失负例。

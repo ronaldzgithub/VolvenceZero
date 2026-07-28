@@ -6,6 +6,8 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from lifeform_core import LifeformConfig
 from lifeform_domain_character import (
     ActionEvidenceOnlyTextProvider,
@@ -24,6 +26,7 @@ from lifeform_domain_character import (
 from lifeform_expression import GroundedResponseSynthesizer
 from volvence_zero.application import (
     ApplicationCaseMemoryStore,
+    LearnedActionSchemaCandidate,
     build_filesystem_persistence_backend,
 )
 from volvence_zero.brain import BrainConfig
@@ -50,8 +53,9 @@ _PROTECTION_SCHEMA = "intervene-immediately-to-protect-life"
 
 
 class _RecordingStructuredProvider:
-    def __init__(self) -> None:
+    def __init__(self, *, fenced: bool = False) -> None:
         self.prompts: list[str] = []
+        self._fenced = fenced
 
     def generate(
         self,
@@ -62,7 +66,8 @@ class _RecordingStructuredProvider:
     ) -> str:
         del max_new_tokens, temperature
         self.prompts.append(prompt)
-        return json.dumps({"structured": True})
+        payload = json.dumps({"structured": True})
+        return f"```json\n{payload}\n```" if self._fenced else payload
 
 
 class _ReviewedPortfolioProvider:
@@ -553,8 +558,16 @@ def test_real_provider_report_requires_scoped_outputs_and_owner_pass() -> None:
             "CaseMemory owner."
         ),
         (
+            "You are the background-slow semantic decoder for a "
+            "CaseMemory owner.\nsecond family"
+        ),
+        (
             "You are the turn-time semantic applicability evaluator "
             "for a CaseMemory owner."
+        ),
+        (
+            "You are the turn-time semantic applicability evaluator "
+            "for a CaseMemory owner.\nsecond route"
         ),
         "unrelated semantic owner protocol",
     ):
@@ -564,11 +577,11 @@ def test_real_provider_report_requires_scoped_outputs_and_owner_pass() -> None:
         expected_schema_ids=("schema-a", "schema-b"),
         promoted_schema_ids=("schema-a", "schema-b"),
         promoted_family_ids=("family-a", "family-b"),
-        promotion_count=1,
+        promotion_count=2,
         distinct_family_count=2,
         pending_family_count=0,
-        routing_case_count=1,
-        correct_routing_count=1,
+        routing_case_count=2,
+        correct_routing_count=2,
         gate_statuses=(("owner", "pass"),),
         multi_family_owner_supported=True,
         claim_status="multi-family-owner-diagnostic-pass",
@@ -583,7 +596,69 @@ def test_real_provider_report_requires_scoped_outputs_and_owner_pass() -> None:
 
     assert report.real_provider_supported is True
     assert report.claim_status == "real-structured-provider-diagnostic-pass"
-    assert report.delegated_abstraction_call_count == 1
-    assert report.delegated_applicability_call_count == 1
+    assert report.delegated_abstraction_call_count == 2
+    assert report.delegated_applicability_call_count == 2
     assert report.excluded_other_call_count == 1
     assert all(status == "pass" for _gate, status in report.gate_statuses)
+
+
+def test_real_provider_report_rejects_zero_promotion_vacuous_pass() -> None:
+    provider = _RecordingStructuredProvider(fenced=True)
+    scoped = ActionEvidenceOnlyTextProvider(
+        provider=provider,
+        provider_id="local:under-capacity-model",
+    )
+    scoped.generate(
+        prompt=(
+            "You are the background-slow semantic decoder for a "
+            "CaseMemory owner."
+        )
+    )
+    failed_portfolio = BehaviorFamilyPortfolioReport(
+        suite_id="failed-provider-suite",
+        expected_schema_ids=("schema-a", "schema-b"),
+        promoted_schema_ids=(),
+        promoted_family_ids=(),
+        promotion_count=0,
+        distinct_family_count=0,
+        pending_family_count=2,
+        routing_case_count=0,
+        correct_routing_count=0,
+        gate_statuses=(("owner", "fail"),),
+        multi_family_owner_supported=False,
+        claim_status="diagnostic-fail",
+        description="test",
+    )
+
+    report = evaluate_real_provider_behavior_evidence(
+        provider_id="local:under-capacity-model",
+        traces=scoped.traces,
+        portfolio=failed_portfolio,
+    )
+
+    assert report.real_provider_supported is False
+    assert report.claim_status == "diagnostic-fail"
+    assert dict(report.gate_statuses) == {
+        "action_protocol_scope": "pass",
+        "structured_provider_outputs": "pass",
+        "provider_abstraction_consumed": "fail",
+        "provider_applicability_consumed": "fail",
+        "owner_portfolio_pass": "fail",
+    }
+
+
+def test_action_schema_candidate_rejects_non_kebab_identifier() -> None:
+    with pytest.raises(
+        ValueError,
+        match="schema_id must be a lowercase kebab-case identifier",
+    ):
+        LearnedActionSchemaCandidate(
+            schema_id="confront_and_treat_poison",
+            action_family_id="discovered_family_5",
+            action_family_version=180,
+            applicability_conditions=("immediate danger is observable",),
+            action_steps=("intervene to reduce present harm",),
+            source_outcome_ids=("outcome-1", "outcome-2"),
+            confidence=0.95,
+            description="Invalid provider output.",
+        )

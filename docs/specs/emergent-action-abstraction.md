@@ -190,7 +190,10 @@ CaseMemory 不从全局计数、arm 名称或描述文本推断 admission。
 - `background-action-abstraction-no-outcome-label`: semantic decoder 只读多条
   situation/action observation；单例或 latent family ID 冲突不得调用 decoder；
   `action_family_version` 只作全局 bank revision 审计锚点，跨经历可不同，promotion
-  必须经过 `ModificationGate.BACKGROUND`。
+  必须经过 `ModificationGate.BACKGROUND`。decoder prompt 必须明确要求输出
+  `action_family_id / action_family_version` 与 owner 输入逐字闭合，`schema_id`
+  是新的非空 kebab-case 动作短语，conditions/steps 不得复制 episode、协议 ID
+  或工具命令；模型不遵守时 owner 保持 fail closed，不得放宽 family/source closure。
 - `background-action-abstraction-owner-continuity`: schema-free evidence 只以
   CaseMemory-owned typed checkpoint 跨 session 续接；consumer 不解析描述文本，同
   outcome 矛盾 fail loudly，compact snapshot 回灌不得擦除 typed payload，已有
@@ -247,6 +250,7 @@ CaseMemory 不从全局计数、arm 名称或描述文本推断 admission。
 
 ## 变更日志
 
+- 2026-07-29: 真实本地 structured-provider audit 暴露小模型会改写 family id、留空 schema id 或复制 episode；补齐 decoder prompt 的 family/version/schema 格式契约，owner 门槛保持不变。
 - 2026-07-29: 增加 Credit owner 结构化 action lineage、Internal-RL outcome-bound consumption report 与 CaseMemory fail-closed admission；四臂 no-RL promotion 从 `4/4` 降为 `0/4`。
 - 2026-07-28: 增加 outcome-free `situation_summary` 与 application-owned multi-experience semantic candidate 边界；decoder 不读 outcome/evaluation，candidate 与 reviewed EnvironmentActionSchema provenance 隔离，并经 BACKGROUND ModificationGate promotion。
 - 2026-07-20: 增加 online runtime transition replay 边界。明确它是 joint-loop/Internal-RL owner 内的有界训练状态，与只读 snapshot replay export 不同；三态 gate 独立于 optimizer backend，ACTIVE 禁止 synthetic fallback，并保持公共 snapshot schema 不变。

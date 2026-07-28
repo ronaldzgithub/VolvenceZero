@@ -103,8 +103,15 @@ class ActionEvidenceOnlyTextProvider:
             if delegated
             else "{}"
         )
+        cleaned_response = response.strip()
+        if (
+            cleaned_response.startswith("```")
+            and cleaned_response.endswith("```")
+        ):
+            lines = cleaned_response.splitlines()
+            cleaned_response = "\n".join(lines[1:-1]).strip()
         try:
-            payload = json.loads(response.strip())
+            payload = json.loads(cleaned_response)
         except JSONDecodeError:
             payload = None
         is_json_object = isinstance(payload, dict)
@@ -371,7 +378,8 @@ def evaluate_real_provider_behavior_evidence(
         trace.response_is_json_object for trace in delegated_traces
     )
     abstraction_outputs = (
-        len(abstraction_traces) >= portfolio.promotion_count
+        portfolio.promotion_count >= 2
+        and len(abstraction_traces) >= portfolio.promotion_count
         and sum(
             trace.response_is_non_empty_json_object
             for trace in abstraction_traces
@@ -379,7 +387,8 @@ def evaluate_real_provider_behavior_evidence(
         >= portfolio.promotion_count
     )
     applicability_outputs = (
-        len(applicability_traces) >= portfolio.routing_case_count
+        portfolio.routing_case_count >= 2
+        and len(applicability_traces) >= portfolio.routing_case_count
         and sum(
             trace.response_is_non_empty_json_object
             for trace in applicability_traces

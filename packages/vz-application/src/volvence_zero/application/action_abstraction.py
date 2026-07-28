@@ -11,11 +11,15 @@ from dataclasses import dataclass
 import json
 from json import JSONDecodeError
 from pathlib import Path
+import re
 from typing import Protocol
 
 _MIN_EVIDENCE_COUNT = 2
 _MIN_CANDIDATE_CONFIDENCE = 0.75
 _RESOURCE_ROOT = Path(__file__).resolve().parent
+_SCHEMA_ID_PATTERN = re.compile(
+    r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+)
 
 
 class ActionAbstractionTextProvider(Protocol):
@@ -185,6 +189,11 @@ class LearnedActionSchemaCandidate:
                 raise ValueError(
                     f"LearnedActionSchemaCandidate {name} must be non-empty."
                 )
+        if _SCHEMA_ID_PATTERN.fullmatch(self.schema_id) is None:
+            raise ValueError(
+                "LearnedActionSchemaCandidate schema_id must be a "
+                "lowercase kebab-case identifier."
+            )
         if self.action_family_version <= 0:
             raise ValueError(
                 "LearnedActionSchemaCandidate action_family_version must be > 0."

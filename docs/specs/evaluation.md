@@ -353,6 +353,32 @@ family 保持 pending 且未污染 promotion。状态为
 `multi-family-owner-diagnostic-pass`。这证明 owner separation 与 retrieval routing，
 不等于五维人物行为评分通过，也不升级 external validation。
 
+### Real structured-provider audit（2026-07-29）
+
+`ActionEvidenceOnlyTextProvider` 将同一真实 text provider 限定在两个精确协议：
+background-slow action abstraction 与 turn-time action applicability。它不按人物、
+章节或自然语言关键词路由；其他 semantic-owner prompt 显式返回 no-proposal，并记录
+prompt/response digest。`scripts/run_character_real_provider_evidence.py` 使用本地冻结
+HF snapshot、真实章节 owner hydration、正式 CaseMemory admission 与 held-out sandbox，
+发布完整 prompt/response trace、模型 provenance 和 manifest。
+
+发布的 `Qwen2.5-0.5B-Instruct` CPU 证据为诚实负结果：真实链运行至 ch-12 的首个
+两经历抽象点，latent family 轨迹保持闭合；唯一 abstraction response 有 JSON 外形，
+但包含空 `schema_id` 与 episode 复述，owner 正确拒绝，promotion=`0`。runner 因首个
+目标 family 未晋升而按退出条件停止，三个 family 保持 pending，后续第二族与 held-out
+routing 明确为未测试，状态为 `diagnostic-fail`。开发期同 prompt 的 1.5B 定向探针在
+补契约前改写 opaque family id；补齐 family/version/schema 约束后虽能闭合 ID，仍产生
+地点化条件和非 kebab-case schema，尚不足以升级为可复用行为证据。正式 value contract
+与 JSON Schema 现共同拒绝非 kebab-case `schema_id`，不再只依赖 prompt 自律。
+
+`RealProviderBehaviorEvidenceReport` 因此要求至少两个实际 promotion、至少两个 held-out
+routing case、非空 structured responses 与 owner portfolio 同时通过；零 promotion /
+零 routing 不得借 vacuous truth 让 consumed gate 通过。当前结论是“真实 provider 接线
+和拒绝路径已证明，0.5B/1.5B 本地档位未通过语义抽象门”，不是 bake 成功，也不是模型
+行为保真通过。退出条件是更强 provider 在不修改 owner 阈值与 reference 的前提下取得
+`real-structured-provider-diagnostic-pass`；回滚只需移除 evidence wrapper/runner，
+运行时 owner 与冻结 deterministic regression 不变。
+
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.7 节
 
 ## 与其他能力域的关系
@@ -369,6 +395,7 @@ family 保持 pending 且未污染 promotion。状态为
 
 ## 变更日志
 
+- 2026-07-29: 增加真实 structured-provider audit runner 与 prompt/response provenance；0.5B 在首个两经历抽象点零 promotion 并按条件退出，1.5B 定向探针仍未满足通用 schema 语义；修复零 promotion/零 routing 的 consumed gate 空真问题并冻结 kebab-case schema id。
 - 2026-07-29: 增加 multi-family owner portfolio：真实纵向章节形成两个不同 family promotion，held-out routing `2/2`，两个单例 family 继续 pending 且隔离；结论限定为 owner-level diagnostic。
 - 2026-07-29: 四臂报告增加 TP/FP/FN/TN 与 promotion precision/recall/specificity；baked 为 `4/0/0/12` 且三项 `1.000`，零预测正例 arm 的 precision 保持 undefined，行为评分门不升级。
 - 2026-07-29: 四臂 lineage admission 修复后 baked/cold/no-RL/shuffled 正例命中为 `4/0/0/0`；lineage 因果门通过，behavior 门因缺 reviewed scores 保持 insufficient data。
