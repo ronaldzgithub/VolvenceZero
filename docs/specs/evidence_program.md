@@ -217,6 +217,36 @@
 	  `selector_injection_allowed=false`。confirmation 仍未锁定，最终 verdict
 	  为 `mechanism-supported`，不是 Gate 2 完成。权威重判 artifact：
 	  `artifacts/eta_gate2_residual_causal_v32_environment_outcome_strict_replay_fullwidth896_qwen25_05b_cpu_1seed_20260729`。
+
+	  v33（schema `eta-gate2-residual-causal.v33`）把环境结局从
+	  residual-signature 对齐迁到 realized-continuation NLL。动机（2026-07-29
+	  去天花板诊断）：v31 的 `measure_residual_outcome` 读出链路有三重衰减
+	  ——(a) `summarize_residual_activations` 对 896 维激活取逐层均值，而
+	  control basis 是近零均值的单位范数正弦行，均值读出与执行器可写
+	  子空间近正交；(b) 摘要三维中 max/spread 两维被 `clamp_unit` 饱和在
+	  1.0，完全失灵；(c) `(cos+1)/2` 映射再压掉一半动态范围（实测
+	  cos=0.905→progress=0.9525，与 v31 落盘值逐字节一致）。三者叠加使
+	  最强候选 `(1,1,1)×0.7` 也只能移动摘要签名 ~1.3e-4，oracle 物理全距
+	  被封在 3e-4 以下——不是「环境太容易」，是「读出对干预近盲」。任何
+	  selector 都不可能通过这条通道展示 `0.02` 量级的因果效应。
+	  真 Qwen CPU 探针证明行为级读出没有此问题：对 22 个候选控制，
+	  realized next segment 的 teacher-forced 确定性 NLL 效应全距为
+	  `0.048~0.137`（4 前缀 × 2 route），测量零采样噪声（同输入同输出），
+	  max-of-noise 机制在测量层不成立；跨前缀候选排序 Spearman 中位数仅
+	  ~0.14，说明「哪个动作好」依赖前缀，正是 selector 要学的条件结构。
+	  v33 契约：primary outcome = 候选控制下 realized next segment（route
+	  真实到达的下一段文本）的逐 token teacher-forced NLL 相对冻结
+	  zero-control forward 的带符号改进，由环境 owner
+	  `measure_realized_continuation_outcome` 折算成 [-1,1] 的
+	  `EnvironmentMeasurement`（NLL 单位、斜率 1，`0.02` 阈值可直接比较）；
+	  audit outcome = 同一控制在下一 prefix 上对 subsequent realized
+	  segment 的同款测量（跨段迁移审计，非重复测量）。由于 audit 需要
+	  `i+2` 前缀，grid 只发射 primary/audit 都已实现的行，run 入口新增
+	  `--max-prefix-steps`（v33 运行用 8）补回行数。manifest 预注册项
+	  `counterfactual_outcome_chain / counterfactual_primary_target /
+	  counterfactual_audit_surface` 同步改写；PE→credit 链路、v32 signal
+	  gates（oracle-vs-permutation-null）与四分区严格注入门全部保留且
+	  作用于新单位。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。

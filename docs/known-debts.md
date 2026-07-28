@@ -2115,7 +2115,7 @@ return (
 
 ## 92. Volvence 整体 thesis 的 ETA + NL 系统级证据门尚未闭合（局部机制存在 ≠ 整体因果链成立）
 
-> **状态（2026-07-28）**：OPEN / evidence design frozen，尚未形成统一真 substrate、长轨迹、多 seed 的总验收 verdict。已有单元测试、synthetic proof、SHADOW artifact 和局部真 trace 只能作为子证据；本债关闭前，对外只能说“架构链与局部机制已实现/待系统验证”，不能说“Volvence 整体 thesis 已被证明”。
+> **状态（2026-07-29）**：OPEN / evidence design frozen，尚未形成统一真 substrate、长轨迹、多 seed 的总验收 verdict。Gate 2 于 2026-07-29 新增 v31 environment-outcome packet 与 max-of-noise 诊断（NLL selector 路线定性关闭，见 Gate 2 段）。已有单元测试、synthetic proof、SHADOW artifact 和局部真 trace 只能作为子证据；本债关闭前，对外只能说“架构链与局部机制已实现/待系统验证”，不能说“Volvence 整体 thesis 已被证明”。
 
 - **路径**：
   - 总论与需求：[`docs/volvence-thesis.md`](volvence-thesis.md) · [`docs/next_gen_emogpt.md`](next_gen_emogpt.md)
@@ -2181,8 +2181,9 @@ return (
   全部真实 artifact 均如实标为 CPU，不冒充 MPS。
 - **当前反证结果**：v19 在 8 条 train route 的 90 个前缀上扫描 22 个无语义
   `z_t` 候选：逐前缀 oracle 平均改善 `0.032274`，正改善率 `97.78%`，
-  最佳固定候选也改善 `0.005697`。这证明 action space 有可达解，并把当时
-  learned identity 连 train 都输给 zero 的根因定位到 off-policy credit。
+  最佳固定候选也改善 `0.005697`。当时将此解读为 action space 有可达解，并把
+  learned identity 连 train 都输给 zero 的根因定位到 off-policy credit
+  （2026-07-29 复检修正：该 oracle 解读不成立，见下方 max-of-noise 诊断）。
   v20 改为每个前缀直接回归观测最佳 `z_t`；8 次有界更新后 train 成为最佳臂，
   development-heldout 首次为正 `+0.005979`，但 eval 仍为 `-0.016155`。
   v22 的只读分区 oracle 进一步证明 eval 上逐前缀 oracle 为 `+0.021150`
@@ -2197,7 +2198,8 @@ return (
   eval 变为 `-0.0179235935`，development-heldout 变为 `-0.0010565008`，
   train identity 也以 `0.0024419241` NLL 输给最佳 control。与此同时 eval /
 	  development-heldout oracle 提升到 `+0.0221560796` / `+0.0350084816`，
-	  证明失败不是候选动作消失。v26 固定 split 后训练 PCA16 + ridge selector，
+	  当时解读为失败不是候选动作消失（2026-07-29 复检修正：不成立，这些
+	  oracle 正值在纯噪声取 max 的期望之内）。v26 固定 split 后训练 PCA16 + ridge selector，
 	  eval selected delta 为 `-0.0138278405`；v27 只用 route-grouped train CV
 	  选择 PCA/ridge，结果不变。v28 去掉 hash/PCA 后发现所谓 full-coordinate
 	  输入只有 `84` 维，原因是 substrate publisher 默认把每层 `896` 维 hidden
@@ -2217,22 +2219,62 @@ return (
 	  `-0.001990 / -0.003317 / -0.005052`，独立 audit 为
 	  `+0.001393 / -0.001125 / -0.000569`；development-heldout audit
 	  `+0.000077` 近于零。validation 的 target/audit oracle 仍为
-	  `+0.011997 / +0.014453`，所以问题仍是 prefix→action 选择不能泛化，
-	  不是动作空间不可达。模型自身零控制采样分布的 expected NLL 也没有成为
+	  `+0.011997 / +0.014453`，当时归因为 prefix→action 选择不能泛化而
+	  非动作空间不可达；2026-07-29 max-of-noise 诊断修正：这些 oracle 均
+	  低于 22 候选纯噪声取 max 的期望上限，NLL target 下“动作空间可达”
+	  本身未被证明。模型自身零控制采样分布的 expected NLL 也没有成为
 	  可迁移控制目标；继续扩大同类采样只会更精确地估计这一错误目标。
 - **当前最佳候选基线**：
   `artifacts/eta_gate2_residual_causal_v24_canonical_state12_direct_8updates_train8_qwen25_05b_cpu_1seed_20260728`。
   v24 精确复现 v22 的 eval `-0.0161553224`、development-heldout
   `+0.0059789079` 和 eval oracle `+0.0211502314`；同时修正计量语义为
   `360` 条 optimizer transition 与 `7920` 次候选评分，二者不再混称。
-- **当前最新反证 artifact**：
+- **v30 反证 artifact**：
 	  `artifacts/eta_gate2_residual_causal_v30_prefix_expected_2x2_calibration_fullwidth896_qwen25_05b_cpu_1seed_20260728`。
 	  v30 manifest 显式登记 residual width `896`、expected-value target、
 	  2 target + 2 audit 校准覆盖和 frozen validation；共生成 `576` 条固定种子
 	  continuation，selector input `8076`。本地 CPU 实际运行约 42 分钟；
 	  `score_continuations` 已合并同 control 的续写前向，但 22 个 control
-	  候选仍逐一运行，是正式 4+4 的主要算力债。它是 latest falsification，
-	  不替代 v24 baseline，也不满足默认 4+4 / 跨 seed / confirmation 门槛。
+	  候选仍逐一运行，是正式 4+4 的主要算力债。它曾是 latest falsification
+	  （现由 v31 接替），不替代 v24 baseline，也不满足默认 4+4 / 跨 seed /
+	  confirmation 门槛。
+- **2026-07-29 v31 environment-outcome packet + max-of-noise 诊断（latest falsification）**：
+  `artifacts/eta_gate2_residual_causal_v31_environment_outcome_fullwidth896_qwen25_05b_cpu_1seed_20260729`。
+  v31 落地下方约束要求的 target 迁移：动作时刻冻结 prediction，环境结果
+  经 PE owner 与 segment credit 回写 `z_t` action value（mechanism gates
+  新增 `environment_outcome_target_active` / `environment_outcome_reaches_pe_credit` /
+  `self_nll_excluded_from_selector_target`，22/22 全过）；verdict 仍为
+  `mechanism-supported`、`promotion_allowed=false`，eval continuation-NLL
+  readout 对最佳 control 为 `-0.014077`。同日对 v30/v31 已落盘数据做两项
+  离线诊断（不新增算力）：
+  (a) **v30 max-of-noise 反证**：同一动作在 target 与独立 audit 续写上的
+  效果相关性仅 ~0.1（train pearson `+0.149`、validation `+0.106`、
+  spearman ≈ 0）；由 target/audit 差估计单点测量噪声 `σ≈0.011`，22 候选
+  纯噪声取 max 的期望 oracle 为 `+0.021~+0.024`，四个 split 的实测 oracle
+  `+0.012~+0.020` **全部低于该上限**。结论：continuation-NLL target 不含
+  可复现的逐动作信号，v19-v30 的 oracle 正值是选择偏差；此前「oracle 为正
+  证明可达解存在、失败只是 selector 不泛化」的解读撤回——selector 泛化
+  失败的根因是标签≈噪声，不是 selector 容量/特征/数据量，任何 selector
+  在该 target 上都不可能泛化，NLL selector 迭代路线就此定性关闭。
+  (b) **v31 env-outcome 信号可复现性**：逐前缀 22 候选在 target 与独立
+  audit 上的排序一致性中位数 `+0.97~+0.99`（v30 同类 ≈0.1），selector
+  top3 命中率升到 `0.23~0.33`——信号首次真实可复现；但候选效果全距仅
+  `~7e-4`，距预注册最小因果效应 `0.02` 差 25 倍以上，根因是 smoke 规模
+  环境 task progress 基线已在 `0.95~0.998` 接近天花板，动作没有产生
+  结局方差的空间。
+  后续三步：(1) evidence 契约新增 oracle-vs-permutation-null 门——
+  **已 land（2026-07-29，schema v32）**：`_build_ablation_results` 对每个
+  prefix 取 target argmax 候选在独立 audit cohort 复测，audit 收益须超过
+  audit 候选均值（可交换零假设期望）至少 measurement floor（train +
+  validation 双 split），`promotion_verdict` 新增 `signal_gates` /
+  `reachable_solution_evidence`，不过门时机器 verdict 判「无可达解证据」
+  并拒绝 causal 晋升（即使 mechanism/causal 全绿），契约测试
+  `test_eta_gate2_signal_gates_reject_max_of_noise_oracle` +
+  `test_eta_gate2_reachable_solution_evidence_gates_causal_promotion`
+  全绿（13/13），spec 同步 `evidence_program.md` v32 段；(2) 环境去天花板 +
+  扩前缀，检验可复现效应全距能否向 `0.02` 增长（下一收敛包）；(3) 若去
+  天花板后效应仍停留 `1e-3` 量级，按预注册 kill condition 收缩「3 维
+  `z_t` 残差注入在 0.5B 基底上具有可用因果功率」的主张。
 - **证据污染约束**：现有 heldout 已在 v1-v15 调参中反复观察，只能记为
   `development-heldout`。v16 晋升必须同时满足 eval 方向为正，以及一个
   从未用于本轮设计/停止决策的 locked `confirmation` split 相对最佳
@@ -2241,28 +2283,19 @@ return (
 	  verdict 必须拒绝 causal 晋升。v30 已完成多 continuation expected-value
 	  反证，fresh validation audit 为负，故不再用 4+4 扩大同类 self-NLL
 	  调参，也不得加入语义 action label、降低阈值或开启 confirmation split。
-	  下一收敛包必须把动作 target 迁到真实 downstream outcome / environment
-	  PE：在动作时刻冻结 prediction，环境结果到达后经 PE owner 与 segment
+	  动作 target 迁到真实 downstream outcome / environment PE 的要求
+	  （动作时刻冻结 prediction，环境结果到达后经 PE owner 与 segment
 	  credit 回写 `z_t` action value；模型自身 continuation NLL 仅保留辅助
-	  readout。现有 eval/development-heldout 继续只作 development 诊断，
-	  新 outcome selector 仍须 train route-CV 后在另一组新鲜 validation
-	  一次性检验，稳定为正前不得注入 substrate。
+	  readout）已由 v31 落地；oracle-vs-permutation-null 门已由 v32 落地，
+	  下一收敛包为环境去天花板（见上方 v31 bullet）。现有 eval/development-heldout
+	  继续只作 development 诊断，新 outcome selector 仍须 train route-CV
+	  后在另一组新鲜 validation 一次性检验，稳定为正前不得注入 substrate。
 - **必须测试**：
   - `alpha`/KL 权重 sweep：压缩率与 switch sparsity 随 rate pressure 有方向变化，同时 held-out action prediction / family reuse 不塌缩。
   - 与人工 causal boundary 只用于评估的 held-out episode 比较 `beta_t` boundary precision/recall/F1；增加 text/topic boundary 干扰，检查 `beta_t` 没有只学到段落或 token 边界。
   - `full` 对 `turn-credit`、`shuffled-beta`、`no-replacement`、`no-optimize` 和 `ETA-off`；测 held-out composition、delayed-credit alignment、family reuse 与 terminal return。
   - 真 open-weight residual lane 要求 fallback rate = 0、actual hook fire rate ≥ 0.75、capture/intervention prefix 对齐；做 `U_t` 置零、打乱和反向干预，证明行为差异来自 residual control。
 - **EXIT**：满足 [#88](#88) 的 ≥500 real-trace 与 `validation_delta ≥ 0.02` 门槛；抽象质量和任务结果均优于预注册 matched controls，且不靠语义 action label scaffold；否则只能保留“latent controller 可运行”，不得使用“涌现抽象已证明”。
-
-### Gate 3 — 每用户生命体状态与跨会话连续性
-
-- **命题**：约 500M 的 adapter/model 是共享先验，不是每用户复制；持续性来自每用户独立的 `user_model / relationship_state / memories / z-family credit / beta calibration / commitments / consent` 轨迹。
-- **必须测试**：
-  - 同一共享模型、相同当前输入，分别加载用户 A/B 的合法快照，输出的预测、检索、控制器或关系行为按已知历史产生可解释差异。
-  - 四臂：`stateless`、`correct-user-state`、`swapped-user-state`、`shuffled-history`；必须显示 correct state 改善 held-out callback/commitment/boundary 一致性，而 swapped state 明显破坏该优势。
-  - 多用户并发、保存→进程重启→恢复、删除、checkpoint rollback；结构性 cross-user key/read/write 泄漏数必须为 0。
-  - 关系质量最终结论复用 [#51](#51) 的盲评 ground truth，系统自评只能作为 readout。
-- **EXIT**：跨 session 的正确用户状态对 stateless 有稳定正效应；交换状态负对照按预期失败；隔离、删除和 rollback 全通过。未通过时只能宣称“共享模型 + 可持久化状态”，不能宣称“每用户生命体连续性成立”。
 
 ### Gate 4 — 在 ETA 抽象段之上的主动学习
 
@@ -2327,6 +2360,16 @@ return (
   - artifact 必须携带来源 cohort、训练模式、参数量、substrate fingerprint、owner checkpoint、评估证据、gate verdict 和 content/privacy attestation。
   - import 后重放关键旧场景；任何 kill condition 命中必须自动拒绝或回滚，不得依赖 prompt 自律。
 - **EXIT**：candidate 在 held-out cohort 上达到预注册提升且不破坏旧能力、安全、边界与用户隔离；字节级或参数级 rollback 通过；否则只允许保留 review-only artifact。
+
+### Gate 11 — 每用户生命体状态与跨会话连续性
+
+- **命题**：约 500M 的 adapter/model 是共享先验，不是每用户复制；持续性来自每用户独立的 `user_model / relationship_state / memories / z-family credit / beta calibration / commitments / consent` 轨迹。
+- **必须测试**：
+  - 同一共享模型、相同当前输入，分别加载用户 A/B 的合法快照，输出的预测、检索、控制器或关系行为按已知历史产生可解释差异。
+  - 四臂：`stateless`、`correct-user-state`、`swapped-user-state`、`shuffled-history`；必须显示 correct state 改善 held-out callback/commitment/boundary 一致性，而 swapped state 明显破坏该优势。
+  - 多用户并发、保存→进程重启→恢复、删除、checkpoint rollback；结构性 cross-user key/read/write 泄漏数必须为 0。
+  - 关系质量最终结论复用 [#51](#51) 的盲评 ground truth，系统自评只能作为 readout。
+- **EXIT**：跨 session 的正确用户状态对 stateless 有稳定正效应；交换状态负对照按预期失败；隔离、删除和 rollback 全通过。未通过时只能宣称“共享模型 + 可持久化状态”，不能宣称“每用户生命体连续性成立”。
 
 ### 强制 evidence bundle
 

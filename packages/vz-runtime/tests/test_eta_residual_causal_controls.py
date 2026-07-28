@@ -848,7 +848,7 @@ def test_eta_environment_outcome_target_uses_pe_credit_not_self_nll() -> None:
     assert all(
         record.outcome_chain
         == (
-            "residual-forward->environment-outcome->prediction-error"
+            "residual-forward->realized-continuation-nll->prediction-error"
             "->action-credit"
         )
         for record in records

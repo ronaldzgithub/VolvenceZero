@@ -2900,12 +2900,19 @@ def _counterfactual_action_examples(
     snapshots: tuple[SubstrateSnapshot, ...],
     diagnostic_rows: tuple[tuple[float, ...], ...],
     audit_rows: tuple[tuple[float, ...], ...] = (),
+    scoreable_prefix_count: int | None = None,
 ) -> tuple[CounterfactualActionExample, ...]:
-    if len(snapshots) - 1 != len(diagnostic_rows):
+    expected_rows = (
+        scoreable_prefix_count
+        if scoreable_prefix_count is not None
+        else len(snapshots) - 1
+    )
+    if expected_rows != len(diagnostic_rows):
         raise ValueError(
             "counterfactual selector requires one diagnostic row per "
             "scoreable residual prefix: "
-            f"snapshots={len(snapshots)}, rows={len(diagnostic_rows)}"
+            f"snapshots={len(snapshots)}, expected_rows={expected_rows}, "
+            f"rows={len(diagnostic_rows)}"
         )
     if audit_rows and len(audit_rows) != len(diagnostic_rows):
         raise ValueError(
@@ -3984,6 +3991,12 @@ def run_eta_internal_rl_proof_benchmark(
                                 audit_rows=(
                                     rollout_counterfactual_audit
                                 ),
+                                scoreable_prefix_count=(
+                                    len(snapshots) - 2
+                                    if counterfactual_target_mode
+                                    == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                                    else None
+                                ),
                             ):
                                 existing = selector_training_examples.get(
                                     example.example_id
@@ -4198,6 +4211,12 @@ def run_eta_internal_rl_proof_benchmark(
                             snapshots=snapshots,
                             diagnostic_rows=diagnostic_rows,
                             audit_rows=audit_rows,
+                            scoreable_prefix_count=(
+                                len(snapshots) - 2
+                                if counterfactual_target_mode
+                                == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                                else None
+                            ),
                         )
                     )
                     selector_selections.extend(

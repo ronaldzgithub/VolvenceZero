@@ -30,6 +30,7 @@ def main() -> None:
     parser.add_argument("--train-epochs", type=int, default=None)
     parser.add_argument("--device", default="mps")
     parser.add_argument("--activation-width", type=int, default=None)
+    parser.add_argument("--max-prefix-steps", type=int, default=None)
     parser.add_argument("--target-samples", type=int, default=None)
     parser.add_argument("--audit-samples", type=int, default=None)
     parser.add_argument(
@@ -45,6 +46,11 @@ def main() -> None:
         parser.error("--train-epochs must be at least 1")
     if args.activation_width is not None and args.activation_width < 1:
         parser.error("--activation-width must be at least 1")
+    if args.max_prefix_steps is not None and args.max_prefix_steps < 3:
+        parser.error(
+            "--max-prefix-steps must be at least 3 so the realized "
+            "primary and audit segments both exist"
+        )
     if args.target_samples is not None and args.target_samples < 1:
         parser.error("--target-samples must be at least 1")
     if args.audit_samples is not None and args.audit_samples < 1:
@@ -121,6 +127,8 @@ def main() -> None:
         activation_width=activation_width,
         local_files_only=not args.allow_download,
     )
+    if args.max_prefix_steps is not None:
+        config = replace(config, max_prefix_steps=args.max_prefix_steps)
     report = run_eta_internal_rl_paper_suite(
         manifest=manifest,
         open_weight_config=config,
