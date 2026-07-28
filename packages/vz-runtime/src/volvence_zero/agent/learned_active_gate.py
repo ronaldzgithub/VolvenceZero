@@ -29,8 +29,8 @@ Validation-delta gate versions (threshold pre-registration discipline,
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from enum import Enum
 
 VALIDATION_GATE_V2_WINDOW_ID = "cp11-validation-v2-2026-07-20"
@@ -44,6 +44,14 @@ class LearnedBackendComponent(str, Enum):
     TEMPORAL_SSL = "temporal_ssl_backend"
     INTERNAL_RL = "internal_rl_backend"
     CMS_TORCH = "cms_torch_backend"
+
+
+LEARNED_BACKEND_PROMOTION_ORDER = (
+    LearnedBackendComponent.TEMPORAL_RUNTIME,
+    LearnedBackendComponent.TEMPORAL_SSL,
+    LearnedBackendComponent.INTERNAL_RL,
+    LearnedBackendComponent.CMS_TORCH,
+)
 
 
 @dataclass(frozen=True)
@@ -166,6 +174,25 @@ class LearnedActiveGateVerdict:
     validation_gate_version: str = "v1"
 
 
+@dataclass(frozen=True)
+class LearnedPromotionChainVerdict:
+    """Terminal-candidate and staged-production verdict for all backends.
+
+    ``terminal_candidate_ready`` answers whether the complete target wiring may
+    be exercised in an isolated terminal-state test. ``production_terminal_ready``
+    is stricter: every component must already be ACTIVE in promotion order.
+    """
+
+    active_components: tuple[LearnedBackendComponent, ...]
+    terminal_reports: tuple[LearnedActiveGateVerdict, ...]
+    terminal_candidate_ready: bool
+    production_terminal_ready: bool
+    next_component: LearnedBackendComponent | None
+    next_component_eligible: bool
+    blocking_reasons: tuple[str, ...]
+    description: str
+
+
 def evaluate_learned_active_candidate(
     evidence: LearnedActiveEvidence,
     *,
@@ -252,10 +279,124 @@ def evaluate_learned_active_candidate(
     )
 
 
+def _active_prefix(
+    active_components: Sequence[LearnedBackendComponent | str],
+) -> tuple[LearnedBackendComponent, ...]:
+    normalized = tuple(LearnedBackendComponent(component) for component in active_components)
+    if len(set(normalized)) != len(normalized):
+        raise ValueError(f"active_components contains duplicates: {normalized!r}")
+    expected = LEARNED_BACKEND_PROMOTION_ORDER[: len(normalized)]
+    if normalized != expected:
+        raise ValueError(
+            "active_components must be an ordered promotion prefix; "
+            f"received={tuple(component.value for component in normalized)!r} "
+            f"expected={tuple(component.value for component in expected)!r}"
+        )
+    return normalized
+
+
+def evaluate_learned_active_chain(
+    evidence_rows: Sequence[LearnedActiveEvidence],
+    *,
+    active_components: Sequence[LearnedBackendComponent | str] = (),
+    validation_gate_version: str = "v1",
+) -> LearnedPromotionChainVerdict:
+    """Evaluate the complete terminal candidate and the next production step.
+
+    Evidence collection may exercise all four target backends together. The
+    terminal-candidate view therefore evaluates SSL and Internal RL with their
+    target-state prerequisites present. Production recommendation remains
+    ordered and exposes at most one next component.
+    """
+
+    active = _active_prefix(active_components)
+    by_component: dict[LearnedBackendComponent, LearnedActiveEvidence] = {}
+    for evidence in evidence_rows:
+        if evidence.component in by_component:
+            raise ValueError(
+                f"duplicate learned backend evidence: {evidence.component.value}"
+            )
+        by_component[evidence.component] = evidence
+    missing_components = tuple(
+        component.value
+        for component in LEARNED_BACKEND_PROMOTION_ORDER
+        if component not in by_component
+    )
+    if missing_components:
+        raise ValueError(
+            f"learned backend terminal evidence incomplete: missing={missing_components!r}"
+        )
+
+    terminal_reports = tuple(
+        evaluate_learned_active_candidate(
+            replace(
+                by_component[component],
+                prior_runtime_active=True,
+                prior_ssl_active=True,
+            ),
+            validation_gate_version=validation_gate_version,
+        )
+        for component in LEARNED_BACKEND_PROMOTION_ORDER
+    )
+    terminal_candidate_ready = all(report.eligible for report in terminal_reports)
+    next_component = (
+        LEARNED_BACKEND_PROMOTION_ORDER[len(active)]
+        if len(active) < len(LEARNED_BACKEND_PROMOTION_ORDER)
+        else None
+    )
+
+    reports_by_component = {report.component: report for report in terminal_reports}
+    active_reports_retained = all(
+        reports_by_component[component].eligible for component in active
+    )
+    next_component_eligible = bool(
+        next_component is not None
+        and terminal_candidate_ready
+        and active_reports_retained
+        and reports_by_component[next_component].eligible
+    )
+    production_terminal_ready = bool(
+        len(active) == len(LEARNED_BACKEND_PROMOTION_ORDER)
+        and terminal_candidate_ready
+    )
+
+    blocking: list[str] = []
+    for report in terminal_reports:
+        blocking.extend(
+            f"{report.component.value}:{gate}" for gate in report.missing_gates
+        )
+    if not active_reports_retained:
+        blocking.append("active_prefix_evidence_not_retained")
+    if next_component is not None and not next_component_eligible:
+        blocking.append(f"next_component_blocked:{next_component.value}")
+    if terminal_candidate_ready and not production_terminal_ready:
+        blocking.append("production_promotion_incomplete")
+    blocking_tuple = tuple(dict.fromkeys(blocking))
+
+    return LearnedPromotionChainVerdict(
+        active_components=active,
+        terminal_reports=terminal_reports,
+        terminal_candidate_ready=terminal_candidate_ready,
+        production_terminal_ready=production_terminal_ready,
+        next_component=next_component,
+        next_component_eligible=next_component_eligible,
+        blocking_reasons=blocking_tuple,
+        description=(
+            "learned backend terminal candidate "
+            f"{'ready' if terminal_candidate_ready else 'blocked'}; "
+            "production terminal "
+            f"{'ready' if production_terminal_ready else 'blocked'}; "
+            f"next={next_component.value if next_component is not None else 'none'}"
+        ),
+    )
+
+
 __all__ = [
+    "LEARNED_BACKEND_PROMOTION_ORDER",
     "LearnedActiveEvidence",
     "LearnedActiveGateVerdict",
     "LearnedBackendComponent",
+    "LearnedPromotionChainVerdict",
     "VALIDATION_DELTA_V2_INFORMATIVE_STD_FLOOR",
     "VALIDATION_DELTA_V2_MIN_INFORMATIVE_AXES",
     "VALIDATION_DELTA_V2_MIN_RELATIVE_IMPROVEMENT",
@@ -263,4 +404,5 @@ __all__ = [
     "ValidationDeltaV2Readout",
     "compute_validation_delta_v2",
     "evaluate_learned_active_candidate",
+    "evaluate_learned_active_chain",
 ]

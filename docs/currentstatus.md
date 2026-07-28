@@ -95,13 +95,15 @@ bash run_learned_active_evidence.sh --resume --substrate-mode hf --substrate-dev
 bash run_companion_bench_p1.sh --resume
 ```
 
-目标是 `promotion_report.json` 的 `all_eligible=true`，然后按固定顺序逐组件 ACTIVE：
+目标是 `promotion_report.json` 的 `terminal_candidate_ready=true`，然后只按
+`staged_gate.next_component` 逐组件 ACTIVE；四项完成后
+`production_terminal_ready=true`：
 
 ```text
 读取现有 real-trace missing_gates
 → capacity ladder
 → P1 9-track
-→ promotion report（all_eligible=true）
+→ promotion report（terminal_candidate_ready=true）
 → temporal runtime ACTIVE canary
 → SSL → Internal RL → CMS torch
 → P2 held-out multi-seed（first-stage-retained）

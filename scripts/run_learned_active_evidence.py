@@ -327,10 +327,13 @@ def _build_promotion(args: argparse.Namespace, soak_artifact: Path, ablation: Pa
         command += ["--ablation-verdict", str(ablation)]
     if args.skip_cms_ab_test:
         command.append("--skip-cms-ab-test")
-    if args.prior_runtime_active:
-        command.append("--prior-runtime-active")
-    if args.prior_ssl_active:
-        command.append("--prior-ssl-active")
+    if args.active_components is not None:
+        command += ["--active-components", args.active_components]
+    else:
+        if args.prior_runtime_active:
+            command.append("--prior-runtime-active")
+        if args.prior_ssl_active:
+            command.append("--prior-ssl-active")
     _skip_or_run(args=args, stage=STAGE_BUILD, artifact=artifact, command=command)
     return artifact
 
@@ -348,9 +351,18 @@ def _evaluate(args: argparse.Namespace, promotion_artifact: Path) -> Path:
     _skip_or_run(args=args, stage=STAGE_EVALUATE, artifact=artifact, command=command)
     if not args.dry_run:
         report = _json_load(artifact)
+        staged_gate = report.get("staged_gate")
+        next_component = (
+            staged_gate.get("next_component")
+            if isinstance(staged_gate, dict)
+            else None
+        )
         print(
-            "[learned-active] promotion all_eligible={eligible}".format(
-                eligible=report.get("all_eligible")
+            "[learned-active] terminal_candidate_ready={candidate} "
+            "production_terminal_ready={production} next_component={next}".format(
+                candidate=report.get("terminal_candidate_ready"),
+                production=report.get("production_terminal_ready"),
+                next=next_component,
             ),
             flush=True,
         )
@@ -416,11 +428,25 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-cms-ab-test", action="store_true")
     parser.add_argument("--prior-runtime-active", action="store_true")
     parser.add_argument("--prior-ssl-active", action="store_true")
+    parser.add_argument(
+        "--active-components",
+        default=None,
+        help=(
+            "Comma-separated ordered ACTIVE prefix. Supersedes the legacy "
+            "prior-active flags."
+        ),
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    if args.active_components is not None and (
+        args.prior_runtime_active or args.prior_ssl_active
+    ):
+        raise SystemExit(
+            "--active-components cannot be combined with legacy prior-active flags"
+        )
     args.output_dir = args.output_dir.resolve()
     selected = _selected_stages(args)
     artifacts: dict[str, str] = {}

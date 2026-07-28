@@ -44,11 +44,52 @@ class PromotionEvidenceError(SystemExit):
     """Fail-loud wrapper for malformed evidence sources."""
 
 
+def _active_components_from_args(args: argparse.Namespace) -> tuple[str, ...]:
+    if args.active_components is not None:
+        if args.prior_runtime_active or args.prior_ssl_active:
+            raise PromotionEvidenceError(
+                "--active-components cannot be combined with legacy "
+                "--prior-runtime-active/--prior-ssl-active flags"
+            )
+        requested = tuple(
+            part.strip()
+            for part in args.active_components.split(",")
+            if part.strip()
+        )
+    else:
+        if args.prior_ssl_active and not args.prior_runtime_active:
+            raise PromotionEvidenceError(
+                "--prior-ssl-active requires --prior-runtime-active"
+            )
+        requested = ()
+        if args.prior_runtime_active:
+            requested += (_COMPONENTS[0],)
+        if args.prior_ssl_active:
+            requested += (_COMPONENTS[1],)
+
+    unknown = tuple(component for component in requested if component not in _COMPONENTS)
+    if unknown:
+        raise PromotionEvidenceError(f"unknown active component(s): {unknown!r}")
+    if len(set(requested)) != len(requested):
+        raise PromotionEvidenceError(
+            f"--active-components contains duplicates: {requested!r}"
+        )
+    expected = _COMPONENTS[: len(requested)]
+    if requested != expected:
+        raise PromotionEvidenceError(
+            "--active-components must be an ordered promotion prefix; "
+            f"received={requested!r} expected={expected!r}"
+        )
+    return requested
+
+
 def _load_json(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError as exc:
-        raise PromotionEvidenceError(f"evidence source missing: {path} ({exc})")
+        raise PromotionEvidenceError(
+            f"evidence source missing: {path} ({exc})"
+        ) from exc
 
 
 def _soak_evidence(payload: dict, *, path: Path) -> dict[str, object]:
@@ -168,11 +209,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prior-runtime-active", action="store_true")
     parser.add_argument("--prior-ssl-active", action="store_true")
     parser.add_argument(
+        "--active-components",
+        default=None,
+        help=(
+            "Comma-separated ordered ACTIVE prefix. Valid full order: "
+            + ",".join(_COMPONENTS)
+            + ". Supersedes the legacy prior-active flags."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=Path("artifacts/learned_backend_promotion/promotion_evidence.json"),
     )
     args = parser.parse_args(argv)
+    active_components = _active_components_from_args(args)
 
     sources: dict[str, object] = {"soak_artifact": str(args.soak_artifact)}
     soak = _soak_evidence(_load_json(args.soak_artifact), path=args.soak_artifact)
@@ -219,8 +270,8 @@ def main(argv: list[str] | None = None) -> int:
                 "rollback_drill_passed": soak["rollback_drill_passed"],
                 "latency_slo_ok": soak["latency_slo_ok"],
                 "safety_gate_ok": soak["safety_gate_ok"],
-                "prior_runtime_active": bool(args.prior_runtime_active),
-                "prior_ssl_active": bool(args.prior_ssl_active),
+                "prior_runtime_active": _COMPONENTS[0] in active_components,
+                "prior_ssl_active": _COMPONENTS[1] in active_components,
                 "internal_rl_no_reward_leakage": soak[
                     "internal_rl_no_optimize_full_beats_control"
                 ],
@@ -230,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     payload = {
-        "schema_version": "learned-backend-promotion-evidence.v1",
+        "schema_version": "learned-backend-promotion-evidence.v2",
         "artifact_kind": "learned_backend_promotion_evidence",
         "generated_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
         "sources": sources,
@@ -239,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
         "cms_ab_evidence": cms,
         "learned_active_gate": {
             "evidence": rows,
+            "active_components": list(active_components),
             "validation_gate_version": soak["validation_gate_version"],
             "validation_delta_v2": soak["validation_delta_v2"],
         },

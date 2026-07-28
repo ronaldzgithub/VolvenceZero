@@ -18,7 +18,7 @@ from volvence_zero.agent.learned_active_gate import (
     LearnedActiveEvidence,
     LearnedBackendComponent,
     ValidationDeltaV2Readout,
-    evaluate_learned_active_candidate,
+    evaluate_learned_active_chain,
 )
 
 
@@ -109,6 +109,34 @@ def _candidate_payload_from_soak(verdict: dict[str, object]) -> dict[str, object
     }
 
 
+def _active_components_from_gate(
+    gate: dict[str, object],
+    evidence_rows: list[LearnedActiveEvidence],
+) -> tuple[str, ...]:
+    declared = gate.get("active_components")
+    if declared is not None:
+        if not isinstance(declared, list):
+            raise SystemExit("learned_active_gate.active_components must be a list")
+        return tuple(str(component) for component in declared)
+
+    runtime_bits = {evidence.prior_runtime_active for evidence in evidence_rows}
+    ssl_bits = {evidence.prior_ssl_active for evidence in evidence_rows}
+    if len(runtime_bits) != 1 or len(ssl_bits) != 1:
+        raise SystemExit(
+            "legacy prior-active fields disagree across learned backend evidence rows"
+        )
+    runtime_active = runtime_bits.pop()
+    ssl_active = ssl_bits.pop()
+    if ssl_active and not runtime_active:
+        raise SystemExit("legacy prior_ssl_active requires prior_runtime_active")
+    active: list[str] = []
+    if runtime_active:
+        active.append(LearnedBackendComponent.TEMPORAL_RUNTIME.value)
+    if ssl_active:
+        active.append(LearnedBackendComponent.TEMPORAL_SSL.value)
+    return tuple(active)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     artifact = json.loads(args.artifact.read_text(encoding="utf-8"))
@@ -130,18 +158,37 @@ def main(argv: list[str] | None = None) -> int:
             "validation_delta_v2 readout block"
         )
 
-    reports: list[dict[str, object]] = []
+    evidence_rows: list[LearnedActiveEvidence] = []
     for row in rows:
         if not isinstance(row, dict):
             raise SystemExit("learned_active_gate rows must be objects")
         component = str(row["component"])
         evidence_payload = row if "real_trace_turns" in row else _candidate_payload_from_soak(row)
-        evidence = _evidence_from_payload(
-            component, evidence_payload, validation_delta_v2=v2_readout
+        evidence_rows.append(
+            _evidence_from_payload(
+                component, evidence_payload, validation_delta_v2=v2_readout
+            )
         )
-        verdict = evaluate_learned_active_candidate(
-            evidence, validation_gate_version=gate_version
-        )
+
+    active_components = _active_components_from_gate(gate, evidence_rows)
+    chain = evaluate_learned_active_chain(
+        evidence_rows,
+        active_components=active_components,
+        validation_gate_version=gate_version,
+    )
+
+    reports: list[dict[str, object]] = []
+    for verdict in chain.terminal_reports:
+        if verdict.component in chain.active_components:
+            stage_status = "active"
+        elif verdict.component is chain.next_component:
+            stage_status = (
+                "next_candidate"
+                if chain.next_component_eligible
+                else "next_candidate_blocked"
+            )
+        else:
+            stage_status = "queued_after_predecessor"
         reports.append(
             {
                 "component": verdict.component.value,
@@ -149,20 +196,41 @@ def main(argv: list[str] | None = None) -> int:
                 "validation_gate_version": verdict.validation_gate_version,
                 "missing_gates": list(verdict.missing_gates),
                 "description": verdict.description,
+                "stage_status": stage_status,
                 "recommended_env": (
                     f"VZ_{verdict.component.value.upper()}=active"
-                    if verdict.eligible
+                    if (
+                        verdict.component is chain.next_component
+                        and chain.next_component_eligible
+                    )
                     else ""
                 ),
             }
         )
 
     payload = {
-        "schema_version": "learned-backend-promotion-report.v1",
+        "schema_version": "learned-backend-promotion-report.v2",
         "source_artifact": str(args.artifact),
         "validation_gate_version": gate_version,
         "reports": reports,
-        "all_eligible": all(report["eligible"] for report in reports),
+        # Backward-compatible name: all four components pass the isolated
+        # terminal-candidate gate. It does not authorize a four-field flip.
+        "all_eligible": chain.terminal_candidate_ready,
+        "terminal_candidate_ready": chain.terminal_candidate_ready,
+        "production_terminal_ready": chain.production_terminal_ready,
+        "staged_gate": {
+            "active_components": [
+                component.value for component in chain.active_components
+            ],
+            "next_component": (
+                chain.next_component.value
+                if chain.next_component is not None
+                else None
+            ),
+            "next_component_eligible": chain.next_component_eligible,
+            "blocking_reasons": list(chain.blocking_reasons),
+            "description": chain.description,
+        },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

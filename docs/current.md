@@ -482,8 +482,19 @@ artifacts/learned_active_evidence/promotion/promotion_report.json
 目标：
 
 ```json
-{"all_eligible": true}
+{
+  "all_eligible": true,
+  "terminal_candidate_ready": true,
+  "production_terminal_ready": false,
+  "staged_gate": {
+    "next_component": "temporal_runtime_backend",
+    "next_component_eligible": true
+  }
+}
 ```
+
+`terminal_candidate_ready=true` 允许在隔离 lane 直接运行四项终态 wiring；
+它不等于生产终态已完成。生产只执行 `staged_gate.next_component` 给出的单项晋级。
 
 若为 `false`：
 
@@ -524,7 +535,9 @@ architecture-platform-only
 
 ## 9. 真正 flip ACTIVE 的发布流程
 
-即使 `promotion_report.json.all_eligible=true`，也不能一次修改四个默认值。
+即使 `promotion_report.json.terminal_candidate_ready=true`，也不能一次修改四个
+生产默认值；只有四项按顺序完成 ACTIVE 后，`production_terminal_ready` 才能为
+`true`。
 
 每个组件单独做一个有界收敛包：
 
