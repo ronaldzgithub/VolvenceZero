@@ -515,6 +515,50 @@ def test_store_ssl_consumes_complete_expert_action_trajectory() -> None:
     assert store.beta_threshold == pytest.approx(report.switch_threshold_after)
 
 
+@torch_only
+def test_store_ssl_discovers_multiple_expert_action_proposal_families() -> None:
+    from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer
+
+    base = _trace("expert-action-families")
+    assert isinstance(base, TrainingTrace)
+    split = len(base.steps) // 2
+    trace = TrainingTrace(
+        trace_id=base.trace_id,
+        source_text=base.source_text,
+        steps=tuple(
+            TraceStep(
+                step=step.step,
+                token=step.token,
+                feature_surface=step.feature_surface,
+                residual_activations=step.residual_activations,
+                expert_action_target=ExpertActionTarget(
+                    action_id="move:left" if index < split else "move:right",
+                    values=(1.0, 0.0) if index < split else (0.0, 1.0),
+                    source="test-demonstrator",
+                ),
+            )
+            for index, step in enumerate(base.steps)
+        ),
+    )
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    policy = FullLearnedTemporalPolicy(parameter_store=store)
+    trainer = MetacontrollerSSLTrainer(
+        n_z=_NDIM,
+        ssl_backend=WiringLevel.ACTIVE,
+        switch_prior=0.25,
+    )
+    store.set_learning_phase("ssl", structure_frozen=False)
+
+    for update_index in range(8):
+        trainer.optimize_batch(
+            policy=policy,
+            traces=(trace,),
+            batch_id=f"expert-action-family:{update_index}",
+        )
+
+    assert len(store.action_families) >= 2
+
+
 def test_beta_threshold_calibration_uses_only_aggregate_rate() -> None:
     store = MetacontrollerParameterStore(n_z=_NDIM)
     threshold = store.calibrate_beta_threshold(
@@ -524,6 +568,101 @@ def test_beta_threshold_calibration_uses_only_aggregate_rate() -> None:
 
     assert threshold == pytest.approx(0.60)
     assert sum(value >= threshold for value in (0.10, 0.20, 0.30, 0.40, 0.80, 0.90)) == 2
+
+
+def test_beta_threshold_calibration_bounds_one_batch_distribution_shift() -> None:
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+
+    threshold = store.calibrate_beta_threshold(
+        (0.91, 0.92, 0.93, 0.94, 0.95, 0.96),
+        target_rate=1.0 / 3.0,
+    )
+
+    assert threshold == pytest.approx(0.63)
+
+
+def test_causal_latent_projection_uses_encoder_and_policy_evidence() -> None:
+    from volvence_zero.temporal.metacontroller_components import (
+        DiscoveredActionFamily,
+    )
+
+    store = MetacontrollerParameterStore(n_z=4)
+    store.action_families = (
+        DiscoveredActionFamily(
+            family_id="encoded",
+            latent_centroid=(1.0, 0.0, 0.0, 0.0),
+            decoder_centroid=(1.0, 0.0, 0.0, 0.0),
+            support=4,
+            stability=1.0,
+            switch_bias=0.5,
+        ),
+        DiscoveredActionFamily(
+            family_id="policy",
+            latent_centroid=(0.0, 1.0, 0.0, 0.0),
+            decoder_centroid=(0.0, 1.0, 0.0, 0.0),
+            support=2,
+            stability=1.0,
+            switch_bias=0.5,
+        ),
+    )
+
+    projected = store.project_causal_latent_to_action_family(
+        encoded_candidate=(0.9, 0.1, 0.0, 0.0),
+        policy_candidate=(0.6, 0.4, 0.0, 0.0),
+        encoded_control=(0.9, 0.1, 0.0, 0.0),
+        policy_control=(0.6, 0.4, 0.0, 0.0),
+    )
+
+    assert projected == (1.0, 0.0, 0.0, 0.0)
+
+
+def test_causal_latent_projection_is_identity_without_learned_families() -> None:
+    store = MetacontrollerParameterStore(n_z=4)
+    candidate = (0.1, 0.2, 0.3, 0.4)
+
+    assert store.project_causal_latent_to_action_family(
+        encoded_candidate=(0.4, 0.3, 0.2, 0.1),
+        policy_candidate=candidate,
+        encoded_control=(0.4, 0.3, 0.2, 0.1),
+        policy_control=candidate,
+    ) == candidate
+
+
+def test_causal_latent_projection_consumes_decoder_action_geometry() -> None:
+    from volvence_zero.temporal.metacontroller_components import (
+        DiscoveredActionFamily,
+    )
+
+    store = MetacontrollerParameterStore(n_z=4)
+    left_latent = (1.0, 0.0, 0.0, 0.0)
+    right_latent = (0.8, 0.2, 0.0, 0.0)
+    store.action_families = (
+        DiscoveredActionFamily(
+            family_id="left",
+            latent_centroid=left_latent,
+            decoder_centroid=(1.0, 0.0, 0.0, 0.0),
+            support=2,
+            stability=1.0,
+            switch_bias=0.5,
+        ),
+        DiscoveredActionFamily(
+            family_id="right",
+            latent_centroid=right_latent,
+            decoder_centroid=(0.0, 1.0, 0.0, 0.0),
+            support=2,
+            stability=1.0,
+            switch_bias=0.5,
+        ),
+    )
+
+    projected = store.project_causal_latent_to_action_family(
+        encoded_candidate=left_latent,
+        policy_candidate=left_latent,
+        encoded_control=(0.0, 0.9, 0.1, 0.0),
+        policy_control=(0.0, 0.8, 0.2, 0.0),
+    )
+
+    assert projected == right_latent
 
 
 def test_full_policy_episode_transfer_reset_clears_only_recurrent_state() -> None:

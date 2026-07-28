@@ -151,7 +151,7 @@ def main() -> None:
         output_dir=args.output_dir,
     )
     manifest = {
-        "schema_version": "eta-segment-credit-manifest.v12",
+        "schema_version": "eta-segment-credit-manifest.v13",
         "experiment_id": "eta-segment-credit-vs-turn",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "git_sha": _git_value("rev-parse", "HEAD"),
@@ -186,6 +186,11 @@ def main() -> None:
         "ssl_supervision_target": report.ssl_supervision_target,
         "expert_action_supervision": report.expert_action_supervision,
         "outcome_target": report.outcome_target,
+        "family_truth_source": report.family_truth_source,
+        "family_mapping_fit_split": report.family_mapping_fit_split,
+        "causal_family_manifold_projection": (
+            report.causal_family_manifold_projection
+        ),
         "rollout_replacement_mode": report.rollout_replacement_mode,
         "temporal_fast_prior_enabled": report.temporal_fast_prior_enabled,
         "episode_recurrent_state_isolated": (

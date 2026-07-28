@@ -204,6 +204,30 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-28: ETA segment-credit 第六收敛包修复动作族运行时脱轨与评估真值
+  泄漏。SSL topology discovery 现在以 `z_tilde` proposal 及其 decoder control
+  为对象，`beta_t` 只决定该 proposal 是否在当前时刻成为 active code；因果
+  runtime proposal 则由 temporal owner 按同一结构评分投影回已学 family bank。
+  评分同时比较 latent code 与 decoder action，避免仅在 latent 邻近、但解码后
+  动作不一致的错误归族。bank 为空时保持历史 identity 行为，RL/runtime 阶段仍
+  冻结 topology。`beta_t` 的无标签分位数校准改为单次最大 `0.08` 的有界更新，
+  防止一个 batch 把 runtime switch threshold 推到退化区域。
+
+  evidence readout 不再用模型 rollout 的 dominant family 反过来充当
+  `true_family_id`。v13 以环境 `ExpertActionTarget.action_id` 为唯一真值，
+  discovered-family 到 expert-action 的对齐映射只在 train split 拟合，eval/heldout
+  只读该映射；该 readout 不回灌 temporal owner。固定冻结
+  `Qwen/Qwen2.5-0.5B-Instruct`、MPS、`n_z=16`、每 seed 75 个 persistent
+  Adam updates 的 5-seed 预注册配置先得到 `weak`：全部逐 seed PE effect
+  非负，但 3 个 seed 的 turn baseline 已碰到同一 PE 地板，bootstrap CI 下界
+  为 0。保持全部模型、训练和 gate 参数不变扩展到 10 seeds 后，v13 artifact
+  `artifacts/eta_evidence_gate_1/segment_vs_turn_decoder_family_manifold_v13_qwen25_05b_mps_10seed_75update_20260728`
+  达到严格 `retain`：credit F1 delta `0.9000 [0.9000, 0.9000]`，
+  false-credit reduction `0.8333 [0.8333, 0.8333]`，
+  family-assignment delta `0.5000 [0.5000, 0.5000]`，
+  held-out PE reduction-rate delta `0.1589 [0.0397, 0.2780]`，
+  beta boundary F1 `0.7652 [0.7652, 0.7652]`。该结果只支持本 matched-control
+  管线中的 segment-credit 命题，不外推为完整 Volvence thesis 已获验证。
 - 2026-07-28: ETA segment-credit 第五收敛包达到严格 `retain`。根因修正在
   `vz-temporal` encoder owner：`NdimEncoderParameters.current_proj` 以单位矩阵
   初始化，保持未训练行为兼容，并由 ACTIVE Torch SSL 学习 residual observation

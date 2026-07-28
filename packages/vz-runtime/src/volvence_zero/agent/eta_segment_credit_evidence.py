@@ -175,6 +175,9 @@ class SegmentCreditEvidenceReport:
     ssl_supervision_target: str
     expert_action_supervision: bool
     outcome_target: str
+    family_truth_source: str
+    family_mapping_fit_split: str
+    causal_family_manifold_projection: bool
     rollout_replacement_mode: str
     temporal_fast_prior_enabled: bool
     episode_recurrent_state_isolated: bool
@@ -366,13 +369,33 @@ def _dominant_family(rollout: ZRollout, steps: tuple[int, ...]) -> str:
     return min(counts, key=lambda family_id: (-counts[family_id], family_id))
 
 
+def _dominant_expert_action(
+    expert_targets: tuple[ExpertActionTarget, ...],
+    steps: tuple[int, ...],
+) -> str:
+    counts: dict[str, int] = {}
+    for step in steps:
+        action_id = expert_targets[step].action_id
+        counts[action_id] = counts.get(action_id, 0) + 1
+    if not counts:
+        return "unassigned"
+    return min(counts, key=lambda action_id: (-counts[action_id], action_id))
+
+
 def _event_rows(
     *,
     rollout: ZRollout,
     case: ETAProofCase,
     seed: int,
     max_observation_lag: int,
+    expert_targets: tuple[ExpertActionTarget, ...],
 ) -> tuple[SegmentCreditEvent, ...]:
+    if len(expert_targets) != len(rollout.transitions):
+        raise ValueError(
+            "Event evaluation requires one expert action target per rollout "
+            f"transition; got {len(expert_targets)} targets for "
+            f"{len(rollout.transitions)} transitions."
+        )
     windows = _abstract_action_windows(rollout)
     rows: list[SegmentCreditEvent] = []
     for assignment_index, assignment in enumerate(rollout.delayed_credit_assignments):
@@ -405,7 +428,7 @@ def _event_rows(
         turn_precision, turn_recall, turn_f1, turn_false = _safe_f1(
             set(turn_steps), set(true_steps)
         )
-        true_family = _dominant_family(rollout, true_steps)
+        true_family = _dominant_expert_action(expert_targets, true_steps)
         outcome_value = max(-1.0, min(1.0, assignment.completion_margin))
         rows.append(
             SegmentCreditEvent(
@@ -505,6 +528,46 @@ def _fit_family_values(
     return {family_id: _mean(tuple(outcomes)) for family_id, outcomes in values.items()}
 
 
+def _fit_family_action_mapping(
+    events: tuple[SegmentCreditEvent, ...],
+    *,
+    family_field: str,
+) -> dict[str, str]:
+    counts: dict[str, dict[str, int]] = {}
+    for event in events:
+        family_id = str(getattr(event, family_field))
+        if family_id == "unassigned":
+            continue
+        action_counts = counts.setdefault(family_id, {})
+        action_counts[event.true_family_id] = (
+            action_counts.get(event.true_family_id, 0) + 1
+        )
+    return {
+        family_id: min(
+            action_counts,
+            key=lambda action_id: (-action_counts[action_id], action_id),
+        )
+        for family_id, action_counts in counts.items()
+    }
+
+
+def _family_action_accuracy(
+    events: tuple[SegmentCreditEvent, ...],
+    *,
+    family_field: str,
+    mapping: dict[str, str],
+) -> float:
+    return _mean(
+        tuple(
+            1.0
+            if mapping.get(str(getattr(event, family_field)))
+            == event.true_family_id
+            else 0.0
+            for event in events
+        )
+    )
+
+
 def _prediction_metrics(
     *,
     train_events: tuple[SegmentCreditEvent, ...],
@@ -560,17 +623,21 @@ def _run_metrics(
     turn_f1 = _mean(tuple(event.turn_f1 for event in metric_events))
     eta_false = _mean(tuple(event.eta_false_credit_rate for event in metric_events))
     turn_false = _mean(tuple(event.turn_false_credit_rate for event in metric_events))
-    eta_family = _mean(
-        tuple(
-            1.0 if event.eta_family_id == event.true_family_id else 0.0
-            for event in metric_events
-        )
+    eta_family = _family_action_accuracy(
+        metric_events,
+        family_field="eta_family_id",
+        mapping=_fit_family_action_mapping(
+            train_events,
+            family_field="eta_family_id",
+        ),
     )
-    turn_family = _mean(
-        tuple(
-            1.0 if event.turn_family_id == event.true_family_id else 0.0
-            for event in metric_events
-        )
+    turn_family = _family_action_accuracy(
+        metric_events,
+        family_field="turn_family_id",
+        mapping=_fit_family_action_mapping(
+            train_events,
+            family_field="turn_family_id",
+        ),
     )
     return SegmentCreditRunMetrics(
         run_seed=seed,
@@ -1036,6 +1103,7 @@ def run_eta_segment_credit_evidence(
                     case=case,
                     seed=seed,
                     max_observation_lag=max_observation_lag,
+                    expert_targets=expert_targets,
                 )
             )
             seed_boundaries.append(
@@ -1178,7 +1246,7 @@ def run_eta_segment_credit_evidence(
     else:
         claim_status = "fail"
     return SegmentCreditEvidenceReport(
-        schema_version="eta-segment-credit-evidence.v12",
+        schema_version="eta-segment-credit-evidence.v13",
         backend_label=backend_label,
         model_id=active_config.model_id if runtime is not None else "trace",
         device=active_config.device if runtime is not None else "cpu",
@@ -1225,6 +1293,11 @@ def run_eta_segment_credit_evidence(
             row.ssl_expert_action_supervision for row in run_metrics
         ),
         outcome_target="observed-alignment-minus-nominal-completion-threshold",
+        family_truth_source="environment-expert-action-target",
+        family_mapping_fit_split="train-only",
+        causal_family_manifold_projection=(
+            training_mode == "ssl-rl-alternating"
+        ),
         rollout_replacement_mode="causal",
         temporal_fast_prior_enabled=False,
         episode_recurrent_state_isolated=True,
@@ -1244,6 +1317,8 @@ def run_eta_segment_credit_evidence(
             "evaluation-only and never supervise beta. Train traces carry "
             "environment-demonstrated action vectors with provenance; eval and "
             "held-out rollouts receive observations but no action targets. "
+            "Discovered family IDs are aligned to environment expert actions "
+            "using train events only; held-out events remain read-only. "
             "All runs start from one fixed shared-controller initialization; "
             "experience seeds vary case order and delayed-observation lag. "
             "Held-out PE predicts observed completion alignment relative to "
@@ -1387,6 +1462,12 @@ def export_eta_segment_credit_evidence(
                 (
                     "- Expert action supervision: "
                     f"`{report.expert_action_supervision}`"
+                ),
+                f"- Family truth source: `{report.family_truth_source}`",
+                f"- Family mapping fit split: `{report.family_mapping_fit_split}`",
+                (
+                    "- Causal family manifold projection: "
+                    f"`{report.causal_family_manifold_projection}`"
                 ),
                 f"- Rollout replacement mode: `{report.rollout_replacement_mode}`",
                 (

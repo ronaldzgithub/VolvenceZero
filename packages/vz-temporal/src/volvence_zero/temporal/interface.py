@@ -1466,13 +1466,16 @@ class MetacontrollerParameterStore:
         probabilities: tuple[float, ...],
         *,
         target_rate: float,
+        max_update: float = 0.08,
     ) -> float:
-        """Align the binary beta decision with an unlabeled aggregate rate."""
+        """Align beta with an unlabeled rate without a one-batch threshold jump."""
 
         if not probabilities:
             return self.beta_threshold
         if not 0.0 < target_rate < 1.0:
             raise ValueError("target_rate must be strictly between 0 and 1")
+        if not math.isfinite(max_update) or not 0.0 < max_update <= 1.0:
+            raise ValueError("max_update must be finite and in (0, 1]")
         if any(not math.isfinite(value) for value in probabilities):
             raise ValueError("beta calibration probabilities must be finite")
         ordered = tuple(
@@ -1483,14 +1486,83 @@ class MetacontrollerParameterStore:
             min(len(ordered) - 1, round(target_rate * len(ordered))),
         )
         split = len(ordered) - positive_count
-        self.beta_threshold = max(
+        batch_threshold = max(
             0.05,
             min(
                 0.95,
                 (ordered[split - 1] + ordered[split]) / 2.0,
             ),
         )
+        threshold_delta = max(
+            -max_update,
+            min(max_update, batch_threshold - self.beta_threshold),
+        )
+        self.beta_threshold = max(
+            0.05,
+            min(0.95, self.beta_threshold + threshold_delta),
+        )
         return self.beta_threshold
+
+    def project_causal_latent_to_action_family(
+        self,
+        *,
+        encoded_candidate: tuple[float, ...],
+        policy_candidate: tuple[float, ...],
+        encoded_control: tuple[float, ...],
+        policy_control: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        """Constrain causal takeover to the action manifold learned during SSL."""
+
+        if not self.action_families:
+            return policy_candidate
+        candidates = (
+            encoded_candidate,
+            policy_candidate,
+            encoded_control,
+            policy_control,
+        )
+        if any(len(candidate) != self._n_z for candidate in candidates):
+            raise ValueError(
+                "causal family projection candidates must match the store latent dimension"
+            )
+        if any(
+            not math.isfinite(value)
+            for candidate in candidates
+            for value in candidate
+        ):
+            raise ValueError("causal family projection candidates must be finite")
+
+        def cosine(
+            left: tuple[float, ...],
+            right: tuple[float, ...],
+        ) -> float:
+            left_norm = math.sqrt(sum(value * value for value in left))
+            right_norm = math.sqrt(sum(value * value for value in right))
+            if left_norm <= 1e-12 or right_norm <= 1e-12:
+                return 0.0
+            return sum(
+                left_value * right_value
+                for left_value, right_value in zip(left, right, strict=True)
+            ) / (left_norm * right_norm)
+
+        selected = max(
+            self.action_families,
+            key=lambda family: (
+                0.6
+                * (
+                    cosine(encoded_candidate, family.latent_centroid)
+                    + cosine(policy_candidate, family.latent_centroid)
+                )
+                + 0.4
+                * (
+                    cosine(encoded_control, family.decoder_centroid)
+                    + cosine(policy_control, family.decoder_centroid)
+                ),
+                family.support,
+                family.family_id,
+            ),
+        )
+        return selected.latent_centroid
 
     def __getattr__(self, name: str):
         """Proxy ``latest_X`` attribute reads to ``self._latest.X``.
@@ -4463,6 +4535,23 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             )
         else:
             z_candidate = latent_override or encoded.z_tilde
+        if latent_override is not None:
+            encoded_control = decoder_obj.decode(
+                latent_code=encoded.z_tilde,
+                params=self._parameter_store.ndim_decoder_parameters,
+            )
+            policy_control = decoder_obj.decode(
+                latent_code=latent_override,
+                params=self._parameter_store.ndim_decoder_parameters,
+            )
+            z_candidate = (
+                self._parameter_store.project_causal_latent_to_action_family(
+                    encoded_candidate=encoded.z_tilde,
+                    policy_candidate=latent_override,
+                    encoded_control=encoded_control.applied_control,
+                    policy_control=policy_control.applied_control,
+                )
+            )
         # autograd-owner-integration: let reward-driven track weights actually
         # reach the runtime latent. Previously Internal-RL only wrote
         # ``track_weights`` (+ ``align_temporal_from_tracks`` into the legacy 3-d

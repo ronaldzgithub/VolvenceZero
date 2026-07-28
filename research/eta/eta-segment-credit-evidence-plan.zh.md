@@ -92,6 +92,53 @@ boundary 88，对真实边界 95。该结果支持的严格表述是：在固定
 动作族归因和 held-out 结果预测均改善。它不证明任意 substrate、任意初始化或开放域
 关系状态都会自动形成同等抽象。
 
+## 2026-07-28 v13 动作族流形与评估真值修复
+
+v12 之后的严格复核又发现两处会高估或削弱 ETA 证据的结构问题：
+
+1. SSL 的监督目标处于 decoder action space，但 causal runtime 的 `z_t`
+   proposal 可以离开训练得到的 action-family manifold；此前只按 latent
+   邻近选择 family，无法保证解码后的控制动作一致。
+2. evidence harness 曾用模型 rollout 的 dominant family 生成
+   `true_family_id`，相当于让预测参与定义真值；这不是合法的 held-out
+   family evaluation。
+
+v13 的修复全部位于既有 owner 边界内：
+
+- SSL topology discovery 对 `z_tilde` proposal 及其 decoder control 建族，
+  然后才由 `beta_t` 决定 proposal 是否成为 active code。
+- causal runtime 用 latent similarity 与 decoder-action similarity 的同一
+  结构评分，把 proposal 投影到已学 family bank；bank 为空时严格 identity。
+- `beta_t` 的无标签分位数校准每次最多移动 `0.08`，避免单 batch 阈值跳变。
+- family 真值只取环境 `ExpertActionTarget.action_id`；family→action 映射只在
+  train split 拟合，eval/heldout 不参与拟合，也不回灌 temporal owner。
+- report/manifest schema 升级到 v13，并发布 `family_truth_source`、
+  `family_mapping_fit_split` 与 `causal_family_manifold_projection`。
+
+固定冻结 Qwen2.5-0.5B、MPS、`n_z=16`、3 个 SSL/RL cycles、每 cycle 25 个
+persistent Adam updates 的 5-seed 首轮结果是 `weak`。ETA 的 held-out PE
+五次都为 `0.03643`；turn baseline 两次更差、三次碰到同一地板，逐 seed effect
+没有负值，但 5 样本 bootstrap 的 95% CI 下界仍为 0。没有放宽
+`ci_low > 0` 证据门，也没有调训练参数；只把样本量扩展为 10 seeds。
+
+最终 artifact：
+`artifacts/eta_evidence_gate_1/segment_vs_turn_decoder_family_manifold_v13_qwen25_05b_mps_10seed_75update_20260728`。
+严格 verdict 为 `retain`，12 个 mechanism/outcome gate 全部通过：
+
+| 指标 | mean | 95% bootstrap CI |
+|---|---:|---:|
+| credit F1 delta | 0.9000 | [0.9000, 0.9000] |
+| false-credit reduction | 0.8333 | [0.8333, 0.8333] |
+| family-assignment delta | 0.5000 | [0.5000, 0.5000] |
+| held-out PE reduction-rate delta | 0.1589 | [0.0397, 0.2780] |
+| beta boundary F1 | 0.7652 | [0.7652, 0.7652] |
+
+系统形成 4 个 active families，10 seeds 共观察 190 个真实边界和 250 个 beta
+boundary；每 seed 的 optimizer 复用 74 次并完成 75 步，fallback 为 false。
+这一结果证明的是该冻结基底、该 matched-control 和该 held-out 路线下，学到的
+时间分段比结果到达 turn 更适合 delayed credit。它不证明任意开放域场景都会产生
+同样动作本体，也不等于 Volvence 全部 thesis 已经完成验证。
+
 ## 2026-07-28 MPS 首轮结果
 
 运行配置：冻结 `Qwen/Qwen2.5-0.5B-Instruct`，MPS，5 runs，120 个延迟结果事件。

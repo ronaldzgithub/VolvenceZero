@@ -234,11 +234,13 @@ def test_eta_segment_credit_evidence_compares_same_delayed_events(
         "credit.jsonl",
     }
     payload = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
-    assert payload["schema_version"] == "eta-segment-credit-evidence.v12"
+    assert payload["schema_version"] == "eta-segment-credit-evidence.v13"
     assert payload["controller_initialization_seed"] == 42
     assert payload["outcome_target"] == (
         "observed-alignment-minus-nominal-completion-threshold"
     )
+    assert payload["family_truth_source"] == "environment-expert-action-target"
+    assert payload["family_mapping_fit_split"] == "train-only"
     assert payload["ssl_supervision_target"] == "none"
     assert payload["expert_action_supervision"] is False
     assert payload["events"]

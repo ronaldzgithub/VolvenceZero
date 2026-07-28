@@ -956,7 +956,7 @@ class MetacontrollerSSLTrainer:
         policy: FullLearnedTemporalPolicy,
         traces: tuple[TrainingTrace, ...],
     ) -> None:
-        """Replay trained expert trajectories with runtime one-step semantics."""
+        """Discover proposal families before beta decides whether to execute them."""
 
         if (
             self._ndim_encoder is None
@@ -1005,27 +1005,22 @@ class MetacontrollerSSLTrainer:
                     step_index == 0
                     or scalar_beta >= store.beta_threshold
                 )
-                latent_code = (
-                    encoded.z_tilde
-                    if is_switching
-                    else previous_code
-                )
                 persistence_window = (
                     0.0 if is_switching else float(previous_steps + 1)
                 )
                 decoder_control = self._ndim_decoder.decode(
-                    latent_code=latent_code,
+                    latent_code=encoded.z_tilde,
                     params=store.ndim_decoder_parameters,
                 )
                 store.discover_action_family(
-                    latent_code=latent_code,
+                    latent_code=encoded.z_tilde,
                     decoder_control=decoder_control.applied_control,
                     switch_gate=scalar_beta,
                     posterior_drift=encoded.posterior.posterior_drift,
                     persistence_window=persistence_window,
                 )
                 previous_hidden_state = encoded.posterior.hidden_state
-                previous_code = latent_code
+                previous_code = encoded.z_tilde
                 previous_steps = (
                     0 if is_switching else previous_steps + 1
                 )
