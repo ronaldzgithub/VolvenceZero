@@ -140,8 +140,30 @@ _DOCUMENTED_FEELING_DEPENDENT_SLOTS: frozenset[str] = frozenset(
         # EvaluationModule reads response_assembly downstream so its
         # snapshot legitimately drifts when the ToM count changes.
         "evaluation",
+        # SocialPredictionAggregateModule formally depends on all four
+        # ToM owners and forwards their owner-authored active_predictions.
+        # SHADOW keeps feeling_about_other outside the active graph;
+        # ACTIVE therefore publishes its typed FEELING_ABOUT_OTHER
+        # prediction through this aggregate owner.
+        "social_prediction",
     }
 )
+
+
+def test_active_feeling_prediction_is_forwarded_by_social_prediction_owner() -> None:
+    """The ACTIVE-only aggregate drift is causal, typed, and owner-authored."""
+    shadow_run = _run_turn_with_wiring(WiringLevel.SHADOW)
+    active_run = _run_turn_with_wiring(WiringLevel.ACTIVE)
+
+    shadow_predictions = shadow_run["active"]["social_prediction"].value.predictions
+    active_predictions = active_run["active"]["social_prediction"].value.predictions
+
+    assert shadow_predictions == ()
+    assert len(active_predictions) == 1
+    prediction = active_predictions[0]
+    assert prediction.kind.value == "feeling_about_other"
+    assert prediction.prediction_id.startswith("feeling_about_other:")
+    assert prediction.predicted_outcome == "user feels overwhelmed"
 
 
 def test_active_promotion_drift_is_bounded_to_documented_dependents() -> None:

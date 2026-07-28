@@ -1,7 +1,7 @@
 # Theory of Mind Spec
 
 > Status: draft
-> Last updated: 2026-05-02
+> Last updated: 2026-07-28
 > 对应需求: R17, R16, R11, R-PE, R1, R8, R15
 
 ## 要解决的问题
@@ -105,6 +105,13 @@ Implemented Phase 2 scaffold:
 - Explicit proposal path: ToM owners can consume an explicitly injected `SemanticProposalRuntime` and convert accepted proposals into `OtherMindRecord` with the owner-specific kind. Final wiring does not pass the generic semantic runtime into ToM owners by default, so no raw-text / NoOp / broad runtime accidentally becomes a ToM classifier.
 - Evidence probe: `tests/test_social_tom.py` includes an artificial false-belief + preference-conflict probe proving belief records and preference records stay in separate owners and retain distinct `OtherMindRecordKind` values.
 - Diagnostic downstream visibility: when ToM owners are explicitly ACTIVE, `response_assembly.semantic_record_counts` includes `belief_about_other` / `intent_about_other` / `feeling_about_other` / `preference_about_other` counts. Planner and renderer still do not consume these snapshots.
+- ACTIVE owner predictions are forwarded by the separate
+  `SocialPredictionAggregateModule` into `social_prediction`; SHADOW owner
+  predictions remain outside the active dependency graph. Therefore a
+  SHADOW → ACTIVE matched-control promotion is expected to change
+  `social_prediction` when the promoted ToM owner publishes a typed
+  `active_prediction`. This is an explicit owner dependency, not
+  run-to-run nondeterminism or renderer-side reconstruction.
 - Evidence report artifact: `lifeform_evolution.run_social_cognition_evidence()` summarizes T1-T3 gates for ToM owner contract, explicit proposal path, and false-belief / preference separation.
 - CLI artifact: `lifeform-bench --social-cognition-evidence-report` prints the report, and `--social-cognition-evidence-json PATH` writes the T1-T3 payload.
 - Structured LLM runtime: `LLMToMProposalRuntime` consumes JSON array output and emits typed `SemanticProposal`s targeted at belief / intent / feeling / preference owners. Malformed JSON falls back, provider exceptions propagate, and low-confidence records are dropped before owner mutation.
@@ -129,6 +136,10 @@ Implemented Phase 2 scaffold:
 
 ## 变更日志
 
+- 2026-07-28: 修正 `feeling_about_other` matched-control 的依赖证据：
+  `social_prediction` 是 ACTIVE ToM prediction 的正式 aggregate consumer；
+  contract test 同时断言 SHADOW 无转发、ACTIVE 精确转发一条 owner-authored
+  `FEELING_ABOUT_OTHER` prediction，避免把预期的因果变化误判为非确定性漂移。
 - 2026-07-13: social-learning slice 1。`SocialPredictionKind` 新增四个 ToM
   prediction kind；`Belief/Intent/Feeling/PreferenceAboutOtherModule` 从
   accepted `OtherMindRecord` 发布 `active_predictions`；final wiring 将
