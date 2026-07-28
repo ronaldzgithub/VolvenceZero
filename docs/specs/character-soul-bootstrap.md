@@ -259,8 +259,32 @@ CaseMemory 最终分别晋升：
 张无忌的 bake 没有被单一 protection schema 垄断，但仍不是 external reviewed
 五维行为保真结论。
 
+## Character Migration Scenario Package（人物迁移验收包，2026-07-29）
+
+`lifeform-domain-character` 现在发布
+`scenario_packages/zhang_wuji_character_migration_v1/` 作为张无忌迁移的
+SHADOW 验收包。它不是 runtime owner，也不是 prompt persona；包内
+`manifest.yaml / ssot_fragment.json / scenes.yaml / test_suite.yaml` 只冻结
+reviewed profile、主观 live-through、关系语义脊柱、多经历动作抽象与独立行为保真
+的验收面。
+
+关键边界：
+
+- 包内所有人物材料均为 reviewer paraphrase，不携带小说原文。
+- `CharacterSoulProfile` 仍是 profile SSOT；关系、承诺、信念、目标与边界只通过
+  typed proposal 交给九类 semantic owner。
+- 场景检测必须使用语义嵌入与 schema-bound 结构化输出，禁止关键词、正则、口头禅或
+  表面文风路由。
+- 行为保真测试保持 evaluation-only；任何 score、verdict 或 negative case 都不得回灌
+  PE、credit、memory、regime 或 Internal-RL。
+- 迁移声明按证据分级：profile 编译、live-through 进入学习链、lineage causal pass、
+  diagnostic behavior pass、external human-validated pass 必须分开表述。
+
 ## 变更日志
 
+- 2026-07-29: 新增 `zhang_wuji_character_migration_v1` 人物迁移验收包，冻结 SSOT、
+  主观经历、关系脊柱、动作抽象和行为保真正负例的 SHADOW 包格式；新增结构测试防止
+  关键词路由、孤儿 path、phase 断序和缺失负例。
 - 2026-07-29: 完成真实章节 multi-family owner portfolio：修复双轨 aggregate action 误绑定，两个独立 family promotion 的 held-out routing 为 `2/2`，未闭合 family 保持 pending。
 - 2026-07-29: 为四臂 16-case 报告增加 TP/FP/FN/TN 与 promotion precision/recall/specificity；baked 为 `4/0/0/12` 且三项 `1.000`，无预测正例 arm 的 precision 保持 undefined，reviewed behavior 门不升级。
 - 2026-07-29: 为 action abstraction admission 接通 typed Credit→Internal-RL→CaseMemory lineage；四臂修复后 baked/cold/no-RL/shuffled 正例 promotion 命中为 `4/0/0/0`，lineage 因果门通过，reviewed behavior 门保持 insufficient data。

@@ -30,6 +30,9 @@ include = ["lifeform_domain_character*"]
 "lifeform_domain_character" = [
     "evaluation/*.json",
     "scenarios/*.json",
+    "scenario_packages/*/*.json",
+    "scenario_packages/*/*.md",
+    "scenario_packages/*/*.yaml",
     "prompts/*.md",
     "schemas/*.json",
 ]

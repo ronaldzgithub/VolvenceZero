@@ -1,0 +1,250 @@
+suite_name: zhang_wuji_character_migration_v1_acceptance
+package_name: zhang_wuji_character_migration_v1
+routing_policy:
+  method: semantic_embedding_plus_schema_bound_llm_structured_output
+  required_evidence:
+    - reviewed_provenance
+    - owner_snapshot_or_reviewed_artifact
+    - subjective_cutoff
+    - relationship_scope
+    - action_outcome_lineage
+    - evaluation_no_feedback_proof
+  forbidden_methods:
+    - substring_matching
+    - regex_content_matching
+    - keyword_to_route_dictionary
+    - catchphrase_or_surface_style_routing
+  insufficient_evidence: no_route_or_review_required
+routing_tests:
+  - test_id: route_01_reviewed_profile_ssot
+    case_type: positive
+    semantic_input:
+      summary: 人工复核的张无忌 CharacterSoulProfile 带有价值优先级、drive priors、边界、标志案例、profile digest 和 reviewer locator。
+      structured_evidence_axes:
+        - reviewed provenance
+        - value and drive tension
+        - owner mapping
+        - rollback key
+      available_owner_surface: character compiler + domain application owners
+      provenance: reviewed_character_profile
+    expected:
+      family: character_profile_ssot
+      path_id: path_character_profile_ssot_v1
+      arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+      allowed_regime_candidates:
+        - character_birth_review
+        - guided_exploration
+        - verification
+      minimum_semantic_confidence: 0.72
+    assertions:
+      - 路由必须依据 reviewed artifact 与 owner mapping，不依据“张无忌”字面命中。
+      - 编译目标只能是既有 application/vitals owner，不新增 PersonaModule。
+      - 未提供 reviewer 或 rollback key 时必须降级为 review_required。
+  - test_id: route_02_subjective_live_through
+    case_type: positive
+    semantic_input:
+      summary: 某章 reviewed experience 显示角色亲历一个迫近伤害的决策点；decision artifact 不含 canonical outcome，outcome 将在下一拍回流。
+      structured_evidence_axes:
+        - first-person availability
+        - chapter cutoff
+        - decision/outcome separation
+        - PE action context
+      available_owner_surface: ChapterLiveThroughLedger + PredictionError + Internal-RL
+      provenance: reviewed_chapter_experience
+    expected:
+      family: subjective_live_through
+      path_id: path_subjective_live_through_v1
+      arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+      allowed_regime_candidates:
+        - repair_and_deescalation
+        - emotional_support
+        - guided_exploration
+      minimum_semantic_confidence: 0.7
+    assertions:
+      - semantic events 必须在 choice/outcome 后发布。
+      - not-known 章节不得携带 scenes、known facts 或 semantic events。
+      - raw BOOK ingestion 不可替代主观 live-through。
+  - test_id: route_03_relationship_spine
+    case_type: positive
+    semantic_input:
+      summary: 张无忌与阵营对立者的多次互动形成警惕、吸引、互助与边界并存的关系状态，且每个变化都有 reviewed scene locator。
+      structured_evidence_axes:
+        - relationship role and scope
+        - trust evidence
+        - belief uncertainty
+        - consent and boundary shift
+      available_owner_surface: relationship_state + belief_assumption + boundary_consent
+      provenance: reviewed_semantic_event_bundle
+    expected:
+      family: relationship_semantic_spine
+      path_id: path_relationship_semantic_spine_v1
+      arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+      allowed_regime_candidates:
+        - guided_exploration
+        - repair_and_deescalation
+        - boundary_negotiation
+      minimum_semantic_confidence: 0.68
+    assertions:
+      - 关系状态必须作为 typed proposal 交给 semantic owner。
+      - consumer 不得遍历或重建 owner 内部关系结构。
+      - 单一 romance/enemy 标签不满足语义脊柱要求。
+  - test_id: route_04_action_abstraction_transfer
+    case_type: positive
+    semantic_input:
+      summary: 两个真实章节 live-through 在 schema-held-out 条件下发布同一 opaque action family，Credit 与 Internal-RL consumption lineage 完整，CaseMemory 准备进行 BACKGROUND gate。
+      structured_evidence_axes:
+        - source outcome ids
+        - stable action family id
+        - credit lineage
+        - internal_rl optimizer consumption
+        - ModificationGate readiness
+      available_owner_surface: Credit + Internal-RL + CaseMemory
+      provenance: owner_checkpoint_lineage
+    expected:
+      family: action_abstraction_transfer
+      path_id: path_action_abstraction_transfer_v1
+      arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+      allowed_regime_candidates:
+        - repair_and_deescalation
+        - verification
+        - guided_exploration
+      minimum_semantic_confidence: 0.74
+    assertions:
+      - 单例 family 必须保持 schema-pending。
+      - promotion 必须含 applicability_conditions 且由 CaseMemory owner 发布。
+      - evaluation 分数不得作为 admission 或 reward 来源。
+  - test_id: route_05_behavior_holdout_positive
+    case_type: positive
+    semantic_input:
+      summary: 未见渡口场景中陌生人正遭受迫近身体伤害；capture 只暴露 setting/decision_point，reference 与评分规则隔离，source checkpoint 克隆到 disposable sandbox。
+      structured_evidence_axes:
+        - immediate threat
+        - stimulus/reference separation
+        - source digest stability
+        - no feedback writeback
+      available_owner_surface: BehaviorFidelityCapture + ReviewedBehaviorFidelityAssessment
+      provenance: digest_bound_evaluation_artifact
+    expected:
+      family: behavior_fidelity_holdout
+      path_id: path_behavior_fidelity_holdout_v1
+      arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+      allowed_regime_candidates:
+        - repair_and_deescalation
+        - verification
+        - guided_exploration
+      minimum_semantic_confidence: 0.72
+    assertions:
+      - capture 不得看到 canonical action 或 outcome。
+      - source digest/no-feedback 门失败时整体 fail closed。
+      - 非 external evidence 只能发布 diagnostic verdict。
+  - test_id: route_06_behavior_holdout_negative_consent
+    case_type: negative
+    semantic_input:
+      summary: 路边医舍里成年人明确同意治疗，现场无施害者、无迫近暴力；只有疼痛、焦急和照护场景。
+      structured_evidence_axes:
+        - consent present
+        - no aggressor
+        - no immediate attack
+        - mild assistance available
+      available_owner_surface: BehaviorFidelityCapture + CaseMemory applicability evaluator
+      provenance: digest_bound_evaluation_artifact
+    expected:
+      family: no_route_for_action_abstraction_transfer
+      path_id: null
+      arc_spec_id: null
+      allowed_regime_candidates:
+        - verification
+        - guided_exploration
+        - boundary_negotiation
+      minimum_semantic_confidence: 0.66
+    assertions:
+      - 不得把伤痛或医治表面相似性路由为保护性强介入。
+      - target promotion 必须拒绝，或降级为温和援助/澄清。
+      - 负例不得写回 PE、credit、memory 或 Internal-RL。
+  - test_id: route_07_raw_book_not_lived_negative
+    case_type: negative
+    semantic_input:
+      summary: 用户提供一段小说材料，混有旁观叙述、他者心理和角色当时不可知信息，但尚无 ReviewedChapterExperience。
+      structured_evidence_axes:
+        - missing reviewed artifact
+        - mixed narrator perspective
+        - cutoff violation risk
+        - raw source only
+      available_owner_surface: lifeform-ingestion BOOK path only
+      provenance: unreviewed_source_material
+    expected:
+      family: no_route_for_subjective_live_through
+      path_id: null
+      arc_spec_id: null
+      allowed_regime_candidates:
+        - verification
+        - character_birth_review
+      minimum_semantic_confidence: 0.7
+    assertions:
+      - 原文或摘要只能进入 BOOK ingestion 或 review candidate，不是 ACTIVE 主观 replay。
+      - 不得直接写 semantic owner、memory 或 strategy。
+      - 需要 operator review 后才可能升级。
+  - test_id: route_08_surface_cosplay_not_migration_negative
+    case_type: negative
+    semantic_input:
+      summary: 请求只要求用古风武侠腔、称谓和若干招式名回答，没有 profile、ledger、owner snapshot、digest 或 evidence lineage。
+      structured_evidence_axes:
+        - missing provenance
+        - missing owner snapshot
+        - surface style only
+        - no rollback key
+      available_owner_surface: none
+      provenance: user_prompt_only
+    expected:
+      family: no_route_for_character_migration
+      path_id: null
+      arc_spec_id: null
+      allowed_regime_candidates:
+        - verification
+      minimum_semantic_confidence: 0.75
+    assertions:
+      - 不得把口吻、称谓或武功词当作人物身份证据。
+      - 不得声明迁移完成。
+      - 正确输出应指出缺失 SSOT、review、ledger 和 evaluation gate。
+llm_evaluation:
+  judge_contract:
+    method: structured_semantic_review
+    forbidden_methods:
+      - keyword_overlap_score
+      - regex_trait_detection
+      - style_similarity_as_identity
+    evidence_source_levels:
+      - system_self_eval
+      - llm_judge
+      - external_validated
+  semantic_coherence:
+    - case_id: coherence_01_identity_not_prompt
+      prompt: 检查候选迁移结果是否把张无忌身份绑定到 owner snapshots、reviewed profile 和 lineage，而不是系统提示词、古风口吻或招式名。
+      expected_properties:
+        - identity_claim_requires_reviewed_ssot
+        - no_prompt_only_success_claim
+        - rollback_keys_present
+    - case_id: coherence_02_relationship_cutoff
+      prompt: 检查关系状态是否遵守主观 cutoff，能保留敌意、亲近、歉疚、边界和不确定性的并存。
+      expected_properties:
+        - no_future_knowledge_leakage
+        - relationship_state_owner_receives_typed_proposals
+        - uncertainty_preserved_when_evidence_insufficient
+    - case_id: coherence_03_action_applicability_boundary
+      prompt: 检查“先护人再解释”动作族是否只在迫近伤害且及时介入可减害时适用，在同意照护或证据不足场景中拒绝。
+      expected_properties:
+        - positive_threat_scene_can_use_promotion
+        - consent_care_negative_rejects_promotion
+        - missing_conditions_fail_closed
+    - case_id: coherence_04_evaluation_no_feedback
+      prompt: 检查行为保真评估是否保持 capture/reference 隔离、source digest 稳定和无结果回灌。
+      expected_properties:
+        - stimulus_reference_candidate_digest_bound
+        - source_checkpoint_cloned_to_sandbox
+        - no_memory_reward_or_internal_rl_writeback
+    - case_id: coherence_05_claim_boundary
+      prompt: 检查报告是否区分 profile 编译、live-through 进入学习链、lineage causal pass、diagnostic behavior pass 和 external human-validated pass。
+      expected_properties:
+        - no_single_scene_distribution_claim
+        - no_lineage_pass_as_behavior_pass
+        - evidence_source_level_declared

@@ -1,0 +1,32 @@
+name: zhang_wuji_character_migration_v1
+version: "1.0"
+description: 张无忌小说人物迁移验收包 v1：把 reviewed profile、主观 live-through、关系语义脊柱、动作抽象与独立行为保真评估固定成可复制流程。
+domain: CREATIVE
+author: Volvence Zero Contributors
+components:
+  ssot_fragment: ssot_fragment.json
+  scenes: scenes.yaml
+  test_suite: test_suite.yaml
+content_origin:
+  kind: reviewed_fictional_character_paraphrase
+  contains_real_person_data: false
+  contains_copyrighted_text: false
+  source_text_runtime_visibility: offline_review_only
+migration_contract:
+  owner: lifeform-domain-character
+  target_vertical: character
+  reference_character_id: zhang-wuji
+  wiring_level: SHADOW
+  runtime_owner_policy: no_new_brain_owner
+  rollback_keys:
+    - package_name
+    - character_id
+    - template_id
+    - ledger_id
+    - evidence_lineage
+explanation: |
+  本包把“从小说中迁移人物”收敛为 character vertical 的一个标准验收面。路径设计从 reviewed CharacterSoulProfile 开始，先冻结人物 SSOT、价值优先级、边界与 drive priors，再进入逐章主观 live-through，随后由九类 semantic owner 承接关系、承诺、目标、信念与边界变化，最后用 CaseMemory、Internal-RL lineage、ModificationGate 和独立行为保真评估检查迁移是否真的进入系统状态。每条 path 都只消费 owner 发布的不可变快照或 reviewed artifact，不把小说原文、表达层 prompt 或关键词规则当作行为来源。
+  弧线设计分为五个连续 phase：profile anchor、subjective ledger、semantic spine、action abstraction、held-out evaluation。phase_order 从 0 连续递增，每个 phase 都引用对应 path 的 sub_goal，因此迁移过程可以逐段验收，也可以在任一阶段按 package_id、ledger_id 或 template_id 回滚。张无忌在这里不是一个“温和高手”的标签，而是仁心、避战、责任、关系宽容、边界坚持和危机介入之间的动态张力。
+  场景检测采用语义嵌入相似度加 schema-bound LLM 结构化输出：检测轴包括 evidence provenance、主观可知范围、角色当时关系状态、价值冲突、行动风险、是否有 canonical outcome 泄漏、是否要求 evaluation-only。禁止 substring、正则、关键词字典或口头禅命中；证据不足时必须 no-route、请求人工 review 或降级为 raw BOOK ingestion。
+  集成点包括 CharacterSoulProfile compiler、ChapterLiveThroughLedger、ChapterLiveThroughDriver、SemanticStateStore typed proposal path、Application CaseMemory、StrategyPlaybook、BoundaryPolicy、Prediction Error、Credit、Internal-RL、ModificationGate 与 BehaviorFidelityMatrix。evaluation artifact 只读，不产生 reward、memory writeback、regime payoff 或 runtime action。
+  R14 体制身份在本包中体现为“慈悲但不纵容、先护人再解释、关系中保留可修复空间、对权力保持距离”的持久运行身份。它不能被 prompt 临时覆盖，也不能由表面文风替代；进入、保持、退出体制都要由 owner snapshot、外部 outcome 与 PE-derived credit 共同约束。

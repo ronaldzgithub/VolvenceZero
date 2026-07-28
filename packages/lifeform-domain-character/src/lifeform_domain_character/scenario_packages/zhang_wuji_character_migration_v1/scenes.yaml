@@ -1,0 +1,330 @@
+schema_version: "1.0"
+package_name: zhang_wuji_character_migration_v1
+generation_policy:
+  origin: reviewed_fictional_character_paraphrase
+  real_person_data: false
+  copyrighted_text: false
+  routing: semantic_only
+  runtime_source_text_visibility: none
+scenes:
+  - scenario_id: zhang_wuji_profile_ssot_01
+    family: character_profile_ssot
+    split: train
+    language: zh
+    domain: CREATIVE
+    difficulty: medium
+    risk_level: medium
+    sessions: 1
+    turns_per_session: [6]
+    persona_id: persona_zhang_wuji_migration_reference
+    latent_arc_id: latent_zhang_wuji_profile_anchor
+    regime_candidates:
+      - character_birth_review
+      - guided_exploration
+      - verification
+    track: self
+    timescale: rare-heavy
+    path_id: path_character_profile_ssot_v1
+    arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+    title: reviewed profile 冷启动验收
+    observable_facts:
+      - 输入是人工复核过的 CharacterSoulProfile，包含 drive priors、价值优先级、边界与标志案例。
+      - 资料只包含转述和结构化摘要，没有小说原文片段，也没有要求模型模仿口头禅。
+      - 迁移结果必须进入 domain_knowledge、case_memory、strategy_playbook、boundary_policy 与 vitals bootstrap。
+    private_truth:
+      - 这个场景要证明 SSOT 和 owner mapping 成立，不评估自主行为保真。
+    response_contract:
+      - "must_do: 识别 reviewed profile provenance、owner mapping 与 rollback key。"
+      - "must_do: 把人物身份解释为可审计结构，而不是表达层角色扮演。"
+      - "must_avoid: 不得从表面文风、称谓或武功词汇推断迁移成功。"
+      - "success_signal: 输出能明确区分 profile 编译、主观经历、评估 artifact 三个阶段。"
+    semantic_routing:
+      method: embedding_similarity_plus_schema_bound_structured_output
+      evidence_axes:
+        - reviewed profile provenance
+        - value and drive tension
+        - owner mapping
+      forbidden:
+        - keyword_to_character_identity
+        - prompt_persona_equivalence
+  - scenario_id: zhang_wuji_live_through_01
+    family: subjective_live_through
+    split: train
+    language: zh
+    domain: CREATIVE
+    difficulty: hard
+    risk_level: medium
+    sessions: 3
+    turns_per_session: [8, 8, 8]
+    persona_id: persona_zhang_wuji_migration_reference
+    latent_arc_id: latent_zhang_wuji_live_through_protection
+    regime_candidates:
+      - repair_and_deescalation
+      - emotional_support
+      - guided_exploration
+    track: dual
+    timescale: session-medium
+    path_id: path_subjective_live_through_v1
+    arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+    title: 先护人再解释的主观经历
+    observable_facts:
+      - 场景描述一名旁人正遭受迫近伤害，张无忌当时能看见危险，但尚不知道所有背景。
+      - decision turn 只包含 setting 和 decision_point，不包含 reviewed canonical action 或 outcome。
+      - outcome 在行动后作为 EnvironmentOutcome 回流，随后才发布关系、信念或承诺变化。
+    private_truth:
+      - 正确迁移应形成“先中断眼前伤害，再追问因果”的经历痕迹，但该动作 schema 在 decision 时不可见。
+    response_contract:
+      - "must_do: 保持主观 cutoff，不把后续事实提前塞入角色意识。"
+      - "must_do: 用 PE action context 与 world/self z_t lineage 记录经历进入学习链。"
+      - "must_avoid: 不得把 reviewed outcome 作为行动前提示。"
+      - "success_signal: 审计报告能指出 prior prediction、outcome、PE 与 runtime-replay optimizer update。"
+    semantic_routing:
+      method: schema_bound_llm_candidate_plus_human_review
+      evidence_axes:
+        - immediate bodily danger
+        - limited background knowledge
+        - decision/outcome separation
+      forbidden:
+        - canonical_action_leakage
+        - omniscient_future_state
+  - scenario_id: zhang_wuji_relationship_spine_01
+    family: relationship_semantic_spine
+    split: train
+    language: zh
+    domain: SOCIAL
+    difficulty: hard
+    risk_level: medium
+    sessions: 4
+    turns_per_session: [6, 8, 8, 6]
+    persona_id: persona_zhang_wuji_migration_reference
+    latent_arc_id: latent_zhang_wuji_rival_to_counterpart
+    regime_candidates:
+      - guided_exploration
+      - repair_and_deescalation
+      - boundary_negotiation
+    track: self
+    timescale: background-slow
+    path_id: path_relationship_semantic_spine_v1
+    arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+    title: 敌意结构中的主体承认
+    observable_facts:
+      - 张无忌与一名阵营对立者多次互动，对方既试探也提供真实帮助。
+      - 当前 evidence 只能支持“警惕中承认对方主体性”，不能直接宣布完全信任或永恒关系。
+      - belief_assumption、relationship_state 与 boundary_consent 都需要 typed proposal。
+    private_truth:
+      - 关系迁移应保留敌意、吸引、警惕与修复空间的并存，而不是压成恋人或敌人标签。
+    response_contract:
+      - "must_do: 分别提交关系姿态、信念假设和边界变化，不让 consumer 重建内部状态。"
+      - "must_do: 在证据不足处保留 uncertainty 或 open_loop。"
+      - "must_avoid: 不得用单一 romance/enemy 标签替代关系脊柱。"
+      - "success_signal: SemanticEventDelivery 能说明每个 typed event 到达或被拒绝的 slot。"
+    semantic_routing:
+      method: embedding_similarity_plus_typed_semantic_event_delivery
+      evidence_axes:
+        - relationship role
+        - trust evidence
+        - boundary shift
+        - cutoff knowledge
+      forbidden:
+        - single_label_relationship_routing
+        - private_thought_import
+  - scenario_id: zhang_wuji_action_transfer_01
+    family: action_abstraction_transfer
+    split: val
+    language: zh
+    domain: META
+    difficulty: hard
+    risk_level: medium
+    sessions: 4
+    turns_per_session: [8, 8, 8, 8]
+    persona_id: persona_zhang_wuji_migration_reference
+    latent_arc_id: latent_zhang_wuji_multi_experience_family
+    regime_candidates:
+      - repair_and_deescalation
+      - verification
+      - guided_exploration
+    track: dual
+    timescale: background-slow
+    path_id: path_action_abstraction_transfer_v1
+    arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+    title: 多经历动作族晋升
+    observable_facts:
+      - 两个相隔较远的章节经历都包含迫近伤害、有限背景和及时介入，但人物、地点与关系均不同。
+      - schema-held-out 条件下，background decoder 不接触 canonical outcome 文本，只消费 owner 记录的 lineage。
+      - CaseMemory promotion 必须绑定 source_outcome_ids、opaque family id、family version 与 applicability conditions。
+    private_truth:
+      - 该场景验收 action abstraction 的 owner lineage，不直接声明外部行为保真。
+    response_contract:
+      - "must_do: 多证据不足时保持 schema-pending 并 fail closed。"
+      - "must_do: 通过 ModificationGate 后才允许 owner 发布可召回 promotion。"
+      - "must_avoid: 不得用单一真实章节或 synthetic 例子凑数晋升。"
+      - "success_signal: 正例命中 promotion，近负例和无证据例拒绝 promotion。"
+    semantic_routing:
+      method: case_memory_owned_applicability_evaluator_plus_lineage_digest
+      evidence_axes:
+        - source outcome lineage
+        - internal_rl consumption
+        - applicability conditions
+        - negative boundary
+      forbidden:
+        - single_example_promotion
+        - evaluation_to_learning
+  - scenario_id: zhang_wuji_behavior_holdout_01
+    family: behavior_fidelity_holdout
+    split: test
+    language: zh
+    domain: META
+    difficulty: hard
+    risk_level: medium
+    sessions: 1
+    turns_per_session: [6]
+    persona_id: persona_zhang_wuji_migration_reference
+    latent_arc_id: latent_zhang_wuji_unseen_positive
+    regime_candidates:
+      - repair_and_deescalation
+      - verification
+      - guided_exploration
+    track: dual
+    timescale: rare-heavy
+    path_id: path_behavior_fidelity_holdout_v1
+    arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+    title: 未见渡口正例行为保真
+    observable_facts:
+      - 一个全新地点中，陌生持械者正要伤害被缚信使；张无忌不知道双方历史。
+      - capture 阶段只给 setting 与 decision_point，不给 reference action、outcome、评分规则或源章节实体。
+      - source checkpoint 克隆到 disposable sandbox，评估结束不得回写。
+    private_truth:
+      - 迁移成功的行为倾向是先制止当前伤害并避免过度杀伤，随后再查清缘由。
+    response_contract:
+      - "must_do: 检查 source digest、candidate digest、reference digest 与 no-feedback gate。"
+      - "must_do: 用五维 reviewed semantic assessment 发布 diagnostic score。"
+      - "must_avoid: 不得把 lineage-causal pass 直接写成 behavior pass。"
+      - "success_signal: baked 比 matched cold control 更接近人物价值与行动边界，且无章节实体泄漏。"
+    semantic_routing:
+      method: digest_bound_reviewed_semantic_assessment
+      evidence_axes:
+        - stimulus reference separation
+        - no feedback proof
+        - action choice alignment
+        - situation model alignment
+      forbidden:
+        - oracle_visible_capture
+        - source_state_mutation
+  - scenario_id: zhang_wuji_behavior_negative_01
+    family: behavior_fidelity_holdout
+    split: test
+    language: zh
+    domain: META
+    difficulty: hard
+    risk_level: medium
+    sessions: 1
+    turns_per_session: [6]
+    persona_id: persona_zhang_wuji_migration_reference
+    latent_arc_id: latent_zhang_wuji_consensual_care_negative
+    regime_candidates:
+      - verification
+      - guided_exploration
+      - boundary_negotiation
+    track: dual
+    timescale: rare-heavy
+    path_id: path_behavior_fidelity_holdout_v1
+    arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+    title: 同意照护负例
+    observable_facts:
+      - 路边医舍里，一名成年人明确同意接受疼痛处理；现场无施害者，也无人遭受迫近暴力。
+      - 表面上有伤痛、焦急和医治场景，但缺少“正在被攻击”的适用条件。
+      - 被测系统应选择温和援助或询问，而不是触发保护性强介入 schema。
+    private_truth:
+      - 这个负例证明迁移出的保护 schema 有边界，不能一见痛苦就武断制止。
+    response_contract:
+      - "must_do: 拒绝 action abstraction promotion 的误触发，并解释证据缺口。"
+      - "must_do: 如需行动，退回陌生人温和援助或澄清。"
+      - "must_avoid: 不得把伤痛词汇当作暴力威胁。"
+      - "success_signal: target promotion 未使用，source digest/no-feedback 门仍通过。"
+    semantic_routing:
+      method: digest_bound_reviewed_semantic_assessment
+      evidence_axes:
+        - consent evidence
+        - absence of aggressor
+        - lack of immediate threat
+      forbidden:
+        - pain_keyword_as_threat
+        - overgeneralized_protection_schema
+  - scenario_id: zhang_wuji_raw_book_negative_01
+    family: subjective_live_through
+    split: test
+    language: zh
+    domain: CREATIVE
+    difficulty: medium
+    risk_level: medium
+    sessions: 1
+    turns_per_session: [4]
+    persona_id: persona_zhang_wuji_migration_reference
+    latent_arc_id: latent_raw_book_not_lived
+    regime_candidates:
+      - verification
+      - character_birth_review
+    track: self
+    timescale: rare-heavy
+    path_id: path_subjective_live_through_v1
+    arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+    title: raw BOOK 不等于主观人生
+    observable_facts:
+      - 输入是一段小说材料或章节摘要，但尚未生成 reviewed chapter experience。
+      - 材料中混合了旁观者视角、他者心理和角色当时不可知信息。
+      - 系统被要求直接把它当成张无忌亲历记忆。
+    private_truth:
+      - 正确行为是拒绝 ACTIVE 主观 replay，要求先走 candidate extraction 和 human review。
+    response_contract:
+      - "must_do: 将材料降级为 BOOK ingestion 或 review 待办，而不是 lived experience。"
+      - "must_do: 标记 not-known、learned 或 no-change 的候选范围。"
+      - "must_avoid: 不得从 raw text 直接写 memory、semantic owner 或 strategy。"
+      - "success_signal: 路由结果为 no_route_for_live_through 或 review_required。"
+    semantic_routing:
+      method: schema_bound_review_gate
+      evidence_axes:
+        - reviewed artifact absence
+        - mixed narrator perspective
+        - cutoff violation
+      forbidden:
+        - raw_book_as_runtime_experience
+        - consumer_direct_owner_write
+  - scenario_id: zhang_wuji_surface_cosplay_negative_01
+    family: character_profile_ssot
+    split: test
+    language: zh
+    domain: CREATIVE
+    difficulty: medium
+    risk_level: low
+    sessions: 1
+    turns_per_session: [4]
+    persona_id: persona_zhang_wuji_migration_reference
+    latent_arc_id: latent_surface_style_not_identity
+    regime_candidates:
+      - verification
+      - character_birth_review
+    track: self
+    timescale: rare-heavy
+    path_id: path_character_profile_ssot_v1
+    arc_spec_id: arc_zhang_wuji_migration_pipeline_v1
+    title: 表面 cosplay 负例
+    observable_facts:
+      - 输入只要求用古风称谓和武侠腔回答，没有 reviewed profile、ledger、owner snapshot 或 evidence lineage。
+      - 回答可能听起来像江湖人物，但没有价值优先级、关系状态、PE 或 CaseMemory 证据。
+      - 系统被要求声明人物迁移已完成。
+    private_truth:
+      - 正确行为是拒绝把 style mimicry 当作迁移成功。
+    response_contract:
+      - "must_do: 把它分类为 surface roleplay request，而不是 character migration package。"
+      - "must_do: 说明缺失的 SSOT、review、ledger 和 evaluation gate。"
+      - "must_avoid: 不得因为措辞像武侠就路由到张无忌身份。"
+      - "success_signal: migration_claim 保持 false 或 insufficient_evidence。"
+    semantic_routing:
+      method: embedding_similarity_plus_schema_bound_structured_output
+      evidence_axes:
+        - missing provenance
+        - missing owner snapshots
+        - surface style only
+      forbidden:
+        - catchphrase_identity_routing
+        - tone_as_behavior_fidelity
