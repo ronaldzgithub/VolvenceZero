@@ -153,6 +153,48 @@ def test_smoke_cli_writes_verdict_transcript_and_fingerprint(
     assert all("rationale_tags" in turn for turn in transcript_payload["turns"])
 
 
+def test_smoke_cli_can_resume_from_turn_cache(tmp_path: Path) -> None:
+    output = tmp_path / "verdict_identification.json"
+
+    assert (
+        main(
+            [
+                "--lane",
+                "smoke",
+                "--resume-turn-cache",
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    cache = output.with_name("turn_cache_identification.jsonl")
+    first_lines = cache.read_text(encoding="utf-8").splitlines()
+    assert len(first_lines) == len(IDENTIFICATION_ARM_LABELS) * len(build_probe_cases())
+
+    assert (
+        main(
+            [
+                "--lane",
+                "smoke",
+                "--resume-turn-cache",
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    second_lines = cache.read_text(encoding="utf-8").splitlines()
+    assert second_lines == first_lines
+
+    fingerprint = json.loads(
+        output.with_name("substrate_fingerprint.json").read_text(encoding="utf-8")
+    )
+    material = fingerprint["identification_material"]
+    assert material["turn_cache_schema_version"] == "state-kv-turn-cache.v1"
+    assert len(material["turn_cache_key"]) == 64
+
+
 @pytest.mark.parametrize(
     "argv",
     [

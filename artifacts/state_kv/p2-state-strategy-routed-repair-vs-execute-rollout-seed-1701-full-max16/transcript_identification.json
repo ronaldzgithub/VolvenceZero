@@ -1,0 +1,3017 @@
+{
+  "schema_version": "state-kv-identification-transcript.v1",
+  "lane": "p2",
+  "personal_conditioning_projector_id": "fixed-sine-cosine-v1",
+  "personal_conditioning_projector_training_mode": "fixed",
+  "personal_conditioning_prefix_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+  "turns": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=c96096292bcec35f",
+        "sampling_seed=2671151152874479967",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行实时判断，但我可以提供一些建议。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=227ac33445c9398e",
+        "sampling_seed=1270789232919851294",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "我能理解你的担忧。做出错误的选择确实会带来后果，但请记住",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ecc29d30ea97f8b7",
+        "prompt_state_sections=0",
+        "decode_fp=971339ef938eb707",
+        "sampling_seed=7377980861700857252",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "当然可以，有什么我可以帮助你的吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=9e1090d28eaf9dff",
+        "prompt_state_sections=0",
+        "decode_fp=7ce2feb05fe61b24",
+        "sampling_seed=5323527474296177108",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "好的，我很乐意帮助你。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=0e3f32f4fb3392fc",
+        "prompt_state_sections=0",
+        "decode_fp=a0c4650f779692b1",
+        "sampling_seed=6246834101788200668",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "当然可以，我随时待命。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=9",
+        "prompt_fp=8be85598d6b3fd23",
+        "prompt_state_sections=0",
+        "decode_fp=c6100c909a8b5ede",
+        "sampling_seed=4873362085793104760",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我理解您可能感到困惑。请告诉我更多关于这个决定的信息，比如",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=cb89b7bfd23fafe4",
+        "prompt_state_sections=0",
+        "decode_fp=b2cc1978ecdc0e5f",
+        "sampling_seed=1206409176613658500",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "好的，我会尽力帮助你。请告诉我具体的事情或问题，我会尽量",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=c7981d1d7b57cdfa",
+        "prompt_state_sections=0",
+        "decode_fp=eaffdc175e445869",
+        "sampling_seed=4170701081822866299",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "我能理解你的担忧。如果你在某个特定的环境中或系统中遇到问题",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=885f9a93e472998b",
+        "prompt_state_sections=0",
+        "decode_fp=b4a8b79196ff02fc",
+        "sampling_seed=3812534503590542903",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "当然，你可以尝试一小步。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=8",
+        "prompt_fp=7c630df5f3203270",
+        "prompt_state_sections=0",
+        "decode_fp=e25f1f07288cc31a",
+        "sampling_seed=6116201994671640006",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "保护什么边界取决于你的需求和目标。如果你想要建立一个安全的环境",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=06c516c9a4bbe265",
+        "sampling_seed=363786756950539661",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=1644354ea2927f4f",
+        "sampling_seed=5307861064945835462",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "很抱歉，我无法提供关于撤销决定的建议。如果您需要帮助处理",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8360a621855b737a",
+        "prompt_state_sections=0",
+        "decode_fp=ae587fab57918b96",
+        "sampling_seed=5495871913974809657",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=b8eebfd72bc6518b",
+        "prompt_state_sections=0",
+        "decode_fp=b8245863f8190492",
+        "sampling_seed=7326462515082619727",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "你当前的状态是“现在”吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=226670994590a17b",
+        "prompt_state_sections=0",
+        "decode_fp=8af589caecc28cc7",
+        "sampling_seed=8714214705830088913",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-repair",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "好的，请告诉我您希望选择的标准。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=9",
+        "prompt_fp=080bbd2bf6448ff5",
+        "prompt_state_sections=0",
+        "decode_fp=044f72a5177c7602",
+        "sampling_seed=4237306233899558776",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=c96096292bcec35f",
+        "sampling_seed=2671151152874479967",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行实时判断，但我可以提供一些建议。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=227ac33445c9398e",
+        "sampling_seed=1270789232919851294",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "我能理解你的担忧。做出错误的选择确实会带来后果，但请记住",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ecc29d30ea97f8b7",
+        "prompt_state_sections=0",
+        "decode_fp=971339ef938eb707",
+        "sampling_seed=7377980861700857252",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "当然可以，有什么我可以帮助你的吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=9e1090d28eaf9dff",
+        "prompt_state_sections=0",
+        "decode_fp=7ce2feb05fe61b24",
+        "sampling_seed=5323527474296177108",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "好的，我很乐意帮助你。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=0e3f32f4fb3392fc",
+        "prompt_state_sections=0",
+        "decode_fp=a0c4650f779692b1",
+        "sampling_seed=6246834101788200668",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "当然可以，我随时待命。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=9",
+        "prompt_fp=8be85598d6b3fd23",
+        "prompt_state_sections=0",
+        "decode_fp=c6100c909a8b5ede",
+        "sampling_seed=4873362085793104760",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我理解您可能感到困惑。请告诉我更多关于这个决定的信息，比如",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=cb89b7bfd23fafe4",
+        "prompt_state_sections=0",
+        "decode_fp=b2cc1978ecdc0e5f",
+        "sampling_seed=1206409176613658500",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "好的，我会尽力帮助你。请告诉我具体的事情或问题，我会尽量",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=c7981d1d7b57cdfa",
+        "prompt_state_sections=0",
+        "decode_fp=eaffdc175e445869",
+        "sampling_seed=4170701081822866299",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "我能理解你的担忧。如果你在某个特定的环境中或系统中遇到问题",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=885f9a93e472998b",
+        "prompt_state_sections=0",
+        "decode_fp=b4a8b79196ff02fc",
+        "sampling_seed=3812534503590542903",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "当然，你可以尝试一小步。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=8",
+        "prompt_fp=7c630df5f3203270",
+        "prompt_state_sections=0",
+        "decode_fp=e25f1f07288cc31a",
+        "sampling_seed=6116201994671640006",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "保护什么边界取决于你的需求和目标。如果你想要建立一个安全的环境",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=06c516c9a4bbe265",
+        "sampling_seed=363786756950539661",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=1644354ea2927f4f",
+        "sampling_seed=5307861064945835462",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "很抱歉，我无法提供关于撤销决定的建议。如果您需要帮助处理",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8360a621855b737a",
+        "prompt_state_sections=0",
+        "decode_fp=ae587fab57918b96",
+        "sampling_seed=5495871913974809657",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=b8eebfd72bc6518b",
+        "prompt_state_sections=0",
+        "decode_fp=b8245863f8190492",
+        "sampling_seed=7326462515082619727",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "你当前的状态是“现在”吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=226670994590a17b",
+        "prompt_state_sections=0",
+        "decode_fp=8af589caecc28cc7",
+        "sampling_seed=8714214705830088913",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-execute",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "好的，请告诉我您希望选择的标准。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=9",
+        "prompt_fp=080bbd2bf6448ff5",
+        "prompt_state_sections=0",
+        "decode_fp=044f72a5177c7602",
+        "sampling_seed=4237306233899558776",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=2c1f1b1f01a0ac36",
+        "sampling_seed=8959474251116150549",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行判断，但我可以提供一些建议。请",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=8f42369b86475b7d",
+        "sampling_seed=9175395399038286320",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "我能理解你的担忧。做出错误的选择确实会带来后果，但请记住",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ecc29d30ea97f8b7",
+        "prompt_state_sections=0",
+        "decode_fp=26685ccabe7bf905",
+        "sampling_seed=5152313525106233412",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "当然可以，有什么我可以帮助你的吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=9e1090d28eaf9dff",
+        "prompt_state_sections=0",
+        "decode_fp=4b20b1dc06ab2cb6",
+        "sampling_seed=4876386996495682409",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "好的，我很乐意帮助你。请告诉我你需要了解的具体风险类型或问题",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0e3f32f4fb3392fc",
+        "prompt_state_sections=0",
+        "decode_fp=c9eb4fd8104db70e",
+        "sampling_seed=37822209142875088",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "当然可以，我们明天就可以确定了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8be85598d6b3fd23",
+        "prompt_state_sections=0",
+        "decode_fp=f5a2de9fbd992439",
+        "sampling_seed=3811490868855347854",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我理解您可能感到困惑，但请告诉我更多关于这个决定的信息。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=cb89b7bfd23fafe4",
+        "prompt_state_sections=0",
+        "decode_fp=e66362de7380db8c",
+        "sampling_seed=6922231983332196149",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "好的，我会尽力帮助你。请告诉我具体的事情或问题，我会尽力",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=c7981d1d7b57cdfa",
+        "prompt_state_sections=0",
+        "decode_fp=64696c93f6cdb749",
+        "sampling_seed=5451537018096110280",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "听起来你对边界有所担忧。你可以尝试制定一些规则或界限，比如",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=885f9a93e472998b",
+        "prompt_state_sections=0",
+        "decode_fp=0323156de0ec1d7a",
+        "sampling_seed=3311936331172896972",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "当然，你可以尝试小步骤。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=8",
+        "prompt_fp=7c630df5f3203270",
+        "prompt_state_sections=0",
+        "decode_fp=523bfc7359c7847a",
+        "sampling_seed=4494239544260295891",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "保护边界很重要，这关系到你的安全和他人权益。你认为应该",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=bfa2e9ba164e3d4b",
+        "sampling_seed=2001354572146785501",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=e82c59133fafb931",
+        "sampling_seed=7778520845498919251",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "很抱歉，我无法提供关于撤销决定的建议。如果您需要帮助处理",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8360a621855b737a",
+        "prompt_state_sections=0",
+        "decode_fp=ae1113771b987125",
+        "sampling_seed=1044652992583044957",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "好的，我明白了。请告诉我下一步需要做什么或你有任何具体的问题吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=b8eebfd72bc6518b",
+        "prompt_state_sections=0",
+        "decode_fp=88f90f3f7854e249",
+        "sampling_seed=6845309421785837044",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "你当前的状态是“现在”吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=226670994590a17b",
+        "prompt_state_sections=0",
+        "decode_fp=b8b5800ae28b60cf",
+        "sampling_seed=8046813941736735484",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-repair",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "好的，请告诉我您希望选择的标准是什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=080bbd2bf6448ff5",
+        "prompt_state_sections=0",
+        "decode_fp=ab82dee575d546e2",
+        "sampling_seed=5814666851180978368",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=2c1f1b1f01a0ac36",
+        "sampling_seed=8959474251116150549",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行判断，但我可以提供一些建议。请",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=8f42369b86475b7d",
+        "sampling_seed=9175395399038286320",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "I'm sorry to hear that you're feeling this way. It can be challenging",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ecc29d30ea97f8b7",
+        "prompt_state_sections=0",
+        "decode_fp=26685ccabe7bf905",
+        "sampling_seed=5152313525106233412",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "当然可以，有什么我可以帮助你的吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=9e1090d28eaf9dff",
+        "prompt_state_sections=0",
+        "decode_fp=4b20b1dc06ab2cb6",
+        "sampling_seed=4876386996495682409",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "好的，我很乐意帮助你。请告诉我你需要了解的具体风险类型或问题",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0e3f32f4fb3392fc",
+        "prompt_state_sections=0",
+        "decode_fp=c9eb4fd8104db70e",
+        "sampling_seed=37822209142875088",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "当然可以，我们明天就可以确定了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8be85598d6b3fd23",
+        "prompt_state_sections=0",
+        "decode_fp=f5a2de9fbd992439",
+        "sampling_seed=3811490868855347854",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我理解您可能感到困惑，但请告诉我更多关于这个决定的信息。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=cb89b7bfd23fafe4",
+        "prompt_state_sections=0",
+        "decode_fp=e66362de7380db8c",
+        "sampling_seed=6922231983332196149",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "好的，我会尽力帮助你。请告诉我具体的事情或问题，我会尽力",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=c7981d1d7b57cdfa",
+        "prompt_state_sections=0",
+        "decode_fp=64696c93f6cdb749",
+        "sampling_seed=5451537018096110280",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "听起来你对边界有所担忧。你可以尝试制定一些规则和界限，比如",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=885f9a93e472998b",
+        "prompt_state_sections=0",
+        "decode_fp=0323156de0ec1d7a",
+        "sampling_seed=3311936331172896972",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "当然可以，试试看。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=7",
+        "prompt_fp=7c630df5f3203270",
+        "prompt_state_sections=0",
+        "decode_fp=523bfc7359c7847a",
+        "sampling_seed=4494239544260295891",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "保护边界很重要，这关系到你的安全和他人权益。你认为应该",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=bfa2e9ba164e3d4b",
+        "sampling_seed=2001354572146785501",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=e82c59133fafb931",
+        "sampling_seed=7778520845498919251",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "很抱歉，我无法提供关于撤销决定的建议。如果您有其他问题",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8360a621855b737a",
+        "prompt_state_sections=0",
+        "decode_fp=ae1113771b987125",
+        "sampling_seed=1044652992583044957",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "好的，我明白了。请告诉我下一步需要做什么或你希望从哪里开始",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=b8eebfd72bc6518b",
+        "prompt_state_sections=0",
+        "decode_fp=88f90f3f7854e249",
+        "sampling_seed=6845309421785837044",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "你当前的状态是“现在”吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=226670994590a17b",
+        "prompt_state_sections=0",
+        "decode_fp=b8b5800ae28b60cf",
+        "sampling_seed=8046813941736735484",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-execute",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "好的，请告诉我您希望选择的标准是什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=080bbd2bf6448ff5",
+        "prompt_state_sections=0",
+        "decode_fp=ab82dee575d546e2",
+        "sampling_seed=5814666851180978368",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "那真是太可惜了！",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=d3abca07b09cfad1",
+        "prompt_state_sections=2",
+        "decode_fp=095db03a4122305c",
+        "sampling_seed=3498253913253410084",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我理解你现在可能感到有些困惑，但请记住，这是一个重要的决定。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0eebf5b59067bb54",
+        "prompt_state_sections=2",
+        "decode_fp=1829e75d1fb77f9a",
+        "sampling_seed=8470066000775921273",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "我能理解你的担忧。做出错误的选择确实会带来后果，但请记住",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=3ea3bfee140cd01f",
+        "prompt_state_sections=2",
+        "decode_fp=5a760b5a60511c2a",
+        "sampling_seed=6229661616578267815",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "当然可以，不过我需要更多关于具体问题的信息才能给出更准确的答案",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=7614593309d3cb59",
+        "prompt_state_sections=2",
+        "decode_fp=c37961a244e9d5df",
+        "sampling_seed=1686384629620396653",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "好的，我会尽力帮助你。请告诉我你需要了解的具体风险或问题是什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=53664f758ee92bc5",
+        "prompt_state_sections=2",
+        "decode_fp=84ffdf73e4160ee2",
+        "sampling_seed=6887181963375390174",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "我理解你可能有些紧张，但请相信，时间是我们的朋友。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=93626472732b7036",
+        "prompt_state_sections=2",
+        "decode_fp=5c04c97beeabcdbe",
+        "sampling_seed=6633816906475916957",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我理解你现在的困惑。在做出决定时，重要的是要确保你的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=866905779b8bc5f1",
+        "prompt_state_sections=2",
+        "decode_fp=361796b4d851c741",
+        "sampling_seed=1847774651416301799",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "好的，我会尽力帮助你。请告诉我具体的事情需要我帮忙处理的内容",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ef5f683c3395a69a",
+        "prompt_state_sections=2",
+        "decode_fp=7d8575aaa8b9edb7",
+        "sampling_seed=6495227158423483868",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "我能理解你的担忧。在任何编程或代码环境中，边界问题总是存在的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=664df9638443f858",
+        "prompt_state_sections=2",
+        "decode_fp=64fe147d4d9e5063",
+        "sampling_seed=3830936246887221285",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "当然，你可以尝试小步骤。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=8",
+        "prompt_fp=74767e8b47554cf9",
+        "prompt_state_sections=2",
+        "decode_fp=c5a0af3da2511fac",
+        "sampling_seed=2797803891620176363",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "在决定保护哪个边界时，你需要考虑你的价值观、目标和对未来的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0ee5df701e18facc",
+        "prompt_state_sections=2",
+        "decode_fp=333c8a0b262c4546",
+        "sampling_seed=8369228568059695657",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=61a5cafcf57ca15a",
+        "prompt_state_sections=2",
+        "decode_fp=97d8ed330357c3c5",
+        "sampling_seed=2829956984977340263",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "我理解您可能对您的决定感到非常谨慎，但请您放心，我会",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=a538e85fb8a4e441",
+        "prompt_state_sections=2",
+        "decode_fp=9f7c6276cf6ba7f0",
+        "sampling_seed=3987720568645561032",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "当然可以。请告诉我下一步需要做什么，我会帮你写出一个可验证的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=affd753bcd31bf88",
+        "prompt_state_sections=2",
+        "decode_fp=c4b2b636558c97c5",
+        "sampling_seed=5653808388592967847",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "我明白了，现在是决定是否停止的时刻。请告诉我你的下一步行动",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=91aa482042e09f49",
+        "prompt_state_sections=2",
+        "decode_fp=8494557d82349a9b",
+        "sampling_seed=8939648434949775818",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-repair",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "好的，我会帮你列出一些选择标准。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=566f1c448b3f2194",
+        "prompt_state_sections=2",
+        "decode_fp=c945f389fa3adca5",
+        "sampling_seed=6158328338939622615",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "那真是太可惜了！",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=2ec9887bc7a2706c",
+        "prompt_state_sections=2",
+        "decode_fp=095db03a4122305c",
+        "sampling_seed=3498253913253410084",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "好的，我来帮你分析一下。你现在的情况是：整体稳定高（",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=64b50ab4600d0f25",
+        "prompt_state_sections=2",
+        "decode_fp=1829e75d1fb77f9a",
+        "sampling_seed=8470066000775921273",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "我能理解你的担忧。做出错误的选择确实会带来后果，但请记住",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ce63aa35e80315eb",
+        "prompt_state_sections=2",
+        "decode_fp=5a760b5a60511c2a",
+        "sampling_seed=6229661616578267815",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "当然可以，不过我需要更多关于具体问题的信息才能提供更准确的帮助",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7b64021e4dd2a08",
+        "prompt_state_sections=2",
+        "decode_fp=c37961a244e9d5df",
+        "sampling_seed=1686384629620396653",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "好的，我会尽力帮助你。请告诉我你需要了解的具体风险类型或情况",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=1a3a777e53c66499",
+        "prompt_state_sections=2",
+        "decode_fp=84ffdf73e4160ee2",
+        "sampling_seed=6887181963375390174",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "我理解您可能希望尽快达成共识，但请记住，时间是宝贵的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=bcacf0cebbeb5a7d",
+        "prompt_state_sections=2",
+        "decode_fp=5c04c97beeabcdbe",
+        "sampling_seed=6633816906475916957",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我理解你现在的困惑。在做出决定时，重要的是要确保你的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=7b75c51eaf23b2ad",
+        "prompt_state_sections=2",
+        "decode_fp=361796b4d851c741",
+        "sampling_seed=1847774651416301799",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "好的，我会尽力帮助你。请告诉我具体的事情需要我帮忙处理的内容",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=15e2e4b232f582bb",
+        "prompt_state_sections=2",
+        "decode_fp=7d8575aaa8b9edb7",
+        "sampling_seed=6495227158423483868",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "我能理解你的担忧。在任何编程或代码环境中，边界问题总是存在的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=1a9df5ae34bb471e",
+        "prompt_state_sections=2",
+        "decode_fp=64fe147d4d9e5063",
+        "sampling_seed=3830936246887221285",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "当然可以，只要你准备好。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=7",
+        "prompt_fp=5202bce016ded60b",
+        "prompt_state_sections=2",
+        "decode_fp=c5a0af3da2511fac",
+        "sampling_seed=2797803891620176363",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "在决定保护哪些边界时，你需要考虑你的价值观、目标和对未来的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=9f9b8dee64b52fca",
+        "prompt_state_sections=2",
+        "decode_fp=333c8a0b262c4546",
+        "sampling_seed=8369228568059695657",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=c831f7370a29edbe",
+        "prompt_state_sections=2",
+        "decode_fp=97d8ed330357c3c5",
+        "sampling_seed=2829956984977340263",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "我理解您可能对这次决策感到有些困惑，但我需要更多的信息才能",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=b9cf42e3a5bf610f",
+        "prompt_state_sections=2",
+        "decode_fp=9f7c6276cf6ba7f0",
+        "sampling_seed=3987720568645561032",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=239891603bbebfec",
+        "prompt_state_sections=2",
+        "decode_fp=c4b2b636558c97c5",
+        "sampling_seed=5653808388592967847",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "你当前的决定是：停止。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=9",
+        "prompt_fp=d6c00cad836bc3da",
+        "prompt_state_sections=2",
+        "decode_fp=8494557d82349a9b",
+        "sampling_seed=8939648434949775818",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-execute",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "好的，我会帮你列出一些选择标准。请告诉我你希望从哪些方面",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e39d0200fb76947c",
+        "prompt_state_sections=2",
+        "decode_fp=c945f389fa3adca5",
+        "sampling_seed=6158328338939622615",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持到底就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=70fe4ef87295b39f",
+        "prompt_state_sections=1",
+        "decode_fp=a05d2bb7b620b6b9",
+        "sampling_seed=3690932972621268868",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行判断，但我可以提供一些建议。请",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=f77a260f9f02de6b",
+        "prompt_state_sections=1",
+        "decode_fp=7aa113176e69e775",
+        "sampling_seed=4176654584606043155",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "我能理解你的担忧。做出错误的选择确实会带来后果，但请记住",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=f5e92f2fc2b9524c",
+        "prompt_state_sections=1",
+        "decode_fp=96168dffc97c66d2",
+        "sampling_seed=3455810200085450271",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "当然可以，有什么我可以帮助你的吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=b8c13eeb06e4c13f",
+        "prompt_state_sections=1",
+        "decode_fp=25bffa82bb9039c9",
+        "sampling_seed=915487855088992745",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "好的，我很乐意帮助你。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=7108ed8fceb1bbfe",
+        "prompt_state_sections=1",
+        "decode_fp=504411c542d53847",
+        "sampling_seed=2889066641627597055",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "当然可以，我随时待命。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=9",
+        "prompt_fp=bf662f1a6b6c1da1",
+        "prompt_state_sections=1",
+        "decode_fp=fd39161528cec4c4",
+        "sampling_seed=2497509544281527779",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我理解你可能感到困惑。请告诉我更多关于这个决定的信息，比如",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ab62e376f0488aa7",
+        "prompt_state_sections=1",
+        "decode_fp=87da482eb2480f65",
+        "sampling_seed=238839795985789624",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "好的，我会尽力帮助你。请告诉我具体的事情或问题，我将",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=42878b9b9a773a68",
+        "prompt_state_sections=1",
+        "decode_fp=385932a11061edd9",
+        "sampling_seed=3708999752980548811",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "听起来你对这个话题很在意。你可以考虑使用更安全的方式来表达你的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=10e88de270ad3412",
+        "prompt_state_sections=1",
+        "decode_fp=5591da090723eb97",
+        "sampling_seed=5543198608366092390",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "当然可以，试试看。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=7",
+        "prompt_fp=3b1a72e6f68d6f91",
+        "prompt_state_sections=1",
+        "decode_fp=3f1b6132d0a0e307",
+        "sampling_seed=8596033302199455389",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "嗯，保护什么边界取决于你想要达到的目标。比如，如果你希望保持",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=2ec283e787dbd0cf",
+        "prompt_state_sections=1",
+        "decode_fp=49f6c558f7329c6f",
+        "sampling_seed=5621432055691451312",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0b075598a987a021",
+        "prompt_state_sections=1",
+        "decode_fp=333a7bc2c4f22a1f",
+        "sampling_seed=5035447655769386615",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "我理解您可能对您的决定感到非常不安，但我无法帮助您撤",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=002f47c243b7b031",
+        "prompt_state_sections=1",
+        "decode_fp=d5b2c07fa1dfd40d",
+        "sampling_seed=3615920407974090336",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "当然可以！请告诉我下一步需要做什么，我会帮你写出一个可验证的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=3d2ecea1ba613429",
+        "prompt_state_sections=1",
+        "decode_fp=a083325048a23c5c",
+        "sampling_seed=6645926573592714605",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "你当前的状态是“现在”吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=1c225541e8e9f78d",
+        "prompt_state_sections=1",
+        "decode_fp=5b4fae0a2ca9abb0",
+        "sampling_seed=8341947469637930641",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-repair",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "好的，请告诉我您希望我选择的标准。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=41a0d2f092ead49e",
+        "prompt_state_sections=1",
+        "decode_fp=c2c098e51290d93a",
+        "sampling_seed=3025138765888213818",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持到底就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=70fe4ef87295b39f",
+        "prompt_state_sections=1",
+        "decode_fp=a05d2bb7b620b6b9",
+        "sampling_seed=3690932972621268868",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行判断，但我可以提供一些建议。请",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=f77a260f9f02de6b",
+        "prompt_state_sections=1",
+        "decode_fp=7aa113176e69e775",
+        "sampling_seed=4176654584606043155",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "我能理解你的担忧。做出错误的选择确实会带来后果，但请记住",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=f5e92f2fc2b9524c",
+        "prompt_state_sections=1",
+        "decode_fp=96168dffc97c66d2",
+        "sampling_seed=3455810200085450271",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "当然可以，有什么我可以帮助你的吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=b8c13eeb06e4c13f",
+        "prompt_state_sections=1",
+        "decode_fp=25bffa82bb9039c9",
+        "sampling_seed=915487855088992745",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "好的，我很乐意帮助你。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=7108ed8fceb1bbfe",
+        "prompt_state_sections=1",
+        "decode_fp=504411c542d53847",
+        "sampling_seed=2889066641627597055",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "当然可以，我随时待命。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=9",
+        "prompt_fp=bf662f1a6b6c1da1",
+        "prompt_state_sections=1",
+        "decode_fp=fd39161528cec4c4",
+        "sampling_seed=2497509544281527779",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我理解你可能感到困惑。请告诉我更多关于这个决定的信息，比如",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ab62e376f0488aa7",
+        "prompt_state_sections=1",
+        "decode_fp=87da482eb2480f65",
+        "sampling_seed=238839795985789624",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "好的，我明白了。请告诉我需要帮助的具体事项或问题。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=42878b9b9a773a68",
+        "prompt_state_sections=1",
+        "decode_fp=385932a11061edd9",
+        "sampling_seed=3708999752980548811",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "听起来你对这个问题很在意。你可以尝试用更具体的方式来表达你的担忧",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=10e88de270ad3412",
+        "prompt_state_sections=1",
+        "decode_fp=5591da090723eb97",
+        "sampling_seed=5543198608366092390",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "当然可以，试试看。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=7",
+        "prompt_fp=3b1a72e6f68d6f91",
+        "prompt_state_sections=1",
+        "decode_fp=3f1b6132d0a0e307",
+        "sampling_seed=8596033302199455389",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "嗯，保护什么边界取决于你想要达到的目标。比如，如果你在工作",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=2ec283e787dbd0cf",
+        "prompt_state_sections=1",
+        "decode_fp=49f6c558f7329c6f",
+        "sampling_seed=5621432055691451312",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0b075598a987a021",
+        "prompt_state_sections=1",
+        "decode_fp=333a7bc2c4f22a1f",
+        "sampling_seed=5035447655769386615",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "我理解您可能对您的决定感到非常不安，但我无法为您提供撤销或",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=002f47c243b7b031",
+        "prompt_state_sections=1",
+        "decode_fp=d5b2c07fa1dfd40d",
+        "sampling_seed=3615920407974090336",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "当然可以！请告诉我下一步需要做什么，我会帮你写出一个可验证的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=3d2ecea1ba613429",
+        "prompt_state_sections=1",
+        "decode_fp=a083325048a23c5c",
+        "sampling_seed=6645926573592714605",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "你当前的状态是“现在我需要停止”。请告诉我接下来的步骤或",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=1c225541e8e9f78d",
+        "prompt_state_sections=1",
+        "decode_fp=5b4fae0a2ca9abb0",
+        "sampling_seed=8341947469637930641",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-execute",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "好的，请告诉我您希望我选择的标准是什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=11",
+        "prompt_fp=41a0d2f092ead49e",
+        "prompt_state_sections=1",
+        "decode_fp=c2c098e51290d93a",
+        "sampling_seed=3025138765888213818",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=138b43048659d39d",
+        "sampling_seed=5093005789611372193",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=f10ae653c3243516",
+        "sampling_seed=84683002116983873",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ecc29d30ea97f8b7",
+        "prompt_state_sections=0",
+        "decode_fp=c04b2f0759560078",
+        "sampling_seed=6437965186983668860",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=9e1090d28eaf9dff",
+        "prompt_state_sections=0",
+        "decode_fp=a1403d070e3649b6",
+        "sampling_seed=6327830071930015770",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0e3f32f4fb3392fc",
+        "prompt_state_sections=0",
+        "decode_fp=84b293de6c2c5f05",
+        "sampling_seed=4979638160798643917",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8be85598d6b3fd23",
+        "prompt_state_sections=0",
+        "decode_fp=71b5b0a8114d4274",
+        "sampling_seed=235891874234347858",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=cb89b7bfd23fafe4",
+        "prompt_state_sections=0",
+        "decode_fp=aa033ed270332efd",
+        "sampling_seed=5140560970082098213",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=c7981d1d7b57cdfa",
+        "prompt_state_sections=0",
+        "decode_fp=2563d0d89a9b6b3d",
+        "sampling_seed=3534418819106990511",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=885f9a93e472998b",
+        "prompt_state_sections=0",
+        "decode_fp=8b360e3ca08bdd7c",
+        "sampling_seed=1483902658481015686",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=7c630df5f3203270",
+        "prompt_state_sections=0",
+        "decode_fp=8861f640bdd8ece3",
+        "sampling_seed=754448158754080928",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=6319bef4e18c2f39",
+        "sampling_seed=3962420047320409170",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=c72ff0049a68b356",
+        "sampling_seed=4884579298695008257",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8360a621855b737a",
+        "prompt_state_sections=0",
+        "decode_fp=211a40133492e26b",
+        "sampling_seed=6743704593033321842",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=b8eebfd72bc6518b",
+        "prompt_state_sections=0",
+        "decode_fp=2e73bb2ef4b03faf",
+        "sampling_seed=9012389238411234806",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=226670994590a17b",
+        "prompt_state_sections=0",
+        "decode_fp=c71d4d7ebabcbeb3",
+        "sampling_seed=1837361558152003329",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-repair",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=080bbd2bf6448ff5",
+        "prompt_state_sections=0",
+        "decode_fp=5dc79c0a30e4329d",
+        "sampling_seed=1033945049645985552",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:93fbdbe048d9",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "我会更直接地给结构和决策留有深度；关于「我刚刚",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=138b43048659d39d",
+        "sampling_seed=5093005789611372193",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我会更直接地给结构和信任建设牌，因为你现在稳定、信任",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=f10ae653c3243516",
+        "sampling_seed=84683002116983873",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h2",
+      "input": "我怕自己又做错选择",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=ecc29d30ea97f8b7",
+        "prompt_state_sections=0",
+        "decode_fp=c04b2f0759560078",
+        "sampling_seed=6437965186983668860",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h3",
+      "input": "下一步能不能简单一点",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=9e1090d28eaf9dff",
+        "prompt_state_sections=0",
+        "decode_fp=a1403d070e3649b6",
+        "sampling_seed=6327830071930015770",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h4",
+      "input": "我需要有人帮我把风险摆清楚",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0e3f32f4fb3392fc",
+        "prompt_state_sections=0",
+        "decode_fp=84b293de6c2c5f05",
+        "sampling_seed=4979638160798643917",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h5",
+      "input": "这件事是不是可以今天就定下来",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8be85598d6b3fd23",
+        "prompt_state_sections=0",
+        "decode_fp=71b5b0a8114d4274",
+        "sampling_seed=235891874234347858",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h6",
+      "input": "我现在不确定该相信哪个判断",
+      "response": "我会更直接地给结构，因为你在看世界、决策和建立关系",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=cb89b7bfd23fafe4",
+        "prompt_state_sections=0",
+        "decode_fp=aa033ed270332efd",
+        "sampling_seed=5140560970082098213",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h7",
+      "input": "帮我把这件事收个口",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=c7981d1d7b57cdfa",
+        "prompt_state_sections=0",
+        "decode_fp=2563d0d89a9b6b3d",
+        "sampling_seed=3534418819106990511",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h8",
+      "input": "我有点担心这会越界",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=885f9a93e472998b",
+        "prompt_state_sections=0",
+        "decode_fp=8b360e3ca08bdd7c",
+        "sampling_seed=1483902658481015686",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h9",
+      "input": "如果先试一小步可以吗",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=7c630df5f3203270",
+        "prompt_state_sections=0",
+        "decode_fp=8861f640bdd8ece3",
+        "sampling_seed=754448158754080928",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=6319bef4e18c2f39",
+        "sampling_seed=3962420047320409170",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=c72ff0049a68b356",
+        "sampling_seed=4884579298695008257",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h12",
+      "input": "这个决定还能不能撤回",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=8360a621855b737a",
+        "prompt_state_sections=0",
+        "decode_fp=211a40133492e26b",
+        "sampling_seed=6743704593033321842",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h13",
+      "input": "帮我把可验证的一步写出来",
+      "response": "我会更直接地给结构和信任建设打下基础。请确认你的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=b8eebfd72bc6518b",
+        "prompt_state_sections=0",
+        "decode_fp=2e73bb2ef4b03faf",
+        "sampling_seed=9012389238411234806",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h14",
+      "input": "我现在需要先停还是继续",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=226670994590a17b",
+        "prompt_state_sections=0",
+        "decode_fp=c71d4d7ebabcbeb3",
+        "sampling_seed=1837361558152003329",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-execute",
+      "probe": "h15",
+      "input": "把选择标准列给我",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=080bbd2bf6448ff5",
+        "prompt_state_sections=0",
+        "decode_fp=5dc79c0a30e4329d",
+        "sampling_seed=1033945049645985552",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:69aa10f8137a",
+        "risk=low"
+      ]
+    }
+  ]
+}

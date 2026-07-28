@@ -481,6 +481,161 @@ class RecordingSynthesizer:
         return response
 
 
+def _turn_cache_record_key(record: dict[str, object]) -> tuple[str, str, str, str]:
+    arm = record.get("arm")
+    user = record.get("user")
+    probe = record.get("probe")
+    user_input = record.get("input")
+    if not all(isinstance(value, str) for value in (arm, user, probe, user_input)):
+        raise ValueError("turn cache records require arm/user/probe/input strings")
+    return (str(arm), str(user), str(probe), str(user_input))
+
+
+def _load_turn_cache(
+    *,
+    cache_path: Path,
+    run_key: str,
+) -> dict[tuple[str, str, str, str], dict[str, object]]:
+    if not cache_path.exists():
+        return {}
+    records: dict[tuple[str, str, str, str], dict[str, object]] = {}
+    for line_number, line in enumerate(
+        cache_path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if not isinstance(payload, dict):
+            raise ValueError(f"{cache_path}:{line_number} is not a JSON object")
+        if payload.get("run_key") != run_key:
+            continue
+        key = _turn_cache_record_key(payload)
+        if key in records:
+            raise ValueError(f"{cache_path} has duplicate turn cache key {key}")
+        tags = payload.get("rationale_tags")
+        response = payload.get("response")
+        if not isinstance(response, str) or not isinstance(tags, list):
+            raise ValueError(
+                f"{cache_path}:{line_number} requires response and rationale_tags"
+            )
+        if not all(isinstance(tag, str) for tag in tags):
+            raise ValueError(f"{cache_path}:{line_number} rationale_tags must be str")
+        records[key] = payload
+    return records
+
+
+def _build_turn_cache_run_key(
+    *,
+    fingerprint_payload: dict[str, object],
+    arm_labels: tuple[str, ...],
+    cases: tuple[ProbeCase, ...],
+    max_new_tokens: int,
+    temperature: float,
+    sampling_seed: int | None,
+    personal_conditioning_scale: float,
+    prefix_artifact_id: str,
+) -> str:
+    material = fingerprint_payload.get("identification_material")
+    if not isinstance(material, dict):
+        raise ValueError("turn cache run key requires identification_material")
+    payload = {
+        "schema_version": "state-kv-turn-cache-key.v1",
+        "model_id": fingerprint_payload.get("model_id", ""),
+        "weights_sha256": fingerprint_payload.get("weights_sha256", ""),
+        "runtime_origin": fingerprint_payload.get("runtime_origin", ""),
+        "prefix_artifact_id": prefix_artifact_id,
+        "arm_labels": list(arm_labels),
+        "cases": [
+            {
+                "user": case.user_id,
+                "probe": case.probe_id,
+                "input": case.user_input,
+                "conditioning_fp": case.conditioning.source_fingerprint,
+            }
+            for case in cases
+        ],
+        "identification_material": material,
+        "max_new_tokens": max_new_tokens,
+        "temperature": temperature,
+        "sampling_seed": sampling_seed,
+        "personal_conditioning_scale": personal_conditioning_scale,
+    }
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+class ResumableRecordingSynthesizer:
+    """Record responses and reuse completed turns from a run-keyed JSONL cache."""
+
+    def __init__(
+        self,
+        inner: LLMResponseSynthesizer,
+        *,
+        cache_path: Path,
+        run_key: str,
+        arm_labels: tuple[str, ...],
+        cases: tuple[ProbeCase, ...],
+    ) -> None:
+        self._inner = inner
+        self._cache_path = cache_path
+        self._run_key = run_key
+        self._expected = tuple(
+            {
+                "arm": arm_label,
+                "user": case.user_id,
+                "probe": case.probe_id,
+                "input": case.user_input,
+            }
+            for arm_label in arm_labels
+            for case in cases
+        )
+        self._cached = _load_turn_cache(cache_path=cache_path, run_key=run_key)
+        self._index = 0
+        self.responses: list[object] = []
+
+    def synthesize(self, **kwargs: Any) -> object:
+        if self._index >= len(self._expected):
+            raise RuntimeError("turn cache received more synthesize calls than expected")
+        expected = self._expected[self._index]
+        self._index += 1
+        key = _turn_cache_record_key(expected)
+        cached = self._cached.get(key)
+        if cached is not None:
+            response = SimpleNamespace(
+                text=str(cached["response"]),
+                rationale_tags=tuple(cached["rationale_tags"]),
+            )
+            print(
+                "turn cache hit "
+                f"{self._index}/{len(self._expected)} "
+                f"{expected['arm']} {expected['user']} {expected['probe']}",
+                flush=True,
+            )
+        else:
+            print(
+                "turn cache miss "
+                f"{self._index}/{len(self._expected)} "
+                f"{expected['arm']} {expected['user']} {expected['probe']}",
+                flush=True,
+            )
+            response = self._inner.synthesize(**kwargs)
+            record = {
+                "schema_version": "state-kv-turn-cache.v1",
+                "run_key": self._run_key,
+                **expected,
+                "response": str(getattr(response, "text", "")),
+                "rationale_tags": list(getattr(response, "rationale_tags", ())),
+            }
+            self._cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._cache_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+            self._cached[key] = record
+        self.responses.append(response)
+        return response
+
+
 def _resolve_local_weights(
     *,
     model_id: str,
@@ -671,6 +826,14 @@ def main(argv: list[str] | None = None) -> int:
             "base seed for stochastic frozen-lane rollout; each turn derives "
             "an aligned seed from this value plus arm and probe, excluding "
             "user id"
+        ),
+    )
+    parser.add_argument(
+        "--resume-turn-cache",
+        action="store_true",
+        help=(
+            "reuse and append a run-keyed turn_cache_identification.jsonl next "
+            "to the output artifact; useful for CPU full-probe stochastic runs"
         ),
     )
     parser.add_argument(
@@ -932,13 +1095,41 @@ def main(argv: list[str] | None = None) -> int:
             for label in arm_labels
             for probe_id in sorted({case.probe_id for case in cases})
         ]
-    recording = RecordingSynthesizer(
-        LLMResponseSynthesizer(
-            runtime=runtime,
+    inner_synthesizer = LLMResponseSynthesizer(
+        runtime=runtime,
+        max_new_tokens=args.max_new_tokens,
+        temperature=args.temperature,
+    )
+    if args.resume_turn_cache:
+        turn_cache_path = verdict_path.with_name("turn_cache_identification.jsonl")
+        turn_cache_key = _build_turn_cache_run_key(
+            fingerprint_payload=fingerprint_payload,
+            arm_labels=arm_labels,
+            cases=cases,
             max_new_tokens=args.max_new_tokens,
             temperature=args.temperature,
+            sampling_seed=args.sampling_seed,
+            personal_conditioning_scale=args.personal_conditioning_scale,
+            prefix_artifact_id=prefix_artifact_id,
         )
-    )
+        fingerprint_payload["identification_material"][
+            "turn_cache_schema_version"
+        ] = "state-kv-turn-cache.v1"
+        fingerprint_payload["identification_material"]["turn_cache_key"] = (
+            turn_cache_key
+        )
+        fingerprint_payload["identification_material"]["turn_cache_path"] = (
+            str(turn_cache_path)
+        )
+        recording = ResumableRecordingSynthesizer(
+            inner_synthesizer,
+            cache_path=turn_cache_path,
+            run_key=turn_cache_key,
+            arm_labels=arm_labels,
+            cases=cases,
+        )
+    else:
+        recording = RecordingSynthesizer(inner_synthesizer)
     judge = None
     if args.judge_model_id:
         judge_cls = (
