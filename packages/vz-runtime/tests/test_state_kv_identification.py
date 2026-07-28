@@ -474,6 +474,12 @@ def test_prefix_lane_causality_uses_the_prefix_candidate() -> None:
     )
 
     assert verdict.claim("claim_carrier_causality").state is ClaimState.PASS
+    assert [readout.arm_label for readout in verdict.matching] == [
+        PURE_ARM_LABELS[0],
+        "state-kv-arm-bprime",
+        PREFIX_ARM_LABEL,
+    ]
+    assert PREFIX_ARM_LABEL in verdict.to_json()
     assert verdict.verdict_state is VerdictState.RETAIN_STRICT
 
 

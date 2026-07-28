@@ -217,10 +217,12 @@ prompt identity 与 output divergence。但 wrong-user training control 仍只�
 - P2 held-out pairwise 识别：`repair-vs-execute` 为 `retain-strict`，29/32，
   CI 0.781..1.000；`boundary-vs-commit` 为 `retain-strict`，27/32，
   CI 0.719..0.969；两组 A-pure control 均覆盖随机。
+- P2 aggregate retention gate：两组 P2 合计 G-prefix 56/64，accuracy 0.875，
+  bootstrap seed CI low floor 0.781；A-pure 合计 32/64，CI 0.375..0.625 覆盖随机。
 
 这把“state readout 能进入 Prefix-KV 并影响冻结 Qwen 输出”证明到标准 artifact
 级别，并补上了未见过 persona/probe 的 held-out 行为识别。它仍是证据专用 artifact，
-不是默认 `ACTIVE` 晋升；多 seed 复核和 rollout gate 仍需后续包处理。
+不是默认 `ACTIVE` 晋升；true stochastic generation rollout gate 仍需后续包处理。
 
 完整数据与反主张边界见
 [`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3 / §P4。

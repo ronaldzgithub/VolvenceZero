@@ -1,6 +1,6 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）与 P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 上保持可识别；默认 ACTIVE 晋升、多 seed 复核和 rollout gate 仍未完成。
+> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 上保持可识别；默认 ACTIVE 晋升和 true stochastic generation rollout gate 仍未完成。
 > Last updated: 2026-07-28
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
@@ -184,7 +184,8 @@ prompt」的效果（设计方案 §9.3 原文）。即便日后判据 2 通过�
 | P3-prefix | 同一冻结 Qwen 加第五臂 `g-prefix-pure`，候选臂换成 Prefix-KV 载体 | 0（本机训练） | p0 / p2 跨设备稳定分叉；p1 同文、负对照随机，判据 2 未过 |
 | P4-mechanism | slot 注意力非退化检验（门 A）+ 状态线性可读出探针（门 B） | 0 | 门 A fail / 门 B pass；`carrier_is_live=false` |
 | P2-retain-heldout | held-out personas + held-out probes，出 pairwise `verdict_identification.json` | MPS + 本地 embedding judge | ✅ 已落地，见 §P2 |
-| P2-retain-seeds | 多 seed / 多 rollout 复核，同一 artifact 的稳定性门 | 批准预算 | pending |
+| P2-retain-aggregate | 聚合两组 P2 verdict，复核同 artifact / substrate / judge 与 bootstrap seed 稳定性 | 本地只读聚合 | ✅ 已落地，见 §P2 |
+| P2-retain-rollout | true stochastic generation / 多模型裁判复核，同一 artifact 的稳定性门 | 批准预算 | pending |
 
 ### P1 frozen-Qwen runner
 
@@ -752,8 +753,48 @@ embedding judge 显著认回；且 A-pure 控制臂保持随机区间，排除 p
 单纯利用探针句的解释。
 
 仍不能外推到默认产品路径或长期稳定性：P2 当前是 deterministic 单配置、pairwise
-二选一，不是多 seed / 多 rollout / 多模型裁判矩阵。默认 `ACTIVE` 晋升前还需要
-把 seed/rollout 稳定性、rollout gate 与回滚开关作为独立证据包关闭。
+二选一，不是多模型裁判矩阵。默认 `ACTIVE` 晋升前还需要把 rollout 稳定性、
+rollout gate 与回滚开关作为独立证据包关闭。
+
+#### P2 aggregate retention gate（2026-07-28）
+
+P2 pairwise verdict 之后新增一个只读聚合门
+`state-kv-retention-gate.v1`。它只读取既有 `verdict_identification.json` 与相邻的
+`substrate_fingerprint.json`，不调用模型、不调用 judge、不训练，也不把 evaluation
+回灌到任何 owner。门槛：
+
+1. 所有输入 verdict 必须共享同一 prefix artifact、substrate fingerprint、judge 和
+   candidate arm；
+2. 每个输入 verdict 必须已经是 `retain-strict` 且 `decode-matched`；
+3. 必须覆盖预注册的两个 P2 held-out pair；
+4. 合计 candidate matching 的 bootstrap CI 下界在多个 bootstrap seed 下都 > 0.5；
+5. 合计 A-pure control 的 CI 必须覆盖 0.5。
+
+命令：
+
+```bash
+python scripts/run_state_kv_retention_gate.py \
+  --verdict artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute/verdict_identification.json \
+  --verdict artifacts/state_kv/p2-state-strategy-routed-boundary-vs-commit/verdict_identification.json \
+  --output artifacts/state_kv/p2-state-strategy-routed-retention/verdict_retention_gate.json
+```
+
+结果：
+
+| 项 | 状态 | 数字 |
+|---|---|---|
+| overall | **pass** | `gate_state=pass` |
+| consistency | **pass** | 两份 verdict 共享 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238`、substrate `Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33`、judge `BAAI/bge-m3` |
+| held-out coverage | **pass** | 覆盖 `repair-vs-execute` 与 `boundary-vs-commit` |
+| aggregate identification | **pass** | G-prefix 56/64，accuracy **0.875**，bootstrap seed CI low floor **0.781** |
+| aggregate causality | **pass** | A-pure 32/64，CI **0.375..0.625** 覆盖 chance；G-prefix 清 chance |
+| bootstrap seed stability | **pass** | seeds `20260726 / 20260727 / 20260728 / 1701 / 31337` 下 per-verdict 与 aggregate CI 下界均清 chance |
+
+这关闭的是**聚合与 bootstrap seed 稳定性**，不是随机生成 rollout。Prefix-KV 解码路径仍是
+greedy-only：`temperature > 0` 会 fail loudly，因为 matched sampling 需要按
+arm / probe / user 对齐 RNG seed、cache position 与 decode fingerprint。下一包若要关闭
+true stochastic rollout gate，必须先在 prefix-KV greedy loop 之外新增这条 per-turn
+seed alignment 契约，不能直接打开采样。
 
 ### P0-smoke 实测结果（2026-07-26）
 

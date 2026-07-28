@@ -64,6 +64,15 @@
       "ci_low": 0.3125,
       "ci_high": 0.6875,
       "judge_model_id": "BAAI/bge-m3"
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "correct": 29,
+      "total": 32,
+      "accuracy": 0.90625,
+      "ci_low": 0.78125,
+      "ci_high": 1.0,
+      "judge_model_id": "BAAI/bge-m3"
     }
   ],
   "prompt_fp_table": [

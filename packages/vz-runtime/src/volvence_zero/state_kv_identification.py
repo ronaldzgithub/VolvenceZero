@@ -956,7 +956,7 @@ def build_identification_verdict(
         c5_detail=c5_detail,
         matching=tuple(
             matching_by_label[label]
-            for label in IDENTIFICATION_ARM_LABELS
+            for label in ALL_ARM_LABELS
             if label in matching_by_label
         ),
         prompt_fp_table=prompt_fp_table,
