@@ -55,8 +55,16 @@ class InternalRLDelayedCreditAssignment:
     reason: str
     subgoal_id: str | None = None
     alignment_score: float = 0.0
+    completion_threshold: float = 0.0
+    nominal_completion_threshold: float = 0.0
     window_length: int = 0
     reward_mode: str = "dense"
+
+    @property
+    def completion_margin(self) -> float:
+        """Observed completion quality above the environment-owned criterion."""
+
+        return self.alignment_score - self.nominal_completion_threshold
 
 
 @dataclass(frozen=True)
@@ -64,6 +72,7 @@ class InternalRLProofSubgoal:
     subgoal_id: str
     target_signature: tuple[float, ...]
     completion_threshold: float = 0.72
+    nominal_completion_threshold: float | None = None
     min_persistence: int = 1
     credit_horizon: int = 2
     observation_weight: float = 0.45
@@ -530,6 +539,12 @@ class InternalRLEnvironment:
                         reason="subgoal-complete",
                         subgoal_id=subgoal.subgoal_id,
                         alignment_score=subgoal_score,
+                        completion_threshold=subgoal.completion_threshold,
+                        nominal_completion_threshold=(
+                            subgoal.nominal_completion_threshold
+                            if subgoal.nominal_completion_threshold is not None
+                            else subgoal.completion_threshold
+                        ),
                         window_length=max(subgoal.credit_horizon, 1),
                         reward_mode="proof-sparse",
                     )

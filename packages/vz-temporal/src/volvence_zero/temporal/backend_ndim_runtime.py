@@ -20,7 +20,6 @@ is imported lazily via the backend; this module is not in the temporal facade.
 
 from __future__ import annotations
 
-import math
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -37,10 +36,14 @@ from volvence_zero.tensor_backend import (
 from volvence_zero.temporal.metacontroller_components import (
     DecoderControl,
     EncodedSequence,
+    NDIM_POSTERIOR_CURRENT_WEIGHT,
+    NDIM_POSTERIOR_HISTORY_WEIGHT,
+    NDIM_POSTERIOR_RECURRENT_WEIGHT,
     NdimDecoderParameters,
     NdimEncoderParameters,
     NdimSwitchParameters,
     PosteriorState,
+    _current_observation_signal,
     _summarize_substrate_ndim,
 )
 
@@ -97,6 +100,7 @@ class BackendNdimMetacontroller:
         with b.no_grad():
             h = b.vector(prev) if prev is not None else b.zeros(n)
             hidden_sum = b.zeros(n)
+            current_input = b.zeros(params.n_input)
             count = 0
             cms_vec = (
                 b.vector(_fit_cms_context(cms_context, params.n_input))
@@ -107,6 +111,7 @@ class BackendNdimMetacontroller:
                 x = b.vector(step_vec)
                 if cms_vec is not None:
                     x = b.add(b.scale(x, 0.8), b.scale(cms_vec, 0.2))
+                current_input = x
                 h = b.gru_cell(x=x, h_prev=h, params=gru)
                 hidden_sum = b.add(hidden_sum, h)
                 count += 1
@@ -116,9 +121,31 @@ class BackendNdimMetacontroller:
                 count = 1
             avg_hidden = b.scale(hidden_sum, 1.0 / count)
             posterior_proj = b.matrix(params.posterior_proj)
+            current_proj = b.matrix(params.current_proj)
             posterior_std_proj = b.matrix(params.posterior_std_proj)
+            current_signal = b.vector(
+                _current_observation_signal(
+                    b.to_floats(current_input),
+                    n,
+                )
+            )
             posterior_mean = b.clamp(
-                b.add(b.scale(b.matvec(posterior_proj, h), 0.7), b.scale(avg_hidden, 0.3)),
+                b.add(
+                    b.add(
+                        b.scale(
+                            b.matvec(posterior_proj, h),
+                            NDIM_POSTERIOR_RECURRENT_WEIGHT,
+                        ),
+                        b.scale(
+                            avg_hidden,
+                            NDIM_POSTERIOR_HISTORY_WEIGHT,
+                        ),
+                    ),
+                    b.scale(
+                        b.matvec(current_proj, current_signal),
+                        NDIM_POSTERIOR_CURRENT_WEIGHT,
+                    ),
+                ),
                 0.0, 1.0,
             )
             posterior_std = b.clamp(b.abs(b.matvec(posterior_std_proj, h)), 0.05, 0.95)
@@ -182,7 +209,7 @@ class BackendNdimMetacontroller:
             W2=b.matrix(params.gate_ffn.W2), b2=b.vector(params.gate_ffn.b2),
         )
         with b.no_grad():
-            delta = tuple(abs(z_tilde[i] - previous_code[i]) for i in range(n))
+            delta = tuple(z_tilde[i] - previous_code[i] for i in range(n))
             gate_input = b.vector(tuple(delta) + tuple(z_tilde))
             raw = b.ffn_2layer(x=gate_input, params=ffn)
             continuation_bias = max(0.0, min(1.0,
@@ -320,10 +347,8 @@ def runtime_ndim_shadow_compare(
             external_switch_pressure_delta=external_switch_pressure_delta,
             params=sw_p,
         )
-        latent = tuple(
-            max(0.0, min(1.0, beta_cont[i] * enc.posterior.z_tilde[i] + (1.0 - beta_cont[i]) * prev[i]))
-            for i in range(n_z)
-        )
+        is_switching = scalar >= beta_threshold
+        latent = enc.posterior.z_tilde if is_switching else prev
         dec = mc.decode(latent_code=latent, params=dec_p)
         elapsed = (time.perf_counter() - t0) * 1000.0
         return (
@@ -365,7 +390,17 @@ def runtime_ndim_shadow_compare(
     torch_out, torch_latency = run(res.backend)
 
     def md(key: str) -> float:
-        return max((abs(a - b) for a, b in zip(pure_out[key], torch_out[key])), default=0.0)
+        return max(
+            (
+                abs(a - b)
+                for a, b in zip(
+                    pure_out[key],
+                    torch_out[key],
+                    strict=True,
+                )
+            ),
+            default=0.0,
+        )
 
     d_mean, d_z, d_beta, d_applied = md("posterior_mean"), md("z_tilde"), md("beta"), md("applied")
     within = max(d_mean, d_z, d_beta, d_applied) <= tolerance

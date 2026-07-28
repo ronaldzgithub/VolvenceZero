@@ -12,6 +12,7 @@ Slice S.3 (2026-05-04): extracted from the previous monolithic
 from __future__ import annotations
 
 import importlib
+import math
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -25,11 +26,41 @@ from volvence_zero.substrate.adapter import (
 
 
 @dataclass(frozen=True)
+class ExpertActionTarget:
+    """Environment-published action target for offline expert imitation.
+
+    The environment owns ``action_id`` semantics. This passive trace contract
+    carries only a bounded numeric target and provenance; beta boundaries,
+    subgoal completion, reward, and evaluation labels are intentionally absent.
+    """
+
+    action_id: str
+    values: tuple[float, ...]
+    source: str
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.action_id.strip():
+            raise ValueError("ExpertActionTarget.action_id must be nonempty.")
+        if not self.values or not all(
+            math.isfinite(value) and 0.0 <= value <= 1.0
+            for value in self.values
+        ):
+            raise ValueError(
+                "ExpertActionTarget.values must be nonempty finite floats "
+                "within [0, 1]."
+            )
+        if not self.source.strip():
+            raise ValueError("ExpertActionTarget.source must be nonempty.")
+
+
+@dataclass(frozen=True)
 class TraceStep:
     step: int
     token: str
     feature_surface: tuple[FeatureSignal, ...]
     residual_activations: tuple[ResidualActivation, ...]
+    expert_action_target: ExpertActionTarget | None = None
 
 
 @dataclass(frozen=True)
@@ -207,4 +238,3 @@ class HashingWhitespaceTokenizer:
         self._token_to_id[token] = next_id
         self._id_to_token[next_id] = token
         return next_id
-

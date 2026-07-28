@@ -3045,6 +3045,7 @@ class InternalRLSandbox:
             self._policy.parameter_store.require_causal_takeover_phase(
                 operation=f"InternalRLSandbox.rollout[{replacement_mode}]"
             )
+        self._policy.reset_recurrent_state_for_episode_transfer()
         previous_snapshot: TemporalAbstractionSnapshot | None = None
         transitions: list[ZTransition] = []
         policy_state = self._causal_policy.initial_state(track=track)

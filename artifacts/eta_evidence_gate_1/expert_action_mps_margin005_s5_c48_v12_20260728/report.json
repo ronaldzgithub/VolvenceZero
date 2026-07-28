@@ -1,0 +1,5592 @@
+{
+  "backend_label": "transformers-open-weight",
+  "boundary_cases": [
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5
+      ],
+      "case_id": "eval-alpha-delta-epsilon",
+      "f1": 0.5,
+      "precision": 0.5,
+      "recall": 0.5,
+      "run_seed": 0,
+      "split": "eval",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 0,
+      "split": "heldout",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "train-loop-delta-beta-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 0,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        5,
+        6,
+        7
+      ],
+      "case_id": "eval-gamma-beta-delta",
+      "f1": 0.6666666666666666,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "run_seed": 0,
+      "split": "eval",
+      "true_boundaries": [
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 0,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        4
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "f1": 0.6666666666666665,
+      "precision": 0.6,
+      "recall": 0.75,
+      "run_seed": 0,
+      "split": "heldout",
+      "true_boundaries": [
+        1,
+        4,
+        6,
+        7
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-corridor-alpha-beta-delta",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 0,
+      "split": "train",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-corridor-alpha-beta-delta",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 1,
+      "split": "train",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5
+      ],
+      "case_id": "eval-alpha-delta-epsilon",
+      "f1": 0.5,
+      "precision": 0.5,
+      "recall": 0.5,
+      "run_seed": 1,
+      "split": "eval",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 1,
+      "split": "heldout",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        5,
+        6,
+        7
+      ],
+      "case_id": "eval-gamma-beta-delta",
+      "f1": 0.6666666666666666,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "run_seed": 1,
+      "split": "eval",
+      "true_boundaries": [
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        5,
+        6,
+        7,
+        8
+      ],
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "f1": 0.75,
+      "precision": 0.75,
+      "recall": 0.75,
+      "run_seed": 1,
+      "split": "heldout",
+      "true_boundaries": [
+        1,
+        4,
+        6,
+        7
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "train-loop-delta-beta-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 1,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 1,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        4
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "train-loop-delta-beta-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 2,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5
+      ],
+      "case_id": "eval-alpha-delta-epsilon",
+      "f1": 0.5,
+      "precision": 0.5,
+      "recall": 0.5,
+      "run_seed": 2,
+      "split": "eval",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "f1": 0.6666666666666665,
+      "precision": 0.6,
+      "recall": 0.75,
+      "run_seed": 2,
+      "split": "heldout",
+      "true_boundaries": [
+        1,
+        4,
+        6,
+        7
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 2,
+      "split": "heldout",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        5,
+        6,
+        7
+      ],
+      "case_id": "eval-gamma-beta-delta",
+      "f1": 0.6666666666666666,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "run_seed": 2,
+      "split": "eval",
+      "true_boundaries": [
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 2,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        4
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-corridor-alpha-beta-delta",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 2,
+      "split": "train",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        5,
+        6,
+        7,
+        8
+      ],
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "f1": 0.75,
+      "precision": 0.75,
+      "recall": 0.75,
+      "run_seed": 3,
+      "split": "heldout",
+      "true_boundaries": [
+        1,
+        4,
+        6,
+        7
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 3,
+      "split": "heldout",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-corridor-alpha-beta-delta",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 3,
+      "split": "train",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "train-loop-delta-beta-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 3,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 3,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        4
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5
+      ],
+      "case_id": "eval-alpha-delta-epsilon",
+      "f1": 0.5,
+      "precision": 0.5,
+      "recall": 0.5,
+      "run_seed": 3,
+      "split": "eval",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        5,
+        6,
+        7
+      ],
+      "case_id": "eval-gamma-beta-delta",
+      "f1": 0.6666666666666666,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "run_seed": 3,
+      "split": "eval",
+      "true_boundaries": [
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        5,
+        6,
+        7
+      ],
+      "case_id": "eval-gamma-beta-delta",
+      "f1": 0.6666666666666666,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "run_seed": 4,
+      "split": "eval",
+      "true_boundaries": [
+        2,
+        4,
+        6
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 4,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        4
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5
+      ],
+      "case_id": "eval-alpha-delta-epsilon",
+      "f1": 0.5,
+      "precision": 0.5,
+      "recall": 0.5,
+      "run_seed": 4,
+      "split": "eval",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [],
+      "case_id": "train-corridor-alpha-beta-delta",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 4,
+      "split": "train",
+      "true_boundaries": [
+        1,
+        3
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "train-loop-delta-beta-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 4,
+      "split": "train",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "f1": 0.5714285714285715,
+      "precision": 0.5,
+      "recall": 0.6666666666666666,
+      "run_seed": 4,
+      "split": "heldout",
+      "true_boundaries": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0",
+        "discovered_family_1"
+      ],
+      "beta_boundaries": [
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "f1": 0.6666666666666665,
+      "precision": 0.6,
+      "recall": 0.75,
+      "run_seed": 4,
+      "split": "heldout",
+      "true_boundaries": [
+        1,
+        4,
+        6,
+        7
+      ]
+    }
+  ],
+  "claim_status": "retain",
+  "controller_dim": 16,
+  "controller_initialization_seed": 42,
+  "description": "Matched delayed-outcome credit experiment with owner-side residual training mode=ssl-rl-alternating. Both credit arms consume the same frozen-substrate rollouts; only the credit assignment unit differs. The causal rollout keeps the learned switch unit as beta owner; Internal RL supplies z candidates without replacing beta boundaries. Boundary, completion, reward, and outcome labels remain evaluation-only and never supervise beta. Train traces carry environment-demonstrated action vectors with provenance; eval and held-out rollouts receive observations but no action targets. All runs start from one fixed shared-controller initialization; experience seeds vary case order and delayed-observation lag. Held-out PE predicts observed completion alignment relative to the environment's nominal threshold, which remains stable when backend-specific runtime completion thresholds are calibrated.",
+  "device": "mps",
+  "distortion_target": "innovation",
+  "episode_recurrent_state_isolated": true,
+  "events": [
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.4,
+      "eta_false_credit_rate": 0.75,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.25,
+      "eta_recall": 1.0,
+      "event_id": "0:eval-alpha-delta-epsilon:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 1,
+      "outcome_value": 0.286415664968532,
+      "run_seed": 0,
+      "split": "eval",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_0",
+      "turn_credit_steps": [
+        1
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "0:eval-alpha-delta-epsilon:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.22561969827585704,
+      "run_seed": 0,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_0",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "0:eval-alpha-delta-epsilon:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.17965560319966012,
+      "run_seed": 0,
+      "split": "eval",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "0:heldout-delta-alpha-gamma-epsilon:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.21224291255631755,
+      "run_seed": 0,
+      "split": "heldout",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "0:heldout-delta-alpha-gamma-epsilon:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.27473521491394903,
+      "run_seed": 0,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "0:heldout-delta-alpha-gamma-epsilon:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.19583080541295572,
+      "run_seed": 0,
+      "split": "heldout",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "0:train-loop-delta-beta-epsilon:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.2175039188656802,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "0:train-loop-delta-beta-epsilon:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.24648050770536556,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "0:train-loop-delta-beta-epsilon:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.18557430393427343,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "0:eval-gamma-beta-delta:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.2450851009285191,
+      "run_seed": 0,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "0:eval-gamma-beta-delta:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.2111922822168043,
+      "run_seed": 0,
+      "split": "eval",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "0:eval-gamma-beta-delta:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.25216535463337264,
+      "run_seed": 0,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "0:eval-gamma-beta-delta:3",
+      "observation_lag": 1,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.2131555638844862,
+      "run_seed": 0,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        2,
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "0:train-zigzag-beta-gamma-alpha:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.2383879872667487,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "0:train-zigzag-beta-gamma-alpha:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.20360297114045478,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 3,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "0:train-zigzag-beta-gamma-alpha:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.27492894269655377,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "0:heldout-epsilon-beta-alpha-delta:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.1944655851228847,
+      "run_seed": 0,
+      "split": "heldout",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "0:heldout-epsilon-beta-alpha-delta:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.2570782603363819,
+      "run_seed": 0,
+      "split": "heldout",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 3,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "0:heldout-epsilon-beta-alpha-delta:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 7,
+      "outcome_value": 0.2916360270873162,
+      "run_seed": 0,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_0",
+      "turn_credit_steps": [
+        7
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.33333333333333337,
+      "eta_false_credit_rate": 0.8,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.2,
+      "eta_recall": 1.0,
+      "event_id": "0:train-corridor-alpha-beta-delta:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 1,
+      "outcome_value": 0.2910337242975737,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        1
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "0:train-corridor-alpha-beta-delta:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.25363302170923685,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "0:train-corridor-alpha-beta-delta:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.22642475558302189,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.33333333333333337,
+      "eta_false_credit_rate": 0.8,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.2,
+      "eta_recall": 1.0,
+      "event_id": "1:train-corridor-alpha-beta-delta:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.29028847918222767,
+      "run_seed": 1,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "1:train-corridor-alpha-beta-delta:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.2534012767230973,
+      "run_seed": 1,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "1:train-corridor-alpha-beta-delta:2",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.22510906709632117,
+      "run_seed": 1,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.4,
+      "eta_false_credit_rate": 0.75,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.25,
+      "eta_recall": 1.0,
+      "event_id": "1:eval-alpha-delta-epsilon:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.28496984319959606,
+      "run_seed": 1,
+      "split": "eval",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "1:eval-alpha-delta-epsilon:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.22497234625058438,
+      "run_seed": 1,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "1:eval-alpha-delta-epsilon:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.17830392264797024,
+      "run_seed": 1,
+      "split": "eval",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "1:heldout-delta-alpha-gamma-epsilon:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.21022245659615724,
+      "run_seed": 1,
+      "split": "heldout",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "1:heldout-delta-alpha-gamma-epsilon:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.2725924086261412,
+      "run_seed": 1,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "1:heldout-delta-alpha-gamma-epsilon:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.19390305552317055,
+      "run_seed": 1,
+      "split": "heldout",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "1:eval-gamma-beta-delta:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.24443623722134633,
+      "run_seed": 1,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "1:eval-gamma-beta-delta:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.2104190363778431,
+      "run_seed": 1,
+      "split": "eval",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "1:eval-gamma-beta-delta:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.25377611914437925,
+      "run_seed": 1,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "1:eval-gamma-beta-delta:3",
+      "observation_lag": 2,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.20986357889240692,
+      "run_seed": 1,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        2,
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "1:heldout-epsilon-beta-alpha-delta:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.19364647406037705,
+      "run_seed": 1,
+      "split": "heldout",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "1:heldout-epsilon-beta-alpha-delta:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.25698673131203786,
+      "run_seed": 1,
+      "split": "heldout",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 3,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "1:heldout-epsilon-beta-alpha-delta:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.2900772998255987,
+      "run_seed": 1,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "1:train-loop-delta-beta-epsilon:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.2157809493567462,
+      "run_seed": 1,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "1:train-loop-delta-beta-epsilon:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.24620377104893643,
+      "run_seed": 1,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "1:train-loop-delta-beta-epsilon:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.18377024459732794,
+      "run_seed": 1,
+      "split": "train",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "1:train-zigzag-beta-gamma-alpha:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.23588400924636477,
+      "run_seed": 1,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "1:train-zigzag-beta-gamma-alpha:1",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.20155906806529555,
+      "run_seed": 1,
+      "split": "train",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 3,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "1:train-zigzag-beta-gamma-alpha:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.27207695628471906,
+      "run_seed": 1,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "2:train-loop-delta-beta-epsilon:0",
+      "observation_lag": 3,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.2175039188656802,
+      "run_seed": 2,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_0",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "2:train-loop-delta-beta-epsilon:1",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.24648050770536556,
+      "run_seed": 2,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "2:train-loop-delta-beta-epsilon:2",
+      "observation_lag": 2,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.18557430393427343,
+      "run_seed": 2,
+      "split": "train",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.4,
+      "eta_false_credit_rate": 0.75,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.25,
+      "eta_recall": 1.0,
+      "event_id": "2:eval-alpha-delta-epsilon:0",
+      "observation_lag": 3,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.286415664968532,
+      "run_seed": 2,
+      "split": "eval",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "2:eval-alpha-delta-epsilon:1",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.22561969827585704,
+      "run_seed": 2,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "2:eval-alpha-delta-epsilon:2",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.17965560319966012,
+      "run_seed": 2,
+      "split": "eval",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "2:heldout-epsilon-beta-alpha-delta:0",
+      "observation_lag": 3,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.1944655851228847,
+      "run_seed": 2,
+      "split": "heldout",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "2:heldout-epsilon-beta-alpha-delta:1",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.2570782603363819,
+      "run_seed": 2,
+      "split": "heldout",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 3,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "2:heldout-epsilon-beta-alpha-delta:2",
+      "observation_lag": 2,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.2916360270873162,
+      "run_seed": 2,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_0",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "2:heldout-delta-alpha-gamma-epsilon:0",
+      "observation_lag": 3,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.21224291255631755,
+      "run_seed": 2,
+      "split": "heldout",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "2:heldout-delta-alpha-gamma-epsilon:1",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.27473521491394903,
+      "run_seed": 2,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "2:heldout-delta-alpha-gamma-epsilon:2",
+      "observation_lag": 2,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.19583080541295572,
+      "run_seed": 2,
+      "split": "heldout",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "2:eval-gamma-beta-delta:0",
+      "observation_lag": 3,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.2450851009285191,
+      "run_seed": 2,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "2:eval-gamma-beta-delta:1",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.2111922822168043,
+      "run_seed": 2,
+      "split": "eval",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "2:eval-gamma-beta-delta:2",
+      "observation_lag": 2,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.25216535463337264,
+      "run_seed": 2,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "2:eval-gamma-beta-delta:3",
+      "observation_lag": 3,
+      "observed_outcome_step": 7,
+      "outcome_value": 0.2131555638844862,
+      "run_seed": 2,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        2,
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        7
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "2:train-zigzag-beta-gamma-alpha:0",
+      "observation_lag": 3,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.2383879872667487,
+      "run_seed": 2,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "2:train-zigzag-beta-gamma-alpha:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.20360297114045478,
+      "run_seed": 2,
+      "split": "train",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 3,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "2:train-zigzag-beta-gamma-alpha:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.27492894269655377,
+      "run_seed": 2,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.33333333333333337,
+      "eta_false_credit_rate": 0.8,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.2,
+      "eta_recall": 1.0,
+      "event_id": "2:train-corridor-alpha-beta-delta:0",
+      "observation_lag": 3,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.2910337242975737,
+      "run_seed": 2,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "2:train-corridor-alpha-beta-delta:1",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.25363302170923685,
+      "run_seed": 2,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "2:train-corridor-alpha-beta-delta:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.22642475558302189,
+      "run_seed": 2,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "3:heldout-epsilon-beta-alpha-delta:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.19364647406037705,
+      "run_seed": 3,
+      "split": "heldout",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "3:heldout-epsilon-beta-alpha-delta:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.25698673131203786,
+      "run_seed": 3,
+      "split": "heldout",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 3,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "3:heldout-epsilon-beta-alpha-delta:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 7,
+      "outcome_value": 0.2900772998255987,
+      "run_seed": 3,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        7
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "3:heldout-delta-alpha-gamma-epsilon:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.21022245659615724,
+      "run_seed": 3,
+      "split": "heldout",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "3:heldout-delta-alpha-gamma-epsilon:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.2725924086261412,
+      "run_seed": 3,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "3:heldout-delta-alpha-gamma-epsilon:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.19390305552317055,
+      "run_seed": 3,
+      "split": "heldout",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.33333333333333337,
+      "eta_false_credit_rate": 0.8,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.2,
+      "eta_recall": 1.0,
+      "event_id": "3:train-corridor-alpha-beta-delta:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 1,
+      "outcome_value": 0.29028847918222767,
+      "run_seed": 3,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        1
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "3:train-corridor-alpha-beta-delta:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.2534012767230973,
+      "run_seed": 3,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "3:train-corridor-alpha-beta-delta:2",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.22510906709632117,
+      "run_seed": 3,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "3:train-loop-delta-beta-epsilon:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.2157809493567462,
+      "run_seed": 3,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "3:train-loop-delta-beta-epsilon:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.24620377104893643,
+      "run_seed": 3,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "3:train-loop-delta-beta-epsilon:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.18377024459732794,
+      "run_seed": 3,
+      "split": "train",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "3:train-zigzag-beta-gamma-alpha:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.23588400924636477,
+      "run_seed": 3,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "3:train-zigzag-beta-gamma-alpha:1",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.20155906806529555,
+      "run_seed": 3,
+      "split": "train",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 3,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "3:train-zigzag-beta-gamma-alpha:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.27207695628471906,
+      "run_seed": 3,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.4,
+      "eta_false_credit_rate": 0.75,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.25,
+      "eta_recall": 1.0,
+      "event_id": "3:eval-alpha-delta-epsilon:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 1,
+      "outcome_value": 0.28496984319959606,
+      "run_seed": 3,
+      "split": "eval",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        1
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "3:eval-alpha-delta-epsilon:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.22497234625058438,
+      "run_seed": 3,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "3:eval-alpha-delta-epsilon:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.17830392264797024,
+      "run_seed": 3,
+      "split": "eval",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "3:eval-gamma-beta-delta:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.24443623722134633,
+      "run_seed": 3,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "3:eval-gamma-beta-delta:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.2104190363778431,
+      "run_seed": 3,
+      "split": "eval",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "3:eval-gamma-beta-delta:2",
+      "observation_lag": 3,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.25377611914437925,
+      "run_seed": 3,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "3:eval-gamma-beta-delta:3",
+      "observation_lag": 1,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.20986357889240692,
+      "run_seed": 3,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        2,
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "4:eval-gamma-beta-delta:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.24443176194418204,
+      "run_seed": 4,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "4:eval-gamma-beta-delta:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.2108030352482052,
+      "run_seed": 4,
+      "split": "eval",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "4:eval-gamma-beta-delta:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.25160628272184105,
+      "run_seed": 4,
+      "split": "eval",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-gamma-beta-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "4:eval-gamma-beta-delta:3",
+      "observation_lag": 2,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.21290906011254895,
+      "run_seed": 4,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        2,
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "4:train-zigzag-beta-gamma-alpha:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.2380280004988904,
+      "run_seed": 4,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "4:train-zigzag-beta-gamma-alpha:1",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.20334109758041352,
+      "run_seed": 4,
+      "split": "train",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "causal_end_step": 3,
+      "causal_start_step": 2,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "4:train-zigzag-beta-gamma-alpha:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.27470921333125287,
+      "run_seed": 4,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.4,
+      "eta_false_credit_rate": 0.75,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.25,
+      "eta_recall": 1.0,
+      "event_id": "4:eval-alpha-delta-epsilon:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.28597514737445484,
+      "run_seed": 4,
+      "split": "eval",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "4:eval-alpha-delta-epsilon:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.22506109327103252,
+      "run_seed": 4,
+      "split": "eval",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "4:eval-alpha-delta-epsilon:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.17909927462897723,
+      "run_seed": 4,
+      "split": "eval",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.33333333333333337,
+      "eta_false_credit_rate": 0.8,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.2,
+      "eta_recall": 1.0,
+      "event_id": "4:train-corridor-alpha-beta-delta:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 2,
+      "outcome_value": 0.2906444124421321,
+      "run_seed": 4,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        2
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "4:train-corridor-alpha-beta-delta:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.25332937900324715,
+      "run_seed": 4,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.7499999999999999,
+      "eta_false_credit_rate": 0.4,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.6,
+      "eta_recall": 1.0,
+      "event_id": "4:train-corridor-alpha-beta-delta:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.22619678332131243,
+      "run_seed": 4,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "4:train-loop-delta-beta-epsilon:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.21698218475628628,
+      "run_seed": 4,
+      "split": "train",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_1",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "4:train-loop-delta-beta-epsilon:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.24587707861138097,
+      "run_seed": 4,
+      "split": "train",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-loop-delta-beta-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "4:train-loop-delta-beta-epsilon:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.1853331523994315,
+      "run_seed": 4,
+      "split": "train",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 1,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "4:heldout-delta-alpha-gamma-epsilon:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 3,
+      "outcome_value": 0.21173573283428082,
+      "run_seed": 4,
+      "split": "heldout",
+      "subgoal_id": "delta",
+      "true_credit_steps": [
+        0,
+        1
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        3
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 2,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.6666666666666666,
+      "eta_false_credit_rate": 0.5,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.5,
+      "eta_recall": 1.0,
+      "event_id": "4:heldout-delta-alpha-gamma-epsilon:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.27371652812844727,
+      "run_seed": 4,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "4:heldout-delta-alpha-gamma-epsilon:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.19508967450161163,
+      "run_seed": 4,
+      "split": "heldout",
+      "subgoal_id": "gamma",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 2,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "4:heldout-epsilon-beta-alpha-delta:0",
+      "observation_lag": 2,
+      "observed_outcome_step": 4,
+      "outcome_value": 0.19414844087481087,
+      "run_seed": 4,
+      "split": "heldout",
+      "subgoal_id": "epsilon",
+      "true_credit_steps": [
+        0,
+        1,
+        2
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        4
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 3,
+      "causal_start_step": 1,
+      "eta_credit_end_step": 3,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "eta_f1": 0.8571428571428571,
+      "eta_false_credit_rate": 0.25,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.75,
+      "eta_recall": 1.0,
+      "event_id": "4:heldout-epsilon-beta-alpha-delta:1",
+      "observation_lag": 3,
+      "observed_outcome_step": 6,
+      "outcome_value": 0.2567671907565101,
+      "run_seed": 4,
+      "split": "heldout",
+      "subgoal_id": "beta",
+      "true_credit_steps": [
+        1,
+        2,
+        3
+      ],
+      "true_family_id": "discovered_family_1",
+      "turn_credit_steps": [
+        6
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "causal_end_step": 4,
+      "causal_start_step": 3,
+      "eta_credit_end_step": 4,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "eta_f1": 0.5714285714285715,
+      "eta_false_credit_rate": 0.6,
+      "eta_family_id": "discovered_family_1",
+      "eta_precision": 0.4,
+      "eta_recall": 1.0,
+      "event_id": "4:heldout-epsilon-beta-alpha-delta:2",
+      "observation_lag": 1,
+      "observed_outcome_step": 5,
+      "outcome_value": 0.29141621134727524,
+      "run_seed": 4,
+      "split": "heldout",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        3,
+        4
+      ],
+      "true_family_id": "discovered_family_0",
+      "turn_credit_steps": [
+        5
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    }
+  ],
+  "experience_seed_semantics": "fixed-shared-checkpoint; seed varies episode order and delayed-observation lag",
+  "expert_action_supervision": true,
+  "fallback_active": false,
+  "gate_choice_temperature": 0.001,
+  "gate_choice_weight": 5.0,
+  "metric_intervals": [
+    {
+      "ci_high": 0.746031746031746,
+      "ci_low": 0.7174603174603175,
+      "mean": 0.7317460317460318,
+      "metric_name": "eta_credit_f1"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "turn_credit_f1"
+    },
+    {
+      "ci_high": 0.746031746031746,
+      "ci_low": 0.7174603174603175,
+      "mean": 0.7317460317460318,
+      "metric_name": "credit_f1_delta"
+    },
+    {
+      "ci_high": 0.43166666666666664,
+      "ci_low": 0.39166666666666666,
+      "mean": 0.4116666666666666,
+      "metric_name": "eta_false_credit_rate"
+    },
+    {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "mean": 1.0,
+      "metric_name": "turn_false_credit_rate"
+    },
+    {
+      "ci_high": 0.6083333333333334,
+      "ci_low": 0.5683333333333334,
+      "mean": 0.5883333333333334,
+      "metric_name": "false_credit_reduction"
+    },
+    {
+      "ci_high": 0.9666666666666666,
+      "ci_low": 0.8333333333333334,
+      "mean": 0.9,
+      "metric_name": "eta_family_assignment_accuracy"
+    },
+    {
+      "ci_high": 0.4,
+      "ci_low": 0.2,
+      "mean": 0.3,
+      "metric_name": "turn_family_assignment_accuracy"
+    },
+    {
+      "ci_high": 0.6666666666666667,
+      "ci_low": 0.4666666666666667,
+      "mean": 0.6000000000000001,
+      "metric_name": "family_assignment_delta"
+    },
+    {
+      "ci_high": 0.036948796545260704,
+      "ci_low": 0.036818895966782866,
+      "mean": 0.036883846256021785,
+      "metric_name": "eta_heldout_pe"
+    },
+    {
+      "ci_high": 0.045338867176520505,
+      "ci_low": 0.03800275873767023,
+      "mean": 0.04167081295709536,
+      "metric_name": "turn_heldout_pe"
+    },
+    {
+      "ci_high": 0.845012732595249,
+      "ci_low": 0.8437143788412993,
+      "mean": 0.8443635557182742,
+      "metric_name": "eta_pe_reduction_rate"
+    },
+    {
+      "ci_high": 0.8399636683245184,
+      "ci_low": 0.8082969510603604,
+      "mean": 0.8241303096924394,
+      "metric_name": "turn_pe_reduction_rate"
+    },
+    {
+      "ci_high": 0.03548749078386069,
+      "ci_low": 0.004979001267808791,
+      "mean": 0.02023324602583474,
+      "metric_name": "pe_reduction_rate_delta"
+    },
+    {
+      "ci_high": 0.6178571428571429,
+      "ci_low": 0.6011904761904762,
+      "mean": 0.6095238095238095,
+      "metric_name": "segment_boundary_f1"
+    }
+  ],
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "outcome_target": "observed-alignment-minus-nominal-completion-threshold",
+  "prediction_horizon": 3,
+  "proposal_prediction_weight": 1.0,
+  "retain_gates": [
+    [
+      "ssl-uses-expert-action-targets",
+      true,
+      1.0
+    ],
+    [
+      "ssl-consumes-real-residual-trajectories",
+      true,
+      720.0
+    ],
+    [
+      "heldout-delayed-events-observed",
+      true,
+      6.0
+    ],
+    [
+      "ssl-switch-rate-nondegenerate",
+      true,
+      0.26666666666666666
+    ],
+    [
+      "ssl-active-backend-writes-live-store",
+      true,
+      48.0
+    ],
+    [
+      "ssl-persistent-optimizer-reused",
+      true,
+      47.0
+    ],
+    [
+      "multiple-action-families-emerge",
+      true,
+      2.0
+    ],
+    [
+      "segment-credit-f1-beats-turn",
+      true,
+      0.7174603174603175
+    ],
+    [
+      "segment-credit-reduces-false-credit",
+      true,
+      0.5683333333333334
+    ],
+    [
+      "segment-family-assignment-beats-turn",
+      true,
+      0.4666666666666667
+    ],
+    [
+      "segment-credit-reduces-heldout-pe",
+      true,
+      0.004979001267808791
+    ],
+    [
+      "beta-boundaries-track-subgoals",
+      true,
+      0.6011904761904762
+    ]
+  ],
+  "rollout_replacement_mode": "causal",
+  "run_metrics": [
+    {
+      "active_family_count": 2,
+      "beta_boundary_count": 18,
+      "credit_f1_delta": 0.746031746031746,
+      "eta_credit_f1": 0.746031746031746,
+      "eta_false_credit_rate": 0.39166666666666666,
+      "eta_family_assignment_accuracy": 0.8333333333333334,
+      "eta_heldout_pe": 0.03681836654091486,
+      "eta_pe_reduction_rate": 0.8450827955981709,
+      "event_count": 22,
+      "false_credit_reduction": 0.6083333333333334,
+      "family_assignment_delta": 0.33333333333333337,
+      "heldout_event_count": 6,
+      "learned_family_bank_count": 6,
+      "pe_reduction_rate_delta": 0.024895006339043957,
+      "run_seed": 0,
+      "runtime_switch_threshold_final": 0.8476623964697667,
+      "segment_boundary_f1": 0.6011904761904762,
+      "ssl_action_boundary_f1_final": 0.18181818181818182,
+      "ssl_boundary_switch_preference_final": 0.6870978569598575,
+      "ssl_boundary_switch_probability_final": 0.5983637875426691,
+      "ssl_continuation_switch_preference_final": 0.2911050217336201,
+      "ssl_continuation_switch_probability_final": 0.6436389079154408,
+      "ssl_expert_action_supervision": true,
+      "ssl_gate_choice_loss_mean": 0.6608845030659073,
+      "ssl_keep_prediction_loss_mean": 0.3759016634326888,
+      "ssl_kl_loss_mean": 1.6732950246728766,
+      "ssl_optimizer_final_step": 48,
+      "ssl_optimizer_reuse_count": 47,
+      "ssl_parameter_change_count": 173872,
+      "ssl_prediction_loss_mean": 0.34509496101096077,
+      "ssl_supervision_targets": [
+        "expert-action-vector"
+      ],
+      "ssl_switch_frequency_final": 0.26666666666666666,
+      "ssl_switch_frequency_mean": 0.31527777777777777,
+      "ssl_switch_prediction_loss_mean": 0.3439573049214482,
+      "ssl_switch_probability_final": 0.6225105184081472,
+      "ssl_switch_probability_mean": 0.5609245707472573,
+      "ssl_switch_rate_loss_mean": 0.2356222905167857,
+      "ssl_switch_threshold_final": 0.7960443311477421,
+      "ssl_target_variance_mean": 0.1363009982638889,
+      "ssl_total_loss_mean": 4.024359425580738,
+      "ssl_trained_step_count": 720,
+      "ssl_trajectory_count": 144,
+      "ssl_writeback_count": 48,
+      "training_cycle_count": 48,
+      "true_boundary_count": 19,
+      "turn_credit_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_assignment_accuracy": 0.5,
+      "turn_heldout_pe": 0.04273503326601166,
+      "turn_pe_reduction_rate": 0.8201877892591269
+    },
+    {
+      "active_family_count": 2,
+      "beta_boundary_count": 17,
+      "credit_f1_delta": 0.7103174603174603,
+      "eta_credit_f1": 0.7103174603174603,
+      "eta_false_credit_rate": 0.44166666666666665,
+      "eta_family_assignment_accuracy": 1.0,
+      "eta_heldout_pe": 0.036980742264012156,
+      "eta_pe_reduction_rate": 0.8434598534057337,
+      "event_count": 22,
+      "false_credit_reduction": 0.5583333333333333,
+      "family_assignment_delta": 0.6666666666666667,
+      "heldout_event_count": 6,
+      "learned_family_bank_count": 6,
+      "pe_reduction_rate_delta": 0.03813561189506487,
+      "run_seed": 1,
+      "runtime_switch_threshold_final": 0.7397319789220673,
+      "segment_boundary_f1": 0.6220238095238095,
+      "ssl_action_boundary_f1_final": 0.18181818181818182,
+      "ssl_boundary_switch_preference_final": 0.8123347937696849,
+      "ssl_boundary_switch_probability_final": 0.5661883607054328,
+      "ssl_continuation_switch_preference_final": 0.7207175387623488,
+      "ssl_continuation_switch_probability_final": 0.6242740562048102,
+      "ssl_expert_action_supervision": true,
+      "ssl_gate_choice_loss_mean": 0.6683218087045284,
+      "ssl_keep_prediction_loss_mean": 0.3774851227643881,
+      "ssl_kl_loss_mean": 1.6359416849635082,
+      "ssl_optimizer_final_step": 48,
+      "ssl_optimizer_reuse_count": 47,
+      "ssl_parameter_change_count": 173872,
+      "ssl_prediction_loss_mean": 0.3464581593429414,
+      "ssl_supervision_targets": [
+        "expert-action-vector"
+      ],
+      "ssl_switch_frequency_final": 0.26666666666666666,
+      "ssl_switch_frequency_mean": 0.31805555555555554,
+      "ssl_switch_prediction_loss_mean": 0.3461787934107578,
+      "ssl_switch_probability_final": 0.5971673983051008,
+      "ssl_switch_probability_mean": 0.5543043122021966,
+      "ssl_switch_rate_loss_mean": 0.22665257851915588,
+      "ssl_switch_threshold_final": 0.6113009058111233,
+      "ssl_target_variance_mean": 0.1363009982638889,
+      "ssl_total_loss_mean": 4.064316638219213,
+      "ssl_trained_step_count": 720,
+      "ssl_trajectory_count": 144,
+      "ssl_writeback_count": 48,
+      "training_cycle_count": 48,
+      "true_boundary_count": 19,
+      "turn_credit_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_assignment_accuracy": 0.3333333333333333,
+      "turn_heldout_pe": 0.04598982565414771,
+      "turn_pe_reduction_rate": 0.8053242415106688
+    },
+    {
+      "active_family_count": 2,
+      "beta_boundary_count": 18,
+      "credit_f1_delta": 0.746031746031746,
+      "eta_credit_f1": 0.746031746031746,
+      "eta_false_credit_rate": 0.39166666666666666,
+      "eta_family_assignment_accuracy": 0.8333333333333334,
+      "eta_heldout_pe": 0.03681836654091486,
+      "eta_pe_reduction_rate": 0.8450827955981709,
+      "event_count": 22,
+      "false_credit_reduction": 0.6083333333333334,
+      "family_assignment_delta": 0.6666666666666667,
+      "heldout_event_count": 6,
+      "learned_family_bank_count": 6,
+      "pe_reduction_rate_delta": 0.0,
+      "run_seed": 2,
+      "runtime_switch_threshold_final": 0.8476623964697667,
+      "segment_boundary_f1": 0.6011904761904762,
+      "ssl_action_boundary_f1_final": 0.18181818181818182,
+      "ssl_boundary_switch_preference_final": 0.6870978569598575,
+      "ssl_boundary_switch_probability_final": 0.5983637875426691,
+      "ssl_continuation_switch_preference_final": 0.2911050217336201,
+      "ssl_continuation_switch_probability_final": 0.6436389079154408,
+      "ssl_expert_action_supervision": true,
+      "ssl_gate_choice_loss_mean": 0.6608845030659073,
+      "ssl_keep_prediction_loss_mean": 0.3759016634326888,
+      "ssl_kl_loss_mean": 1.6732950246728766,
+      "ssl_optimizer_final_step": 48,
+      "ssl_optimizer_reuse_count": 47,
+      "ssl_parameter_change_count": 173872,
+      "ssl_prediction_loss_mean": 0.34509496101096077,
+      "ssl_supervision_targets": [
+        "expert-action-vector"
+      ],
+      "ssl_switch_frequency_final": 0.26666666666666666,
+      "ssl_switch_frequency_mean": 0.31527777777777777,
+      "ssl_switch_prediction_loss_mean": 0.3439573049214482,
+      "ssl_switch_probability_final": 0.6225105184081472,
+      "ssl_switch_probability_mean": 0.5609245707472573,
+      "ssl_switch_rate_loss_mean": 0.2356222905167857,
+      "ssl_switch_threshold_final": 0.7960443311477421,
+      "ssl_target_variance_mean": 0.1363009982638889,
+      "ssl_total_loss_mean": 4.024359425580738,
+      "ssl_trained_step_count": 720,
+      "ssl_trajectory_count": 144,
+      "ssl_writeback_count": 48,
+      "training_cycle_count": 48,
+      "true_boundary_count": 19,
+      "turn_credit_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_assignment_accuracy": 0.16666666666666666,
+      "turn_heldout_pe": 0.03681836654091486,
+      "turn_pe_reduction_rate": 0.8450827955981709
+    },
+    {
+      "active_family_count": 2,
+      "beta_boundary_count": 17,
+      "credit_f1_delta": 0.7103174603174603,
+      "eta_credit_f1": 0.7103174603174603,
+      "eta_false_credit_rate": 0.44166666666666665,
+      "eta_family_assignment_accuracy": 1.0,
+      "eta_heldout_pe": 0.036980742264012156,
+      "eta_pe_reduction_rate": 0.8434598534057337,
+      "event_count": 22,
+      "false_credit_reduction": 0.5583333333333333,
+      "family_assignment_delta": 0.6666666666666667,
+      "heldout_event_count": 6,
+      "learned_family_bank_count": 6,
+      "pe_reduction_rate_delta": 0.03813561189506487,
+      "run_seed": 3,
+      "runtime_switch_threshold_final": 0.7397319789220673,
+      "segment_boundary_f1": 0.6220238095238095,
+      "ssl_action_boundary_f1_final": 0.18181818181818182,
+      "ssl_boundary_switch_preference_final": 0.8123347937696849,
+      "ssl_boundary_switch_probability_final": 0.5661883607054328,
+      "ssl_continuation_switch_preference_final": 0.7207175387623488,
+      "ssl_continuation_switch_probability_final": 0.6242740562048102,
+      "ssl_expert_action_supervision": true,
+      "ssl_gate_choice_loss_mean": 0.6683218087045284,
+      "ssl_keep_prediction_loss_mean": 0.3774851227643881,
+      "ssl_kl_loss_mean": 1.6359416849635082,
+      "ssl_optimizer_final_step": 48,
+      "ssl_optimizer_reuse_count": 47,
+      "ssl_parameter_change_count": 173872,
+      "ssl_prediction_loss_mean": 0.3464581593429414,
+      "ssl_supervision_targets": [
+        "expert-action-vector"
+      ],
+      "ssl_switch_frequency_final": 0.26666666666666666,
+      "ssl_switch_frequency_mean": 0.31805555555555554,
+      "ssl_switch_prediction_loss_mean": 0.3461787934107578,
+      "ssl_switch_probability_final": 0.5971673983051008,
+      "ssl_switch_probability_mean": 0.5543043122021966,
+      "ssl_switch_rate_loss_mean": 0.22665257851915588,
+      "ssl_switch_threshold_final": 0.6113009058111233,
+      "ssl_target_variance_mean": 0.1363009982638889,
+      "ssl_total_loss_mean": 4.064316638219213,
+      "ssl_trained_step_count": 720,
+      "ssl_trajectory_count": 144,
+      "ssl_writeback_count": 48,
+      "training_cycle_count": 48,
+      "true_boundary_count": 19,
+      "turn_credit_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_assignment_accuracy": 0.3333333333333333,
+      "turn_heldout_pe": 0.04598982565414771,
+      "turn_pe_reduction_rate": 0.8053242415106688
+    },
+    {
+      "active_family_count": 2,
+      "beta_boundary_count": 18,
+      "credit_f1_delta": 0.746031746031746,
+      "eta_credit_f1": 0.746031746031746,
+      "eta_false_credit_rate": 0.39166666666666666,
+      "eta_family_assignment_accuracy": 0.8333333333333334,
+      "eta_heldout_pe": 0.036821013670254886,
+      "eta_pe_reduction_rate": 0.8447324805835618,
+      "event_count": 22,
+      "false_credit_reduction": 0.6083333333333334,
+      "family_assignment_delta": 0.6666666666666667,
+      "heldout_event_count": 6,
+      "learned_family_bank_count": 6,
+      "pe_reduction_rate_delta": 0.0,
+      "run_seed": 4,
+      "runtime_switch_threshold_final": 0.8473968453135612,
+      "segment_boundary_f1": 0.6011904761904762,
+      "ssl_action_boundary_f1_final": 0.18181818181818182,
+      "ssl_boundary_switch_preference_final": 0.6870978569598575,
+      "ssl_boundary_switch_probability_final": 0.5983637875426691,
+      "ssl_continuation_switch_preference_final": 0.2911050217336201,
+      "ssl_continuation_switch_probability_final": 0.6436389079154408,
+      "ssl_expert_action_supervision": true,
+      "ssl_gate_choice_loss_mean": 0.6608845030659073,
+      "ssl_keep_prediction_loss_mean": 0.3759016634326888,
+      "ssl_kl_loss_mean": 1.6732950246728766,
+      "ssl_optimizer_final_step": 48,
+      "ssl_optimizer_reuse_count": 47,
+      "ssl_parameter_change_count": 173872,
+      "ssl_prediction_loss_mean": 0.34509496101096077,
+      "ssl_supervision_targets": [
+        "expert-action-vector"
+      ],
+      "ssl_switch_frequency_final": 0.26666666666666666,
+      "ssl_switch_frequency_mean": 0.31527777777777777,
+      "ssl_switch_prediction_loss_mean": 0.3439573049214482,
+      "ssl_switch_probability_final": 0.6225105184081472,
+      "ssl_switch_probability_mean": 0.5609245707472573,
+      "ssl_switch_rate_loss_mean": 0.2356222905167857,
+      "ssl_switch_threshold_final": 0.7960443311477421,
+      "ssl_target_variance_mean": 0.1363009982638889,
+      "ssl_total_loss_mean": 4.024359425580738,
+      "ssl_trained_step_count": 720,
+      "ssl_trajectory_count": 144,
+      "ssl_writeback_count": 48,
+      "training_cycle_count": 48,
+      "true_boundary_count": 19,
+      "turn_credit_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_assignment_accuracy": 0.16666666666666666,
+      "turn_heldout_pe": 0.036821013670254886,
+      "turn_pe_reduction_rate": 0.8447324805835618
+    }
+  ],
+  "runtime_origin": "hf-local",
+  "schema_version": "eta-segment-credit-evidence.v12",
+  "seed_schedule": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "ssl_alpha": 0.01,
+  "ssl_supervision_target": "expert-action-vector",
+  "ssl_updates_per_cycle": 1,
+  "switch_binary_weight": 0.01,
+  "switch_group_weight": 0.01,
+  "switch_prior": 0.25,
+  "switch_rate_weight": 0.05,
+  "temporal_fast_prior_enabled": false,
+  "training_cycles": 48,
+  "training_mode": "ssl-rl-alternating"
+}

@@ -24,7 +24,12 @@ import pytest
 
 from volvence_zero.memory import Track
 from volvence_zero.runtime import WiringLevel
-from volvence_zero.substrate import build_training_trace
+from volvence_zero.substrate import (
+    ExpertActionTarget,
+    TraceStep,
+    TrainingTrace,
+    build_training_trace,
+)
 from volvence_zero.temporal.interface import (
     FamilyOutcomeFeedback,
     FullLearnedTemporalPolicy,
@@ -43,6 +48,27 @@ def _trace(trace_id: str = "vz-temporal-contract") -> object:
         trace_id=trace_id,
         source_text="steady waters carry the harbor plan through changing tides",
     )
+
+
+def test_delayed_credit_assignment_publishes_completion_margin() -> None:
+    from volvence_zero.internal_rl.environment import (
+        InternalRLDelayedCreditAssignment,
+    )
+
+    assignment = InternalRLDelayedCreditAssignment(
+        start_step=1,
+        end_step=3,
+        reward=0.28,
+        reason="subgoal-complete",
+        subgoal_id="alpha",
+        alignment_score=0.91,
+        completion_threshold=0.68,
+        nominal_completion_threshold=0.70,
+        window_length=3,
+        reward_mode="proof-sparse",
+    )
+
+    assert assignment.completion_margin == pytest.approx(0.21)
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +94,81 @@ def test_parameter_store_ndim_instantiates_encoder_switch_decoder() -> None:
     assert len(store.switch_weights) == _NDIM
     for track in (Track.WORLD, Track.SELF, Track.SHARED):
         assert len(store.track_weights[track]) == _NDIM
+
+
+def test_ndim_residual_fold_preserves_tail_information() -> None:
+    from volvence_zero.temporal.metacontroller_components import (
+        _fold_residual_to_ndim,
+    )
+
+    baseline = (0.0,) * 32
+    tail_changed = baseline[:-1] + (1.0,)
+
+    assert _fold_residual_to_ndim(baseline, 8) != (
+        _fold_residual_to_ndim(tail_changed, 8)
+    )
+
+
+def test_ndim_current_observation_signal_is_bounded_and_tail_sensitive() -> None:
+    from volvence_zero.temporal.metacontroller_components import (
+        _current_observation_signal,
+    )
+
+    baseline = (0.0,) * 32
+    tail_changed = baseline[:-1] + (4.0,)
+
+    baseline_signal = _current_observation_signal(baseline, 8)
+    changed_signal = _current_observation_signal(tail_changed, 8)
+
+    assert baseline_signal != changed_signal
+    assert all(0.0 <= value <= 1.0 for value in changed_signal)
+
+
+def test_ndim_current_projection_starts_as_identity() -> None:
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    assert store.ndim_encoder_parameters is not None
+
+    assert store.ndim_encoder_parameters.current_proj == tuple(
+        tuple(1.0 if row == column else 0.0 for column in range(_NDIM))
+        for row in range(_NDIM)
+    )
+
+
+def test_parameter_store_ndim_initialization_seed_is_reproducible_and_distinct() -> None:
+    default_store = MetacontrollerParameterStore(n_z=_NDIM)
+    explicit_default = MetacontrollerParameterStore(
+        n_z=_NDIM,
+        initialization_seed=42,
+    )
+    alternate = MetacontrollerParameterStore(
+        n_z=_NDIM,
+        initialization_seed=43,
+    )
+
+    assert (
+        default_store.ndim_encoder_parameters
+        == explicit_default.ndim_encoder_parameters
+    )
+    assert (
+        default_store.ndim_switch_parameters
+        == explicit_default.ndim_switch_parameters
+    )
+    assert (
+        default_store.ndim_decoder_parameters
+        == explicit_default.ndim_decoder_parameters
+    )
+    assert (
+        default_store.ndim_encoder_parameters
+        != alternate.ndim_encoder_parameters
+    )
+    assert (
+        default_store.ndim_switch_parameters
+        != alternate.ndim_switch_parameters
+    )
+    assert (
+        default_store.ndim_decoder_parameters
+        != alternate.ndim_decoder_parameters
+    )
 
 
 def test_full_learned_policy_ndim_components_follow_store() -> None:
@@ -284,6 +385,452 @@ def test_store_ssl_active_writes_back() -> None:
     )
     assert report.wrote_back is True
     assert store.ndim_encoder_parameters != before_encoder
+    assert (
+        store.ndim_encoder_parameters.current_proj
+        != before_encoder.current_proj
+    )
+
+
+@torch_only
+def test_store_ssl_session_reuses_optimizer_state_across_batches() -> None:
+    from volvence_zero.temporal.torch_store_ssl import (
+        StoreSSLTrainingSession,
+    )
+
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    session = StoreSSLTrainingSession(n_z=_NDIM)
+    traces = (_trace("persistent-a"), _trace("persistent-b"))
+
+    first = session.train_batch(
+        store=store,
+        traces=traces,
+        batch_id="persistent-1",
+        write_back=True,
+    )
+    second = session.train_batch(
+        store=store,
+        traces=traces,
+        batch_id="persistent-2",
+        write_back=True,
+    )
+
+    assert first.optimizer_step == 1
+    assert first.optimizer_state_reused is False
+    assert second.optimizer_step == 2
+    assert second.optimizer_state_reused is True
+    assert second.trajectory_count == 2
+    assert second.prediction_horizon == 3
+
+
+@torch_only
+def test_ssl_trainer_keeps_independent_optimizer_sessions_per_store() -> None:
+    from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer
+
+    trainer = MetacontrollerSSLTrainer(
+        n_z=_NDIM,
+        ssl_backend=WiringLevel.SHADOW,
+    )
+    first_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    second_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    first_policy.parameter_store.set_learning_phase(
+        "ssl",
+        structure_frozen=False,
+    )
+    second_policy.parameter_store.set_learning_phase(
+        "ssl",
+        structure_frozen=False,
+    )
+
+    first = trainer.optimize(policy=first_policy, trace=_trace("track-world"))
+    second = trainer.optimize(policy=second_policy, trace=_trace("track-self"))
+    first_again = trainer.optimize(
+        policy=first_policy,
+        trace=_trace("track-world-next"),
+    )
+
+    assert first.torch_optimizer_step == 1
+    assert second.torch_optimizer_step == 1
+    assert first_again.torch_optimizer_step == 2
+    assert first_again.torch_optimizer_state_reused is True
+
+
+@torch_only
+def test_store_ssl_consumes_complete_expert_action_trajectory() -> None:
+    from volvence_zero.temporal.torch_store_ssl import (
+        StoreSSLTrainingSession,
+    )
+
+    base = _trace("expert-action")
+    assert isinstance(base, TrainingTrace)
+    targets = tuple(
+        ExpertActionTarget(
+            action_id=(
+                f"move:{min(3, index * 4 // len(base.steps))}"
+            ),
+            values=tuple(
+                1.0
+                if dim == min(3, index * 4 // len(base.steps))
+                else 0.0
+                for dim in range(4)
+            ),
+            source="test-demonstrator",
+        )
+        for index in range(len(base.steps))
+    )
+    trace = TrainingTrace(
+        trace_id=base.trace_id,
+        source_text=base.source_text,
+        steps=tuple(
+            TraceStep(
+                step=step.step,
+                token=step.token,
+                feature_surface=step.feature_surface,
+                residual_activations=step.residual_activations,
+                expert_action_target=target,
+            )
+            for step, target in zip(base.steps, targets, strict=True)
+        ),
+    )
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    report = StoreSSLTrainingSession(n_z=_NDIM, switch_prior=0.25).train_batch(
+        store=store,
+        traces=(trace,),
+        batch_id="expert-action",
+        write_back=True,
+    )
+
+    assert report.supervision_target == "expert-action-vector"
+    assert report.expert_action_supervision is True
+    assert report.prediction_horizon == 1
+    assert report.target_variance > 0.0
+    assert 0.0 <= report.expert_action_boundary_f1 <= 1.0
+    assert 0.0 <= report.boundary_switch_probability <= 1.0
+    assert 0.0 <= report.continuation_switch_probability <= 1.0
+    assert report.switch_threshold_before == pytest.approx(0.55)
+    assert 0.05 <= report.switch_threshold_after <= 0.95
+    assert store.beta_threshold == pytest.approx(report.switch_threshold_after)
+
+
+def test_beta_threshold_calibration_uses_only_aggregate_rate() -> None:
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    threshold = store.calibrate_beta_threshold(
+        (0.10, 0.20, 0.30, 0.40, 0.80, 0.90),
+        target_rate=1.0 / 3.0,
+    )
+
+    assert threshold == pytest.approx(0.60)
+    assert sum(value >= threshold for value in (0.10, 0.20, 0.30, 0.40, 0.80, 0.90)) == 2
+
+
+def test_full_policy_episode_transfer_reset_clears_only_recurrent_state() -> None:
+    snapshot = _trace_step_snapshot(_trace())
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    policy = FullLearnedTemporalPolicy(parameter_store=store)
+
+    first = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=None,
+    )
+    assert first.controller_state.is_switching is True
+    store.beta_threshold = 0.95
+    continued = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=None,
+    )
+    assert continued.controller_state.is_switching is False
+    assert continued.controller_state.code == pytest.approx(
+        first.controller_state.code
+    )
+    learned_state = (
+        store.ndim_encoder_parameters,
+        store.ndim_switch_parameters,
+        store.ndim_decoder_parameters,
+        store.action_families,
+    )
+    policy.reset_recurrent_state_for_episode_transfer()
+    assert (
+        store.ndim_encoder_parameters,
+        store.ndim_switch_parameters,
+        store.ndim_decoder_parameters,
+        store.action_families,
+    ) == learned_state
+    replayed_first = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=None,
+    )
+
+    assert replayed_first.controller_state.code == pytest.approx(
+        first.controller_state.code
+    )
+    assert replayed_first.controller_state.switch_gate == pytest.approx(
+        first.controller_state.switch_gate
+    )
+
+
+@torch_only
+def test_store_ssl_decoder_keeps_gradient_at_bounded_zero() -> None:
+    import torch
+
+    from volvence_zero.temporal.torch_store_ssl import (
+        _TorchNdimMetacontroller,
+    )
+
+    store = MetacontrollerParameterStore(n_z=8)
+    assert store.ndim_encoder_parameters is not None
+    assert store.ndim_switch_parameters is not None
+    assert store.ndim_decoder_parameters is not None
+    module = _TorchNdimMetacontroller(
+        n_z=8,
+        encoder=store.ndim_encoder_parameters,
+        switch=store.ndim_switch_parameters,
+        decoder=store.ndim_decoder_parameters,
+    )
+    with torch.no_grad():
+        module.dec_W2.zero_()
+        module.dec_b2.fill_(-2.0)
+    control = module._decode(torch.zeros(8, dtype=torch.float64))
+    assert tuple(float(value) for value in control.detach()) == (0.0,) * 8
+
+    torch.mean((control - 1.0).pow(2)).backward()
+
+    assert module.dec_b2.grad is not None
+    assert float(module.dec_b2.grad.abs().sum()) > 0.0
+
+
+@torch_only
+def test_store_ssl_rejects_partial_expert_action_trajectory() -> None:
+    from volvence_zero.temporal.torch_store_ssl import (
+        StoreSSLTrainingSession,
+    )
+
+    base = _trace("partial-expert-action")
+    assert isinstance(base, TrainingTrace)
+    first = base.steps[0]
+    partial = TrainingTrace(
+        trace_id=base.trace_id,
+        source_text=base.source_text,
+        steps=(
+            TraceStep(
+                step=first.step,
+                token=first.token,
+                feature_surface=first.feature_surface,
+                residual_activations=first.residual_activations,
+                expert_action_target=ExpertActionTarget(
+                    action_id="move:alpha",
+                    values=(1.0, 0.0),
+                    source="test-demonstrator",
+                ),
+            ),
+            *base.steps[1:],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="mixes expert-targeted"):
+        StoreSSLTrainingSession(n_z=_NDIM).train_batch(
+            store=MetacontrollerParameterStore(n_z=_NDIM),
+            traces=(partial,),
+            batch_id="partial-expert-action",
+            write_back=False,
+        )
+
+
+def test_action_family_split_merge_conserves_support_mass() -> None:
+    from volvence_zero.temporal.metacontroller_components import (
+        ActionFamilyObservation,
+        DiscoveredActionFamily,
+        discover_latent_action_family,
+    )
+
+    family = DiscoveredActionFamily(
+        family_id="discovered_family_0",
+        latent_centroid=(1.0, 0.0),
+        decoder_centroid=(1.0, 0.0),
+        support=6,
+        stability=0.5,
+        switch_bias=0.5,
+        mean_posterior_drift=0.0,
+        mean_persistence_window=1.0,
+        reuse_streak=4,
+    )
+    observation = ActionFamilyObservation(
+        latent_code=(0.9, math.sqrt(1.0 - 0.9**2)),
+        decoder_control=(0.9, math.sqrt(1.0 - 0.9**2)),
+        switch_gate=0.5,
+        posterior_drift=0.3,
+        persistence_window=0.0,
+    )
+
+    updated, _label, _summary = discover_latent_action_family(
+        observation=observation,
+        action_families=(family,),
+        structure_frozen=False,
+    )
+
+    assert sum(item.support for item in updated) == family.support
+
+
+def test_action_family_topology_uses_structural_not_payoff_similarity() -> None:
+    from volvence_zero.temporal.metacontroller_components import (
+        ActionFamilyObservation,
+        DiscoveredActionFamily,
+        discover_latent_action_family,
+    )
+
+    incumbent = DiscoveredActionFamily(
+        family_id="discovered_family_0",
+        latent_centroid=(1.0, 0.0),
+        decoder_centroid=(1.0, 0.0),
+        support=8,
+        stability=1.0,
+        switch_bias=0.5,
+        mean_posterior_drift=0.0,
+        mean_persistence_window=1.0,
+        competition_score=1.0,
+        outcome_history=(1.0,),
+        outcome_driven_score=1.0,
+        long_term_payoff=1.0,
+        delayed_credit_sum=3.0,
+    )
+    observation = ActionFamilyObservation(
+        latent_code=(0.75, math.sqrt(1.0 - 0.75**2)),
+        decoder_control=(0.75, math.sqrt(1.0 - 0.75**2)),
+        switch_gate=0.5,
+        posterior_drift=0.2,
+        persistence_window=0.0,
+    )
+
+    updated, _label, _summary = discover_latent_action_family(
+        observation=observation,
+        action_families=(incumbent,),
+        structure_frozen=False,
+    )
+
+    assert len(updated) == 2
+
+
+def test_action_family_identity_dominates_outcome_prior() -> None:
+    from volvence_zero.temporal.metacontroller_components import (
+        ActionFamilyObservation,
+        DiscoveredActionFamily,
+        classify_latent_action,
+    )
+
+    matching = DiscoveredActionFamily(
+        family_id="matching",
+        latent_centroid=(1.0, 0.0),
+        decoder_centroid=(1.0, 0.0),
+        support=1,
+        stability=0.1,
+        switch_bias=0.0,
+        mean_posterior_drift=1.0,
+        mean_persistence_window=0.0,
+        stagnation_pressure=1.0,
+        monopoly_pressure=1.0,
+        competition_score=0.0,
+        outcome_history=(-1.0,),
+        outcome_driven_score=-1.0,
+        long_term_payoff=0.0,
+        delayed_credit_sum=-3.0,
+    )
+    rewarded_but_orthogonal = replace(
+        matching,
+        family_id="rewarded",
+        latent_centroid=(0.0, 1.0),
+        decoder_centroid=(0.0, 1.0),
+        stability=1.0,
+        stagnation_pressure=0.0,
+        monopoly_pressure=0.0,
+        competition_score=1.0,
+        outcome_history=(1.0,),
+        outcome_driven_score=1.0,
+        long_term_payoff=1.0,
+        delayed_credit_sum=3.0,
+    )
+    observation = ActionFamilyObservation(
+        latent_code=(1.0, 0.0),
+        decoder_control=(1.0, 0.0),
+        switch_gate=0.0,
+        posterior_drift=1.0,
+        persistence_window=0.0,
+    )
+
+    label, _summary, _score = classify_latent_action(
+        observation=observation,
+        action_families=(matching, rewarded_but_orthogonal),
+    )
+
+    assert label == "matching"
+
+
+def test_beta_switch_releases_action_family_continuation_prior() -> None:
+    from volvence_zero.temporal.interface import (
+        _switch_conditioned_family_continuation_bias,
+    )
+
+    common = {
+        "action_bias": 0.5,
+        "family_bias": 0.5,
+        "sequence_bias": 0.5,
+    }
+    assert _switch_conditioned_family_continuation_bias(
+        **common,
+        is_switching=False,
+    ) == pytest.approx(0.5)
+    assert _switch_conditioned_family_continuation_bias(
+        **common,
+        is_switching=True,
+    ) == 0.0
+
+
+@torch_only
+def test_store_ssl_sparse_prior_controls_unlabeled_switch_rate() -> None:
+    from volvence_zero.temporal.torch_store_ssl import (
+        StoreSSLTrainingSession,
+    )
+
+    traces = (
+        build_training_trace(
+            trace_id="rate-a",
+            source_text="steady repair continue inspect outcome",
+        ),
+        build_training_trace(
+            trace_id="rate-b",
+            source_text="open plan shift execute verify",
+        ),
+        build_training_trace(
+            trace_id="rate-c",
+            source_text="listen reflect align act close",
+        ),
+    )
+
+    def fit(prior: float) -> float:
+        store = MetacontrollerParameterStore(n_z=8)
+        session = StoreSSLTrainingSession(
+            n_z=8,
+            learning_rate=0.01,
+            switch_prior=prior,
+            switch_rate_weight=1.0,
+        )
+        report = None
+        for update in range(12):
+            report = session.train_batch(
+                store=store,
+                traces=traces,
+                batch_id=f"rate-{prior}-{update}",
+                write_back=True,
+            )
+        assert report is not None
+        return report.mean_switch_probability
+
+    sparse_probability = fit(0.05)
+    dense_probability = fit(0.50)
+
+    assert sparse_probability < dense_probability
+    assert dense_probability - sparse_probability > 0.10
 
 
 @torch_only

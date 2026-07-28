@@ -46,7 +46,12 @@ from volvence_zero.temporal.noncausal_embedder import (
     NonCausalSequenceEmbedder,
     PosteriorEnrichment,
 )
-from volvence_zero.temporal.ssl import MetacontrollerSSLTrainer, SSLBatchTrainingReport, SSLTrainingReport
+from volvence_zero.temporal.ssl import (
+    MetacontrollerSSLTrainer,
+    SSLBatchTrainingReport,
+    SSLTrainingReport,
+    build_training_trace_from_substrate_snapshots,
+)
 from volvence_zero.temporal.tensor_ops import (
     Vec,
     Mat,
@@ -91,6 +96,8 @@ __all__ = [
     "NdimSwitchUnit",
     "SwitchGateStats",
     "build_family_competition_state",
+    "build_training_trace_from_substrate_snapshots",
+    "update_family_outcome_history",
     "NonCausalEmbedding",
     "NonCausalSequenceEmbedder",
     "PlaceholderTemporalPolicy",

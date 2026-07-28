@@ -310,6 +310,7 @@ class MiniHierarchicalEnvironment:
                 subgoal_id=location.location_id,
                 target_signature=location.target_signature,
                 completion_threshold=location.completion_threshold,
+                nominal_completion_threshold=location.completion_threshold,
                 min_persistence=location.min_persistence,
                 credit_horizon=location.credit_horizon,
                 observation_weight=location.observation_weight,

@@ -3,12 +3,15 @@ from __future__ import annotations
 import math
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
+    ExpertActionTarget,
     ResidualSequenceStep,
     SubstrateSnapshot,
     SurfaceKind,
+    TraceStep,
     TrainingTrace,
 )
 from volvence_zero.tensor_backend import is_torch_available
@@ -31,8 +34,13 @@ from volvence_zero.temporal.metacontroller_components import (
 )
 from volvence_zero.temporal.noncausal_embedder import NonCausalSequenceEmbedder
 
-
 from volvence_zero.temporal.m3_optimizer import M3Optimizer, M3OptimizerState
+
+if TYPE_CHECKING:
+    from volvence_zero.temporal.torch_store_ssl import (
+        StoreSSLReport,
+        StoreSSLTrainingSession,
+    )
 
 
 def _clamp(value: float) -> float:
@@ -98,6 +106,76 @@ def _mean_abs(values: tuple[float, ...]) -> float:
     return sum(abs(value) for value in values) / len(values)
 
 
+def build_training_trace_from_substrate_snapshots(
+    *,
+    trace_id: str,
+    source_text: str,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    expert_action_targets: tuple[ExpertActionTarget, ...] = (),
+) -> TrainingTrace:
+    """Build one causal SSL step from each immutable residual snapshot.
+
+    Prefix captures contain the full token history. Taking only each prefix's
+    latest residual step preserves the causal trajectory without duplicating
+    earlier tokens once per prefix.
+    """
+
+    if len(snapshots) < 2:
+        raise ValueError(
+            "Residual-trajectory SSL requires at least two substrate snapshots."
+        )
+    if expert_action_targets and len(expert_action_targets) != len(snapshots):
+        raise ValueError(
+            "Expert action target count must match substrate snapshot count; "
+            f"got {len(expert_action_targets)} targets for "
+            f"{len(snapshots)} snapshots."
+        )
+    trace_steps: list[TraceStep] = []
+    for trajectory_step, snapshot in enumerate(snapshots):
+        if not snapshot.is_frozen:
+            raise ValueError(
+                "Residual-trajectory SSL only accepts frozen substrate snapshots; "
+                f"snapshot {trajectory_step} from {snapshot.model_id!r} is mutable."
+            )
+        if snapshot.surface_kind is not SurfaceKind.RESIDUAL_STREAM:
+            raise ValueError(
+                "Residual-trajectory SSL requires SurfaceKind.RESIDUAL_STREAM; "
+                f"snapshot {trajectory_step} exposes {snapshot.surface_kind.value!r}."
+            )
+        if snapshot.residual_sequence:
+            latest = snapshot.residual_sequence[-1]
+            token = latest.token
+            feature_surface = latest.feature_surface
+            residual_activations = latest.residual_activations
+        else:
+            token = f"<snapshot:{trajectory_step}>"
+            feature_surface = snapshot.feature_surface
+            residual_activations = snapshot.residual_activations
+        if not residual_activations:
+            raise ValueError(
+                "Residual-trajectory SSL requires nonempty residual activations; "
+                f"snapshot {trajectory_step} from {snapshot.model_id!r} has none."
+            )
+        trace_steps.append(
+            TraceStep(
+                step=trajectory_step,
+                token=token,
+                feature_surface=feature_surface,
+                residual_activations=residual_activations,
+                expert_action_target=(
+                    expert_action_targets[trajectory_step]
+                    if expert_action_targets
+                    else None
+                ),
+            )
+        )
+    return TrainingTrace(
+        trace_id=trace_id,
+        source_text=source_text,
+        steps=tuple(trace_steps),
+    )
+
+
 @dataclass(frozen=True)
 class SSLTrainingReport:
     trace_id: str
@@ -119,6 +197,27 @@ class SSLTrainingReport:
     torch_prediction_loss: float = 0.0
     torch_kl_loss: float = 0.0
     torch_switch_sparsity: float = 0.0
+    torch_switch_rate_loss: float = 0.0
+    torch_switch_binary_loss: float = 0.0
+    torch_switch_group_loss: float = 0.0
+    torch_gate_choice_loss: float = 0.0
+    torch_keep_prediction_loss: float = 0.0
+    torch_switch_prediction_loss: float = 0.0
+    torch_mean_switch_probability: float = 0.0
+    torch_binary_switch_ratio: float = 0.0
+    torch_optimizer_step: int = 0
+    torch_optimizer_state_reused: bool = False
+    torch_target_variance: float = 0.0
+    torch_distortion_target: str = "absolute"
+    torch_supervision_target: str = "none"
+    torch_expert_action_supervision: bool = False
+    torch_expert_action_boundary_f1: float = 0.0
+    torch_boundary_switch_probability: float = 0.0
+    torch_continuation_switch_probability: float = 0.0
+    torch_boundary_switch_preference: float = 0.0
+    torch_continuation_switch_preference: float = 0.0
+    torch_switch_threshold_before: float = 0.55
+    torch_switch_threshold_after: float = 0.55
     torch_parameters_changed: int = 0
     torch_grad_norm: float = 0.0
     torch_wrote_back: bool = False
@@ -145,6 +244,34 @@ class SSLBatchTrainingReport:
     scaffold_ablation_retention: float
     alpha_schedule: tuple[float, ...]
     trace_reports: tuple[SSLTrainingReport, ...]
+    torch_backend: str = "disabled"
+    torch_prediction_loss: float = 0.0
+    torch_kl_loss: float = 0.0
+    torch_total_loss: float = 0.0
+    torch_switch_rate_loss: float = 0.0
+    torch_switch_binary_loss: float = 0.0
+    torch_switch_group_loss: float = 0.0
+    torch_gate_choice_loss: float = 0.0
+    torch_keep_prediction_loss: float = 0.0
+    torch_switch_prediction_loss: float = 0.0
+    torch_mean_switch_probability: float = 0.0
+    torch_binary_switch_ratio: float = 0.0
+    torch_optimizer_step: int = 0
+    torch_optimizer_state_reused: bool = False
+    torch_target_variance: float = 0.0
+    torch_distortion_target: str = "absolute"
+    torch_supervision_target: str = "none"
+    torch_expert_action_supervision: bool = False
+    torch_expert_action_boundary_f1: float = 0.0
+    torch_boundary_switch_probability: float = 0.0
+    torch_continuation_switch_probability: float = 0.0
+    torch_boundary_switch_preference: float = 0.0
+    torch_continuation_switch_preference: float = 0.0
+    torch_switch_threshold_before: float = 0.55
+    torch_switch_threshold_after: float = 0.55
+    torch_parameters_changed: int = 0
+    torch_grad_norm: float = 0.0
+    torch_wrote_back: bool = False
     description: str = ""
 
 
@@ -166,10 +293,53 @@ class MetacontrollerSSLTrainer:
         n_z: int = 3,
         alpha: float = 0.1,
         ssl_backend: WiringLevel = WiringLevel.DISABLED,
+        torch_learning_rate: float = 0.02,
+        switch_prior: float = 0.10,
+        switch_rate_weight: float = 0.05,
+        switch_binary_weight: float = 0.01,
+        switch_group_weight: float = 0.01,
+        proposal_prediction_weight: float = 0.50,
+        gate_choice_weight: float = 1.0,
+        gate_choice_temperature: float = 0.02,
+        prediction_horizon: int = 3,
+        distortion_target: str = "innovation",
     ) -> None:
+        if not 0.0 < switch_prior < 1.0:
+            raise ValueError("switch_prior must be strictly between 0 and 1.")
+        if any(
+            value < 0.0
+            for value in (
+                alpha,
+                torch_learning_rate,
+                switch_rate_weight,
+                switch_binary_weight,
+                switch_group_weight,
+                proposal_prediction_weight,
+                gate_choice_weight,
+            )
+        ):
+            raise ValueError("SSL loss weights and learning_rate must be non-negative.")
+        if prediction_horizon < 1:
+            raise ValueError("prediction_horizon must be at least 1.")
+        if gate_choice_temperature <= 0.0:
+            raise ValueError("gate_choice_temperature must be positive.")
+        if distortion_target not in {"absolute", "innovation"}:
+            raise ValueError(
+                "distortion_target must be 'absolute' or 'innovation'."
+            )
         self._n_z = n_z
         self._alpha = alpha
         self._ssl_backend = ssl_backend
+        self._torch_learning_rate = torch_learning_rate
+        self._switch_prior = switch_prior
+        self._switch_rate_weight = switch_rate_weight
+        self._switch_binary_weight = switch_binary_weight
+        self._switch_group_weight = switch_group_weight
+        self._proposal_prediction_weight = proposal_prediction_weight
+        self._gate_choice_weight = gate_choice_weight
+        self._gate_choice_temperature = gate_choice_temperature
+        self._prediction_horizon = prediction_horizon
+        self._distortion_target = distortion_target
         self._encoder = SequenceEncoder()
         self._decoder = ResidualDecoder()
         self._switch = SwitchUnit()
@@ -199,6 +369,10 @@ class MetacontrollerSSLTrainer:
         # Both are owner-local read-only evidence surfaces.
         self._latest_torch_candidate: "StoreSSLReport | None" = None
         self._latest_forward_parity: object | None = None
+        self._torch_store_sessions: dict[
+            int,
+            "StoreSSLTrainingSession",
+        ] = {}
 
     @property
     def ssl_backend(self) -> WiringLevel:
@@ -244,11 +418,30 @@ class MetacontrollerSSLTrainer:
         self._latest_report = report
         return report
 
+    def optimize_residual_trajectory(
+        self,
+        *,
+        policy: FullLearnedTemporalPolicy,
+        trace_id: str,
+        source_text: str,
+        snapshots: tuple[SubstrateSnapshot, ...],
+    ) -> SSLTrainingReport:
+        """Optimize directly from the frozen residual snapshots runtime consumed."""
+
+        trace = build_training_trace_from_substrate_snapshots(
+            trace_id=trace_id,
+            source_text=source_text,
+            snapshots=snapshots,
+        )
+        return self.optimize(policy=policy, trace=trace)
+
     def _optimize_impl(
         self,
         *,
         policy: FullLearnedTemporalPolicy,
         trace: TrainingTrace,
+        run_torch_backend: bool = True,
+        update_action_families: bool = True,
     ) -> SSLTrainingReport:
         if len(trace.steps) < 2:
             policy.parameter_store.record_ssl_metrics(total_loss=0.0, kl_loss=0.0)
@@ -364,14 +557,15 @@ class MetacontrollerSSLTrainer:
                     params=store.ndim_switch_parameters,
                     beta_threshold=store.beta_threshold,
                 )
-                latent_code = tuple(
-                    _clamp(
-                        beta_cont[index] * encoded.z_tilde[index]
-                        + (1.0 - beta_cont[index]) * previous_code[index]
-                    )
-                    for index in range(len(encoded.z_tilde))
+                is_switching = (
+                    trained_steps == 0
+                    or scalar_beta >= store.beta_threshold
                 )
-                is_switching = scalar_beta >= store.beta_threshold
+                latent_code = (
+                    encoded.z_tilde
+                    if is_switching
+                    else previous_code
+                )
                 persistence_window = 0.0 if is_switching else float(previous_steps + 1)
                 decoder_control = self._ndim_decoder.decode(
                     latent_code=latent_code,
@@ -421,29 +615,33 @@ class MetacontrollerSSLTrainer:
             kl_total += kl_loss
             posterior_drift_total += encoded.posterior.posterior_drift
             trained_steps += 1
-            self._apply_training_step(
-                policy=policy,
-                target_action=target_action,
-                encoded=enriched_encoded,
-                decoder_control=decoder_control,
-                prediction_loss=prediction_loss,
-                kl_loss=kl_loss,
-                noncausal_kl_tightening=enrichment.kl_tightening,
-                noncausal_information_content=noncausal_embedding.information_content,
-            )
+            if self._ssl_backend is not WiringLevel.ACTIVE:
+                self._apply_training_step(
+                    policy=policy,
+                    target_action=target_action,
+                    encoded=enriched_encoded,
+                    decoder_control=decoder_control,
+                    prediction_loss=prediction_loss,
+                    kl_loss=kl_loss,
+                    noncausal_kl_tightening=enrichment.kl_tightening,
+                    noncausal_information_content=(
+                        noncausal_embedding.information_content
+                    ),
+                )
             latest_mean = enriched_encoded.posterior.posterior_mean
             latest_scale = enriched_encoded.posterior.posterior_std
             latest_prior_mean = encoded.posterior.prior_mean
             latest_prior_std = encoded.posterior.prior_std
             latest_z_tilde = latent_code
             latest_decoder = decoder_control.applied_control
-            latest_label, _ = store.discover_action_family(
-                latent_code=latent_code,
-                decoder_control=decoder_control.applied_control,
-                switch_gate=scalar_beta,
-                posterior_drift=encoded.posterior.posterior_drift,
-                persistence_window=persistence_window,
-            )
+            if update_action_families:
+                latest_label, _ = store.discover_action_family(
+                    latent_code=latent_code,
+                    decoder_control=decoder_control.applied_control,
+                    switch_gate=scalar_beta,
+                    posterior_drift=encoded.posterior.posterior_drift,
+                    persistence_window=persistence_window,
+                )
             previous_hidden_state = encoded.posterior.hidden_state
             previous_code = latent_code
             previous_steps = 0 if is_switching else previous_steps + 1
@@ -505,11 +703,21 @@ class MetacontrollerSSLTrainer:
             for v1, v2 in zip(
                 self._m3_encoder.slow_momentum_signal(),
                 self._m3_decoder.slow_momentum_signal(),
+                strict=True,
             )
         )
         slow_signal = tuple(_clamp(v / 2.0) for v in slow_signal) if slow_signal else ()
         avg_kl_tightening = kl_tightening_total / trained_steps
-        torch_evidence = self._maybe_run_torch_backend(store=store, trace=trace)
+        torch_evidence = (
+            self._maybe_run_torch_backend(store=store, trace=trace)
+            if run_torch_backend
+            else self._disabled_torch_evidence()
+        )
+        if bool(torch_evidence["wrote_back"]):
+            store.record_ssl_metrics(
+                total_loss=float(torch_evidence["total_loss"]),
+                kl_loss=float(torch_evidence["kl_loss"]),
+            )
         return SSLTrainingReport(
             trace_id=trace.trace_id,
             prediction_loss=avg_prediction,
@@ -527,6 +735,45 @@ class MetacontrollerSSLTrainer:
             torch_prediction_loss=torch_evidence["prediction_loss"],
             torch_kl_loss=torch_evidence["kl_loss"],
             torch_switch_sparsity=torch_evidence["switch_sparsity"],
+            torch_switch_rate_loss=torch_evidence["switch_rate_loss"],
+            torch_switch_binary_loss=torch_evidence["switch_binary_loss"],
+            torch_switch_group_loss=torch_evidence["switch_group_loss"],
+            torch_gate_choice_loss=torch_evidence["gate_choice_loss"],
+            torch_keep_prediction_loss=torch_evidence["keep_prediction_loss"],
+            torch_switch_prediction_loss=torch_evidence[
+                "switch_prediction_loss"
+            ],
+            torch_mean_switch_probability=torch_evidence[
+                "mean_switch_probability"
+            ],
+            torch_binary_switch_ratio=torch_evidence["binary_switch_ratio"],
+            torch_optimizer_step=torch_evidence["optimizer_step"],
+            torch_optimizer_state_reused=torch_evidence[
+                "optimizer_state_reused"
+            ],
+            torch_target_variance=torch_evidence["target_variance"],
+            torch_distortion_target=str(torch_evidence["distortion_target"]),
+            torch_supervision_target=str(
+                torch_evidence["supervision_target"]
+            ),
+            torch_expert_action_supervision=bool(
+                torch_evidence["expert_action_supervision"]
+            ),
+            torch_expert_action_boundary_f1=float(
+                torch_evidence["expert_action_boundary_f1"]
+            ),
+            torch_boundary_switch_probability=float(
+                torch_evidence["boundary_switch_probability"]
+            ),
+            torch_continuation_switch_probability=float(
+                torch_evidence["continuation_switch_probability"]
+            ),
+            torch_boundary_switch_preference=float(
+                torch_evidence["boundary_switch_preference"]
+            ),
+            torch_continuation_switch_preference=float(
+                torch_evidence["continuation_switch_preference"]
+            ),
             torch_parameters_changed=torch_evidence["parameters_changed"],
             torch_grad_norm=torch_evidence["grad_norm"],
             torch_wrote_back=torch_evidence["wrote_back"],
@@ -539,12 +786,58 @@ class MetacontrollerSSLTrainer:
             ),
         )
 
+    def _disabled_torch_evidence(self) -> dict[str, object]:
+        return {
+            "backend": "disabled",
+            "prediction_loss": 0.0,
+            "kl_loss": 0.0,
+            "total_loss": 0.0,
+            "switch_sparsity": 0.0,
+            "switch_rate_loss": 0.0,
+            "switch_binary_loss": 0.0,
+            "switch_group_loss": 0.0,
+            "gate_choice_loss": 0.0,
+            "keep_prediction_loss": 0.0,
+            "switch_prediction_loss": 0.0,
+            "mean_switch_probability": 0.0,
+            "binary_switch_ratio": 0.0,
+            "optimizer_step": 0,
+            "optimizer_state_reused": False,
+            "target_variance": 0.0,
+            "distortion_target": "absolute",
+            "supervision_target": "none",
+            "expert_action_supervision": False,
+            "expert_action_boundary_f1": 0.0,
+            "boundary_switch_probability": 0.0,
+            "continuation_switch_probability": 0.0,
+            "boundary_switch_preference": 0.0,
+            "continuation_switch_preference": 0.0,
+            "switch_threshold_before": 0.55,
+            "switch_threshold_after": 0.55,
+            "parameters_changed": 0,
+            "grad_norm": 0.0,
+            "wrote_back": False,
+        }
+
     def _maybe_run_torch_backend(
         self,
         *,
         store: MetacontrollerParameterStore,
         trace: TrainingTrace,
-    ) -> dict:
+    ) -> dict[str, object]:
+        return self._maybe_run_torch_backend_batch(
+            store=store,
+            traces=(trace,),
+            batch_id=trace.trace_id,
+        )
+
+    def _maybe_run_torch_backend_batch(
+        self,
+        *,
+        store: MetacontrollerParameterStore,
+        traces: tuple[TrainingTrace, ...],
+        batch_id: str,
+    ) -> dict[str, object]:
         """Phase A: run the real-autograd SSL pass when the backend is enabled.
 
         DISABLED -> no-op. SHADOW -> torch trains a copy (no write-back).
@@ -553,11 +846,7 @@ class MetacontrollerSSLTrainer:
         result with an explicit reason rather than silently degrading.
         """
 
-        disabled = {
-            "backend": "disabled", "prediction_loss": 0.0, "kl_loss": 0.0,
-            "switch_sparsity": 0.0, "parameters_changed": 0, "grad_norm": 0.0,
-            "wrote_back": False,
-        }
+        disabled = self._disabled_torch_evidence()
         if self._ssl_backend is WiringLevel.DISABLED:
             return disabled
         if self._n_z <= 3 or store.ndim_encoder_parameters is None:
@@ -565,14 +854,35 @@ class MetacontrollerSSLTrainer:
         if not is_torch_available():
             return {**disabled, "backend": "skipped-no-torch"}
 
-        from volvence_zero.temporal.torch_store_ssl import train_store_ssl
+        from volvence_zero.temporal.torch_store_ssl import (
+            StoreSSLTrainingSession,
+        )
 
+        store_key = id(store)
+        torch_store_session = self._torch_store_sessions.get(store_key)
+        if torch_store_session is None:
+            torch_store_session = StoreSSLTrainingSession(
+                n_z=self._n_z,
+                alpha=self._alpha,
+                learning_rate=self._torch_learning_rate,
+                switch_prior=self._switch_prior,
+                switch_rate_weight=self._switch_rate_weight,
+                switch_binary_weight=self._switch_binary_weight,
+                switch_group_weight=self._switch_group_weight,
+                proposal_prediction_weight=(
+                    self._proposal_prediction_weight
+                ),
+                gate_choice_weight=self._gate_choice_weight,
+                gate_choice_temperature=self._gate_choice_temperature,
+                prediction_horizon=self._prediction_horizon,
+                distortion_target=self._distortion_target,
+            )
+            self._torch_store_sessions[store_key] = torch_store_session
         write_back = self._ssl_backend is WiringLevel.ACTIVE
-        report = train_store_ssl(
+        report = torch_store_session.train_batch(
             store=store,
-            trace=trace,
-            n_z=self._n_z,
-            alpha=self._alpha,
+            traces=traces,
+            batch_id=batch_id,
             switch_threshold=store.beta_threshold,
             write_back=write_back,
         )
@@ -580,13 +890,13 @@ class MetacontrollerSSLTrainer:
         # run a pure/torch forward-parity check on the (untouched-under-
         # SHADOW) live store params — evidence beyond the loss scalars.
         self._latest_torch_candidate = report
-        if trace.steps:
+        if traces and traces[0].steps:
             from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind
             from volvence_zero.temporal.backend_ndim_runtime import (
                 runtime_ndim_shadow_compare,
             )
 
-            step = trace.steps[0]
+            step = traces[0].steps[0]
             step_view = SubstrateSnapshot(
                 model_id="ssl-shadow-parity",
                 is_frozen=True,
@@ -608,11 +918,117 @@ class MetacontrollerSSLTrainer:
             "backend": self._ssl_backend.value,
             "prediction_loss": report.prediction_loss,
             "kl_loss": report.kl_loss,
+            "total_loss": report.total_loss,
             "switch_sparsity": report.switch_sparsity,
+            "switch_rate_loss": report.switch_rate_loss,
+            "switch_binary_loss": report.switch_binary_loss,
+            "switch_group_loss": report.switch_group_loss,
+            "gate_choice_loss": report.gate_choice_loss,
+            "keep_prediction_loss": report.keep_prediction_loss,
+            "switch_prediction_loss": report.switch_prediction_loss,
+            "mean_switch_probability": report.mean_switch_probability,
+            "binary_switch_ratio": report.binary_switch_ratio,
+            "optimizer_step": report.optimizer_step,
+            "optimizer_state_reused": report.optimizer_state_reused,
+            "target_variance": report.target_variance,
+            "distortion_target": report.distortion_target,
+            "supervision_target": report.supervision_target,
+            "expert_action_supervision": report.expert_action_supervision,
+            "expert_action_boundary_f1": report.expert_action_boundary_f1,
+            "boundary_switch_probability": report.boundary_switch_probability,
+            "continuation_switch_probability": (
+                report.continuation_switch_probability
+            ),
+            "boundary_switch_preference": report.boundary_switch_preference,
+            "continuation_switch_preference": (
+                report.continuation_switch_preference
+            ),
+            "switch_threshold_before": report.switch_threshold_before,
+            "switch_threshold_after": report.switch_threshold_after,
             "parameters_changed": report.parameters_changed,
             "grad_norm": report.grad_norm,
             "wrote_back": report.wrote_back,
         }
+
+    def _discover_expert_action_families(
+        self,
+        *,
+        policy: FullLearnedTemporalPolicy,
+        traces: tuple[TrainingTrace, ...],
+    ) -> None:
+        """Replay trained expert trajectories with runtime one-step semantics."""
+
+        if (
+            self._ndim_encoder is None
+            or self._ndim_switch is None
+            or self._ndim_decoder is None
+        ):
+            raise RuntimeError(
+                "Expert-action family discovery requires ndim components."
+            )
+        store = policy.parameter_store
+        if (
+            store.ndim_encoder_parameters is None
+            or store.ndim_switch_parameters is None
+            or store.ndim_decoder_parameters is None
+        ):
+            raise RuntimeError(
+                "Expert-action family discovery requires ndim parameters."
+            )
+        store.require_ssl_discovery_phase(
+            operation="MetacontrollerSSLTrainer._discover_expert_action_families"
+        )
+        for trace in traces:
+            previous_hidden_state = tuple(0.0 for _ in range(self._n_z))
+            previous_code = tuple(0.0 for _ in range(self._n_z))
+            previous_steps = 0
+            store.reset_episode_runtime_telemetry()
+            for step_index, step in enumerate(trace.steps):
+                snapshot = self._snapshot_from_prefix(
+                    trace=trace,
+                    prefix=(step,),
+                )
+                encoded = self._ndim_encoder.encode(
+                    substrate_snapshot=snapshot,
+                    previous_hidden_state=previous_hidden_state,
+                    params=store.ndim_encoder_parameters,
+                )
+                _beta_vector, _beta_binary, scalar_beta = (
+                    self._ndim_switch.compute(
+                        z_tilde=encoded.z_tilde,
+                        previous_code=previous_code,
+                        params=store.ndim_switch_parameters,
+                        beta_threshold=store.beta_threshold,
+                    )
+                )
+                is_switching = (
+                    step_index == 0
+                    or scalar_beta >= store.beta_threshold
+                )
+                latent_code = (
+                    encoded.z_tilde
+                    if is_switching
+                    else previous_code
+                )
+                persistence_window = (
+                    0.0 if is_switching else float(previous_steps + 1)
+                )
+                decoder_control = self._ndim_decoder.decode(
+                    latent_code=latent_code,
+                    params=store.ndim_decoder_parameters,
+                )
+                store.discover_action_family(
+                    latent_code=latent_code,
+                    decoder_control=decoder_control.applied_control,
+                    switch_gate=scalar_beta,
+                    posterior_drift=encoded.posterior.posterior_drift,
+                    persistence_window=persistence_window,
+                )
+                previous_hidden_state = encoded.posterior.hidden_state
+                previous_code = latent_code
+                previous_steps = (
+                    0 if is_switching else previous_steps + 1
+                )
 
     def optimize_batch(
         self,
@@ -625,10 +1041,57 @@ class MetacontrollerSSLTrainer:
         if not traces:
             raise ValueError("MetacontrollerSSLTrainer.optimize_batch requires at least one trace.")
         family_count_before = len(policy.parameter_store.action_families)
-        trace_reports: list[SSLTrainingReport] = []
-        for trace in traces:
-            trace_reports.append(self.optimize(policy=policy, trace=trace))
-        reports = tuple(trace_reports)
+        expert_action_batch = all(
+            trace.steps
+            and all(
+                step.expert_action_target is not None
+                for step in trace.steps
+            )
+            for trace in traces
+        )
+        if self._ssl_backend is WiringLevel.DISABLED:
+            reports = tuple(
+                self.optimize(policy=policy, trace=trace)
+                for trace in traces
+            )
+            torch_evidence = self._disabled_torch_evidence()
+        else:
+            pre_write_reports = tuple(
+                self._optimize_impl(
+                    policy=policy,
+                    trace=trace,
+                    run_torch_backend=False,
+                    update_action_families=not expert_action_batch,
+                )
+                for trace in traces
+            )
+            torch_evidence = self._maybe_run_torch_backend_batch(
+                store=policy.parameter_store,
+                traces=traces,
+                batch_id=batch_id,
+            )
+            if bool(torch_evidence["wrote_back"]):
+                policy.parameter_store.record_ssl_metrics(
+                    total_loss=float(torch_evidence["total_loss"]),
+                    kl_loss=float(torch_evidence["kl_loss"]),
+                )
+                reports = tuple(
+                    self._optimize_impl(
+                        policy=policy,
+                        trace=trace,
+                        run_torch_backend=False,
+                        update_action_families=not expert_action_batch,
+                    )
+                    for trace in traces
+                )
+                if expert_action_batch:
+                    self._discover_expert_action_families(
+                        policy=policy,
+                        traces=traces,
+                    )
+            else:
+                reports = pre_write_reports
+            self._latest_report = reports[-1]
         family_count_after = len(policy.parameter_store.action_families)
         trained_step_count = sum(report.trained_steps for report in reports)
         switch_sparsity_values = tuple(
@@ -660,10 +1123,72 @@ class MetacontrollerSSLTrainer:
             scaffold_ablation_retention=round(scaffold_ablation_retention, 4),
             alpha_schedule=(self._alpha,),
             trace_reports=reports,
+            torch_backend=str(torch_evidence["backend"]),
+            torch_prediction_loss=float(torch_evidence["prediction_loss"]),
+            torch_kl_loss=float(torch_evidence["kl_loss"]),
+            torch_total_loss=float(torch_evidence["total_loss"]),
+            torch_switch_rate_loss=float(torch_evidence["switch_rate_loss"]),
+            torch_switch_binary_loss=float(
+                torch_evidence["switch_binary_loss"]
+            ),
+            torch_switch_group_loss=float(torch_evidence["switch_group_loss"]),
+            torch_gate_choice_loss=float(torch_evidence["gate_choice_loss"]),
+            torch_keep_prediction_loss=float(
+                torch_evidence["keep_prediction_loss"]
+            ),
+            torch_switch_prediction_loss=float(
+                torch_evidence["switch_prediction_loss"]
+            ),
+            torch_mean_switch_probability=float(
+                torch_evidence["mean_switch_probability"]
+            ),
+            torch_binary_switch_ratio=float(
+                torch_evidence["binary_switch_ratio"]
+            ),
+            torch_optimizer_step=int(torch_evidence["optimizer_step"]),
+            torch_optimizer_state_reused=bool(
+                torch_evidence["optimizer_state_reused"]
+            ),
+            torch_target_variance=float(torch_evidence["target_variance"]),
+            torch_distortion_target=str(torch_evidence["distortion_target"]),
+            torch_supervision_target=str(
+                torch_evidence["supervision_target"]
+            ),
+            torch_expert_action_supervision=bool(
+                torch_evidence["expert_action_supervision"]
+            ),
+            torch_expert_action_boundary_f1=float(
+                torch_evidence["expert_action_boundary_f1"]
+            ),
+            torch_boundary_switch_probability=float(
+                torch_evidence["boundary_switch_probability"]
+            ),
+            torch_continuation_switch_probability=float(
+                torch_evidence["continuation_switch_probability"]
+            ),
+            torch_boundary_switch_preference=float(
+                torch_evidence["boundary_switch_preference"]
+            ),
+            torch_continuation_switch_preference=float(
+                torch_evidence["continuation_switch_preference"]
+            ),
+            torch_switch_threshold_before=float(
+                torch_evidence["switch_threshold_before"]
+            ),
+            torch_switch_threshold_after=float(
+                torch_evidence["switch_threshold_after"]
+            ),
+            torch_parameters_changed=int(
+                torch_evidence["parameters_changed"]
+            ),
+            torch_grad_norm=float(torch_evidence["grad_norm"]),
+            torch_wrote_back=bool(torch_evidence["wrote_back"]),
             description=(
                 f"SSL batch {batch_id} optimized {len(traces)} residual trajectories "
                 f"over {trained_step_count} trained steps; switch_entropy={switch_entropy:.3f}, "
-                f"cluster_stability={cluster_stability:.3f}."
+                f"cluster_stability={cluster_stability:.3f}, "
+                f"torch_optimizer_step={int(torch_evidence['optimizer_step'])}, "
+                f"torch_switch_p={float(torch_evidence['mean_switch_probability']):.3f}."
             ),
         )
 
@@ -797,7 +1322,15 @@ class MetacontrollerSSLTrainer:
         encoder_write = 0.12 + encoder_decision.write_gate * 0.20
         decoder_write = 0.12 + decoder_decision.write_gate * 0.20
         switch_write = 0.10 + switch_decision.write_gate * 0.16
-        improvement = max(-1.0, min(1.0, (0.35 - prediction_loss) * 1.5 + noncausal_kl_tightening * 0.2 - kl_loss * 0.1))
+        improvement = max(
+            -1.0,
+            min(
+                1.0,
+                (0.35 - prediction_loss) * 1.5
+                + noncausal_kl_tightening * 0.2
+                - kl_loss * 0.1,
+            ),
+        )
         stability = _clamp(1.0 - encoded.posterior.posterior_drift)
         if (
             store.n_z > 3
@@ -857,6 +1390,7 @@ class MetacontrollerSSLTrainer:
                     learning_rate=encoder_lr,
                     parameters=store.ndim_encoder_parameters.posterior_proj,
                 ),
+                current_proj=store.ndim_encoder_parameters.current_proj,
                 posterior_std_proj=self._m3_encoder.update(
                     gradients=_scaled_outer_rows(
                         row_scales=_posterior_std_row_scales(encoded.posterior.posterior_std),

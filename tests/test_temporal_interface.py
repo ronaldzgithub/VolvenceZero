@@ -669,6 +669,10 @@ def test_family_competition_memory_raises_monopoly_under_repeated_selection():
 
 def test_family_competition_turnover_health_improves_with_diverse_family_usage():
     repeated_policy = FullLearnedTemporalPolicy()
+    repeated_policy.parameter_store.set_learning_phase(
+        "ssl",
+        structure_frozen=False,
+    )
     for _ in range(6):
         repeated_policy.parameter_store.discover_action_family(
             latent_code=(0.82, 0.16, 0.12),
@@ -680,6 +684,10 @@ def test_family_competition_turnover_health_improves_with_diverse_family_usage()
     repeated_runtime = repeated_policy.export_runtime_state()
 
     diverse_policy = FullLearnedTemporalPolicy()
+    diverse_policy.parameter_store.set_learning_phase(
+        "ssl",
+        structure_frozen=False,
+    )
     observations = (
         ((0.82, 0.16, 0.12), (0.78, 0.14, 0.15), 0.74),
         ((0.22, 0.78, 0.25), (0.18, 0.72, 0.22), 0.28),
@@ -1302,7 +1310,11 @@ def test_noncausal_embedder_bidirectional_ordering_matters():
         trace_id="rev", source_text="carefully plan then tension repair",
     )
 
-    from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind, FeatureSignal, ResidualSequenceStep
+    from volvence_zero.substrate import (
+        ResidualSequenceStep,
+        SubstrateSnapshot,
+        SurfaceKind,
+    )
     def _make_full_substrate(trace):
         return SubstrateSnapshot(
             model_id=trace.trace_id,
@@ -1412,6 +1424,10 @@ def test_phase3_family_competition_not_collapsing_with_diverse_rollouts():
     """Phase 3 W6.1: Verify family distribution does not collapse
     in multi-scenario rollouts with diverse latent codes."""
     policy = FullLearnedTemporalPolicy()
+    policy.parameter_store.set_learning_phase(
+        "ssl",
+        structure_frozen=False,
+    )
     latent_codes = [
         (0.8, 0.1, 0.1),
         (0.1, 0.8, 0.1),
@@ -1471,11 +1487,6 @@ def test_ab_switch_gate_alpha_vs_heuristic_bias():
 
     assert report_e.switch_gate_stats is not None
     assert report_h.switch_gate_stats is not None
-
-    hist_e = report_e.switch_gate_stats.beta_histogram
-    hist_h = report_h.switch_gate_stats.beta_histogram
-    edge_mass_e = hist_e[0] + hist_e[-1]
-    edge_mass_h = hist_h[0] + hist_h[-1]
 
     total_e = report_e.total_loss
     total_h = report_h.total_loss

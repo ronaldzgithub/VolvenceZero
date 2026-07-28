@@ -1,7 +1,7 @@
 # 时间抽象与内部控制 Spec
 
 > Status: draft
-> Last updated: 2026-07-20
+> Last updated: 2026-07-28
 > 对应需求: R3, R4
 
 ## 要解决的问题
@@ -204,6 +204,120 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-28: ETA segment-credit 第五收敛包达到严格 `retain`。根因修正在
+  `vz-temporal` encoder owner：`NdimEncoderParameters.current_proj` 以单位矩阵
+  初始化，保持未训练行为兼容，并由 ACTIVE Torch SSL 学习 residual observation
+  到 `z_t` 的当前时刻投影；pure、backend runtime、Torch forward 和 parameter
+  snapshot/writeback 使用同一参数。persistent Torch optimizer 以 parameter store
+  为作用域；world/self 各自保留独立 Adam state，同一 store 跨 batch 复用，禁止
+  跨 owner 共享 momentum。运行时采用标量 hard beta：新 episode 第一步
+  建立 code，continuation 精确保留上一 segment code，switch 才接纳 proposal。
+  expert-action family discovery 按 runtime 的单 observation step、recurrent hidden
+  和 hard gate 语义重放，避免 prefix 训练分布与 serving 分布不一致。
+  family classification 先用 structural similarity 建立 `0.005` 近邻候选集，
+  再允许 learned payoff/continuation prior 在候选集内决胜；因此结果先验可以
+  区分同构动作，但不能把 observation 吸到语义正交的高收益 family。merge 固定
+  保留拓扑中更早 family 的 lineage ID，support/stability 只参与 centroid 聚合，
+  不再造成抽象身份漂移。
+
+  证据设计同时冻结两项语义：(1) 共享 adapter/metacontroller checkpoint 固定
+  `initialization_seed=42`，5 个 evidence seed 只改变 episode 顺序与 delayed
+  observation lag，不为每个用户随机重建模型；(2) proof subgoal 同时保留运行时
+  `completion_threshold` 与不可被 backend calibration 覆盖的
+  `nominal_completion_threshold`，held-out PE 预测真实
+  `alignment_score - nominal_completion_threshold`。冻结
+  `Qwen/Qwen2.5-0.5B-Instruct`、MPS、5 experience seeds、每 seed 48 个 persistent
+  Adam updates 的 v12 artifact：
+  `artifacts/eta_evidence_gate_1/expert_action_mps_margin005_s5_c48_v12_20260728`。
+  verdict=`retain`；credit F1 delta mean `0.7317`、95% CI
+  `[0.7175, 0.7460]`，false-credit reduction `0.5883`
+  `[0.5683, 0.6083]`，family-assignment delta `0.6000`
+  `[0.4667, 0.6667]`，held-out PE reduction-rate delta `0.0202`
+  `[0.00498, 0.03549]`，beta boundary F1 `0.6095`
+  `[0.6012, 0.6179]`。每个 seed 均有 2 个 active families、6 个 held-out events；
+  88 个 beta boundary 对 95 个真实边界。trace backend 保持单族，作为“无
+  action-identifiable residual 不得宣称动作族涌现”的负面对照。
+- 2026-07-28: ETA segment-credit 第四收敛包完成专家动作监督、轨迹隔离与
+  0.5B causal 分布证据。`vz-substrate` 新增 offline non-runtime
+  `ExpertActionTarget`，`TraceStep` 可一一携带 demonstrator action vector；
+  targeted trajectory 必须全步完整，eval/heldout target 不进入 optimizer，
+  subgoal boundary/reward/outcome 继续只作 evaluation。`torch_store_ssl` 的
+  distortion 因而从 next-residual proxy 升为 expert-action vector MSE，并显式
+  报告监督类型、action target variance、boundary/continuation switch
+  probability 与 PE-derived preference。switch-rate KL 修正为
+  `KL(Bern(mean_t p_t) || Bern(prior))`，使 KL 约束抽象率而不强迫每步概率相同；
+  threshold 由同一无标签 aggregate rate 校准，不读取边界标签。每个环境 observation
+  对应一个 residual step，SSL/runtime temporal axis 保持一致；每个独立 rollout
+  开始时清零 trajectory-local GRU hidden/code/active-family telemetry，但保留
+  metacontroller 参数、action-family bank 和长期用户状态。证据 harness 禁用
+  `temporal_fast_prior`，防止外部 prior 代替 learned beta 决策，并在 SSL 后使用
+  train-only causal rollout 的连续 beta 概率做运行分布 rate 校准。
+
+  冻结 `Qwen/Qwen2.5-0.5B-Instruct`、MPS、5 seeds、每 seed 75 个 persistent
+  Adam updates 的最终 artifact 为
+  `artifacts/eta_evidence_gate_1/segment_vs_turn_causal_rate_calibrated_qwen25_05b_mps_5seed_75update_20260728`
+  （evidence/manifest schema v11）。所有 seed 均观察到 7–8 个 heldout delayed
+  events；segment credit F1 相对 turn credit 的增益均值 `0.6433`、95% CI
+  `[0.5421, 0.7238]`，false-credit reduction 均值 `0.5019`、CI
+  `[0.3844, 0.5901]`，两门成立。边界仍未稳定：总 beta boundary `63` 对真实
+  `95`，boundary F1 均值 `0.4815`、CI `[0.2249, 0.6485]`；seed 0 的
+  train-only causal rate calibration 把 threshold 推到 `0.9402`，heldout 上
+  产生 0 个边界，说明跨分布 threshold calibration 仍脆弱。五个 seed 都只有
+  一个 active family，family-assignment 与 heldout PE delta 均为 0。严格 verdict
+  继续 `fail`；可陈述的结论仅是“专家动作监督下，segment credit 在已观察延迟结果上
+  显著优于 turn credit”，不得升级为“ETA 全链已成立”。下一唯一收敛包应归属
+  temporal action-family topology / calibration owner：先解决 train→heldout rate
+  稳定性和单族坍缩，再重跑 family/PE 门；禁止调低 gate 或使用 evaluation boundary
+  校准阈值。
+- 2026-07-28: ETA segment-credit 第三收敛包完成 live-store switch
+  rate-distortion 机制：`beta_t` 使用标量 hazard 和 hard straight-through gate，
+  loss 新增 Bernoulli switch-rate KL、准二值约束、逐维 group coherence、
+  keep/switch counterfactual choice，并以 persistent Adam 对多 trajectory batch
+  连续优化；默认预测跨度为 3。证据 harness 的每个 seed 现在使用独立的
+  metacontroller 初始化，同时固定 `replacement_mode=causal`，使 learned switch
+  继续拥有 beta 边界，Internal RL 只提供 z candidate。冻结
+  `Qwen/Qwen2.5-0.5B-Instruct` 的 5-seed、12-cycle MPS 运行证明机制本身可动：
+  optimizer state 每个 seed 复用 11 次，60 次 ACTIVE writeback，平均 hard switch
+  frequency `0.3038`；但总共只有 28/120 个运行时 beta boundary，仅一个 seed
+  得到非零 boundary F1，整体 boundary F1 `0.1061`，所有 seed 仍只有一个动作族，
+  family 与 held-out PE delta 均为 0，严格证据门继续 `fail`。
+  审计确认剩余缺口不是继续调 beta 权重：公共 `TrainingTrace` 只发布 token、
+  feature surface 与 residual activation，没有 ETA Eq.3 所需的专家动作 `a_t`；
+  当前 distortion 实际监督“下一时刻 projected residual vector（absolute/innovation
+  proxy）”。proof subgoal signature 仍只允许用于 evaluation，禁止回灌训练。
+  因此 evidence schema 升为 v4，显式发布 `ssl_supervision_target` /
+  `expert_action_supervision=false`，并新增 `ssl-uses-expert-action-targets`
+  retain gate。下一收敛包必须先建立不泄漏评测边界的专家动作 trajectory
+  契约与数据，再判断动作边界是否涌现；当前结果不得表述为 Eq.3 已完成。
+  后续 matched rerun 又修正了两个 owner 内缺口：KL 改成 per-dimension rate，
+  hard gate 关闭时仍用 switch counterfactual 训练 proposal，并把三标量 residual
+  summary target 升为 16 维 projected residual vector。冻结 0.5B、5-seed、
+  3-cycle MPS 结果仍为 0 个 runtime beta boundary、一个动作族和 0 family/PE
+  delta；平均 beta probability `0.4817`。这进一步确认 residual proxy 不能替代
+  Eq.3 的专家动作监督，下一包边界保持为 action trajectory contract，而非继续调
+  switch prior 或 threshold。
+- 2026-07-28: ETA segment-credit 第二收敛包把 open-weight proof runtime 已发布的
+  `SubstrateSnapshot` 前缀序列正式接入 `vz-temporal::MetacontrollerSSLTrainer`。
+  owner 新增 `build_training_trace_from_substrate_snapshots()` /
+  `optimize_residual_trajectory()`：每个 causal prefix 只抽取其最后一个 token 的
+  `feature_surface + residual_activations`，避免把完整前缀反复展开成重复训练样本；
+  非 frozen、非 `RESIDUAL_STREAM`、无 residual 或不足两个快照均 fail loudly。
+  该入口只消费既有不可变 substrate 快照，不新增 runtime slot，也不改变
+  `docs/DATA_CONTRACT.md`。`vz-runtime` 的证据 harness 只负责在同一参数仓上调度
+  `SSL -> z_t Internal RL` 周期，并记录 prediction loss、KL、switch frequency、
+  autograd parameter change 和 ACTIVE writeback；唯一参数写入 owner 仍是
+  `MetacontrollerSSLTrainer` / `MetacontrollerParameterStore`。结构化 subgoal
+  继续仅用于 boundary/credit evaluation，禁止作为 `beta_t` 标签。迁移回滚开关为
+  `training_mode=rl-only`，退出条件是 real residual intake、非零 SSL 训练步、
+  ACTIVE 写回、多个动作族、非零 beta 边界与 held-out PE 证据同时可检查。
+  5-seed MPS 结果证明 real residual intake 与 ACTIVE 写回成立，但整体证据门仍
+  `fail`：交替训练产生 84 个 beta boundary，却只有 `0.0333` boundary F1、一个
+  活跃动作族，family/held-out PE delta 均为 0，并在两个 seed 上丢失 held-out
+  outcome。匹配的 `rl-only`/`n_z=16` 对照仍为 0 个 beta boundary。代码审计进一步
+  确认 live-store torch SSL 的可微目标当前只有 action MSE + posterior KL；
+  `switch_threshold` 只用于统计，loss 没有 beta switch-rate prior。因此下一包的唯一
+  owner 是 `torch_store_ssl` 的无标签 rate-distortion/switch-rate 目标，而不是
+  evaluation 侧阈值补丁。
 - 2026-07-27: 给初始先验加界，解除包络强制的最后一个阻塞项，数字蚂蚁翻成 `True`
   （收敛包 envelope-pristine-init）。缺陷：`validate_causal_action_head_magnitudes`
   的立论是"拒绝 owner 更新路径永远产生不出来的映射"，但 owner 的**构造函数**恰好能产生

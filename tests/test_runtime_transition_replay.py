@@ -628,6 +628,10 @@ def test_causal_action_head_optimizes_from_runtime_replay_and_rolls_back() -> No
     store.track_weights[Track.WORLD] = (0.4, 0.3, 0.2, 0.1)
     policy = FullLearnedTemporalPolicy(parameter_store=store)
     policy.set_runtime_track_modulation(0.3)
+    policy.set_runtime_exploration(0.2)
+    policy.set_runtime_exploration_context(
+        "causal-action-head-update-test"
+    )
     policy.set_causal_action_head(
         wiring_level=WiringLevel.ACTIVE,
         track=Track.WORLD,

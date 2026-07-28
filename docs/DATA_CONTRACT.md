@@ -57,6 +57,40 @@
 
 详见 `SPLIT.md` 与 `archetecture.md`。
 
+### 1.1.1 ETA offline expert-action trajectory（non-runtime）
+
+`vz-substrate` 的 `ExpertActionTarget` 是 ETA Eq.3 离线训练轨迹的 typed
+动作目标，不是运行时 snapshot slot，因此不进入 §6 slot 注册表。
+
+| Type | 字段 | owner / consumer |
+|------|------|------------------|
+| `ExpertActionTarget` | `action_id: str`、`values: tuple[float, ...]`、`source: str`、`description: str` | 由环境 demonstrator / 离线数据生产者发布；`vz-temporal::MetacontrollerSSLTrainer` 只在 SSL 训练时消费 |
+| `TraceStep.expert_action_target` | `ExpertActionTarget \| None` | `vz-substrate` trajectory contract 拥有；targeted trace 必须每一步完整提供，禁止 targeted / untargeted step 混用 |
+
+契约不变量：
+
+- train trajectory 可携带动作目标；eval / heldout trajectory 的动作目标不得进入 optimizer。
+- 动作目标不包含 `beta_t`、subgoal boundary、reward、outcome 或 credit label；这些仍只用于 evaluation。
+- `values` 必须非空且有限；`action_id` / `source` 必须非空。违反时 fail loudly。
+- frozen residual snapshot 与 expert action target 必须一一对应；长度不一致不得截断或补默认值。
+- 该契约只解决离线 Eq.3 action distortion 的数据面，不建立第二个 action-family、
+  `beta_t` 或 runtime temporal state owner。
+
+### 1.1.2 ETA proof delayed-outcome readout（non-runtime）
+
+`vz-temporal::InternalRLProofSubgoal` 同时发布运行判定阈值
+`completion_threshold` 和跨 backend 保持不变的
+`nominal_completion_threshold`。前者允许 open-weight proof runtime 为可达性做
+显式校准；后者是环境 owner 定义的名义任务难度，校准不得覆盖。
+
+当 subgoal 完成时，`InternalRLDelayedCreditAssignment` 一并冻结
+`alignment_score / completion_threshold / nominal_completion_threshold`，并由
+owner 解释 `completion_margin = alignment_score -
+nominal_completion_threshold`。ETA evidence 只能把该事后观测 margin 用作 held-out
+PE 数值目标；不得从 `family_id`、`beta_t`、边界标签或 evaluation 分数重建 outcome。
+该 readout 仅属于 proof/evaluation artifact，不新增 runtime slot，也不回灌
+metacontroller、credit 或 evaluation owner。
+
 ### 1.2 Figure cleaning vertical schema (non-runtime)
 
 `packages/lifeform-domain-figure/src/lifeform_domain_figure/cleaning/` 提供的 schema 是 **figure vertical 内部跨子模块共享**的 typed records，**不**进入 §6 runtime slot 注册表（不是 runtime owner，没有 module / `RuntimeModule` 包装，跨 wheel 也不消费）。它们登记在此处仅为 SSOT 完整性。来源：`docs/known-debts.md` debt #28 L1 packet（2026-05-10）；spec：[`docs/specs/figure-corpus-cleaning.md`](specs/figure-corpus-cleaning.md)。

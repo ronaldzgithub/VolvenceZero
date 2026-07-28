@@ -533,6 +533,11 @@ DEFAULT_FAMILY_MATCH_WEIGHTS = FamilyMatchWeights()
 # DEFAULT_FAMILY_MATCH_WEIGHTS is always a valid, nearby rollback point.
 FAMILY_MATCH_WEIGHT_ENVELOPE = 0.12
 
+# Outcome and continuation priors may break ties only inside this structural
+# neighborhood. This keeps rewarded but semantically orthogonal families from
+# capturing an observation while preserving payoff choice among true near-ties.
+FAMILY_STRUCTURAL_MATCH_MARGIN = 0.005
+
 
 def family_match_features(
     family: DiscoveredActionFamily,
@@ -604,9 +609,10 @@ def _family_match_score(
 ) -> float:
     weights = match_weights or DEFAULT_FAMILY_MATCH_WEIGHTS
     features = family_match_features(family, observation)
+    weight_values = weights.as_tuple()
     base = sum(
         weight * feature
-        for weight, feature in zip(weights.as_tuple(), features, strict=True)
+        for weight, feature in zip(weight_values, features, strict=True)
     )
     active_family_bias = 0.0
     if current_active_family_id is not None and family.family_id == current_active_family_id:
@@ -614,6 +620,26 @@ def _family_match_score(
     elif current_family_continuation_bias > 0.0:
         active_family_bias = -current_family_continuation_bias * 0.03
     return base + active_family_bias
+
+
+def _family_structural_similarity(
+    family: DiscoveredActionFamily,
+    observation: ActionFamilyObservation,
+) -> float:
+    """Similarity used only for SSL family topology discovery."""
+
+    return clamp_unit(
+        _cosine_similarity(
+            observation.latent_code,
+            family.latent_centroid,
+        )
+        * 0.6
+        + _cosine_similarity(
+            observation.decoder_control,
+            family.decoder_centroid,
+        )
+        * 0.4
+    )
 
 
 def _family_summary(
@@ -946,8 +972,14 @@ def _anti_collapse_topology_maintenance(
     families = list(action_families)
     events: list[str] = []
     active_family = next((family for family in families if family.family_id == active_family_id), None)
-    if active_family is not None and active_family.monopoly_pressure > 0.74 and active_family.reuse_streak >= 4:
+    if (
+        active_family is not None
+        and active_family.support >= 2
+        and active_family.monopoly_pressure > 0.74
+        and active_family.reuse_streak >= 4
+    ):
         if len(families) < max_families:
+            challenger_support = max(active_family.support // 4, 1)
             challenger_axis = "self" if _dominant_axis(active_family.decoder_centroid) == "world" else "shared"
             challenger_id = max(
                 (
@@ -966,7 +998,7 @@ def _anti_collapse_topology_maintenance(
                             0.85 if axis_index == (1 if challenger_axis == "self" else 2) else 0.15
                             for axis_index in range(len(active_family.latent_centroid))
                         ),
-                        support=max(active_family.support // 4, 1),
+                        support=challenger_support,
                     ),
                     decoder_centroid=_blend_centroid(
                         active_family.decoder_centroid,
@@ -974,9 +1006,9 @@ def _anti_collapse_topology_maintenance(
                             0.85 if axis_index == (1 if challenger_axis == "self" else 2) else 0.15
                             for axis_index in range(len(active_family.decoder_centroid))
                         ),
-                        support=max(active_family.support // 4, 1),
+                        support=challenger_support,
                     ),
-                    support=max(active_family.support // 4, 1),
+                    support=challenger_support,
                     stability=clamp_unit(active_family.stability * 0.82),
                     switch_bias=active_family.switch_bias,
                     mean_posterior_drift=clamp_unit(active_family.mean_posterior_drift + 0.08),
@@ -987,6 +1019,32 @@ def _anti_collapse_topology_maintenance(
                     competition_score=0.5,
                 ),
                 prefix=f"anti-collapse-split:{active_family.family_id}",
+            )
+            active_index = next(
+                index
+                for index, family in enumerate(families)
+                if family.family_id == active_family.family_id
+            )
+            families[active_index] = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=active_family.family_id,
+                    latent_centroid=active_family.latent_centroid,
+                    decoder_centroid=active_family.decoder_centroid,
+                    support=active_family.support - challenger_support,
+                    stability=active_family.stability,
+                    switch_bias=active_family.switch_bias,
+                    mean_posterior_drift=active_family.mean_posterior_drift,
+                    mean_persistence_window=active_family.mean_persistence_window,
+                    reuse_streak=active_family.reuse_streak,
+                    stagnation_pressure=active_family.stagnation_pressure,
+                    monopoly_pressure=active_family.monopoly_pressure,
+                    competition_score=active_family.competition_score,
+                    outcome_history=active_family.outcome_history,
+                    outcome_driven_score=active_family.outcome_driven_score,
+                    long_term_payoff=active_family.long_term_payoff,
+                    delayed_credit_sum=active_family.delayed_credit_sum,
+                ),
+                prefix=f"anti-collapse-parent:{active_family.family_id}",
             )
             families.append(challenger)
             events.append(f"anti-collapse-create:{challenger.family_id}")
@@ -1023,18 +1081,15 @@ def _merge_similar_action_families(
                 + _cosine_similarity(left.decoder_centroid, right.decoder_centroid) * 0.4
             )
             if pair_score >= merge_threshold:
-                primary, secondary = (
-                    (left, right)
-                    if (left.support, left.stability) >= (right.support, right.stability)
-                    else (right, left)
-                )
+                # Topology order is lineage order: the earlier family owns the
+                # stable public identity. Support and stability still shape
+                # the merged centroid inside ``_merge_family_pair``; they must
+                # not rename an established abstraction as observations
+                # accumulate.
+                primary, secondary = left, right
                 merged_family = _merge_family_pair(primary, secondary)
-                if primary.family_id == left.family_id:
-                    families[index] = merged_family
-                    families.pop(cursor)
-                else:
-                    families[index] = merged_family
-                    families.pop(cursor)
+                families[index] = merged_family
+                families.pop(cursor)
                 merged_count += 1
                 continue
             cursor += 1
@@ -1089,21 +1144,48 @@ def classify_latent_action(
     current_family_continuation_bias: float = 0.0,
     match_weights: FamilyMatchWeights | None = None,
 ) -> tuple[str, str, float]:
-    best_label = "unassigned_action"
-    best_score = float("-inf")
-    best_family: DiscoveredActionFamily | None = None
-    for family in action_families:
-        score = _family_match_score(
+    scored_families = tuple(
+        (
             family,
-            observation,
-            current_active_family_id=current_active_family_id,
-            current_family_continuation_bias=current_family_continuation_bias,
-            match_weights=match_weights,
+            _family_structural_similarity(family, observation),
+            _family_match_score(
+                family,
+                observation,
+                current_active_family_id=current_active_family_id,
+                current_family_continuation_bias=(
+                    current_family_continuation_bias
+                ),
+                match_weights=match_weights,
+            ),
         )
-        if score > best_score:
-            best_label = family.family_id
-            best_score = score
-            best_family = family
+        for family in action_families
+    )
+    max_structural_score = max(
+        (
+            structural_score
+            for _, structural_score, _ in scored_families
+        ),
+        default=float("-inf"),
+    )
+    # Outcome and continuation priors may break ties between structurally
+    # equivalent actions, but may not relabel an observation as an orthogonal
+    # family merely because that family was rewarded in another context.
+    eligible_families = tuple(
+        item
+        for item in scored_families
+        if item[1]
+        >= max_structural_score - FAMILY_STRUCTURAL_MATCH_MARGIN
+    )
+    best_family, _, best_score = max(
+        eligible_families,
+        key=lambda item: item[2],
+        default=(None, float("-inf"), float("-inf")),
+    )
+    best_label = (
+        best_family.family_id
+        if best_family is not None
+        else "unassigned_action"
+    )
     dominant_axis = (
         _dominant_axis(best_family.decoder_centroid if best_family is not None else observation.decoder_control)
     )
@@ -1147,20 +1229,23 @@ def discover_latent_action_family(
             match_weights=match_weights,
         )
         return ((family,), label, summary)
-    best_label, _, best_score = classify_latent_action(
-        observation=observation,
-        action_families=action_families,
-        current_active_family_id=current_active_family_id,
-        current_family_continuation_bias=current_family_continuation_bias,
-        match_weights=match_weights,
-    )
     updated_families = list(action_families)
-    best_index = next(
-        index for index, family in enumerate(updated_families) if family.family_id == best_label
+    structural_scores = tuple(
+        _family_structural_similarity(family, observation)
+        for family in updated_families
     )
+    best_index = max(
+        range(len(updated_families)),
+        key=lambda index: structural_scores[index],
+    )
+    structural_best_score = structural_scores[best_index]
     maintenance_events: list[str] = []
     effective_similarity_threshold = similarity_threshold + max(current_family_continuation_bias, 0.0) * 0.06
-    if not structure_frozen and best_score < effective_similarity_threshold and len(updated_families) < max_families:
+    if (
+        not structure_frozen
+        and structural_best_score < effective_similarity_threshold
+        and len(updated_families) < max_families
+    ):
         next_id = max(
             (
                 int(family.family_id.rsplit("_", 1)[-1])
@@ -1186,7 +1271,12 @@ def discover_latent_action_family(
             allow_topology_maintenance
             and len(updated_families) < max_families
             and current.support >= split_support_threshold
-            and best_score < split_similarity_threshold + current.monopoly_pressure * 0.05 + max(current_family_continuation_bias, 0.0) * 0.05
+            and structural_best_score
+            < (
+                split_similarity_threshold
+                + current.monopoly_pressure * 0.05
+                + max(current_family_continuation_bias, 0.0) * 0.05
+            )
             and observation.posterior_drift > max(0.16, current.mean_posterior_drift + 0.05)
             and (
                 observation.persistence_window + 0.25 < max(current.mean_persistence_window, 0.75)
@@ -1195,6 +1285,8 @@ def discover_latent_action_family(
             )
         )
         if should_split:
+            child_support = max(1, current.support // 3)
+            parent_support = max(1, current.support - child_support)
             next_id = max(
                 (
                     int(family.family_id.rsplit("_", 1)[-1])
@@ -1208,7 +1300,7 @@ def discover_latent_action_family(
                     family_id=current.family_id,
                     latent_centroid=current.latent_centroid,
                     decoder_centroid=current.decoder_centroid,
-                    support=max(current.support - 1, 1),
+                    support=parent_support,
                     stability=clamp_unit(current.stability * 0.92),
                     switch_bias=current.switch_bias,
                     mean_posterior_drift=current.mean_posterior_drift,
@@ -1224,7 +1316,7 @@ def discover_latent_action_family(
                 _family_from_observation(
                     family_id=f"discovered_family_{next_id}",
                     observation=observation,
-                    support=max(1, current.support // 3),
+                    support=child_support,
                     stability=clamp_unit(0.72 + observation.posterior_drift * 0.15),
                 ),
                 prefix=f"split-child:{current.family_id}",
@@ -1249,7 +1341,10 @@ def discover_latent_action_family(
                     latent_centroid=latent_centroid,
                     decoder_centroid=decoder_centroid,
                     support=support,
-                    stability=clamp_unit(current.stability * 0.72 + best_score * 0.28),
+                    stability=clamp_unit(
+                        current.stability * 0.72
+                        + structural_best_score * 0.28
+                    ),
                     switch_bias=clamp_unit(current.switch_bias * 0.75 + observation.switch_gate * 0.25),
                     mean_posterior_drift=clamp_unit(
                         current.mean_posterior_drift * 0.75 + observation.posterior_drift * 0.25
@@ -1317,10 +1412,9 @@ def discover_latent_action_family(
 #  N-dim components (P15): GRU encoder, element-wise switch, FFN decoder
 # ---------------------------------------------------------------------------
 
-from volvence_zero.temporal.tensor_ops import (
+from volvence_zero.temporal.tensor_ops import (  # noqa: E402
     Mat,
     Vec,
-    dot,
     ffn_2layer,
     gru_cell,
     init_ffn_params,
@@ -1334,16 +1428,16 @@ from volvence_zero.temporal.tensor_ops import (
     vec_scale,
     vec_sigmoid,
     vec_sub,
-    vec_tanh,
     zeros,
     mat_vec,
     rand_mat,
-    rand_vec,
-    identity_mat,
 )
 
 
 DEFAULT_N_Z = 16
+NDIM_POSTERIOR_RECURRENT_WEIGHT = 0.2
+NDIM_POSTERIOR_HISTORY_WEIGHT = 0.1
+NDIM_POSTERIOR_CURRENT_WEIGHT = 0.7
 
 
 @dataclass(frozen=True)
@@ -1372,6 +1466,7 @@ class NdimEncoderParameters:
     n_input: int
     gru: NdimGRUParams
     posterior_proj: Mat
+    current_proj: Mat
     posterior_std_proj: Mat
 
 
@@ -1411,6 +1506,10 @@ def build_ndim_encoder_parameters(
             b_h=params["b_h"],
         ),
         posterior_proj=rand_mat(n_z, n_z, scale=0.1, seed=seed + 10),
+        current_proj=tuple(
+            tuple(1.0 if row == column else 0.0 for column in range(n_z))
+            for row in range(n_z)
+        ),
         posterior_std_proj=rand_mat(n_z, n_z, scale=0.05, seed=seed + 11),
     )
 
@@ -1450,6 +1549,37 @@ def _project_to_ndim(raw: tuple[float, ...], n: int) -> Vec:
     return extended[:n]
 
 
+def _fold_residual_to_ndim(
+    raw: tuple[float, ...],
+    n: int,
+) -> Vec:
+    """Fold a wide residual across all coordinates into the controller width."""
+
+    if len(raw) <= n:
+        return _project_to_ndim(raw, n)
+    sums = [0.0] * n
+    counts = [0] * n
+    for index, value in enumerate(raw):
+        bucket = index % n
+        fold = index // n
+        sign = 1.0 if fold % 2 == 0 else -1.0
+        sums[bucket] += sign * value
+        counts[bucket] += 1
+    return tuple(
+        value / max(count, 1) ** 0.5
+        for value, count in zip(sums, counts, strict=True)
+    )
+
+
+def _current_observation_signal(
+    raw: tuple[float, ...],
+    n: int,
+) -> Vec:
+    """Expose the current residual without waiting for GRU state convergence."""
+
+    return vec_sigmoid(_fold_residual_to_ndim(raw, n))
+
+
 def _summarize_substrate_ndim(
     substrate_snapshot: SubstrateSnapshot,
     n: int,
@@ -1466,7 +1596,7 @@ def _summarize_substrate_ndim(
                 raw_values.extend(feat.values)
         if not raw_values:
             raw_values = [0.0]
-        result.append(_project_to_ndim(tuple(raw_values), n))
+        result.append(_fold_residual_to_ndim(tuple(raw_values), n))
     if not result:
         result.append(zeros(n))
     return tuple(result)
@@ -1499,6 +1629,7 @@ class NdimSequenceEncoder:
         h = previous_hidden_state or zeros(self._n_z)
         step_vectors = _summarize_substrate_ndim(substrate_snapshot, active_params.n_input)
         hidden_history: list[Vec] = []
+        current_input = zeros(active_params.n_input)
         for step_vec in step_vectors:
             if cms_context is not None:
                 projected_context = _project_to_ndim(
@@ -1511,6 +1642,7 @@ class NdimSequenceEncoder:
                 )
             else:
                 aug = step_vec
+            current_input = aug
             h = gru_cell(
                 x=aug, h_prev=h,
                 W_z=active_params.gru.W_z, U_z=active_params.gru.U_z, b_z=active_params.gru.b_z,
@@ -1530,8 +1662,23 @@ class NdimSequenceEncoder:
         )
         posterior_mean = vec_clamp(
             vec_add(
-                vec_scale(mat_vec(active_params.posterior_proj, h), 0.7),
-                vec_scale(avg_hidden, 0.3),
+                vec_add(
+                    vec_scale(
+                        mat_vec(active_params.posterior_proj, h),
+                        NDIM_POSTERIOR_RECURRENT_WEIGHT,
+                    ),
+                    vec_scale(
+                        avg_hidden,
+                        NDIM_POSTERIOR_HISTORY_WEIGHT,
+                    ),
+                ),
+                vec_scale(
+                    mat_vec(
+                        active_params.current_proj,
+                        _current_observation_signal(current_input, self._n_z),
+                    ),
+                    NDIM_POSTERIOR_CURRENT_WEIGHT,
+                ),
             ),
             0.0, 1.0,
         )
@@ -1594,7 +1741,7 @@ class NdimSwitchUnit:
     ) -> tuple[Vec, Vec, float]:
         """Returns (beta_continuous, beta_binary, scalar_beta_mean)."""
         active_params = params or self._params
-        delta = vec_abs(vec_sub(z_tilde, previous_code))
+        delta = vec_sub(z_tilde, previous_code)
         gate_input = delta + z_tilde
         raw = ffn_2layer(
             x=gate_input,

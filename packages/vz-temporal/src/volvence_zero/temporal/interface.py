@@ -67,6 +67,21 @@ from volvence_zero.temporal.m3_optimizer import M3OptimizerState
 _RUNTIME_EXPLORATION_OPTION_STEPS = 8
 
 
+def _switch_conditioned_family_continuation_bias(
+    *,
+    action_bias: float,
+    family_bias: float,
+    sequence_bias: float,
+    is_switching: bool,
+) -> float:
+    prior = _clamp(
+        action_bias * 0.40
+        + family_bias * 0.40
+        + sequence_bias * 0.20
+    )
+    return 0.0 if is_switching else prior
+
+
 class TemporalImplementationMode(str, Enum):
     PLACEHOLDER = "placeholder"
     HEURISTIC = "heuristic"
@@ -759,6 +774,7 @@ class MetacontrollerParameterStore:
         n_z: int = 3,
         n_input: int | None = None,
         causal_action_head_envelope_enforced: bool = False,
+        initialization_seed: int = 42,
     ) -> None:
         # 显式契约字段：默认 False 精确保留历史 restore 行为（只校验 shape），
         # True 时 archive / checkpoint 恢复也必须满足冻结幅度包络。
@@ -827,14 +843,24 @@ class MetacontrollerParameterStore:
             else build_ndim_encoder_parameters(
                 n_z=n_z,
                 n_input=resolved_input_dim,
-                seed=42,
+                seed=initialization_seed,
             )
         )
         self.ndim_switch_parameters: NdimSwitchParameters | None = (
-            None if n_z == 3 else build_ndim_switch_parameters(n_z=n_z, seed=42)
+            None
+            if n_z == 3
+            else build_ndim_switch_parameters(
+                n_z=n_z,
+                seed=initialization_seed,
+            )
         )
         self.ndim_decoder_parameters: NdimDecoderParameters | None = (
-            None if n_z == 3 else build_ndim_decoder_parameters(n_z=n_z, seed=42)
+            None
+            if n_z == 3
+            else build_ndim_decoder_parameters(
+                n_z=n_z,
+                seed=initialization_seed,
+            )
         )
         self.beta_threshold = 0.55
         self.persistence = 0.65
@@ -911,6 +937,44 @@ class MetacontrollerParameterStore:
         """
 
         self._learning_writes_enabled = bool(enabled)
+
+    def reset_episode_runtime_telemetry(self) -> None:
+        """Clear trajectory-local readouts without touching learned state."""
+
+        n_z = self._n_z
+        self._latest = replace(
+            self._latest,
+            latent_mean=_nz_zeros(n_z),
+            latent_scale=_nz_zeros(n_z),
+            prior_mean=_nz_zeros(n_z),
+            prior_std=_nz_ones(n_z),
+            posterior_mean=_nz_zeros(n_z),
+            posterior_std=_nz_zeros(n_z),
+            posterior_sample_noise=_nz_zeros(n_z),
+            z_tilde=_nz_zeros(n_z),
+            posterior_hidden_state=_nz_zeros(n_z),
+            decoder_control=_nz_zeros(n_z),
+            decoder_applied_control=_nz_zeros(n_z),
+            switch_gate=0.0,
+            beta_binary=0,
+            switch_sparsity=0.0,
+            binary_switch_rate=0.0,
+            mean_persistence_window=0.0,
+            posterior_drift=0.0,
+            active_label="unassigned_action",
+            policy_replacement_score=0.0,
+            sequence_length=0,
+            fast_prior_strength=0.0,
+            fast_prior_action_bias=0.0,
+            fast_prior_family_bias=0.0,
+            fast_prior_sequence_bias=0.0,
+            fast_prior_switch_pressure_delta=0.0,
+            prediction_error_switch_pressure_delta=0.0,
+        )
+        self._protocol_prior_switch_pressure_delta = 0.0
+        self._protocol_prior_strength = 0.0
+        self._protocol_prior_applied = False
+        self._prediction_error_switch_pressure_delta = 0.0
 
     def learning_parameter_fingerprint(self) -> str:
         """Hash owned learning parameters while excluding turn-local adaptation.
@@ -1396,6 +1460,37 @@ class MetacontrollerParameterStore:
     def latest_telemetry(self) -> LatestMetacontrollerTelemetry:
         """Return the current frozen telemetry snapshot (R11 readout)."""
         return self._latest
+
+    def calibrate_beta_threshold(
+        self,
+        probabilities: tuple[float, ...],
+        *,
+        target_rate: float,
+    ) -> float:
+        """Align the binary beta decision with an unlabeled aggregate rate."""
+
+        if not probabilities:
+            return self.beta_threshold
+        if not 0.0 < target_rate < 1.0:
+            raise ValueError("target_rate must be strictly between 0 and 1")
+        if any(not math.isfinite(value) for value in probabilities):
+            raise ValueError("beta calibration probabilities must be finite")
+        ordered = tuple(
+            sorted(max(0.0, min(1.0, value)) for value in probabilities)
+        )
+        positive_count = max(
+            1,
+            min(len(ordered) - 1, round(target_rate * len(ordered))),
+        )
+        split = len(ordered) - positive_count
+        self.beta_threshold = max(
+            0.05,
+            min(
+                0.95,
+                (ordered[split - 1] + ordered[split]) / 2.0,
+            ),
+        )
+        return self.beta_threshold
 
     def __getattr__(self, name: str):
         """Proxy ``latest_X`` attribute reads to ``self._latest.X``.
@@ -2032,10 +2127,13 @@ class MetacontrollerParameterStore:
             persistence_window=persistence_window,
         )
         previous_families = self.action_families
-        current_family_continuation_bias = _clamp(
-            self.latest_fast_prior_action_bias * 0.40
-            + self.latest_fast_prior_family_bias * 0.40
-            + self.latest_fast_prior_sequence_bias * 0.20
+        current_family_continuation_bias = (
+            _switch_conditioned_family_continuation_bias(
+                action_bias=self.latest_fast_prior_action_bias,
+                family_bias=self.latest_fast_prior_family_bias,
+                sequence_bias=self.latest_fast_prior_sequence_bias,
+                is_switching=switch_gate >= self.beta_threshold,
+            )
         )
         active_family_competition_bias = _clamp(
             self.latest_fast_prior_strength * 0.25
@@ -2402,6 +2500,7 @@ def _scale_ndim_encoder_parameters(
             b_h=_scale_vector(params.gru.b_h, delta * 0.25),
         ),
         posterior_proj=_scale_matrix(params.posterior_proj, delta),
+        current_proj=_scale_matrix(params.current_proj, delta),
         posterior_std_proj=_scale_matrix(params.posterior_std_proj, delta * 0.75),
     )
 
@@ -2822,6 +2921,17 @@ def _compact_ndim_params_hash(store: MetacontrollerParameterStore) -> str:
         parts.append(f"enc_bz={_sum_tuple(encoder.gru.b_z):.12f}")
         parts.append(f"enc_br={_sum_tuple(encoder.gru.b_r):.12f}")
         parts.append(f"enc_bh={_sum_tuple(encoder.gru.b_h):.12f}")
+        identity_current_projection = tuple(
+            tuple(
+                1.0 if row == column else 0.0
+                for column in range(store.n_z)
+            )
+            for row in range(store.n_z)
+        )
+        if encoder.current_proj != identity_current_projection:
+            parts.append(
+                f"enc_current={_sum_matrix(encoder.current_proj):.12f}"
+            )
     if switch is not None:
         parts.append(f"sw_b1={_sum_tuple(switch.gate_ffn.b1):.12f}")
         parts.append(f"sw_b2={_sum_tuple(switch.gate_ffn.b2):.12f}")
@@ -3210,6 +3320,12 @@ class LearnedLiteTemporalPolicy(TemporalPolicy):
         self._previous_code = _nz_zeros(self._parameter_store.n_z)
         self._cached_reflection_snapshot: ReflectionSnapshot | None = None
 
+    def reset_recurrent_state_for_episode_transfer(self) -> None:
+        """Clear trajectory-local recurrence while retaining learned parameters."""
+
+        self._previous_code = _nz_zeros(self._parameter_store.n_z)
+        self._parameter_store.reset_episode_runtime_telemetry()
+
     @property
     def weights(self) -> Mapping[str, float]:
         return dict(self._parameter_store.temporal_weights)
@@ -3421,6 +3537,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._previous_code = _nz_zeros(n_z)
         self._previous_hidden_state = _nz_zeros(n_z)
         self._previous_beta_binary = 0
+        self._has_recurrent_state = False
         self._latest_encoder_output_for_cms: tuple[float, ...] | None = None
         self._cached_reflection_snapshot: ReflectionSnapshot | None = None
         # protocol-temporal-prior bridge: default OFF (byte-equivalent
@@ -3453,6 +3570,16 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._latest_causal_action_head_state = _nz_zeros(n_z)
         self._latest_causal_action_head_mirror_state = _nz_zeros(n_z)
         self._latest_causal_action_head_residual = _nz_zeros(n_z)
+
+    def reset_recurrent_state_for_episode_transfer(self) -> None:
+        """Clear trajectory-local recurrence while retaining learned parameters."""
+
+        n_z = self._parameter_store.n_z
+        self._previous_code = _nz_zeros(n_z)
+        self._previous_hidden_state = _nz_zeros(n_z)
+        self._previous_beta_binary = 0
+        self._has_recurrent_state = False
+        self._parameter_store.reset_episode_runtime_telemetry()
 
     @property
     def runtime_backend(self) -> WiringLevel:
@@ -4455,9 +4582,15 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             effective_gate = tuple(effective_scalar_beta for _ in range(n_z))
             persistence_window = 0.0 if is_switching_scalar else float(previous_steps + 1)
         else:
-            effective_gate = beta_cont
             effective_scalar_beta = scalar_beta
-            is_switching_scalar = scalar_beta >= self._parameter_store.beta_threshold
+            is_switching_scalar = (
+                not self._has_recurrent_state
+                or scalar_beta >= self._parameter_store.beta_threshold
+            )
+            effective_gate = tuple(
+                1.0 if is_switching_scalar else 0.0
+                for _ in range(n_z)
+            )
             persistence_window = 0.0 if is_switching_scalar else float(previous_steps + 1)
         if self._causal_action_head_exclusive_steering:
             # An opponent-coded pair is ONE actuator axis and must switch as a
@@ -4522,6 +4655,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._previous_code = latent_code
         self._previous_hidden_state = encoded.posterior.hidden_state
         self._previous_beta_binary = beta_binary_int
+        self._has_recurrent_state = True
         track_codes = self._compute_track_codes(latent_code)
         return TemporalStep(
             controller_state=ControllerState(
