@@ -131,13 +131,19 @@ Volvence 是融合 NL（Nested Learning）与 ETA（Emergent Temporal Abstractio
 
 - 优先修改既有 owner 和契约，不复制平行实现。
 - 测试应覆盖根因、契约边界、失败路径和回滚 / wiring 行为；不要只断言表面输出。
-- 先运行最小相关测试，再按影响范围扩大验证。常用命令：
+- 每个收敛包默认只运行与其根因和影响面直接相关的验证，不得仅因“属于收敛包”、改动文件较多或跨多个目录就默认运行全仓测试。常用命令：
   - `ruff check <changed paths>`
   - `pytest <relevant test files>`
-  - 跨 wheel / 契约变更追加 `pytest tests/contracts`
-  - 需要全量回归时运行 `pytest`（默认跳过 `live_network`）
+  - 一般跨 wheel 变更先运行直接相关的 contract tests
+  - 修改共享快照 / schema、wheel 依赖或 import boundary、全局 wiring / 初始化路径时，追加 `pytest tests/contracts`
+- 全仓 `pytest`（默认跳过 `live_network`）不是单个收敛包的默认完成条件，仅在以下情况运行：
+  - 用户明确要求；
+  - 发布、主分支合并或里程碑验收，且 CI 不会提供等价的全量回归；
+  - 修改公共基础设施、全局初始化或其他无法可靠圈定影响范围的高 ripple 路径；
+  - 相关测试暴露出疑似跨域回归，需要扩大范围定位。
+- 模型、GPU、外部 API、长轨迹、多 seed 或 repeated-run evidence 不属于普通全量回归。仅当对应机制、算法变量、证据契约或 promotion gate 改变时运行；普通重构、文档或非算法字段修改不得触发重复的昂贵 evidence run。
 - 不得为让测试通过而降低断言、吞异常、添加关键词 hack 或恢复非正式 fallback。
-- 交付时说明：修改的 owner / 契约、运行过的验证、未运行项及原因、迁移退出和回滚方式（如适用）。
+- 交付时说明：修改的 owner / 契约、运行过的验证、未运行项及原因（包括未运行全量测试的原因）、迁移退出和回滚方式（如适用）。
 
 ## 13. Git 提交说明
 
