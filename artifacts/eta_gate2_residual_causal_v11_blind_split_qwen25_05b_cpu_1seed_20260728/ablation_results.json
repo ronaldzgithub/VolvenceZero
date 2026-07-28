@@ -1,0 +1,163 @@
+{
+  "all_causal_gates_passed": false,
+  "all_mechanism_gates_passed": true,
+  "backend_names": [
+    "open-weight:Qwen/Qwen2.5-0.5B-Instruct"
+  ],
+  "causal_gates": {
+    "continuation_scores_available_all_arms": true,
+    "identity_continuation_nll_beats_controls": false
+  },
+  "heldout_identity_control_exposure": 1.0,
+  "identity_continuation_nll_delta_vs_best_control": -0.012264302798679516,
+  "identity_effect_delta_vs_zero": 0.001519875854076086,
+  "identity_strong_success_delta_vs_best_control": 0.0,
+  "identity_terminal_success_delta_vs_best_control": 0.0,
+  "measurement_resolution_floor": 1e-06,
+  "mechanism_gates": {
+    "causal_action_head_updated": true,
+    "continuation_pe_training_isolated_to_identity": true,
+    "continuation_pe_updates_policy_only": true,
+    "fallback_rate_zero": true,
+    "heldout_identity_control_exposure": true,
+    "hook_coverage": true,
+    "identity_effect_is_measurable_vs_zero": true,
+    "identity_exact": true,
+    "prefix_intervention_protocol": true,
+    "real_open_weight_backend": true,
+    "real_residual_ssl_bootstrap_used": true,
+    "reverse_exact": true,
+    "shared_policy_checkpoint_matched": true,
+    "shuffle_informative_steps_nonidentity": true,
+    "shuffle_permutation_nonidentity": true,
+    "zero_exact": true
+  },
+  "preregistered_min_causal_delta": 0.02,
+  "profile_bootstrap_init_used": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_causal_action_head_active": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_causal_action_head_update_step": {
+    "full-internal-rl": 2.0,
+    "full-reversed-control": 2.0,
+    "full-shuffled-control": 2.0,
+    "full-zero-control": 2.0
+  },
+  "profile_continuation_mean_nll": {
+    "full-internal-rl": 7.483523011207581,
+    "full-reversed-control": 7.47448582308633,
+    "full-shuffled-control": 7.471258708408901,
+    "full-zero-control": 7.4769130774906705
+  },
+  "profile_continuation_mean_nll_all_splits": {
+    "full-internal-rl": 9.110785115332831,
+    "full-reversed-control": 9.108257333437601,
+    "full-shuffled-control": 9.108284382593064,
+    "full-zero-control": 9.102983940215339
+  },
+  "profile_continuation_pe_policy_changed": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_pe_structure_frozen": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_continuation_pe_training_count": {
+    "full-internal-rl": 32.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_pe_training_mean_raw_delta": {
+    "full-internal-rl": 0.0008548200130462646,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_pe_training_positive_rate": {
+    "full-internal-rl": 0.4375,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_score_count": {
+    "full-internal-rl": 14,
+    "full-reversed-control": 14,
+    "full-shuffled-control": 14,
+    "full-zero-control": 14
+  },
+  "profile_continuation_score_count_all_splits": {
+    "full-internal-rl": 42,
+    "full-reversed-control": 42,
+    "full-shuffled-control": 42,
+    "full-zero-control": 42
+  },
+  "profile_downstream_effect_magnitude": {
+    "full-internal-rl": 0.001519875854076086,
+    "full-reversed-control": 0.0009802106299469065,
+    "full-shuffled-control": 0.002389298485349075,
+    "full-zero-control": 0.0
+  },
+  "profile_downstream_effect_magnitude_all_splits": {
+    "full-internal-rl": 0.0018600261548850435,
+    "full-reversed-control": 0.0010526585840371118,
+    "full-shuffled-control": 0.0017427949986078485,
+    "full-zero-control": 0.0
+  },
+  "profile_fallback_rate": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_hook_coverage": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_intervention_protocol_valid": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_shared_checkpoint_used": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_shared_fingerprint_match_at_eval_start": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_strong_success": {
+    "full-internal-rl": 0.05330000000000001,
+    "full-reversed-control": 0.05330000000000001,
+    "full-shuffled-control": 0.05330000000000001,
+    "full-zero-control": 0.05330000000000001
+  },
+  "profile_terminal_success": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "schema_version": "eta-gate2-residual-causal.v11"
+}

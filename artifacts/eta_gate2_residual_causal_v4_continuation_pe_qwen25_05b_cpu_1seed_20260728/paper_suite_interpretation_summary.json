@@ -1,0 +1,13 @@
+{
+  "confidence": 1.0,
+  "cross_run_gap_mean": 0.0488,
+  "cross_run_gap_std": 0.0,
+  "description": "ETA paper-suite interpretation strongest=training_transition_count weakest=heldout_strong_success_std failure_mode=no-dominant-failure-mode competitor=full-zero-control gap=0.114 cross_run_gap=0.049+/-0.000 confidence=1.00.",
+  "dominant_failure_mode": "no-dominant-failure-mode",
+  "interpretation": "eta-proof-strongest=training_transition_count; no dominant failure mode; weakest_metric=heldout_strong_success_std",
+  "review_summary": "Full internal RL remains ahead of full-zero-control by 0.049 +/- 0.000 on held-out strong success across runs; no dominant failure mode surfaced.",
+  "strongest_competing_control": "full-zero-control",
+  "strongest_control_gap": 0.1142,
+  "strongest_metric": "training_transition_count",
+  "weakest_metric": "heldout_strong_success_std"
+}

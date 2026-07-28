@@ -1,0 +1,58 @@
+{
+  "cohort_scope": "hierarchical proof cases; no per-user longitudinal cohort",
+  "git_sha": "0c5396c15d8f86c658fe73131945d9caa2441590",
+  "judge_or_human_protocol": "typed automatic metrics; no LLM judge or human rating",
+  "metric_version": "eta-gate2-residual-causal.v10",
+  "model_and_adapter_ids": {
+    "adapter_ids": [],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct"
+  },
+  "profiles": [
+    "full-internal-rl",
+    "full-zero-control",
+    "full-shuffled-control",
+    "full-reversed-control"
+  ],
+  "prompt_and_context_budget": {
+    "max_prefix_steps": "6",
+    "prefix_alignment": "capture-and-intervention-same-prefix"
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "scenario_split": {
+    "route_ids": [
+      "train-corridor-alpha-beta-delta",
+      "train-zigzag-beta-gamma-alpha",
+      "train-loop-delta-beta-epsilon",
+      "eval-alpha-delta-epsilon",
+      "eval-gamma-beta-delta",
+      "heldout-delta-alpha-gamma-epsilon",
+      "heldout-epsilon-beta-alpha-delta"
+    ],
+    "split_owner": "default_eta_proof_cases"
+  },
+  "schema_version": "eta-gate2-residual-causal.v10",
+  "seed_schedule": [
+    0
+  ],
+  "substrate_fingerprint": "runtime-descriptor-sha256:09aaf6a67b3c0d7ca3bdbc223ac84a07e499d8b35156f833b49ae6657270d89e",
+  "substrate_fingerprint_verification": "runtime-descriptor-only; weights digest not exposed by runtime",
+  "suite_id": "eta-gate2-residual-causal-ci-smoke",
+  "wiring_levels": {
+    "artifact_promotion": "SHADOW",
+    "metacontroller": "ACTIVE",
+    "residual_capture": "ACTIVE",
+    "residual_intervention": "ACTIVE"
+  }
+}

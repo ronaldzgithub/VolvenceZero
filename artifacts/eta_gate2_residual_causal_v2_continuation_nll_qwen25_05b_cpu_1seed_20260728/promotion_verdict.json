@@ -1,0 +1,27 @@
+{
+  "causal_gates": {
+    "continuation_scores_available_all_arms": true,
+    "identity_continuation_nll_beats_controls": false
+  },
+  "gate_scope": "Gate 2 residual intervention causal packet",
+  "kill_conditions": [
+    "identity_continuation_nll_beats_controls"
+  ],
+  "mechanism_gates": {
+    "fallback_rate_zero": true,
+    "hook_coverage": true,
+    "identity_effect_is_measurable_vs_zero": true,
+    "identity_exact": true,
+    "prefix_intervention_protocol": true,
+    "real_open_weight_backend": true,
+    "reverse_exact": true,
+    "shuffle_informative_steps_nonidentity": true,
+    "shuffle_permutation_nonidentity": true,
+    "zero_exact": true
+  },
+  "note": "This packet cannot emit thesis-retained. Gate 2 longitudinal coverage, semantic no-label evidence, and Gates 1/3-10 remain separate prerequisites.",
+  "promotion_allowed": false,
+  "schema_version": "eta-gate2-residual-causal.v2",
+  "status": "mechanism-supported",
+  "thesis_status": "not-evaluated"
+}

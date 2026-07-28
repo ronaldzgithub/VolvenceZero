@@ -1,0 +1,13 @@
+{
+  "confidence": 0.8929,
+  "cross_run_gap_mean": 0.0,
+  "cross_run_gap_std": 0.0,
+  "description": "ETA paper-suite interpretation strongest=training_transition_count weakest=strong_success_gap_vs_best_control failure_mode=sparse-reward-weakness competitor=full-reversed-control gap=0.000 cross_run_gap=0.000+/-0.000 confidence=0.89.",
+  "dominant_failure_mode": "sparse-reward-weakness",
+  "interpretation": "eta-proof-strongest=training_transition_count; failure_mode=sparse-reward-weakness; weakest_metric=strong_success_gap_vs_best_control",
+  "review_summary": "Primary weakness is sparse-reward-weakness; strongest competing control is full-reversed-control; cross-run held-out strong-success gap is 0.000 +/- 0.000.",
+  "strongest_competing_control": "full-reversed-control",
+  "strongest_control_gap": 0.0,
+  "strongest_metric": "training_transition_count",
+  "weakest_metric": "strong_success_gap_vs_best_control"
+}

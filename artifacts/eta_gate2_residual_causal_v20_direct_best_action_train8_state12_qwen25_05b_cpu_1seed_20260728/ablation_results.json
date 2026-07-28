@@ -1,0 +1,270 @@
+{
+  "all_causal_gates_passed": false,
+  "all_mechanism_gates_passed": true,
+  "backend_names": [
+    "open-weight:Qwen/Qwen2.5-0.5B-Instruct"
+  ],
+  "causal_gates": {
+    "eval_continuation_scores_available_all_arms": true,
+    "fresh_confirmation_scores_available_all_arms": false,
+    "fresh_confirmation_split_locked": false,
+    "identity_confirmation_nll_beats_controls": false,
+    "identity_eval_nll_beats_controls": false
+  },
+  "heldout_identity_control_exposure": 1.0,
+  "identity_confirmation_nll_delta_vs_best_control": null,
+  "identity_continuation_nll_delta_vs_best_control": -0.0038884878158569336,
+  "identity_effect_delta_vs_zero": 0.0016025771137615239,
+  "identity_eval_nll_delta_vs_best_control": -0.01715513070424457,
+  "identity_strong_success_delta_vs_best_control": 0.0,
+  "identity_terminal_success_delta_vs_best_control": 0.0,
+  "measurement_resolution_floor": 1e-06,
+  "mechanism_gates": {
+    "causal_action_head_updated": true,
+    "continuation_counterfactual_grid_used": true,
+    "continuation_pe_training_isolated_to_identity": true,
+    "continuation_pe_updates_policy_only": true,
+    "fallback_rate_zero": true,
+    "heldout_identity_control_exposure": true,
+    "hook_coverage": true,
+    "identity_effect_is_measurable_vs_zero": true,
+    "identity_exact": true,
+    "observation_state_separate_from_actuator": true,
+    "prefix_intervention_protocol": true,
+    "real_open_weight_backend": true,
+    "real_residual_ssl_bootstrap_used": true,
+    "reverse_exact": true,
+    "shared_policy_checkpoint_matched": true,
+    "shuffle_informative_steps_nonidentity": true,
+    "shuffle_permutation_nonidentity": true,
+    "zero_exact": true
+  },
+  "preregistered_min_causal_delta": 0.02,
+  "profile_bootstrap_init_used": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_causal_action_head_active": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_causal_action_head_state_dim": {
+    "full-internal-rl": 12.0,
+    "full-reversed-control": 12.0,
+    "full-shuffled-control": 12.0,
+    "full-zero-control": 12.0
+  },
+  "profile_causal_action_head_update_step": {
+    "full-internal-rl": 2.0,
+    "full-reversed-control": 2.0,
+    "full-shuffled-control": 2.0,
+    "full-zero-control": 2.0
+  },
+  "profile_continuation_counterfactual_best_fixed_mean_raw_delta": {
+    "full-internal-rl": 0.0056966675652398,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_counterfactual_grid_used": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_counterfactual_oracle_mean_raw_delta": {
+    "full-internal-rl": 0.03227447403801812,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_counterfactual_oracle_positive_rate": {
+    "full-internal-rl": 0.9777777777777777,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_counterfactual_oracle_vs_fixed_gap": {
+    "full-internal-rl": 0.02657780647277832,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_counterfactual_prefix_count": {
+    "full-internal-rl": 90.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_counterfactual_unique_score_count": {
+    "full-internal-rl": 990.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_mean_nll": {
+    "full-internal-rl": 7.480801565306527,
+    "full-reversed-control": 7.478992700576782,
+    "full-shuffled-control": 7.47766467503139,
+    "full-zero-control": 7.4769130774906705
+  },
+  "profile_continuation_mean_nll_all_splits": {
+    "full-internal-rl": 9.106095099113357,
+    "full-reversed-control": 9.10534975562297,
+    "full-shuffled-control": 9.107558928744893,
+    "full-zero-control": 9.102871750442075
+  },
+  "profile_continuation_mean_nll_by_split": {
+    "confirmation": {
+      "full-internal-rl": null,
+      "full-reversed-control": null,
+      "full-shuffled-control": null,
+      "full-zero-control": null
+    },
+    "eval": {
+      "full-internal-rl": 10.346502423286438,
+      "full-reversed-control": 10.344249526659647,
+      "full-shuffled-control": 10.342365264892578,
+      "full-zero-control": 10.329347292582193
+    },
+    "heldout": {
+      "full-internal-rl": 7.480801565306527,
+      "full-reversed-control": 7.478992700576782,
+      "full-shuffled-control": 7.47766467503139,
+      "full-zero-control": 7.4769130774906705
+    },
+    "train": {
+      "full-internal-rl": 9.28096668985155,
+      "full-reversed-control": 9.280954233805339,
+      "full-shuffled-control": 9.285355451371935,
+      "full-zero-control": 9.281665415234036
+    }
+  },
+  "profile_continuation_pe_policy_changed": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_pe_structure_frozen": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_continuation_pe_training_count": {
+    "full-internal-rl": 1980.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_pe_training_mean_raw_delta": {
+    "full-internal-rl": 0.000852278025463374,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_pe_training_positive_rate": {
+    "full-internal-rl": 0.44646464646464645,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_score_count": {
+    "full-internal-rl": 14,
+    "full-reversed-control": 14,
+    "full-shuffled-control": 14,
+    "full-zero-control": 14
+  },
+  "profile_continuation_score_count_all_splits": {
+    "full-internal-rl": 71,
+    "full-reversed-control": 71,
+    "full-shuffled-control": 71,
+    "full-zero-control": 71
+  },
+  "profile_continuation_score_count_by_split": {
+    "confirmation": {
+      "full-internal-rl": 0,
+      "full-reversed-control": 0,
+      "full-shuffled-control": 0,
+      "full-zero-control": 0
+    },
+    "eval": {
+      "full-internal-rl": 12,
+      "full-reversed-control": 12,
+      "full-shuffled-control": 12,
+      "full-zero-control": 12
+    },
+    "heldout": {
+      "full-internal-rl": 14,
+      "full-reversed-control": 14,
+      "full-shuffled-control": 14,
+      "full-zero-control": 14
+    },
+    "train": {
+      "full-internal-rl": 45,
+      "full-reversed-control": 45,
+      "full-shuffled-control": 45,
+      "full-zero-control": 45
+    }
+  },
+  "profile_downstream_effect_magnitude": {
+    "full-internal-rl": 0.0016025771137615239,
+    "full-reversed-control": 0.0010830062352138934,
+    "full-shuffled-control": 0.0012113842356290053,
+    "full-zero-control": 0.0
+  },
+  "profile_downstream_effect_magnitude_all_splits": {
+    "full-internal-rl": 0.0013104456734867494,
+    "full-reversed-control": 0.0012293334370458884,
+    "full-shuffled-control": 0.0010708780868563942,
+    "full-zero-control": 0.0
+  },
+  "profile_fallback_rate": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_hook_coverage": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_intervention_protocol_valid": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_shared_checkpoint_used": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_shared_fingerprint_match_at_eval_start": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_strong_success": {
+    "full-internal-rl": 0.05330000000000001,
+    "full-reversed-control": 0.05330000000000001,
+    "full-shuffled-control": 0.05330000000000001,
+    "full-zero-control": 0.05330000000000001
+  },
+  "profile_terminal_success": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "schema_version": "eta-gate2-residual-causal.v20"
+}

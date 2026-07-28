@@ -1,0 +1,66 @@
+{
+  "cohort_scope": "hierarchical proof cases; no per-user longitudinal cohort",
+  "git_sha": "1866aeb8f4521a44fafb713be9522111b1654b70",
+  "judge_or_human_protocol": "typed automatic metrics; no LLM judge or human rating",
+  "metric_version": "eta-gate2-residual-causal.v19",
+  "model_and_adapter_ids": {
+    "adapter_ids": [],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct"
+  },
+  "profiles": [
+    "full-internal-rl",
+    "full-zero-control",
+    "full-shuffled-control",
+    "full-reversed-control"
+  ],
+  "prompt_and_context_budget": {
+    "max_prefix_steps": "6",
+    "prefix_alignment": "capture-and-intervention-same-prefix"
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "scenario_split": {
+    "causal_confirmation_split": null,
+    "confirmation_split_locked": false,
+    "development_heldout_status": "reused-during-gate-development",
+    "route_ids": [
+      "train-corridor-alpha-beta-delta",
+      "train-zigzag-beta-gamma-alpha",
+      "train-loop-delta-beta-epsilon",
+      "eval-alpha-delta-epsilon",
+      "eval-gamma-beta-delta",
+      "heldout-delta-alpha-gamma-epsilon",
+      "heldout-epsilon-beta-alpha-delta",
+      "train-expanded-alpha-gamma-beta-epsilon",
+      "train-expanded-beta-delta-gamma-epsilon",
+      "train-expanded-delta-beta-alpha-gamma",
+      "train-expanded-hub-beta-delta-epsilon",
+      "train-expanded-alpha-delta-hub-epsilon"
+    ],
+    "split_owner": "eta-gate2-expanded-continuation-v1"
+  },
+  "schema_version": "eta-gate2-residual-causal.v19",
+  "seed_schedule": [
+    0
+  ],
+  "substrate_fingerprint": "runtime-descriptor-sha256:083b10caa5e483430f83d8a4abe00e36728cd6794622c9cfdc7c19f3c150cf00",
+  "substrate_fingerprint_verification": "runtime-descriptor-only; weights digest not exposed by runtime",
+  "suite_id": "eta-gate2-residual-causal-ci-smoke",
+  "wiring_levels": {
+    "artifact_promotion": "SHADOW",
+    "metacontroller": "ACTIVE",
+    "residual_capture": "ACTIVE",
+    "residual_intervention": "ACTIVE"
+  }
+}

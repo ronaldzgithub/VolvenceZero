@@ -1,0 +1,9 @@
+{
+  "configuration_default_is_identity": true,
+  "full_chain_rollback_drill_executed": false,
+  "note": "Mode rollback is immediate and does not mutate the frozen substrate. The #92 full-chain artifact/user-state drill is not part of this Gate 2 packet.",
+  "owner_state_mutated_by_mode_switch": false,
+  "passed": false,
+  "rollback_target": "residual_control_mode=identity",
+  "schema_version": "eta-gate2-residual-causal.v7"
+}

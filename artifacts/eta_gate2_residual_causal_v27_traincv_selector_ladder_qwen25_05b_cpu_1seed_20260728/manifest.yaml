@@ -1,0 +1,96 @@
+{
+  "cohort_scope": "hierarchical proof cases; no per-user longitudinal cohort",
+  "counterfactual_action_selector": {
+    "cross_validation": "route-grouped-4fold",
+    "diagnostic_active": true,
+    "encoder": "train-only-pca-rank-ladder-8-16-32-64",
+    "head": "train-only-ridge-ladder-0.1-1-10",
+    "input": "layer-aware-residual-sketch-204d",
+    "live_injection": "disabled",
+    "model_selection": "train-route-cv-selected-delta-then-regret"
+  },
+  "git_sha": "90c5d46dcdacec29e95c9629db1590428d42e4b9",
+  "judge_or_human_protocol": "typed automatic metrics; no LLM judge or human rating",
+  "metric_version": "eta-gate2-residual-causal.v27",
+  "model_and_adapter_ids": {
+    "adapter_ids": [],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct"
+  },
+  "profiles": [
+    "full-internal-rl",
+    "full-zero-control",
+    "full-shuffled-control",
+    "full-reversed-control"
+  ],
+  "prompt_and_context_budget": {
+    "max_prefix_steps": "6",
+    "prefix_alignment": "capture-and-intervention-same-prefix"
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "scenario_split": {
+    "causal_confirmation_split": null,
+    "confirmation_split_locked": false,
+    "development_heldout_status": "reused-during-gate-development",
+    "development_routes_unchanged": true,
+    "independent_training_route_ids": [
+      "train-independent-forecast-revision",
+      "train-independent-delayed-decision",
+      "train-independent-changing-conditions",
+      "train-independent-promise-ledger",
+      "train-independent-reliable-response",
+      "train-independent-visible-priorities",
+      "train-independent-unfamiliar-information",
+      "train-independent-recorded-recovery"
+    ],
+    "route_ids": [
+      "train-corridor-alpha-beta-delta",
+      "train-zigzag-beta-gamma-alpha",
+      "train-loop-delta-beta-epsilon",
+      "eval-alpha-delta-epsilon",
+      "eval-gamma-beta-delta",
+      "heldout-delta-alpha-gamma-epsilon",
+      "heldout-epsilon-beta-alpha-delta",
+      "train-expanded-alpha-gamma-beta-epsilon",
+      "train-expanded-beta-delta-gamma-epsilon",
+      "train-expanded-delta-beta-alpha-gamma",
+      "train-expanded-hub-beta-delta-epsilon",
+      "train-expanded-alpha-delta-hub-epsilon",
+      "train-independent-forecast-revision",
+      "train-independent-delayed-decision",
+      "train-independent-changing-conditions",
+      "train-independent-promise-ledger",
+      "train-independent-reliable-response",
+      "train-independent-visible-priorities",
+      "train-independent-unfamiliar-information",
+      "train-independent-recorded-recovery"
+    ],
+    "split_owner": "eta-gate2-expanded-continuation-v2",
+    "training_route_count": 16
+  },
+  "schema_version": "eta-gate2-residual-causal.v27",
+  "seed_schedule": [
+    0
+  ],
+  "substrate_fingerprint": "runtime-descriptor-sha256:756ba5022d9e9bdd5dbe9751cb0b70dd8eb430f116d39c5784934675612bf6cc",
+  "substrate_fingerprint_verification": "runtime-descriptor-only; weights digest not exposed by runtime",
+  "suite_id": "eta-gate2-residual-causal-ci-smoke",
+  "wiring_levels": {
+    "artifact_promotion": "SHADOW",
+    "metacontroller": "ACTIVE",
+    "residual_capture": "ACTIVE",
+    "residual_intervention": "ACTIVE"
+  }
+}

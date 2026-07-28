@@ -1,0 +1,78 @@
+{
+  "all_causal_gates_passed": false,
+  "all_mechanism_gates_passed": true,
+  "backend_names": [
+    "open-weight:Qwen/Qwen2.5-0.5B-Instruct"
+  ],
+  "causal_gates": {
+    "continuation_scores_available_all_arms": true,
+    "identity_continuation_nll_beats_controls": false
+  },
+  "identity_continuation_nll_delta_vs_best_control": -0.00016262417747903157,
+  "identity_effect_delta_vs_zero": 0.0003190087510360712,
+  "identity_strong_success_delta_vs_best_control": 0.0,
+  "identity_terminal_success_delta_vs_best_control": 0.0,
+  "measurement_resolution_floor": 1e-06,
+  "mechanism_gates": {
+    "fallback_rate_zero": true,
+    "hook_coverage": true,
+    "identity_effect_is_measurable_vs_zero": true,
+    "identity_exact": true,
+    "prefix_intervention_protocol": true,
+    "real_open_weight_backend": true,
+    "reverse_exact": true,
+    "shuffle_informative_steps_nonidentity": true,
+    "shuffle_permutation_nonidentity": true,
+    "zero_exact": true
+  },
+  "preregistered_min_causal_delta": 0.02,
+  "profile_continuation_mean_nll": {
+    "full-internal-rl": 9.416238989148821,
+    "full-reversed-control": 9.416076364971342,
+    "full-shuffled-control": 9.418811105546498,
+    "full-zero-control": 9.416831845328922
+  },
+  "profile_continuation_score_count": {
+    "full-internal-rl": 42,
+    "full-reversed-control": 42,
+    "full-shuffled-control": 42,
+    "full-zero-control": 42
+  },
+  "profile_downstream_effect_magnitude": {
+    "full-internal-rl": 0.0003190087510360712,
+    "full-reversed-control": 0.0003167288118175658,
+    "full-shuffled-control": 0.0002300504127416429,
+    "full-zero-control": 0.0
+  },
+  "profile_fallback_rate": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_hook_coverage": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_intervention_protocol_valid": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_strong_success": {
+    "full-internal-rl": 0.988,
+    "full-reversed-control": 0.988,
+    "full-shuffled-control": 0.988,
+    "full-zero-control": 0.988
+  },
+  "profile_terminal_success": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "schema_version": "eta-gate2-residual-causal.v2"
+}

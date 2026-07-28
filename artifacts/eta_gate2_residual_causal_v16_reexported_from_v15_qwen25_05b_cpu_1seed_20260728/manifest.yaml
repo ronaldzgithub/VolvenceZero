@@ -1,0 +1,66 @@
+{
+  "cohort_scope": "hierarchical proof cases; no per-user longitudinal cohort",
+  "git_sha": "c6cde855121889e63cd088614751145a62821448",
+  "judge_or_human_protocol": "typed automatic metrics; no LLM judge or human rating",
+  "metric_version": "eta-gate2-residual-causal.v16",
+  "model_and_adapter_ids": {
+    "adapter_ids": [],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct"
+  },
+  "profiles": [
+    "full-internal-rl",
+    "full-zero-control",
+    "full-shuffled-control",
+    "full-reversed-control"
+  ],
+  "prompt_and_context_budget": {
+    "max_prefix_steps": "6",
+    "prefix_alignment": "capture-and-intervention-same-prefix"
+  },
+  "reexport_provenance": {
+    "model_rerun": false,
+    "raw_predictions_and_outcomes_unchanged": true,
+    "source_artifact": "eta_gate2_residual_causal_v15_context_normalized_20updates_qwen25_05b_cpu_1seed_20260728"
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "scenario_split": {
+    "causal_confirmation_split": null,
+    "confirmation_split_locked": false,
+    "development_heldout_status": "reused-during-gate-development",
+    "route_ids": [
+      "train-corridor-alpha-beta-delta",
+      "train-zigzag-beta-gamma-alpha",
+      "train-loop-delta-beta-epsilon",
+      "eval-alpha-delta-epsilon",
+      "eval-gamma-beta-delta",
+      "heldout-delta-alpha-gamma-epsilon",
+      "heldout-epsilon-beta-alpha-delta"
+    ],
+    "split_owner": "default_eta_proof_cases"
+  },
+  "schema_version": "eta-gate2-residual-causal.v16",
+  "seed_schedule": [
+    0
+  ],
+  "substrate_fingerprint": "runtime-descriptor-sha256:368cf5d5ed14d960fad27e3c37e6b59740cabce06f39d00967e156e36b3d6c3d",
+  "substrate_fingerprint_verification": "runtime-descriptor-only; weights digest not exposed by runtime",
+  "suite_id": "eta-gate2-residual-causal-ci-smoke",
+  "wiring_levels": {
+    "artifact_promotion": "SHADOW",
+    "metacontroller": "ACTIVE",
+    "residual_capture": "ACTIVE",
+    "residual_intervention": "ACTIVE"
+  }
+}

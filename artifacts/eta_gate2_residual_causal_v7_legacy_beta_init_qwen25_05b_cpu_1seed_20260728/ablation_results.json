@@ -1,0 +1,130 @@
+{
+  "all_causal_gates_passed": false,
+  "all_mechanism_gates_passed": true,
+  "backend_names": [
+    "open-weight:Qwen/Qwen2.5-0.5B-Instruct"
+  ],
+  "causal_gates": {
+    "continuation_scores_available_all_arms": true,
+    "identity_continuation_nll_beats_controls": false
+  },
+  "heldout_identity_control_exposure": 1.0,
+  "identity_continuation_nll_delta_vs_best_control": -0.0026355130331854326,
+  "identity_effect_delta_vs_zero": 0.0009878507078884236,
+  "identity_strong_success_delta_vs_best_control": 0.0,
+  "identity_terminal_success_delta_vs_best_control": 0.0,
+  "measurement_resolution_floor": 1e-06,
+  "mechanism_gates": {
+    "continuation_pe_training_isolated_to_identity": true,
+    "fallback_rate_zero": true,
+    "heldout_identity_control_exposure": true,
+    "hook_coverage": true,
+    "identity_effect_is_measurable_vs_zero": true,
+    "identity_exact": true,
+    "prefix_intervention_protocol": true,
+    "real_open_weight_backend": true,
+    "reverse_exact": true,
+    "shared_policy_checkpoint_matched": true,
+    "shuffle_informative_steps_nonidentity": true,
+    "shuffle_permutation_nonidentity": true,
+    "zero_exact": true
+  },
+  "preregistered_min_causal_delta": 0.02,
+  "profile_continuation_mean_nll": {
+    "full-internal-rl": 8.421092305864606,
+    "full-reversed-control": 8.429074730191912,
+    "full-shuffled-control": 8.426371318953377,
+    "full-zero-control": 8.418456792831421
+  },
+  "profile_continuation_mean_nll_all_splits": {
+    "full-internal-rl": 9.420915603637695,
+    "full-reversed-control": 9.425237746465774,
+    "full-shuffled-control": 9.424312915120806,
+    "full-zero-control": 9.416831845328922
+  },
+  "profile_continuation_pe_training_count": {
+    "full-internal-rl": 32.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_pe_training_mean_raw_delta": {
+    "full-internal-rl": -0.0008193999528884888,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_pe_training_positive_rate": {
+    "full-internal-rl": 0.40625,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_continuation_score_count": {
+    "full-internal-rl": 14,
+    "full-reversed-control": 14,
+    "full-shuffled-control": 14,
+    "full-zero-control": 14
+  },
+  "profile_continuation_score_count_all_splits": {
+    "full-internal-rl": 42,
+    "full-reversed-control": 42,
+    "full-shuffled-control": 42,
+    "full-zero-control": 42
+  },
+  "profile_downstream_effect_magnitude": {
+    "full-internal-rl": 0.0009878507078884236,
+    "full-reversed-control": 0.0014933809141606579,
+    "full-shuffled-control": 0.0008744635206358676,
+    "full-zero-control": 0.0
+  },
+  "profile_downstream_effect_magnitude_all_splits": {
+    "full-internal-rl": 0.001474043407936412,
+    "full-reversed-control": 0.0013771308527774039,
+    "full-shuffled-control": 0.0013622115185584122,
+    "full-zero-control": 0.0
+  },
+  "profile_fallback_rate": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_hook_coverage": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_intervention_protocol_valid": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_shared_checkpoint_used": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_shared_fingerprint_match_at_eval_start": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_strong_success": {
+    "full-internal-rl": 0.05330000000000001,
+    "full-reversed-control": 0.05330000000000001,
+    "full-shuffled-control": 0.05330000000000001,
+    "full-zero-control": 0.05330000000000001
+  },
+  "profile_terminal_success": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "schema_version": "eta-gate2-residual-causal.v7"
+}

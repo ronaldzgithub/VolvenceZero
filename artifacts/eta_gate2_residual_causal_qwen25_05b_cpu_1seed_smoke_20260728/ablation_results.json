@@ -1,0 +1,63 @@
+{
+  "all_causal_gates_passed": false,
+  "all_mechanism_gates_passed": false,
+  "backend_names": [
+    "open-weight:Qwen/Qwen2.5-0.5B-Instruct"
+  ],
+  "causal_gates": {
+    "identity_effect_beats_zero": false,
+    "identity_strong_success_beats_controls": false,
+    "identity_terminal_success_not_worse": true
+  },
+  "identity_effect_delta_vs_zero": -0.0001881408072590407,
+  "identity_strong_success_delta_vs_best_control": 0.0,
+  "identity_terminal_success_delta_vs_best_control": 0.0,
+  "mechanism_gates": {
+    "fallback_rate_zero": true,
+    "hook_coverage": true,
+    "identity_exact": true,
+    "prefix_intervention_protocol": true,
+    "real_open_weight_backend": true,
+    "reverse_exact": true,
+    "shuffle_permutation_nonidentity": false,
+    "zero_exact": true
+  },
+  "preregistered_min_causal_delta": 0.02,
+  "profile_downstream_effect_magnitude": {
+    "full-internal-rl": 0.26372231425754333,
+    "full-reversed-control": 0.2637623668478364,
+    "full-shuffled-control": 0.2638420012318406,
+    "full-zero-control": 0.2639104550648024
+  },
+  "profile_fallback_rate": {
+    "full-internal-rl": 0.0,
+    "full-reversed-control": 0.0,
+    "full-shuffled-control": 0.0,
+    "full-zero-control": 0.0
+  },
+  "profile_hook_coverage": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_intervention_protocol_valid": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "profile_strong_success": {
+    "full-internal-rl": 0.988,
+    "full-reversed-control": 0.988,
+    "full-shuffled-control": 0.988,
+    "full-zero-control": 0.988
+  },
+  "profile_terminal_success": {
+    "full-internal-rl": 1.0,
+    "full-reversed-control": 1.0,
+    "full-shuffled-control": 1.0,
+    "full-zero-control": 1.0
+  },
+  "schema_version": "eta-gate2-residual-causal.v1"
+}
