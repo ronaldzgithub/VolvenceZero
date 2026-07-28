@@ -980,6 +980,7 @@ class SubstrateSnapshot:
     unavailable_fields: tuple[UnavailableField, ...]
     description: str
     conditioning_lineage: ConditioningLineageRef | None = None
+    personal_conditioning_applied: bool = False
 ```
 
 **阶段化 contract**：
@@ -997,7 +998,7 @@ class SubstrateSnapshot:
 - 当前默认 session/runner/CLI 已优先使用 `TransformersOpenWeightResidualRuntime`；若首选 HF model 不可用且 fallback mode 允许，则回退到内置 tiny transformers runtime，而不是 synthetic runtime
 - 内置 tiny transformers runtime 现固定 deterministic seed，保证 fallback 模式下的 substrate capture 和 semantic hints 可复现
 - 当前 session/runner 已允许通过 `substrate_adapter_factory(user_input, turn_index)` 注入 open-weight adapter；表达层不再直接消费完整 snapshot dict，而只消费 richer distilled response context，避免跨 loop 持有 live snapshot 引用
-- State KV B 包把上一轮 ACTIVE、non-cold、未撤销的已审计 conditioning bank 编译为公共 `ConditioningLineageRef`，由 `OpenWeightResidualStreamSubstrateAdapter` 在本轮 capture 前写入 `SubstrateSnapshot.conditioning_lineage`，并复制到 `ResidualSequenceStep.conditioning_lineage`。该引用只含 scope、bank type、fingerprint、carrier 和版本号，不携带 profile 原文或 owner 内部语义；`SHADOW` / `DISABLED`、`text` carrier、cold-start 或撤销状态均不发布 substrate lineage
+- State KV B 包把上一轮 ACTIVE、non-cold、未撤销的已审计 conditioning bank 编译为公共 `ConditioningLineageRef`，由 `OpenWeightResidualStreamSubstrateAdapter` 在本轮 capture 前调用 substrate owner 的 `capture_conditioned(...)`，让 residual / Prefix-KV 先作用于真实 prompt-token prefill，再发布 `SubstrateSnapshot`。`personal_conditioning_applied` 是 capture 物理投递的 attestation；`conditioning_lineage` 及逐 step 引用只说明哪版 bank 参与，不允许 consumer 用 lineage 推断 applied。`SHADOW` / `DISABLED`、`text` carrier、cold-start 或撤销状态既不投递也不发布 lineage
 - 当前 substrate rare-heavy checkpoint 也已升级到 owner-side `adapter-delta-v2` contract：checkpoint 除了已有的 `control_scale`、`semantic_text_weight`、`semantic_residual_weight`、`semantic_anchor_bias`、`update_count` 等 evidence 字段外，还允许发布 `training_mode`、`compatibility_fingerprint`、`adapter_scale`、`adapter_parameter_count`、`adapter_training_loss` 与 `adapter_layers`。这些字段只允许 substrate owner 在 `export / import / restore_rare_heavy_state()` surface 上读写，session / joint loop 只能搬运 artifact，不可重建或直写 payload。默认主路径下，live session 可在通过 pre-import replay / evolution gate 后自动导入；显式 frozen runner 只保留生成或评审这类 artifact 的能力
 
 **消费者**：Metacontroller、记忆系统、双轨学习层、评估体系
@@ -1043,7 +1044,7 @@ class TemporalAbstractionSnapshot:
   - `temporal_abstraction`：公共聚合 slot，由 `TemporalAggregateModule` 聚合 world/self temporal 快照后发布
 - staged temporal slots 不引入第二 owner：world/self track policy 仍各自拥有自己的内部状态；聚合 slot 只发布 compact public state，不重建 producer internals
 - 当前 default self-track temporal owner 若未显式传入，会从 world-track discovered metacontroller snapshot 克隆初始参数，保证默认主链共享同一条 discovered lineage，同时维持独立 store/owner
-- temporal owner 当前会把 `SubstrateSnapshot.conditioning_lineage` 原样发布到 `TemporalAbstractionSnapshot.conditioning_lineage_refs`；world/self aggregate 只做去重合并，不反解 bank 内容、不成为 second semantic owner。该字段证明本轮 `z_t` / `beta_t` 快照消费的是哪一版 State KV 条件 surface；真实物理注入是否发生仍以 substrate runtime / generation attestation 为准
+- temporal owner 当前会把 `SubstrateSnapshot.conditioning_lineage` 原样发布到 `TemporalAbstractionSnapshot.conditioning_lineage_refs`；world/self aggregate 只做去重合并，不反解 bank 内容、不成为 second semantic owner。物理投递由 `SubstrateSnapshot.personal_conditioning_applied` 证明；`state-kv-temporal-causal.v1` matched ablation 进一步比较 baseline / correct-state / wrong-user / revoked 四臂的 residual、`z_t` 与 `beta_t`，禁止只凭 lineage 声称因果生效
 - 当前默认 final wiring 已把 `temporal_abstraction` 放入 ACTIVE 主链；其缺失在 acceptance report 中视为回归
 
 **消费者**：编排器、双轨学习层、认知 Regime 层、评估体系

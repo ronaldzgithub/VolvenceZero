@@ -1,0 +1,95 @@
+{
+  "schema_version": "state-kv-temporal-causal.v1",
+  "gate_state": "pass",
+  "artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+  "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775",
+  "source_text_sha256": "f6d993a4474c3454b7d7dbd88f89e8be7eb092aafc4ac31edd39cfb186bd87f2",
+  "residual_tolerance": 1e-08,
+  "temporal_tolerance": 1e-08,
+  "claims": [
+    {
+      "claim": "claim_capture_conditioning_attested",
+      "state": "pass",
+      "detail": "correct-state and wrong-user captures report applied=true; baseline and revoked report applied=false"
+    },
+    {
+      "claim": "claim_residual_causality",
+      "state": "pass",
+      "detail": "baseline→correct=0.418543577407, baseline→wrong=0.416198507093, correct→wrong=0.0250709799784, baseline→revoked=0"
+    },
+    {
+      "claim": "claim_temporal_code_causality",
+      "state": "pass",
+      "detail": "z baseline→correct=0.131993312759, baseline→wrong=0.135907299436, correct→wrong=0.00391398667698, baseline→revoked=0"
+    },
+    {
+      "claim": "claim_temporal_switch_causality",
+      "state": "pass",
+      "detail": "beta baseline→correct=0.197989969138, baseline→wrong=0.203860949154, baseline→revoked=0"
+    },
+    {
+      "claim": "claim_conditioning_lineage_alignment",
+      "state": "pass",
+      "detail": "only conditioned arms publish prefix_kv lineage and temporal preserves the exact substrate reference"
+    }
+  ],
+  "distances": {
+    "residual_baseline_to_correct": 0.41854357740708764,
+    "residual_baseline_to_wrong": 0.4161985070932479,
+    "residual_correct_to_wrong": 0.025070979978357045,
+    "residual_baseline_to_revoked": 0.0,
+    "z_baseline_to_correct": 0.13199331275882228,
+    "z_baseline_to_wrong": 0.13590729943580096,
+    "z_correct_to_wrong": 0.0039139866769786905,
+    "z_baseline_to_revoked": 0.0,
+    "beta_baseline_to_correct": 0.1979899691382334,
+    "beta_baseline_to_wrong": 0.20386094915370145,
+    "beta_baseline_to_revoked": 0.0
+  },
+  "arms": {
+    "baseline": {
+      "personal_conditioning_applied": false,
+      "conditioning_carrier": "",
+      "residual_sha256": "ea156e425ca4315a751d50b61016d4d1b100ec0dbbb5ab4428bf5db9a75b8466",
+      "z_t": [
+        0.13971595542061896,
+        0.16997455562864033,
+        0.17551376240594044
+      ],
+      "beta_t": 0.34260213672759987
+    },
+    "correct-state": {
+      "personal_conditioning_applied": true,
+      "conditioning_carrier": "prefix_kv",
+      "residual_sha256": "f1e7377890aa044735e3e88bd7de60ff7459d4768e595791ace9f3d3113c0750",
+      "z_t": [
+        0.003036977957401957,
+        0.026141539982387,
+        0.06004581723894392
+      ],
+      "beta_t": 0.14461216758936646
+    },
+    "wrong-user": {
+      "personal_conditioning_applied": true,
+      "conditioning_carrier": "prefix_kv",
+      "residual_sha256": "5ca7a7f4d204ee89daba9fd934130bf80dba32aa58dc7d793a692134d196c3ce",
+      "z_t": [
+        0.0028185157123066127,
+        0.01860996791294643,
+        0.05605389152254377
+      ],
+      "beta_t": 0.13874118757389842
+    },
+    "revoked": {
+      "personal_conditioning_applied": false,
+      "conditioning_carrier": "",
+      "residual_sha256": "ea156e425ca4315a751d50b61016d4d1b100ec0dbbb5ab4428bf5db9a75b8466",
+      "z_t": [
+        0.13971595542061896,
+        0.16997455562864033,
+        0.17551376240594044
+      ],
+      "beta_t": 0.34260213672759987
+    }
+  }
+}

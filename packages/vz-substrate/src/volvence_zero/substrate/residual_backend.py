@@ -425,6 +425,110 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             return self._capture_pooled_summary(source_text=source_text)
         return self._capture_with_hooks(source_text=source_text)
 
+    def capture_conditioned(
+        self,
+        *,
+        source_text: str,
+        personal_conditioning: PersonalConditioningSnapshot,
+        personal_conditioning_carrier: str,
+    ) -> OpenWeightRuntimeCapture:
+        """Capture the real prompt-token residuals after State-KV delivery."""
+
+        if personal_conditioning_carrier not in ("residual", "prefix_kv"):
+            raise ValueError(
+                "personal_conditioning_carrier must be 'residual' or "
+                f"'prefix_kv', got {personal_conditioning_carrier!r}."
+            )
+        if (
+            personal_conditioning_carrier == "prefix_kv"
+            and self._prefix_generator is None
+        ):
+            raise ValueError(
+                "personal_conditioning_carrier='prefix_kv' requires a prefix "
+                "artifact."
+            )
+
+        effective_source = source_text.strip() or "<empty>"
+        model_inputs = self._tokenize(source_text=effective_source)
+        input_ids = model_inputs["input_ids"]
+        captured_layers: dict[int, object] = {}
+        personal_delta = None
+        prefix_pairs = None
+        if personal_conditioning_carrier == "prefix_kv":
+            prefix_pairs = self._build_personal_conditioning_prefix(
+                conditioning=personal_conditioning
+            )
+        else:
+            personal_delta = self._build_personal_conditioning_delta(
+                conditioning=personal_conditioning
+            )
+        conditioning_applied = (
+            prefix_pairs is not None
+            if personal_conditioning_carrier == "prefix_kv"
+            else personal_delta is not None
+        )
+        hooks = [
+            self._block_modules[layer_index].register_forward_hook(
+                self._make_capture_hook(
+                    layer_index=layer_index,
+                    captured_layers=captured_layers,
+                    control_delta=None,
+                    personal_delta=personal_delta,
+                )
+            )
+            for layer_index in self._layer_indices
+        ]
+        try:
+            with self._torch.no_grad():
+                if personal_conditioning_carrier == "prefix_kv":
+                    attention_mask = model_inputs.get("attention_mask")
+                    if attention_mask is None:
+                        attention_mask = self._torch.ones_like(input_ids)
+                    cache = self._transformers.DynamicCache()
+                    slots = 0
+                    if prefix_pairs:
+                        slots = int(prefix_pairs[0][0].shape[-2])
+                        cache = self._transformers.DynamicCache(
+                            ddp_cache_data=prefix_pairs
+                        )
+                    if slots:
+                        attention_mask = self._torch.cat(
+                            [
+                                self._torch.ones(
+                                    (1, slots),
+                                    dtype=attention_mask.dtype,
+                                    device=attention_mask.device,
+                                ),
+                                attention_mask,
+                            ],
+                            dim=-1,
+                        )
+                    positions = self._torch.arange(
+                        int(input_ids.shape[-1]),
+                        device=input_ids.device,
+                    ).unsqueeze(0)
+                    outputs = self._model(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        position_ids=positions,
+                        past_key_values=cache,
+                        use_cache=True,
+                    )
+                else:
+                    outputs = self._model(**model_inputs, use_cache=False)
+        finally:
+            for hook in hooks:
+                hook.remove()
+        logits = self._extract_logits(outputs=outputs)
+        return self._build_runtime_capture(
+            source_text=effective_source,
+            input_ids=input_ids,
+            logits=logits,
+            captured_layers=captured_layers,
+            control_applied=conditioning_applied,
+            personal_conditioning_applied=conditioning_applied,
+        )
+
     def activate_lora(self, layers):
         """Real-forward override of :meth:`OpenWeightResidualRuntime.activate_lora`.
 
@@ -2664,6 +2768,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         logits,
         captured_layers: dict[int, object],
         control_applied: bool,
+        personal_conditioning_applied: bool = False,
     ) -> OpenWeightRuntimeCapture:
         if not captured_layers:
             raise RuntimeError(f"Transformers runtime '{self.model_id}' did not record any hooked activations.")
@@ -2880,6 +2985,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"hook_fire_rate={hook_fire_rate:.3f} planned_layer_fraction={planned_layer_fraction:.3f} "
                 f"live_mode={self.live_mutation_mode}."
             ),
+            personal_conditioning_applied=personal_conditioning_applied,
         )
 
     def _tensor_to_activation_tuple(self, tensor) -> tuple[float, ...]:

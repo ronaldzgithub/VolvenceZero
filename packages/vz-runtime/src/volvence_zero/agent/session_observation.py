@@ -199,10 +199,17 @@ class SessionObservationMixin:
             personal_conditioning_wiring=self._config.personal_conditioning,
             personal_conditioning_mode=self._config.personal_conditioning_mode,
         )
+        capture_conditioning = (
+            self._previous_personal_conditioning_snapshot
+            if conditioning_lineage is not None
+            else None
+        )
         return OpenWeightResidualStreamSubstrateAdapter(
             runtime=self._default_residual_runtime,
             default_source_text=user_input,
             conditioning_lineage=conditioning_lineage,
+            personal_conditioning=capture_conditioning,
+            personal_conditioning_carrier=self._config.personal_conditioning_mode,
         )
 
     def _build_training_trace_from_substrate(self, *, user_input: str) -> TrainingTrace:

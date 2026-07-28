@@ -276,19 +276,33 @@ flowchart LR
 |----|------|----------|
 | A：当前 residual bootstrap | 最终生成前默认单层有界注入；建立 owner、契约、审计和 SHADOW 基线 | cold-start 严格无效；SHADOW byte-equivalent；ACTIVE 有可测 steering 且无安全回归 |
 | A.1：证据用 projector artifact | 冻结基底上的版本化 contrastive basis 与显式多层 gain；默认路径不变 | matched ablation 过输出分叉门槛才允许进入盲裁判；失败则保留否证 artifact 并转 Prefix-KV |
-| B：首轮感知前水合（已落地 lineage 契约） | session 开始时加载上一轮已审计快照，让 substrate capture、temporal 和最终生成消费同一条件版本 | 同版本 lineage 贯穿 substrate capture→temporal abstraction→generation attribution；跨用户隔离；撤销后下一轮归零 |
+| B：首轮感知前水合（物理 capture + lineage 已落地） | session 开始时加载上一轮已审计快照，让 State-KV 在 substrate capture 前进入真实 prefill，再由 temporal 消费条件化残差 | applied attestation 与同版本 lineage 贯穿 capture→temporal；四臂 matched ablation 中 residual、`z_t`、`beta_t` 因果分叉，撤销臂精确归零 |
 | C：可训练多层前缀 | 用受 gate 管理的 profile encoder / Prefix-KV 取代固定投影，在多个选定层形成更强但仍有界的条件 | matched ablation 显著优于 prompt-only 与固定投影；跨任务迁移成立；回滚可恢复冻结基线 |
 
 B 包的实现边界：`AgentSessionRunner` 只在
 `personal_conditioning=ACTIVE` 且 carrier 为 `residual` 或 `prefix_kv` 时，把上一轮
 ACTIVE、non-cold 的 `PersonalConditioningSnapshot` 通过 generic bank adapter 编译成
-`ConditioningLineageRef`，并在本轮 substrate capture 前写入
-`SubstrateSnapshot.conditioning_lineage`；temporal owner 原样转发到
+`ConditioningLineageRef`，并把同一份 typed snapshot 交给 substrate owner 的
+`capture_conditioned(...)`。Prefix-KV capture 使用与生成路径相同的 state-derived
+逐层 K/V cache、固定真实 token `position_ids=0..n-1`，随后把条件化 prompt-token
+residual 发布为 `SubstrateSnapshot`；temporal owner 从该正式 snapshot 计算 `z_t` /
+`beta_t`，并把 lineage 原样转发到
 `TemporalAbstractionSnapshot.conditioning_lineage_refs`。该字段证明同一 bank 版本进入了
-ETA 的公共 `z_t` / `beta_t` 快照链，但不替代 runtime 的物理注入 attestation：
-是否真的产生 residual / prefix-KV 注入仍以 `GenerationResult.personal_conditioning_applied`
-和 prefix-KV decode tags 为准。`SHADOW`、`DISABLED`、`text` carrier、cold-start 与撤销后
-zeroed bank 均不发布 substrate lineage；`begin_new_context()` 会清空上一轮水合源。
+ETA 的公共快照链，但不替代物理注入 attestation：capture 读取
+`SubstrateSnapshot.personal_conditioning_applied`，generation 读取
+`GenerationResult.personal_conditioning_applied` 和 prefix-KV decode tags。
+`SHADOW`、`DISABLED`、`text` carrier、cold-start 与撤销后 zeroed bank 均不注入也不发布
+substrate lineage；`begin_new_context()` 会清空上一轮水合源。
+
+2026-07-28 标准 artifact
+`8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238`
+在冻结 Qwen2.5-0.5B CPU 上通过 `state-kv-temporal-causal.v1`：同 prompt 的
+baseline / correct-state / wrong-user / revoked 四臂中，correct 与 wrong 均实际投递；
+相对 baseline 的 residual mean-absolute distance 为 0.41854 / 0.41620，`z_t` 距离为
+0.13199 / 0.13591，`beta_t` 差为 0.19799 / 0.20386；两份状态彼此也分叉，而 revoked
+在 residual、`z_t`、`beta_t` 上均精确回到 baseline。该结果证明 State-KV 物理经过
+prefill residual 并被 temporal controller 抽象；不等价于多裁判行为 court 或默认
+部署晋升已经通过。
 
 ## 5. 学习与持续学习关系
 

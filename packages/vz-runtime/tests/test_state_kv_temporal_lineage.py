@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
+from types import SimpleNamespace
 
 from volvence_zero.conditioning_bank_contracts import (
     ConditioningLineageRef,
@@ -12,6 +14,7 @@ from volvence_zero.personal_conditioning_contracts import (
 )
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.agent.session_observation import (
+    SessionObservationMixin,
     _substrate_conditioning_lineage_from_previous,
 )
 from volvence_zero.substrate import (
@@ -25,6 +28,7 @@ from volvence_zero.substrate import (
 )
 from volvence_zero.temporal import (
     ControllerState,
+    LearnedLiteTemporalPolicy,
     PlaceholderTemporalPolicy,
     TemporalAbstractionSnapshot,
     TemporalModule,
@@ -105,6 +109,37 @@ class _Runtime:
             description="unit test capture",
         )
 
+    def capture_conditioned(
+        self,
+        *,
+        source_text: str,
+        personal_conditioning: PersonalConditioningSnapshot,
+        personal_conditioning_carrier: str,
+    ) -> OpenWeightRuntimeCapture:
+        del source_text, personal_conditioning
+        assert personal_conditioning_carrier == "prefix_kv"
+        snapshot = _substrate_snapshot()
+        conditioned = tuple(
+            ResidualActivation(
+                layer_index=activation.layer_index,
+                activation=tuple(value + 0.4 for value in activation.activation),
+                step=activation.step,
+            )
+            for activation in snapshot.residual_activations
+        )
+        step = replace(
+            snapshot.residual_sequence[0],
+            residual_activations=conditioned,
+        )
+        return OpenWeightRuntimeCapture(
+            token_logits=snapshot.token_logits,
+            feature_surface=snapshot.feature_surface,
+            residual_activations=conditioned,
+            residual_sequence=(step,),
+            description="conditioned unit test capture",
+            personal_conditioning_applied=True,
+        )
+
 
 def test_state_kv_pre_capture_lineage_is_active_only_and_scoped() -> None:
     active_ref = _substrate_conditioning_lineage_from_previous(
@@ -157,6 +192,74 @@ def test_open_weight_adapter_copies_lineage_to_substrate_and_steps() -> None:
     assert snapshot.conditioning_lineage == ref
     assert snapshot.residual_sequence
     assert snapshot.residual_sequence[0].conditioning_lineage == ref
+
+
+def test_state_kv_conditioned_capture_changes_temporal_code_and_switch_gate() -> None:
+    ref = _lineage()
+    runtime = _Runtime()
+    baseline = asyncio.run(
+        OpenWeightResidualStreamSubstrateAdapter(
+            runtime=runtime,
+            default_source_text="hello",
+        ).capture()
+    )
+    conditioned = asyncio.run(
+        OpenWeightResidualStreamSubstrateAdapter(
+            runtime=runtime,
+            default_source_text="hello",
+            conditioning_lineage=ref,
+            personal_conditioning=_personal_conditioning(),
+            personal_conditioning_carrier="prefix_kv",
+        ).capture()
+    )
+
+    baseline_temporal = asyncio.run(
+        TemporalModule(policy=LearnedLiteTemporalPolicy()).process_standalone(
+            substrate_snapshot=baseline
+        )
+    )
+    conditioned_temporal = asyncio.run(
+        TemporalModule(policy=LearnedLiteTemporalPolicy()).process_standalone(
+            substrate_snapshot=conditioned
+        )
+    )
+
+    assert baseline.personal_conditioning_applied is False
+    assert conditioned.personal_conditioning_applied is True
+    assert conditioned.residual_activations != baseline.residual_activations
+    assert (
+        conditioned_temporal.value.controller_state.code
+        != baseline_temporal.value.controller_state.code
+    )
+    assert (
+        conditioned_temporal.value.controller_state.switch_gate
+        != baseline_temporal.value.controller_state.switch_gate
+    )
+    assert conditioned_temporal.value.conditioning_lineage_refs == (ref,)
+
+
+def test_session_observation_passes_previous_state_into_physical_capture() -> None:
+    runner = SimpleNamespace(
+        _substrate_adapter_factory=None,
+        _previous_personal_conditioning_snapshot=_personal_conditioning(),
+        user_scope="user-a",
+        _session_id="session-a",
+        _config=SimpleNamespace(
+            personal_conditioning=WiringLevel.ACTIVE,
+            personal_conditioning_mode="prefix_kv",
+        ),
+        _default_residual_runtime=_Runtime(),
+    )
+
+    adapter = SessionObservationMixin._build_substrate_adapter(
+        runner,
+        user_input="hello",
+    )
+    snapshot = asyncio.run(adapter.capture())
+
+    assert snapshot.personal_conditioning_applied is True
+    assert snapshot.conditioning_lineage is not None
+    assert snapshot.conditioning_lineage.carrier == "prefix_kv"
 
 
 def test_temporal_snapshot_preserves_substrate_lineage() -> None:

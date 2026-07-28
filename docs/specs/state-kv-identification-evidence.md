@@ -1,6 +1,6 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke（temperature 0.2，seed 1701，G-prefix 12/12，C5 decode-matched）、P2 probe-limited stochastic retention gate（G-prefix 合计 16/16）与 P2 full-probe stochastic retention gate（两个 held-out pair，16 probes，max_new_tokens=16，G-prefix 合计 64/64，A-pure 合计随机）。`state-kv-judge-court.v1` 多裁判聚合门已落地；实际第二本地裁判 `sentence-transformers/all-MiniLM-L6-v2` 在同一 full-probe cache 上复判为随机（G-prefix 16/32），court 正确返回 `fail`。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 与 seed-aligned 随机生成路径上保持可识别；默认 ACTIVE 晋升仍等待能通过的第二裁判 panel 与部署 profile。
+> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke（temperature 0.2，seed 1701，G-prefix 12/12，C5 decode-matched）、P2 probe-limited stochastic retention gate（G-prefix 合计 16/16）与 P2 full-probe stochastic retention gate（两个 held-out pair，16 probes，max_new_tokens=16，G-prefix 合计 64/64，A-pure 合计随机）。`state-kv-temporal-causal.v1` 四臂 matched ablation 也已在 CPU 上通过，证明 correct/wrong State-KV 在真实 prefill residual、`z_t` 与 `beta_t` 上产生可归因分叉，revoked 精确回到 baseline。`state-kv-judge-court.v1` 多裁判聚合门已落地；实际第二本地裁判 `sentence-transformers/all-MiniLM-L6-v2` 在同一 full-probe cache 上复判为随机（G-prefix 16/32），court 正确返回 `fail`。因此载体进入、被读、进入 temporal 抽象以及单裁判 held-out 行为识别已经成立；默认 ACTIVE 晋升仍等待能通过的第二裁判 panel、多 generation-seed 聚合与部署安全 profile。
 > Last updated: 2026-07-28
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
@@ -997,6 +997,31 @@ python scripts/run_state_kv_identification.py \
 这证明 prefix-KV 自定义解码路径已经具备 stochastic rollout 的 per-turn seed alignment
 契约，并在 P3 原始 persona/probe 集上通过一次真实冻结模型复核。P2 held-out 的
 多 pair stochastic retention 仍需单独跑，不能由本 P3 smoke 外推。
+
+#### Substrate → temporal physical causal gate（2026-07-28）
+
+lineage 包之后新增 `OpenWeightResidualRuntime.capture_conditioned(...)`：runtime 在
+substrate capture 阶段使用与生成相同的 residual / Prefix-KV carrier 做真实 prefill，
+由 `SubstrateSnapshot.personal_conditioning_applied` 发布物理投递事实。temporal 不接收
+个人状态对象，只消费已经条件化的正式 `SubstrateSnapshot`。
+
+标准 artifact 在冻结 Qwen2.5-0.5B CPU 上运行同 prompt 四臂：
+`baseline / correct-state / wrong-user / revoked`。每臂使用全 24 层 hook，且每个 temporal
+readout 使用独立、同参数的 `LearnedLiteTemporalPolicy`，排除 recurrent state 污染。
+
+| gate | 结果 |
+|---|---|
+| capture attestation | **pass**：correct / wrong 为 true；baseline / revoked 为 false |
+| residual causality | **pass**：baseline→correct 0.41854，baseline→wrong 0.41620，correct→wrong 0.02507，baseline→revoked 0 |
+| `z_t` causality | **pass**：baseline→correct 0.13199，baseline→wrong 0.13591，correct→wrong 0.003914，baseline→revoked 0 |
+| `beta_t` causality | **pass**：baseline→correct 0.19799，baseline→wrong 0.20386，baseline→revoked 0 |
+| lineage alignment | **pass**：仅条件化臂发布 prefix lineage，temporal 保留同一引用 |
+| overall | **`pass`** |
+
+artifact：
+`artifacts/state_kv/temporal-causal-state-strategy-routed-cpu/verdict_temporal_causal.json`。
+这关闭“State-KV 是否真的经过残差并进入 ETA 抽象”的物理因果问题；它不替代行为层
+judge court、多个 generation seed 的稳定性或部署安全门。
 
 ### P0-smoke 实测结果（2026-07-26）
 

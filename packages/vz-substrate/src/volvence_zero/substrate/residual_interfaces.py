@@ -50,6 +50,21 @@ class OpenWeightResidualRuntime(ABC):
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
         """Capture a frozen-model residual snapshot for the given source text."""
 
+    def capture_conditioned(
+        self,
+        *,
+        source_text: str,
+        personal_conditioning: PersonalConditioningSnapshot,
+        personal_conditioning_carrier: str,
+    ) -> OpenWeightRuntimeCapture:
+        """Capture residuals after applying an explicit personal-state carrier."""
+
+        del source_text, personal_conditioning, personal_conditioning_carrier
+        raise NotImplementedError(
+            f"{type(self).__name__} cannot apply personal conditioning during "
+            "substrate capture."
+        )
+
     def capture_for_contrastive(
         self,
         *,

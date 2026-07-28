@@ -86,6 +86,7 @@ class OpenWeightRuntimeCapture:
     residual_activations: tuple[ResidualActivation, ...]
     residual_sequence: tuple[ResidualSequenceStep, ...]
     description: str
+    personal_conditioning_applied: bool = False
 
 
 @dataclass(frozen=True)

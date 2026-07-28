@@ -8,6 +8,9 @@ import math
 from typing import TYPE_CHECKING, Any, Mapping
 
 from volvence_zero.conditioning_bank_contracts import ConditioningLineageRef
+from volvence_zero.personal_conditioning_contracts import (
+    PersonalConditioningSnapshot,
+)
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 if TYPE_CHECKING:
@@ -64,6 +67,7 @@ class SubstrateSnapshot:
     unavailable_fields: tuple[UnavailableField, ...]
     description: str
     conditioning_lineage: ConditioningLineageRef | None = None
+    personal_conditioning_applied: bool = False
 
 
 def feature_signal_map(feature_surface: tuple[FeatureSignal, ...]) -> dict[str, tuple[float, ...]]:
@@ -441,10 +445,23 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
         runtime: "OpenWeightResidualRuntime",
         default_source_text: str | None = None,
         conditioning_lineage: ConditioningLineageRef | None = None,
+        personal_conditioning: PersonalConditioningSnapshot | None = None,
+        personal_conditioning_carrier: str = "residual",
     ) -> None:
+        if personal_conditioning is not None and conditioning_lineage is None:
+            raise ValueError(
+                "conditioned substrate capture requires conditioning_lineage."
+            )
+        if personal_conditioning_carrier not in ("residual", "prefix_kv"):
+            raise ValueError(
+                "personal_conditioning_carrier must be 'residual' or "
+                f"'prefix_kv', got {personal_conditioning_carrier!r}."
+            )
         self._runtime = runtime
         self._default_source_text = default_source_text
         self._conditioning_lineage = conditioning_lineage
+        self._personal_conditioning = personal_conditioning
+        self._personal_conditioning_carrier = personal_conditioning_carrier
         self.model_id = runtime.model_id
         self.is_frozen = runtime.is_frozen
         self.surface_kind = SurfaceKind.RESIDUAL_STREAM
@@ -453,7 +470,14 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
         effective_source_text = source_text or self._default_source_text
         if effective_source_text is None:
             raise ValueError("OpenWeightResidualStreamSubstrateAdapter requires source_text.")
-        capture = self._runtime.capture(source_text=effective_source_text)
+        if self._personal_conditioning is None:
+            capture = self._runtime.capture(source_text=effective_source_text)
+        else:
+            capture = self._runtime.capture_conditioned(
+                source_text=effective_source_text,
+                personal_conditioning=self._personal_conditioning,
+                personal_conditioning_carrier=self._personal_conditioning_carrier,
+            )
         runtime_origin = getattr(self._runtime, "runtime_origin", "unknown")
         fallback_active = 1 if getattr(self._runtime, "fallback_active", False) else 0
         capture_source = getattr(self._runtime, "capture_source", "unknown")
@@ -496,6 +520,7 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
             unavailable_fields=(),
             description=description,
             conditioning_lineage=self._conditioning_lineage,
+            personal_conditioning_applied=capture.personal_conditioning_applied,
         )
 
 

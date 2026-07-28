@@ -204,6 +204,36 @@ def test_prefix_carrier_reports_injection_only_when_state_is_admitted(
     assert absent.personal_conditioning_applied is False
 
 
+def test_prefix_carrier_conditions_prefill_capture(prefix_runtime) -> None:
+    baseline = prefix_runtime.capture(source_text=PROMPT)
+    conditioned_a = prefix_runtime.capture_conditioned(
+        source_text=PROMPT,
+        personal_conditioning=_conditioning(value=0.8),
+        personal_conditioning_carrier="prefix_kv",
+    )
+    conditioned_b = prefix_runtime.capture_conditioned(
+        source_text=PROMPT,
+        personal_conditioning=_conditioning(value=0.2),
+        personal_conditioning_carrier="prefix_kv",
+    )
+
+    assert baseline.personal_conditioning_applied is False
+    assert conditioned_a.personal_conditioning_applied is True
+    assert conditioned_b.personal_conditioning_applied is True
+    assert conditioned_a.residual_activations != baseline.residual_activations
+    assert conditioned_b.residual_activations != baseline.residual_activations
+    assert conditioned_a.residual_activations != conditioned_b.residual_activations
+
+
+def test_prefix_capture_rejects_missing_artifact(runtime) -> None:
+    with pytest.raises(ValueError, match="requires a prefix artifact"):
+        runtime.capture_conditioned(
+            source_text=PROMPT,
+            personal_conditioning=_conditioning(value=0.8),
+            personal_conditioning_carrier="prefix_kv",
+        )
+
+
 def test_prefix_carrier_refuses_unseeded_sampling(prefix_runtime) -> None:
     with pytest.raises(ValueError, match="requires sampling_seed"):
         prefix_runtime.generate(
