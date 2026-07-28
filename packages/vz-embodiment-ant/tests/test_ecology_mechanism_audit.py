@@ -441,9 +441,18 @@ def test_ant_prediction_error_boundary_floor_separates_pickup_from_quiet_noise()
         is False
     )
 
-    # v30's frozen real-pickup trace measured 0.4789 on the carrying-state
-    # transition. This value must cross the calibrated lower bound without
-    # turning ordinary sub-floor noise into a boundary.
+    # These two magnitudes pin the strict threshold MECHANISM (below the
+    # floor never requests, above always does), NOT a validated calibration.
+    # 0.4789 came from v30's frozen medium trace read AT the pickup tick --
+    # which by settlement timing is the PE of the PRE-pickup approach
+    # outcome, i.e. a routine value. The v30 replay measurement
+    # (scripts/measure_ant_pe_boundary_margin.py ->
+    # research/ant/results/.partials/pe_boundary_margin.v30.json) found the
+    # routine distribution sits ON the floor (p50 0.508, 68% of ticks above
+    # 0.45) while natural medium pickups settle at 0.32 on the next tick, so
+    # NO magnitude floor separates pickup events from routine prediction
+    # error. See research/ant/06_ecology_implementation_status.md (v31
+    # margin verdict) before treating the floor as calibrated.
     loop.set_external_learning_signals(
         {"prediction_error_magnitude": 0.4789}
     )
