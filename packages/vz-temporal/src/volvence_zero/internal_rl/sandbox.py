@@ -27,7 +27,11 @@ from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.runtime.kernel import stable_value_hash
 from volvence_zero.tensor_backend import is_torch_available
-from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateSnapshot
+from volvence_zero.substrate import (
+    OpenWeightResidualRuntime,
+    ResidualActivation,
+    SubstrateSnapshot,
+)
 from volvence_zero.temporal import (
     ControllerState,
     FamilyOutcomeFeedback,
@@ -106,6 +110,8 @@ class ZTransition:
     runtime_milestone: bool = False
     runtime_action_head_state: tuple[float, ...] = ()
     runtime_action_head_mirror_state: tuple[float, ...] = ()
+    causal_action_head_state: tuple[float, ...] = ()
+    direct_action_target: bool = False
     runtime_posterior_sample_scale: float = 0.5
     # Typed reward-eligibility audit tags (runtime-replay transitions only).
     # ``runtime_reward_eligibility_reason`` is a
@@ -733,6 +739,109 @@ def _sequence_observation_signature(substrate_snapshot: SubstrateSnapshot, n_z: 
     return _project_to_ndim(enriched, n_z)
 
 
+def _sequence_action_head_state(
+    substrate_snapshot: SubstrateSnapshot,
+    state_dim: int,
+) -> tuple[float, ...]:
+    """Build a causal, label-free residual state independently of action dim."""
+
+    sequence = residual_sequence_from_snapshot(substrate_snapshot)
+    if not sequence:
+        return tuple(0.0 for _ in range(state_dim))
+    summaries = tuple(
+        summarize_residual_activations(
+            step.residual_activations,
+            step.feature_surface,
+        )
+        for step in sequence
+    )
+    averaged = tuple(
+        sum(vector[index] for vector in summaries) / len(summaries)
+        for index in range(3)
+    )
+    latest = summaries[-1]
+    trend = tuple(
+        latest[index] - summaries[0][index]
+        for index in range(3)
+    )
+    span = tuple(
+        max(vector[index] for vector in summaries)
+        - min(vector[index] for vector in summaries)
+        for index in range(3)
+    )
+    raw = tuple(
+        _clamp(value)
+        for values in (averaged, latest, trend, span)
+        for value in values
+    )
+    if state_dim <= len(raw):
+        return raw[:state_dim]
+    directional_width = (state_dim - len(raw)) // 2
+    if directional_width == 0:
+        return raw + tuple(
+            0.0 for _ in range(state_dim - len(raw))
+        )
+    directional_sequence = tuple(
+        _signed_residual_feature_hash(
+            step.residual_activations,
+            width=directional_width,
+        )
+        for step in sequence
+    )
+    directional_latest = directional_sequence[-1]
+    directional_average = tuple(
+        sum(vector[index] for vector in directional_sequence)
+        / len(directional_sequence)
+        for index in range(directional_width)
+    )
+    directional_trend = tuple(
+        _clamp(
+            directional_latest[index]
+            - directional_average[index]
+        )
+        for index in range(directional_width)
+    )
+    enriched = raw + directional_latest + directional_trend
+    if len(enriched) == state_dim:
+        return enriched
+    return enriched + directional_latest[
+        : state_dim - len(enriched)
+    ]
+
+
+def _signed_residual_feature_hash(
+    residual_activations: tuple[ResidualActivation, ...],
+    *,
+    width: int,
+) -> tuple[float, ...]:
+    if width < 1:
+        raise ValueError(
+            f"residual feature-hash width must be positive, got {width!r}"
+        )
+    bucket_sums = [0.0 for _ in range(width)]
+    bucket_counts = [0 for _ in range(width)]
+    for activation in residual_activations:
+        layer_index = int(activation.layer_index)
+        for coordinate_index, value in enumerate(
+            activation.activation
+        ):
+            key = (
+                (layer_index + 1) * 2_654_435_761
+                + (coordinate_index + 1) * 2_246_822_519
+            )
+            bucket_index = key % width
+            sign = -1.0 if ((key // width) & 1) else 1.0
+            bucket_sums[bucket_index] += sign * float(value)
+            bucket_counts[bucket_index] += 1
+    return tuple(
+        math.tanh(
+            bucket_sums[index]
+            / math.sqrt(max(bucket_counts[index], 1))
+        )
+        for index in range(width)
+    )
+
+
 class CausalZPolicy:
     """Causal z-policy with bounded stochastic actions and a lightweight critic."""
 
@@ -751,6 +860,7 @@ class CausalZPolicy:
         ) = None,
         causal_action_head_exclusive_steering: bool = False,
         causal_action_head_mirror_equivariance: bool = False,
+        causal_action_head_state_dim: int | None = None,
         latent_unit_clamp: bool = False,
     ) -> None:
         self._parameter_store = parameter_store
@@ -787,6 +897,28 @@ class CausalZPolicy:
         self._causal_action_head_strength = float(
             causal_action_head_strength
         )
+        resolved_action_head_state_dim = (
+            parameter_store.n_z
+            if causal_action_head_state_dim is None
+            else causal_action_head_state_dim
+        )
+        if (
+            isinstance(resolved_action_head_state_dim, bool)
+            or not isinstance(resolved_action_head_state_dim, int)
+            or resolved_action_head_state_dim < 1
+        ):
+            raise ValueError(
+                "causal_action_head_state_dim must be a positive integer, "
+                f"got {resolved_action_head_state_dim!r}"
+            )
+        self._causal_action_head_state_dim = (
+            resolved_action_head_state_dim
+        )
+        for track in (Track.WORLD, Track.SELF, Track.SHARED):
+            parameter_store.configure_causal_action_head_state_dim(
+                track=track,
+                state_dim=resolved_action_head_state_dim,
+            )
         self._causal_action_head_effective_dims = (
             tuple(range(parameter_store.n_z))
             if causal_action_head_effective_dims is None
@@ -911,6 +1043,10 @@ class CausalZPolicy:
         return self._causal_action_head_mirror_equivariance
 
     @property
+    def causal_action_head_state_dim(self) -> int:
+        return self._causal_action_head_state_dim
+
+    @property
     def n_z(self) -> int:
         return self._parameter_store.n_z
 
@@ -931,6 +1067,7 @@ class CausalZPolicy:
         observation_mode: str = "default",
     ) -> tuple[
         CausalPolicyState,
+        tuple[float, ...],
         tuple[float, ...],
         tuple[float, ...],
         tuple[float, ...],
@@ -958,10 +1095,19 @@ class CausalZPolicy:
             )
             for previous, current in zip(state.hidden_state, features, strict=True)
         )
+        action_head_state = (
+            hidden_state
+            if self._causal_action_head_state_dim == n
+            else _sequence_action_head_state(
+                substrate_snapshot,
+                self._causal_action_head_state_dim,
+            )
+        )
         weights = self._project_track_weights(track=state.track, n=n)
         policy_mean = self._policy_mean(
             track=state.track,
             hidden_state=hidden_state,
+            action_head_state=action_head_state,
             surface=surface,
             previous_action=state.previous_action,
             weights=weights,
@@ -1030,6 +1176,7 @@ class CausalZPolicy:
             next_state,
             surface,
             hidden_state,
+            action_head_state,
             policy_action,
             policy_mean,
             policy_std,
@@ -1151,6 +1298,7 @@ class CausalZPolicy:
         surface: tuple[float, ...],
         previous_action: tuple[float, ...],
         weights: tuple[float, ...],
+        action_head_state: tuple[float, ...] = (),
     ) -> tuple[float, ...]:
         code_clamp = self._latent_code_clamp
         if self._runtime_track_modulation_strength > 0.0:
@@ -1193,7 +1341,11 @@ class CausalZPolicy:
             residual = (
                 self._parameter_store.causal_action_head_residual(
                     track=track,
-                    state_features=hidden_state,
+                    state_features=(
+                        action_head_state
+                        if action_head_state
+                        else hidden_state
+                    ),
                     strength=self._causal_action_head_strength,
                 )
             )
@@ -1272,7 +1424,10 @@ class CausalZPolicy:
         policy_noise: tuple[float, ...],
     ) -> tuple[float, ...]:
         return tuple(
-            _clamp(policy_mean[index] + policy_std[index] * policy_noise[index] * 0.5)
+            self._latent_code_clamp(
+                policy_mean[index]
+                + policy_std[index] * policy_noise[index] * 0.5
+            )
             for index in range(len(policy_mean))
         )
 
@@ -1446,6 +1601,9 @@ class CausalZPolicy:
                 new_mean = self._policy_mean(
                     track=transition.track,
                     hidden_state=transition.hidden_state,
+                    action_head_state=(
+                        transition.causal_action_head_state
+                    ),
                     surface=transition.observation_signature,
                     previous_action=transition.policy_action,
                     weights=new_weights,
@@ -1486,6 +1644,9 @@ class CausalZPolicy:
                 old_mean = self._policy_mean(
                     track=transition.track,
                     hidden_state=transition.hidden_state,
+                    action_head_state=(
+                        transition.causal_action_head_state
+                    ),
                     surface=transition.observation_signature,
                     previous_action=transition.policy_action,
                     weights=old_weights,
@@ -1708,7 +1869,7 @@ class CausalZPolicy:
     ) -> float:
         if self._causal_action_head_wiring is WiringLevel.DISABLED:
             return 0.0
-        runtime_transitions = tuple(
+        eligible_transitions = tuple(
             (
                 transition,
                 advantage,
@@ -1718,56 +1879,116 @@ class CausalZPolicy:
                 advantages,
                 strict=True,
             )
-            if transition.transition_source == "runtime-replay"
+            if transition.transition_source in {
+                "runtime-replay",
+                "synthetic",
+            }
         )
-        if not runtime_transitions:
+        if not eligible_transitions:
             return 0.0
+        direct_action_target = all(
+            transition.direct_action_target
+            for transition, _ in eligible_transitions
+        )
+        if direct_action_target != any(
+            transition.direct_action_target
+            for transition, _ in eligible_transitions
+        ):
+            raise ValueError(
+                "causal action-head batches cannot mix direct action "
+                "targets with policy-gradient transitions"
+            )
+        if (
+            self._causal_action_head_mirror_equivariance
+            and any(
+                transition.transition_source == "synthetic"
+                for transition, _ in eligible_transitions
+            )
+        ):
+            raise ValueError(
+                "synthetic causal action-head updates do not publish the "
+                "typed mirror state required by mirror equivariance"
+            )
         advantage_scale = max(
             math.sqrt(
                 sum(
                     advantage * advantage
-                    for _, advantage in runtime_transitions
+                    for _, advantage in eligible_transitions
                 )
-                / len(runtime_transitions)
+                / len(eligible_transitions)
             ),
             _CAUSAL_ACTION_ADVANTAGE_SCALE_FLOOR,
         )
         state_feature_batch: list[tuple[float, ...]] = []
         action_gradients: list[tuple[float, ...]] = []
         selected_advantages: list[float] = []
-        for transition, advantage in runtime_transitions:
-            beta_vector = (
-                tuple(
-                    float(transition.runtime_beta_t)
-                    for _ in range(self.n_z)
+        for transition, advantage in eligible_transitions:
+            if transition.transition_source == "runtime-replay":
+                beta_vector = (
+                    tuple(
+                        float(transition.runtime_beta_t)
+                        for _ in range(self.n_z)
+                    )
+                    if isinstance(
+                        transition.runtime_beta_t,
+                        (float, int),
+                    )
+                    else tuple(transition.runtime_beta_t)
                 )
-                if isinstance(
-                    transition.runtime_beta_t,
-                    (float, int),
+                if len(beta_vector) != self.n_z:
+                    raise ValueError(
+                        "causal action head runtime beta dimension mismatch: "
+                        f"expected={self.n_z}, actual={len(beta_vector)}"
+                    )
+                state_features = transition.runtime_action_head_state
+                if (
+                    len(state_features)
+                    != self._causal_action_head_state_dim
+                ):
+                    raise ValueError(
+                        "causal action head runtime state dimension mismatch: "
+                        f"expected={self._causal_action_head_state_dim}, "
+                        f"actual={len(state_features)}"
+                    )
+            else:
+                beta_vector = tuple(1.0 for _ in range(self.n_z))
+                state_features = (
+                    transition.causal_action_head_state
+                    if transition.causal_action_head_state
+                    else transition.hidden_state
                 )
-                else tuple(transition.runtime_beta_t)
-            )
-            if len(beta_vector) != self.n_z:
-                raise ValueError(
-                    "causal action head runtime beta dimension mismatch: "
-                    f"expected={self.n_z}, actual={len(beta_vector)}"
-                )
+                if (
+                    len(state_features)
+                    != self._causal_action_head_state_dim
+                ):
+                    raise ValueError(
+                        "causal action head proof state dimension mismatch: "
+                        f"expected={self._causal_action_head_state_dim}, "
+                        f"actual={len(state_features)}"
+                    )
             raw_gradient = tuple(
-                max(
-                    -4.0,
-                    min(
-                        4.0,
-                        (
-                            transition.policy_action[index]
-                            - transition.policy_mean[index]
-                        )
-                        / max(
-                            transition.policy_std[index] ** 2,
-                            1e-4,
-                        )
-                        * beta_vector[index]
-                        * self._causal_action_head_strength,
-                    ),
+                (
+                    (
+                        transition.policy_action[index]
+                        - transition.policy_mean[index]
+                    )
+                    if direct_action_target
+                    else max(
+                        -4.0,
+                        min(
+                            4.0,
+                            (
+                                transition.policy_action[index]
+                                - transition.policy_mean[index]
+                            )
+                            / max(
+                                transition.policy_std[index] ** 2,
+                                1e-4,
+                            )
+                            * beta_vector[index]
+                            * self._causal_action_head_strength,
+                        ),
+                    )
                 )
                 if index in self._causal_action_head_effective_dims
                 else 0.0
@@ -1777,15 +1998,7 @@ class CausalZPolicy:
                 raw_gradient,
                 contrast_pairs=self._causal_action_head_contrast_pairs,
             )
-            if len(transition.runtime_action_head_state) != self.n_z:
-                raise ValueError(
-                    "causal action head runtime state dimension mismatch: "
-                    f"expected={self.n_z}, "
-                    f"actual={len(transition.runtime_action_head_state)}"
-                )
-            state_feature_batch.append(
-                transition.runtime_action_head_state
-            )
+            state_feature_batch.append(state_features)
             action_gradients.append(gradient)
             # Normalize only the causal action-head signal.  Track/value
             # updates keep the physical payoff scale, while the low-rank head
@@ -1794,16 +2007,22 @@ class CausalZPolicy:
             # orders of magnitude below the head learning rate and produce a
             # fingerprint change with no durable motor effect.
             selected_advantages.append(
-                max(-1.0, min(1.0, advantage / advantage_scale))
+                1.0
+                if direct_action_target
+                else max(
+                    -1.0,
+                    min(1.0, advantage / advantage_scale),
+                )
             )
             if self._causal_action_head_mirror_equivariance:
                 if (
                     len(transition.runtime_action_head_mirror_state)
-                    != self.n_z
+                    != self._causal_action_head_state_dim
                 ):
                     raise ValueError(
                         "causal action head runtime mirror-state dimension "
-                        f"mismatch: expected={self.n_z}, actual="
+                        f"mismatch: expected="
+                        f"{self._causal_action_head_state_dim}, actual="
                         f"{len(transition.runtime_action_head_mirror_state)}"
                     )
                 state_feature_batch.append(
@@ -2086,6 +2305,7 @@ class InternalRLSandbox:
         residual_runtime: OpenWeightResidualRuntime | None = None,
         rl_backend: WiringLevel = WiringLevel.DISABLED,
         latent_unit_clamp: bool = False,
+        causal_action_head_state_dim: int | None = None,
     ) -> None:
         self._policy = policy or FullLearnedTemporalPolicy()
         runtime_track_modulation_strength = (
@@ -2148,6 +2368,7 @@ class InternalRLSandbox:
             causal_action_head_mirror_equivariance=(
                 causal_action_head_mirror_equivariance
             ),
+            causal_action_head_state_dim=causal_action_head_state_dim,
             latent_unit_clamp=latent_unit_clamp,
         )
         self._env = env or InternalRLEnvironment()
@@ -2175,6 +2396,10 @@ class InternalRLSandbox:
         """Return the most recent optimization report (evidence readout only)."""
 
         return self._latest_optimization_report
+
+    @property
+    def causal_action_head_state_dim(self) -> int:
+        return self._causal_policy.causal_action_head_state_dim
 
     def set_rl_backend(self, wiring_level: WiringLevel) -> None:
         """Switch the causal-policy PPO backend (reversible to DISABLED)."""
@@ -2287,7 +2512,6 @@ class InternalRLSandbox:
             ("posterior_sample_noise", policy_noise),
             ("posterior_hidden_state", hidden_state),
             ("z_tilde", sampled_candidate),
-            ("causal_action_head_state", action_head_state),
             ("causal_action_head_residual", action_head_residual),
         ):
             if len(values) != n:
@@ -2295,17 +2519,29 @@ class InternalRLSandbox:
                     f"runtime replay {name} dimension mismatch: "
                     f"expected={n}, actual={len(values)}"
                 )
+        action_head_state_dim = (
+            self._causal_policy.causal_action_head_state_dim
+        )
+        if len(action_head_state) != action_head_state_dim:
+            raise ValueError(
+                "runtime replay causal_action_head_state dimension mismatch: "
+                f"expected={action_head_state_dim}, "
+                f"actual={len(action_head_state)}"
+            )
         if self._causal_policy.causal_action_head_mirror_equivariance:
-            if len(action_head_mirror_state) != n:
+            if len(action_head_mirror_state) != action_head_state_dim:
                 raise ValueError(
                     "runtime replay causal_action_head_mirror_state dimension "
-                    f"mismatch: expected={n}, "
+                    f"mismatch: expected={action_head_state_dim}, "
                     f"actual={len(action_head_mirror_state)}"
                 )
-        elif action_head_mirror_state and len(action_head_mirror_state) != n:
+        elif (
+            action_head_mirror_state
+            and len(action_head_mirror_state) != action_head_state_dim
+        ):
             raise ValueError(
                 "runtime replay causal_action_head_mirror_state dimension "
-                f"mismatch: expected={n}, "
+                f"mismatch: expected={action_head_state_dim}, "
                 f"actual={len(action_head_mirror_state)}"
             )
         track_parameters = dict(runtime_state.track_parameters)
@@ -3067,6 +3303,7 @@ class InternalRLSandbox:
                 policy_state,
                 observation_signature,
                 hidden_state,
+                causal_action_head_state,
                 policy_action,
                 policy_mean,
                 policy_std,
@@ -3106,6 +3343,7 @@ class InternalRLSandbox:
                     applied_control=env_step.applied_control,
                     downstream_effect=env_step.downstream_effect,
                     hidden_state=hidden_state,
+                    causal_action_head_state=causal_action_head_state,
                     policy_mean=policy_mean,
                     policy_std=policy_std,
                     policy_noise=policy_noise,
@@ -3252,6 +3490,30 @@ class InternalRLSandbox:
         single_report = self._optimize_single(rollout)
         self._latest_optimization_report = single_report
         return single_report
+
+    def optimize_causal_policy_only(
+        self,
+        rollouts: tuple[ZRollout, ...],
+        *,
+        gamma: float = 0.0,
+        gae_lambda: float = 0.0,
+    ) -> OptimizationReport:
+        """Update only the causal z-policy while keeping SSL structure frozen."""
+
+        self._policy.parameter_store.require_causal_takeover_phase(
+            operation="InternalRLSandbox.optimize_causal_policy_only"
+        )
+        if not rollouts:
+            raise ValueError(
+                "causal-policy-only optimization requires rollouts"
+            )
+        result = self._causal_policy.optimize(
+            rollouts=rollouts,
+            gamma=gamma,
+            gae_lambda=gae_lambda,
+        )
+        self._latest_optimization_report = result.report
+        return result.report
 
     def optimize_with_audit(
         self,

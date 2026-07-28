@@ -76,6 +76,74 @@
 - dialogue paper-suite export 可额外导出 `semantic_proposal_quality_shadow.json`，并在 `EvidenceBundle.reference_artifacts` 中登记同一 payload；该 payload 是 non-gating shadow diagnostic，不参与 retain/fail verdict
 - ETA paper-suite export 会导出统一 evidence bundle，复用相同的 claim verdict / pairwise effect 口径
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
+- ETA Gate 2 residual causal packet 使用
+  `volvence_zero.agent.eta_gate2_residual_evidence` 冻结
+  `identity / zero / shuffled / reversed` 四臂。四臂必须共享 policy、
+  optimizer 初态、场景、seed、prefix 与 frozen substrate；identity 只训练
+  一次，三个 control 从同一训练后 checkpoint 恢复且不得继续更新。
+  transition 同时记录
+  `control_before_ablation` 和实际 `applied_control`。bundle 必须产出
+	  `manifest.yaml / predictions.jsonl / outcomes.jsonl /
+	  prediction_errors.jsonl / segments.jsonl / credit.jsonl /
+	  state_diff.jsonl / action_selection.jsonl / ablation_results.json /
+	  promotion_verdict.json / rollback_evidence.json / report.md`，缺任一文件
+	  或 episode 缺逐步
+	  intervention record 时 fail loudly。trace smoke 最多只能得到
+	  `wiring-ready`；真 open-weight 且 hook/fallback/prefix/变换门全通过时最多
+	  得到 `mechanism-supported`。v29 按 `train / eval /
+  development-heldout / confirmation` 分区发布 continuation NLL 与有效
+  score count；eval 必须方向为正，且从未参与设计或停止决策的 locked
+  confirmation split 相对最佳 matched control 达到预注册 `0.02`，才允许
+  `causal-supported`。manifest 必须显式携带
+  `confirmation_split_locked=true`，只有 split 名称而没有锁定声明仍应
+  fail。反复观察过的 heldout 不得继续充当确认集。
+- 2026-07-28 Qwen2.5-0.5B CPU 单 seed 实测：
+  control-summary 与 baseline capture 统一取末 token 后，zero-control
+  downstream effect 严格为 0，机制门通过；proof completion 因 observation
+  cosine 主导已从 causal outcome 移除。只读 observed continuation NLL
+  驱动的 counterfactual PE 训练保持 SSL 结构冻结、仅更新 causal policy。
+  v19 的 90 个 train prefix 上，22-action oracle 平均可达改善
+  `0.032274`、正改善率 `97.78%`，最佳固定候选也为 `+0.005697`。
+  counterfactual optimizer 改为逐状态 direct best-action 后，v20 的 8-update
+  候选在 train 成为最佳臂，development-heldout 为 `+0.005979`，但 eval
+  仍为 `-0.016155`。v22 的只读分区扫描显示 eval oracle 为 `+0.021150`、
+  正改善率 `83.33%`，而最佳固定候选为 zero；因此候选空间可达，但需要
+  context-conditioned selection。48 维 signed state（v21）和 24 维 hybrid
+  state（v23）都使未见分区退化，默认回滚到 12 维 v22 候选。v25 保持
+  12→3、direct best-action、8 updates 和原 eval/development-heldout 不变，
+  仅把无标签训练分布从 8 条 route / 45 个 prefix 扩到 16 条 route / 96 个
+  prefix；新增 8 条 route 的内容词与非训练分区内容词不相交，confirmation
+  仍关闭。真实运行产生 `768` 条 optimizer transition、`16896` 次候选评分和
+  `2640` 个去重 counterfactual score。扩大训练分布后 eval 从
+  `-0.016155` 退化到 `-0.017924`，development-heldout 从 `+0.005979`
+  退化到 `-0.001057`，train identity 也不再胜过最佳 control；与此同时
+  eval oracle 升至 `+0.022156`，development-heldout oracle 升至
+	  `+0.035008`。v26 用 train-only PCA16 + ridge 建立 prefix residual 到 22
+	  个动作的 selector；v27 只用 route-grouped train CV 在
+	  `PCA={8,16,32,64} × ridge={0.1,1,10}` 中选型。两者在 eval 的 selected
+	  delta 都为 `-0.013828`，没有达到 shadow injection 门。v28 去掉 hash/PCA，
+	  直接消费 substrate 发布的全部坐标，却发现输入仅 `84` 维：Qwen 每层
+	  `896` 维 hidden 在 publisher 内被默认压到 `8` 维。v29 因此把 evidence
+	  runtime 的显式 `activation_width` 设为 `896`；生产默认仍为 `8`，真实导出
+	  会核对 manifest 与 provenance，宽度不一致 fail loudly。三层
+	  mean/latest/trend 最终给 selector `8076` 维输入，仍只得到 train route-CV
+	  `-0.002488`、eval `-0.019454`、development-heldout `-0.001422`；
+	  top-3 命中率分别为 `0.135417 / 0.166667 / 0.142857`，接近 22 动作下
+	  的随机基线 `0.136364`。这排除了“只因手工 state、PCA/hash 或 8 维捕获
+	  丢信息”作为充分根因。
+
+	  当前更深的时序错误是 target 定义：逐 prefix oracle 在看到实际下一段后，
+	  选择让该单个 realized continuation NLL 最低的动作；controller 决策时却
+	  只有 prefix residual。存在多个合理 continuation 时，该 ex-post 标签含有
+	  不可约的 realized-outcome 噪声，prefix-only selector 未必可辨识。verdict
+	  保持 `mechanism-supported`，selector 注入继续关闭。下一包必须把监督信号
+	  改为决策时可定义的 expected action value，例如每个 prefix 的多条独立
+	  continuation 期望，或真实下游 outcome；不得继续在现有 eval 上更换 probe、
+	  调参、降低阈值或加入语义 action label。
+	  当前最新 falsification artifact 为
+	  `artifacts/eta_gate2_residual_causal_v29_full_width896_kernel_selector_qwen25_05b_cpu_1seed_20260728`；
+	  v24 仍是当前最佳 12 维候选基线：
+  `artifacts/eta_gate2_residual_causal_v24_canonical_state12_direct_8updates_train8_qwen25_05b_cpu_1seed_20260728`。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。

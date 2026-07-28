@@ -27,6 +27,7 @@ from volvence_zero.substrate.adapter import (
 )
 
 from volvence_zero.substrate.residual_contracts import (
+    ContinuationScore,
     GenerationResult,
     OpenWeightRuntimeCapture,
     ResidualControlApplication,
@@ -165,6 +166,20 @@ class OpenWeightResidualRuntime(ABC):
         track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
     ) -> ResidualControlApplication:
         """Apply bounded residual intervention through the runtime."""
+
+    def score_continuation(
+        self,
+        *,
+        source_text: str,
+        continuation_text: str,
+        applied_control: tuple[float, ...],
+        track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
+    ) -> ContinuationScore:
+        """Score observed continuation tokens under a residual intervention."""
+
+        raise NotImplementedError(
+            f"{type(self).__name__} does not expose real continuation scoring"
+        )
 
     def generate(
         self,

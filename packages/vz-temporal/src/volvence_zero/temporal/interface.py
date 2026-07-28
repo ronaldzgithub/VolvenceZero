@@ -1096,13 +1096,13 @@ class MetacontrollerParameterStore:
                 f"expected={parameters.rank}, "
                 f"actual={len(parameters.input_factors)}"
             )
-        if any(
-            len(row) != self._n_z
-            for row in parameters.input_factors
-        ):
+        input_widths = {
+            len(row) for row in parameters.input_factors
+        }
+        if len(input_widths) != 1 or next(iter(input_widths), 0) < 1:
             raise ValueError(
-                "causal action head input width mismatch: "
-                f"expected={self._n_z}"
+                "causal action head input width must be positive and "
+                f"consistent, got={tuple(sorted(input_widths))}"
             )
         if len(parameters.output_factors) != self._n_z:
             raise ValueError(
@@ -1190,8 +1190,60 @@ class MetacontrollerParameterStore:
         self.causal_action_heads[track] = (
             _initial_causal_action_head_parameters(
                 n_z=self._n_z,
+                state_dim=self.causal_action_head_state_dim(track=track),
                 track=track,
                 rank=rank,
+            )
+        )
+
+    def causal_action_head_state_dim(self, *, track: Track) -> int:
+        parameters = self.causal_action_heads[track]
+        if not parameters.input_factors:
+            raise RuntimeError(
+                "causal action head has no input-factor rows"
+            )
+        return len(parameters.input_factors[0])
+
+    def configure_causal_action_head_state_dim(
+        self,
+        *,
+        track: Track,
+        state_dim: int,
+    ) -> None:
+        """Select a wider observation state before owner learning starts."""
+
+        if isinstance(state_dim, bool) or not isinstance(state_dim, int):
+            raise TypeError(
+                "causal action head state_dim must be an integer"
+            )
+        if state_dim < 1:
+            raise ValueError(
+                "causal action head state_dim must be positive, "
+                f"got {state_dim!r}"
+            )
+        parameters = self.causal_action_heads[track]
+        current_dim = self.causal_action_head_state_dim(track=track)
+        if current_dim == state_dim:
+            return
+        if (
+            parameters.update_step != 0
+            or any(
+                abs(value) > 1e-12
+                for row in parameters.output_factors
+                for value in row
+            )
+            or any(abs(value) > 1e-12 for value in parameters.bias)
+        ):
+            raise RuntimeError(
+                "cannot change causal action head state_dim after the owner "
+                "has learned a live mapping"
+            )
+        self.causal_action_heads[track] = (
+            _initial_causal_action_head_parameters(
+                n_z=self._n_z,
+                state_dim=state_dim,
+                track=track,
+                rank=parameters.rank,
             )
         )
 
@@ -1201,10 +1253,11 @@ class MetacontrollerParameterStore:
         track: Track,
         state_features: tuple[float, ...],
     ) -> tuple[float, ...]:
-        if len(state_features) != self._n_z:
+        state_dim = self.causal_action_head_state_dim(track=track)
+        if len(state_features) != state_dim:
             raise ValueError(
                 "causal action head state dimension mismatch: "
-                f"expected={self._n_z}, actual={len(state_features)}"
+                f"expected={state_dim}, actual={len(state_features)}"
             )
         if any(not -1.0 <= value <= 1.0 for value in state_features):
             raise ValueError(
@@ -1212,12 +1265,12 @@ class MetacontrollerParameterStore:
                 "within [-1, 1]"
             )
         parameters = self.causal_action_heads[track]
-        scale = math.sqrt(max(self._n_z, 1))
+        scale = math.sqrt(max(state_dim, 1))
         return tuple(
             math.tanh(
                 sum(
                     row[index] * state_features[index]
-                    for index in range(self._n_z)
+                    for index in range(state_dim)
                 )
                 / scale
             )
@@ -1276,6 +1329,7 @@ class MetacontrollerParameterStore:
         if not state_feature_batch:
             return 0.0
         parameters = self.causal_action_heads[track]
+        state_dim = self.causal_action_head_state_dim(track=track)
         input_factors = [
             list(row) for row in parameters.input_factors
         ]
@@ -1284,7 +1338,7 @@ class MetacontrollerParameterStore:
         ]
         bias = list(parameters.bias)
         input_delta = [
-            [0.0 for _ in range(self._n_z)]
+            [0.0 for _ in range(state_dim)]
             for _ in range(parameters.rank)
         ]
         output_delta = [
@@ -1292,7 +1346,7 @@ class MetacontrollerParameterStore:
             for _ in range(self._n_z)
         ]
         bias_delta = [0.0 for _ in range(self._n_z)]
-        scale = math.sqrt(max(self._n_z, 1))
+        scale = math.sqrt(max(state_dim, 1))
         samples: list[
             tuple[
                 tuple[float, ...],
@@ -1407,7 +1461,7 @@ class MetacontrollerParameterStore:
                     for output_index in range(self._n_z)
                 )
                 derivative = 1.0 - basis[rank_index] ** 2
-                for input_index in range(self._n_z):
+                for input_index in range(state_dim):
                     input_delta[rank_index][input_index] += (
                         upstream
                         * derivative
@@ -1443,7 +1497,7 @@ class MetacontrollerParameterStore:
                 )
                 output_factors[output_index][rank_index] = candidate
         for rank_index in range(parameters.rank):
-            for input_index in range(self._n_z):
+            for input_index in range(state_dim):
                 step = max(
                     -envelope.input_factor_step_limit,
                     min(
@@ -1832,9 +1886,16 @@ class MetacontrollerParameterStore:
                     parameters.rank < 1
                     or len(parameters.input_factors) != parameters.rank
                     or any(
-                        len(row) != self._n_z
+                        len(row) < 1
                         for row in parameters.input_factors
                     )
+                    or len(
+                        {
+                            len(row)
+                            for row in parameters.input_factors
+                        }
+                    )
+                    != 1
                     or len(parameters.output_factors) != self._n_z
                     or any(
                         len(row) != parameters.rank
@@ -2938,25 +2999,32 @@ def _bounded_initial_input_factors(
 def _initial_causal_action_head_parameters(
     *,
     n_z: int,
+    state_dim: int | None = None,
     track: Track,
     rank: int,
     envelope: CausalActionHeadUpdateEnvelope = (
         CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
     ),
 ) -> CausalZActionHeadParameters:
+    resolved_state_dim = n_z if state_dim is None else state_dim
+    if resolved_state_dim < 1:
+        raise ValueError(
+            "causal action head state_dim must be positive, "
+            f"got {resolved_state_dim!r}"
+        )
     track_index = (Track.WORLD, Track.SELF, Track.SHARED).index(track)
     input_factors = (
         tuple(
             tuple(
                 1.0 if row_index == column_index else 0.0
-                for column_index in range(n_z)
+                for column_index in range(resolved_state_dim)
             )
-            for row_index in range(n_z)
+            for row_index in range(rank)
         )
-        if rank == n_z
+        if rank == n_z and resolved_state_dim == n_z
         else _bounded_initial_input_factors(
             rank=rank,
-            n_z=n_z,
+            n_z=resolved_state_dim,
             seed=211 + track_index,
             absolute_limit=envelope.factor_absolute_limit,
         )
@@ -4693,11 +4761,16 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                     )
                 )
         if binary_gate_override:
-            is_switching_scalar = _should_take_binary_override(
-                previous_code=previous_code,
-                latent_override=z_candidate,
-                policy_replacement_score=policy_replacement_score,
-                learned_binary_switch=any(value >= 0.5 for value in beta_bin),
+            is_switching_scalar = (
+                not self._has_recurrent_state
+                or _should_take_binary_override(
+                    previous_code=previous_code,
+                    latent_override=z_candidate,
+                    policy_replacement_score=policy_replacement_score,
+                    learned_binary_switch=any(
+                        value >= 0.5 for value in beta_bin
+                    ),
+                )
             )
             effective_scalar_beta = 1.0 if is_switching_scalar else 0.0
             effective_gate = tuple(effective_scalar_beta for _ in range(n_z))
@@ -4860,11 +4933,16 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         )
         z_candidate = latent_override or encoded.z_tilde
         if binary_gate_override:
-            is_switching = _should_take_binary_override(
-                previous_code=previous_code,
-                latent_override=z_candidate,
-                policy_replacement_score=policy_replacement_score,
-                learned_binary_switch=bool(switch_decision.beta_binary),
+            is_switching = (
+                not self._has_recurrent_state
+                or _should_take_binary_override(
+                    previous_code=previous_code,
+                    latent_override=z_candidate,
+                    policy_replacement_score=policy_replacement_score,
+                    learned_binary_switch=bool(
+                        switch_decision.beta_binary
+                    ),
+                )
             )
             effective_switch_gate = 1.0 if is_switching else 0.0
             mean_persistence_window = 0.0 if is_switching else float(previous_steps + 1)

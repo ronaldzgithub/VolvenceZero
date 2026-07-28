@@ -80,6 +80,18 @@ class ResidualControlApplication:
 
 
 @dataclass(frozen=True)
+class ContinuationScore:
+    source_text: str
+    continuation_text: str
+    token_count: int
+    mean_negative_log_likelihood: float
+    geometric_mean_probability: float
+    applied_control: tuple[float, ...]
+    backend_name: str
+    description: str
+
+
+@dataclass(frozen=True)
 class OpenWeightRuntimeCapture:
     token_logits: tuple[float, ...]
     feature_surface: tuple[FeatureSignal, ...]

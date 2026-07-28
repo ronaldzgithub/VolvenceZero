@@ -226,6 +226,32 @@ def test_causal_action_head_preserves_signed_encoder_state_symmetry() -> None:
     )
 
 
+def test_causal_action_head_separates_observation_state_from_actuator_dim() -> None:
+    store = MetacontrollerParameterStore(n_z=3)
+    default_parameters = store.causal_action_head_parameters(
+        track=Track.SHARED
+    )
+
+    store.configure_causal_action_head_state_dim(
+        track=Track.SHARED,
+        state_dim=12,
+    )
+
+    widened = store.causal_action_head_parameters(track=Track.SHARED)
+    assert store.n_z == 3
+    assert store.causal_action_head_state_dim(track=Track.SHARED) == 12
+    assert len(widened.output_factors) == 3
+    assert all(len(row) == 12 for row in widened.input_factors)
+    assert widened.input_factors != default_parameters.input_factors
+    state = tuple((index - 6) / 12.0 for index in range(12))
+    residual = store.causal_action_head_residual(
+        track=Track.SHARED,
+        state_features=state,
+        strength=1.0,
+    )
+    assert len(residual) == 3
+
+
 def test_causal_action_head_rejects_out_of_range_encoder_state() -> None:
     store = MetacontrollerParameterStore(n_z=_NDIM)
     with pytest.raises(ValueError, match="signed encoder state"):
@@ -1319,6 +1345,28 @@ def test_causal_override_is_not_runtime_modulated_twice() -> None:
         policy_replacement_score=1.0,
         binary_gate_override=True,
     )
+    assert step.controller_state.code == override
+
+
+@pytest.mark.parametrize("n_z", [3, _NDIM])
+def test_causal_binary_override_initializes_first_abstract_action(
+    n_z: int,
+) -> None:
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=n_z)
+    )
+    override = tuple(0.2 for _ in range(n_z))
+
+    step = policy.step_with_causal_override(
+        substrate_snapshot=_trace_step_snapshot(_trace()),
+        previous_snapshot=None,
+        latent_override=override,
+        policy_replacement_score=0.0,
+        binary_gate_override=True,
+    )
+
+    assert step.controller_state.is_switching is True
+    assert step.controller_state.switch_gate == 1.0
     assert step.controller_state.code == override
 
 

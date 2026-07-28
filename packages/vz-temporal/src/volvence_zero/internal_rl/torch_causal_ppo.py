@@ -133,6 +133,16 @@ def _transition_source(transition: Any) -> str:
         return "synthetic"
 
 
+def _transition_action_head_state(transition: Any) -> Sequence[float]:
+    """Read the richer proof state with legacy fixture compatibility."""
+
+    try:
+        state = transition.causal_action_head_state
+    except AttributeError:
+        return transition.hidden_state
+    return state if state else transition.hidden_state
+
+
 def torch_causal_ppo_update(
     *,
     parameter_store: Any,
@@ -252,6 +262,11 @@ def torch_causal_ppo_update(
         )
 
     dtype = torch.float64
+    action_head_state_dim = (
+        parameter_store.causal_action_head_state_dim(track=track)
+        if causal_action_head_enabled
+        else n_z
+    )
     effective_dim_mask = torch.tensor(
         tuple(1.0 if index in effective_dims else 0.0 for index in range(n_z)),
         dtype=dtype,
@@ -276,16 +291,17 @@ def torch_causal_ppo_update(
         invalid_action_states = tuple(
             len(t.runtime_action_head_state)
             for t in usable
-            if len(t.runtime_action_head_state) != n_z
+            if len(t.runtime_action_head_state) != action_head_state_dim
         )
         if invalid_action_states:
             raise ValueError(
                 "torch causal action head runtime state dimension mismatch: "
-                f"expected={n_z}, actual={invalid_action_states}"
+                f"expected={action_head_state_dim}, "
+                f"actual={invalid_action_states}"
             )
         action_head_state = torch.stack(
             [
-                vec(t.runtime_action_head_state, n_z)
+                vec(t.runtime_action_head_state, action_head_state_dim)
                 for t in usable
             ]
         )
@@ -293,23 +309,41 @@ def torch_causal_ppo_update(
             invalid_mirror_states = tuple(
                 len(t.runtime_action_head_mirror_state)
                 for t in usable
-                if len(t.runtime_action_head_mirror_state) != n_z
+                if (
+                    len(t.runtime_action_head_mirror_state)
+                    != action_head_state_dim
+                )
             )
             if invalid_mirror_states:
                 raise ValueError(
                     "torch causal action head runtime mirror-state dimension "
-                    f"mismatch: expected={n_z}, actual={invalid_mirror_states}"
+                    f"mismatch: expected={action_head_state_dim}, "
+                    f"actual={invalid_mirror_states}"
                 )
             action_head_mirror_state = torch.stack(
                 [
-                    vec(t.runtime_action_head_mirror_state, n_z)
+                    vec(
+                        t.runtime_action_head_mirror_state,
+                        action_head_state_dim,
+                    )
                     for t in usable
                 ]
             )
         else:
             action_head_mirror_state = None
+    elif causal_action_head_enabled:
+        action_head_state = torch.stack(
+            [
+                    vec(
+                        _transition_action_head_state(t),
+                        action_head_state_dim,
+                    )
+                for t in usable
+            ]
+        )
+        action_head_mirror_state = None
     else:
-        action_head_state = hidden
+        action_head_state = None
         action_head_mirror_state = None
     runtime_base_mean = (
         torch.stack([vec(t.runtime_base_mean, n_z) for t in usable])
@@ -431,7 +465,7 @@ def torch_causal_ppo_update(
                 state,
                 head_input.transpose(0, 1),
             )
-            / math.sqrt(max(n_z, 1))
+            / math.sqrt(max(action_head_state_dim, 1))
         )
         residual = causal_action_head_strength * torch.tanh(
             torch.matmul(basis, head_output.transpose(0, 1))

@@ -8,6 +8,20 @@ from volvence_zero.internal_rl.environment import (
     InternalRLRewardSource,
     ResidualControlMode,
 )
+from volvence_zero.internal_rl.counterfactual_selector import (
+    CounterfactualActionExample,
+    CounterfactualActionSelection,
+    KernelResidualActionSelectorArtifact,
+    ResidualActionSelectorArtifact,
+    fit_kernel_residual_action_selector,
+    fit_residual_action_selector,
+    grouped_cross_validate_kernel_residual_action_selector,
+    grouped_cross_validate_residual_action_selector,
+    residual_action_state_sketch,
+    residual_action_state_vector,
+    select_counterfactual_actions,
+    summarize_action_selections,
+)
 from volvence_zero.internal_rl.proof_environment import (
     HierarchicalEpisodeState,
     HierarchicalLocation,
@@ -54,6 +68,9 @@ def load_torch_internal_rl():
 
 __all__ = [
     "load_torch_internal_rl",
+    "CounterfactualActionExample",
+    "CounterfactualActionSelection",
+    "KernelResidualActionSelectorArtifact",
     "CausalPolicyCheckpoint",
     "CausalPolicyParameters",
     "CausalPolicyState",
@@ -74,6 +91,7 @@ __all__ = [
     "InternalRLProofSubgoal",
     "InternalRLRewardSource",
     "ResidualControlMode",
+    "ResidualActionSelectorArtifact",
     "InternalRLSandbox",
     "MiniHierarchicalCase",
     "MiniHierarchicalEnvironment",
@@ -86,5 +104,13 @@ __all__ = [
     "ZRollout",
     "ZTransition",
     "derive_abstract_action_credit",
+    "fit_kernel_residual_action_selector",
+    "fit_residual_action_selector",
+    "grouped_cross_validate_kernel_residual_action_selector",
+    "grouped_cross_validate_residual_action_selector",
+    "residual_action_state_sketch",
+    "residual_action_state_vector",
     "runtime_replay_policy_distribution",
+    "select_counterfactual_actions",
+    "summarize_action_selections",
 ]

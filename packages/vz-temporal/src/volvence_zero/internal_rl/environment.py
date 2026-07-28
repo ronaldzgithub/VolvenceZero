@@ -322,7 +322,15 @@ class InternalRLEnvironment:
         )
         if indices == list(range(len(applied_control))):
             indices = indices[1:] + indices[:1]
-        return tuple(applied_control[index] for index in indices)
+        shuffled = tuple(applied_control[index] for index in indices)
+        if shuffled == applied_control and len(set(applied_control)) > 1:
+            for offset in range(1, len(applied_control)):
+                candidate = (
+                    applied_control[offset:] + applied_control[:offset]
+                )
+                if candidate != applied_control:
+                    return candidate
+        return shuffled
 
     def set_control_backend(self, backend: ResidualInterventionBackend) -> None:
         self._control_backend = backend

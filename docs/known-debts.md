@@ -2168,6 +2168,73 @@ return (
 ### Gate 2 — ETA 的 `z_t / beta_t` 涌现与因果残差控制
 
 - **命题**：`z_t` 携带可复用抽象动作，`beta_t` 标记有后果意义的切换边界；KL/rate pressure 控制抽象粒度，next-action/prediction loss 保留任务信息；decoder 输出 `U_t` 对真实 frozen substrate residual stream 产生可测因果作用。
+- **2026-07-28 residual matched-control packet**：`eta-gate2-residual-causal`
+	  已演进到 v29 证据契约，在同一已训练 policy checkpoint、场景、seed、
+	  prefix 和 Qwen2.5-0.5B frozen substrate 上逐步比较
+	  `U_t=identity / zero / shuffled / reversed`，并输出本债规定的 12 文件
+	  bundle。真实 CPU 单 seed 机制验证已满足 fallback=0、hook coverage=1.0、
+  prefix protocol=1.0；control-summary 与 baseline capture 均取末 token，
+  zero-control downstream effect 严格为 0。substrate 还提供只读的同前缀
+  observed continuation NLL，训练信号是 `NLL(0)-NLL(U)` 派生 PE；SSL
+  encoder/switch/decoder 在 causal 阶段 fingerprint 不变，只更新
+  `z_t` policy/action head。当前进程 `mps.is_available() == False`，所以
+  全部真实 artifact 均如实标为 CPU，不冒充 MPS。
+- **当前反证结果**：v19 在 8 条 train route 的 90 个前缀上扫描 22 个无语义
+  `z_t` 候选：逐前缀 oracle 平均改善 `0.032274`，正改善率 `97.78%`，
+  最佳固定候选也改善 `0.005697`。这证明 action space 有可达解，并把当时
+  learned identity 连 train 都输给 zero 的根因定位到 off-policy credit。
+  v20 改为每个前缀直接回归观测最佳 `z_t`；8 次有界更新后 train 成为最佳臂，
+  development-heldout 首次为正 `+0.005979`，但 eval 仍为 `-0.016155`。
+  v22 的只读分区 oracle 进一步证明 eval 上逐前缀 oracle 为 `+0.021150`
+  （正改善率 `83.33%`），但最佳固定候选就是 zero（平均 `0.0`）；因此 eval
+  要求真正的 context-conditioned action selection。把三标量统计替换为 48 维
+  signed feature hash（v21），或组成 12 维稳定统计 + 12 维 signed 方向的
+  24 维 hybrid（v23），均使未见分区退化；v23 为 eval `-0.025839`、
+  development-heldout `-0.007308`。Gate 默认因此回滚到 v22 的 12 维候选，
+  停止在 45 个 train prefix 上继续调 state 宽度。v25 保持 12→3、
+  direct best-action 和 8 updates 不变，只把无标签训练分布扩到 16 条 route /
+  96 个 prefix。`768` 条 optimizer transition 消费 `16896` 次候选评分后，
+  eval 变为 `-0.0179235935`，development-heldout 变为 `-0.0010565008`，
+  train identity 也以 `0.0024419241` NLL 输给最佳 control。与此同时 eval /
+	  development-heldout oracle 提升到 `+0.0221560796` / `+0.0350084816`，
+	  证明失败不是候选动作消失。v26 固定 split 后训练 PCA16 + ridge selector，
+	  eval selected delta 为 `-0.0138278405`；v27 只用 route-grouped train CV
+	  选择 PCA/ridge，结果不变。v28 去掉 hash/PCA 后发现所谓 full-coordinate
+	  输入只有 `84` 维，原因是 substrate publisher 默认把每层 `896` 维 hidden
+	  压到 `8` 维。v29 将 evidence runtime 的 `activation_width` 显式设为
+	  `896`，三层 mean/latest/trend 形成 `8076` 维输入；生产默认仍保持 `8`，
+	  manifest/provenance 宽度不一致时导出 fail loudly。完整宽度下 selector 的
+	  train route-CV / eval / development-heldout selected delta 分别为
+	  `-0.0024882238 / -0.0194544395 / -0.0014223031`，top-3 分别为
+	  `0.135417 / 0.166667 / 0.142857`，仍接近随机且不允许注入。
+- **结论**：Gate 2 保持 **`mechanism-supported`**，不能声明
+	  `causal-supported`。v25-v29 已依次反证“只扩同型无标签 route”“只换
+	  PCA/ridge”“去掉 hash/PCA”以及“恢复完整 residual 坐标”足以修复。当前
+	  最小根因转为 target 的决策时序错位：`direct_action_target` 在看到实际
+	  下一段后，选择让这一个 realized continuation NLL 最低的动作；controller
+	  决策时只有 prefix residual。若同一 prefix 有多个合理 continuation，标签
+	  含不可约 outcome/sample 噪声，prefix-only selector 未必存在可迁移解。
+- **当前最佳候选基线**：
+  `artifacts/eta_gate2_residual_causal_v24_canonical_state12_direct_8updates_train8_qwen25_05b_cpu_1seed_20260728`。
+  v24 精确复现 v22 的 eval `-0.0161553224`、development-heldout
+  `+0.0059789079` 和 eval oracle `+0.0211502314`；同时修正计量语义为
+  `360` 条 optimizer transition 与 `7920` 次候选评分，二者不再混称。
+- **当前最新反证 artifact**：
+	  `artifacts/eta_gate2_residual_causal_v29_full_width896_kernel_selector_qwen25_05b_cpu_1seed_20260728`。
+	  v29 manifest 显式登记 residual width `896`，provenance 同样为 `896`，
+	  selector input `8076`；它是 latest falsification，不替代 v24 baseline。
+- **证据污染约束**：现有 heldout 已在 v1-v15 调参中反复观察，只能记为
+  `development-heldout`。v16 晋升必须同时满足 eval 方向为正，以及一个
+  从未用于本轮设计/停止决策的 locked `confirmation` split 相对最佳
+  matched control 达到 `0.02`；manifest 还必须显式声明
+  `confirmation_split_locked=true`。缺 confirmation 或锁定声明时机器
+	  verdict 必须拒绝 causal 晋升。下一收敛包必须重定义训练信号，而非再换
+	  state probe：对同一 prefix 采样多条独立 continuation，聚合成决策时可定义
+	  的 expected action value，或使用真实 downstream outcome；不得加入语义
+	  action label。模型选择先限于 train route-CV，随后只在新鲜 validation
+	  一次性检验。现有 eval/development-heldout 已用于 v26-v29 诊断，禁止继续
+	  调参；expected-value selector 在新 validation 稳定为正前，不得注入
+	  substrate，更不得开启 confirmation split。
 - **必须测试**：
   - `alpha`/KL 权重 sweep：压缩率与 switch sparsity 随 rate pressure 有方向变化，同时 held-out action prediction / family reuse 不塌缩。
   - 与人工 causal boundary 只用于评估的 held-out episode 比较 `beta_t` boundary precision/recall/F1；增加 text/topic boundary 干扰，检查 `beta_t` 没有只学到段落或 token 边界。

@@ -8,14 +8,20 @@ from statistics import mean
 from typing import Any
 
 from volvence_zero.agent.eta_proof_benchmark import (
+    ETA_CONTINUATION_PE_REWARD_SCALE,
+    ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+    ETA_GATE2_EXPANDED_CASE_CORPUS,
     ETAProofPaperSuiteAggregateReport,
     build_eta_open_weight_paper_suite_manifest,
+    eta_gate2_expanded_routes,
+    eta_gate2_independent_training_routes,
 )
 from volvence_zero.agent.paper_suite import PaperProfileSpec, PaperSuiteManifest
 
 
-ETA_GATE2_SCHEMA_VERSION = "eta-gate2-residual-causal.v1"
+ETA_GATE2_SCHEMA_VERSION = "eta-gate2-residual-causal.v29"
 ETA_GATE2_MIN_CAUSAL_DELTA = 0.02
+ETA_GATE2_MIN_MEASURABLE_EFFECT = 1e-6
 ETA_GATE2_REQUIRED_FILES = (
     "manifest.yaml",
     "predictions.jsonl",
@@ -24,6 +30,7 @@ ETA_GATE2_REQUIRED_FILES = (
     "segments.jsonl",
     "credit.jsonl",
     "state_diff.jsonl",
+    "action_selection.jsonl",
     "ablation_results.json",
     "promotion_verdict.json",
     "rollback_evidence.json",
@@ -38,6 +45,8 @@ ETA_GATE2_REQUIRED_MANIFEST_KEYS = (
     "scenario_split",
     "cohort_scope",
     "prompt_and_context_budget",
+    "counterfactual_action_selector",
+    "residual_capture",
     "metric_version",
     "judge_or_human_protocol",
 )
@@ -72,7 +81,72 @@ def build_eta_gate2_residual_manifest(
         )
         for profile_label in default_eta_gate2_residual_profiles()
     )
-    case_groups = base.case_groups + (
+    expanded_route_ids = tuple(
+        route.case_id for route in eta_gate2_expanded_routes()
+    )
+    independent_route_ids = tuple(
+        route.case_id
+        for route in eta_gate2_independent_training_routes()
+    )
+    base_case_groups = tuple(
+        ("route_ids", expanded_route_ids)
+        if name == "route_ids"
+        else (name, values)
+        for name, values in base.case_groups
+    )
+    case_groups = base_case_groups + (
+        ("case_corpus", (ETA_GATE2_EXPANDED_CASE_CORPUS,)),
+        ("independent_training_route_ids", independent_route_ids),
+        ("training_route_count", ("16",)),
+        ("development_routes_unchanged", ("true",)),
+        (
+            "training_signal",
+            (ETA_CONTINUATION_PE_TRAINING_SIGNAL,),
+        ),
+        (
+            "continuation_pe_reward_scale",
+            (str(ETA_CONTINUATION_PE_REWARD_SCALE),),
+        ),
+        ("latent_unit_clamp", ("true",)),
+        ("real_residual_ssl_bootstrap", ("true",)),
+        ("real_residual_activation_width", ("896",)),
+        ("causal_action_head_active", ("true",)),
+        ("causal_action_head_state_dim", ("12",)),
+        ("residual_actuator_dim", ("3",)),
+        ("continuation_counterfactual_grid", ("true",)),
+        (
+            "counterfactual_action_selector_diagnostic",
+            ("true",),
+        ),
+        (
+            "counterfactual_action_selector_input",
+            ("full-layer-coordinate-mean-latest-trend",),
+        ),
+        (
+            "counterfactual_action_selector_encoder",
+            ("train-only-standardized-linear-kernel",),
+        ),
+        (
+            "counterfactual_action_selector_head",
+            ("train-only-dual-ridge-ladder-0.1-1-10",),
+        ),
+        (
+            "counterfactual_action_selector_model_selection",
+            ("train-route-cv-selected-delta-then-regret",),
+        ),
+        (
+            "counterfactual_action_selector_cv",
+            ("route-grouped-4fold",),
+        ),
+        (
+            "counterfactual_action_selector_live_injection",
+            ("disabled",),
+        ),
+        (
+            "counterfactual_reward_normalization",
+            ("per-prefix-centered-range-v1",),
+        ),
+        ("confirmation_split_locked", ("false",)),
         (
             "residual_control_modes",
             ("identity", "zero", "shuffled", "reversed"),
@@ -81,6 +155,10 @@ def build_eta_gate2_residual_manifest(
             "gate2_preregistered_thresholds",
             (
                 f"min_causal_delta={ETA_GATE2_MIN_CAUSAL_DELTA}",
+                (
+                    "min_measurable_residual_effect="
+                    f"{ETA_GATE2_MIN_MEASURABLE_EFFECT}"
+                ),
                 "min_hook_coverage=0.75",
                 "max_fallback_rate=0.0",
             ),
@@ -171,6 +249,53 @@ def _mean_abs(values: list[float]) -> float:
     return _mean_or_zero([abs(value) for value in values])
 
 
+def _continuation_metrics_by_split(
+    *,
+    outcomes: list[dict[str, Any]],
+    split_names: tuple[str, ...],
+) -> tuple[
+    dict[str, dict[str, float | None]],
+    dict[str, dict[str, int]],
+]:
+    means: dict[str, dict[str, float | None]] = {}
+    counts: dict[str, dict[str, int]] = {}
+    for split_name in split_names:
+        split_means: dict[str, float | None] = {}
+        split_counts: dict[str, int] = {}
+        for profile_label in default_eta_gate2_residual_profiles():
+            values = [
+                float(row["continuation_mean_nll"])
+                for row in outcomes
+                if row["profile_label"] == profile_label
+                and row["split"] == split_name
+                and row["continuation_mean_nll"] is not None
+            ]
+            split_counts[profile_label] = len(values)
+            split_means[profile_label] = (
+                _mean_or_zero(values) if values else None
+            )
+        means[split_name] = split_means
+        counts[split_name] = split_counts
+    return means, counts
+
+
+def _identity_nll_delta_vs_best_control(
+    *,
+    profile_means: dict[str, float | None],
+) -> float | None:
+    identity_nll = profile_means["full-internal-rl"]
+    control_nlls = [
+        profile_means[profile]
+        for profile in default_eta_gate2_residual_profiles()
+        if profile != "full-internal-rl"
+    ]
+    if identity_nll is None or any(
+        value is None for value in control_nlls
+    ):
+        return None
+    return min(float(value) for value in control_nlls) - float(identity_nll)
+
+
 def _close_vectors(
     left: list[float],
     right: list[float],
@@ -192,6 +317,7 @@ def _flatten_evidence(
     list[dict[str, Any]],
     list[dict[str, Any]],
     list[dict[str, Any]],
+    list[dict[str, Any]],
     dict[str, list[float]],
 ]:
     predictions: list[dict[str, Any]] = []
@@ -200,6 +326,7 @@ def _flatten_evidence(
     segments: list[dict[str, Any]] = []
     credit: list[dict[str, Any]] = []
     state_diff: list[dict[str, Any]] = []
+    action_selection: list[dict[str, Any]] = []
     metric_samples: dict[str, list[float]] = {}
     for run in payloads:
         benchmark = run["benchmark"]
@@ -213,6 +340,23 @@ def _flatten_evidence(
                     f"{profile_label}:{metric_name}",
                     [],
                 ).append(metric_value)
+            selection_records = profile.get(
+                "action_selection_records",
+                [],
+            )
+            if not isinstance(selection_records, list):
+                raise ValueError(
+                    "profile report action_selection_records must be a list"
+                )
+            for record in selection_records:
+                action_selection.append(
+                    {
+                        "run_id": run["run_id"],
+                        "run_seed": run["run_seed"],
+                        "profile_label": profile_label,
+                        **record,
+                    }
+                )
             episodes = profile.get("episode_reports")
             if not isinstance(episodes, list):
                 raise ValueError("profile report requires episode_reports list")
@@ -294,6 +438,18 @@ def _flatten_evidence(
                             "proof_terminal_success": record[
                                 "proof_terminal_success"
                             ],
+                            "continuation_text": record[
+                                "continuation_text"
+                            ],
+                            "continuation_token_count": record[
+                                "continuation_token_count"
+                            ],
+                            "continuation_mean_nll": record[
+                                "continuation_mean_nll"
+                            ],
+                            "continuation_geometric_mean_probability": record[
+                                "continuation_geometric_mean_probability"
+                            ],
                         }
                     )
                     residual_transport_error = _mean_abs(
@@ -351,6 +507,7 @@ def _flatten_evidence(
         segments,
         credit,
         state_diff,
+        action_selection,
         metric_samples,
     )
 
@@ -365,6 +522,11 @@ def _transformation_gates(
     zero = modes.get("zero", [])
     shuffled = modes.get("shuffled", [])
     reversed_rows = modes.get("reversed", [])
+    informative_shuffled = [
+        row
+        for row in shuffled
+        if len(set(row["control_before_ablation"])) > 1
+    ]
     return {
         "identity_exact": bool(identity)
         and all(
@@ -379,15 +541,18 @@ def _transformation_gates(
             all(abs(float(value)) <= 1e-12 for value in row["applied_control"])
             for row in zero
         ),
-        "shuffle_permutation_nonidentity": bool(shuffled)
+        "shuffle_permutation_nonidentity": bool(informative_shuffled)
         and all(
             sorted(row["control_before_ablation"])
             == sorted(row["applied_control"])
-            and not _close_vectors(
+            for row in shuffled
+        ),
+        "shuffle_informative_steps_nonidentity": all(
+            not _close_vectors(
                 row["control_before_ablation"],
                 row["applied_control"],
             )
-            for row in shuffled
+            for row in informative_shuffled
         ),
         "reverse_exact": bool(reversed_rows)
         and all(
@@ -417,6 +582,7 @@ def _build_ablation_results(
     predictions: list[dict[str, Any]],
     outcomes: list[dict[str, Any]],
     metric_samples: dict[str, list[float]],
+    confirmation_split_locked: bool = False,
 ) -> dict[str, Any]:
     transformations = _transformation_gates(predictions)
     strong_success = _profile_metric_means(
@@ -439,18 +605,198 @@ def _build_ablation_results(
         metric_samples,
         "real_open_weight_intervention_protocol_valid",
     )
-    effect_magnitude: dict[str, float] = {}
+    shared_checkpoint_used = _profile_metric_means(
+        metric_samples,
+        "shared_policy_checkpoint_used",
+    )
+    shared_fingerprint_match = _profile_metric_means(
+        metric_samples,
+        "shared_policy_fingerprint_match_at_eval_start",
+    )
+    bootstrap_init_used = _profile_metric_means(
+        metric_samples,
+        "bootstrap_init_used",
+    )
+    causal_action_head_active = _profile_metric_means(
+        metric_samples,
+        "causal_action_head_active",
+    )
+    causal_action_head_update_step = _profile_metric_means(
+        metric_samples,
+        "causal_action_head_update_step",
+    )
+    causal_action_head_state_dim = _profile_metric_means(
+        metric_samples,
+        "causal_action_head_state_dim",
+    )
+    continuation_pe_training_count = _profile_metric_means(
+        metric_samples,
+        "continuation_pe_training_transition_count",
+    )
+    continuation_pe_training_mean_raw_delta = _profile_metric_means(
+        metric_samples,
+        "continuation_pe_training_mean_raw_delta",
+    )
+    continuation_pe_training_positive_rate = _profile_metric_means(
+        metric_samples,
+        "continuation_pe_training_positive_rate",
+    )
+    continuation_pe_structure_frozen = _profile_metric_means(
+        metric_samples,
+        "continuation_pe_structure_frozen",
+    )
+    continuation_pe_policy_changed = _profile_metric_means(
+        metric_samples,
+        "continuation_pe_policy_changed",
+    )
+    continuation_counterfactual_grid_used = _profile_metric_means(
+        metric_samples,
+        "continuation_counterfactual_grid_used",
+    )
+    continuation_counterfactual_unique_score_count = (
+        _profile_metric_means(
+            metric_samples,
+            "continuation_counterfactual_unique_score_count",
+        )
+    )
+    continuation_counterfactual_prefix_count = _profile_metric_means(
+        metric_samples,
+        "continuation_counterfactual_prefix_count",
+    )
+    continuation_counterfactual_oracle_mean_raw_delta = (
+        _profile_metric_means(
+            metric_samples,
+            "continuation_counterfactual_oracle_mean_raw_delta",
+        )
+    )
+    continuation_counterfactual_oracle_positive_rate = (
+        _profile_metric_means(
+            metric_samples,
+            "continuation_counterfactual_oracle_positive_rate",
+        )
+    )
+    continuation_counterfactual_best_fixed_mean_raw_delta = (
+        _profile_metric_means(
+            metric_samples,
+            "continuation_counterfactual_best_fixed_mean_raw_delta",
+        )
+    )
+    continuation_counterfactual_oracle_vs_fixed_gap = (
+        _profile_metric_means(
+            metric_samples,
+            "continuation_counterfactual_oracle_vs_fixed_gap",
+        )
+    )
+    continuation_counterfactual_diagnostics_by_split = {
+        split: {
+            metric: _profile_metric_means(
+                metric_samples,
+                (
+                    f"continuation_counterfactual_{split}_"
+                    f"{metric}"
+                ),
+            )
+            for metric in (
+                "prefix_count",
+                "oracle_mean_raw_delta",
+                "oracle_positive_rate",
+                "best_fixed_mean_raw_delta",
+                "oracle_vs_fixed_gap",
+            )
+        }
+        for split in ("eval", "heldout", "confirmation")
+    }
+    selector_metric_names = (
+        "counterfactual_selector_input_dim",
+        "counterfactual_selector_latent_dim",
+        "counterfactual_selector_ridge_strength",
+        "counterfactual_selector_model_candidate_count",
+        "counterfactual_selector_explained_variance_ratio",
+        "counterfactual_selector_chance_top3_rate",
+        "counterfactual_selector_injection_gate_passed",
+        "counterfactual_selector_eval_updates_after_fit",
+        *tuple(
+            f"counterfactual_selector_{split}_{metric}"
+            for split in ("train", "eval", "heldout", "confirmation")
+            for metric in (
+                "count",
+                "mean_selected_raw_delta",
+                "mean_oracle_raw_delta",
+                "mean_oracle_regret",
+                "top1_rate",
+                "top3_rate",
+                "selected_positive_rate",
+            )
+        ),
+    )
+    counterfactual_selector_metrics = {
+        metric_name: _profile_metric_means(
+            metric_samples,
+            metric_name,
+        )
+        for metric_name in selector_metric_names
+    }
+    effect_magnitude_all_splits: dict[str, float] = {}
+    heldout_effect_magnitude: dict[str, float] = {}
+    continuation_mean_nll_all_splits: dict[str, float | None] = {}
+    (
+        continuation_mean_nll_by_split,
+        continuation_score_count_by_split,
+    ) = _continuation_metrics_by_split(
+        outcomes=outcomes,
+        split_names=("train", "eval", "heldout", "confirmation"),
+    )
+    continuation_mean_nll = continuation_mean_nll_by_split["heldout"]
+    continuation_score_count = continuation_score_count_by_split["heldout"]
+    continuation_score_count_all_splits: dict[str, int] = {}
     for profile_label in default_eta_gate2_residual_profiles():
         values = [
             float(row["downstream_effect_magnitude"])
             for row in outcomes
             if row["profile_label"] == profile_label
         ]
-        effect_magnitude[profile_label] = _mean_or_zero(values)
+        effect_magnitude_all_splits[profile_label] = _mean_or_zero(
+            values
+        )
+        heldout_values = [
+            float(row["downstream_effect_magnitude"])
+            for row in outcomes
+            if row["profile_label"] == profile_label
+            and row["split"] == "heldout"
+        ]
+        heldout_effect_magnitude[profile_label] = _mean_or_zero(
+            heldout_values
+        )
+        all_continuation_values = [
+            float(row["continuation_mean_nll"])
+            for row in outcomes
+            if row["profile_label"] == profile_label
+            and row["continuation_mean_nll"] is not None
+        ]
+        continuation_score_count_all_splits[profile_label] = len(
+            all_continuation_values
+        )
+        continuation_mean_nll_all_splits[profile_label] = (
+            _mean_or_zero(all_continuation_values)
+            if all_continuation_values
+            else None
+        )
     controls = tuple(
         profile
         for profile in default_eta_gate2_residual_profiles()
         if profile != "full-internal-rl"
+    )
+    shared_policy_checkpoint_matched = all(
+        shared_checkpoint_used[profile] >= 1.0
+        and shared_fingerprint_match[profile] >= 1.0
+        for profile in controls
+    )
+    continuation_pe_training_isolated = (
+        continuation_pe_training_count["full-internal-rl"] > 0.0
+        and all(
+            continuation_pe_training_count[profile] == 0.0
+            for profile in controls
+        )
     )
     strongest_control_success = max(
         strong_success[profile] for profile in controls
@@ -465,8 +811,45 @@ def _build_ablation_results(
         terminal_success["full-internal-rl"] - strongest_control_terminal
     )
     identity_effect_delta_vs_zero = (
-        effect_magnitude["full-internal-rl"]
-        - effect_magnitude["full-zero-control"]
+        heldout_effect_magnitude["full-internal-rl"]
+        - heldout_effect_magnitude["full-zero-control"]
+    )
+    heldout_identity_predictions = [
+        row
+        for row in predictions
+        if row["profile_label"] == "full-internal-rl"
+        and row["split"] == "heldout"
+    ]
+    heldout_identity_control_exposure = _mean_or_zero(
+        [
+            1.0
+            if any(
+                abs(float(value))
+                >= ETA_GATE2_MIN_MEASURABLE_EFFECT
+                for value in row["applied_control"]
+            )
+            else 0.0
+            for row in heldout_identity_predictions
+        ]
+    )
+    eval_continuation_scores_available = all(
+        continuation_score_count_by_split["eval"][profile] > 0
+        for profile in default_eta_gate2_residual_profiles()
+    )
+    confirmation_continuation_scores_available = all(
+        continuation_score_count_by_split["confirmation"][profile] > 0
+        for profile in default_eta_gate2_residual_profiles()
+    )
+    heldout_identity_nll_delta = _identity_nll_delta_vs_best_control(
+        profile_means=continuation_mean_nll_by_split["heldout"],
+    )
+    eval_identity_nll_delta = _identity_nll_delta_vs_best_control(
+        profile_means=continuation_mean_nll_by_split["eval"],
+    )
+    confirmation_identity_nll_delta = (
+        _identity_nll_delta_vs_best_control(
+            profile_means=continuation_mean_nll_by_split["confirmation"],
+        )
     )
     backend_names = {
         str(row["backend_name"]) for row in predictions
@@ -494,27 +877,192 @@ def _build_ablation_results(
             if real_backend
             else False
         ),
+        "identity_effect_is_measurable_vs_zero": (
+            identity_effect_delta_vs_zero
+            >= ETA_GATE2_MIN_MEASURABLE_EFFECT
+        ),
+        "heldout_identity_control_exposure": (
+            heldout_identity_control_exposure >= 0.75
+        ),
+        "shared_policy_checkpoint_matched": (
+            shared_policy_checkpoint_matched
+        ),
+        "continuation_pe_training_isolated_to_identity": (
+            continuation_pe_training_isolated
+            if real_backend
+            else False
+        ),
+        "real_residual_ssl_bootstrap_used": (
+            bootstrap_init_used["full-internal-rl"] >= 1.0
+            if real_backend
+            else False
+        ),
+        "causal_action_head_updated": (
+            causal_action_head_active["full-internal-rl"] >= 1.0
+            and causal_action_head_update_step["full-internal-rl"] > 0.0
+        ),
+        "observation_state_separate_from_actuator": (
+            causal_action_head_state_dim["full-internal-rl"]
+            > max(
+                (
+                    len(row["applied_control"])
+                    for row in predictions
+                    if row["profile_label"] == "full-internal-rl"
+                ),
+                default=0,
+            )
+        ),
+        "continuation_pe_updates_policy_only": (
+            continuation_pe_structure_frozen["full-internal-rl"] >= 1.0
+            and continuation_pe_policy_changed["full-internal-rl"] >= 1.0
+        ),
+        "continuation_counterfactual_grid_used": (
+            continuation_counterfactual_grid_used[
+                "full-internal-rl"
+            ]
+            >= 1.0
+        ),
     }
     causal_gates = {
-        "identity_effect_beats_zero": (
-            identity_effect_delta_vs_zero >= ETA_GATE2_MIN_CAUSAL_DELTA
+        "eval_continuation_scores_available_all_arms": (
+            eval_continuation_scores_available
         ),
-        "identity_strong_success_beats_controls": (
-            identity_success_delta >= ETA_GATE2_MIN_CAUSAL_DELTA
+        "identity_eval_nll_beats_controls": (
+            eval_identity_nll_delta is not None
+            and eval_identity_nll_delta > 0.0
         ),
-        "identity_terminal_success_not_worse": (
-            identity_terminal_delta >= 0.0
+        "fresh_confirmation_scores_available_all_arms": (
+            confirmation_continuation_scores_available
+        ),
+        "fresh_confirmation_split_locked": (
+            confirmation_split_locked
+            and confirmation_continuation_scores_available
+        ),
+        "identity_confirmation_nll_beats_controls": (
+            confirmation_identity_nll_delta is not None
+            and confirmation_identity_nll_delta
+            >= ETA_GATE2_MIN_CAUSAL_DELTA
+        ),
+    }
+    selector_gates = {
+        "train_grouped_cv_predictions_available": (
+            counterfactual_selector_metrics[
+                "counterfactual_selector_train_count"
+            ]["full-internal-rl"]
+            > 0.0
+        ),
+        "frozen_eval_predictions_available": (
+            counterfactual_selector_metrics[
+                "counterfactual_selector_eval_count"
+            ]["full-internal-rl"]
+            > 0.0
+        ),
+        "frozen_heldout_predictions_available": (
+            counterfactual_selector_metrics[
+                "counterfactual_selector_heldout_count"
+            ]["full-internal-rl"]
+            > 0.0
+        ),
+        "no_eval_updates_after_fit": (
+            counterfactual_selector_metrics[
+                "counterfactual_selector_eval_updates_after_fit"
+            ]["full-internal-rl"]
+            == 0.0
+        ),
+        "selector_ready_for_shadow_injection": (
+            counterfactual_selector_metrics[
+                "counterfactual_selector_injection_gate_passed"
+            ]["full-internal-rl"]
+            >= 1.0
         ),
     }
     return {
         "schema_version": ETA_GATE2_SCHEMA_VERSION,
         "preregistered_min_causal_delta": ETA_GATE2_MIN_CAUSAL_DELTA,
+        "measurement_resolution_floor": (
+            ETA_GATE2_MIN_MEASURABLE_EFFECT
+        ),
         "profile_strong_success": strong_success,
         "profile_terminal_success": terminal_success,
-        "profile_downstream_effect_magnitude": effect_magnitude,
+        "profile_downstream_effect_magnitude": (
+            heldout_effect_magnitude
+        ),
+        "profile_downstream_effect_magnitude_all_splits": (
+            effect_magnitude_all_splits
+        ),
+        "profile_continuation_mean_nll": continuation_mean_nll,
+        "profile_continuation_mean_nll_by_split": (
+            continuation_mean_nll_by_split
+        ),
+        "profile_continuation_mean_nll_all_splits": (
+            continuation_mean_nll_all_splits
+        ),
+        "profile_continuation_score_count": continuation_score_count,
+        "profile_continuation_score_count_by_split": (
+            continuation_score_count_by_split
+        ),
+        "profile_continuation_score_count_all_splits": (
+            continuation_score_count_all_splits
+        ),
         "profile_hook_coverage": hook_coverage,
         "profile_fallback_rate": fallback_rate,
         "profile_intervention_protocol_valid": protocol_valid,
+        "profile_shared_checkpoint_used": shared_checkpoint_used,
+        "profile_bootstrap_init_used": bootstrap_init_used,
+        "profile_causal_action_head_active": (
+            causal_action_head_active
+        ),
+        "profile_causal_action_head_update_step": (
+            causal_action_head_update_step
+        ),
+        "profile_causal_action_head_state_dim": (
+            causal_action_head_state_dim
+        ),
+        "profile_shared_fingerprint_match_at_eval_start": (
+            shared_fingerprint_match
+        ),
+        "profile_continuation_pe_training_count": (
+            continuation_pe_training_count
+        ),
+        "profile_continuation_pe_training_mean_raw_delta": (
+            continuation_pe_training_mean_raw_delta
+        ),
+        "profile_continuation_pe_training_positive_rate": (
+            continuation_pe_training_positive_rate
+        ),
+        "profile_continuation_pe_structure_frozen": (
+            continuation_pe_structure_frozen
+        ),
+        "profile_continuation_pe_policy_changed": (
+            continuation_pe_policy_changed
+        ),
+        "profile_continuation_counterfactual_grid_used": (
+            continuation_counterfactual_grid_used
+        ),
+        "profile_continuation_counterfactual_unique_score_count": (
+            continuation_counterfactual_unique_score_count
+        ),
+        "profile_continuation_counterfactual_prefix_count": (
+            continuation_counterfactual_prefix_count
+        ),
+        "profile_continuation_counterfactual_oracle_mean_raw_delta": (
+            continuation_counterfactual_oracle_mean_raw_delta
+        ),
+        "profile_continuation_counterfactual_oracle_positive_rate": (
+            continuation_counterfactual_oracle_positive_rate
+        ),
+        "profile_continuation_counterfactual_best_fixed_mean_raw_delta": (
+            continuation_counterfactual_best_fixed_mean_raw_delta
+        ),
+        "profile_continuation_counterfactual_oracle_vs_fixed_gap": (
+            continuation_counterfactual_oracle_vs_fixed_gap
+        ),
+        "profile_continuation_counterfactual_diagnostics_by_split": (
+            continuation_counterfactual_diagnostics_by_split
+        ),
+        "profile_counterfactual_selector_metrics": (
+            counterfactual_selector_metrics
+        ),
         "identity_strong_success_delta_vs_best_control": (
             identity_success_delta
         ),
@@ -522,8 +1070,24 @@ def _build_ablation_results(
             identity_terminal_delta
         ),
         "identity_effect_delta_vs_zero": identity_effect_delta_vs_zero,
+        "heldout_identity_control_exposure": (
+            heldout_identity_control_exposure
+        ),
+        "identity_continuation_nll_delta_vs_best_control": (
+            heldout_identity_nll_delta
+            if heldout_identity_nll_delta is not None
+            else 0.0
+        ),
+        "identity_eval_nll_delta_vs_best_control": (
+            eval_identity_nll_delta
+        ),
+        "identity_confirmation_nll_delta_vs_best_control": (
+            confirmation_identity_nll_delta
+        ),
         "mechanism_gates": mechanism_gates,
         "causal_gates": causal_gates,
+        "selector_gates": selector_gates,
+        "selector_injection_allowed": all(selector_gates.values()),
         "all_mechanism_gates_passed": all(mechanism_gates.values()),
         "all_causal_gates_passed": all(causal_gates.values()),
         "backend_names": sorted(backend_names),
@@ -549,6 +1113,15 @@ def _promotion_verdict(ablation: dict[str, Any]) -> dict[str, Any]:
         "promotion_allowed": causal_passed,
         "mechanism_gates": ablation["mechanism_gates"],
         "causal_gates": ablation["causal_gates"],
+        "selector_gates": ablation["selector_gates"],
+        "selector_injection_allowed": ablation[
+            "selector_injection_allowed"
+        ],
+        "selector_blockers": [
+            gate
+            for gate, passed in ablation["selector_gates"].items()
+            if not passed
+        ],
         "kill_conditions": [
             gate
             for gate, passed in {
@@ -559,8 +1132,8 @@ def _promotion_verdict(ablation: dict[str, Any]) -> dict[str, Any]:
         ],
         "note": (
             "This packet cannot emit thesis-retained. Gate 2 longitudinal "
-            "coverage, semantic no-label evidence, and Gates 1/3-10 remain "
-            "separate prerequisites."
+            "coverage, a fresh locked confirmation split, semantic no-label "
+            "evidence, and Gates 1/3-10 remain separate prerequisites."
         ),
     }
 
@@ -580,15 +1153,82 @@ def export_eta_gate2_residual_bundle(
         segments,
         credit,
         state_diff,
+        action_selection,
         metric_samples,
     ) = _flatten_evidence(payloads)
     descriptor = _runtime_descriptor(report)
+    confirmation_split_locked = next(
+        (
+            values[0].lower() == "true"
+            for name, values in report.manifest.case_groups
+            if name == "confirmation_split_locked"
+        ),
+        False,
+    )
     route_ids = [
         value
         for name, values in report.manifest.case_groups
         if name == "route_ids"
         for value in values
     ]
+    case_groups = dict(report.manifest.case_groups)
+    independent_training_route_ids = case_groups.get(
+        "independent_training_route_ids",
+        (),
+    )
+    training_route_count_values = case_groups.get(
+        "training_route_count",
+        (),
+    )
+    development_routes_unchanged_values = case_groups.get(
+        "development_routes_unchanged",
+        (),
+    )
+    residual_activation_width_values = case_groups.get(
+        "real_residual_activation_width",
+        (),
+    )
+    if len(training_route_count_values) != 1:
+        raise ValueError(
+            "Gate 2 manifest requires exactly one training_route_count"
+        )
+    if len(development_routes_unchanged_values) != 1:
+        raise ValueError(
+            "Gate 2 manifest requires exactly one "
+            "development_routes_unchanged value"
+        )
+    if len(residual_activation_width_values) != 1:
+        raise ValueError(
+            "Gate 2 manifest requires exactly one "
+            "real_residual_activation_width value"
+        )
+    residual_activation_width = int(
+        residual_activation_width_values[0]
+    )
+    if descriptor.get("primary_backend") == "transformers-open-weight":
+        observed_activation_width = int(
+            descriptor.get("open_weight_activation_width", "0")
+        )
+        if observed_activation_width != residual_activation_width:
+            raise ValueError(
+                "Gate 2 residual activation width mismatch: "
+                f"manifest={residual_activation_width}, "
+                f"runtime={observed_activation_width}"
+            )
+    training_route_count = int(training_route_count_values[0])
+    development_routes_unchanged = (
+        development_routes_unchanged_values[0].lower() == "true"
+    )
+    if training_route_count != sum(
+        route_id.startswith("train-") for route_id in route_ids
+    ):
+        raise ValueError(
+            "Gate 2 training_route_count does not match route_ids"
+        )
+    if not development_routes_unchanged:
+        raise ValueError(
+            "Gate 2 causal packet requires unchanged development routes"
+        )
     manifest = {
         "schema_version": ETA_GATE2_SCHEMA_VERSION,
         "git_sha": report.provenance.git_sha,
@@ -609,7 +1249,20 @@ def export_eta_gate2_residual_bundle(
         "seed_schedule": list(report.manifest.seed_schedule),
         "scenario_split": {
             "route_ids": route_ids,
-            "split_owner": "default_eta_proof_cases",
+            "independent_training_route_ids": list(
+                independent_training_route_ids
+            ),
+            "training_route_count": training_route_count,
+            "development_routes_unchanged": (
+                development_routes_unchanged
+            ),
+            "split_owner": descriptor.get(
+                "case_corpus",
+                ETA_GATE2_EXPANDED_CASE_CORPUS,
+            ),
+            "development_heldout_status": "reused-during-gate-development",
+            "causal_confirmation_split": None,
+            "confirmation_split_locked": confirmation_split_locked,
         },
         "cohort_scope": (
             "hierarchical proof cases; no per-user longitudinal cohort"
@@ -620,6 +1273,34 @@ def export_eta_gate2_residual_bundle(
                 "unknown",
             ),
             "prefix_alignment": "capture-and-intervention-same-prefix",
+        },
+        "counterfactual_action_selector": {
+            "diagnostic_active": case_groups[
+                "counterfactual_action_selector_diagnostic"
+            ][0].lower()
+            == "true",
+            "input": case_groups[
+                "counterfactual_action_selector_input"
+            ][0],
+            "encoder": case_groups[
+                "counterfactual_action_selector_encoder"
+            ][0],
+            "head": case_groups[
+                "counterfactual_action_selector_head"
+            ][0],
+            "model_selection": case_groups[
+                "counterfactual_action_selector_model_selection"
+            ][0],
+            "cross_validation": case_groups[
+                "counterfactual_action_selector_cv"
+            ][0],
+            "live_injection": case_groups[
+                "counterfactual_action_selector_live_injection"
+            ][0],
+        },
+        "residual_capture": {
+            "activation_width": residual_activation_width,
+            "compression_mode": "exact-up-to-configured-width",
         },
         "metric_version": ETA_GATE2_SCHEMA_VERSION,
         "judge_or_human_protocol": (
@@ -641,6 +1322,7 @@ def export_eta_gate2_residual_bundle(
         predictions=predictions,
         outcomes=outcomes,
         metric_samples=metric_samples,
+        confirmation_split_locked=confirmation_split_locked,
     )
     verdict = _promotion_verdict(ablation)
     rollback = {
@@ -668,6 +1350,20 @@ def export_eta_gate2_residual_bundle(
                 f"`{ablation['identity_strong_success_delta_vs_best_control']:.6f}`"
             ),
             (
+                "- identity 对 development-heldout best control 的 "
+                "continuation-NLL 改善："
+                f"`{ablation['identity_continuation_nll_delta_vs_best_control']:.6f}`"
+            ),
+            (
+                "- identity 对 eval best control 的 continuation-NLL 改善："
+                f"`{ablation['identity_eval_nll_delta_vs_best_control']}`"
+            ),
+            (
+                "- identity 对 fresh confirmation best control 的 "
+                "continuation-NLL 改善："
+                f"`{ablation['identity_confirmation_nll_delta_vs_best_control']}`"
+            ),
+            (
                 "- identity 对 zero 的真实 downstream-effect 差："
                 f"`{ablation['identity_effect_delta_vs_zero']:.6f}`"
             ),
@@ -676,6 +1372,11 @@ def export_eta_gate2_residual_bundle(
                 f"`{ablation['mechanism_gates']}`"
             ),
             f"- causal gates：`{ablation['causal_gates']}`",
+            f"- selector gates：`{ablation['selector_gates']}`",
+            (
+                "- selector shadow injection allowed："
+                f"`{ablation['selector_injection_allowed']}`"
+            ),
             "",
             "本包只判 Gate 2 的残差注入机制与 matched-control 因果差。",
             "它不声称 Gate 2 longitudinal 已完成，也不产生 thesis-retained。",
@@ -693,6 +1394,10 @@ def export_eta_gate2_residual_bundle(
         _write_jsonl(target / "segments.jsonl", segments),
         _write_jsonl(target / "credit.jsonl", credit),
         _write_jsonl(target / "state_diff.jsonl", state_diff),
+        _write_jsonl(
+            target / "action_selection.jsonl",
+            action_selection,
+        ),
         _write_json(target / "ablation_results.json", ablation),
         _write_json(target / "promotion_verdict.json", verdict),
         _write_json(target / "rollback_evidence.json", rollback),

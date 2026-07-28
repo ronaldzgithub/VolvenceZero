@@ -111,7 +111,10 @@ from volvence_zero.substrate.residual_backend import (
     resolve_substrate_fallback_mode,
     resolve_local_runtime_mode,
 )
-from volvence_zero.substrate.residual_contracts import ExpertActionTarget
+from volvence_zero.substrate.residual_contracts import (
+    ContinuationScore,
+    ExpertActionTarget,
+)
 from volvence_zero.substrate.vllm_runtime import (
     VLLMLoRARouter,
     VLLMOpenWeightResidualRuntime,
@@ -131,6 +134,7 @@ from volvence_zero.substrate.text_generation import (
 )
 
 __all__ = [
+    "ContinuationScore",
     "ExpertActionTarget",
     "FeatureSignal",
     "feature_signal_map",

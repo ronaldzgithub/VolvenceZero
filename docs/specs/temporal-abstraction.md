@@ -112,11 +112,50 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - `learned-lite temporal` 与 causal z-policy 当前共享同一控制器参数 store，但 owner 侧已引入显式 `learning_phase` / `structure_frozen` 边界：SSL 阶段允许 discovered action family 更新，RL/runtime 阶段默认冻结结构层，仅在 owner API 内做受限策略更新
 - 当前 ndim metacontroller 已收敛到**单一 owner 参数面**：SSL trainer、runtime policy、internal RL、rare-heavy snapshot/export/import 共享同一个 `MetacontrollerParameterStore` 可见的 encoder/switch/decoder 权重，不再允许 ndim 路径在 trainer/runtime 内各自持有私有网络参数
 - ndim encoder 的 `n_input` 与 latent `n_z` 是两个独立契约：`n_input` 必须等于 substrate 发布的完整残差宽度，GRU 再把它压缩为低维 `n_z`。runtime facade 负责在构造时声明并校验 `n_input`；禁止按 `n_z` 截断后部感知通道。encoder checkpoint 与 compact parameter fingerprint 均绑定 `n_input`。
+- Transformers residual publisher 的 `activation_width` 是显式、正整数配置：默认 `8` 保持现有生产成本与回滚行为，hidden width 不超过该值时逐坐标原样发布，超过时做确定性 chunk mean。Gate 2 full-width evidence 显式使用 Qwen hidden width `896`，并在 artifact 中同时登记 manifest 与 runtime provenance；两者不一致必须 fail loudly。
 - 当前 `TemporalModule` 默认以 `full-learned` 作为 runtime owner policy，并可通过 owner API 导出 machine-readable metacontroller runtime state；这条导出链不改变 `temporal_abstraction` 公共 snapshot schema
 - 当前 temporal owner 已支持显式消费 `experience_fast_prior`：它不会直接接收 session-post 对私有参数的写穿，而是把 public fast prior 转成 owner-side continuation bias 与 switch-pressure delta，再在 `step()` 内部作用于 action family continuation 和 switch unit
 - 当前这条 owner-side fast-prior consumption 已进一步前推到 action-family discovery / competition：public fast prior 不直接指定 family，而是作为 owner 内部的 `reuse/create/split/competition` 偏置，影响当前 active family 的 continuation、competition score、monopoly / stagnation 调节
 - 当前 temporal owner 对 `experience_fast_prior` 的消费已从“轻量 telemetry bias”收紧到更直接的 continuation / exploration pressure：`action_bias`、`family_bias`、`sequence_bias` 与 `prior_strength` 会共同塑造 `switch_pressure_delta`，并放大 owner-side family continuation / competition 信号，使 application delayed credit 能更直接进入 ETA fast path，而不只停留在检索 readout 或 evaluation evidence
 - 当前 ETA proof benchmark 也已接入 temporal fast prior：训练 rollouts 会把 delayed credit / family reuse / sequence completion 压缩成一个小的 temporal fast prior，再回灌到后续 proof rollouts；benchmark 会显式发布 `temporal_fast_prior_strength` 与 `temporal_fast_prior_switch_delta`
+- Gate 2 residual matched-control 证据通过
+  `InternalRLEnvironment.residual_control_mode` 在 decoder 与 substrate
+  backend 之间执行 `identity / zero / shuffled / reversed` 变换。默认值为
+  `identity`，不改变生产 runtime；evidence transition 同时保留变换前
+  control 与实际注入值，zero/shuffle/reverse 不允许只改报告、不改真实
+  forward。Qwen2.5-0.5B CPU 单 seed 已证明真实 hook 注入机制与 zero no-op。
+  evidence lane 用真实 residual trajectory 做 SSL bootstrap，随后冻结
+  encoder/switch/decoder，只允许 causal `z_t` policy/action head 消费
+  `NLL(0)-NLL(U)` 派生 PE；latent unit clamp 必须同时作用于采样和冷启动，
+  legacy 3 维与 ndim 路径首次 abstract action 都必须真实切换。训练使用
+  22 个无语义 action label 的 counterfactual 候选，raw NLL/PE 进入 artifact；
+  每 prefix 只把实际最低 NLL 的候选作为 typed `direct_action_target`，action
+  head 按 `target_z - current_mean` 做有界更新，普通 PPO/runtime replay
+  路径不变。action-head observation width 与 3 维 actuator 已拆成独立契约：
+  默认仍可等宽，Gate 2 实测使用 12→3。v19 train oracle 为 `+0.032274`，
+  最佳固定候选为 `+0.005697`；direct optimizer 的 v20 8-update 候选使 train
+  成为最佳臂并在 development-heldout 得到 `+0.005979`，但 eval 仍为
+  `-0.016155`。v22 证明 eval oracle 为 `+0.021150` 而固定最佳为 zero，
+  即需要状态条件选择。48 维 signed feature hash 与 24 维 hybrid state 均在
+  未见分区退化，故 Gate 默认回滚 12 维。v25 在算法不变时把独立无标签训练
+  分布从 8 条 route / 45 个 prefix 扩到 16 条 route / 96 个 prefix，
+  `768` 条 direct optimizer transition 消费 `16896` 次候选评分；eval 反而为
+  `-0.017924`，development-heldout 为 `-0.001057`。同一分区的 oracle 分别
+	  为 `+0.022156` / `+0.035008`。v26 的 PCA selector、v27 的 train-CV
+	  PCA/ridge ladder、v28 的无 hash published-coordinate kernel selector 均
+	  未通过注入门；v28 同时暴露 publisher 默认把每层 `896` 维 hidden 压成
+	  `8` 维。v29 显式发布完整 `896` 维残差，三层 mean/latest/trend 形成
+	  `8076` 维 prefix state，但 kernel selector 仍只有 train route-CV
+	  `-0.002488`、eval `-0.019454`、development-heldout `-0.001422`，
+	  top-3 近随机。故当前只证明执行器可达与机制生效，尚未证明 controller
+	  因果增益；selector live injection 保持 disabled。
+- v29 后不再把问题表述为“换一个 learned residual encoder 即可”。现有
+  `direct_action_target` 是 ex-post realized-continuation oracle：标签使用动作
+  后实际出现的单条 continuation，而动作时刻只有 prefix residual。下一收敛包
+  必须在决策时定义 prefix-level expected action value，以同 prefix 的多条独立
+  continuation 或真实 downstream outcome 聚合目标；先做 train route-CV，再用
+  新鲜 validation 一次性检验。现有 eval 只保留 development 诊断用途，禁止继续
+  用于 probe 选择。
 - 当前 proof profile 已包含 matched ablation `full-no-fast-prior`：它保留 full internal RL + causal replacement，但关闭 temporal fast prior ingestion，用于衡量 fast prior 对 held-out family reuse、credit alignment 与 strong success 的增益
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter

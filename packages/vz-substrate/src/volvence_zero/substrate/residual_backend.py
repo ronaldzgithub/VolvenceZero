@@ -39,6 +39,7 @@ if False:
 # remain here. External consumers import everything through the
 # ``volvence_zero.substrate`` package facade unchanged.
 from volvence_zero.substrate.residual_contracts import (  # noqa: E402,F401
+    ContinuationScore,
     GenerationResult,
     HashingWhitespaceTokenizer,
     HookLayerCalibrationCase,
@@ -238,7 +239,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._max_length = max(1, max_length)
         self._mps_generation_max_input_tokens = max(1, mps_generation_max_input_tokens)
         self._top_k_logits = max(1, top_k_logits)
-        self._activation_width = max(1, activation_width)
+        if (
+            isinstance(activation_width, bool)
+            or not isinstance(activation_width, int)
+            or activation_width < 1
+        ):
+            raise ValueError(
+                "activation_width must be a positive integer, "
+                f"got {activation_width!r}"
+            )
+        self._activation_width = activation_width
         self._control_scale = max(0.0, control_scale)
         self._personal_conditioning_scale = clamp_personal_conditioning_scale(
             personal_conditioning_scale
@@ -881,6 +891,101 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             ),
         )
 
+    def score_continuation(
+        self,
+        *,
+        source_text: str,
+        continuation_text: str,
+        applied_control: tuple[float, ...],
+        track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
+    ) -> ContinuationScore:
+        effective_source = source_text.strip() or "<empty>"
+        if not continuation_text.strip():
+            raise ValueError("continuation_text must be nonempty")
+        combined_text = (
+            f"{effective_source.rstrip()} {continuation_text.strip()}"
+        )
+        source_inputs = self._tokenize(source_text=effective_source)
+        combined_inputs = self._tokenize(source_text=combined_text)
+        source_ids = source_inputs["input_ids"]
+        combined_ids = combined_inputs["input_ids"]
+        source_length = int(source_ids.shape[-1])
+        combined_length = int(combined_ids.shape[-1])
+        if combined_length <= source_length:
+            raise ValueError(
+                "continuation_text did not add any scoreable tokens"
+            )
+        if not self._torch.equal(
+            combined_ids[:, :source_length],
+            source_ids,
+        ):
+            raise ValueError(
+                "source tokenization is not a prefix of source+continuation; "
+                "continuation score would be misaligned"
+            )
+        control_delta = self._build_control_delta(
+            applied_control=applied_control,
+            track_scale=track_scale,
+        )
+        hooks = [
+            self._block_modules[layer_index].register_forward_hook(
+                self._make_capture_hook(
+                    layer_index=layer_index,
+                    captured_layers={},
+                    control_delta=control_delta,
+                    capture_residuals=False,
+                )
+            )
+            for layer_index in self._layer_indices
+        ]
+        try:
+            with self._torch.no_grad():
+                outputs = self._model(
+                    **combined_inputs,
+                    use_cache=False,
+                )
+        finally:
+            for hook in hooks:
+                hook.remove()
+        logits = self._extract_logits(outputs=outputs).to(
+            dtype=self._torch.float32
+        )
+        prediction_logits = logits[
+            :,
+            source_length - 1 : combined_length - 1,
+            :,
+        ]
+        target_ids = combined_ids[:, source_length:combined_length].cpu()
+        token_log_probabilities = self._torch.log_softmax(
+            prediction_logits,
+            dim=-1,
+        ).gather(
+            dim=-1,
+            index=target_ids.unsqueeze(-1),
+        ).squeeze(-1)
+        mean_log_probability = float(
+            token_log_probabilities.mean().item()
+        )
+        token_count = int(target_ids.numel())
+        mean_nll = -mean_log_probability
+        return ContinuationScore(
+            source_text=effective_source,
+            continuation_text=continuation_text,
+            token_count=token_count,
+            mean_negative_log_likelihood=mean_nll,
+            geometric_mean_probability=float(
+                self._torch.exp(
+                    self._torch.tensor(mean_log_probability)
+                ).item()
+            ),
+            applied_control=applied_control,
+            backend_name=f"transformers-open-weight:{self.model_id}",
+            description=(
+                "Observed continuation scored under prefix-aligned frozen "
+                f"residual control on {self.model_id}."
+            ),
+        )
+
     def _capture_control_summary(
         self,
         *,
@@ -916,9 +1021,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 if adapter_delta is not None:
                     adjusted = adjusted + adapter_delta.view(1, 1, -1).to(dtype=hidden.dtype)
                 adjusted = adjusted + control_delta.view(1, 1, -1).to(dtype=hidden.dtype)
-                pooled_layers[layer_index] = adjusted.detach().to(
-                    dtype=self._torch.float32
-                ).mean(dim=1)[0].cpu()
+                pooled_layers[layer_index] = (
+                    self._latest_token_control_activation(adjusted)
+                )
                 if isinstance(output, tuple):
                     return (adjusted, *output[1:])
                 return adjusted
@@ -984,6 +1089,19 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"Transformers control-summary capture model={self.model_id} "
                 f"device={self._device} layers={tuple(a.layer_index for a in residual_activations)}."
             ),
+        )
+
+    def _latest_token_control_activation(self, hidden):
+        if hidden.dim() != 3 or hidden.shape[1] <= 0:
+            raise ValueError(
+                "control-summary hidden state must have shape "
+                "[batch, sequence, hidden] with a nonempty sequence"
+            )
+        return (
+            hidden.detach()
+            .to(dtype=self._torch.float32)[:, -1, :]
+            .mean(dim=0)
+            .cpu()
         )
 
     def _capture_pooled_summary(self, *, source_text: str) -> OpenWeightRuntimeCapture:
@@ -3023,6 +3141,7 @@ def build_builtin_transformers_runtime(
     tokenizer: object | None = None,
     layer_indices: tuple[int, ...] | None = None,
     hook_layer_selection: str = "middle",
+    activation_width: int = 8,
     allow_live_substrate_mutation: bool = False,
 ) -> TransformersOpenWeightResidualRuntime:
     transformers = importlib.import_module("transformers")
@@ -3047,7 +3166,7 @@ def build_builtin_transformers_runtime(
         device=device,
         layer_indices=layer_indices,
         hook_layer_selection=hook_layer_selection,
-        activation_width=8,
+        activation_width=activation_width,
         top_k_logits=8,
         runtime_origin="builtin-fallback",
         allow_live_substrate_mutation=allow_live_substrate_mutation,
@@ -3061,6 +3180,7 @@ def build_transformers_runtime_with_fallback(
     device: str = "auto",
     layer_indices: tuple[int, ...] | None = None,
     hook_layer_selection: str = "middle",
+    activation_width: int = 8,
     local_files_only: bool = False,
     fallback_to_builtin: bool | None = None,
     fallback_mode: SubstrateFallbackMode | str | None = None,
@@ -3080,6 +3200,7 @@ def build_transformers_runtime_with_fallback(
             device=device,
             layer_indices=_builtin_safe_layer_indices(layer_indices),
             hook_layer_selection=hook_layer_selection,
+            activation_width=activation_width,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
     resolved_mode = resolve_substrate_fallback_mode(
@@ -3103,6 +3224,7 @@ def build_transformers_runtime_with_fallback(
             device=device,
             layer_indices=layer_indices,
             hook_layer_selection=hook_layer_selection,
+            activation_width=activation_width,
             local_files_only=effective_local_files_only,
             runtime_origin=effective_runtime_origin,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
@@ -3115,6 +3237,7 @@ def build_transformers_runtime_with_fallback(
             device=device,
             layer_indices=_builtin_safe_layer_indices(layer_indices),
             hook_layer_selection=hook_layer_selection,
+            activation_width=activation_width,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
 
@@ -3181,34 +3304,6 @@ def run_hook_layer_calibration(
             f"recommended_layers={recommended_layers}."
         ),
     )
-    resolved_mode = resolve_substrate_fallback_mode(
-        fallback_mode=fallback_mode,
-        fallback_to_builtin=fallback_to_builtin,
-    )
-    effective_local_files_only = local_files_only
-    effective_runtime_origin = "hf-local" if local_files_only else "hf-pretrained"
-    if resolved_runtime_mode is LocalSubstrateRuntimeMode.STRICT_LOCAL:
-        effective_local_files_only = True
-        resolved_mode = SubstrateFallbackMode.DENY
-        effective_runtime_origin = "hf-local"
-    elif resolved_runtime_mode is LocalSubstrateRuntimeMode.PREFER_LOCAL:
-        effective_local_files_only = True
-        resolved_mode = SubstrateFallbackMode.ALLOW_BUILTIN
-        effective_runtime_origin = "hf-local"
-    try:
-        return TransformersOpenWeightResidualRuntime(
-            model_id=model_id,
-            device=device,
-            local_files_only=effective_local_files_only,
-            runtime_origin=effective_runtime_origin,
-        )
-    except Exception as exc:
-        if resolved_mode is not SubstrateFallbackMode.ALLOW_BUILTIN or not _is_transformers_runtime_fallback_error(exc):
-            raise
-        return build_builtin_transformers_runtime(
-            model_id=builtin_model_id,
-            device=device,
-        )
 
 
 def _is_transformers_runtime_fallback_error(exc: Exception) -> bool:

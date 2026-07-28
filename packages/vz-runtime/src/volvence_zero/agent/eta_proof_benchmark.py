@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from itertools import combinations
 from pathlib import Path
 from random import Random
 from typing import Any
@@ -25,6 +26,9 @@ from volvence_zero.evaluation import (
 )
 
 from volvence_zero.internal_rl import (
+    CausalPolicyCheckpoint,
+    CounterfactualActionExample,
+    CounterfactualActionSelection,
     HierarchicalLocation,
     HierarchicalRouteSpec,
     HierarchicalTransition,
@@ -33,11 +37,19 @@ from volvence_zero.internal_rl import (
     InternalRLProofSubgoal,
     InternalRLRewardSource,
     InternalRLSandbox,
+    KernelResidualActionSelectorArtifact,
     MiniHierarchicalEnvironment,
     ZRollout,
+    fit_kernel_residual_action_selector,
+    grouped_cross_validate_kernel_residual_action_selector,
+    residual_action_state_vector,
+    select_counterfactual_actions,
+    summarize_action_selections,
 )
 from volvence_zero.memory import Track
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
+    ContinuationScore,
     FeatureSignal,
     LocalSubstrateRuntimeMode,
     NoOpResidualInterventionBackend,
@@ -55,7 +67,17 @@ from volvence_zero.temporal import (
     LearnedLiteTemporalPolicy,
     MetacontrollerSSLTrainer,
 )
-from volvence_zero.temporal.metacontroller_components import summarize_residual_activations
+from volvence_zero.temporal.metacontroller_components import (
+    ResidualDecoder,
+    summarize_residual_activations,
+)
+
+
+ETA_PROOF_TRAINING_SIGNAL = "proof-reward"
+ETA_CONTINUATION_PE_TRAINING_SIGNAL = "continuation-prediction-error"
+ETA_CONTINUATION_PE_REWARD_SCALE = 0.02
+ETA_DEFAULT_CASE_CORPUS = "eta-proof-default-v1"
+ETA_GATE2_EXPANDED_CASE_CORPUS = "eta-gate2-expanded-continuation-v2"
 
 
 @dataclass(frozen=True)
@@ -91,6 +113,10 @@ class ETAResidualInterventionRecord:
     active_family_id: str | None
     proof_terminal_success: bool
     backend_name: str
+    continuation_text: str = ""
+    continuation_token_count: int = 0
+    continuation_mean_nll: float | None = None
+    continuation_geometric_mean_probability: float | None = None
 
 
 @dataclass(frozen=True)
@@ -156,6 +182,9 @@ class ETAProofProfileReport:
     mean_value_loss: float
     mean_replacement_effect_delta: float
     description: str
+    action_selection_records: tuple[
+        CounterfactualActionSelection, ...
+    ] = ()
 
 
 @dataclass(frozen=True)
@@ -280,6 +309,7 @@ class ETAProofProfileConfig:
     bootstrap_init: bool = False
     residual_control_mode: str = "identity"
     residual_control_seed: int = 0
+    reuse_baseline_checkpoint: bool = False
 
 
 @dataclass(frozen=True)
@@ -289,6 +319,7 @@ class ETAOpenWeightRuntimeConfig:
     device: str = "auto"
     layer_indices: tuple[int, ...] | None = (20, 21, 22)
     hook_layer_selection: str = "all"
+    activation_width: int = 8
     local_files_only: bool = True
     runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.STRICT_LOCAL
     fallback_mode: SubstrateFallbackMode | str | None = SubstrateFallbackMode.DENY
@@ -360,6 +391,7 @@ def _build_eta_open_weight_runtime(config: ETAOpenWeightRuntimeConfig | None = N
         device=active_config.device,
         layer_indices=active_config.layer_indices,
         hook_layer_selection=active_config.hook_layer_selection,
+        activation_width=active_config.activation_width,
         local_files_only=active_config.local_files_only,
         fallback_mode=active_config.fallback_mode,
         runtime_mode=active_config.runtime_mode,
@@ -860,7 +892,7 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
         HierarchicalRouteSpec(
             case_id="heldout-delta-alpha-gamma-epsilon",
             split="heldout",
-            source_text="reflective planning support with careful guidance through heldout branch",
+            source_text="reflective planning support with careful guidance through branching",
             waypoints=("entry", "delta", "alpha", "gamma", "epsilon"),
             distractor_ids=("beta",),
             split_detail="heldout-composition",
@@ -869,7 +901,7 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
         HierarchicalRouteSpec(
             case_id="heldout-epsilon-beta-alpha-delta",
             split="heldout",
-            source_text="careful branching return support and reflection in heldout loop",
+            source_text="careful branching return support and reflection in a long loop",
             waypoints=("entry", "hub", "epsilon", "beta", "alpha", "delta"),
             distractor_ids=("gamma",),
             split_detail="heldout-long-loop",
@@ -878,7 +910,208 @@ def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
     )
 
 
-def default_eta_proof_cases() -> tuple[ETAProofCase, ...]:
+def eta_gate2_expanded_training_routes() -> tuple[HierarchicalRouteSpec, ...]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="train-expanded-alpha-gamma-beta-epsilon",
+            split="train",
+            source_text="steady guidance keeps a difficult plan aligned",
+            waypoints=("entry", "alpha", "gamma", "beta", "epsilon"),
+            distractor_ids=("delta",),
+            split_detail="train-expanded-reordered-terminal",
+            description="Additional unlabeled continuation route with reordered branches.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-expanded-beta-delta-gamma-epsilon",
+            split="train",
+            source_text="careful reflection repairs an interrupted shared commitment",
+            waypoints=("entry", "beta", "delta", "gamma", "epsilon"),
+            distractor_ids=("alpha",),
+            split_detail="train-expanded-repair",
+            description="Additional unlabeled continuation route through a repair composition.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-expanded-delta-beta-alpha-gamma",
+            split="train",
+            source_text="support continues while new evidence changes direction",
+            waypoints=("entry", "delta", "beta", "alpha", "gamma"),
+            distractor_ids=("epsilon",),
+            split_detail="train-expanded-evidence-shift",
+            description="Additional unlabeled continuation route with a return transition.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-expanded-hub-beta-delta-epsilon",
+            split="train",
+            source_text="long planning loops require stable memory and checkpoints",
+            waypoints=("entry", "hub", "beta", "delta", "epsilon"),
+            distractor_ids=("gamma",),
+            split_detail="train-expanded-long-loop",
+            description="Additional unlabeled continuation route covering loop persistence.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-expanded-alpha-delta-hub-epsilon",
+            split="train",
+            source_text="warm guidance preserves continuity during careful revision",
+            waypoints=("entry", "alpha", "delta", "hub", "epsilon"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="train-expanded-continuity",
+            description="Additional unlabeled continuation route through branch and loop nodes.",
+        ),
+    ) + eta_gate2_independent_training_routes()
+
+
+def eta_gate2_independent_training_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="train-independent-forecast-revision",
+            split="train",
+            source_text=(
+                "Teams compare uncertain evidence before revising a shared "
+                "forecast"
+            ),
+            waypoints=("entry", "alpha", "beta", "epsilon"),
+            distractor_ids=("gamma", "delta"),
+            split_detail="train-independent-forecast",
+            description="Frozen independent continuation route for forecast revision.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-delayed-decision",
+            split="train",
+            source_text=(
+                "A patient review uncovered assumptions behind the delayed "
+                "decision"
+            ),
+            waypoints=(
+                "entry",
+                "beta",
+                "alpha",
+                "delta",
+                "hub",
+                "epsilon",
+            ),
+            distractor_ids=("gamma",),
+            split_detail="train-independent-decision",
+            description="Frozen independent continuation route for delayed decisions.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-changing-conditions",
+            split="train",
+            source_text=(
+                "Several options remained open while conditions changed "
+                "unexpectedly"
+            ),
+            waypoints=(
+                "entry",
+                "delta",
+                "gamma",
+                "alpha",
+                "beta",
+                "epsilon",
+            ),
+            distractor_ids=("hub",),
+            split_detail="train-independent-conditions",
+            description="Frozen independent continuation route for changing conditions.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-promise-ledger",
+            split="train",
+            source_text=(
+                "The group documented each promise before assigning new work"
+            ),
+            waypoints=("entry", "hub", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="train-independent-ledger",
+            description="Frozen independent continuation route for a promise ledger.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-reliable-response",
+            split="train",
+            source_text=(
+                "Repeated observations gradually clarified which response "
+                "was reliable"
+            ),
+            waypoints=(
+                "entry",
+                "alpha",
+                "gamma",
+                "beta",
+                "delta",
+                "epsilon",
+            ),
+            distractor_ids=("hub",),
+            split_detail="train-independent-reliability",
+            description="Frozen independent continuation route for response reliability.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-visible-priorities",
+            split="train",
+            source_text=(
+                "A quiet pause allowed conflicting priorities to become "
+                "visible"
+            ),
+            waypoints=(
+                "entry",
+                "delta",
+                "hub",
+                "beta",
+                "alpha",
+                "gamma",
+            ),
+            distractor_ids=("epsilon",),
+            split_detail="train-independent-priorities",
+            description="Frozen independent continuation route for conflicting priorities.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-unfamiliar-information",
+            split="train",
+            source_text=(
+                "People adjusted expectations after receiving unfamiliar "
+                "information"
+            ),
+            waypoints=(
+                "entry",
+                "beta",
+                "epsilon",
+                "delta",
+                "gamma",
+                "alpha",
+            ),
+            distractor_ids=("hub",),
+            split_detail="train-independent-information",
+            description="Frozen independent continuation route for unfamiliar information.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-recorded-recovery",
+            split="train",
+            source_text=(
+                "Consistent records helped everyone recover from an earlier "
+                "mistake"
+            ),
+            waypoints=(
+                "entry",
+                "hub",
+                "epsilon",
+                "alpha",
+                "delta",
+                "beta",
+            ),
+            distractor_ids=("gamma",),
+            split_detail="train-independent-recovery",
+            description="Frozen independent continuation route for recorded recovery.",
+        ),
+    )
+
+
+def eta_gate2_expanded_routes() -> tuple[HierarchicalRouteSpec, ...]:
+    return default_eta_proof_routes() + eta_gate2_expanded_training_routes()
+
+
+def _build_eta_proof_cases(
+    routes: tuple[HierarchicalRouteSpec, ...],
+) -> tuple[ETAProofCase, ...]:
     environment = build_default_eta_proof_environment()
     return tuple(
         ETAProofCase(
@@ -896,8 +1129,16 @@ def default_eta_proof_cases() -> tuple[ETAProofCase, ...]:
             route_length=len(case.route_signature),
             distractor_count=len(case.proof_episode.distractor_signatures),
         )
-        for case in (environment.build_case(route) for route in default_eta_proof_routes())
+        for case in (environment.build_case(route) for route in routes)
     )
+
+
+def default_eta_proof_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(default_eta_proof_routes())
+
+
+def eta_gate2_expanded_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_expanded_routes())
 
 
 def default_eta_proof_profiles() -> tuple[str, ...]:
@@ -1289,6 +1530,7 @@ def _profile_config(profile_label: str) -> ETAProofProfileConfig:
             optimize_after_rollout=True,
             policy_kind="full",
             residual_control_mode="zero",
+            reuse_baseline_checkpoint=True,
         )
     if profile_label == "full-shuffled-control":
         return ETAProofProfileConfig(
@@ -1298,6 +1540,7 @@ def _profile_config(profile_label: str) -> ETAProofProfileConfig:
             policy_kind="full",
             residual_control_mode="shuffled",
             residual_control_seed=1729,
+            reuse_baseline_checkpoint=True,
         )
     if profile_label == "full-reversed-control":
         return ETAProofProfileConfig(
@@ -1306,6 +1549,7 @@ def _profile_config(profile_label: str) -> ETAProofProfileConfig:
             optimize_after_rollout=True,
             policy_kind="full",
             residual_control_mode="reversed",
+            reuse_baseline_checkpoint=True,
         )
     if profile_label == "noop-backend":
         return ETAProofProfileConfig(
@@ -1341,6 +1585,9 @@ def _profile_config(profile_label: str) -> ETAProofProfileConfig:
 
 def _bootstrap_snapshot_for_cases(
     cases: tuple[ETAProofCase, ...],
+    *,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
 ) -> object | None:
     if not cases:
         return None
@@ -1348,13 +1595,26 @@ def _bootstrap_snapshot_for_cases(
     trainer = MetacontrollerSSLTrainer(n_z=policy.parameter_store.n_z)
     policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
     for case in cases:
-        trainer.optimize(
-            policy=policy,
-            trace=build_training_trace(
-                trace_id=f"{case.case_id}:bootstrap",
+        if open_weight_runtime is None:
+            trainer.optimize(
+                policy=policy,
+                trace=build_training_trace(
+                    trace_id=f"{case.case_id}:bootstrap",
+                    source_text=case.source_text,
+                ),
+            )
+        else:
+            snapshots, _ = _build_case_snapshot_bundle(
+                case,
+                open_weight_runtime=open_weight_runtime,
+                open_weight_config=open_weight_config,
+            )
+            trainer.optimize_residual_trajectory(
+                policy=policy,
+                trace_id=f"{case.case_id}:real-residual-bootstrap",
                 source_text=case.source_text,
-            ),
-        )
+                snapshots=snapshots,
+            )
     policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
     return policy.export_rare_heavy_snapshot()
 
@@ -1365,6 +1625,9 @@ def _build_sandbox(
     backend_label: str,
     bootstrap_snapshot: object | None = None,
     open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    latent_unit_clamp: bool = False,
+    causal_action_head_active: bool = False,
+    causal_action_head_state_dim: int | None = None,
 ) -> InternalRLSandbox:
     if profile.policy_kind == "full":
         if bootstrap_snapshot is not None:
@@ -1375,6 +1638,21 @@ def _build_sandbox(
         policy = LearnedLiteTemporalPolicy()
     else:
         raise ValueError(f"Unsupported policy kind {profile.policy_kind!r}")
+    if causal_action_head_active:
+        if not isinstance(policy, FullLearnedTemporalPolicy):
+            raise ValueError(
+                "ETA causal action head requires FullLearnedTemporalPolicy"
+            )
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=Track.SHARED,
+            strength=1.0,
+            rank=policy.parameter_store.n_z,
+            effective_dims=tuple(
+                range(policy.parameter_store.n_z)
+            ),
+            envelope_enforced=True,
+        )
     env = (
         InternalRLEnvironment(control_backend=NoOpResidualInterventionBackend())
         if profile.use_noop_backend
@@ -1394,6 +1672,8 @@ def _build_sandbox(
         policy=policy,
         env=env,
         residual_runtime=runtime,
+        latent_unit_clamp=latent_unit_clamp,
+        causal_action_head_state_dim=causal_action_head_state_dim,
     )
     sandbox.configure_residual_control(
         mode=profile.residual_control_mode,
@@ -1416,6 +1696,576 @@ def _build_case_snapshots(
     return snapshots
 
 
+def _score_rollout_continuations(
+    *,
+    runtime: OpenWeightResidualRuntime | None,
+    rollout: ZRollout,
+    source_text_by_step: tuple[str, ...],
+) -> tuple[ContinuationScore | None, ...]:
+    if runtime is None or not source_text_by_step:
+        return ()
+    if len(source_text_by_step) != len(rollout.transitions):
+        raise ValueError(
+            "source prefix count must match rollout transition count"
+        )
+    scores: list[ContinuationScore | None] = []
+    for index, transition in enumerate(rollout.transitions):
+        if index + 1 >= len(source_text_by_step):
+            scores.append(None)
+            continue
+        source_text = source_text_by_step[index]
+        next_prefix = source_text_by_step[index + 1]
+        if not next_prefix.startswith(source_text):
+            raise ValueError(
+                "ETA continuation scoring requires monotonically extended "
+                "prefixes"
+            )
+        continuation_text = next_prefix[len(source_text) :]
+        scores.append(
+            runtime.score_continuation(
+                source_text=source_text,
+                continuation_text=continuation_text,
+                applied_control=transition.applied_control,
+                track_scale=(0.7, 0.7, 0.7),
+            )
+        )
+    return tuple(scores)
+
+
+def _with_continuation_prediction_error_rewards(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    rollout: ZRollout,
+    source_text_by_step: tuple[str, ...],
+) -> tuple[ZRollout, tuple[float, ...]]:
+    if len(source_text_by_step) != len(rollout.transitions):
+        raise ValueError(
+            "source prefix count must match rollout transition count"
+        )
+    prediction_errors: list[float] = []
+    transitions = []
+    for index, transition in enumerate(rollout.transitions):
+        if index + 1 >= len(source_text_by_step):
+            transitions.append(
+                replace(
+                    transition,
+                    reward=0.0,
+                    raw_reward=0.0,
+                    reward_components=(
+                        (
+                            "continuation_prediction_error_unavailable",
+                            1.0,
+                        ),
+                    ),
+                    reward_mode=ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+                )
+            )
+            continue
+        source_text = source_text_by_step[index]
+        next_prefix = source_text_by_step[index + 1]
+        if not next_prefix.startswith(source_text):
+            raise ValueError(
+                "ETA continuation PE requires monotonically extended prefixes"
+            )
+        continuation_text = next_prefix[len(source_text) :]
+        identity_score = runtime.score_continuation(
+            source_text=source_text,
+            continuation_text=continuation_text,
+            applied_control=transition.applied_control,
+            track_scale=(0.7, 0.7, 0.7),
+        )
+        zero_score = runtime.score_continuation(
+            source_text=source_text,
+            continuation_text=continuation_text,
+            applied_control=tuple(
+                0.0 for _ in transition.applied_control
+            ),
+            track_scale=(0.7, 0.7, 0.7),
+        )
+        raw_prediction_error = (
+            zero_score.mean_negative_log_likelihood
+            - identity_score.mean_negative_log_likelihood
+        )
+        prediction_errors.append(raw_prediction_error)
+        bounded_reward = max(
+            -1.0,
+            min(
+                1.0,
+                raw_prediction_error
+                / ETA_CONTINUATION_PE_REWARD_SCALE,
+            ),
+        )
+        transitions.append(
+            replace(
+                transition,
+                reward=bounded_reward,
+                raw_reward=raw_prediction_error,
+                reward_components=(
+                    (
+                        "observed_continuation_identity_mean_nll",
+                        identity_score.mean_negative_log_likelihood,
+                    ),
+                    (
+                        "observed_continuation_zero_mean_nll",
+                        zero_score.mean_negative_log_likelihood,
+                    ),
+                    (
+                        "continuation_prediction_error",
+                        raw_prediction_error,
+                    ),
+                ),
+                reward_mode=ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+            )
+        )
+    updated_transitions = tuple(transitions)
+    return (
+        replace(
+            rollout,
+            transitions=updated_transitions,
+            total_reward=sum(
+                transition.reward for transition in updated_transitions
+            ),
+            reward_mode=ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+        ),
+        tuple(prediction_errors),
+    )
+
+
+def _continuation_counterfactual_candidates() -> tuple[
+    tuple[float, float, float], ...
+]:
+    candidates: list[tuple[float, float, float]] = [
+        (0.0, 0.0, 0.0)
+    ]
+    for level in (0.25, 0.5, 1.0):
+        for size in (1, 2, 3):
+            for dimensions in combinations(range(3), size):
+                candidates.append(
+                    tuple(
+                        level if index in dimensions else 0.0
+                        for index in range(3)
+                    )
+                )
+    return tuple(candidates)
+
+
+def _with_counterfactual_continuation_pe_rewards(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    rollout: ZRollout,
+    source_text_by_step: tuple[str, ...],
+    policy: FullLearnedTemporalPolicy,
+    score_cache: dict[
+        tuple[str, str, tuple[float, ...]],
+        float,
+    ],
+) -> tuple[
+    ZRollout,
+    tuple[float, ...],
+    tuple[tuple[float, ...], ...],
+]:
+    if len(source_text_by_step) != len(rollout.transitions):
+        raise ValueError(
+            "source prefix count must match rollout transition count"
+        )
+    if policy.parameter_store.n_z != 3:
+        raise ValueError(
+            "ETA continuation counterfactual grid currently requires n_z=3"
+        )
+    decoder = ResidualDecoder()
+    candidates = _continuation_counterfactual_candidates()
+    prediction_errors: list[float] = []
+    prefix_candidate_prediction_errors: list[tuple[float, ...]] = []
+    counterfactual_transitions = []
+    for index, transition in enumerate(rollout.transitions[:-1]):
+        source_text = source_text_by_step[index]
+        next_prefix = source_text_by_step[index + 1]
+        if not next_prefix.startswith(source_text):
+            raise ValueError(
+                "ETA continuation PE requires monotonically extended prefixes"
+            )
+        continuation_text = next_prefix[len(source_text) :]
+        zero_control = (0.0, 0.0, 0.0)
+        zero_key = (source_text, continuation_text, zero_control)
+        zero_nll = score_cache.get(zero_key)
+        if zero_nll is None:
+            zero_nll = runtime.score_continuation(
+                source_text=source_text,
+                continuation_text=continuation_text,
+                applied_control=zero_control,
+                track_scale=(0.7, 0.7, 0.7),
+            ).mean_negative_log_likelihood
+            score_cache[zero_key] = zero_nll
+        candidate_evidence = []
+        for candidate in candidates:
+            decoded = decoder.decode(
+                latent_code=candidate,
+                decoder_matrix=policy.parameter_store.decoder_matrix,
+                hidden_matrix=policy.parameter_store.decoder_hidden,
+            )
+            candidate_key = (
+                source_text,
+                continuation_text,
+                decoded.applied_control,
+            )
+            candidate_nll = score_cache.get(candidate_key)
+            if candidate_nll is None:
+                candidate_nll = runtime.score_continuation(
+                    source_text=source_text,
+                    continuation_text=continuation_text,
+                    applied_control=decoded.applied_control,
+                    track_scale=(0.7, 0.7, 0.7),
+                ).mean_negative_log_likelihood
+                score_cache[candidate_key] = candidate_nll
+            raw_prediction_error = (
+                zero_nll - candidate_nll
+            )
+            prediction_errors.append(raw_prediction_error)
+            candidate_evidence.append(
+                (
+                    candidate,
+                    decoded,
+                    candidate_nll,
+                    raw_prediction_error,
+                )
+            )
+        prefix_candidate_prediction_errors.append(
+            tuple(evidence[3] for evidence in candidate_evidence)
+        )
+        mean_prediction_error = _mean(
+            tuple(
+                evidence[3] for evidence in candidate_evidence
+            )
+        )
+        prediction_error_range = max(
+            (
+                max(
+                    evidence[3] for evidence in candidate_evidence
+                )
+                - min(
+                    evidence[3] for evidence in candidate_evidence
+                )
+            ),
+            1e-8,
+        )
+        (
+            best_candidate,
+            best_decoded,
+            best_candidate_nll,
+            best_raw_prediction_error,
+        ) = max(
+            candidate_evidence,
+            key=lambda evidence: evidence[3],
+        )
+        centered_reward = max(
+            -1.0,
+            min(
+                1.0,
+                (
+                    best_raw_prediction_error
+                    - mean_prediction_error
+                )
+                / prediction_error_range,
+            ),
+        )
+        counterfactual_transitions.append(
+            replace(
+                transition,
+                policy_action=best_candidate,
+                latent_code=best_candidate,
+                decoder_output=best_decoded.decoder_output,
+                control_before_ablation=best_decoded.applied_control,
+                applied_control=best_decoded.applied_control,
+                reward=centered_reward,
+                raw_reward=best_raw_prediction_error,
+                reward_components=(
+                    (
+                        "observed_continuation_candidate_mean_nll",
+                        best_candidate_nll,
+                    ),
+                    (
+                        "observed_continuation_zero_mean_nll",
+                        zero_nll,
+                    ),
+                    (
+                        "continuation_prediction_error",
+                        best_raw_prediction_error,
+                    ),
+                    (
+                        "counterfactual_centered_reward",
+                        centered_reward,
+                    ),
+                ),
+                reward_mode=(
+                    f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
+                    "counterfactual-best-action"
+                ),
+                direct_action_target=True,
+            )
+        )
+    transitions = tuple(counterfactual_transitions)
+    return (
+        replace(
+            rollout,
+            transitions=transitions,
+            total_reward=sum(
+                transition.reward for transition in transitions
+            ),
+            reward_mode=(
+                f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
+                "counterfactual-best-action"
+            ),
+        ),
+        tuple(prediction_errors),
+        tuple(prefix_candidate_prediction_errors),
+    )
+
+
+def _counterfactual_action_examples(
+    *,
+    case: ETAProofCase,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    diagnostic_rows: tuple[tuple[float, ...], ...],
+) -> tuple[CounterfactualActionExample, ...]:
+    if len(snapshots) - 1 != len(diagnostic_rows):
+        raise ValueError(
+            "counterfactual selector requires one diagnostic row per "
+            "scoreable residual prefix: "
+            f"snapshots={len(snapshots)}, rows={len(diagnostic_rows)}"
+        )
+    return tuple(
+        CounterfactualActionExample(
+            example_id=f"{case.case_id}:prefix-{index}",
+            group_id=case.case_id,
+            split=case.split,
+            state_features=residual_action_state_vector(
+                snapshots[index],
+            ),
+            candidate_raw_deltas=diagnostic_row,
+        )
+        for index, diagnostic_row in enumerate(diagnostic_rows)
+    )
+
+
+def _counterfactual_selector_metric_rows(
+    *,
+    selections: tuple[CounterfactualActionSelection, ...],
+    input_dim: int,
+    latent_dim: int,
+    action_count: int,
+    ridge_strength: float,
+    model_candidate_count: int,
+    explained_variance_ratio: float,
+) -> tuple[tuple[str, float], ...]:
+    metrics: list[tuple[str, float]] = [
+        ("counterfactual_selector_input_dim", float(input_dim)),
+        ("counterfactual_selector_latent_dim", float(latent_dim)),
+        (
+            "counterfactual_selector_ridge_strength",
+            ridge_strength,
+        ),
+        (
+            "counterfactual_selector_model_candidate_count",
+            float(model_candidate_count),
+        ),
+        (
+            "counterfactual_selector_explained_variance_ratio",
+            explained_variance_ratio,
+        ),
+    ]
+    summaries: dict[str, dict[str, float]] = {}
+    for split in ("train", "eval", "heldout", "confirmation"):
+        split_summary = dict(
+            summarize_action_selections(
+                tuple(
+                    selection
+                    for selection in selections
+                    if selection.split == split
+                )
+            )
+        )
+        summaries[split] = split_summary
+        metrics.extend(
+            (
+                f"counterfactual_selector_{split}_{name}",
+                value,
+            )
+            for name, value in split_summary.items()
+        )
+    chance_top3_rate = min(3, action_count) / max(action_count, 1)
+    injection_gate_passed = (
+        summaries["train"]["count"] > 0.0
+        and summaries["eval"]["count"] > 0.0
+        and summaries["heldout"]["count"] > 0.0
+        and summaries["train"]["mean_selected_raw_delta"] > 0.0
+        and summaries["eval"]["mean_selected_raw_delta"] > 0.0
+        and summaries["heldout"]["mean_selected_raw_delta"] > 0.0
+        and summaries["eval"]["top3_rate"] > chance_top3_rate
+        and summaries["heldout"]["top3_rate"] > chance_top3_rate
+    )
+    metrics.extend(
+        (
+            ("counterfactual_selector_chance_top3_rate", chance_top3_rate),
+            (
+                "counterfactual_selector_injection_gate_passed",
+                1.0 if injection_gate_passed else 0.0,
+            ),
+            (
+                "counterfactual_selector_eval_updates_after_fit",
+                0.0,
+            ),
+        )
+    )
+    return tuple(metrics)
+
+
+def _fit_train_selected_counterfactual_selector(
+    training_examples: tuple[CounterfactualActionExample, ...],
+) -> tuple[
+    KernelResidualActionSelectorArtifact,
+    tuple[CounterfactualActionSelection, ...],
+    int,
+]:
+    candidate_configs = (0.1, 1.0, 10.0)
+    ranked_candidates = []
+    for ridge_strength in candidate_configs:
+        selections = (
+            grouped_cross_validate_kernel_residual_action_selector(
+                training_examples,
+                fold_count=4,
+                ridge_strength=ridge_strength,
+            )
+        )
+        summary = dict(summarize_action_selections(selections))
+        ranking_key = (
+            summary["mean_selected_raw_delta"],
+            -summary["mean_oracle_regret"],
+            summary["top3_rate"],
+            -ridge_strength,
+        )
+        ranked_candidates.append(
+            (
+                ranking_key,
+                ridge_strength,
+                selections,
+            )
+        )
+    (
+        _ranking_key,
+        selected_ridge_strength,
+        selected_cv_selections,
+    ) = max(ranked_candidates, key=lambda row: row[0])
+    artifact = fit_kernel_residual_action_selector(
+        training_examples,
+        ridge_strength=selected_ridge_strength,
+    )
+    return (
+        artifact,
+        selected_cv_selections,
+        len(candidate_configs),
+    )
+
+
+def _counterfactual_diagnostic_metrics(
+    prefix_candidate_prediction_errors: tuple[
+        tuple[float, ...],
+        ...,
+    ],
+) -> tuple[tuple[str, float], ...]:
+    if not prefix_candidate_prediction_errors:
+        return (
+            ("continuation_counterfactual_prefix_count", 0.0),
+            ("continuation_counterfactual_oracle_mean_raw_delta", 0.0),
+            ("continuation_counterfactual_oracle_positive_rate", 0.0),
+            (
+                "continuation_counterfactual_best_fixed_mean_raw_delta",
+                0.0,
+            ),
+            (
+                "continuation_counterfactual_oracle_vs_fixed_gap",
+                0.0,
+            ),
+        )
+    candidate_count = len(prefix_candidate_prediction_errors[0])
+    if candidate_count == 0 or any(
+        len(values) != candidate_count
+        for values in prefix_candidate_prediction_errors
+    ):
+        raise ValueError(
+            "counterfactual diagnostics require a non-empty rectangular "
+            "candidate score grid"
+        )
+    oracle_deltas = tuple(
+        max(values) for values in prefix_candidate_prediction_errors
+    )
+    fixed_candidate_means = tuple(
+        _mean(
+            tuple(
+                values[candidate_index]
+                for values in prefix_candidate_prediction_errors
+            )
+        )
+        for candidate_index in range(candidate_count)
+    )
+    oracle_mean = _mean(oracle_deltas)
+    best_fixed_mean = max(fixed_candidate_means)
+    return (
+        (
+            "continuation_counterfactual_prefix_count",
+            float(len(prefix_candidate_prediction_errors)),
+        ),
+        (
+            "continuation_counterfactual_oracle_mean_raw_delta",
+            oracle_mean,
+        ),
+        (
+            "continuation_counterfactual_oracle_positive_rate",
+            _mean(
+                tuple(
+                    1.0 if value > 0.0 else 0.0
+                    for value in oracle_deltas
+                )
+            ),
+        ),
+        (
+            "continuation_counterfactual_best_fixed_mean_raw_delta",
+            best_fixed_mean,
+        ),
+        (
+            "continuation_counterfactual_oracle_vs_fixed_gap",
+            oracle_mean - best_fixed_mean,
+        ),
+    )
+
+
+def _scoped_counterfactual_diagnostic_metrics(
+    prefix_candidate_prediction_errors: tuple[
+        tuple[float, ...],
+        ...,
+    ],
+    *,
+    scope: str,
+) -> tuple[tuple[str, float], ...]:
+    if not scope or not scope.replace("-", "_").isidentifier():
+        raise ValueError(
+            f"counterfactual diagnostic scope must be an identifier, got {scope!r}"
+        )
+    marker = "continuation_counterfactual_"
+    return tuple(
+        (
+            metric_name.replace(
+                marker,
+                f"{marker}{scope}_",
+                1,
+            ),
+            value,
+        )
+        for metric_name, value in _counterfactual_diagnostic_metrics(
+            prefix_candidate_prediction_errors
+        )
+    )
+
+
 def _snapshot_signature(snapshot: SubstrateSnapshot) -> tuple[float, float, float]:
     sequence = snapshot.residual_sequence
     if not sequence:
@@ -1427,6 +2277,25 @@ def _snapshot_signature(snapshot: SubstrateSnapshot) -> tuple[float, float, floa
     return tuple(
         sum(summary[index] for summary in summaries) / max(len(summaries), 1)
         for index in range(3)
+    )
+
+
+def _ssl_structure_state(
+    checkpoint: CausalPolicyCheckpoint,
+) -> tuple[object, ...]:
+    snapshot = checkpoint.metacontroller_snapshot
+    return (
+        snapshot.encoder_weights,
+        snapshot.encoder_recurrence,
+        snapshot.switch_weights,
+        snapshot.beta_threshold,
+        snapshot.decoder_matrix,
+        snapshot.decoder_hidden,
+        snapshot.ndim_encoder_parameters,
+        snapshot.ndim_switch_parameters,
+        snapshot.ndim_decoder_parameters,
+        snapshot.encoder_optimizer_state,
+        snapshot.decoder_optimizer_state,
     )
 
 
@@ -1508,7 +2377,14 @@ def _episode_report(
     profile_label: str,
     backend_label: str,
     family_registry: dict[str, set[str]],
+    continuation_scores: tuple[ContinuationScore | None, ...] = (),
 ) -> ETAProofEpisodeReport:
+    if continuation_scores and len(continuation_scores) != len(
+        rollout.transitions
+    ):
+        raise ValueError(
+            "continuation score count must match rollout transition count"
+        )
     completed_pairs = tuple(zip(rollout.completed_subgoals, rollout.completed_family_ids, strict=True))
     expected_subgoal_ids = tuple(subgoal.subgoal_id for subgoal in case.proof_episode.subgoals)
     first_missed_subgoal = next(
@@ -1656,8 +2532,36 @@ def _episode_report(
                 active_family_id=transition.active_family_id,
                 proof_terminal_success=transition.proof_terminal_success,
                 backend_name=transition.backend_name,
+                continuation_text=(
+                    continuation_scores[index].continuation_text
+                    if continuation_scores
+                    and continuation_scores[index] is not None
+                    else ""
+                ),
+                continuation_token_count=(
+                    continuation_scores[index].token_count
+                    if continuation_scores
+                    and continuation_scores[index] is not None
+                    else 0
+                ),
+                continuation_mean_nll=(
+                    continuation_scores[
+                        index
+                    ].mean_negative_log_likelihood
+                    if continuation_scores
+                    and continuation_scores[index] is not None
+                    else None
+                ),
+                continuation_geometric_mean_probability=(
+                    continuation_scores[
+                        index
+                    ].geometric_mean_probability
+                    if continuation_scores
+                    and continuation_scores[index] is not None
+                    else None
+                ),
             )
-            for transition in rollout.transitions
+            for index, transition in enumerate(rollout.transitions)
         ),
     )
 
@@ -1881,7 +2785,21 @@ def run_eta_internal_rl_proof_benchmark(
     open_weight_runtime: OpenWeightResidualRuntime | None = None,
     open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
     use_real_substrate_steps: bool | None = None,
+    training_signal: str = ETA_PROOF_TRAINING_SIGNAL,
+    latent_unit_clamp: bool = False,
+    real_residual_ssl_bootstrap: bool = False,
+    causal_action_head_active: bool = False,
+    causal_action_head_state_dim: int | None = None,
+    continuation_counterfactual_grid: bool = False,
+    counterfactual_action_selector_diagnostic: bool = False,
 ) -> ETAProofBenchmarkReport:
+    if training_signal not in {
+        ETA_PROOF_TRAINING_SIGNAL,
+        ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+    }:
+        raise ValueError(
+            f"Unsupported ETA proof training signal {training_signal!r}."
+        )
     profile_reports: list[ETAProofProfileReport] = []
     benchmark_rollout_batch_count = 0
     active_open_weight_runtime = open_weight_runtime
@@ -1892,27 +2810,82 @@ def run_eta_internal_rl_proof_benchmark(
             runtime=active_open_weight_runtime,
             config=open_weight_config,
         )
+    if (
+        training_signal == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+        and (
+            backend_label != "transformers-open-weight"
+            or active_open_weight_runtime is None
+        )
+    ):
+        raise ValueError(
+            "continuation prediction-error training requires a real "
+            "transformers-open-weight runtime"
+        )
     real_steps_enabled = (
         backend_label == "transformers-open-weight"
         if use_real_substrate_steps is None
         else use_real_substrate_steps
     )
+    shared_baseline_checkpoint: CausalPolicyCheckpoint | None = None
+    shared_family_registry: dict[str, set[str]] = {}
+    shared_checkpoint_required = any(
+        _profile_config(label).reuse_baseline_checkpoint
+        for label in profile_labels
+    )
     for profile_label in profile_labels:
         profile = _profile_config(profile_label)
         train_cases = tuple(case for case in cases if case.split == "train")
         eval_cases = tuple(case for case in cases if case.split != "train")
-        bootstrap_snapshot = (
-            _bootstrap_snapshot_for_cases(train_cases or eval_cases)
-            if profile.bootstrap_init and profile.policy_kind == "full"
-            else None
+        bootstrap_enabled = (
+            profile.policy_kind == "full"
+            and (
+                profile.bootstrap_init
+                or (
+                    real_residual_ssl_bootstrap
+                    and profile_label == baseline_label
+                )
+            )
         )
+        bootstrap_snapshot = None
+        if bootstrap_enabled:
+            bootstrap_snapshot = _bootstrap_snapshot_for_cases(
+                train_cases or eval_cases,
+                open_weight_runtime=(
+                    active_open_weight_runtime
+                    if real_residual_ssl_bootstrap
+                    else None
+                ),
+                open_weight_config=open_weight_config,
+            )
         sandbox = _build_sandbox(
             profile=profile,
             backend_label=backend_label,
             bootstrap_snapshot=bootstrap_snapshot,
             open_weight_runtime=active_open_weight_runtime,
+            latent_unit_clamp=latent_unit_clamp,
+            causal_action_head_active=causal_action_head_active,
+            causal_action_head_state_dim=causal_action_head_state_dim,
         )
-        family_registry: dict[str, set[str]] = {}
+        shared_policy_fingerprint_match_at_eval_start = False
+        if profile.reuse_baseline_checkpoint:
+            if shared_baseline_checkpoint is None:
+                raise ValueError(
+                    "matched residual controls require full-internal-rl "
+                    "to run first and publish a shared trained checkpoint"
+                )
+            sandbox.restore_checkpoint(shared_baseline_checkpoint)
+            family_registry = {
+                key: set(values)
+                for key, values in shared_family_registry.items()
+            }
+            shared_policy_fingerprint_match_at_eval_start = (
+                sandbox.create_checkpoint(
+                    checkpoint_id="shared-policy-pre-eval-audit"
+                ).policy_optimization_fingerprint
+                == shared_baseline_checkpoint.policy_optimization_fingerprint
+            )
+        else:
+            family_registry = {}
         training_update_count = 0
         rollout_batch_count = 0
         training_transition_count = 0
@@ -1920,8 +2893,39 @@ def run_eta_internal_rl_proof_benchmark(
         parameter_change_norms: list[float] = []
         value_losses: list[float] = []
         replacement_effect_deltas: list[float] = []
+        continuation_training_prediction_errors: list[float] = []
+        continuation_counterfactual_diagnostics: list[
+            tuple[float, ...]
+        ] = []
+        selector_training_examples: dict[
+            str,
+            CounterfactualActionExample,
+        ] = {}
+        selector_selections: list[
+            CounterfactualActionSelection
+        ] = []
+        selector_artifact = None
+        selector_model_candidate_count = 0
+        evaluation_counterfactual_diagnostics: dict[
+            str,
+            list[tuple[float, ...]],
+        ] = {
+            "eval": [],
+            "heldout": [],
+            "confirmation": [],
+        }
+        continuation_score_cache: dict[
+            tuple[str, str, tuple[float, ...]],
+            float,
+        ] = {}
         real_substrate_snapshots: list[SubstrateSnapshot] = []
-        for epoch in range(train_epochs):
+        pre_training_checkpoint = sandbox.create_checkpoint(
+            checkpoint_id=f"{profile_label}:pre-training"
+        )
+        active_train_epochs = (
+            0 if profile.reuse_baseline_checkpoint else train_epochs
+        )
+        for epoch in range(active_train_epochs):
             train_rollouts: list[ZRollout] = []
             for case in train_cases:
                 snapshots, source_text_by_step = _build_case_snapshot_bundle(
@@ -1958,10 +2962,89 @@ def run_eta_internal_rl_proof_benchmark(
                     proof_episode=rollout_case.proof_episode,
                     source_text_by_step=source_text_by_step,
                 )
+                if (
+                    training_signal
+                    == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                ):
+                    if active_open_weight_runtime is None:
+                        raise RuntimeError(
+                            "continuation PE runtime disappeared after "
+                            "validation"
+                        )
+                    if continuation_counterfactual_grid:
+                        if not isinstance(
+                            sandbox.policy,
+                            FullLearnedTemporalPolicy,
+                        ):
+                            raise ValueError(
+                                "counterfactual continuation PE requires "
+                                "FullLearnedTemporalPolicy"
+                            )
+                        (
+                            train_rollout,
+                            rollout_prediction_errors,
+                            rollout_counterfactual_diagnostics,
+                        ) = _with_counterfactual_continuation_pe_rewards(
+                            runtime=active_open_weight_runtime,
+                            rollout=train_rollout,
+                            source_text_by_step=source_text_by_step,
+                            policy=sandbox.policy,
+                            score_cache=continuation_score_cache,
+                        )
+                        continuation_counterfactual_diagnostics.extend(
+                            rollout_counterfactual_diagnostics
+                        )
+                        if (
+                            counterfactual_action_selector_diagnostic
+                            and profile_label == baseline_label
+                        ):
+                            for example in _counterfactual_action_examples(
+                                case=case,
+                                snapshots=snapshots,
+                                diagnostic_rows=(
+                                    rollout_counterfactual_diagnostics
+                                ),
+                            ):
+                                existing = selector_training_examples.get(
+                                    example.example_id
+                                )
+                                if (
+                                    existing is not None
+                                    and existing != example
+                                ):
+                                    raise ValueError(
+                                        "counterfactual selector observed "
+                                        "non-deterministic duplicate example "
+                                        f"{example.example_id!r}"
+                                    )
+                                selector_training_examples[
+                                    example.example_id
+                                ] = example
+                    else:
+                        (
+                            train_rollout,
+                            rollout_prediction_errors,
+                        ) = _with_continuation_prediction_error_rewards(
+                            runtime=active_open_weight_runtime,
+                            rollout=train_rollout,
+                            source_text_by_step=source_text_by_step,
+                        )
+                    continuation_training_prediction_errors.extend(
+                        rollout_prediction_errors
+                    )
                 _update_family_registry(family_registry, train_rollout)
                 train_rollouts.append(train_rollout)
             if profile.optimize_after_rollout and train_rollouts:
-                optimize_report = sandbox.optimize(tuple(train_rollouts))
+                optimize_report = (
+                    sandbox.optimize_causal_policy_only(
+                        tuple(train_rollouts),
+                        gamma=0.0,
+                        gae_lambda=0.0,
+                    )
+                    if training_signal
+                    == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                    else sandbox.optimize(tuple(train_rollouts))
+                )
                 training_update_count += 1
                 rollout_batch_count += 1
                 training_transition_count += sum(
@@ -1976,6 +3059,44 @@ def run_eta_internal_rl_proof_benchmark(
                 tuple(train_rollouts),
                 enabled=profile.use_temporal_fast_prior,
             )
+        selector_diagnostic_active = (
+            counterfactual_action_selector_diagnostic
+            and profile_label == baseline_label
+            and training_signal
+            == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+            and continuation_counterfactual_grid
+        )
+        if selector_diagnostic_active:
+            training_examples = tuple(
+                selector_training_examples[key]
+                for key in sorted(selector_training_examples)
+            )
+            if not training_examples:
+                raise ValueError(
+                    "counterfactual selector diagnostic requires training "
+                    "examples before evaluation"
+                )
+            (
+                selector_artifact,
+                selector_cv_selections,
+                selector_model_candidate_count,
+            ) = _fit_train_selected_counterfactual_selector(
+                training_examples,
+            )
+            selector_selections.extend(selector_cv_selections)
+        if (
+            profile_label == baseline_label
+            and shared_checkpoint_required
+        ):
+            shared_baseline_checkpoint = sandbox.create_checkpoint(
+                checkpoint_id=(
+                    f"{baseline_label}:shared-residual-control-checkpoint"
+                )
+            )
+            shared_family_registry = {
+                key: set(values)
+                for key, values in family_registry.items()
+            }
         episode_reports: list[ETAProofEpisodeReport] = []
         for case in train_cases + eval_cases:
             snapshots, source_text_by_step = _build_case_snapshot_bundle(
@@ -2012,6 +3133,73 @@ def run_eta_internal_rl_proof_benchmark(
                 proof_episode=rollout_case.proof_episode,
                 source_text_by_step=source_text_by_step,
             )
+            continuation_scores = _score_rollout_continuations(
+                runtime=(
+                    active_open_weight_runtime
+                    if backend_label == "transformers-open-weight"
+                    and not profile.use_noop_backend
+                    else None
+                ),
+                rollout=rollout,
+                source_text_by_step=source_text_by_step,
+            )
+            if (
+                continuation_counterfactual_grid
+                and training_signal
+                == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                and backend_label == "transformers-open-weight"
+                and profile_label == baseline_label
+                and case.split in evaluation_counterfactual_diagnostics
+            ):
+                if active_open_weight_runtime is None:
+                    raise RuntimeError(
+                        "counterfactual evaluation diagnostics require "
+                        "the active open-weight runtime"
+                    )
+                if not isinstance(
+                    sandbox.policy,
+                    FullLearnedTemporalPolicy,
+                ):
+                    raise ValueError(
+                        "counterfactual evaluation diagnostics require "
+                        "FullLearnedTemporalPolicy"
+                    )
+                (
+                    _diagnostic_rollout,
+                    _diagnostic_prediction_errors,
+                    diagnostic_rows,
+                ) = _with_counterfactual_continuation_pe_rewards(
+                    runtime=active_open_weight_runtime,
+                    rollout=rollout,
+                    source_text_by_step=source_text_by_step,
+                    policy=sandbox.policy,
+                    score_cache=continuation_score_cache,
+                )
+                evaluation_counterfactual_diagnostics[
+                    case.split
+                ].extend(diagnostic_rows)
+                if selector_diagnostic_active:
+                    if selector_artifact is None:
+                        raise RuntimeError(
+                            "counterfactual selector artifact disappeared "
+                            "before frozen evaluation"
+                        )
+                    evaluation_examples = (
+                        _counterfactual_action_examples(
+                            case=case,
+                            snapshots=snapshots,
+                            diagnostic_rows=diagnostic_rows,
+                        )
+                    )
+                    selector_selections.extend(
+                        select_counterfactual_actions(
+                            selector_artifact,
+                            evaluation_examples,
+                            prediction_source=(
+                                "frozen-train-selector"
+                            ),
+                        )
+                    )
             episode_reports.append(
                 _episode_report(
                     case=case,
@@ -2019,18 +3207,154 @@ def run_eta_internal_rl_proof_benchmark(
                     profile_label=profile_label,
                     backend_label=backend_label,
                     family_registry=family_registry,
+                    continuation_scores=continuation_scores,
                 )
             )
             _update_family_registry(family_registry, rollout)
         metric_means = _profile_metric_means(tuple(episode_reports))
-        metric_means = metric_means + (
+        counterfactual_diagnostic_metrics = (
+            _counterfactual_diagnostic_metrics(
+                tuple(continuation_counterfactual_diagnostics)
+            )
+        )
+        evaluation_counterfactual_diagnostic_metrics = tuple(
+            metric
+            for scope in ("eval", "heldout", "confirmation")
+            for metric in _scoped_counterfactual_diagnostic_metrics(
+                tuple(evaluation_counterfactual_diagnostics[scope]),
+                scope=scope,
+            )
+        )
+        selector_metric_rows = (
+            _counterfactual_selector_metric_rows(
+                selections=tuple(selector_selections),
+                input_dim=selector_artifact.input_dim,
+                latent_dim=selector_artifact.input_dim,
+                action_count=selector_artifact.action_count,
+                ridge_strength=selector_artifact.ridge_strength,
+                model_candidate_count=(
+                    selector_model_candidate_count
+                ),
+                explained_variance_ratio=1.0,
+            )
+            if selector_artifact is not None
+            else _counterfactual_selector_metric_rows(
+                selections=(),
+                input_dim=0,
+                latent_dim=0,
+                action_count=len(
+                    _continuation_counterfactual_candidates()
+                ),
+                ridge_strength=0.0,
+                model_candidate_count=0,
+                explained_variance_ratio=0.0,
+            )
+        )
+        post_training_checkpoint = sandbox.create_checkpoint(
+            checkpoint_id=f"{profile_label}:post-training"
+        )
+        metric_means = (
+            metric_means
+            + counterfactual_diagnostic_metrics
+            + evaluation_counterfactual_diagnostic_metrics
+            + selector_metric_rows
+            + (
             ("temporal_fast_prior_strength", sandbox.policy.parameter_store.latest_fast_prior_strength),
             ("temporal_fast_prior_switch_delta", sandbox.policy.parameter_store.latest_fast_prior_switch_pressure_delta),
             ("temporal_fast_prior_action_bias", sandbox.policy.parameter_store.latest_fast_prior_action_bias),
             ("temporal_fast_prior_family_bias", sandbox.policy.parameter_store.latest_fast_prior_family_bias),
             ("bootstrap_init_used", 1.0 if bootstrap_snapshot is not None else 0.0),
+            (
+                "causal_action_head_active",
+                1.0 if causal_action_head_active else 0.0,
+            ),
+            (
+                "causal_action_head_update_step",
+                float(
+                    sandbox.policy.parameter_store.causal_action_head_parameters(
+                        track=Track.SHARED
+                    )
+                    .update_step
+                )
+                if causal_action_head_active
+                else 0.0,
+            ),
+            (
+                "causal_action_head_state_dim",
+                float(sandbox.causal_action_head_state_dim),
+            ),
+            (
+                "shared_policy_checkpoint_used",
+                1.0 if profile.reuse_baseline_checkpoint else 0.0,
+            ),
+            (
+                "shared_policy_fingerprint_match_at_eval_start",
+                1.0
+                if shared_policy_fingerprint_match_at_eval_start
+                else 0.0,
+            ),
+            (
+                "continuation_pe_training_transition_count",
+                float(training_transition_count),
+            ),
+            (
+                "continuation_pe_candidate_score_count",
+                float(len(continuation_training_prediction_errors)),
+            ),
+            (
+                "continuation_counterfactual_grid_used",
+                1.0
+                if continuation_counterfactual_grid
+                and active_train_epochs > 0
+                else 0.0,
+            ),
+            (
+                "continuation_counterfactual_unique_score_count",
+                float(len(continuation_score_cache)),
+            ),
+            (
+                "continuation_pe_training_mean_raw_delta",
+                _mean(
+                    tuple(
+                        continuation_training_prediction_errors
+                    )
+                ),
+            ),
+            (
+                "continuation_pe_training_positive_rate",
+                _mean(
+                    tuple(
+                        1.0 if value > 0.0 else 0.0
+                        for value in continuation_training_prediction_errors
+                    )
+                ),
+            ),
+            (
+                "continuation_pe_structure_frozen",
+                1.0
+                if (
+                    training_signal
+                    == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                    and _ssl_structure_state(pre_training_checkpoint)
+                    == _ssl_structure_state(post_training_checkpoint)
+                )
+                else 0.0,
+            ),
+            (
+                "continuation_pe_policy_changed",
+                1.0
+                if (
+                    training_signal
+                    == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                    and active_train_epochs > 0
+                    and pre_training_checkpoint.policy_optimization_fingerprint
+                    != post_training_checkpoint.policy_optimization_fingerprint
+                )
+                else 0.0,
+            ),
             *_temporal_family_slow_loop_metrics(sandbox.policy),
             *_real_snapshot_metric_values(tuple(real_substrate_snapshots)),
+            )
         )
         benchmark_rollout_batch_count += rollout_batch_count
         profile_reports.append(
@@ -2060,6 +3384,7 @@ def run_eta_internal_rl_proof_benchmark(
                     f"{profile_label} produced {len(episode_reports)} ETA proof episode reports "
                     f"on backend={backend_label} with batch_updates={rollout_batch_count}."
                 ),
+                action_selection_records=tuple(selector_selections),
             )
         )
     baseline_report = next(report for report in profile_reports if report.profile_label == baseline_label)
@@ -2130,6 +3455,9 @@ def run_eta_internal_rl_proof_benchmark(
                 mean_value_loss=report.mean_value_loss,
                 mean_replacement_effect_delta=report.mean_replacement_effect_delta,
                 description=report.description,
+                action_selection_records=(
+                    report.action_selection_records
+                ),
             )
             for report in profile_reports
         ]
@@ -2816,6 +4144,9 @@ def _open_weight_runtime_descriptor(
         "open_weight_runtime_origin": runtime_origin,
         "open_weight_fallback_active": fallback_active,
         "open_weight_layer_indices": layer_indices_str,
+        "open_weight_activation_width": str(
+            config.activation_width if config is not None else 8
+        ),
         "open_weight_device": str(config.device) if config is not None else "auto",
         "open_weight_max_prefix_steps": str(config.max_prefix_steps) if config is not None else "",
         "torch_version": torch_version,
@@ -2851,6 +4182,63 @@ def run_eta_internal_rl_paper_suite(
     train_epochs = int(
         next(values[0] for name, values in active_manifest.case_groups if name == "train_epochs")
     )
+    training_signal = next(
+        (
+            values[0]
+            for name, values in active_manifest.case_groups
+            if name == "training_signal"
+        ),
+        ETA_PROOF_TRAINING_SIGNAL,
+    )
+    latent_unit_clamp = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "latent_unit_clamp"
+        ),
+        False,
+    )
+    real_residual_ssl_bootstrap = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "real_residual_ssl_bootstrap"
+        ),
+        False,
+    )
+    causal_action_head_active = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "causal_action_head_active"
+        ),
+        False,
+    )
+    causal_action_head_state_dim = next(
+        (
+            int(values[0])
+            for name, values in active_manifest.case_groups
+            if name == "causal_action_head_state_dim"
+        ),
+        None,
+    )
+    continuation_counterfactual_grid = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "continuation_counterfactual_grid"
+        ),
+        False,
+    )
+    counterfactual_action_selector_diagnostic = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name
+            == "counterfactual_action_selector_diagnostic"
+        ),
+        False,
+    )
     backend_labels = tuple(
         backend_label
         for name, values in active_manifest.case_groups
@@ -2858,7 +4246,28 @@ def run_eta_internal_rl_paper_suite(
         for backend_label in values
     ) or ("trace", "synthetic-open-weight")
     primary_backend_label = backend_labels[0]
-    cases = tuple(case for case in default_eta_proof_cases() if case.case_id in route_ids)
+    case_corpus = next(
+        (
+            values[0]
+            for name, values in active_manifest.case_groups
+            if name == "case_corpus"
+        ),
+        ETA_DEFAULT_CASE_CORPUS,
+    )
+    if case_corpus == ETA_DEFAULT_CASE_CORPUS:
+        available_cases = default_eta_proof_cases()
+    elif case_corpus == ETA_GATE2_EXPANDED_CASE_CORPUS:
+        available_cases = eta_gate2_expanded_cases()
+    else:
+        raise ValueError(f"Unsupported ETA case corpus {case_corpus!r}.")
+    available_case_ids = {case.case_id for case in available_cases}
+    unknown_route_ids = route_ids - available_case_ids
+    if unknown_route_ids:
+        raise ValueError(
+            "ETA manifest requested routes outside its declared case corpus: "
+            f"{sorted(unknown_route_ids)!r}."
+        )
+    cases = tuple(case for case in available_cases if case.case_id in route_ids)
     run_summaries: list[ETAProofPaperSuiteRunSummary] = []
     reference_benchmark_report: ETAProofBenchmarkReport | None = None
     reference_backend_report: ETAProofBackendComparisonReport | None = None
@@ -2879,6 +4288,21 @@ def run_eta_internal_rl_paper_suite(
             train_epochs=train_epochs,
             open_weight_runtime=open_weight_runtime,
             open_weight_config=open_weight_config,
+            training_signal=training_signal,
+            latent_unit_clamp=latent_unit_clamp,
+            real_residual_ssl_bootstrap=(
+                real_residual_ssl_bootstrap
+            ),
+            causal_action_head_active=causal_action_head_active,
+            causal_action_head_state_dim=(
+                causal_action_head_state_dim
+            ),
+            continuation_counterfactual_grid=(
+                continuation_counterfactual_grid
+            ),
+            counterfactual_action_selector_diagnostic=(
+                counterfactual_action_selector_diagnostic
+            ),
         )
         backend_report = run_eta_internal_rl_backend_robustness_benchmark(
             cases=ordered_cases,
@@ -2982,9 +4406,29 @@ def run_eta_internal_rl_paper_suite(
     )
     runtime_descriptor: dict[str, str] = {
         "suite_kind": active_manifest.suite_kind,
+        "case_corpus": case_corpus,
         "train_epochs": str(train_epochs),
         "backend_mode": "+".join(backend_labels),
         "primary_backend": primary_backend_label,
+        "training_signal": training_signal,
+        "latent_unit_clamp": str(latent_unit_clamp).lower(),
+        "real_residual_ssl_bootstrap": str(
+            real_residual_ssl_bootstrap
+        ).lower(),
+        "causal_action_head_active": str(
+            causal_action_head_active
+        ).lower(),
+        "causal_action_head_state_dim": str(
+            causal_action_head_state_dim
+            if causal_action_head_state_dim is not None
+            else "default"
+        ),
+        "continuation_counterfactual_grid": str(
+            continuation_counterfactual_grid
+        ).lower(),
+        "counterfactual_action_selector_diagnostic": str(
+            counterfactual_action_selector_diagnostic
+        ).lower(),
     }
     runtime_descriptor.update(
         _open_weight_runtime_descriptor(
