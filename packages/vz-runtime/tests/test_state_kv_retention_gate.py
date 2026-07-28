@@ -25,6 +25,10 @@ def _write_case(
     candidate_total: int = 32,
     control_correct: int = 16,
     control_total: int = 32,
+    probe_limit: int = 0,
+    probe_count: int = 1,
+    case_count: int = 2,
+    max_new_tokens: int = 48,
     temperature: float = 0.0,
     sampling_seed: int | None = None,
 ) -> Path:
@@ -134,7 +138,10 @@ def _write_case(
             "p2_pair": pair,
             "user_ids": [f"{pair}-a", f"{pair}-b"],
             "probe_ids": ["h0"],
-            "case_count": 2,
+            "probe_limit": probe_limit,
+            "probe_count": probe_count,
+            "case_count": case_count,
+            "max_new_tokens": max_new_tokens,
             "temperature": temperature,
             "sampling_seed": sampling_seed,
         },
@@ -179,6 +186,10 @@ def test_retention_gate_passes_on_two_heldout_pairs(tmp_path: Path) -> None:
     assert candidate.ci_low_min > 0.5
     assert report.inputs[0].temperature == 0.0
     assert report.inputs[0].sampling_seed is None
+    assert report.inputs[0].probe_limit == 0
+    assert report.inputs[0].probe_count == 1
+    assert report.inputs[0].case_count == 2
+    assert report.inputs[0].max_new_tokens == 48
 
 
 def test_retention_gate_marks_stochastic_rollout_coverage(tmp_path: Path) -> None:
@@ -267,6 +278,44 @@ def test_retention_gate_fails_mixed_rollout_seed(tmp_path: Path) -> None:
             pair="boundary-vs-commit",
             temperature=0.2,
             sampling_seed=31337,
+        )
+    )
+
+    report = build_retention_gate_report(
+        evidences=(first, second),
+        required_p2_pairs=("repair-vs-execute", "boundary-vs-commit"),
+    )
+
+    assert report.gate_state is RetentionGateState.FAIL
+    assert (
+        _claim_state(report, "claim_consistent_artifact")
+        is GateClaimState.FAIL
+    )
+
+
+def test_retention_gate_fails_mixed_probe_limit(tmp_path: Path) -> None:
+    first = load_retention_evidence(
+        _write_case(
+            tmp_path,
+            pair="repair-vs-execute",
+            probe_limit=4,
+            probe_count=4,
+            case_count=8,
+            max_new_tokens=16,
+            temperature=0.2,
+            sampling_seed=1701,
+        )
+    )
+    second = load_retention_evidence(
+        _write_case(
+            tmp_path,
+            pair="boundary-vs-commit",
+            probe_limit=0,
+            probe_count=16,
+            case_count=32,
+            max_new_tokens=16,
+            temperature=0.2,
+            sampling_seed=1701,
         )
     )
 

@@ -1,0 +1,524 @@
+{
+  "schema_version": "state-kv-identification.v1",
+  "verdict_state": "retain-strict",
+  "substrate_kind": "frozen-weights",
+  "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+  "candidate_arm": "state-kv-arm-g-prefix-pure",
+  "claims": [
+    {
+      "claim": "claim_prompt_identity",
+      "state": "pass",
+      "detail": "16 turns across 4 probes share one prompt_fp per probe with prompt_state_sections=0"
+    },
+    {
+      "claim": "claim_output_divergence",
+      "state": "pass",
+      "detail": "state-kv-arm-g-prefix-pure injected on every delivered turn and outputs differ across users on every probe"
+    },
+    {
+      "claim": "claim_identification_above_chance",
+      "state": "pass",
+      "detail": "accuracy=1.000 CI=(1.000, 1.000) judge=BAAI/bge-m3"
+    },
+    {
+      "claim": "claim_carrier_causality",
+      "state": "pass",
+      "detail": "state-kv-arm-a-pure CI covers chance (0.125, 0.875); state-kv-arm-g-prefix-pure clears it (1.000)"
+    }
+  ],
+  "c5_grade": "decode-matched",
+  "c5_detail": "decode_fp identical across users on every probe",
+  "matching": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "correct": 4,
+      "total": 8,
+      "accuracy": 0.5,
+      "ci_low": 0.125,
+      "ci_high": 0.875,
+      "judge_model_id": "BAAI/bge-m3"
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "correct": 4,
+      "total": 8,
+      "accuracy": 0.5,
+      "ci_low": 0.125,
+      "ci_high": 0.875,
+      "judge_model_id": "BAAI/bge-m3"
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "correct": 3,
+      "total": 8,
+      "accuracy": 0.375,
+      "ci_low": 0.125,
+      "ci_high": 0.75,
+      "judge_model_id": "BAAI/bge-m3"
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "correct": 4,
+      "total": 8,
+      "accuracy": 0.5,
+      "ci_low": 0.125,
+      "ci_high": 0.875,
+      "judge_model_id": "BAAI/bge-m3"
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "correct": 8,
+      "total": 8,
+      "accuracy": 1.0,
+      "ci_low": 1.0,
+      "ci_high": 1.0,
+      "judge_model_id": "BAAI/bge-m3"
+    }
+  ],
+  "prompt_fp_table": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "c96096292bcec35f",
+      "sampling_seed": 2671151152874479967,
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "227ac33445c9398e",
+      "sampling_seed": 1270789232919851294,
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "06c516c9a4bbe265",
+      "sampling_seed": 363786756950539661,
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "1644354ea2927f4f",
+      "sampling_seed": 5307861064945835462,
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "c96096292bcec35f",
+      "sampling_seed": 2671151152874479967,
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "227ac33445c9398e",
+      "sampling_seed": 1270789232919851294,
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "06c516c9a4bbe265",
+      "sampling_seed": 363786756950539661,
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "1644354ea2927f4f",
+      "sampling_seed": 5307861064945835462,
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "2c1f1b1f01a0ac36",
+      "sampling_seed": 8959474251116150549,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "8f42369b86475b7d",
+      "sampling_seed": 9175395399038286320,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "bfa2e9ba164e3d4b",
+      "sampling_seed": 2001354572146785501,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "e82c59133fafb931",
+      "sampling_seed": 7778520845498919251,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "2c1f1b1f01a0ac36",
+      "sampling_seed": 8959474251116150549,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "8f42369b86475b7d",
+      "sampling_seed": 9175395399038286320,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "bfa2e9ba164e3d4b",
+      "sampling_seed": 2001354572146785501,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "e82c59133fafb931",
+      "sampling_seed": 7778520845498919251,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "3818d286e59b71b7",
+      "prompt_state_sections": 2,
+      "decode_fp": "095db03a4122305c",
+      "sampling_seed": 3498253913253410084,
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "a56368baf1f895b5",
+      "prompt_state_sections": 2,
+      "decode_fp": "1829e75d1fb77f9a",
+      "sampling_seed": 8470066000775921273,
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "19ba539af9b91b14",
+      "prompt_state_sections": 2,
+      "decode_fp": "333c8a0b262c4546",
+      "sampling_seed": 8369228568059695657,
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "f43b4fc314cb8f5b",
+      "prompt_state_sections": 2,
+      "decode_fp": "97d8ed330357c3c5",
+      "sampling_seed": 2829956984977340263,
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "6201407a6b263a4a",
+      "prompt_state_sections": 2,
+      "decode_fp": "095db03a4122305c",
+      "sampling_seed": 3498253913253410084,
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "40f53f935015ca0f",
+      "prompt_state_sections": 2,
+      "decode_fp": "1829e75d1fb77f9a",
+      "sampling_seed": 8470066000775921273,
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "e9fb17f9dcb8b79e",
+      "prompt_state_sections": 2,
+      "decode_fp": "333c8a0b262c4546",
+      "sampling_seed": 8369228568059695657,
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "7ab680980874b249",
+      "prompt_state_sections": 2,
+      "decode_fp": "97d8ed330357c3c5",
+      "sampling_seed": 2829956984977340263,
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "70fe4ef87295b39f",
+      "prompt_state_sections": 1,
+      "decode_fp": "a05d2bb7b620b6b9",
+      "sampling_seed": 3690932972621268868,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "f77a260f9f02de6b",
+      "prompt_state_sections": 1,
+      "decode_fp": "7aa113176e69e775",
+      "sampling_seed": 4176654584606043155,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "2ec283e787dbd0cf",
+      "prompt_state_sections": 1,
+      "decode_fp": "49f6c558f7329c6f",
+      "sampling_seed": 5621432055691451312,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "0b075598a987a021",
+      "prompt_state_sections": 1,
+      "decode_fp": "333a7bc2c4f22a1f",
+      "sampling_seed": 5035447655769386615,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "70fe4ef87295b39f",
+      "prompt_state_sections": 1,
+      "decode_fp": "a05d2bb7b620b6b9",
+      "sampling_seed": 3690932972621268868,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "f77a260f9f02de6b",
+      "prompt_state_sections": 1,
+      "decode_fp": "7aa113176e69e775",
+      "sampling_seed": 4176654584606043155,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "2ec283e787dbd0cf",
+      "prompt_state_sections": 1,
+      "decode_fp": "49f6c558f7329c6f",
+      "sampling_seed": 5621432055691451312,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "0b075598a987a021",
+      "prompt_state_sections": 1,
+      "decode_fp": "333a7bc2c4f22a1f",
+      "sampling_seed": 5035447655769386615,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "138b43048659d39d",
+      "sampling_seed": 5093005789611372193,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "f10ae653c3243516",
+      "sampling_seed": 84683002116983873,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "6319bef4e18c2f39",
+      "sampling_seed": 3962420047320409170,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "c72ff0049a68b356",
+      "sampling_seed": 4884579298695008257,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "138b43048659d39d",
+      "sampling_seed": 5093005789611372193,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "f10ae653c3243516",
+      "sampling_seed": 84683002116983873,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "6319bef4e18c2f39",
+      "sampling_seed": 3962420047320409170,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "c72ff0049a68b356",
+      "sampling_seed": 4884579298695008257,
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    }
+  ],
+  "judge_model_id": "BAAI/bge-m3",
+  "notes": [
+    "stochastic rollout seed alignment active: per-turn seed is derived from rollout_seed + arm + probe and excludes user_id"
+  ]
+}

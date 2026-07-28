@@ -113,6 +113,10 @@ class RetentionGateEvidence:
     substrate_fingerprint: str
     judge_model_id: str
     prefix_artifact_id: str
+    probe_limit: int
+    probe_count: int
+    case_count: int
+    max_new_tokens: int
     temperature: float
     sampling_seed: int | None
     stochastic_generation_rollout: bool
@@ -140,6 +144,10 @@ class RetentionGateEvidence:
             "substrate_fingerprint": self.substrate_fingerprint,
             "judge_model_id": self.judge_model_id,
             "prefix_artifact_id": self.prefix_artifact_id,
+            "probe_limit": self.probe_limit,
+            "probe_count": self.probe_count,
+            "case_count": self.case_count,
+            "max_new_tokens": self.max_new_tokens,
             "temperature": round(self.temperature, 6),
             "sampling_seed": self.sampling_seed,
             "stochastic_generation_rollout": self.stochastic_generation_rollout,
@@ -347,10 +355,34 @@ def load_retention_evidence(verdict_path: Path | str) -> RetentionGateEvidence:
     temperature = _optional_float_field(
         material, "temperature", default=0.0, path=fingerprint_path
     )
+    probe_limit = _optional_int_field(
+        material, "probe_limit", path=fingerprint_path
+    )
+    probe_count = _optional_int_field(
+        material, "probe_count", path=fingerprint_path
+    )
+    case_count = _optional_int_field(
+        material, "case_count", path=fingerprint_path
+    )
+    max_new_tokens = _optional_int_field(
+        material, "max_new_tokens", path=fingerprint_path
+    )
     sampling_seed = _optional_int_field(
         material, "sampling_seed", path=fingerprint_path
     )
     stochastic_generation_rollout = temperature > 0.0
+    if probe_limit is not None and probe_limit < 0:
+        raise ValueError(f"{fingerprint_path} probe_limit must be non-negative")
+    if probe_count is not None and probe_count <= 0:
+        raise ValueError(f"{fingerprint_path} probe_count must be positive")
+    if case_count is not None and case_count <= 0:
+        raise ValueError(f"{fingerprint_path} case_count must be positive")
+    if max_new_tokens is not None and max_new_tokens <= 0:
+        raise ValueError(f"{fingerprint_path} max_new_tokens must be positive")
+    if stochastic_generation_rollout and max_new_tokens is None:
+        raise ValueError(
+            f"{fingerprint_path} has temperature > 0 but no max_new_tokens"
+        )
     if stochastic_generation_rollout and sampling_seed is None:
         raise ValueError(
             f"{fingerprint_path} has temperature > 0 but no sampling_seed"
@@ -381,6 +413,10 @@ def load_retention_evidence(verdict_path: Path | str) -> RetentionGateEvidence:
             "personal_conditioning_prefix_id",
             path=fingerprint_path,
         ),
+        probe_limit=probe_limit or 0,
+        probe_count=probe_count or 0,
+        case_count=case_count or 0,
+        max_new_tokens=max_new_tokens or 0,
         temperature=temperature,
         sampling_seed=sampling_seed,
         stochastic_generation_rollout=stochastic_generation_rollout,
@@ -459,6 +495,10 @@ def build_retention_gate_report(
     candidates = {item.candidate_arm for item in evidences}
     rollout_configs = {
         (
+            item.probe_limit,
+            item.probe_count,
+            item.case_count,
+            item.max_new_tokens,
             round(item.temperature, 6),
             item.sampling_seed,
             item.stochastic_generation_rollout,
@@ -473,9 +513,15 @@ def build_retention_gate_report(
         == len(rollout_configs)
         == 1
     ):
-        temperature, sampling_seed, stochastic_rollout = next(
-            iter(rollout_configs)
-        )
+        (
+            probe_limit,
+            probe_count,
+            case_count,
+            max_new_tokens,
+            temperature,
+            sampling_seed,
+            stochastic_rollout,
+        ) = next(iter(rollout_configs))
         claims.append(
             GateClaim(
                 name=_CLAIM_CONSISTENT_ARTIFACT,
@@ -484,6 +530,8 @@ def build_retention_gate_report(
                     f"{len(evidences)} verdicts share artifact "
                     f"{next(iter(prefix_ids))}, substrate {next(iter(substrates))}, "
                     f"judge {next(iter(judges))}, candidate {next(iter(candidates))}, "
+                    f"probe_limit {probe_limit}, probe_count {probe_count}, "
+                    f"case_count {case_count}, max_new_tokens {max_new_tokens}, "
                     f"temperature {temperature}, sampling_seed {sampling_seed}, "
                     f"stochastic_rollout={stochastic_rollout}"
                 ),
@@ -666,10 +714,17 @@ def build_retention_gate_report(
     stochastic_generation_rollout_covered = all(
         item.stochastic_generation_rollout for item in evidences
     )
+    probe_limited_rollout = any(item.probe_limit for item in evidences)
     notes = (
         (
             "This gate covers held-out pair aggregation, bootstrap-seed "
-            "robustness, and seed-aligned stochastic generation rollout."
+            "robustness, and seed-aligned stochastic generation rollout"
+            + (
+                " on an explicit probe-limited CPU evaluation; full-probe "
+                "stochastic rollout stability is not covered by this artifact."
+                if probe_limited_rollout
+                else "."
+            )
         )
         if stochastic_generation_rollout_covered
         else (

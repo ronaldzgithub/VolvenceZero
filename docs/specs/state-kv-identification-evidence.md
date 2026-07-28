@@ -1,6 +1,6 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke（temperature 0.2，seed 1701，G-prefix 12/12，C5 decode-matched）。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 上保持可识别；默认 ACTIVE 晋升和 P2 held-out true stochastic rollout gate 仍未完成。
+> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke（temperature 0.2，seed 1701，G-prefix 12/12，C5 decode-matched）与 P2 probe-limited stochastic retention gate（两个 held-out pair，probe_limit=4，max_new_tokens=16，G-prefix 合计 16/16，A-pure 合计随机）。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 上保持可识别；默认 ACTIVE 晋升和 P2 full-probe true stochastic rollout gate 仍未完成。
 > Last updated: 2026-07-28
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
@@ -186,7 +186,7 @@ prompt」的效果（设计方案 §9.3 原文）。即便日后判据 2 通过�
 | P4-mechanism | slot 注意力非退化检验（门 A）+ 状态线性可读出探针（门 B） | 0 | 门 A fail / 门 B pass；`carrier_is_live=false` |
 | P2-retain-heldout | held-out personas + held-out probes，出 pairwise `verdict_identification.json` | MPS + 本地 embedding judge | ✅ 已落地，见 §P2 |
 | P2-retain-aggregate | 聚合两组 P2 verdict，复核同 artifact / substrate / judge 与 bootstrap seed 稳定性 | 本地只读聚合 | ✅ 已落地，见 §P2 |
-| P2-retain-rollout | true stochastic generation / 多模型裁判复核，同一 artifact 的稳定性门 | 批准预算 | pending |
+| P2-retain-rollout | true stochastic generation / 多模型裁判复核，同一 artifact 的稳定性门 | CPU / 批准预算 | seed 契约与 probe-limited CPU gate 已落地；full-probe pending |
 
 ### P1 frozen-Qwen runner
 
@@ -795,6 +795,63 @@ python scripts/run_state_kv_retention_gate.py \
 
 这关闭的是**聚合与 bootstrap seed 稳定性**，不是随机生成 rollout。true stochastic rollout
 需要另跑 seed-aligned verdict，不得用 greedy retention 结果替代。
+
+#### P2 probe-limited stochastic retention gate（2026-07-28）
+
+Codex 内的 Python / PyTorch 进程无法使用 MPS，因此本包按 CPU 收口。完整
+16-probe P2 在 CPU 上主要卡在 160 次 Qwen prefill，不适合作为本轮等待项；runner
+因此新增显式 `--probe-limit`，并把 `probe_limit / probe_count / case_count /
+max_new_tokens / temperature / sampling_seed` 写入
+`substrate_fingerprint.json.identification_material`。retention gate 将这些字段纳入
+`claim_consistent_artifact`，并在 report note 中标明 probe-limited CPU evaluation；
+禁止把它误读成 full-probe rollout stability。
+
+命令（两个 pair 均为 CPU，temperature 0.2，seed 1701，probe_limit 4）：
+
+```bash
+python scripts/run_state_kv_identification.py \
+  --lane p2 --p2-pair repair-vs-execute --device cpu \
+  --probe-limit 4 --max-new-tokens 16 \
+  --temperature 0.2 --sampling-seed 1701 \
+  --personal-conditioning-scale 0.12 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
+  --judge-kind embedding --judge-model-id BAAI/bge-m3 \
+  --judge-source /Users/mengfu/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181 \
+  --judge-device cpu \
+  --output artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-probe4-max16/verdict_identification.json
+
+python scripts/run_state_kv_identification.py \
+  --lane p2 --p2-pair boundary-vs-commit --device cpu \
+  --probe-limit 4 --max-new-tokens 16 \
+  --temperature 0.2 --sampling-seed 1701 \
+  --personal-conditioning-scale 0.12 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
+  --judge-kind embedding --judge-model-id BAAI/bge-m3 \
+  --judge-source /Users/mengfu/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181 \
+  --judge-device cpu \
+  --output artifacts/state_kv/p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1701-probe4-max16/verdict_identification.json
+
+python scripts/run_state_kv_retention_gate.py \
+  --verdict artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-probe4-max16/verdict_identification.json \
+  --verdict artifacts/state_kv/p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1701-probe4-max16/verdict_identification.json \
+  --output artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-probe4-max16-retention/verdict_retention_gate.json
+```
+
+结果：
+
+| 项 | 结果 |
+|---|---|
+| pairwise overall | 两个 pair 均为 **`retain-strict`** / `decode-matched` |
+| per-pair G-prefix | 两个 pair 均为 **8/8**，CI **1.000..1.000** |
+| per-pair A-pure | 两个 pair 均为 4/8，CI **0.125..0.875** 覆盖 chance |
+| seed audit | 每个 pair 40/40 turns 均带 `sampling_seed`；唯一 seed 数 20 = 5 arms × 4 probes |
+| aggregate gate | **pass**：G-prefix 16/16，CI low floor **1.000**；A-pure 8/16，CI **0.250..0.750** 覆盖 chance |
+| rollout config | `probe_limit=4`，`probe_count=4`，`case_count=8`，`max_new_tokens=16`，`temperature=0.2`，`sampling_seed=1701` |
+
+这关闭的是**per-turn seed alignment 契约进入 P2 retention gate**，并证明同一标准
+artifact 在两个 held-out pair 的 CPU probe-limited stochastic rollout 中仍被识别。
+它不关闭 full-probe stochastic rollout：默认 `ACTIVE` 晋升前仍需补完整 16-probe
+或等价预算下的 rollout stability 证据，且多模型裁判矩阵仍未完成。
 
 #### P3 stochastic rollout seed-alignment smoke（2026-07-28）
 

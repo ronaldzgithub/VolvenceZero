@@ -221,10 +221,14 @@ prompt identity 与 output divergence。但 wrong-user training control 仍只�
   CI 0.719..0.969；两组 A-pure control 均覆盖随机。
 - P2 aggregate retention gate：两组 P2 合计 G-prefix 56/64，accuracy 0.875，
   bootstrap seed CI low floor 0.781；A-pure 合计 32/64，CI 0.375..0.625 覆盖随机。
+- P2 probe-limited stochastic retention gate（CPU）：`temperature=0.2`、`sampling_seed=1701`、
+  `probe_limit=4`、`max_new_tokens=16` 下，两组 P2 均为 `retain-strict`；合计
+  G-prefix 16/16，A-pure 8/16 且 CI 覆盖随机；per-turn seed audit 80/80 通过。
 
 这把“state readout 能进入 Prefix-KV 并影响冻结 Qwen 输出”证明到标准 artifact
 级别，并补上了未见过 persona/probe 的 held-out 行为识别。它仍是证据专用 artifact，
-不是默认 `ACTIVE` 晋升；true stochastic generation rollout gate 仍需后续包处理。
+不是默认 `ACTIVE` 晋升；full-probe true stochastic generation rollout gate 与默认回滚
+开关仍需后续包处理。
 
 完整数据与反主张边界见
 [`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3 / §P4。

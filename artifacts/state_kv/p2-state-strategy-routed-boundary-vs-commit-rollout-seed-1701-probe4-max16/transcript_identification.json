@@ -1,0 +1,761 @@
+{
+  "schema_version": "state-kv-identification-transcript.v1",
+  "lane": "p2",
+  "personal_conditioning_projector_id": "fixed-sine-cosine-v1",
+  "personal_conditioning_projector_training_mode": "fixed",
+  "personal_conditioning_prefix_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+  "turns": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=c96096292bcec35f",
+        "sampling_seed=2671151152874479967",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行实时判断，但我可以提供一些建议。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=227ac33445c9398e",
+        "sampling_seed=1270789232919851294",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "保护什么边界取决于你的需求和目标。如果你想要建立一个安全的环境",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=06c516c9a4bbe265",
+        "sampling_seed=363786756950539661",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=1644354ea2927f4f",
+        "sampling_seed=5307861064945835462",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=c96096292bcec35f",
+        "sampling_seed=2671151152874479967",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行实时判断，但我可以提供一些建议。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=227ac33445c9398e",
+        "sampling_seed=1270789232919851294",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "保护什么边界取决于你的需求和目标。如果你想要建立一个安全的环境",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=06c516c9a4bbe265",
+        "sampling_seed=363786756950539661",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=1644354ea2927f4f",
+        "sampling_seed=5307861064945835462",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=2c1f1b1f01a0ac36",
+        "sampling_seed=8959474251116150549",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行判断，但我可以提供一些建议。请",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=8f42369b86475b7d",
+        "sampling_seed=9175395399038286320",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "保护边界很重要，这关系到你的安全和他人权益。你认为应该",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=bfa2e9ba164e3d4b",
+        "sampling_seed=2001354572146785501",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=e82c59133fafb931",
+        "sampling_seed=7778520845498919251",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=2c1f1b1f01a0ac36",
+        "sampling_seed=8959474251116150549",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行判断，但我可以提供一些建议。请",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=8f42369b86475b7d",
+        "sampling_seed=9175395399038286320",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "保护边界很重要，这关系到你的安全和他人权益。你认为应该",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=bfa2e9ba164e3d4b",
+        "sampling_seed=2001354572146785501",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=e82c59133fafb931",
+        "sampling_seed=7778520845498919251",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "那真是太可惜了！",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=3818d286e59b71b7",
+        "prompt_state_sections=2",
+        "decode_fp=095db03a4122305c",
+        "sampling_seed=3498253913253410084",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我理解你现在可能在考虑某个问题或决定，但我不具备实时分析",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=a56368baf1f895b5",
+        "prompt_state_sections=2",
+        "decode_fp=1829e75d1fb77f9a",
+        "sampling_seed=8470066000775921273",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "在决定保护哪些边界时，你需要考虑你的价值观、目标和对未来的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=19ba539af9b91b14",
+        "prompt_state_sections=2",
+        "decode_fp=333c8a0b262c4546",
+        "sampling_seed=8369228568059695657",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=f43b4fc314cb8f5b",
+        "prompt_state_sections=2",
+        "decode_fp=97d8ed330357c3c5",
+        "sampling_seed=2829956984977340263",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "那真是太可惜了！",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=6201407a6b263a4a",
+        "prompt_state_sections=2",
+        "decode_fp=095db03a4122305c",
+        "sampling_seed=3498253913253410084",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "好的，我来帮你分析。目前的环境和情况是这样的：\n\n-",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=40f53f935015ca0f",
+        "prompt_state_sections=2",
+        "decode_fp=1829e75d1fb77f9a",
+        "sampling_seed=8470066000775921273",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "在决定保护哪个边界时，你需要考虑你的价值观、目标和对未来的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e9fb17f9dcb8b79e",
+        "prompt_state_sections=2",
+        "decode_fp=333c8a0b262c4546",
+        "sampling_seed=8369228568059695657",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=7ab680980874b249",
+        "prompt_state_sections=2",
+        "decode_fp=97d8ed330357c3c5",
+        "sampling_seed=2829956984977340263",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持到底就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=70fe4ef87295b39f",
+        "prompt_state_sections=1",
+        "decode_fp=a05d2bb7b620b6b9",
+        "sampling_seed=3690932972621268868",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行判断，但我可以提供一些建议。请",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=f77a260f9f02de6b",
+        "prompt_state_sections=1",
+        "decode_fp=7aa113176e69e775",
+        "sampling_seed=4176654584606043155",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "嗯，保护什么边界取决于你想要达到的目标。比如，如果你在工作",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=2ec283e787dbd0cf",
+        "prompt_state_sections=1",
+        "decode_fp=49f6c558f7329c6f",
+        "sampling_seed=5621432055691451312",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0b075598a987a021",
+        "prompt_state_sections=1",
+        "decode_fp=333a7bc2c4f22a1f",
+        "sampling_seed=5035447655769386615",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "别灰心，坚持到底就是胜利。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=70fe4ef87295b39f",
+        "prompt_state_sections=1",
+        "decode_fp=a05d2bb7b620b6b9",
+        "sampling_seed=3690932972621268868",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我目前无法直接进行判断，但我可以提供一些建议帮助你",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=f77a260f9f02de6b",
+        "prompt_state_sections=1",
+        "decode_fp=7aa113176e69e775",
+        "sampling_seed=4176654584606043155",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "嗯，保护什么边界取决于你想要达到的目标。比如，如果你希望保持",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=2ec283e787dbd0cf",
+        "prompt_state_sections=1",
+        "decode_fp=49f6c558f7329c6f",
+        "sampling_seed=5621432055691451312",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "好的，我明白了。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=0b075598a987a021",
+        "prompt_state_sections=1",
+        "decode_fp=333a7bc2c4f22a1f",
+        "sampling_seed=5035447655769386615",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=138b43048659d39d",
+        "sampling_seed=5093005789611372193",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=f10ae653c3243516",
+        "sampling_seed=84683002116983873",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=6319bef4e18c2f39",
+        "sampling_seed=3962420047320409170",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=c72ff0049a68b356",
+        "sampling_seed=4884579298695008257",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:2844231fe0b6",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "input": "我刚刚差点直接放弃",
+      "response": "我会更直接地给结构和决策留有深度；关于「我刚刚",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=82d2ab4e28e6a73e",
+        "prompt_state_sections=0",
+        "decode_fp=138b43048659d39d",
+        "sampling_seed=5093005789611372193",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "input": "你帮我判断一下现在该不该推进",
+      "response": "我会先确认你的状态再推进：既给一点结构，也保留退",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=abc15ce0b837d419",
+        "prompt_state_sections=0",
+        "decode_fp=f10ae653c3243516",
+        "sampling_seed=84683002116983873",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "input": "你觉得我该保护哪个边界",
+      "response": "我会更直接地给结构和决策留有深度；关于「你」",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=de56186172b7e29a",
+        "prompt_state_sections=0",
+        "decode_fp=6319bef4e18c2f39",
+        "sampling_seed=3962420047320409170",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "input": "我想今天把计划定下来",
+      "response": "我会先确认你的状态再推进：既给一点结构，也保留退",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=16",
+        "prompt_fp=e7922bf0be54428e",
+        "prompt_state_sections=0",
+        "decode_fp=c72ff0049a68b356",
+        "sampling_seed=4884579298695008257",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:c514560b94be",
+        "risk=low"
+      ]
+    }
+  ]
+}

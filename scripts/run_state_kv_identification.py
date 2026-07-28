@@ -653,6 +653,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-new-tokens", type=int, default=64)
+    parser.add_argument(
+        "--probe-limit",
+        type=int,
+        default=0,
+        help=(
+            "optional explicit probe subset size for CPU-bound rollout "
+            "evaluation; 0 keeps the full lane"
+        ),
+    )
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument(
         "--sampling-seed",
@@ -729,6 +738,8 @@ def main(argv: list[str] | None = None) -> int:
     prefix_lane = args.lane in ("p2", "p3")
     if args.max_new_tokens <= 0:
         parser.error("--max-new-tokens must be positive")
+    if args.probe_limit < 0:
+        parser.error("--probe-limit must be non-negative")
     if frozen_lane and args.inject:
         parser.error("--inject only applies to the smoke lane")
     if args.lane == "smoke" and args.projector_artifact:
@@ -869,6 +880,15 @@ def main(argv: list[str] | None = None) -> int:
             if args.lane == "p2"
             else build_probe_cases(strict_carriers=True)
         )
+    if args.probe_limit:
+        selected_probe_ids = set(
+            sorted({case.probe_id for case in cases})[: args.probe_limit]
+        )
+        if not selected_probe_ids:
+            parser.error("--probe-limit selected no probes")
+        cases = tuple(
+            case for case in cases if case.probe_id in selected_probe_ids
+        )
 
     arm_labels = (
         PREFIX_IDENTIFICATION_ARM_LABELS
@@ -883,7 +903,10 @@ def main(argv: list[str] | None = None) -> int:
         "p2_pair": args.p2_pair if args.lane == "p2" else "",
         "user_ids": sorted({case.user_id for case in cases}),
         "probe_ids": sorted({case.probe_id for case in cases}),
+        "probe_limit": args.probe_limit,
+        "probe_count": len({case.probe_id for case in cases}),
         "case_count": len(cases),
+        "max_new_tokens": args.max_new_tokens,
         "temperature": args.temperature,
         "sampling_seed": args.sampling_seed,
         "per_turn_seed_contract": (
