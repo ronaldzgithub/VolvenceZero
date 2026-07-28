@@ -164,7 +164,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 rare-heavy v0 允许 temporal owner 导出/导入 parameter snapshot：offline pipeline 负责产出 artifact，runtime owner 负责 apply / rollback，不引入第二个 temporal state owner
 - metacontroller runtime state 已扩展为可发布 prior mean/std、posterior mean/std、posterior sample noise、`z_tilde`、posterior hidden state、posterior drift、decoder output / applied control、latest switch gate，以及 binary switch ratio / sparsity / persistence window 等 owner-visible ETA 证据；当前还会显式发布 `active_label` 对应的 discovered family、`learning_phase`、`structure_frozen`、family summary/version
 - discovered action family 当前已不再从固定 seed prototype 起步，而是从空 bank 开始，并在 temporal owner 内执行 bounded `reuse/create/split/merge/prune`
-- `TemporalAbstractionSnapshot` 当前新增 `action_family_version`，作为 `temporal -> dual_track -> regime/evaluation` 的最小版本桥，不把完整 family bank 暴露给 consumer
+- `TemporalAbstractionSnapshot` 当前新增 `action_family_version`，作为 `temporal -> dual_track -> regime/evaluation` 的最小版本桥，不把完整 family bank 暴露给 consumer；该字段是整个 discovered-family bank 的全局 revision，不是 active family 的 incarnation/version，稳定身份只能使用 owner 发布的 opaque family ID
 - 当前 `temporal` owner 已补充 family competition memory：owner 内部会持续维护 `reuse_streak`、`stagnation_pressure`、`monopoly_pressure`、`competition_score`，并用这些竞争状态影响反塌缩的 topology maintenance
 - 当前 public runtime state 只发布 compact family competition summary（如 active-family competition score、monopoly pressure、turnover health、family version/count），不发布 raw internal competition ledger；这条 bridge 为下一阶段 delayed credit ledger 预留了显式版本锚点
 - 当前 `full-learned` 已把 `z_t` owner 更新规则收敛到显式 posterior + learned switch 路径：`z_t = beta_t * z_candidate + (1 - beta_t) * z_{t-1}`，其中 `z_candidate` 默认来自 posterior `z_tilde`，也可由 internal RL causal policy override

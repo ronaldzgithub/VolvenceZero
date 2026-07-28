@@ -229,8 +229,10 @@ Character behavioral-fidelity harness 同样是 evaluation-side 的独立只读�
 - baked arm 必须同时通过绝对 fidelity 门并领先 matched cold control，才能声明 learned behavior advantage；
 - learned-behavior claim 还必须做 profile-answer holdout：从 baked/cold 两臂的共同
   `CharacterSoulProfile` 中删除与评估答案同源的 signature case / strategy prior，
-  并证明 baked 的 `CaseActionGrounding.source_case_id` 来自本次
-  `case:slow-loop:*:experienced-action:*`，而 cold 不具备该 lineage；
+  并证明 baked 的 `CaseActionGrounding.source_case_id` 来自被测学习产物：
+  reviewed 单 episode 迁移使用 `case:slow-loop:*:experienced-action:*`，multi-experience
+  emergent abstraction 使用 `case:slow-loop:action-abstraction:*` promotion record；
+  cold 不得具备同一 lineage；
 - profile holdout replay 只能证明“已生活 episode 被正式 owner 召回”。当前另有
   synthetic unseen-transfer gate：刺激不得出现在 ledger/profile/case store，baked 必须
   从 slow-loop lineage 发布 reviewed action schema，cold 不得具备同一 schema，回答不得
@@ -242,13 +244,26 @@ Character behavioral-fidelity harness 同样是 evaluation-side 的独立只读�
   `schema-pending`、不可渲染，未见场景不得复述 episode。通过此门只证明 Internal RL
   lineage 存活，不能升级为 emergent semantic action abstraction；
 - multi-experience abstraction gate 至少需要两条 outcome/situation 独立、同一
-  temporal family/version 的 schema-free evidence；decoder prompt 不得包含 outcome、
-  PE 或 evaluation。candidate 必须通过正式 BACKGROUND ModificationGate 才能进入
+  temporal family ID 的 schema-free evidence；`action_family_version` 是全局 bank
+  revision，可随采集时间变化并只作审计锚点。decoder prompt 不得包含 outcome、PE 或
+  evaluation。candidate 必须通过正式 BACKGROUND ModificationGate 才能进入
   CaseMemory。跨 session 测试必须实际保存并重新加载 CaseMemory checkpoint，再用 owner
   的 typed pending evidence 接续第二经历；promotion 后再次加载必须不再产生 pending。
-  synthetic 第二经历只能证明机制可达，不能补入 character bake 的 learned behavior claim；
+  当前 ch-11/ch-17 schema-holdout 已提供两条真实证据并完成 promotion；这只升级
+  multi-experience owner-chain 结论，不替代独立 held-out behavior-fidelity gate；
 - evidence source 使用 `system_self_eval / llm_judge / external_validated` 三态，非外部验证不得升级为 external claim；
 - capture 不提交 outcome/evaluation feedback，sandbox 产生的临时学习状态全部丢弃，不进入 PE、credit、memory、regime 或 Internal RL。
+- `BehaviorFidelityCapture` v2 必须保存 CaseMemory owner 已发布的 action-grounding source
+  case id 与 action labels，使行为分数可追溯到具体 promotion record；evaluation 不得据此
+  重选案例。baked source checkpoint 必须先克隆到一次性 persistence sandbox，再运行
+  capture；capture 必须通过只读 digest reader 在运行前后自行测量并发布
+  `source_state_digest_verified=True`。仅由调用方预填相同 before/after digest 不构成
+  source-state-unchanged 证据，v1 artifact 迁移后该门保持 fail closed。
+- 当前 held-out ferry-landing gate 使用 ledger/profile/case store 均未出现的新人物、地点
+  与决策点；baked/cold 共享 profile-answer holdout。baked 从 ch-11/ch-17 promotion record
+  发布“立即中断伤害 + 言语制止”，得分 `0.904`；cold 误召回光明顶修复案例，得分
+  `0.450`，差值 `+0.454`。证据源为 `llm_judge`，所以只允许 diagnostic pass，不升级为
+  external-validated claim。
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.7 节
 
@@ -266,6 +281,7 @@ Character behavioral-fidelity harness 同样是 evaluation-side 的独立只读�
 
 ## 变更日志
 
+- 2026-07-29: 完成真实双章节晋升后的独立 held-out behavior-fidelity gate：一次性 persistence sandbox、source digest 复核、CaseMemory promotion lineage、profile-answer holdout、无 outcome/evaluation 回灌与 baked/cold 五维 reviewed score 全部闭合；`0.904 vs 0.450`、delta `+0.454`，结论限于 llm-judge diagnostic pass。
 - 2026-07-28: 增加 profile-answer holdout gate。此前 `0.840 vs 0.030` 的响应被发现逐项复用了 `protecting-bystander-from-collateral` 冷启动 case，降级为 action-realization mechanism diagnostic；新 causal test 同时删除该 case 与 strategy prior，并要求 baked source lineage 来自 gated lived-action slow-loop、cold 不具备该 lineage。
 - 2026-07-28: 第十二回 action-realization 收敛后重跑同一只读 matched control：baked `0.840`、cold `0.030`、delta `+0.810`。证据源为 `llm_judge`，只升级为 diagnostic pass；external claim 仍关闭。
 - 2026-07-28: 新增 character behavioral-fidelity read-only harness 边界：oracle-free sandbox capture、digest-bound reviewed semantic assessment、baked/cold matched control、三态 evidence source 和 source-state/no-feedback 证明；禁止用 bake 机制 telemetry 代替行为结果。

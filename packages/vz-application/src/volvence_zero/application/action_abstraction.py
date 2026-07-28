@@ -197,17 +197,21 @@ class ActionAbstractionOwner:
         if len(eligible) < _MIN_EVIDENCE_COUNT:
             return None
         family_ids = {experience.action_family_id for experience in eligible}
-        family_versions = {
-            experience.action_family_version for experience in eligible
-        }
-        if len(family_ids) != 1 or len(family_versions) != 1:
+        if len(family_ids) != 1:
             return None
         if len({item.outcome_id for item in eligible}) != len(eligible):
             return None
         if len({item.situation_statement for item in eligible}) < 2:
             return None
         family_id = next(iter(family_ids))
-        family_version = next(iter(family_versions))
+        # ``action_family_version`` is the temporal owner's global family-bank
+        # revision, not a family incarnation id.  The opaque ``family_id`` is
+        # the stable identity; use the newest observed bank revision for audit
+        # and candidate publication without requiring byte-equal revisions
+        # across experiences collected at different times.
+        family_version = max(
+            experience.action_family_version for experience in eligible
+        )
         candidate = decoder.decode(
             family_id=family_id,
             family_version=family_version,

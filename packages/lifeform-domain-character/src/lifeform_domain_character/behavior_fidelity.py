@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -22,7 +23,8 @@ from lifeform_core import Lifeform, TurnTriggerKind
 from lifeform_domain_character.narrative import NarrativeScene
 
 
-BEHAVIOR_FIDELITY_SCHEMA_VERSION = "character-behavior-fidelity.v1"
+BEHAVIOR_FIDELITY_SCHEMA_VERSION = "character-behavior-fidelity.v2"
+_BEHAVIOR_FIDELITY_SCHEMA_V1 = "character-behavior-fidelity.v1"
 BEHAVIOR_FIDELITY_DIMENSIONS: tuple[str, ...] = (
     "action_choice_alignment",
     "protective_intent_alignment",
@@ -132,12 +134,15 @@ class BehaviorFidelityCapture:
     source_state_sha256_before: str
     source_state_sha256_after: str
     source_state_unchanged: bool
+    source_state_digest_verified: bool
     candidate_response: str
     candidate_response_sha256: str
     active_regime: str
     active_abstract_action: str
     world_z_t: tuple[float, ...]
     self_z_t: tuple[float, ...]
+    action_grounding_source_case_id: str | None
+    action_grounding_action_labels: tuple[str, ...]
     sandbox_learning_fingerprint_before: str
     sandbox_learning_fingerprint_after: str
     outcome_feedback_submitted: bool
@@ -183,6 +188,23 @@ class BehaviorFidelityCapture:
             )
         if not self.sandbox_discarded:
             raise ValueError("behavior evaluation sandbox must be disposable")
+        if self.action_grounding_source_case_id is None:
+            if self.action_grounding_action_labels:
+                raise ValueError(
+                    "action grounding labels require a source case id"
+                )
+        elif (
+            not self.action_grounding_source_case_id.strip()
+            or not self.action_grounding_action_labels
+            or any(
+                not label.strip()
+                for label in self.action_grounding_action_labels
+            )
+        ):
+            raise ValueError(
+                "action grounding lineage requires a non-empty source case "
+                "id and action labels"
+            )
 
 
 @dataclass(frozen=True)
@@ -312,6 +334,7 @@ async def capture_behavior_fidelity_async(
     source_state_sha256_before: str,
     source_state_sha256_after: str,
     session_id: str | None = None,
+    source_state_digest_reader: Callable[[], str] | None = None,
 ) -> BehaviorFidelityCapture:
     """Capture one autonomous decision in a disposable lifeform sandbox."""
 
@@ -320,6 +343,16 @@ async def capture_behavior_fidelity_async(
         source_state_sha256_before=source_state_sha256_before,
         source_state_sha256_after=source_state_sha256_after,
     )
+    measured_source_before = (
+        source_state_digest_reader()
+        if source_state_digest_reader is not None
+        else source_state_sha256_before
+    )
+    if measured_source_before != source_state_sha256_before:
+        raise ValueError(
+            "measured source-state digest disagrees with declared before "
+            "digest"
+        )
     session = lifeform.create_session(
         session_id=session_id
         or f"behavior-fidelity:{arm_id}:{stimulus.scene_id}"
@@ -341,6 +374,19 @@ async def capture_behavior_fidelity_async(
         include_runtime_replay=False,
     )
     z_codes = dict(decision.track_z_t_codes)
+    action_grounding = decision.active_snapshots[
+        "case_memory"
+    ].value.action_grounding
+    measured_source_after = (
+        source_state_digest_reader()
+        if source_state_digest_reader is not None
+        else source_state_sha256_after
+    )
+    if measured_source_after != source_state_sha256_after:
+        raise ValueError(
+            "measured source-state digest disagrees with declared after "
+            "digest"
+        )
     response = decision.response.text.strip()
     return BehaviorFidelityCapture(
         schema_version=BEHAVIOR_FIDELITY_SCHEMA_VERSION,
@@ -348,10 +394,13 @@ async def capture_behavior_fidelity_async(
         scene_id=stimulus.scene_id,
         arm_id=arm_id,
         stimulus_digest=stimulus.digest,
-        source_state_sha256_before=source_state_sha256_before,
-        source_state_sha256_after=source_state_sha256_after,
+        source_state_sha256_before=measured_source_before,
+        source_state_sha256_after=measured_source_after,
         source_state_unchanged=(
-            source_state_sha256_before == source_state_sha256_after
+            measured_source_before == measured_source_after
+        ),
+        source_state_digest_verified=(
+            source_state_digest_reader is not None
         ),
         candidate_response=response,
         candidate_response_sha256=_text_sha256(response),
@@ -359,6 +408,16 @@ async def capture_behavior_fidelity_async(
         active_abstract_action=decision.active_abstract_action or "",
         world_z_t=tuple(z_codes.get("world", ())),
         self_z_t=tuple(z_codes.get("self", ())),
+        action_grounding_source_case_id=(
+            action_grounding.source_case_id
+            if action_grounding is not None
+            else None
+        ),
+        action_grounding_action_labels=(
+            action_grounding.action_labels
+            if action_grounding is not None
+            else ()
+        ),
         sandbox_learning_fingerprint_before=before.fingerprint,
         sandbox_learning_fingerprint_after=after.fingerprint,
         outcome_feedback_submitted=False,
@@ -419,7 +478,12 @@ def review_behavior_fidelity(
     proof_gates = (
         (
             "source_state_unchanged",
-            "pass" if capture.source_state_unchanged else "fail",
+            (
+                "pass"
+                if capture.source_state_unchanged
+                and capture.source_state_digest_verified
+                else "fail"
+            ),
         ),
         (
             "no_outcome_or_evaluation_feedback",
@@ -542,8 +606,28 @@ def compare_behavior_fidelity_reports(
 def behavior_fidelity_capture_from_dict(
     payload: dict[str, Any],
 ) -> BehaviorFidelityCapture:
+    source_schema_version = str(payload["schema_version"])
+    is_v1 = source_schema_version == _BEHAVIOR_FIDELITY_SCHEMA_V1
+    if is_v1:
+        action_grounding_source_case_id = None
+        action_grounding_action_labels: tuple[str, ...] = ()
+    else:
+        raw_source_case_id = payload["action_grounding_source_case_id"]
+        action_grounding_source_case_id = (
+            str(raw_source_case_id)
+            if raw_source_case_id is not None
+            else None
+        )
+        action_grounding_action_labels = tuple(
+            str(value)
+            for value in payload["action_grounding_action_labels"]
+        )
     return BehaviorFidelityCapture(
-        schema_version=str(payload["schema_version"]),
+        schema_version=(
+            BEHAVIOR_FIDELITY_SCHEMA_VERSION
+            if is_v1
+            else source_schema_version
+        ),
         case_id=str(payload["case_id"]),
         scene_id=str(payload["scene_id"]),
         arm_id=str(payload["arm_id"]),
@@ -555,12 +639,19 @@ def behavior_fidelity_capture_from_dict(
             payload["source_state_sha256_after"]
         ),
         source_state_unchanged=bool(payload["source_state_unchanged"]),
+        source_state_digest_verified=(
+            False
+            if is_v1
+            else bool(payload["source_state_digest_verified"])
+        ),
         candidate_response=str(payload["candidate_response"]),
         candidate_response_sha256=str(payload["candidate_response_sha256"]),
         active_regime=str(payload["active_regime"]),
         active_abstract_action=str(payload["active_abstract_action"]),
         world_z_t=tuple(float(value) for value in payload["world_z_t"]),
         self_z_t=tuple(float(value) for value in payload["self_z_t"]),
+        action_grounding_source_case_id=action_grounding_source_case_id,
+        action_grounding_action_labels=action_grounding_action_labels,
         sandbox_learning_fingerprint_before=str(
             payload["sandbox_learning_fingerprint_before"]
         ),
@@ -580,8 +671,13 @@ def behavior_fidelity_capture_from_dict(
 def reviewed_behavior_fidelity_assessment_from_dict(
     payload: dict[str, Any],
 ) -> ReviewedBehaviorFidelityAssessment:
+    source_schema_version = str(payload["schema_version"])
     return ReviewedBehaviorFidelityAssessment(
-        schema_version=str(payload["schema_version"]),
+        schema_version=(
+            BEHAVIOR_FIDELITY_SCHEMA_VERSION
+            if source_schema_version == _BEHAVIOR_FIDELITY_SCHEMA_V1
+            else source_schema_version
+        ),
         case_id=str(payload["case_id"]),
         arm_id=str(payload["arm_id"]),
         stimulus_digest=str(payload["stimulus_digest"]),
@@ -613,8 +709,13 @@ def reviewed_behavior_fidelity_assessment_from_dict(
 def behavior_fidelity_report_from_dict(
     payload: dict[str, Any],
 ) -> BehaviorFidelityReport:
+    source_schema_version = str(payload["schema_version"])
     return BehaviorFidelityReport(
-        schema_version=str(payload["schema_version"]),
+        schema_version=(
+            BEHAVIOR_FIDELITY_SCHEMA_VERSION
+            if source_schema_version == _BEHAVIOR_FIDELITY_SCHEMA_V1
+            else source_schema_version
+        ),
         case_id=str(payload["case_id"]),
         scene_id=str(payload["scene_id"]),
         arm_id=str(payload["arm_id"]),

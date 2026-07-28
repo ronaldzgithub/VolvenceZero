@@ -178,19 +178,41 @@ schema，也尚未获得外部人类行为保真。
 仍不能声称系统自主形成了“立即制止 + 言语喝止”的语义抽象。
 
 background-slow multi-experience abstraction 现已具备 typed decoder、CaseMemory owner
-校验和正式 BACKGROUND ModificationGate promotion 路径；但第十一回 schema-holdout
-只有一条独立经历，必须继续保持 `schema-pending`。机制测试中的第二条异质经历是
-synthetic contract evidence，不属于张无忌 bake，也不能用来升级角色行为声明。只有未来
-另一个真实章节/episode 被 temporal owner 归入同一稳定 family，且 candidate 通过 gate
-与未见场景评估，才允许进入下一层结论。
+校验和正式 BACKGROUND ModificationGate promotion 路径。新的真实双章节 gate 将
+ch-11 scene-1（制止对纪晓芙的伤害）与 ch-17 scene-1（制止砍断被俘者手臂）同时做
+schema holdout，并移除 ch-17 其余 scene 与 semantic event，避免未来信息泄漏。两条
+独立 live-through 未注入 family identity，却自然发布同一 `discovered_family_0`；
+第二 session 从 CaseMemory owner 恢复第一条 typed evidence 后，触发一次 structured
+background decoder，并通过正式 gate 写入 promotion marker。decoder prompt 不含两章
+canonical outcome。
 
 pending evidence 现已作为 CaseMemory record 的 typed payload 随 checkpoint 跨 session
-恢复；后续真实章节无需复制或重放第十一回即可与其合并。promotion marker 写回后，同一
-family/version 会从 owner 的 pending 发布中退出。该连续性测试证明“未来第二条真实经历
-可以接上”，不改变当前只有一条张无忌独立证据的事实。
+恢复；compact public snapshot 重建的 record 再 upsert 时必须保留 owner-only typed
+payload，矛盾 payload fail loudly。`action_family_version` 是全局 bank revision，真实
+两章的 revision 不同，因此聚合以稳定 opaque family ID 为身份，并以最大 revision
+记录 promotion 审计点。promotion marker 写回后，同一 family ID 的所有 revision 均从
+pending 发布中退出。
+
+这关闭了“真实第二条证据尚不存在”和“跨 session 证据可能被压缩快照擦除”两个断点。
+当前可声称：张无忌两次真实章节经历被 Internal RL 的同一潜在行为族联结，并形成经过
+正式 owner/gate 的动作抽象候选。
+
+后续独立 held-out behavior-fidelity gate 已使用全新的山间渡口、持械守卫与被缚信使，
+刺激、人物、地点和 decision point 均不存在于 ledger/profile/case store。baked/cold
+共享 profile-answer holdout；评估先把 owner checkpoint 克隆到一次性 sandbox，未向
+source directory 提交 outcome、PE、evaluation 或学习写回。baked 的
+`CaseActionGrounding.source_case_id` 精确指向 ch-11/ch-17 promotion record，行动为
+“立即上前中断伤害 + 言语制止”；cold 误召回光明顶关系修复案例。digest-bound reviewed
+五维评估为 `0.904 vs 0.450`，delta `+0.454`。
+
+因此当前可升级为：在这一条独立未知场景上，真实双章节形成的动作抽象产生了符合张无忌
+保护弱者、身份未明时先制止眼前伤害、愿承担介入风险这一稳定倾向的行为优势。证据源仍是
+`llm_judge`，只能称 diagnostic pass；单场景不能证明分布级泛化，也不能冒充外部人类盲评。
 
 ## 变更日志
 
+- 2026-07-29: 完成真实双章节 promotion 的独立未知场景行为保真收敛：源 checkpoint 克隆到 disposable sandbox，capture v2 记录 promotion lineage；profile-held-out baked `0.904`、cold `0.450`、delta `+0.454`，无章节实体/outcome 泄漏和评估回灌，结论限于 llm-judge 单场景 diagnostic pass。
+- 2026-07-29: 完成 ch-11/ch-17 真实双章节 schema-holdout 收敛：自然同族、跨 session typed evidence 恢复、单次 structured decode、BACKGROUND gate 晋升均通过；结论限定为真实多经历抽象进入 owner，未升级为未见行为保真。
 - 2026-07-28: 增加 action-abstraction 跨 session owner continuity：schema-pending evidence 随 CaseMemory checkpoint 恢复，第二经历只经 typed owner API 合并，promotion 后同族证据自动退出 pending；ch-11 仍只有一条真实经历。
 - 2026-07-28: 接入 multi-experience background semantic candidate 与正式 BACKGROUND ModificationGate；明确 ch-11 schema-holdout 单例仍不 promotion，synthetic 异质 evidence 只证明机制，不计入张无忌自主抽象声明。
 - 2026-07-28: 增加 ch-11 action-schema holdout：latent family/version/`z_t` digest 经 terminal outcome 与 slow-loop 持久化，但 schema-pending case fail closed、未见场景拒绝 episode replay；结论限定为 Internal RL lineage 存活，不是自主语义抽象成功。

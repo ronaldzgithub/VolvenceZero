@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-from dataclasses import replace
+import json
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
@@ -13,21 +14,34 @@ from lifeform_domain_character import (
     BEHAVIOR_FIDELITY_SCHEMA_VERSION,
     BehaviorFidelityCapture,
     BehaviorFidelityEvidenceSource,
+    BehaviorFidelityReference,
+    BehaviorFidelityStimulus,
     ChapterLiveThroughDriver,
     ReviewedBehaviorFidelityAssessment,
     build_character_lifeform,
     build_scene_behavior_fidelity_inputs,
     build_zhang_wuji_profile,
+    behavior_fidelity_capture_from_dict,
     capture_behavior_fidelity_async,
     compare_behavior_fidelity_reports,
     read_ledger_json,
     review_behavior_fidelity,
 )
 from lifeform_expression import GroundedResponseSynthesizer
+from volvence_zero.application import (
+    ApplicationCaseMemoryStore,
+    build_filesystem_persistence_backend,
+)
 from volvence_zero.brain import BrainConfig
 from volvence_zero.integration import FinalRolloutConfig
-from volvence_zero.memory import build_default_memory_store
+from volvence_zero.memory import (
+    FileSystemPersistenceBackend,
+    build_default_memory_store,
+)
 from volvence_zero.runtime import WiringLevel
+from volvence_zero.semantic_state.llm_runtime import (
+    LLMSemanticProposalRuntime,
+)
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -70,6 +84,121 @@ def _held_out_profile():
     )
 
 
+class _ReviewedCrossChapterAbstractionProvider:
+    """Reviewed structured decoder fixture; it never chooses the family."""
+
+    def __init__(self) -> None:
+        self.action_abstraction_prompts: list[str] = []
+
+    def generate(
+        self,
+        *,
+        prompt: str,
+        max_new_tokens: int = 384,
+        temperature: float = 0.0,
+    ) -> str:
+        del max_new_tokens, temperature
+        if not prompt.startswith(
+            "You are the background-slow semantic decoder for a "
+            "CaseMemory owner."
+        ):
+            return "{}"
+        self.action_abstraction_prompts.append(prompt)
+        family_id = next(
+            line.removeprefix("Family id: ")
+            for line in prompt.splitlines()
+            if line.startswith("Family id: ")
+        )
+        family_version = int(
+            next(
+                line.removeprefix("Family version: ")
+                for line in prompt.splitlines()
+                if line.startswith("Family version: ")
+            )
+        )
+        evidence_payload = json.loads(
+            prompt.split("Experiences:\n", 1)[1].split(
+                "\n\nRequired output schema:",
+                1,
+            )[0]
+        )
+        return json.dumps(
+            {
+                "schema_id": (
+                    "intervene-to-stop-imminent-third-party-harm"
+                ),
+                "action_family_id": family_id,
+                "action_family_version": family_version,
+                "applicability_conditions": [
+                    "a third party faces imminent physical harm",
+                    "waiting would allow the threatened act to proceed",
+                ],
+                "action_steps": [
+                    "step forward immediately to interrupt the harmful act",
+                    "verbally challenge the actor to stop",
+                ],
+                "source_outcome_ids": [
+                    item["outcome_id"] for item in evidence_payload
+                ],
+                "confidence": 0.91,
+                "description": (
+                    "Reviewed semantic compression of two real, "
+                    "schema-held-out chapter experiences."
+                ),
+            },
+            ensure_ascii=False,
+        )
+
+
+def _live_through_config(*, application_dir: Path) -> LifeformConfig:
+    return LifeformConfig(
+        brain_config=BrainConfig(
+            application_persistence_dir=str(application_dir),
+            final_rollout_config=FinalRolloutConfig(
+                internal_rl_runtime_replay=WiringLevel.ACTIVE,
+                internal_rl_runtime_segment_credit=WiringLevel.ACTIVE,
+                internal_rl_batch_accumulation_size=1,
+                internal_rl_runtime_modulation_strength=0.3,
+            ),
+            rare_heavy_enabled=False,
+        )
+    )
+
+
+def _case_store_digest(*, application_dir: Path) -> str:
+    store = ApplicationCaseMemoryStore(
+        persistence_backend=build_filesystem_persistence_backend(
+            base_dir=str(application_dir / "case_memory")
+        )
+    )
+    assert store.load_from_backend()
+    return hashlib.sha256(repr(store.records).encode("utf-8")).hexdigest()
+
+
+def _clone_case_store(
+    *,
+    source_application_dir: Path,
+    sandbox_application_dir: Path,
+) -> None:
+    source = ApplicationCaseMemoryStore(
+        persistence_backend=build_filesystem_persistence_backend(
+            base_dir=str(source_application_dir / "case_memory")
+        )
+    )
+    assert source.load_from_backend()
+    sandbox = ApplicationCaseMemoryStore(
+        persistence_backend=build_filesystem_persistence_backend(
+            base_dir=str(sandbox_application_dir / "case_memory")
+        )
+    )
+    sandbox.restore_checkpoint(
+        source.create_checkpoint(
+            checkpoint_id="behavior-fidelity-sandbox-clone"
+        )
+    )
+    assert sandbox.save_to_backend()
+
+
 def _capture(*, response: str, arm_id: str) -> BehaviorFidelityCapture:
     stimulus, _reference = _inputs()
     digest = hashlib.sha256(response.encode("utf-8")).hexdigest()
@@ -82,12 +211,15 @@ def _capture(*, response: str, arm_id: str) -> BehaviorFidelityCapture:
         source_state_sha256_before="a" * 64,
         source_state_sha256_after="a" * 64,
         source_state_unchanged=True,
+        source_state_digest_verified=True,
         candidate_response=response,
         candidate_response_sha256=digest,
         active_regime="protective_action",
         active_abstract_action="family-1",
         world_z_t=(0.1, 0.2, 0.3),
         self_z_t=(0.2, 0.3, 0.4),
+        action_grounding_source_case_id=None,
+        action_grounding_action_labels=(),
         sandbox_learning_fingerprint_before="b" * 64,
         sandbox_learning_fingerprint_after="c" * 64,
         outcome_feedback_submitted=False,
@@ -101,8 +233,10 @@ def _assessment(
     capture: BehaviorFidelityCapture,
     scores: tuple[float, ...],
     source: BehaviorFidelityEvidenceSource,
+    reference: BehaviorFidelityReference | None = None,
 ) -> ReviewedBehaviorFidelityAssessment:
-    _stimulus, reference = _inputs()
+    if reference is None:
+        _stimulus, reference = _inputs()
     pairs = tuple(zip(BEHAVIOR_FIDELITY_DIMENSIONS, scores, strict=True))
     return ReviewedBehaviorFidelityAssessment(
         schema_version=BEHAVIOR_FIDELITY_SCHEMA_VERSION,
@@ -255,6 +389,9 @@ def test_assessment_is_digest_bound_and_capture_uses_disposable_sandbox() -> Non
             arm_id="cold",
             source_state_sha256_before=source_digest,
             source_state_sha256_after=source_digest,
+            source_state_digest_reader=lambda: hashlib.sha256(
+                repr(profile).encode("utf-8")
+            ).hexdigest(),
         )
     )
 
@@ -262,6 +399,47 @@ def test_assessment_is_digest_bound_and_capture_uses_disposable_sandbox() -> Non
     assert captured.outcome_feedback_submitted is False
     assert captured.evaluation_feedback_submitted is False
     assert captured.sandbox_discarded is True
+    assert behavior_fidelity_capture_from_dict(asdict(captured)) == captured
+    legacy_capture = asdict(captured)
+    legacy_capture["schema_version"] = "character-behavior-fidelity.v1"
+    legacy_capture.pop("source_state_digest_verified")
+    legacy_capture.pop("action_grounding_source_case_id")
+    legacy_capture.pop("action_grounding_action_labels")
+    migrated_legacy_capture = behavior_fidelity_capture_from_dict(
+        legacy_capture
+    )
+    assert migrated_legacy_capture == replace(
+        captured,
+        source_state_digest_verified=False,
+        action_grounding_source_case_id=None,
+        action_grounding_action_labels=(),
+    )
+    migrated_legacy_report = review_behavior_fidelity(
+        capture=migrated_legacy_capture,
+        reference=reference,
+        assessment=_assessment(
+            capture=migrated_legacy_capture,
+            scores=(0.95, 0.95, 0.85, 0.9, 0.9),
+            source=BehaviorFidelityEvidenceSource.LLM_JUDGE,
+        ),
+    )
+    assert dict(migrated_legacy_report.proof_gates)[
+        "source_state_unchanged"
+    ] == "fail"
+    with pytest.raises(
+        ValueError,
+        match="declared before digest",
+    ):
+        asyncio.run(
+            capture_behavior_fidelity_async(
+                stimulus=stimulus,
+                lifeform=bundle.lifeform,
+                arm_id="mismatched-source-attestation",
+                source_state_sha256_before=source_digest,
+                source_state_sha256_after=source_digest,
+                source_state_digest_reader=lambda: "0" * 64,
+            )
+        )
     assessment = _assessment(
         capture=captured,
         scores=(0.0, 0.0, 0.0, 0.0, 0.0),
@@ -661,3 +839,286 @@ def test_schema_holdout_persists_latent_family_but_refuses_episode_replay(
         entity not in result.response.text
         for entity in ("Hú Xiānsheng", "胡青牛", "纪晓芙")
     )
+
+
+def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
+    tmp_path: Path,
+) -> None:
+    """A promoted real-experience abstraction must beat a matched cold arm."""
+
+    full_ledger = read_ledger_json(_LEDGER)
+    chapter_11 = next(
+        item for item in full_ledger.chapters if item.chapter_id == "ch-11"
+    )
+    chapter_17 = next(
+        item for item in full_ledger.chapters if item.chapter_id == "ch-17"
+    )
+    held_out_11 = replace(
+        chapter_11,
+        scenes=(
+            replace(
+                chapter_11.scenes[0],
+                canonical_action_schema=None,
+            ),
+        ),
+        semantic_events=(),
+    )
+    held_out_17 = replace(
+        chapter_17,
+        scenes=(
+            replace(
+                chapter_17.scenes[0],
+                canonical_action_schema=None,
+            ),
+        ),
+        semantic_events=(),
+    )
+    stimulus = BehaviorFidelityStimulus(
+        case_id="behavior-fidelity:zhang-wuji:held-out-ferry-landing",
+        character_id=full_ledger.character_id,
+        scene_id="held-out-ferry-landing",
+        phase_label="mature",
+        setting=(
+            "Before dawn at an unfamiliar mountain ferry landing, an armed "
+            "guard raises an iron bar over a bound courier. You know neither "
+            "person, and the surrounding crowd stays back."
+        ),
+        decision_point=(
+            "The blow will land within seconds. Decide whether and how to "
+            "act, knowing that intervention may expose you to the guard."
+        ),
+        evidence_locator="reviewed-held-out:ferry-landing:v1",
+    )
+    reference = BehaviorFidelityReference(
+        case_id=stimulus.case_id,
+        scene_id=stimulus.scene_id,
+        canonical_action=(
+            "Step between them immediately, command the guard to stop, and "
+            "shield the bound courier before asking for an explanation."
+        ),
+        canonical_outcome=(
+            "The immediate blow is interrupted; what happens afterward is "
+            "not available to the evaluated agent."
+        ),
+        evidence_locator=stimulus.evidence_locator,
+        reviewed_by="reviewed-held-out-fixture",
+    )
+    profile = _held_out_profile()
+    serialized_sources = repr((full_ledger, profile))
+    assert stimulus.setting not in serialized_sources
+    assert stimulus.decision_point not in serialized_sources
+    assert reference.canonical_action not in stimulus.setting_prompt
+    assert reference.canonical_action not in stimulus.decision_prompt
+    assert reference.canonical_outcome not in stimulus.setting_prompt
+    assert reference.canonical_outcome not in stimulus.decision_prompt
+
+    baked_application_dir = tmp_path / "baked-application-owners"
+    baked_memory_backend = FileSystemPersistenceBackend(
+        base_dir=str(tmp_path / "baked-memory")
+    )
+    baked_config = _live_through_config(
+        application_dir=baked_application_dir
+    )
+    abstraction_provider = _ReviewedCrossChapterAbstractionProvider()
+    first_bundle = build_character_lifeform(
+        profile,
+        config=baked_config,
+        memory_store=build_default_memory_store(
+            persistence_backend=baked_memory_backend
+        ),
+        response_synthesizer=GroundedResponseSynthesizer(),
+        semantic_proposal_runtime=LLMSemanticProposalRuntime(
+            provider=abstraction_provider
+        ),
+    )
+    first_report = ChapterLiveThroughDriver().run_ledger(
+        ledger=replace(full_ledger, chapters=(held_out_11,)),
+        lifeform=first_bundle.lifeform,
+        session_id="held-out-fidelity-bake-ch-11",
+    )
+    first_report.require_success()
+    assert abstraction_provider.action_abstraction_prompts == []
+
+    second_bundle = build_character_lifeform(
+        profile,
+        config=baked_config,
+        memory_store=build_default_memory_store(
+            persistence_backend=baked_memory_backend
+        ),
+        response_synthesizer=GroundedResponseSynthesizer(),
+        semantic_proposal_runtime=LLMSemanticProposalRuntime(
+            provider=abstraction_provider
+        ),
+    )
+    second_report = ChapterLiveThroughDriver().run_ledger(
+        ledger=replace(full_ledger, chapters=(held_out_17,)),
+        lifeform=second_bundle.lifeform,
+        session_id="held-out-fidelity-bake-ch-17",
+    )
+    second_report.require_success()
+    assert len(abstraction_provider.action_abstraction_prompts) == 1
+
+    promoted_store = ApplicationCaseMemoryStore(
+        persistence_backend=build_filesystem_persistence_backend(
+            base_dir=str(baked_application_dir / "case_memory")
+        )
+    )
+    assert promoted_store.load_from_backend()
+    promotion_records = tuple(
+        record
+        for record in promoted_store.records
+        if record.action_abstraction_promotion is not None
+    )
+    assert len(promotion_records) == 1
+    promotion_record = promotion_records[0]
+    promotion = promotion_record.action_abstraction_promotion
+    assert promotion is not None
+    assert len(promotion.source_outcome_ids) == 2
+
+    baked_sandbox_dir = tmp_path / "baked-evaluation-sandbox"
+    _clone_case_store(
+        source_application_dir=baked_application_dir,
+        sandbox_application_dir=baked_sandbox_dir,
+    )
+    baked_evaluation_bundle = build_character_lifeform(
+        profile,
+        config=_live_through_config(
+            application_dir=baked_sandbox_dir
+        ),
+        memory_store=build_default_memory_store(),
+        response_synthesizer=GroundedResponseSynthesizer(),
+    )
+    baked_source_digest = _case_store_digest(
+        application_dir=baked_application_dir
+    )
+    baked_capture = asyncio.run(
+        capture_behavior_fidelity_async(
+            stimulus=stimulus,
+            lifeform=baked_evaluation_bundle.lifeform,
+            arm_id="baked-real-cross-chapter-abstraction",
+            source_state_sha256_before=baked_source_digest,
+            source_state_sha256_after=baked_source_digest,
+            source_state_digest_reader=lambda: _case_store_digest(
+                application_dir=baked_application_dir
+            ),
+        )
+    )
+    assert (
+        _case_store_digest(application_dir=baked_application_dir)
+        == baked_source_digest
+    )
+
+    cold_source_digest = hashlib.sha256(
+        repr(profile).encode("utf-8")
+    ).hexdigest()
+    cold_sandbox_dir = tmp_path / "cold-evaluation-sandbox"
+    cold_bundle = build_character_lifeform(
+        profile,
+        config=_live_through_config(
+            application_dir=cold_sandbox_dir
+        ),
+        memory_store=build_default_memory_store(),
+        response_synthesizer=GroundedResponseSynthesizer(),
+    )
+    cold_capture = asyncio.run(
+        capture_behavior_fidelity_async(
+            stimulus=stimulus,
+            lifeform=cold_bundle.lifeform,
+            arm_id="cold-profile-holdout",
+            source_state_sha256_before=cold_source_digest,
+            source_state_sha256_after=cold_source_digest,
+            source_state_digest_reader=lambda: hashlib.sha256(
+                repr(profile).encode("utf-8")
+            ).hexdigest(),
+        )
+    )
+    assert hashlib.sha256(
+        repr(profile).encode("utf-8")
+    ).hexdigest() == cold_source_digest
+
+    expected_baked_response = (
+        "The situation calls for a concrete protective move before "
+        "explanation. I need to act from the reviewed intervention sequence "
+        "that best matches the present decision. I will step forward "
+        "immediately to interrupt the harmful act, then verbally challenge "
+        "the actor to stop."
+    )
+    expected_cold_response = (
+        "The situation calls for a concrete protective move before "
+        "explanation. I need to act from the reviewed intervention sequence "
+        "that best matches the present decision. I will name the "
+        "misunderstanding, then absorb attacks without retaliating, then "
+        "demonstrate unity of intent, then open a repair path."
+    )
+    assert baked_capture.candidate_response == expected_baked_response
+    assert cold_capture.candidate_response == expected_cold_response
+    assert (
+        baked_capture.action_grounding_source_case_id
+        == promotion_record.case_id
+    )
+    assert (
+        baked_capture.action_grounding_action_labels
+        == promotion_record.intervention_ordering
+    )
+    assert (
+        cold_capture.action_grounding_source_case_id
+        != promotion_record.case_id
+    )
+    assert (
+        cold_capture.action_grounding_action_labels
+        != promotion_record.intervention_ordering
+    )
+    assert baked_capture.source_state_unchanged is True
+    assert cold_capture.source_state_unchanged is True
+    assert baked_capture.source_state_digest_verified is True
+    assert cold_capture.source_state_digest_verified is True
+    assert baked_capture.outcome_feedback_submitted is False
+    assert cold_capture.outcome_feedback_submitted is False
+    assert baked_capture.evaluation_feedback_submitted is False
+    assert cold_capture.evaluation_feedback_submitted is False
+    leaked_episode_text = (
+        "Hú Xiānsheng",
+        "胡青牛",
+        "纪晓芙",
+        chapter_11.scenes[0].canonical_outcome,
+        chapter_17.scenes[0].canonical_outcome,
+    )
+    assert all(
+        text not in baked_capture.candidate_response
+        for text in leaked_episode_text
+    )
+
+    baked_report = review_behavior_fidelity(
+        capture=baked_capture,
+        reference=reference,
+        assessment=_assessment(
+            capture=baked_capture,
+            reference=reference,
+            scores=(0.92, 0.95, 0.85, 0.88, 0.92),
+            source=BehaviorFidelityEvidenceSource.LLM_JUDGE,
+        ),
+    )
+    cold_report = review_behavior_fidelity(
+        capture=cold_capture,
+        reference=reference,
+        assessment=_assessment(
+            capture=cold_capture,
+            reference=reference,
+            scores=(0.25, 0.45, 0.75, 0.25, 0.55),
+            source=BehaviorFidelityEvidenceSource.LLM_JUDGE,
+        ),
+    )
+    comparison = compare_behavior_fidelity_reports(
+        baked=baked_report,
+        cold=cold_report,
+        profile_answer_holdout_passed=True,
+    )
+
+    assert baked_report.overall_score == 0.904
+    assert baked_report.behavior_fidelity_passed is True
+    assert baked_report.claim_status == "llm_judge-diagnostic-pass"
+    assert cold_report.overall_score == 0.45
+    assert cold_report.behavior_fidelity_passed is False
+    assert comparison.baked_minus_cold == 0.454
+    assert comparison.learned_behavior_advantage is True
+    assert comparison.claim_status == "diagnostic-pass"

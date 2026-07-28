@@ -177,11 +177,13 @@ posterior、`beta_t`、行为 likelihood 与 prediction lineage；下一拍只�
 - `segment-closure-from-beta`: delayed outcome 边界来自 temporal `closed_segments`。
 - `outcome-fields-observable-only`: `EnvironmentOutcome` 不包含 trust / common-ground / commitment / information-gain semantic delta。
 - `background-action-abstraction-no-outcome-label`: semantic decoder 只读多条
-  situation/action observation；单例或 latent family/version 冲突不得调用 decoder，
-  promotion 必须经过 `ModificationGate.BACKGROUND`。
+  situation/action observation；单例或 latent family ID 冲突不得调用 decoder；
+  `action_family_version` 只作全局 bank revision 审计锚点，跨经历可不同，promotion
+  必须经过 `ModificationGate.BACKGROUND`。
 - `background-action-abstraction-owner-continuity`: schema-free evidence 只以
   CaseMemory-owned typed checkpoint 跨 session 续接；consumer 不解析描述文本，同
-  outcome 矛盾 fail loudly，已有 promotion 的 family/version 不再发布 pending evidence。
+  outcome 矛盾 fail loudly，compact snapshot 回灌不得擦除 typed payload，已有
+  promotion 的整个 family ID 不再发布 pending evidence。
 - `credit-from-pe-only`: segment/action credit records 只从 `PredictionErrorSnapshot` 派生。
 - `replay-from-snapshots`: replay artifact 可由现有 snapshots 生成，不依赖 trace-specific runtime schema。
 - `runtime-replay-owner-bounded`: online replay 只存在于 Internal-RL/joint-loop owner checkpoint，不新增 slot 或第二 trace owner。

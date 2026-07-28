@@ -521,7 +521,9 @@ class CaseMemorySnapshot:
   `CaseActionGrounding` 只可渲染 action，禁止把事后结果泄漏回决策轮
 - `ExperiencedActionEvidence.action_family_id / action_family_version /
   controller_code_digest` 是 outcome 提交时从 temporal snapshot 捕获的 action-time
-  lineage；family ID 仍为 opaque controller identity，不是语义动作标签。无
+  lineage；family ID 是跨 bank revision 保持稳定的 opaque controller identity，
+  不是语义动作标签；`action_family_version` 是整个 family bank 的全局 revision，
+  不是单个 family 的 incarnation/version。无
   `action_schema` 时 CaseMemory 只能保存 `latent-action-family:* + schema-pending`
   审计记录，`intervention_ordering` 必须为空，因此不得进入 response realization
 - CaseMemory 的 action case 路由只比较 problem/user-state/risk 适用条件；
@@ -529,15 +531,20 @@ class CaseMemorySnapshot:
 - lived-action case 的跨 session 复用必须经过 application owner persistence；
   profile seed 与 slow-loop case 的 source lineage 不得混写
 - multi-experience semantic candidate 由 application `ActionAbstractionOwner` 唯一拥有：
-  至少两条独立 schema-free evidence 必须共享完全一致的 temporal family/version；
+  至少两条独立 schema-free evidence 必须共享同一 temporal family ID；不同时间采集的
+  evidence 允许携带不同 bank revision，candidate/promotion 取所见最大 revision 作为
+  审计锚点，不得把 revision 相等误作 family 身份；
   structured decoder 只读 situation/action，不读 outcome、PE 或 evaluation。
   每条待聚合证据以 `CaseMemoryRecord.action_abstraction_evidence` 的 frozen typed
   payload 随 CaseMemory checkpoint 持久化；晋升以
   `CaseMemoryRecord.action_abstraction_promotion` 记录 family/version 与 source closure。
+  compact `CaseMemorySnapshot` 不发布上述 owner-only payload；其重建 record 回灌 store
+  时必须保留既有 typed evidence/promotion，若同 case id 携带矛盾 typed payload 则
+  fail loudly，不得以压缩快照擦除 owner 状态。
   consumer 只能调用 owner 的 `pending_action_abstraction_evidence()`，不得解析
   `description`、`problem_pattern` 或 case id 重建证据。owner 会折叠内容完全一致的
-  outcome，遇到同 outcome 的矛盾 payload 则 fail loudly；已有 promotion 的
-  family/version 不再发布为 pending，避免跨 session 重复提案
+  outcome，遇到同 outcome 的矛盾 payload 则 fail loudly；已有 promotion 的整个
+  family ID（不只某个 bank revision）不再发布为 pending，避免跨 session 重复提案。
   `LearnedActionSchemaCandidate` 与 reviewed `EnvironmentActionSchema` provenance 隔离；
   promotion 以 `ApplicationModificationEvidence` 进入 runtime，并由正式
   `ModificationProposal(BACKGROUND) + evaluate_gate_reasons()` 决定。缺 evaluation
@@ -746,10 +753,19 @@ Character chapter bake 只消费 owner-authored audit readout，不新增 runtim
 
 Character behavior fidelity 不新增 runtime slot/owner。`BehaviorFidelityStimulus` 与
 `BehaviorFidelityReference` 在 capture 阶段隔离；`BehaviorFidelityCapture` 绑定 source
-state digest、candidate digest 和 sandbox fingerprint；`ReviewedBehaviorFidelityAssessment`
-再绑定 stimulus/reference/candidate 三个 digest，发布五维 reviewed semantic score。
+state digest、candidate digest 和 sandbox fingerprint；`source_state_digest_verified`
+区分 capture 前后实际调用只读 digest reader 的证据与调用方自报 digest。v2 capture 还原样记录
+CaseMemory snapshot 已发布的 `action_grounding_source_case_id /
+action_grounding_action_labels`，只用于证明最终行为来自哪个 owner record，不在 evaluation
+侧重新选择或解释案例；v1 artifact 加载时显式迁移为空 lineage 且
+`source_state_digest_verified=False`。
+`ReviewedBehaviorFidelityAssessment` 再绑定 stimulus/reference/candidate 三个 digest，
+发布五维 reviewed semantic score。
 `BehaviorFidelityReport` / `BehaviorFidelityComparisonReport` 只作为 R12 evaluation artifact，
 不得提交 outcome、reward、credit、memory writeback、regime payoff 或 Internal-RL transition。
+评估 Lifeform 必须从 source owner checkpoint 克隆到一次性 persistence sandbox；禁止把
+只读评估 turn 直接连到 baked source directory 后再用调用方传入的相同 digest 假定源状态
+未变。
 
 详见 `docs/specs/domain-experience-layer.md`。
 
@@ -1950,7 +1966,7 @@ reflection ──────────────→ proposals; runtime invo
 | `session_post_slow_loop` | SessionPostSlowLoopModule | SessionPostSlowLoopSnapshot | ACTIVE | context / session boundary | reports / experience_consolidation |
 | `retrieval_policy` | RetrievalPolicyModule | RetrievalPolicySnapshot | ACTIVE | 每 turn | domain_knowledge, case_memory, boundary_policy, response_assembly |
 | `domain_knowledge` | DomainKnowledgeModule | DomainKnowledgeSnapshot | ACTIVE | 每 turn | boundary_policy, response_assembly, evaluation |
-| `case_memory` | CaseMemoryModule | CaseMemorySnapshot | ACTIVE | 每 turn | strategy_playbook, response_assembly, evaluation；`action_grounding` 是 CaseMemory owner 对当前 Memory 语境与 reviewed case intervention steps 的语义近邻解释，绑定 active abstract action；terminal `SCENE_EVENT` 可经 `ExperiencedActionEvidence` + gated session-post writeback 形成带 `case:slow-loop:*:experienced-action:*` lineage 的 lived-action case；无匹配/非具体行动轮显式为 `None` |
+| `case_memory` | CaseMemoryModule | CaseMemorySnapshot | ACTIVE | 每 turn | strategy_playbook, response_assembly, evaluation；`action_grounding` 是 CaseMemory owner 对当前 Memory 语境与 reviewed case intervention steps 的语义近邻解释，绑定 active abstract action；terminal `SCENE_EVENT` 可经 `ExperiencedActionEvidence` + gated session-post writeback 形成带 `case:slow-loop:*:experienced-action:*` lineage 的 lived-action case，多经历晋升则使用 `case:slow-loop:action-abstraction:*` lineage；无匹配/非具体行动轮显式为 `None` |
 | `strategy_playbook` | StrategyPlaybookModule | StrategyPlaybookSnapshot | ACTIVE | 每 turn | response_assembly, experience_consolidation |
 | `boundary_policy` | BoundaryPolicyModule | BoundaryPolicySnapshot | ACTIVE | 每 turn | response_assembly |
 | `response_assembly` | ResponseAssemblyModule | ResponseAssemblySnapshot | ACTIVE | 每 turn | session / response generation；`action_realization` 只绑定同拍 `CaseMemorySnapshot.action_grounding` 与 `TemporalAbstractionSnapshot.active_abstract_action`，不重建案例语义；expression 只渲染 owner-published statement |

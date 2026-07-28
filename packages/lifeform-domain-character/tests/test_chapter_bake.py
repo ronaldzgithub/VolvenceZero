@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Mapping
 from dataclasses import replace
@@ -16,6 +17,10 @@ from lifeform_domain_character import (
     read_ledger_json,
 )
 from volvence_zero.agent import decode_agent_learning_archive
+from volvence_zero.application import (
+    ApplicationCaseMemoryStore,
+    build_filesystem_persistence_backend,
+)
 from volvence_zero.brain import BrainConfig
 from volvence_zero.canonical_json import typed_to_json
 from volvence_zero.integration import FinalRolloutConfig
@@ -24,6 +29,9 @@ from volvence_zero.memory import (
     build_default_memory_store,
 )
 from volvence_zero.runtime import WiringLevel
+from volvence_zero.semantic_state.llm_runtime import (
+    LLMSemanticProposalRuntime,
+)
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -47,6 +55,69 @@ def _bake_config() -> LifeformConfig:
             rare_heavy_enabled=False,
         )
     )
+
+
+class _ReviewedCrossChapterAbstractionProvider:
+    """Deterministic reviewer stand-in for the structured decoder only."""
+
+    def __init__(self) -> None:
+        self.action_abstraction_prompts: list[str] = []
+
+    def generate(
+        self,
+        *,
+        prompt: str,
+        max_new_tokens: int = 384,
+        temperature: float = 0.0,
+    ) -> str:
+        del max_new_tokens, temperature
+        if not prompt.startswith(
+            "You are the background-slow semantic decoder for a "
+            "CaseMemory owner."
+        ):
+            return "{}"
+        self.action_abstraction_prompts.append(prompt)
+        family_id = next(
+            line.removeprefix("Family id: ")
+            for line in prompt.splitlines()
+            if line.startswith("Family id: ")
+        )
+        family_version = int(
+            next(
+                line.removeprefix("Family version: ")
+                for line in prompt.splitlines()
+                if line.startswith("Family version: ")
+            )
+        )
+        evidence_json = prompt.split("Experiences:\n", 1)[1].split(
+            "\n\nRequired output schema:",
+            1,
+        )[0]
+        experiences = json.loads(evidence_json)
+        return json.dumps(
+            {
+                "schema_id": "intervene-to-stop-imminent-third-party-harm",
+                "action_family_id": family_id,
+                "action_family_version": family_version,
+                "applicability_conditions": [
+                    "a third party faces imminent physical harm",
+                    "waiting would allow the threatened act to proceed",
+                ],
+                "action_steps": [
+                    "step forward immediately to interrupt the harmful act",
+                    "verbally challenge the actor to stop",
+                ],
+                "source_outcome_ids": [
+                    item["outcome_id"] for item in experiences
+                ],
+                "confidence": 0.91,
+                "description": (
+                    "Reviewed semantic compression of two real, "
+                    "schema-held-out chapter experiences."
+                ),
+            },
+            ensure_ascii=False,
+        )
 
 
 def test_zhang_wuji_chapter_12_live_through_reaches_owners_and_internal_rl(
@@ -187,3 +258,173 @@ def test_chapter_bake_fails_when_runtime_replay_is_disabled(
         match="chapter live-through bake did not satisfy proof gates",
     ):
         report.require_success()
+
+
+def test_real_cross_chapter_schema_holdout_promotes_natural_family(
+    tmp_path: Path,
+) -> None:
+    """Two real scenes must promote only through owner-issued family identity."""
+
+    full_ledger = read_ledger_json(_REVIEWED_LEDGER)
+    chapter_11 = next(
+        item for item in full_ledger.chapters if item.chapter_id == "ch-11"
+    )
+    chapter_17 = next(
+        item for item in full_ledger.chapters if item.chapter_id == "ch-17"
+    )
+    held_out_11 = replace(
+        chapter_11,
+        scenes=(
+            replace(
+                chapter_11.scenes[0],
+                canonical_action_schema=None,
+            ),
+        ),
+        semantic_events=(),
+    )
+    held_out_17 = replace(
+        chapter_17,
+        scenes=(
+            replace(
+                chapter_17.scenes[0],
+                canonical_action_schema=None,
+            ),
+        ),
+        semantic_events=(),
+    )
+    application_dir = tmp_path / "application-owners"
+    memory_backend = FileSystemPersistenceBackend(
+        base_dir=str(tmp_path / "memory")
+    )
+    config = replace(
+        _bake_config(),
+        brain_config=replace(
+            _bake_config().brain_config,
+            application_persistence_dir=str(application_dir),
+        ),
+    )
+    abstraction_provider = _ReviewedCrossChapterAbstractionProvider()
+    bundle = build_character_lifeform(
+        build_zhang_wuji_profile(),
+        config=config,
+        memory_store=build_default_memory_store(
+            persistence_backend=memory_backend
+        ),
+        semantic_proposal_runtime=LLMSemanticProposalRuntime(
+            provider=abstraction_provider
+        ),
+    )
+    first_report = ChapterLiveThroughDriver().run_ledger(
+        ledger=replace(full_ledger, chapters=(held_out_11,)),
+        lifeform=bundle.lifeform,
+        session_id="real-family-ch-11",
+    )
+    first_report.require_success()
+
+    restored_after_first = ApplicationCaseMemoryStore(
+        persistence_backend=build_filesystem_persistence_backend(
+            base_dir=str(application_dir / "case_memory")
+        )
+    )
+    assert restored_after_first.load_from_backend()
+    first_pending = (
+        restored_after_first.pending_action_abstraction_evidence()
+    )
+    assert len(first_pending) == 1
+    assert abstraction_provider.action_abstraction_prompts == []
+
+    reborn_bundle = build_character_lifeform(
+        build_zhang_wuji_profile(),
+        config=config,
+        memory_store=build_default_memory_store(
+            persistence_backend=memory_backend
+        ),
+        semantic_proposal_runtime=LLMSemanticProposalRuntime(
+            provider=abstraction_provider
+        ),
+    )
+    second_session = reborn_bundle.lifeform.create_session(
+        session_id="real-family-ch-17"
+    )
+    restored_at_second_start = ApplicationCaseMemoryStore(
+        persistence_backend=build_filesystem_persistence_backend(
+            base_dir=str(application_dir / "case_memory")
+        )
+    )
+    assert restored_at_second_start.load_from_backend()
+    assert len(
+        restored_at_second_start.pending_action_abstraction_evidence()
+    ) == 1
+    (
+        second_chapter_record,
+        _second_scene_records,
+        second_scene_evidence,
+    ) = asyncio.run(
+        ChapterLiveThroughDriver().run_chapter_async(
+            chapter=held_out_17,
+            session=second_session,
+        )
+    )
+    assert second_chapter_record.bake_verified is True
+    first_families = (
+        first_report.per_scene_evidence[0].experienced_action_family_ids
+    )
+    second_families = (
+        second_scene_evidence[0].experienced_action_family_ids
+    )
+
+    assert first_families
+    assert second_families
+    assert first_families == second_families
+    assert len(abstraction_provider.action_abstraction_prompts) == 1
+    abstraction_prompt = (
+        abstraction_provider.action_abstraction_prompts[0]
+    )
+    assert chapter_11.scenes[0].canonical_outcome not in abstraction_prompt
+    assert chapter_17.scenes[0].canonical_outcome not in abstraction_prompt
+    assert any(
+        target.startswith(
+            "application.case_memory.records.action-abstraction."
+        )
+        for target in (
+            second_scene_evidence[0]
+            .application_owner_targets_updated
+        )
+    )
+
+    restored_after_second = ApplicationCaseMemoryStore(
+        persistence_backend=build_filesystem_persistence_backend(
+            base_dir=str(application_dir / "case_memory")
+        )
+    )
+    assert restored_after_second.load_from_backend()
+    second_pending = (
+        restored_after_second.pending_action_abstraction_evidence()
+    )
+    assert second_pending == ()
+    evidence_records = tuple(
+        record.action_abstraction_evidence
+        for record in restored_after_second.records
+        if record.action_abstraction_evidence is not None
+    )
+    assert len(evidence_records) == 2
+    assert {
+        item.action_family_id for item in evidence_records
+    } == {first_families[0]}
+    evidence_versions = tuple(
+        sorted(item.action_family_version for item in evidence_records)
+    )
+    assert evidence_versions[0] < evidence_versions[1]
+    promotion_records = tuple(
+        record.action_abstraction_promotion
+        for record in restored_after_second.records
+        if record.action_abstraction_promotion is not None
+    )
+    assert len(promotion_records) == 1
+    promotion = promotion_records[0]
+    assert promotion is not None
+    assert promotion.action_family_id == first_families[0]
+    assert promotion.action_family_version == evidence_versions[-1]
+    assert set(promotion.source_outcome_ids) == {
+        item.outcome_id for item in evidence_records
+    }

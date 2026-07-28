@@ -315,7 +315,7 @@ def test_multi_experience_action_abstraction_passes_real_background_gate():
                 {
                     "schema_id": "protect-unknown-third-party",
                     "action_family_id": "discovered_family_2",
-                    "action_family_version": 3,
+                    "action_family_version": 9,
                     "applicability_conditions": [
                         "an uninvolved person faces imminent physical harm",
                         "the threatening actor's identity remains uncertain",
@@ -368,7 +368,7 @@ def test_multi_experience_action_abstraction_passes_real_background_gate():
             evidence=("scene-b",),
             confidence=0.88,
             action_family_id="discovered_family_2",
-            action_family_version=3,
+            action_family_version=9,
             controller_code_digest=(0.12, 0.18, 0.31),
         ),
     )
@@ -613,7 +613,7 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
                 {
                     "schema_id": "protect-unknown-third-party",
                     "action_family_id": "discovered_family_2",
-                    "action_family_version": 3,
+                    "action_family_version": 54,
                     "applicability_conditions": [
                         "an uninvolved person faces imminent physical harm",
                         "the threatening actor's identity remains uncertain",
@@ -715,7 +715,7 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
         evidence=("scene-b",),
         confidence=0.88,
         action_family_id="discovered_family_2",
-        action_family_version=3,
+        action_family_version=54,
         controller_code_digest=(0.12, 0.18, 0.31),
     )
     backend = build_filesystem_persistence_backend(
@@ -767,7 +767,7 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
     promoted_families = (
         promoted_store.promoted_action_abstraction_family_versions()
     )
-    assert promoted_families == (("discovered_family_2", 3),)
+    assert promoted_families == (("discovered_family_2", 54),)
     post_promotion_proposal = ApplicationPriorProposalBuilder().build(
         inputs=build_inputs(
             job_id="session-c",

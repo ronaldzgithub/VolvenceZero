@@ -92,9 +92,12 @@ class ApplicationPriorProposalBuilder:
         retrieval_updates: list[RetrievalReadoutPriorUpdate] = []
         primary_domain = next(iter(inputs.experience_domains), "general_guidance_patterns")
         outcome_label = "improved" if inputs.mean_experience_quality >= 0.6 else "stable"
-        promoted_action_families = set(
-            inputs.promoted_action_abstraction_family_versions
-        )
+        promoted_action_family_ids = {
+            family_id
+            for family_id, _family_version in (
+                inputs.promoted_action_abstraction_family_versions
+            )
+        }
         current_action_abstraction_experiences = tuple(
             ActionAbstractionExperience(
                 outcome_id=evidence.outcome_id,
@@ -113,11 +116,7 @@ class ApplicationPriorProposalBuilder:
                 and evidence.action_family_id
                 and evidence.action_family_version > 0
                 and evidence.situation_statement.strip()
-                and (
-                    evidence.action_family_id,
-                    evidence.action_family_version,
-                )
-                not in promoted_action_families
+                and evidence.action_family_id not in promoted_action_family_ids
             )
         )
         prior_action_abstraction_experiences = tuple(
@@ -133,26 +132,19 @@ class ApplicationPriorProposalBuilder:
                 controller_code_digest=evidence.controller_code_digest,
             )
             for evidence in inputs.prior_action_abstraction_evidence
-            if (
-                evidence.action_family_id,
-                evidence.action_family_version,
-            )
-            not in promoted_action_families
+            if evidence.action_family_id not in promoted_action_family_ids
         )
         action_abstraction_experiences = merge_action_abstraction_experiences(
             prior_action_abstraction_experiences,
             current_action_abstraction_experiences,
         )
         action_abstraction_groups: dict[
-            tuple[str, int],
+            str,
             list[ActionAbstractionExperience],
         ] = {}
         for experience in action_abstraction_experiences:
             action_abstraction_groups.setdefault(
-                (
-                    experience.action_family_id,
-                    experience.action_family_version,
-                ),
+                experience.action_family_id,
                 [],
             ).append(experience)
         for evidence in inputs.experienced_actions:
@@ -274,11 +266,8 @@ class ApplicationPriorProposalBuilder:
                                 and evidence.action_family_id
                                 and evidence.action_family_version > 0
                                 and evidence.situation_statement.strip()
-                                and (
-                                    evidence.action_family_id,
-                                    evidence.action_family_version,
-                                )
-                                not in promoted_action_families
+                                and evidence.action_family_id
+                                not in promoted_action_family_ids
                             )
                             else None
                         ),

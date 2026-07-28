@@ -118,7 +118,7 @@ class CaseActionAbstractionEvidence:
 
 @dataclass(frozen=True)
 class CaseActionAbstractionPromotion:
-    """CaseMemory-owned marker that one latent family version was promoted."""
+    """Marker that one family was promoted at an audited bank revision."""
 
     schema_id: str
     action_family_id: str
@@ -598,18 +598,18 @@ class ApplicationCaseMemoryStore:
     ) -> tuple[CaseActionAbstractionEvidence, ...]:
         """Publish typed, unpromoted evidence without exposing record parsing."""
 
-        promoted_families = set(
-            self.promoted_action_abstraction_family_versions()
-        )
+        promoted_family_ids = {
+            family_id
+            for family_id, _family_version in (
+                self.promoted_action_abstraction_family_versions()
+            )
+        }
         evidence_by_outcome: dict[str, CaseActionAbstractionEvidence] = {}
         for record in self._records.values():
             evidence = record.action_abstraction_evidence
             if evidence is None:
                 continue
-            if (
-                evidence.action_family_id,
-                evidence.action_family_version,
-            ) in promoted_families:
+            if evidence.action_family_id in promoted_family_ids:
                 continue
             existing = evidence_by_outcome.get(evidence.outcome_id)
             if existing is not None and existing != evidence:
@@ -645,8 +645,47 @@ class ApplicationCaseMemoryStore:
     def upsert_records(self, records: Iterable[CaseMemoryRecord]) -> None:
         for record in records:
             existing = self._records.get(record.case_id)
-            if existing is None or record.relevance_score >= existing.relevance_score:
+            if existing is None:
                 self._records[record.case_id] = record
+                continue
+            if (
+                existing.action_abstraction_evidence is not None
+                and record.action_abstraction_evidence is not None
+                and (
+                    existing.action_abstraction_evidence
+                    != record.action_abstraction_evidence
+                )
+            ):
+                raise ValueError(
+                    "CaseMemory upsert carries conflicting "
+                    "action_abstraction_evidence for "
+                    f"case_id={record.case_id!r}."
+                )
+            if (
+                existing.action_abstraction_promotion is not None
+                and record.action_abstraction_promotion is not None
+                and (
+                    existing.action_abstraction_promotion
+                    != record.action_abstraction_promotion
+                )
+            ):
+                raise ValueError(
+                    "CaseMemory upsert carries conflicting "
+                    "action_abstraction_promotion for "
+                    f"case_id={record.case_id!r}."
+                )
+            if record.relevance_score >= existing.relevance_score:
+                self._records[record.case_id] = replace(
+                    record,
+                    action_abstraction_evidence=(
+                        record.action_abstraction_evidence
+                        or existing.action_abstraction_evidence
+                    ),
+                    action_abstraction_promotion=(
+                        record.action_abstraction_promotion
+                        or existing.action_abstraction_promotion
+                    ),
+                )
 
     def remove_records_by_id_prefix(self, prefix: str) -> int:
         """Packet 6.9: drop records whose ``case_id`` starts with ``prefix``."""

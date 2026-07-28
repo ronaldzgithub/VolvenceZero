@@ -26,11 +26,13 @@ Invariants validated:
 from __future__ import annotations
 
 import tempfile
+from dataclasses import replace
 
 import pytest
 
 from volvence_zero.application import (
     ApplicationCaseMemoryStore,
+    CaseActionAbstractionEvidence,
     CaseLifecycle,
     CaseMemoryRecord,
     ProvisionalReconcileDecision,
@@ -79,6 +81,24 @@ def _case(
     )
 
 
+def _action_abstraction_evidence(
+    *,
+    outcome_id: str = "outcome-owner-metadata",
+    action_statement: str = "Step forward and interrupt the imminent harm.",
+) -> CaseActionAbstractionEvidence:
+    return CaseActionAbstractionEvidence(
+        outcome_id=outcome_id,
+        action_id="action-owner-metadata",
+        action_family_id="discovered_family_0",
+        action_family_version=7,
+        situation_statement="A third party faces imminent physical harm.",
+        action_statement=action_statement,
+        evidence=("owner-issued-terminal-outcome",),
+        confidence=0.9,
+        controller_code_digest=(0.2, 0.4, 0.6),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Backwards compatibility
 # ---------------------------------------------------------------------------
@@ -91,6 +111,50 @@ def test_default_lifecycle_is_validated_and_no_ttl() -> None:
     assert record.expires_at_tick is None
     assert record.provisional_origin == ""
     assert record.is_available_for_retrieval()
+
+
+def test_compact_snapshot_upsert_preserves_owner_only_typed_evidence() -> None:
+    evidence = _action_abstraction_evidence()
+    owner_record = replace(
+        _case("owner-evidence", relevance_score=0.4),
+        action_abstraction_evidence=evidence,
+    )
+    store = ApplicationCaseMemoryStore(records=(owner_record,))
+
+    compact_snapshot_record = replace(
+        owner_record,
+        relevance_score=0.8,
+        action_abstraction_evidence=None,
+    )
+    store.upsert_records((compact_snapshot_record,))
+
+    assert store.records == (
+        replace(
+            compact_snapshot_record,
+            action_abstraction_evidence=evidence,
+        ),
+    )
+
+
+def test_upsert_rejects_conflicting_owner_only_typed_evidence() -> None:
+    owner_record = replace(
+        _case("owner-evidence-conflict"),
+        action_abstraction_evidence=_action_abstraction_evidence(),
+    )
+    store = ApplicationCaseMemoryStore(records=(owner_record,))
+    conflicting = replace(
+        owner_record,
+        relevance_score=0.9,
+        action_abstraction_evidence=_action_abstraction_evidence(
+            action_statement="Wait and observe instead."
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="conflicting action_abstraction_evidence",
+    ):
+        store.upsert_records((conflicting,))
 
 
 def test_retired_record_is_hidden_from_retrieval() -> None:

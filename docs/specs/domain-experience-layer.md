@@ -132,8 +132,10 @@ application persistence，但新场景必须拒绝召回该非语义 case，且�
    `outcome_id / situation / executed_action`，明确不含 outcome 文本、reward、PE 数值或
    evaluation。
 2. `ActionAbstractionOwner` 至少要求两条 outcome id 唯一、situation 不同且
-   `action_family_id / action_family_version` 完全一致的经历。单例、重复 episode、
-   family/version 冲突在调用 decoder 前 fail closed。
+   `action_family_id` 完全一致的经历。`action_family_version` 是 temporal family bank
+   的全局 revision，不是 family 身份；跨时间 evidence 的 revision 可以不同，
+   candidate 取最大 revision 作审计锚点。单例、重复 episode、family ID 冲突在调用
+   decoder 前 fail closed。
 3. 默认 `NoOpActionAbstractionDecoder` 不产生任何候选；只有显式注入的
    structured background decoder 才能发布 `LearnedActionSchemaCandidate`。
    prompt 与 JSON schema 位于 application wheel 的 `prompts/`、`schemas/`，禁止关键词归纳。
@@ -146,16 +148,21 @@ application persistence，但新场景必须拒绝召回该非语义 case，且�
    `CaseMemoryRecord.action_abstraction_evidence`，并随既有 checkpoint 原样恢复。
    下一 session 只通过 store owner 的 `pending_action_abstraction_evidence()` 合并历史
    与当前证据，禁止扫描 case description。内容完全一致的 outcome 只计一次，同 outcome
-   的矛盾内容直接失败；晋升 record 的 typed promotion marker 会排除整个
-   family/version 的 pending evidence，阻止重复 decoder/promotion。
+   的矛盾内容直接失败；compact snapshot 回灌不得擦除既有 typed payload；晋升 record
+   的 typed promotion marker 会排除整个 family ID 的 pending evidence，阻止不同 bank
+   revision 再次触发 decoder/promotion。
 
 promoted record 仍由 `ApplicationCaseMemoryStore` 唯一写入和持久化，expression 仍只消费
 CaseMemory/ResponseAssembly 发布的 action realization。learned candidate 与 reviewer
 发布的 `EnvironmentActionSchema` 是两个来源不同的 typed object，禁止混写 provenance。
 
-第十一回 schema-holdout 目前只有一条独立经历，因此按本契约保持 `schema-pending`；
-不能复制同一 scene 凑足计数。当前测试只用两条 synthetic heterogeneous evidence
-证明 owner/gate 机制可达，不把它计作张无忌已经自主形成语义抽象。
+真实双章节收敛使用 ch-11 scene-1 与 ch-17 scene-1，并同时删除两条 reviewed
+`EnvironmentActionSchema`。两次独立 live-through 未注入 family identity，却由 temporal
+owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早、晚两个不同值。
+第一条 typed evidence 经 CaseMemory checkpoint 跨 session 恢复，第二条到达后只触发
+一次 structured background decoder，并经正式 `ModificationGate.BACKGROUND` 晋升。
+该证据足以把“只有 synthetic 第二证据”的旧限制关闭；它仍只证明真实经历形成了
+可审计的候选并进入 owner，不等价于未见场景中的角色行为保真已通过。
 
 ## 工程挑战
 
@@ -208,6 +215,7 @@ CaseMemory/ResponseAssembly 发布的 action realization。learned candidate 与
 
 ## 变更日志
 
+- 2026-07-29: 增加 ch-11/ch-17 真实 schema-holdout 跨章节晋升证据；修复 compact CaseMemory snapshot 回灌擦除 owner-only typed evidence，并明确 family ID 是聚合身份、`action_family_version` 是允许跨经历变化的全局 bank revision。
 - 2026-07-28: 冻结 CaseMemory-owned action-abstraction pending/promotion checkpoint 契约：schema-free evidence 可跨 session 恢复，consumer 只读类型化 owner API；矛盾 outcome fail loudly，已晋升 family/version 自动停止重复提案。
 - 2026-07-28: 新增 multi-experience background action abstraction：structured decoder 不读 outcome/evaluation，CaseMemory owner 要求至少两条异质同族经历并校验 source closure；candidate 必须经正式 BACKGROUND ModificationGate 才能写入。ch-11 单例继续 fail closed，不声明自主 schema discovery。
 - 2026-07-28: 增加 action-schema holdout 的 fail-closed 收敛：terminal outcome 在提交时绑定 temporal family/version/controller-code digest；无 schema 的 family-linked case 可持久化审计，但 intervention ordering 为空，禁止 expression 或 CaseMemory 把原 episode 复述成抽象策略。
