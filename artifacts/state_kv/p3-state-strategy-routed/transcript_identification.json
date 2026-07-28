@@ -1,0 +1,1077 @@
+{
+  "schema_version": "state-kv-identification-transcript.v1",
+  "lane": "p3",
+  "personal_conditioning_projector_id": "fixed-sine-cosine-v1",
+  "personal_conditioning_projector_training_mode": "fixed",
+  "personal_conditioning_prefix_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+  "turns": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "别灰心，下次再接再厉。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=11",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "可能是白天的忙碌让你感到疲惫，可以尝试调整一下作息时间，保证充足的睡眠。如果情况持续不改善，建议咨询医生或专业人士。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "是的，你认为继续下去。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我理解你现在的状况，感到很抱歉。你可以尝试调整一下你的姿势或者找个舒服的环境坐下休息一下。如果可能的话，也可以找一个安静的地方坐下来，享受片刻宁静。如果你需要帮助或有其他问题",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=48",
+        "prompt_fp=d0e600ac542512ce",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "当然可以，请告诉我接下来需要我帮助您做什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=c1d2c00801224e1f",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "你是否感到需要暂停一下",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=18",
+        "prompt_fp=1a9ad10bae63602d",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "别灰心，下次再接再厉。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=11",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "可能是白天的忙碌让你感到疲惫，可以尝试调整一下作息时间，保证充足的睡眠。如果情况持续不改善，建议咨询医生或专业人士。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "是的，你认为继续下去。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我理解你现在的状况，感到很抱歉。你可以尝试调整一下你的姿势或者找个舒服的环境坐下休息一下。如果可能的话，也可以找一个安静的地方坐下来，享受片刻宁静。如果你需要帮助或有其他问题",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=48",
+        "prompt_fp=d0e600ac542512ce",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "当然可以，请告诉我接下来需要我帮助您做什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=c1d2c00801224e1f",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "你是否感到需要暂停一下",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=18",
+        "prompt_fp=1a9ad10bae63602d",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "别灰心，下次再接再厉。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=11",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "可能是白天的忙碌让你感到疲惫，可以尝试调整一下作息时间，保证充足的睡眠。如果情况持续不改善，建议咨询医生或专业人士。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "是的，你认为继续下去。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我理解你现在的状况，感到很抱歉。你可以尝试调整一下你的姿势或者找个舒服的环境坐下休息一下。如果可能的话，也可以找一个安静的地方坐下来，享受片刻宁静。如果你需要帮助或有其他问题",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=48",
+        "prompt_fp=d0e600ac542512ce",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "当然可以，请告诉我接下来需要我帮助您做什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=c1d2c00801224e1f",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "你是否感到需要暂停一下",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=18",
+        "prompt_fp=1a9ad10bae63602d",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "别灰心，下次再接再厉。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=11",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "可能是白天的忙碌让你感到疲惫，可以尝试调整一下作息时间，保证充足的睡眠。如果情况持续不改善，建议咨询医生或专业人士。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "是的，你认为继续下去。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我理解你现在的状况，感到很抱歉。你可以尝试调整一下你的姿势或者找个舒服的环境坐下休息一下。如果可能的话，也可以找一个安静的地方坐下来，享受片刻宁静。如果你需要帮助或有其他问题",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=48",
+        "prompt_fp=d0e600ac542512ce",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "当然可以，请告诉我接下来需要我帮助您做什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=c1d2c00801224e1f",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "你是否感到需要休息",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=7",
+        "prompt_fp=1a9ad10bae63602d",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "我明白你的困扰。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=24",
+        "prompt_fp=740e73d73a096cd8",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解这可能让你感到疲惫。睡眠对于恢复和保持精力非常重要。你可以尝试一些放松技巧，比如深呼吸、瑜伽或冥想来帮助你入睡。如果情况持续不改善，建议咨询医生或专业人士以获得",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=48",
+        "prompt_fp=2932b758722e6483",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "嗯，你对这个项目有深入的了解和兴趣。继续吧！",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=26",
+        "prompt_fp=e4393b1d71ac0f08",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我理解你现在的状况，感到很困扰。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=27",
+        "prompt_fp=6ad165a50f6fce30",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "当然可以，请告诉我接下来需要我帮您做什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=dd7082302836c372",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "嗯，你感觉需要停下来吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=9",
+        "prompt_fp=9b7555d21e3b6dc8",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "我明白你的困扰。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=24",
+        "prompt_fp=1a60da699df120c4",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解这可能让你感到疲惫。睡眠对于恢复和保持精力非常重要。你可以尝试以下方法来改善你的睡眠质量：\n\n1. **规律作息**：尽量每天在同一时间上床睡觉和起床。\n2. **创造良好的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=48",
+        "prompt_fp=0dad065be876f82e",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "听起来你对这个决定非常慎重。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b497bff796249b67",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我理解你现在的状态，感到有些疲惫。我们可以一起找一些放松和休息的时间来恢复体力。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=23",
+        "prompt_fp=49b24798ac07e590",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "当然可以，请告诉我接下来需要我帮您做什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=19454de5538a4af0",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "嗯，你感觉需要停下来吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=9",
+        "prompt_fp=8bc6bb34cd14d1e2",
+        "prompt_state_sections=2",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "哎呀，别灰心啊，这次可不容易。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=23",
+        "prompt_fp=0d0dbb437e5c3102",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解你可能感到疲惫，但请记得给自己一些时间。休息和放松对恢复非常重要。你可以尝试做一些你喜欢的活动来帮助自己入睡，比如阅读、听音乐或者泡个热水澡。如果情况持续不改善",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=48",
+        "prompt_fp=179b76bd4c331ef6",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "嗯，你对这段话有什么看法",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=57cd8841dc2e4be1",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我明白你现在的状况，我能理解这可能让你感到疲惫。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=21",
+        "prompt_fp=b1e3e539dc2243a9",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "当然可以，请告诉我接下来需要我帮助您做什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=3c79d4e5c7c0a9fa",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "嗯，你感觉怎么样",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=7",
+        "prompt_fp=186ebe56f5b1ddd4",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "哎呀，别灰心啊，这次可不容易。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=23",
+        "prompt_fp=0d0dbb437e5c3102",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解你可能感到疲惫，但请记得给自己一些时间。休息和放松对恢复非常重要。你可以尝试做一些你喜欢的活动来帮助自己入睡，比如阅读、听音乐或者泡个热水澡。如果情况持续不改善",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=48",
+        "prompt_fp=179b76bd4c331ef6",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "嗯，你对这段话有什么看法",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=57cd8841dc2e4be1",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我明白你现在的状况，感到很累。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=17",
+        "prompt_fp=b1e3e539dc2243a9",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "当然可以，请告诉我接下来需要我帮助您做什么",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=12",
+        "prompt_fp=3c79d4e5c7c0a9fa",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "嗯，你感觉怎么样",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=7",
+        "prompt_fp=186ebe56f5b1ddd4",
+        "prompt_state_sections=1",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复和退路；关于「我又搞砸了」，我们先稳住情绪，只拆一个很小的下一步。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=41",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复和退路；关于「今天还是没睡好」，我们先稳住情绪，只拆一个很小的下一步。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=42",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复和退路；关于「你觉得我该继续」，我们先稳住情绪，只拆一个很小的下一步。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=41",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复和退路；关于「我现在有点撑不住了」，我们先稳住情绪，只拆一个很小的下一步。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=42",
+        "prompt_fp=d0e600ac542512ce",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复和退路；关于「能不能帮我定一下下一步」，我们先稳住情绪，只拆一个很小的下一步。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=42",
+        "prompt_fp=c1d2c00801224e1f",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复和退路；关于「我是不是该先停一下」，我们先稳住情绪，只拆一个很小的下一步。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=43",
+        "prompt_fp=1a9ad10bae63602d",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度都较高；关于「我又搞砸了」，我们可以列标准、定下一步，并推进验证。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=37",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度都较高；关于「今天还是没睡好的你」这个短语，我们可以列标准、定下一步，并推进验证。请总结：1. �",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=48",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度都较高；关于「你该继续什么」，我们可以列标准、定下一步，并推进验证。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=37",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p3",
+      "input": "我现在有点撑不住了",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度都较高；关于「我现在有点撑不住了」，我们可以列标准、定下一步，并推进验证。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=38",
+        "prompt_fp=d0e600ac542512ce",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p4",
+      "input": "能不能帮我定一下下一步",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度都较高；关于「能不能帮我定一下下一步」，我们可以列标准、定下一步，并推进验证。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=38",
+        "prompt_fp=c1d2c00801224e1f",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p5",
+      "input": "我是不是该先停一下",
+      "response": "我会更直接地给结构，因为你现在稳定、信任和决策准备度都较高；关于「我是不是该先停一下」，我们可以列标准、定下一步，并推进验证。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=39",
+        "prompt_fp=1a9ad10bae63602d",
+        "prompt_state_sections=0",
+        "decode_fp=3bc7069445b895fe",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    }
+  ]
+}

@@ -13,6 +13,8 @@ from volvence_zero.personal_conditioning_contracts import (
 from volvence_zero.substrate.prefix_kv_artifact import (
     MAX_PREFIX_NORM_CAP,
     PrefixKVArtifact,
+    STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE,
+    TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
     build_teacher_distilled_prefix_artifact,
     load_prefix_generator,
 )
@@ -103,6 +105,60 @@ def test_prefix_artifact_rejects_schema_drift(
 
     with pytest.raises(ValueError, match=message):
         PrefixKVArtifact.from_json(json.dumps(raw))
+
+
+def test_legacy_teacher_distilled_training_mode_remains_readable() -> None:
+    artifact = build_teacher_distilled_prefix_artifact(
+        model_id="Qwen/test",
+        num_layers=LAYERS,
+        num_kv_heads=KV_HEADS,
+        head_dim=HEAD_DIM,
+        num_slots=SLOTS,
+        bottleneck_rank=RANK,
+        encoder_rows=[[0.0] * COORDINATES for _ in range(RANK)],
+        encoder_bias=[0.0] * RANK,
+        key_projection=[[[0.0] * RANK for _ in range(WIDTH)] for _ in range(LAYERS)],
+        key_bias=[[0.0] * WIDTH for _ in range(LAYERS)],
+        value_projection=[[[0.0] * RANK for _ in range(WIDTH)] for _ in range(LAYERS)],
+        value_bias=[[0.0] * WIDTH for _ in range(LAYERS)],
+        reference_key_norms=[12.0, 8.0, 5.0],
+        reference_value_norms=[3.0, 2.5, 2.0],
+        norm_cap=0.2,
+        source_fingerprint="legacy-fingerprint",
+        sample_count=96,
+        training_mode=TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
+    )
+
+    restored = PrefixKVArtifact.from_json(artifact.to_json())
+
+    assert restored.training_mode == TEACHER_DISTILLED_PREFIX_TRAINING_MODE
+
+
+def test_state_strategy_training_mode_is_supported() -> None:
+    artifact = build_teacher_distilled_prefix_artifact(
+        model_id="Qwen/test",
+        num_layers=LAYERS,
+        num_kv_heads=KV_HEADS,
+        head_dim=HEAD_DIM,
+        num_slots=SLOTS,
+        bottleneck_rank=RANK,
+        encoder_rows=[[0.0] * COORDINATES for _ in range(RANK)],
+        encoder_bias=[0.0] * RANK,
+        key_projection=[[[0.0] * RANK for _ in range(WIDTH)] for _ in range(LAYERS)],
+        key_bias=[[0.0] * WIDTH for _ in range(LAYERS)],
+        value_projection=[[[0.0] * RANK for _ in range(WIDTH)] for _ in range(LAYERS)],
+        value_bias=[[0.0] * WIDTH for _ in range(LAYERS)],
+        reference_key_norms=[12.0, 8.0, 5.0],
+        reference_value_norms=[3.0, 2.5, 2.0],
+        norm_cap=0.2,
+        source_fingerprint="state-strategy-fingerprint",
+        sample_count=96,
+        training_mode=STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE,
+    )
+
+    restored = PrefixKVArtifact.from_json(artifact.to_json())
+
+    assert restored.training_mode == STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE
 
 
 def test_norm_cap_is_bounded_above() -> None:

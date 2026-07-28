@@ -1,0 +1,56 @@
+{
+  "schema_version": "state-kv-substrate-fingerprint.v1",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "weights_root": "/Users/mengfu/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775",
+  "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+  "weight_file_count": 1,
+  "weight_files": [
+    "model.safetensors"
+  ],
+  "runtime_origin": "hf-local",
+  "is_frozen": true,
+  "device_request": "mps",
+  "personal_conditioning_scale": 0.12,
+  "personal_conditioning_projector_id": "fixed-sine-cosine-v1",
+  "personal_conditioning_projector_training_mode": "fixed",
+  "personal_conditioning_prefix_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+  "personal_conditioning_prefix_norm_cap": 0.2,
+  "identification_material": {
+    "lane": "p2",
+    "p2_pair": "repair-vs-execute",
+    "user_ids": [
+      "heldout-execute",
+      "heldout-repair"
+    ],
+    "probe_ids": [
+      "h0",
+      "h1",
+      "h10",
+      "h11",
+      "h12",
+      "h13",
+      "h14",
+      "h15",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "h7",
+      "h8",
+      "h9"
+    ],
+    "case_count": 32
+  },
+  "blind_judge": {
+    "judge_model_id": "BAAI/bge-m3",
+    "judge_family": "xlm-roberta",
+    "substrate_family": "qwen2",
+    "material_kind": "rendered-state-statement",
+    "scoring_method": "embedding-cosine-mean-pool-v1",
+    "order_symmetrized": false,
+    "greedy": true,
+    "decision_count": 160,
+    "tie_count": 0
+  }
+}

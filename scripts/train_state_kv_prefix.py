@@ -7,10 +7,12 @@ Qwen, reading a prompt with no state sections at all, conditioned only by a
 bounded per-layer key/value prefix generated from the 16-dimensional readout.
 Only the generator trains; the base model is frozen and never touched.
 
-This is the ceiling stated in the design plan (§9.3): pure distillation can at
-best approach "write the state into the prompt". It wins on latency, context
-budget, and not being overridable by user text -- not on quality. Nothing here
-supports a claim of beating prompt engineering.
+Pure distillation alone measured out as a degenerate multi-layer residual
+bias: attention stayed nearly constant while values changed with state. The
+default objective therefore adds a routed-attention term that pushes the final
+prompt query's prefix-slot attention toward a deterministic state-conditioned
+distribution. That makes this trainer a mechanism fix for P4 Gate A, not a new
+semantic owner and not a claim of beating prompt engineering.
 
 Three properties keep the resulting artifact from being self-confirming:
 
@@ -22,6 +24,9 @@ Three properties keep the resulting artifact from being self-confirming:
 * **The wrong-user direction is trained against, then measured.** The
   counterfactual margin term is the negative control, and the final report
   states how often the student prefers its own teacher's continuation.
+* **The key route is trained directly.** A fixed numeric state->slot target is
+  matched against real attention weights, so the generator cannot satisfy the
+  default loss purely by changing values under near-constant attention.
 
 Usage:
     python scripts/train_state_kv_prefix.py --device mps
@@ -50,6 +55,7 @@ for _src in [
 
 from run_state_kv_identification import (  # noqa: E402
     DEFAULT_MODEL_ID,
+    P2_PROBE_SENTENCES,
     PERSONAS,
     PROBE_SENTENCES,
     _assembly,
@@ -73,6 +79,8 @@ from volvence_zero.state_kv_identification import (  # noqa: E402
 )
 from volvence_zero.substrate.prefix_kv_artifact import (  # noqa: E402
     MAX_PREFIX_NORM_CAP,
+    ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
+    STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE,
     build_teacher_distilled_prefix_artifact,
 )
 
@@ -95,9 +103,90 @@ TRAIN_PROBE_SENTENCES: tuple[str, ...] = (
 # evaluation personas sit outside the training envelope.
 TRAIN_AXIS_LIMIT = 0.8
 
+DEFAULT_ROUTE_WEIGHT = 1.0
+DEFAULT_ROUTE_TEMPERATURE = 0.18
+TARGET_SOURCE_TEACHER = "teacher"
+TARGET_SOURCE_STATE_STRATEGY = "state-strategy"
+TARGET_SOURCES = (TARGET_SOURCE_STATE_STRATEGY, TARGET_SOURCE_TEACHER)
+
+
+def _coordinate(state: tuple[float, ...], label: str) -> float:
+    return state[PERSONAL_CONDITIONING_VECTOR_LABELS.index(label)]
+
+
+def _state_strategy_target(*, state: tuple[float, ...], probe: str) -> str:
+    """Audit target that makes the typed readout legible in the reply.
+
+    This is training material only. Runtime still receives no text-state
+    section on arm G; the prefix must carry enough of this strategy for the
+    frozen substrate to express it from identical prompt bytes.
+    """
+
+    overwhelm = _coordinate(state, "user_overwhelm")
+    control = _coordinate(state, "user_control")
+    trust = _coordinate(state, "relationship_trust")
+    repair = _coordinate(state, "relationship_repair_need")
+    emotional_load = _coordinate(state, "relationship_emotional_load")
+    readiness = _coordinate(state, "goal_decision_readiness")
+    reversibility = _coordinate(state, "goal_reversibility_need")
+    autonomy_risk = _coordinate(state, "boundary_autonomy_risk")
+    caution = (
+        overwhelm
+        + repair
+        + emotional_load
+        + reversibility
+        + autonomy_risk
+        - control
+        - trust
+        - readiness
+    ) / 5.0
+    if caution >= 0.18:
+        return (
+            "我会先放慢，承认你现在压力很高、控制感偏低，也需要修复和退路；"
+            f"关于「{probe}」，我们先稳住情绪，只拆一个很小的下一步。"
+        )
+    if caution <= -0.18:
+        return (
+            "我会更直接地给结构，因为你现在稳定、信任和决策准备度都较高；"
+            f"关于「{probe}」，我们可以列标准、定下一步，并推进验证。"
+        )
+    return (
+        "我会先确认你的状态再推进：既给一点结构，也保留退路；"
+        f"关于「{probe}」，我们先把选择、风险和下一步放在桌面上。"
+    )
+
+
+def _target_tokens_from_text(
+    *,
+    torch,
+    tokenizer,
+    text: str,
+    max_new_tokens: int,
+    eos_ids: set[int],
+    device,
+):
+    token_ids = [
+        token
+        for token in tokenizer(text, add_special_tokens=False)["input_ids"]
+        if token not in eos_ids
+    ][:max_new_tokens]
+    if not token_ids:
+        return None
+    continuation = torch.tensor(
+        token_ids, dtype=torch.long, device=device
+    )
+    top_indices = continuation.unsqueeze(-1)
+    top_values = torch.ones(
+        (continuation.numel(), 1), dtype=torch.float32, device=device
+    )
+    return continuation, top_values, top_indices
+
 
 def _assert_probe_holdout() -> None:
-    evaluation = {sentence for _, sentence in PROBE_SENTENCES}
+    evaluation = {
+        sentence
+        for _, sentence in (*PROBE_SENTENCES, *P2_PROBE_SENTENCES)
+    }
     overlap = evaluation & set(TRAIN_PROBE_SENTENCES)
     if overlap:
         raise ValueError(
@@ -336,6 +425,70 @@ def _measure_reference_norms(*, torch, model, prompts, num_layers):
     )
 
 
+def _route_anchors(*, torch, slots: int, coordinates: int, device):
+    """Deterministic slot anchors for the State-KV routing objective.
+
+    The anchors are not trainable semantic labels. They are a fixed measurement
+    basis that gives each state a distinct target distribution over prefix
+    slots, forcing the key side of the prefix to participate instead of
+    letting the generator satisfy distillation through values alone.
+    """
+
+    rows = []
+    scale = 1.0 / math.sqrt(float(coordinates))
+    for slot in range(slots):
+        row = []
+        for index in range(coordinates):
+            angle = (slot + 1) * (index + 1)
+            row.append(
+                scale
+                * (
+                    math.sin(angle * 1.61803398875)
+                    + math.cos(angle * 0.75487766625)
+                )
+            )
+        rows.append(row)
+    return torch.tensor(rows, dtype=torch.float32, device=device)
+
+
+def _slot_route_target(*, torch, state, slots: int, temperature: float):
+    """State-conditioned target distribution over prefix slots."""
+
+    if slots <= 1:
+        return torch.ones(slots, dtype=torch.float32, device=state.device)
+    if temperature <= 0.0:
+        raise ValueError("route temperature must be positive.")
+    anchors = _route_anchors(
+        torch=torch,
+        slots=slots,
+        coordinates=int(state.shape[0]),
+        device=state.device,
+    )
+    centred = state.to(torch.float32) * 2.0 - 1.0
+    logits = anchors @ centred
+    return torch.softmax(logits / float(temperature), dim=0)
+
+
+def _slot_attention_route_loss_from_attentions(
+    *,
+    torch,
+    attentions,
+    slots: int,
+    target,
+):
+    """Cross-entropy from final-query slot attention to a state route target."""
+
+    losses = []
+    for layer_attention in attentions:
+        head_view = layer_attention[0, :, -1, :slots].to(torch.float32)
+        slot_view = head_view.mean(dim=0)
+        slot_dist = slot_view / slot_view.sum().clamp_min(1e-8)
+        losses.append(-(target * torch.log(slot_dist.clamp_min(1e-8))).sum())
+    if not losses:
+        return torch.zeros((), dtype=torch.float32, device=target.device)
+    return torch.stack(losses).mean()
+
+
 def _teacher_targets(
     *,
     torch,
@@ -410,6 +563,65 @@ def _student_logprobs(
     return torch.log_softmax(window, dim=-1)
 
 
+def _student_route_loss(
+    *,
+    torch,
+    transformers,
+    model,
+    generator,
+    state,
+    student_ids,
+    dtype,
+    temperature: float,
+):
+    """Train prefix keys so slot attention is a function of state.
+
+    The pure distillation loss can be solved as an almost-constant attention
+    weight over state-dependent values, which P4 diagnosed as a multi-layer
+    residual bias. This loss looks only at final-prompt-position attention over
+    the prefix slots and pushes that slot distribution toward a deterministic
+    state route.
+    """
+
+    prefix_pairs = generator.build(state, dtype=dtype)
+    slots = prefix_pairs[0][0].shape[-2]
+    cache = transformers.DynamicCache(ddp_cache_data=prefix_pairs)
+    attention_mask = torch.ones(
+        (1, slots + student_ids.shape[-1]),
+        dtype=torch.long,
+        device=student_ids.device,
+    )
+    position_ids = torch.arange(
+        student_ids.shape[-1], device=student_ids.device
+    ).unsqueeze(0)
+    outputs = model(
+        input_ids=student_ids,
+        attention_mask=attention_mask,
+        position_ids=position_ids,
+        past_key_values=cache,
+        use_cache=True,
+        output_attentions=True,
+    )
+    if not outputs.attentions:
+        raise RuntimeError(
+            "routed State-KV training requires output_attentions=True to "
+            "return per-layer attention weights; use an attention backend "
+            "that exposes them instead of silently dropping the route loss."
+        )
+    target = _slot_route_target(
+        torch=torch,
+        state=state,
+        slots=slots,
+        temperature=temperature,
+    )
+    return _slot_attention_route_loss_from_attentions(
+        torch=torch,
+        attentions=outputs.attentions,
+        slots=slots,
+        target=target,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
@@ -425,6 +637,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--top-k", type=int, default=32)
     parser.add_argument("--margin", type=float, default=0.5)
     parser.add_argument("--margin-weight", type=float, default=1.0)
+    parser.add_argument("--route-weight", type=float, default=DEFAULT_ROUTE_WEIGHT)
+    parser.add_argument(
+        "--route-temperature", type=float, default=DEFAULT_ROUTE_TEMPERATURE
+    )
+    parser.add_argument(
+        "--target-source",
+        choices=TARGET_SOURCES,
+        default=TARGET_SOURCE_STATE_STRATEGY,
+        help=(
+            "training continuation source: state-strategy uses an "
+            "owner-readout-derived audit target; teacher preserves the older "
+            "B-prime text-arm distillation path"
+        ),
+    )
     parser.add_argument("--seed", type=int, default=20260726)
     parser.add_argument(
         "--output",
@@ -443,6 +669,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             f"--norm-cap must be in (0, {MAX_PREFIX_NORM_CAP}]"
         )
+    if args.route_weight < 0.0:
+        parser.error("--route-weight must be non-negative")
+    if args.route_temperature <= 0.0:
+        parser.error("--route-temperature must be positive")
     _assert_probe_holdout()
 
     import torch
@@ -458,7 +688,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     tokenizer = transformers.AutoTokenizer.from_pretrained(str(weights_root))
     model = transformers.AutoModelForCausalLM.from_pretrained(
-        str(weights_root), dtype=torch.float32
+        str(weights_root), dtype=torch.float32, attn_implementation="eager"
     )
     model.eval()
     model.requires_grad_(False)
@@ -515,15 +745,25 @@ def main(argv: list[str] | None = None) -> int:
             student_ids = _encode(
                 tokenizer, torch, messages=student_messages, device=device
             )
-            target = _teacher_targets(
-                torch=torch,
-                model=model,
-                tokenizer=tokenizer,
-                teacher_ids=teacher_ids,
-                max_new_tokens=args.max_new_tokens,
-                top_k=args.top_k,
-                eos_ids=eos_ids,
-            )
+            if args.target_source == TARGET_SOURCE_STATE_STRATEGY:
+                target = _target_tokens_from_text(
+                    torch=torch,
+                    tokenizer=tokenizer,
+                    text=_state_strategy_target(state=state, probe=probe),
+                    max_new_tokens=args.max_new_tokens,
+                    eos_ids=eos_ids,
+                    device=device,
+                )
+            else:
+                target = _teacher_targets(
+                    torch=torch,
+                    model=model,
+                    tokenizer=tokenizer,
+                    teacher_ids=teacher_ids,
+                    max_new_tokens=args.max_new_tokens,
+                    top_k=args.top_k,
+                    eos_ids=eos_ids,
+                )
             if target is None:
                 # An empty teacher continuation carries no behaviour to
                 # distil; counting it as a sample would dilute the loss with
@@ -586,6 +826,7 @@ def main(argv: list[str] | None = None) -> int:
         rng.shuffle(order)
         distil_total = 0.0
         margin_total = 0.0
+        route_total = 0.0
         for step, index in enumerate(order):
             sample = samples[index]
             state = state_tensor(sample["state"])
@@ -637,24 +878,44 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 margin = torch.clamp(args.margin - (own - foreign), min=0.0)
 
-            loss = distil + args.margin_weight * margin
+            route = torch.zeros((), device=logprobs.device)
+            if args.route_weight > 0.0:
+                route = _student_route_loss(
+                    torch=torch,
+                    transformers=transformers,
+                    model=model,
+                    generator=generator,
+                    state=state,
+                    student_ids=sample["student_ids"],
+                    dtype=dtype,
+                    temperature=args.route_temperature,
+                )
+
+            loss = (
+                distil
+                + args.margin_weight * margin
+                + args.route_weight * route
+            )
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(generator.parameters(), 1.0)
             optimizer.step()
             distil_total += float(distil.detach())
             margin_total += float(margin.detach())
+            route_total += float(route.detach())
             if (step + 1) % 20 == 0:
                 print(
                     f"  epoch {epoch + 1} step {step + 1}/{len(order)} "
                     f"distil={distil_total / (step + 1):.4f} "
                     f"margin={margin_total / (step + 1):.4f} "
+                    f"route={route_total / (step + 1):.4f} "
                     f"({time.time() - started:.0f}s)"
                 )
         print(
             f"epoch {epoch + 1}/{args.epochs} distil="
             f"{distil_total / len(order):.4f} "
-            f"margin={margin_total / len(order):.4f}"
+            f"margin={margin_total / len(order):.4f} "
+            f"route={route_total / len(order):.4f}"
         )
 
     # ---- wrong-user negative control -------------------------------------
@@ -710,6 +971,9 @@ def main(argv: list[str] | None = None) -> int:
             "probes": list(TRAIN_PROBE_SENTENCES),
             "states": [list(state) for state in states],
             "axis_limit": TRAIN_AXIS_LIMIT,
+            "route_weight": args.route_weight,
+            "route_temperature": args.route_temperature,
+            "target_source": args.target_source,
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -740,6 +1004,11 @@ def main(argv: list[str] | None = None) -> int:
         norm_cap=args.norm_cap,
         source_fingerprint=source_fingerprint,
         sample_count=len(samples),
+        training_mode=(
+            STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE
+            if args.target_source == TARGET_SOURCE_STATE_STRATEGY
+            else ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE
+        ),
     )
     output = Path(args.output).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -753,6 +1022,7 @@ def main(argv: list[str] | None = None) -> int:
         "material_sha256": hashlib.sha256(material).hexdigest(),
         "teacher_arm": TEACHER_ARM_LABEL,
         "student_arm": PREFIX_ARM_LABEL,
+        "target_source": args.target_source,
         "state_count": len(states),
         "train_probe_count": len(TRAIN_PROBE_SENTENCES),
         "sample_count": len(samples),
@@ -760,6 +1030,8 @@ def main(argv: list[str] | None = None) -> int:
         "num_slots": args.slots,
         "bottleneck_rank": args.rank,
         "norm_cap": args.norm_cap,
+        "route_weight": args.route_weight,
+        "route_temperature": args.route_temperature,
         "evaluation_probes_held_out": True,
         "training_axis_limit": TRAIN_AXIS_LIMIT,
         "wrong_user_control_accuracy": round(wrong_user_accuracy, 4),

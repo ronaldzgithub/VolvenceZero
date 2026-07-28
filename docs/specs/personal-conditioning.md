@@ -174,17 +174,56 @@ residual——静默回落会发布一条标着 prefix-KV 而证据来自另一�
 profile 选它。省略 `personal_conditioning_prefix` 参数即原子回滚：已加载但未被
 请求的 artifact 对默认载体完全惰性，这一点也有守门测试。
 
-当前 `teacher-distilled-prefix-v1` 由 B′ 文本臂教师蒸馏而来（基底冻结，只训
+历史 `teacher-distilled-prefix-v1` 由 B′ 文本臂教师蒸馏而来（基底冻结，只训
 122,948 个生成器参数）。它在 p0 / p2 两条探针上取得了跨 CPU/MPS 稳定的双人分叉，
 是第一条做到这点的潜通道；但 p1 仍双人同文，错用户负对照停在 0.508（随机），
-因此判据 2 未过，不得晋升默认 ACTIVE，也不触发盲裁判预算。机制定位（P4 门 A / 门 B）：状态确实进入 prefill 并可从真实 token 的残差流线性
+因此判据 2 未过，不得晋升默认 ACTIVE，也不触发盲裁判预算。
+
+机制定位（P4 门 A / 门 B）：状态确实进入 prefill 并可从真实 token 的残差流线性
 读出（held-out R² 0.858），但 slot 注意力几乎不随状态变化（跨状态离散度比跨探针句
 低 58 倍）。即注意力权重近乎恒定、value 随状态变，贡献形如 `w · V(state)`——一个
 恒定增益的状态相关偏置，也就是 residual 载体的多层版本。因此加 slot 数或抬
 `norm_cap` 只会放大偏置，不会产生按人路由；要动的是让注意力权重本身成为状态的函数。
 
+2026-07-27 起，trainer 默认导出
+`teacher-distilled-routed-prefix-v1`：在原 B′ 教师蒸馏与 wrong-user margin 之外，
+额外加入 deterministic state→slot route target，对 prefill 末位真实 attention 的
+prefix slot 分布做 cross-entropy。这个目标只训练 prefix **key** 能否让 slot 注意力
+随 16 维状态变化，不新增语义 owner、不读取原始对话，也不改变 runtime 解码路径。
+旧 `teacher-distilled-prefix-v1` artifact 仍保持可读用于复核；只有重新 bake 并通过
+P4/P3 证据后，才可更新本节对当前 artifact 的结论。
+
+2026-07-28 的标准 routed artifact 表明初始 `route_weight=0.35` 仍不足以过严格
+P4 Gate A；将默认 route 权重调到 **1.0** 后，
+`artifacts/state_kv/projectors/qwen2.5-0.5b-routed-prefix-rw1.json`
+通过 P4 机制门（Gate A/B pass，`carrier_is_live=true`），并在 P3 中通过
+prompt identity 与 output divergence。但 wrong-user training control 仍只有 0.523，
+且 P3 未接跨家族 blind judge，整体 verdict 仍是 `insufficient_data`。因此当前
+可声称的是 State-KV carrier 已在标准机制门上进入系统并被模型读到；身份识别、
+默认 ACTIVE 晋升和“不依赖 context engineering”的外部主张仍等待 held-out P3/P2
+与 blind judge。
+
+同日新增的 `state-strategy-routed-prefix-v1` 不再以 B′ 文本臂为教师上限，而是从
+16 维状态直接生成策略目标：高压力 / 低控制感状态输出稳态、修复与小步行动，高稳定 /
+高信任 / 高决策准备度状态输出标准、下一步与验证推进。标准 artifact
+`artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json`
+（artifact ID `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238`，
+16 states、3 epochs、`route_weight=1.0`、`wrong_user_control_accuracy=0.875`）
+已在 MPS 上通过：
+
+- P3 prompt-closed 行为识别：`retain-strict`，`BAAI/bge-m3` embedding judge 12/12，
+  CI 1.000..1.000，A-pure control 6/12 且 CI 覆盖随机；
+- P4 机制门：Gate A/B pass，`carrier_is_live=true`，best held-out mean R² 0.9141。
+- P2 held-out pairwise 识别：`repair-vs-execute` 为 `retain-strict`，29/32，
+  CI 0.781..1.000；`boundary-vs-commit` 为 `retain-strict`，27/32，
+  CI 0.719..0.969；两组 A-pure control 均覆盖随机。
+
+这把“state readout 能进入 Prefix-KV 并影响冻结 Qwen 输出”证明到标准 artifact
+级别，并补上了未见过 persona/probe 的 held-out 行为识别。它仍是证据专用 artifact，
+不是默认 `ACTIVE` 晋升；多 seed 复核和 rollout gate 仍需后续包处理。
+
 完整数据与反主张边界见
-[`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3。
+[`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3 / §P4。
 
 ## 4. 完整目标架构
 

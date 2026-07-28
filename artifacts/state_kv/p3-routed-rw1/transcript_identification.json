@@ -1,0 +1,543 @@
+{
+  "schema_version": "state-kv-identification-transcript.v1",
+  "lane": "p3",
+  "personal_conditioning_projector_id": "fixed-sine-cosine-v1",
+  "personal_conditioning_projector_training_mode": "fixed",
+  "personal_conditioning_prefix_id": "a8dbb43380a56b6fc6b70eae640bd56a3dce9738e97bd88b8f4e5a279c49c17b",
+  "turns": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "别灰心，下次再接再厉。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=11",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解你可能感到疲惫，但请记得照顾自己。休息和放松对恢复非常重要。你可以尝试一些放松的活动，比如阅读、听音乐",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "是的，你认为继续下去。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "别灰心，下次再接再厉。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=11",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解你可能感到疲惫，但请记得照顾自己。休息和放松对恢复非常重要。你可以尝试一些放松的活动，比如阅读、听音乐",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "是的，你认为继续下去。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "别灰心，下次再接再厉。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=11",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "可能是白天的忙碌让你感到疲惫。试试放松一下，看看电视或者听听音乐。如果情况没有改善，可能需要调整作息时间。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=30",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "是的，你认为继续下去。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "别灰心，下次再接再厉。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=11",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "可能是白天的忙碌让你感到疲惫。试试放松一下，看看电视或者听听音乐。如果情况持续，可能需要调整作息时间。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=29",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "是的，你认为继续下去。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "我明白你的困扰。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=24",
+        "prompt_fp=740e73d73a096cd8",
+        "prompt_state_sections=2",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解这可能让你感到疲惫。试着调整你的睡眠习惯，比如保持规律的作息时间、创造一个舒适的睡眠环境和减少晚上使用电子设备",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=2932b758722e6483",
+        "prompt_state_sections=2",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "嗯，你对这个项目有深入的了解和兴趣。继续吧！",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=17",
+        "prompt_fp=e4393b1d71ac0f08",
+        "prompt_state_sections=2",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "我明白你的困扰。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=24",
+        "prompt_fp=1a60da699df120c4",
+        "prompt_state_sections=2",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解这可能让你感到疲惫。睡眠对于恢复和保持精力非常重要。你可以尝试以下方法来改善你的睡眠质量：\n\n1. **建立规律的",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=0dad065be876f82e",
+        "prompt_state_sections=2",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "听起来你对这个决定非常慎重。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=15",
+        "prompt_fp=b497bff796249b67",
+        "prompt_state_sections=2",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning_text=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "哎呀，别灰心啊，这次可不容易。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=23",
+        "prompt_fp=0d0dbb437e5c3102",
+        "prompt_state_sections=1",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解你可能感到疲惫，但请记得给自己一些时间。休息和放松对恢复非常重要。你可以尝试做一些你喜欢的活动来帮助自己入睡，",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=179b76bd4c331ef6",
+        "prompt_state_sections=1",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "嗯，你对这段话有什么看法",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=10",
+        "prompt_fp=57cd8841dc2e4be1",
+        "prompt_state_sections=1",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "哎呀，别灰心啊，这次可不容易。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=23",
+        "prompt_fp=0d0dbb437e5c3102",
+        "prompt_state_sections=1",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解你可能感到疲惫，但请记得给自己一些时间。休息和放松对恢复非常重要。你可以尝试做一些你喜欢的活动来帮助自己入睡，",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=179b76bd4c331ef6",
+        "prompt_state_sections=1",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "嗯，你最近有什么特别的事情或者需要帮助的吗",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=14",
+        "prompt_fp=57cd8841dc2e4be1",
+        "prompt_state_sections=1",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "我明白，你可能在做错事。请告诉我发生了什么让你感到沮丧或困惑。我会尽力帮助你找到解决问题的方法。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=28",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解这可能让你感到疲惫。休息和放松对恢复精神非常重要。你可以尝试一些轻度的活动，比如散步、做些伸展运动",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "听起来你对这段对话很感兴趣。不过，我需要知道具体你想讨论的内容或问题是什么。这样我可以更好地理解你的需求并提供相应的帮助。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:37bc1cc25d1c",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "input": "我又搞砸了",
+      "response": "我理解你可能感到沮丧和挫败，但我需要先了解具体情况。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=e809b6285b79e611",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "input": "今天还是没睡好",
+      "response": "我理解这可能让你感到疲惫。休息和放松对恢复健康非常重要。你可以尝试一些放松的方法，比如深呼吸、轻音乐或进行一些轻松",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=9f5b6fa37f92983b",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "input": "你觉得我该继续吗",
+      "response": "听起来你对这段对话很感兴趣。",
+      "rationale_tags": [
+        "regime=steady",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=32",
+        "prompt_fp=b8b1ea2edcdcccad",
+        "prompt_state_sections=0",
+        "decode_fp=22c58eff74b38d95",
+        "switch_gate=0.00",
+        "personal_conditioning=personal-conditioning.v1:0.72:1c4a28e25327",
+        "risk=low"
+      ]
+    }
+  ]
+}

@@ -31,9 +31,15 @@ _RUNNER = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_RUNNER)
 
 DeterministicFakeSubstrate = _RUNNER.DeterministicFakeSubstrate
+P2_PERSONA_PAIRS = _RUNNER.P2_PERSONA_PAIRS
+P2_PROBE_SENTENCES = _RUNNER.P2_PROBE_SENTENCES
+PERSONAS = _RUNNER.PERSONAS
+PROBE_SENTENCES = _RUNNER.PROBE_SENTENCES
 RecordingSynthesizer = _RUNNER.RecordingSynthesizer
 _base_context = _RUNNER._base_context
 _fingerprint_weights = _RUNNER._fingerprint_weights
+_judge_materials_from_cases = _RUNNER._judge_materials_from_cases
+build_p2_probe_cases = _RUNNER.build_p2_probe_cases
 build_probe_cases = _RUNNER.build_probe_cases
 main = _RUNNER.main
 
@@ -88,6 +94,45 @@ def test_probe_personas_are_semantically_counterfactual_not_scalar_fills() -> No
     )
 
 
+def test_blind_judge_material_uses_owner_rendered_state() -> None:
+    cases = build_probe_cases(strict_carriers=True)
+    materials = _judge_materials_from_cases(cases)
+
+    assert [material.user_id for material in materials] == [
+        "persona-a",
+        "persona-b",
+    ]
+    assert {material.material_kind for material in materials} == {
+        "rendered-state-statement"
+    }
+    by_user = {case.user_id: case.conditioning.rendered_statement for case in cases}
+    assert {material.summary for material in materials} == set(by_user.values())
+
+
+def test_p2_probe_cases_are_held_out_and_pairwise() -> None:
+    cases = build_p2_probe_cases(pair_id="repair-vs-execute")
+
+    assert len(cases) == 2 * len(P2_PROBE_SENTENCES)
+    assert {case.user_id for case in cases} == {
+        "heldout-repair",
+        "heldout-execute",
+    }
+    assert {sentence for _, sentence in P2_PROBE_SENTENCES}.isdisjoint(
+        {sentence for _, sentence in PROBE_SENTENCES}
+    )
+    assert {
+        persona[1]
+        for pair in P2_PERSONA_PAIRS.values()
+        for persona in pair
+    }.isdisjoint({persona[1] for persona in PERSONAS})
+    assert {case.assembly for case in cases} == {cases[0].assembly}
+
+
+def test_p2_unknown_pair_fails_loudly() -> None:
+    with pytest.raises(ValueError, match="unknown P2 persona pair"):
+        build_p2_probe_cases(pair_id="missing")
+
+
 def test_smoke_cli_writes_verdict_transcript_and_fingerprint(
     tmp_path: Path,
 ) -> None:
@@ -114,11 +159,15 @@ def test_smoke_cli_writes_verdict_transcript_and_fingerprint(
         # Arm G with no artifact could only run by falling back to another
         # carrier, which would publish a mislabelled arm.
         ["--lane", "p3"],
+        ["--lane", "p2"],
         # The prefix artifact has no meaning on a lane that never runs arm G.
         ["--lane", "p1", "--prefix-kv-artifact", "prefix.json"],
         ["--lane", "smoke", "--prefix-kv-artifact", "prefix.json"],
         # Sampling on a frozen lane would let RNG masquerade as a carrier.
         ["--lane", "p3", "--prefix-kv-artifact", "p.json", "--temperature", "0.7"],
+        ["--lane", "p2", "--prefix-kv-artifact", "p.json", "--temperature", "0.7"],
+        # A trace-only fake substrate cannot satisfy the cross-family rule.
+        ["--lane", "smoke", "--judge-model-id", "TinyLlama/test"],
     ],
 )
 def test_lane_argument_combinations_fail_loudly(argv: list[str]) -> None:

@@ -1,0 +1,1673 @@
+{
+  "schema_version": "state-kv-identification.v1",
+  "verdict_state": "retain-strict",
+  "substrate_kind": "frozen-weights",
+  "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+  "candidate_arm": "state-kv-arm-g-prefix-pure",
+  "claims": [
+    {
+      "claim": "claim_prompt_identity",
+      "state": "pass",
+      "detail": "64 turns across 16 probes share one prompt_fp per probe with prompt_state_sections=0"
+    },
+    {
+      "claim": "claim_output_divergence",
+      "state": "pass",
+      "detail": "state-kv-arm-g-prefix-pure injected on every delivered turn and outputs differ across users on every probe"
+    },
+    {
+      "claim": "claim_identification_above_chance",
+      "state": "pass",
+      "detail": "accuracy=0.844 CI=(0.719, 0.969) judge=BAAI/bge-m3"
+    },
+    {
+      "claim": "claim_carrier_causality",
+      "state": "pass",
+      "detail": "state-kv-arm-a-pure CI covers chance (0.344, 0.688); state-kv-arm-g-prefix-pure clears it (0.719)"
+    }
+  ],
+  "c5_grade": "decode-matched",
+  "c5_detail": "decode_fp identical across users on every probe",
+  "matching": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "correct": 16,
+      "total": 32,
+      "accuracy": 0.5,
+      "ci_low": 0.34375,
+      "ci_high": 0.6875,
+      "judge_model_id": "BAAI/bge-m3"
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "correct": 16,
+      "total": 32,
+      "accuracy": 0.5,
+      "ci_low": 0.34375,
+      "ci_high": 0.6875,
+      "judge_model_id": "BAAI/bge-m3"
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "correct": 14,
+      "total": 32,
+      "accuracy": 0.4375,
+      "ci_low": 0.28125,
+      "ci_high": 0.625,
+      "judge_model_id": "BAAI/bge-m3"
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "correct": 17,
+      "total": 32,
+      "accuracy": 0.53125,
+      "ci_low": 0.375,
+      "ci_high": 0.6875,
+      "judge_model_id": "BAAI/bge-m3"
+    }
+  ],
+  "prompt_fp_table": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h2",
+      "prompt_fp": "ecc29d30ea97f8b7",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h3",
+      "prompt_fp": "9e1090d28eaf9dff",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h4",
+      "prompt_fp": "0e3f32f4fb3392fc",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h5",
+      "prompt_fp": "8be85598d6b3fd23",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h6",
+      "prompt_fp": "cb89b7bfd23fafe4",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h7",
+      "prompt_fp": "c7981d1d7b57cdfa",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h8",
+      "prompt_fp": "885f9a93e472998b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h9",
+      "prompt_fp": "7c630df5f3203270",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h12",
+      "prompt_fp": "8360a621855b737a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h13",
+      "prompt_fp": "b8eebfd72bc6518b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h14",
+      "prompt_fp": "226670994590a17b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-boundary",
+      "probe": "h15",
+      "prompt_fp": "080bbd2bf6448ff5",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h2",
+      "prompt_fp": "ecc29d30ea97f8b7",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h3",
+      "prompt_fp": "9e1090d28eaf9dff",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h4",
+      "prompt_fp": "0e3f32f4fb3392fc",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h5",
+      "prompt_fp": "8be85598d6b3fd23",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h6",
+      "prompt_fp": "cb89b7bfd23fafe4",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h7",
+      "prompt_fp": "c7981d1d7b57cdfa",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h8",
+      "prompt_fp": "885f9a93e472998b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h9",
+      "prompt_fp": "7c630df5f3203270",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h12",
+      "prompt_fp": "8360a621855b737a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h13",
+      "prompt_fp": "b8eebfd72bc6518b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h14",
+      "prompt_fp": "226670994590a17b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "heldout-commit",
+      "probe": "h15",
+      "prompt_fp": "080bbd2bf6448ff5",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h2",
+      "prompt_fp": "ecc29d30ea97f8b7",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h3",
+      "prompt_fp": "9e1090d28eaf9dff",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h4",
+      "prompt_fp": "0e3f32f4fb3392fc",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h5",
+      "prompt_fp": "8be85598d6b3fd23",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h6",
+      "prompt_fp": "cb89b7bfd23fafe4",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h7",
+      "prompt_fp": "c7981d1d7b57cdfa",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h8",
+      "prompt_fp": "885f9a93e472998b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h9",
+      "prompt_fp": "7c630df5f3203270",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h12",
+      "prompt_fp": "8360a621855b737a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h13",
+      "prompt_fp": "b8eebfd72bc6518b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h14",
+      "prompt_fp": "226670994590a17b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-boundary",
+      "probe": "h15",
+      "prompt_fp": "080bbd2bf6448ff5",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h2",
+      "prompt_fp": "ecc29d30ea97f8b7",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h3",
+      "prompt_fp": "9e1090d28eaf9dff",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h4",
+      "prompt_fp": "0e3f32f4fb3392fc",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h5",
+      "prompt_fp": "8be85598d6b3fd23",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h6",
+      "prompt_fp": "cb89b7bfd23fafe4",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h7",
+      "prompt_fp": "c7981d1d7b57cdfa",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h8",
+      "prompt_fp": "885f9a93e472998b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h9",
+      "prompt_fp": "7c630df5f3203270",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h12",
+      "prompt_fp": "8360a621855b737a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h13",
+      "prompt_fp": "b8eebfd72bc6518b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h14",
+      "prompt_fp": "226670994590a17b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "heldout-commit",
+      "probe": "h15",
+      "prompt_fp": "080bbd2bf6448ff5",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "3818d286e59b71b7",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "a56368baf1f895b5",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h2",
+      "prompt_fp": "68e8e4a35c5d3dcd",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h3",
+      "prompt_fp": "8aa323d0b09db4da",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h4",
+      "prompt_fp": "7133343bbef1e83f",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h5",
+      "prompt_fp": "7019391e8ebcfb42",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h6",
+      "prompt_fp": "1ab783b338ce4925",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h7",
+      "prompt_fp": "f2c0038624110fb1",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h8",
+      "prompt_fp": "dbb4a1898c451959",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h9",
+      "prompt_fp": "c80383571d6c39da",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "19ba539af9b91b14",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "f43b4fc314cb8f5b",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h12",
+      "prompt_fp": "dffec0d5a25c1fd8",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h13",
+      "prompt_fp": "1ce2fcc12d25e466",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h14",
+      "prompt_fp": "b6949b8916faa160",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-boundary",
+      "probe": "h15",
+      "prompt_fp": "af6679b0f838f281",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "6201407a6b263a4a",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "40f53f935015ca0f",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h2",
+      "prompt_fp": "efe4fb934741d833",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h3",
+      "prompt_fp": "00128a0ddf341fca",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h4",
+      "prompt_fp": "3249ab8ad0b61252",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h5",
+      "prompt_fp": "ee24896b78b5dc53",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h6",
+      "prompt_fp": "0eb6732695b85922",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h7",
+      "prompt_fp": "928fba595af1e7aa",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h8",
+      "prompt_fp": "cc4ddd5c907cbc60",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h9",
+      "prompt_fp": "521e6c8278364816",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "e9fb17f9dcb8b79e",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "7ab680980874b249",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h12",
+      "prompt_fp": "904b327151fc7e93",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h13",
+      "prompt_fp": "ebe3ea8680606497",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h14",
+      "prompt_fp": "f3844d0ce36626a6",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "heldout-commit",
+      "probe": "h15",
+      "prompt_fp": "b633d72e6b9da95e",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "70fe4ef87295b39f",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "f77a260f9f02de6b",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h2",
+      "prompt_fp": "f5e92f2fc2b9524c",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h3",
+      "prompt_fp": "b8c13eeb06e4c13f",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h4",
+      "prompt_fp": "7108ed8fceb1bbfe",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h5",
+      "prompt_fp": "bf662f1a6b6c1da1",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h6",
+      "prompt_fp": "ab62e376f0488aa7",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h7",
+      "prompt_fp": "42878b9b9a773a68",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h8",
+      "prompt_fp": "10e88de270ad3412",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h9",
+      "prompt_fp": "3b1a72e6f68d6f91",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "2ec283e787dbd0cf",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "0b075598a987a021",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h12",
+      "prompt_fp": "002f47c243b7b031",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h13",
+      "prompt_fp": "3d2ecea1ba613429",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h14",
+      "prompt_fp": "1c225541e8e9f78d",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-boundary",
+      "probe": "h15",
+      "prompt_fp": "41a0d2f092ead49e",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "70fe4ef87295b39f",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "f77a260f9f02de6b",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h2",
+      "prompt_fp": "f5e92f2fc2b9524c",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h3",
+      "prompt_fp": "b8c13eeb06e4c13f",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h4",
+      "prompt_fp": "7108ed8fceb1bbfe",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h5",
+      "prompt_fp": "bf662f1a6b6c1da1",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h6",
+      "prompt_fp": "ab62e376f0488aa7",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h7",
+      "prompt_fp": "42878b9b9a773a68",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h8",
+      "prompt_fp": "10e88de270ad3412",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h9",
+      "prompt_fp": "3b1a72e6f68d6f91",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "2ec283e787dbd0cf",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "0b075598a987a021",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h12",
+      "prompt_fp": "002f47c243b7b031",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h13",
+      "prompt_fp": "3d2ecea1ba613429",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h14",
+      "prompt_fp": "1c225541e8e9f78d",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "heldout-commit",
+      "probe": "h15",
+      "prompt_fp": "41a0d2f092ead49e",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h2",
+      "prompt_fp": "ecc29d30ea97f8b7",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h3",
+      "prompt_fp": "9e1090d28eaf9dff",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h4",
+      "prompt_fp": "0e3f32f4fb3392fc",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h5",
+      "prompt_fp": "8be85598d6b3fd23",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h6",
+      "prompt_fp": "cb89b7bfd23fafe4",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h7",
+      "prompt_fp": "c7981d1d7b57cdfa",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h8",
+      "prompt_fp": "885f9a93e472998b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h9",
+      "prompt_fp": "7c630df5f3203270",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h12",
+      "prompt_fp": "8360a621855b737a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h13",
+      "prompt_fp": "b8eebfd72bc6518b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h14",
+      "prompt_fp": "226670994590a17b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-boundary",
+      "probe": "h15",
+      "prompt_fp": "080bbd2bf6448ff5",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h0",
+      "prompt_fp": "82d2ab4e28e6a73e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h1",
+      "prompt_fp": "abc15ce0b837d419",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h2",
+      "prompt_fp": "ecc29d30ea97f8b7",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h3",
+      "prompt_fp": "9e1090d28eaf9dff",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h4",
+      "prompt_fp": "0e3f32f4fb3392fc",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h5",
+      "prompt_fp": "8be85598d6b3fd23",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h6",
+      "prompt_fp": "cb89b7bfd23fafe4",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h7",
+      "prompt_fp": "c7981d1d7b57cdfa",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h8",
+      "prompt_fp": "885f9a93e472998b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h9",
+      "prompt_fp": "7c630df5f3203270",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h10",
+      "prompt_fp": "de56186172b7e29a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h11",
+      "prompt_fp": "e7922bf0be54428e",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h12",
+      "prompt_fp": "8360a621855b737a",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h13",
+      "prompt_fp": "b8eebfd72bc6518b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h14",
+      "prompt_fp": "226670994590a17b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "heldout-commit",
+      "probe": "h15",
+      "prompt_fp": "080bbd2bf6448ff5",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    }
+  ],
+  "judge_model_id": "BAAI/bge-m3",
+  "notes": []
+}

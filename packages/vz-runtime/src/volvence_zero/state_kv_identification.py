@@ -676,22 +676,34 @@ def evaluate_identification(
 
 def evaluate_carrier_causality(
     matching: Mapping[str, MatchingReadout],
+    *,
+    candidate_arm_label: str = DEFAULT_CANDIDATE_ARM_LABEL,
 ) -> ClaimResult:
-    """Claim 4: the control arm collapses to chance and the text arm clears it.
+    """Claim 4: the control arm collapses to chance and the carrier clears it.
 
     First half rules out prompt residue and lucky divergence; second half
-    confirms the same information also works through the text carrier
-    (spec §判据 4).
+    confirms the candidate latent carrier is carrying attributable state. On
+    the original residual lane the text arm remains the positive-control
+    carrier; on the prefix lane the prefix arm itself is the carrier under
+    test, so requiring B-prime to clear would make a text-arm weakness veto a
+    prefix result.
     """
 
     control_label = CONTROL_ARM_LABEL
-    text_label = "state-kv-arm-bprime"
+    carrier_label = (
+        "state-kv-arm-bprime"
+        if candidate_arm_label == DEFAULT_CANDIDATE_ARM_LABEL
+        else candidate_arm_label
+    )
     control = matching.get(control_label)
-    text = matching.get(text_label)
-    if control is None or text is None:
+    carrier = matching.get(carrier_label)
+    if control is None or carrier is None:
         missing = [
             label
-            for label, readout in ((control_label, control), (text_label, text))
+            for label, readout in (
+                (control_label, control),
+                (carrier_label, carrier),
+            )
             if readout is None
         ]
         return ClaimResult(
@@ -700,15 +712,15 @@ def evaluate_carrier_causality(
             detail=f"no blind-judge votes for: {', '.join(missing)}",
         )
     control_at_chance = control.ci_low <= 0.5 <= control.ci_high
-    text_above_chance = text.ci_low > 0.5
-    if control_at_chance and text_above_chance:
+    carrier_above_chance = carrier.ci_low > 0.5
+    if control_at_chance and carrier_above_chance:
         return ClaimResult(
             name=_CLAIM_CARRIER_CAUSALITY,
             state=ClaimState.PASS,
             detail=(
                 f"{control_label} CI covers chance "
                 f"({control.ci_low:.3f}, {control.ci_high:.3f}); "
-                f"{text_label} clears it ({text.ci_low:.3f})"
+                f"{carrier_label} clears it ({carrier.ci_low:.3f})"
             ),
         )
     reasons = []
@@ -717,9 +729,10 @@ def evaluate_carrier_causality(
             f"{control_label} did not collapse to chance "
             f"({control.ci_low:.3f}, {control.ci_high:.3f})"
         )
-    if not text_above_chance:
+    if not carrier_above_chance:
         reasons.append(
-            f"{text_label} did not clear chance (CI low {text.ci_low:.3f})"
+            f"{carrier_label} did not clear chance "
+            f"(CI low {carrier.ci_low:.3f})"
         )
     return ClaimResult(
         name=_CLAIM_CARRIER_CAUSALITY,
@@ -915,7 +928,9 @@ def build_identification_verdict(
             evaluate_identification(
                 matching_by_label, candidate_arm_label=candidate_arm_label
             ),
-            evaluate_carrier_causality(matching_by_label),
+            evaluate_carrier_causality(
+                matching_by_label, candidate_arm_label=candidate_arm_label
+            ),
         )
     c5_grade, c5_detail = grade_c5(
         by_label, candidate_arm_label=candidate_arm_label

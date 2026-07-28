@@ -1,0 +1,26 @@
+{
+  "schema_version": "state-kv-substrate-fingerprint.v1",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "weights_root": "/Users/mengfu/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775",
+  "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+  "weight_file_count": 1,
+  "weight_files": [
+    "model.safetensors"
+  ],
+  "prefix_artifact_id": "6ba57a873e9fa1ae4c202f9aa0f397f585f7bd5fd422bb0d51fc1f0bdc93b298",
+  "device_request": "cpu",
+  "attn_implementation": "eager",
+  "diagnostic_sentences": [
+    "今天特别累",
+    "我不知道接下来该做什么",
+    "刚刚和家里人吵了一架",
+    "这个方案你怎么看"
+  ],
+  "identification_probe_sentences": [
+    "我又搞砸了",
+    "今天还是没睡好",
+    "你觉得我该继续吗"
+  ],
+  "assembly": "carrier-identification probe assembly",
+  "base_context_regime": "steady"
+}

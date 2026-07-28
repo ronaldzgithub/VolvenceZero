@@ -18,6 +18,7 @@ import pytest
 from volvence_zero.state_kv_blind_judge import (
     JudgeMaterial,
     JudgeMaterialKind,
+    LocalEmbeddingBlindJudge,
     LocalTransformersBlindJudge,
 )
 
@@ -66,6 +67,36 @@ class _StubModel:
         return type("Out", (), {"logits": logits})()
 
 
+class _EmbeddingTokenizer:
+    def __call__(
+        self,
+        text: str,
+        return_tensors: str = "pt",
+        truncation: bool = True,
+        max_length: int = 512,
+    ) -> dict[str, object]:
+        del return_tensors, truncation, max_length
+        token = 1 if "grief" in text.lower() else 2
+        return {
+            "input_ids": torch.tensor([[token]]),
+            "attention_mask": torch.tensor([[1]]),
+        }
+
+
+class _EmbeddingModel:
+    def to(self, device: str) -> "_EmbeddingModel":
+        del device
+        return self
+
+    def eval(self) -> "_EmbeddingModel":
+        return self
+
+    def __call__(self, **kwargs: object) -> object:
+        token = int(kwargs["input_ids"][0, 0])  # type: ignore[index]
+        vector = torch.tensor([[[1.0, 0.0] if token == 1 else [0.0, 1.0]]])
+        return type("Out", (), {"last_hidden_state": vector})()
+
+
 def _materials(kind: str = JudgeMaterialKind.SESSION_HISTORY):
     return (
         JudgeMaterial(user_id="u1", summary="Grieving a pet.", material_kind=kind),
@@ -86,6 +117,31 @@ def _judge(score_fn, **overrides):
     }
     kwargs.update(overrides)
     return LocalTransformersBlindJudge(**kwargs)
+
+
+def _embedding_judge(**overrides):
+    kwargs = {
+        "judge_model_id": "stub/embedder",
+        "substrate_model_id": "stub/substrate",
+        "materials": (
+            JudgeMaterial(
+                user_id="u1",
+                summary="grief support state",
+                material_kind=JudgeMaterialKind.RENDERED_STATE,
+            ),
+            JudgeMaterial(
+                user_id="u2",
+                summary="planning structure state",
+                material_kind=JudgeMaterialKind.RENDERED_STATE,
+            ),
+        ),
+        "model": _EmbeddingModel(),
+        "tokenizer": _EmbeddingTokenizer(),
+        "judge_family": "xlm-roberta",
+        "substrate_family": "qwen2",
+    }
+    kwargs.update(overrides)
+    return LocalEmbeddingBlindJudge(**kwargs)
 
 
 def test_same_family_judge_is_refused() -> None:
@@ -127,6 +183,20 @@ def test_content_sensitive_judge_recovers_the_right_user() -> None:
     assert (
         judge.match(response_text="I am sorry.", candidate_user_ids=("u2", "u1"))
         == "u1"
+    )
+    assert judge.tie_count == 0
+
+
+def test_embedding_judge_matches_by_content_similarity() -> None:
+    judge = _embedding_judge()
+
+    assert (
+        judge.match(response_text="offer grief support", candidate_user_ids=("u1", "u2"))
+        == "u1"
+    )
+    assert (
+        judge.match(response_text="make a structured plan", candidate_user_ids=("u1", "u2"))
+        == "u2"
     )
     assert judge.tie_count == 0
 

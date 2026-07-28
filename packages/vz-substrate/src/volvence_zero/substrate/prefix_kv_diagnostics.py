@@ -130,15 +130,21 @@ def capture_prefix_diagnostics(
             nonuniformity.append(
                 largest / smallest if smallest > 1e-12 else 0.0
             )
-            per_slot.append(tuple(float(value) for value in slot_view))
+            per_slot.append(
+                tuple(float(value) for value in slot_view.detach().cpu().tolist())
+            )
 
     hidden: list[tuple[float, ...]] = []
     if capture_hidden:
         # hidden_states[0] is the embedding output; the transformer blocks are
         # 1..L, which is the indexing the attention list already uses.
         for state in outputs.hidden_states[1:]:
+            final_prompt_hidden = state[0, -1].to(torch.float32)
             hidden.append(
-                tuple(float(v) for v in state[0, -1].to(torch.float32))
+                tuple(
+                    float(value)
+                    for value in final_prompt_hidden.detach().cpu().tolist()
+                )
             )
 
     return PrefixAttentionProfile(

@@ -41,6 +41,17 @@ from volvence_zero.personal_conditioning_contracts import (
 
 PREFIX_KV_SCHEMA_VERSION = "state-kv-prefix.v1"
 TEACHER_DISTILLED_PREFIX_TRAINING_MODE = "teacher-distilled-prefix-v1"
+ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE = (
+    "teacher-distilled-routed-prefix-v1"
+)
+STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE = "state-strategy-routed-prefix-v1"
+SUPPORTED_PREFIX_TRAINING_MODES = frozenset(
+    {
+        TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
+        ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
+        STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE,
+    }
+)
 
 # Upper bound on ``norm_cap`` itself. A prefix key at parity with real key
 # norms is not "strong personalization", it is an out-of-distribution token the
@@ -197,11 +208,11 @@ class PrefixKVArtifact:
                 f"(0, {MAX_PREFIX_NORM_CAP}]; a prefix at parity with real key "
                 "norms is out-of-distribution for the frozen substrate."
             )
-        if self.training_mode != TEACHER_DISTILLED_PREFIX_TRAINING_MODE:
+        if self.training_mode not in SUPPORTED_PREFIX_TRAINING_MODES:
             raise ValueError(
                 "unsupported prefix training_mode "
-                f"{self.training_mode!r}; expected "
-                f"{TEACHER_DISTILLED_PREFIX_TRAINING_MODE!r}."
+                f"{self.training_mode!r}; expected one of "
+                f"{sorted(SUPPORTED_PREFIX_TRAINING_MODES)!r}."
             )
         if not self.source_fingerprint.strip():
             raise ValueError(
@@ -329,6 +340,7 @@ def build_teacher_distilled_prefix_artifact(
     norm_cap: float,
     source_fingerprint: str,
     sample_count: int,
+    training_mode: str = ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
 ) -> PrefixKVArtifact:
     """Freeze a trained generator into the versioned artifact."""
 
@@ -362,13 +374,13 @@ def build_teacher_distilled_prefix_artifact(
         reference_key_norms=tuple(float(v) for v in reference_key_norms),
         reference_value_norms=tuple(float(v) for v in reference_value_norms),
         norm_cap=float(norm_cap),
-        training_mode=TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
+        training_mode=training_mode,
         source_fingerprint=source_fingerprint,
         sample_count=sample_count,
         description=(
             "State-KV prefix generator distilled from the frozen substrate's "
-            f"own text-state arm; layers={num_layers} slots={num_slots} "
-            f"rank={bottleneck_rank} norm_cap={norm_cap}."
+            f"own text-state arm; mode={training_mode} layers={num_layers} "
+            f"slots={num_slots} rank={bottleneck_rank} norm_cap={norm_cap}."
         ),
     )
 
@@ -523,6 +535,8 @@ def load_prefix_generator(
 __all__ = [
     "MAX_PREFIX_NORM_CAP",
     "PREFIX_KV_SCHEMA_VERSION",
+    "ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE",
+    "SUPPORTED_PREFIX_TRAINING_MODES",
     "TEACHER_DISTILLED_PREFIX_TRAINING_MODE",
     "PrefixKVArtifact",
     "PrefixKVGenerator",

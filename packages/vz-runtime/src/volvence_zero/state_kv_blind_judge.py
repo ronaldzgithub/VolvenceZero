@@ -43,6 +43,7 @@ __all__ = [
     "JUDGE_PROMPT_TEMPLATE_NAME",
     "JudgeMaterial",
     "JudgeMaterialKind",
+    "LocalEmbeddingBlindJudge",
     "LocalTransformersBlindJudge",
     "load_judge_prompt_template",
     "resolve_model_family",
@@ -300,7 +301,141 @@ class LocalTransformersBlindJudge:
             "judge_family": self.judge_family,
             "substrate_family": self.substrate_family,
             "material_kind": self.material_kind,
+            "scoring_method": "causal-lm-order-symmetrized-letter-logprob-v1",
             "order_symmetrized": True,
+            "greedy": True,
+            "decision_count": self.decision_count,
+            "tie_count": self.tie_count,
+        }
+
+
+class LocalEmbeddingBlindJudge:
+    """Two-alternative blind matcher backed by a local embedding model."""
+
+    def __init__(
+        self,
+        *,
+        judge_model_id: str,
+        substrate_model_id: str,
+        materials: Sequence[JudgeMaterial],
+        judge_source: str | None = None,
+        substrate_source: str | None = None,
+        device: str = "cpu",
+        local_files_only: bool = True,
+        model: object | None = None,
+        tokenizer: object | None = None,
+        judge_family: str | None = None,
+        substrate_family: str | None = None,
+    ) -> None:
+        if len(materials) != 2:
+            raise ValueError(
+                "two-alternative matching needs exactly two candidate "
+                f"materials, got {len(materials)}"
+            )
+        kinds = {material.material_kind for material in materials}
+        if len(kinds) != 1:
+            raise ValueError(
+                "both candidates must be described with the same kind of "
+                f"material, got {sorted(kinds)}"
+            )
+        self._materials = {material.user_id: material for material in materials}
+        if len(self._materials) != 2:
+            raise ValueError("candidate materials must have distinct user ids.")
+        self.material_kind = materials[0].material_kind
+
+        judge_family = judge_family or resolve_model_family(
+            model_id=judge_source or judge_model_id,
+            local_files_only=local_files_only,
+        )
+        substrate_family = substrate_family or resolve_model_family(
+            model_id=substrate_source or substrate_model_id,
+            local_files_only=local_files_only,
+        )
+        if judge_family == substrate_family:
+            raise ValueError(
+                "cross-family judge rule violated (spec §关键不变量 5): judge "
+                f"{judge_model_id!r} and substrate {substrate_model_id!r} are "
+                f"both {judge_family!r}. A substrate family may not judge its "
+                "own outputs."
+            )
+        self.judge_family = judge_family
+        self.substrate_family = substrate_family
+
+        self._torch = importlib.import_module("torch")
+        transformers = importlib.import_module("transformers")
+        source = judge_source or judge_model_id
+        self._tokenizer = tokenizer or transformers.AutoTokenizer.from_pretrained(
+            source, local_files_only=local_files_only
+        )
+        self._model = model or transformers.AutoModel.from_pretrained(
+            source, local_files_only=local_files_only
+        )
+        self._device = device
+        self._model.to(device)
+        self._model.eval()
+        self._judge_model_id = judge_model_id
+        self._material_embeddings = {
+            user_id: self._embed(material.summary)
+            for user_id, material in self._materials.items()
+        }
+        self.tie_count = 0
+        self.decision_count = 0
+
+    @property
+    def judge_model_id(self) -> str:
+        return self._judge_model_id
+
+    def _embed(self, text: str):
+        encoded = self._tokenizer(
+            text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+        )
+        encoded = {key: value.to(self._device) for key, value in encoded.items()}
+        with self._torch.no_grad():
+            hidden = self._model(**encoded).last_hidden_state.to(
+                self._torch.float32
+            )
+        mask = encoded["attention_mask"].unsqueeze(-1).to(self._torch.float32)
+        pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1.0)
+        return self._torch.nn.functional.normalize(pooled, p=2, dim=1)[0]
+
+    def match(self, *, response_text: str, candidate_user_ids: Sequence[str]) -> str:
+        ids = tuple(candidate_user_ids)
+        if len(ids) != 2 or len(set(ids)) != 2:
+            raise ValueError(
+                f"two-alternative matching needs two distinct users, got {ids}"
+            )
+        missing = [user_id for user_id in ids if user_id not in self._materials]
+        if missing:
+            raise ValueError(
+                f"no judge material for candidate(s): {', '.join(missing)}"
+            )
+        text = response_text.strip()
+        if not text:
+            raise ValueError(
+                "cannot judge an empty response; an empty generation is a "
+                "substrate failure to report, not a coin flip to record."
+            )
+        response = self._embed(text)
+        scores = [
+            float((response * self._material_embeddings[user_id]).sum())
+            for user_id in ids
+        ]
+        self.decision_count += 1
+        if scores[0] == scores[1]:
+            self.tie_count += 1
+        return ids[0] if scores[0] > scores[1] else ids[1]
+
+    def as_json_dict(self) -> dict[str, Any]:
+        return {
+            "judge_model_id": self._judge_model_id,
+            "judge_family": self.judge_family,
+            "substrate_family": self.substrate_family,
+            "material_kind": self.material_kind,
+            "scoring_method": "embedding-cosine-mean-pool-v1",
+            "order_symmetrized": False,
             "greedy": True,
             "decision_count": self.decision_count,
             "tie_count": self.tie_count,

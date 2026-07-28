@@ -28,13 +28,17 @@ _TRAINER = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_TRAINER)
 
 PERSONAS = _TRAINER.PERSONAS
+P2_PROBE_SENTENCES = _TRAINER.P2_PROBE_SENTENCES
 PROBE_SENTENCES = _TRAINER.PROBE_SENTENCES
 TRAIN_AXIS_LIMIT = _TRAINER.TRAIN_AXIS_LIMIT
 TRAIN_PROBE_SENTENCES = _TRAINER.TRAIN_PROBE_SENTENCES
 
 
 def test_training_probes_are_disjoint_from_evaluation_probes() -> None:
-    evaluation = {sentence for _, sentence in PROBE_SENTENCES}
+    evaluation = {
+        sentence
+        for _, sentence in (*PROBE_SENTENCES, *P2_PROBE_SENTENCES)
+    }
 
     assert evaluation.isdisjoint(TRAIN_PROBE_SENTENCES)
     _TRAINER._assert_probe_holdout()
@@ -42,6 +46,16 @@ def test_training_probes_are_disjoint_from_evaluation_probes() -> None:
 
 def test_probe_holdout_check_actually_fires(monkeypatch) -> None:
     stolen = PROBE_SENTENCES[0][1]
+    monkeypatch.setattr(
+        _TRAINER, "TRAIN_PROBE_SENTENCES", (*TRAIN_PROBE_SENTENCES, stolen)
+    )
+
+    with pytest.raises(ValueError, match="overlap"):
+        _TRAINER._assert_probe_holdout()
+
+
+def test_p2_probe_holdout_check_actually_fires(monkeypatch) -> None:
+    stolen = P2_PROBE_SENTENCES[0][1]
     monkeypatch.setattr(
         _TRAINER, "TRAIN_PROBE_SENTENCES", (*TRAIN_PROBE_SENTENCES, stolen)
     )
@@ -106,3 +120,83 @@ def test_persona_axes_span_the_evaluation_pair() -> None:
 
 def test_training_axis_limit_leaves_a_real_margin() -> None:
     assert 0.0 < TRAIN_AXIS_LIMIT < 1.0
+
+
+def test_route_targets_are_deterministic_state_sensitive_distributions() -> None:
+    torch = pytest.importorskip("torch")
+    state_a = torch.tensor(PERSONAS[0][1], dtype=torch.float32)
+    state_b = torch.tensor(PERSONAS[1][1], dtype=torch.float32)
+
+    target_a = _TRAINER._slot_route_target(
+        torch=torch, state=state_a, slots=4, temperature=0.18
+    )
+    target_again = _TRAINER._slot_route_target(
+        torch=torch, state=state_a, slots=4, temperature=0.18
+    )
+    target_b = _TRAINER._slot_route_target(
+        torch=torch, state=state_b, slots=4, temperature=0.18
+    )
+
+    assert float(target_a.sum()) == pytest.approx(1.0)
+    assert torch.all(target_a > 0.0)
+    assert torch.equal(target_a, target_again)
+    assert not torch.allclose(target_a, target_b)
+
+
+def test_route_loss_rewards_attention_matching_the_state_route() -> None:
+    torch = pytest.importorskip("torch")
+    target = torch.tensor([0.8, 0.15, 0.05], dtype=torch.float32)
+
+    def attention(slot_distribution):
+        row = torch.tensor(
+            [*slot_distribution, 0.2, 0.1], dtype=torch.float32
+        )
+        row = row / row.sum()
+        return row.reshape(1, 1, 1, 5).repeat(1, 2, 1, 1)
+
+    matched = _TRAINER._slot_attention_route_loss_from_attentions(
+        torch=torch,
+        attentions=(attention([0.8, 0.15, 0.05]),),
+        slots=3,
+        target=target,
+    )
+    uniform = _TRAINER._slot_attention_route_loss_from_attentions(
+        torch=torch,
+        attentions=(attention([1.0, 1.0, 1.0]),),
+        slots=3,
+        target=target,
+    )
+    wrong = _TRAINER._slot_attention_route_loss_from_attentions(
+        torch=torch,
+        attentions=(attention([0.05, 0.15, 0.8]),),
+        slots=3,
+        target=target,
+    )
+
+    assert float(matched) < float(uniform)
+    assert float(uniform) < float(wrong)
+
+
+def test_routed_attention_objective_is_enabled_by_default() -> None:
+    assert _TRAINER.DEFAULT_ROUTE_WEIGHT > 0.0
+    assert _TRAINER.DEFAULT_ROUTE_TEMPERATURE > 0.0
+
+
+def test_state_strategy_target_is_legible_and_state_sensitive() -> None:
+    persona_a = _TRAINER._state_strategy_target(
+        state=PERSONAS[0][1], probe="今天特别累"
+    )
+    persona_b = _TRAINER._state_strategy_target(
+        state=PERSONAS[1][1], probe="今天特别累"
+    )
+
+    assert persona_a != persona_b
+    assert "压力很高" in persona_a
+    assert "控制感偏低" in persona_a
+    assert "稳定" in persona_b
+    assert "决策准备度" in persona_b
+
+
+def test_state_strategy_is_the_default_training_target() -> None:
+    assert _TRAINER.TARGET_SOURCE_STATE_STRATEGY in _TRAINER.TARGET_SOURCES
+    assert _TRAINER.TARGET_SOURCE_TEACHER in _TRAINER.TARGET_SOURCES

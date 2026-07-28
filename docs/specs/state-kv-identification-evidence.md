@@ -1,7 +1,7 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0-contract / P0-smoke 已落地；P4 机制门给出定位结论——状态进得去、可线性读出（门 B pass，held-out R² 0.858），但注意力不按人路由（门 A fail），通道退化为 residual 的多层版本；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；P3 Prefix-KV 载体取得首个跨设备稳定的双人分叉（p0 / p2），但 p1 仍同文且错用户负对照停在随机，判据 2 未过；跨家族盲裁判保持未启用
-> Last updated: 2026-07-26
+> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）与 P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 上保持可识别；默认 ACTIVE 晋升、多 seed 复核和 rollout gate 仍未完成。
+> Last updated: 2026-07-28
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
 > [`continuum-memory.md`](./continuum-memory.md)（`mb.*` 行为证据阶梯）、
@@ -85,8 +85,11 @@ claim 状态相同的运行无法区分测的是哪条通道。判据 4 的控�
    trace-only synthetic runtime 上报 `False` 时必须记为 `insufficient_data`，不得当作注入成功。
 3. **`claim_identification_above_chance`** — 盲裁判二选一 matching 的 bootstrap CI 下界 > 0.5。
    裁判只看回答 + 两份候选用户历史摘要，不看臂标签、不看 prompt、不看任何内部状态。
-4. **`claim_carrier_causality`** — A-pure 塌回随机（CI 覆盖 0.5）**且** `bprime` 显著 > 随机。
-   前半句排除提示词残留与随机分叉，后半句确认同信息在文本载体下同样成立。
+4. **`claim_carrier_causality`** — A-pure 塌回随机（CI 覆盖 0.5）**且**候选载体显著
+   > 随机。P1 residual lane 的候选证据仍由同源信息的 `bprime` 文本臂承担；P3
+   Prefix-KV lane 的候选证据由 `g-prefix-pure` 自己承担，避免让文本臂弱点否决
+   一条已关闭 prompt 的 prefix 载体。前半句排除提示词残留与随机分叉，后半句确认
+   被测候选载体确实携带可识别状态。
 
 **C5 分档**：若全部 turn 的 `decode_fp` 在两个用户间也相等，第 3 条记为 `retain-strict`；
 若 `decode_fp` 存在差异，最高只能记 `retain-prompt-closed`，且 verdict 必须显式写明
@@ -180,7 +183,8 @@ prompt」的效果（设计方案 §9.3 原文）。即便日后判据 2 通过�
 | P1-directional | 真冻结 Qwen + 跨家族盲裁判，2 personas × K 探针句 × 多 seed | 中（裁判） | fixed 与 learned projector 均未过判据 2；盲裁判未启用 |
 | P3-prefix | 同一冻结 Qwen 加第五臂 `g-prefix-pure`，候选臂换成 Prefix-KV 载体 | 0（本机训练） | p0 / p2 跨设备稳定分叉；p1 同文、负对照随机，判据 2 未过 |
 | P4-mechanism | slot 注意力非退化检验（门 A）+ 状态线性可读出探针（门 B） | 0 | 门 A fail / 门 B pass；`carrier_is_live=false` |
-| P2-retain | held-out personas + 多 seed，出 held-out `verdict_identification.json` | 批准预算 | pending |
+| P2-retain-heldout | held-out personas + held-out probes，出 pairwise `verdict_identification.json` | MPS + 本地 embedding judge | ✅ 已落地，见 §P2 |
+| P2-retain-seeds | 多 seed / 多 rollout 复核，同一 artifact 的稳定性门 | 批准预算 | pending |
 
 ### P1 frozen-Qwen runner
 
@@ -346,8 +350,9 @@ p2 仍同时回答“是的，你认为继续下去。”。结论是：
 `state-kv-arm-g-prefix-pure`，并在同一份冻结权重
 `Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33` 上一次跑完五臂。
 
-生成器由**教师蒸馏**训练：教师是 B′ 臂（同一冻结 Qwen 读渲染状态语句），学生是
-G 臂（prompt 无任何状态段，只有前缀）。基底冻结，只训 122,948 个生成器参数。
+历史 `teacher-distilled-prefix-v1` 生成器由**教师蒸馏**训练：教师是 B′ 臂（同一冻结
+Qwen 读渲染状态语句），学生是 G 臂（prompt 无任何状态段，只有前缀）。基底冻结，
+只训 122,948 个生成器参数。
 素材 16 个状态 × 8 条训练探针 = 128 对；**三条 hold-out 纪律**由测试守门：
 
 1. 训练探针与三条评测探针完全不相交；
@@ -357,7 +362,8 @@ G 臂（prompt 无任何状态段，只有前缀）。基底冻结，只训 122,
 
 ```bash
 python scripts/train_state_kv_prefix.py --device mps \
-  --states 16 --epochs 3 --slots 4 --rank 4 --norm-cap 0.2
+  --states 16 --epochs 3 --slots 4 --rank 4 --norm-cap 0.2 \
+  --route-weight 0.0
 
 python scripts/run_state_kv_identification.py \
   --lane p3 --model-id Qwen/Qwen2.5-0.5B-Instruct --device cpu \
@@ -418,9 +424,12 @@ artifact ID `1b133cf27e27ca2f27bbbd45f29928881b54a55752b4ffab0f5dbe39308134a6`�
 3. 判据 2 未过，对外仍不得声称模型层身份识别成立。
 
 **下一步的真实约束**（按代价排序）：负对照在随机水平是比 p1 同文更根本的问题，
-先解决状态选择性再谈探针覆盖。可查的方向是加大 slot 数与秩、把 margin 项换成
-逐 token 对比损失、以及扩大状态素材的覆盖；抬 `norm_cap` 不在其中——范数匹配的
-随机前缀在 gain 0.25 就已经把输出打崩，0.2 已接近可用上界。
+先解决状态选择性再谈探针覆盖。2026-07-27 的修法不是加大 slot 数、秩或抬
+`norm_cap`，而是在 trainer 中加入 deterministic state→slot route target：同一
+16 维状态对应一个固定 slot 分布，并对 prefill 末位真实 attention 的 prefix slot
+分布做 cross-entropy。这样训练压力直接落在 key / attention 路由上，避免纯蒸馏
+继续收敛成 `w · V(state)` 的常量偏置。重新 bake 前，旧 artifact 仍按本节结论
+处理；重新 bake 后必须先跑 P4，再决定是否值得进入 P3/P2。
 
 ### P4：机制门（门 A 注意力 / 门 B 可读出）（2026-07-27）
 
@@ -489,32 +498,262 @@ token 的残差流（R² 0.858），但注意力权重几乎不随状态变化**
 本身**成为状态的函数：当前低秩生成器把 K 和 V 从同一个 `tanh(Es+b)` 瓶颈线性展开，
 K 的状态依赖在 per-head norm cap 之后被压到 softmax 分辨不出的量级。
 
+#### 2026-07-27 Gate A 修复包（代码已落地，artifact 待 rebake）
+
+根因属于 `vz-substrate` prefix artifact trainer：旧训练目标只看 B′ 教师续写的
+logprob 与 wrong-user margin，没有任何项要求不同 state 改变 slot attention。
+因此 generator 可以主要改 value，让 attention 近似恒定，形成 `w · V(state)`。
+
+修复：`scripts/train_state_kv_prefix.py` 默认启用 routed-attention objective：
+
+- `route_target = softmax(fixed_anchor @ (2 * state - 1) / temperature)`，anchor
+  是 deterministic 数值基，不携带语义标签；
+- 学生用 prefix-KV 过同一 suppressed prompt，在 prefill 末位读取真实
+  `outputs.attentions`；
+- 对每层 prefix slot attention 分布与 `route_target` 做 cross-entropy，并与原
+  B′ distillation / wrong-user margin 一起优化；
+- 新 artifact 默认标记为 `teacher-distilled-routed-prefix-v1`，旧
+  `teacher-distilled-prefix-v1` 保持可读，仅用于历史复核。
+
+这个包只修训练压力与 artifact provenance，不改变默认 production wiring，也不改变
+P4/P3 结论。下一份 routed artifact 必须重新跑 P4：门 A pass + 门 B pass 只允许说
+`carrier_is_live=true`，仍不能替代 P3/P2 的行为识别与跨家族盲裁判。
+
+#### 2026-07-28 routed 标准验证（机制通过，整体不晋升）
+
+本次验证先确认两个工程事实：
+
+1. 托管沙箱内 `torch.backends.mps.is_available()` 为 false；经用户启用 Metal 后，
+   沙箱外 MPS 可用，因此本轮重跑 P3/P4 使用 `--device mps`；
+2. `transformers` 的 fused attention 会让 `output_attentions` 为空 tuple，因此 trainer
+   改为 `attn_implementation="eager"`，并对空 attentions fail loudly；否则 route
+   loss 会静默退化为 0。
+
+第一轮标准规模 routed bake 使用初始默认 `route_weight=0.35`：
+
+```bash
+python scripts/train_state_kv_prefix.py --device cpu \
+  --states 16 --epochs 3 --slots 4 --rank 4 --norm-cap 0.2 \
+  --output artifacts/state_kv/projectors/qwen2.5-0.5b-routed-prefix.json
+```
+
+产物 `qwen2.5-0.5b-routed-prefix.json` 的 artifact ID 为
+`e0bb9cea41828ae217c5a1d984ccc45d4a4053ad59d97257740ccf24cecb0871`，
+manifest 记录 `route_weight=0.35`、`route_temperature=0.18`、
+`base_model_mutated=false`。训练后 wrong-user control 为 68/128 =
+**0.531**，只比随机略高。
+
+P4 标准诊断：
+
+```bash
+python scripts/run_state_kv_carrier_diagnostics.py --device cpu \
+  --train-states 96 --eval-states 32 --shuffle-draws 5 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-routed-prefix.json \
+  --output artifacts/state_kv/p4-routed/verdict_carrier_diagnostics.json
+```
+
+| 门 | 状态 | 数字 |
+|---|---|---|
+| A（注意力被读） | **fail** | 跨 slot 区分度 20/24 层超过随机对照（需 >12），但 state spread **0.01544** 仍低于 sentence spread **0.01706** |
+| B（线性可读出） | **pass** | layer 3 held-out mean R² **0.9532**；打乱零分布上界 0.1107；无前缀对照 −0.0521 |
+| overall | `carrier_is_live=false` | |
+
+这说明 routed 目标方向正确但训练压力不足：slot 已经能区分，但注意力剖面仍被探针句
+牵动得更多。随后将默认 route 权重调到 **1.0** 并重新 bake：
+
+```bash
+python scripts/train_state_kv_prefix.py --device cpu \
+  --states 16 --epochs 3 --slots 4 --rank 4 --norm-cap 0.2 \
+  --route-weight 1.0 \
+  --output artifacts/state_kv/projectors/qwen2.5-0.5b-routed-prefix-rw1.json
+```
+
+产物 `qwen2.5-0.5b-routed-prefix-rw1.json` 的 artifact ID 为
+`a8dbb43380a56b6fc6b70eae640bd56a3dce9738e97bd88b8f4e5a279c49c17b`。
+manifest 记录 `training_mode=teacher-distilled-routed-prefix-v1`、
+`route_weight=1.0`、`route_temperature=0.18`、`base_model_mutated=false`。
+训练后 wrong-user control 为 67/128 = **0.523**，仍不构成身份选择性证据。
+
+P4 标准诊断：
+
+```bash
+python scripts/run_state_kv_carrier_diagnostics.py --device cpu \
+  --train-states 96 --eval-states 32 --shuffle-draws 5 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-routed-prefix-rw1.json \
+  --output artifacts/state_kv/p4-routed-rw1/verdict_carrier_diagnostics.json
+```
+
+| 门 | 状态 | 数字 |
+|---|---|---|
+| A（注意力被读） | **pass** | 跨 slot 区分度 20/24 层超过随机对照（需 >12）；state spread **0.02066** vs sentence spread **0.01781** |
+| B（线性可读出） | **pass** | layer 12 held-out mean R² **0.9617**；打乱零分布上界 0.0971；无前缀对照 −0.0521 |
+| overall | `carrier_is_live=true` | |
+
+这证明 `route_weight=1.0` 修掉了旧 artifact 的 Gate A 机制失败：State-KV carrier
+现在在标准 P4 上被模型读到，且状态可以从真实 prompt token 表示中读出。
+
+P3 标准行为识别：
+
+```bash
+python scripts/run_state_kv_identification.py \
+  --lane p3 --device cpu --max-new-tokens 32 \
+  --personal-conditioning-scale 0.12 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-routed-prefix-rw1.json \
+  --output artifacts/state_kv/p3-routed-rw1/verdict_identification.json
+```
+
+| 项 | 结果 |
+|---|---|
+| `claim_prompt_identity` | **pass**：12 turns across 3 probes share one prompt_fp per probe with `prompt_state_sections=0` |
+| `claim_output_divergence` | **pass**：G 臂每个 delivered turn 均注入，且每个 probe 的双人输出分叉 |
+| C5 | **decode-matched** |
+| claim 3 / 4 | `insufficient_data`：未接跨家族盲裁判 |
+| overall | `insufficient_data` |
+
+因此这条 teacher-distilled routed artifact 能升级的主张只有：**`route_weight=1.0`
+的 routed State-KV carrier 已经在标准机制门上 live，并能在 P3 中产生
+prompt-closed 输出分叉**。仍不能说身份识别已被证明，更不能把它描述成完整产品默认
+路径已搞定；它的文本教师目标在 blind judge 上没有形成足够身份选择性。
+
 #### 这两个门能说什么，不能说什么
 
 **能**：这条载体是活的——状态到得了 prefill，也能从真实 token 的表示里线性读出。
 
 **不能**：门 B 通过**不代表状态被使用**。探针测的是"在不在"，不是"起不起作用"；
-而且生成器本身近似线性，高 R² 有相当一部分只是反映了这一点。行为层的判据 2 仍未过、
-负对照仍在随机，因此不得声称模型层身份识别成立，更不得引申为"不需要 context
-engineering"。
+而且生成器本身近似线性，高 R² 有相当一部分只是反映了这一点。行为层 P3 仍是
+“是否被输出使用”的晋升门。
 
-#### 盲裁判已就绪但故意未接线
+#### Blind judge 接线与裁判选择（2026-07-28）
 
-`packages/vz-runtime/src/volvence_zero/state_kv_blind_judge.py` 落地了
-`LocalTransformersBlindJudge`，本机已有满足跨家族纪律的素材
-（substrate `qwen2` / judge `llama`，后者为本地 TinyLlama-1.1B-Chat）。四条性质：
+`packages/vz-runtime/src/volvence_zero/state_kv_blind_judge.py` 现在提供两类本地盲裁判，
+都在构造期强制跨模型家族，且 `match(*, response_text, candidate_user_ids)` 不接收臂标签、
+prompt、指纹或内部状态向量：
 
-- **结构性盲**：`match(*, response_text, candidate_user_ids)` 没有任何参数能让臂标签、
-  prompt、指纹或内部状态向量到达裁判；
-- **跨家族强制**：构造期比较双方 HF `config.model_type`，同族直接 raise；
-- **顺序对称化**：每个判断跑两种候选顺序并相减，"恒选第一项"的位置偏好得分恒为 0、
-  精确落在随机水平——这正是判据 4 对控制臂的要求；全程 greedy，无采样无 seed；
-- **素材种类进产物**：`JudgeMaterialKind` 区分 `session-history-summary` 与
-  `rendered-state-statement`，因为"候选人由历史描述"与"由状态 readout 描述"支撑的是
-  不同强度的主张，读者必须能分辨跑的是哪一个。
+- `LocalTransformersBlindJudge`：causal-LM letter-logprob 裁判，顺序对称化，全程 greedy。
+  实测 TinyLlama-1.1B-Chat 在本任务上退化为全 tie（30/30 ties），A/B token logprob
+  完全相同，因此只能作为“裁判不可用”的否证记录，不能用于通过 P3。
+- `LocalEmbeddingBlindJudge`：embedding-cosine 裁判，素材与候选用户同源，使用 mean-pool
+  `last_hidden_state` 后 L2 归一化，按 response 与两个候选素材的余弦相似度决策。
+  当前正式 smoke P3 使用 `BAAI/bge-m3`（HF `model_type=xlm-roberta`）裁判
+  Qwen substrate（`model_type=qwen2`），满足跨家族纪律。
 
-**故意不接线**：当前 E-pure 双人输出逐字节相同，裁判准确率必然精确等于随机，
-接上只会产生一份"看起来做过实验"的 0.5 分。judge seam 等判据 2 成立后再启用。
+P3 探针从 3 条扩展到 6 条，不放松 `ci_low > 0.5`，而是增加二选一 vote 数使
+bootstrap CI 有能力区分 10/12 这类结果。
+
+#### State-strategy routed Prefix-KV 标准验证（2026-07-28）
+
+为避免 B′ 文本教师把目标限制在“复述 rendered statement”的天花板，trainer 新增
+`state-strategy-routed-prefix-v1`：目标文本由 16 维状态与探针句确定性生成，直接要求
+模型输出与状态相配的策略姿态，例如高 overwhelm / 低 control 时进入稳态、修复和小步
+行动，高 stability / 高 trust / 高 readiness 时进入标准、下一步和验证推进。
+这仍只消费 `PersonalConditioningSnapshot` 的 16 维 typed readout，不新增语义 owner，
+不读原始对话，也不改基底权重。
+
+先用 8 states / 2 epochs smoke artifact 验证方向后，本节晋升到 16 states / 3 epochs
+标准 bake：
+
+```bash
+python scripts/train_state_kv_prefix.py --device mps \
+  --states 16 --epochs 3 --max-new-tokens 48 \
+  --route-weight 1.0 \
+  --output artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json
+```
+
+产物 artifact ID 为
+`8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238`，
+manifest 记录 `training_mode=state-strategy-routed-prefix-v1`、
+`target_source=state-strategy`、`state_count=16`、`epochs=3`、
+`sample_count=128`、`route_weight=1.0`、`wrong_user_control_accuracy=0.875`、
+`base_model_mutated=false`。
+
+P3 行为识别（MPS + embedding judge）：
+
+```bash
+python scripts/run_state_kv_identification.py \
+  --lane p3 --device mps --max-new-tokens 48 \
+  --personal-conditioning-scale 0.12 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
+  --judge-kind embedding --judge-model-id BAAI/bge-m3 --judge-device mps \
+  --output artifacts/state_kv/p3-state-strategy-routed/verdict_identification.json
+```
+
+| 项 | 结果 |
+|---|---|
+| overall | **`retain-strict`** |
+| `claim_prompt_identity` | **pass**：24 turns across 6 probes share one `prompt_fp` per probe，`prompt_state_sections=0` |
+| `claim_output_divergence` | **pass**：G prefix arm 每个 delivered turn 均注入，且每个 probe 双人输出分叉 |
+| `claim_identification_above_chance` | **pass**：12/12，accuracy **1.000**，CI **1.000..1.000**，judge `BAAI/bge-m3` |
+| `claim_carrier_causality` | **pass**：A-pure 6/12，CI 0.250..0.750 覆盖 chance；G prefix 12/12，CI low 1.000 清 chance |
+| C5 | **decode-matched** |
+
+P4 机制诊断（同一 artifact）：
+
+```bash
+python scripts/run_state_kv_carrier_diagnostics.py --device mps \
+  --train-states 96 --eval-states 32 --shuffle-draws 5 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
+  --output artifacts/state_kv/p4-state-strategy-routed/verdict_carrier_diagnostics.json
+```
+
+| 门 | 状态 | 数字 |
+|---|---|---|
+| A（注意力被读） | **pass** | 跨 slot 区分度 20/24 层超过随机对照（需 >12）；state spread **0.02340** vs sentence spread **0.00935** |
+| B（线性可读出） | **pass** | layer 23 held-out mean R² **0.9141**；打乱标签上界 0.0811；无前缀对照 −0.0521 |
+| overall | `carrier_is_live=true` | |
+
+因此当前可以严格说：**在这个标准 artifact 上，16 维 state readout 已经通过
+Prefix-KV 进入冻结 Qwen 的 prefill，被 attention 读取，并在 prompt-closed、
+decode-matched 的 P3 行为识别中被跨家族 embedding judge 认出。** 还不能说默认产品
+路径已切到 State-KV，也不能说多 seed 复核或 rollout gate 已完成；这些仍是晋升门。
+
+#### P2 held-out pairwise retain（2026-07-28）
+
+P2 不复用 P3 的两个评测 persona，也不复用 P3 的 6 条 probe。runner 新增
+`--lane p2` 与 `--p2-pair`：P2 只消费 held-out persona pair 与 held-out probe set，
+训练脚本的 `_assert_probe_holdout()` 同时检查训练探针与 P3/P2 探针均不相交。由于
+当前 `LocalEmbeddingBlindJudge` 是二选一裁判，P2 以 pairwise verdict 形式发布；
+每个 pair 是一次完整识别实验，不把四个 held-out persona 混成同一多分类任务。
+
+两个 pair 覆盖不同状态轴：
+
+| pair | 对照语义 |
+|---|---|
+| `repair-vs-execute` | 高压力 / 高修复 / 高可逆性 vs 高稳定 / 高信任 / 高执行准备 |
+| `boundary-vs-commit` | 高边界风险 / 高自主性风险 / 高回撤需求 vs 高承诺 / 高推进 / 低风险 |
+
+命令：
+
+```bash
+python scripts/run_state_kv_identification.py \
+  --lane p2 --p2-pair repair-vs-execute --device mps \
+  --max-new-tokens 48 --personal-conditioning-scale 0.12 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
+  --judge-kind embedding --judge-model-id BAAI/bge-m3 --judge-device mps \
+  --output artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute/verdict_identification.json
+
+python scripts/run_state_kv_identification.py \
+  --lane p2 --p2-pair boundary-vs-commit --device mps \
+  --max-new-tokens 48 --personal-conditioning-scale 0.12 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
+  --judge-kind embedding --judge-model-id BAAI/bge-m3 --judge-device mps \
+  --output artifacts/state_kv/p2-state-strategy-routed-boundary-vs-commit/verdict_identification.json
+```
+
+结果：
+
+| pair | overall | G-prefix matching | A-pure control | C5 |
+|---|---|---|---|---|
+| `repair-vs-execute` | **`retain-strict`** | 29/32，accuracy 0.906，CI **0.781..1.000** | 16/32，CI 0.312..0.688 覆盖 chance | `decode-matched` |
+| `boundary-vs-commit` | **`retain-strict`** | 27/32，accuracy 0.844，CI **0.719..0.969** | 16/32，CI 0.344..0.688 覆盖 chance | `decode-matched` |
+
+这把 P2 的 held-out 主张闭合到以下范围：同一标准 artifact、同一冻结 Qwen、同一
+prompt-suppressed / decode-matched 纪律下，未参与训练的 persona 与 probe 仍能被跨家族
+embedding judge 显著认回；且 A-pure 控制臂保持随机区间，排除 prompt 残留和裁判
+单纯利用探针句的解释。
+
+仍不能外推到默认产品路径或长期稳定性：P2 当前是 deterministic 单配置、pairwise
+二选一，不是多 seed / 多 rollout / 多模型裁判矩阵。默认 `ACTIVE` 晋升前还需要
+把 seed/rollout 稳定性、rollout gate 与回滚开关作为独立证据包关闭。
 
 ### P0-smoke 实测结果（2026-07-26）
 

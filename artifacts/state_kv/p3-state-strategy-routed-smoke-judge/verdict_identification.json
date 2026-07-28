@@ -1,0 +1,373 @@
+{
+  "schema_version": "state-kv-identification.v1",
+  "verdict_state": "fail",
+  "substrate_kind": "frozen-weights",
+  "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+  "candidate_arm": "state-kv-arm-g-prefix-pure",
+  "claims": [
+    {
+      "claim": "claim_prompt_identity",
+      "state": "pass",
+      "detail": "12 turns across 3 probes share one prompt_fp per probe with prompt_state_sections=0"
+    },
+    {
+      "claim": "claim_output_divergence",
+      "state": "pass",
+      "detail": "state-kv-arm-g-prefix-pure injected on every delivered turn and outputs differ across users on every probe"
+    },
+    {
+      "claim": "claim_identification_above_chance",
+      "state": "fail",
+      "detail": "accuracy=0.500 CI lower bound 0.167 does not clear chance"
+    },
+    {
+      "claim": "claim_carrier_causality",
+      "state": "fail",
+      "detail": "state-kv-arm-bprime did not clear chance (CI low 0.167)"
+    }
+  ],
+  "c5_grade": "decode-matched",
+  "c5_detail": "decode_fp identical across users on every probe",
+  "matching": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "correct": 3,
+      "total": 6,
+      "accuracy": 0.5,
+      "ci_low": 0.166667,
+      "ci_high": 0.833333,
+      "judge_model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "correct": 3,
+      "total": 6,
+      "accuracy": 0.5,
+      "ci_low": 0.166667,
+      "ci_high": 0.833333,
+      "judge_model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "correct": 3,
+      "total": 6,
+      "accuracy": 0.5,
+      "ci_low": 0.166667,
+      "ci_high": 0.833333,
+      "judge_model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "correct": 3,
+      "total": 6,
+      "accuracy": 0.5,
+      "ci_low": 0.166667,
+      "ci_high": 0.833333,
+      "judge_model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    }
+  ],
+  "prompt_fp_table": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-a-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": false
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "740e73d73a096cd8",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "2932b758722e6483",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "e4393b1d71ac0f08",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "1a60da699df120c4",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "0dad065be876f82e",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-bprime",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b497bff796249b67",
+      "prompt_state_sections": 2,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": false,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "0d0dbb437e5c3102",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "179b76bd4c331ef6",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "57cd8841dc2e4be1",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "0d0dbb437e5c3102",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "179b76bd4c331ef6",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-e",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "57cd8841dc2e4be1",
+      "prompt_state_sections": 1,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-a",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p0",
+      "prompt_fp": "e809b6285b79e611",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p1",
+      "prompt_fp": "9f5b6fa37f92983b",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "user": "persona-b",
+      "probe": "p2",
+      "prompt_fp": "b8b1ea2edcdcccad",
+      "prompt_state_sections": 0,
+      "decode_fp": "3bc7069445b895fe",
+      "conditioning_applied": true,
+      "conditioning_delivered": true
+    }
+  ],
+  "judge_model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "notes": []
+}

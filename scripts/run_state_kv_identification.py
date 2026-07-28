@@ -5,7 +5,9 @@
 local weight snapshot, loads one frozen Transformers runtime, and reuses that
 same runtime object for all four arms. P1 also gives both personas the exact
 same response assembly so carrier C5 is closed by construction; their only
-per-user input is the personal-conditioning snapshot.
+per-user input is the personal-conditioning snapshot. ``p3`` adds the
+Prefix-KV arm on the original hand-checked pair. ``p2`` runs the same carrier
+test on held-out persona/probe pairs.
 
 The runner writes three independently inspectable artifacts next to each other:
 
@@ -56,6 +58,12 @@ from volvence_zero.personal_conditioning_contracts import (  # noqa: E402
 from volvence_zero.personal_conditioning_rendering import (  # noqa: E402
     render_personal_conditioning_statement,
 )
+from volvence_zero.state_kv_blind_judge import (  # noqa: E402
+    JudgeMaterial,
+    JudgeMaterialKind,
+    LocalEmbeddingBlindJudge,
+    LocalTransformersBlindJudge,
+)
 from volvence_zero.state_kv_identification import (  # noqa: E402
     DEFAULT_CANDIDATE_ARM_LABEL,
     IDENTIFICATION_ARM_LABELS,
@@ -80,6 +88,28 @@ PROBE_SENTENCES: tuple[tuple[str, str], ...] = (
     ("p0", "我又搞砸了"),
     ("p1", "今天还是没睡好"),
     ("p2", "你觉得我该继续吗"),
+    ("p3", "我现在有点撑不住了"),
+    ("p4", "能不能帮我定一下下一步"),
+    ("p5", "我是不是该先停一下"),
+)
+
+P2_PROBE_SENTENCES: tuple[tuple[str, str], ...] = (
+    ("h0", "我刚刚差点直接放弃"),
+    ("h1", "你帮我判断一下现在该不该推进"),
+    ("h2", "我怕自己又做错选择"),
+    ("h3", "下一步能不能简单一点"),
+    ("h4", "我需要有人帮我把风险摆清楚"),
+    ("h5", "这件事是不是可以今天就定下来"),
+    ("h6", "我现在不确定该相信哪个判断"),
+    ("h7", "帮我把这件事收个口"),
+    ("h8", "我有点担心这会越界"),
+    ("h9", "如果先试一小步可以吗"),
+    ("h10", "你觉得我该保护哪个边界"),
+    ("h11", "我想今天把计划定下来"),
+    ("h12", "这个决定还能不能撤回"),
+    ("h13", "帮我把可验证的一步写出来"),
+    ("h14", "我现在需要先停还是继续"),
+    ("h15", "把选择标准列给我"),
 )
 
 # Two coherent, counterfactual relationship states. Coordinates follow
@@ -134,6 +164,107 @@ PERSONAS: tuple[tuple[str, tuple[float, ...], str, str], ...] = (
         "continuum-structure-first",
     ),
 )
+
+P2_PERSONA_PAIRS: dict[
+    str, tuple[tuple[str, tuple[float, ...], str, str], ...]
+] = {
+    "repair-vs-execute": (
+        (
+            "heldout-repair",
+            (
+                0.18,  # user_stability
+                0.88,  # user_overwhelm
+                0.24,  # user_control
+                0.38,  # relationship_trust
+                0.58,  # relationship_continuity
+                0.86,  # relationship_repair_need
+                0.84,  # relationship_emotional_load
+                0.72,  # relationship_attunement_gap
+                0.42,  # goal_alignment
+                0.72,  # goal_value_conflict
+                0.28,  # goal_decision_readiness
+                0.84,  # goal_reversibility_need
+                0.70,  # boundary_compliance
+                0.88,  # boundary_autonomy_risk
+                0.52,  # boundary_consent_clarity
+                0.82,  # boundary_overreach_risk
+            ),
+            "Carry forward continuity from prior context: she postponed a hard conversation twice.",
+            "continuum-repair-holdout",
+        ),
+        (
+            "heldout-execute",
+            (
+                0.90,
+                0.16,
+                0.88,
+                0.86,
+                0.88,
+                0.12,
+                0.20,
+                0.16,
+                0.86,
+                0.16,
+                0.88,
+                0.18,
+                0.92,
+                0.12,
+                0.90,
+                0.10,
+            ),
+            "Carry forward continuity from prior context: he already got stakeholder approval.",
+            "continuum-execute-holdout",
+        ),
+    ),
+    "boundary-vs-commit": (
+        (
+            "heldout-boundary",
+            (
+                0.36,
+                0.70,
+                0.30,
+                0.54,
+                0.64,
+                0.64,
+                0.70,
+                0.58,
+                0.50,
+                0.68,
+                0.34,
+                0.88,
+                0.48,
+                0.94,
+                0.36,
+                0.92,
+            ),
+            "Carry forward continuity from prior context: she was pressured into saying yes before.",
+            "continuum-boundary-holdout",
+        ),
+        (
+            "heldout-commit",
+            (
+                0.82,
+                0.24,
+                0.82,
+                0.78,
+                0.82,
+                0.18,
+                0.28,
+                0.20,
+                0.88,
+                0.22,
+                0.86,
+                0.20,
+                0.88,
+                0.18,
+                0.86,
+                0.14,
+            ),
+            "Carry forward continuity from prior context: he chose a reversible trial plan.",
+            "continuum-commit-holdout",
+        ),
+    ),
+}
 
 
 class DeterministicFakeSubstrate:
@@ -232,7 +363,12 @@ def _conditioning(
     )
 
 
-def build_probe_cases(*, strict_carriers: bool = False) -> tuple[ProbeCase, ...]:
+def build_probe_cases(
+    *,
+    strict_carriers: bool = False,
+    personas: tuple[tuple[str, tuple[float, ...], str, str], ...] = PERSONAS,
+    probe_sentences: tuple[tuple[str, str], ...] = PROBE_SENTENCES,
+) -> tuple[ProbeCase, ...]:
     """Build probe cases for smoke or strict real-substrate evidence.
 
     Smoke deliberately keeps divergent assemblies to prove
@@ -248,7 +384,14 @@ def build_probe_cases(*, strict_carriers: bool = False) -> tuple[ProbeCase, ...]
         if strict_carriers
         else None
     )
-    for user_id, state_vector, residue, ordering_driver in PERSONAS:
+    if len(personas) != 2:
+        raise ValueError(
+            "identification matching is two-alternative; build_probe_cases "
+            f"requires exactly two personas, got {len(personas)}"
+        )
+    if not probe_sentences:
+        raise ValueError("identification matching requires at least one probe")
+    for user_id, state_vector, residue, ordering_driver in personas:
         assembly = shared_assembly or _assembly(
             residue=residue,
             ordering_driver=ordering_driver,
@@ -257,7 +400,7 @@ def build_probe_cases(*, strict_carriers: bool = False) -> tuple[ProbeCase, ...]
             user_id=user_id,
             state_vector=state_vector,
         )
-        for probe_id, sentence in PROBE_SENTENCES:
+        for probe_id, sentence in probe_sentences:
             cases.append(
                 ProbeCase(
                     user_id=user_id,
@@ -268,6 +411,60 @@ def build_probe_cases(*, strict_carriers: bool = False) -> tuple[ProbeCase, ...]
                 )
             )
     return tuple(cases)
+
+
+def build_p2_probe_cases(
+    *,
+    pair_id: str,
+    strict_carriers: bool = True,
+) -> tuple[ProbeCase, ...]:
+    try:
+        personas = P2_PERSONA_PAIRS[pair_id]
+    except KeyError as exc:
+        raise ValueError(
+            f"unknown P2 persona pair {pair_id!r}; expected one of "
+            f"{sorted(P2_PERSONA_PAIRS)}"
+        ) from exc
+    return build_probe_cases(
+        strict_carriers=strict_carriers,
+        personas=personas,
+        probe_sentences=P2_PROBE_SENTENCES,
+    )
+
+
+def _judge_materials_from_cases(cases: tuple[ProbeCase, ...]) -> tuple[JudgeMaterial, ...]:
+    """Build blind-judge materials from the same owner-rendered readout.
+
+    P3 does not carry real session-history summaries; using the owner-rendered
+    state statement keeps the judge material tied to the same typed readout as
+    the latent carrier and prevents a second, ad hoc persona description from
+    becoming the evidence owner.
+    """
+
+    summaries: dict[str, str] = {}
+    for case in cases:
+        summary = case.conditioning.rendered_statement.strip()
+        if not summary:
+            raise ValueError(
+                f"case {case.user_id}/{case.probe_id} has an empty rendered "
+                "state statement; blind matching would have no candidate "
+                "material."
+            )
+        existing = summaries.setdefault(case.user_id, summary)
+        if existing != summary:
+            raise ValueError(
+                f"user {case.user_id!r} has inconsistent rendered state "
+                "statements across probes; blind matching material must be "
+                "per-user stable."
+            )
+    return tuple(
+        JudgeMaterial(
+            user_id=user_id,
+            summary=summary,
+            material_kind=JudgeMaterialKind.RENDERED_STATE,
+        )
+        for user_id, summary in sorted(summaries.items())
+    )
 
 
 class RecordingSynthesizer:
@@ -420,12 +617,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--lane",
-        choices=("smoke", "p1", "p3"),
+        choices=("smoke", "p1", "p2", "p3"),
         default="smoke",
         help=(
             "synthetic wiring smoke, one frozen local Qwen runtime (p1), or "
-            "the same runtime plus the prefix-KV arm G (p3)"
+            "the same runtime plus the prefix-KV arm G on held-out material "
+            "(p2) or the hand-checked pair (p3)"
         ),
+    )
+    parser.add_argument(
+        "--p2-pair",
+        choices=tuple(P2_PERSONA_PAIRS),
+        default=next(iter(P2_PERSONA_PAIRS)),
+        help="held-out persona pair for the P2 lane",
     )
     parser.add_argument(
         "--output",
@@ -466,8 +670,8 @@ def main(argv: list[str] | None = None) -> int:
         "--prefix-kv-artifact",
         default="",
         help=(
-            "learned State-KV prefix generator JSON; required by the P3 lane, "
-            "which adds arm G and makes it the candidate arm"
+            "learned State-KV prefix generator JSON; required by the P2/P3 "
+            "lanes, which add arm G and make it the candidate arm"
         ),
     )
     parser.add_argument(
@@ -475,29 +679,69 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="allow Hugging Face to download a missing P1 model snapshot",
     )
+    parser.add_argument(
+        "--judge-model-id",
+        default="",
+        help=(
+            "optional local cross-family judge model id; when set, the runner "
+            "adds blind matching readouts for claims 3/4"
+        ),
+    )
+    parser.add_argument(
+        "--judge-kind",
+        choices=("causal-lm", "embedding"),
+        default="causal-lm",
+        help="local blind judge scoring backend (defaults to causal-lm)",
+    )
+    parser.add_argument(
+        "--judge-source",
+        default="",
+        help=(
+            "explicit local HF snapshot directory for the judge; otherwise "
+            "resolve --judge-model-id from the local cache"
+        ),
+    )
+    parser.add_argument(
+        "--judge-device",
+        default="cpu",
+        help="device for the local blind judge (defaults to cpu)",
+    )
+    parser.add_argument(
+        "--judge-bootstrap-seed",
+        type=int,
+        default=20260726,
+        help="seed for the blind-matching bootstrap confidence intervals",
+    )
     args = parser.parse_args(argv)
 
-    frozen_lane = args.lane in ("p1", "p3")
+    frozen_lane = args.lane in ("p1", "p2", "p3")
+    prefix_lane = args.lane in ("p2", "p3")
     if args.max_new_tokens <= 0:
         parser.error("--max-new-tokens must be positive")
     if frozen_lane and args.inject:
         parser.error("--inject only applies to the smoke lane")
     if args.lane == "smoke" and args.projector_artifact:
         parser.error("--projector-artifact only applies to the frozen lanes")
-    if args.lane != "p3" and args.prefix_kv_artifact:
-        parser.error("--prefix-kv-artifact only applies to the P3 lane")
-    if args.lane == "p3" and not args.prefix_kv_artifact:
+    if not prefix_lane and args.prefix_kv_artifact:
+        parser.error("--prefix-kv-artifact only applies to the P2/P3 lanes")
+    if prefix_lane and not args.prefix_kv_artifact:
         # Arm G without an artifact could only run by falling back to another
         # carrier, which would publish a mislabelled arm.
-        parser.error("--prefix-kv-artifact is required by the P3 lane")
+        parser.error("--prefix-kv-artifact is required by the P2/P3 lanes")
     if frozen_lane and args.temperature != 0.0:
         parser.error(
             "the frozen lanes require --temperature 0 so C5 is deterministic; "
             "matched multi-seed sampling belongs to the blind-judge package"
         )
+    if args.judge_source and not args.judge_model_id:
+        parser.error("--judge-source requires --judge-model-id")
+    if args.judge_model_id and not frozen_lane:
+        parser.error("--judge-model-id only applies to frozen lanes")
 
     if args.lane == "p3":
         run_directory = "p3"
+    elif args.lane == "p2":
+        run_directory = f"p2-{args.p2_pair}"
     elif args.lane == "p1":
         run_directory = "p1-learned" if args.projector_artifact else "p1"
     else:
@@ -592,16 +836,27 @@ def main(argv: list[str] | None = None) -> int:
             f"{args.model_id}@"
             f"{str(fingerprint_payload['weights_sha256'])[:16]}"
         )
-        cases = build_probe_cases(strict_carriers=True)
+        cases = (
+            build_p2_probe_cases(pair_id=args.p2_pair, strict_carriers=True)
+            if args.lane == "p2"
+            else build_probe_cases(strict_carriers=True)
+        )
 
     arm_labels = (
         PREFIX_IDENTIFICATION_ARM_LABELS
-        if args.lane == "p3"
+        if prefix_lane
         else IDENTIFICATION_ARM_LABELS
     )
     candidate_arm_label = (
-        PREFIX_ARM_LABEL if args.lane == "p3" else DEFAULT_CANDIDATE_ARM_LABEL
+        PREFIX_ARM_LABEL if prefix_lane else DEFAULT_CANDIDATE_ARM_LABEL
     )
+    fingerprint_payload["identification_material"] = {
+        "lane": args.lane,
+        "p2_pair": args.p2_pair if args.lane == "p2" else "",
+        "user_ids": sorted({case.user_id for case in cases}),
+        "probe_ids": sorted({case.probe_id for case in cases}),
+        "case_count": len(cases),
+    }
     recording = RecordingSynthesizer(
         LLMResponseSynthesizer(
             runtime=runtime,
@@ -609,6 +864,22 @@ def main(argv: list[str] | None = None) -> int:
             temperature=args.temperature,
         )
     )
+    judge = None
+    if args.judge_model_id:
+        judge_cls = (
+            LocalEmbeddingBlindJudge
+            if args.judge_kind == "embedding"
+            else LocalTransformersBlindJudge
+        )
+        judge = judge_cls(
+            judge_model_id=args.judge_model_id,
+            judge_source=args.judge_source or None,
+            substrate_model_id=args.model_id,
+            substrate_source=str(weights_root),
+            materials=_judge_materials_from_cases(cases),
+            device=args.judge_device,
+            local_files_only=not args.allow_download,
+        )
     verdict = run_identification_smoke(
         cases=cases,
         synthesizer=recording,
@@ -616,9 +887,12 @@ def main(argv: list[str] | None = None) -> int:
         substrate_kind=substrate_kind,
         substrate_fingerprint=substrate_fingerprint,
         arm_labels=arm_labels,
-        judge=None,
+        judge=judge,
+        bootstrap_seed=args.judge_bootstrap_seed,
         candidate_arm_label=candidate_arm_label,
     )
+    if judge is not None:
+        fingerprint_payload["blind_judge"] = judge.as_json_dict()
     verdict_path.parent.mkdir(parents=True, exist_ok=True)
     verdict_path.write_text(verdict.to_json() + "\n", encoding="utf-8")
     _write_json(
@@ -640,6 +914,13 @@ def main(argv: list[str] | None = None) -> int:
     for claim in verdict.claims:
         print(f"  {claim.name:38s} {claim.state.value:18s} {claim.detail}")
     print(f"  c5_grade{'':30s} {verdict.c5_grade.value:18s} {verdict.c5_detail}")
+    for readout in verdict.matching:
+        print(
+            f"  matching {readout.arm_label}: "
+            f"{readout.correct}/{readout.total} "
+            f"accuracy={readout.accuracy:.3f} "
+            f"CI=({readout.ci_low:.3f}, {readout.ci_high:.3f})"
+        )
     for note in verdict.notes:
         print(f"  note: {note}")
     print(f"turns recorded: {len(verdict.prompt_fp_table)}")

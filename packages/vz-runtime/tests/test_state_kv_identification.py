@@ -36,6 +36,7 @@ from volvence_zero.personal_conditioning_contracts import (
 from volvence_zero.state_kv_identification import (
     IDENTIFICATION_ARM_LABELS,
     IDENTIFICATION_SCHEMA_VERSION,
+    PREFIX_ARM_LABEL,
     PURE_ARM_LABELS,
     ArmObservation,
     C5Grade,
@@ -451,6 +452,28 @@ def test_frozen_weights_with_matched_decode_reaches_retain_strict() -> None:
         judge_model_id="judge-x",
     )
     assert verdict.c5_grade is C5Grade.DECODE_MATCHED
+    assert verdict.verdict_state is VerdictState.RETAIN_STRICT
+
+
+def test_prefix_lane_causality_uses_the_prefix_candidate() -> None:
+    verdict = build_identification_verdict(
+        observations=[
+            _observation(PURE_ARM_LABELS[0]),
+            _observation(PREFIX_ARM_LABEL),
+            _observation("state-kv-arm-bprime"),
+        ],
+        substrate_kind=SubstrateEvidenceKind.FROZEN_WEIGHTS,
+        substrate_fingerprint="qwen-fp",
+        matching=(
+            _chance_matching(PURE_ARM_LABELS[0]),
+            _perfect_matching(PREFIX_ARM_LABEL),
+            _chance_matching("state-kv-arm-bprime"),
+        ),
+        judge_model_id="judge-x",
+        candidate_arm_label=PREFIX_ARM_LABEL,
+    )
+
+    assert verdict.claim("claim_carrier_causality").state is ClaimState.PASS
     assert verdict.verdict_state is VerdictState.RETAIN_STRICT
 
 
