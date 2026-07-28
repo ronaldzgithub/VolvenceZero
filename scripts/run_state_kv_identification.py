@@ -71,6 +71,7 @@ from volvence_zero.state_kv_identification import (  # noqa: E402
     PREFIX_IDENTIFICATION_ARM_LABELS,
     ProbeCase,
     SubstrateEvidenceKind,
+    derive_aligned_sampling_seed,
     run_identification_smoke,
 )
 from volvence_zero.substrate import (  # noqa: E402
@@ -654,6 +655,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-new-tokens", type=int, default=64)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument(
+        "--sampling-seed",
+        type=int,
+        default=None,
+        help=(
+            "base seed for stochastic frozen-lane rollout; each turn derives "
+            "an aligned seed from this value plus arm and probe, excluding "
+            "user id"
+        ),
+    )
+    parser.add_argument(
         "--personal-conditioning-scale",
         type=float,
         default=0.08,
@@ -728,10 +739,25 @@ def main(argv: list[str] | None = None) -> int:
         # Arm G without an artifact could only run by falling back to another
         # carrier, which would publish a mislabelled arm.
         parser.error("--prefix-kv-artifact is required by the P2/P3 lanes")
-    if frozen_lane and args.temperature != 0.0:
+    if args.sampling_seed is not None and args.sampling_seed < 0:
+        parser.error("--sampling-seed must be non-negative")
+    if frozen_lane and args.temperature > 0.0 and args.sampling_seed is None:
         parser.error(
-            "the frozen lanes require --temperature 0 so C5 is deterministic; "
-            "matched multi-seed sampling belongs to the blind-judge package"
+            "--temperature > 0 on frozen lanes requires --sampling-seed so "
+            "C5 RNG is aligned per turn"
+        )
+    if frozen_lane and args.temperature <= 0.0 and args.sampling_seed is not None:
+        parser.error("--sampling-seed requires --temperature > 0 on frozen lanes")
+    if frozen_lane and args.temperature < 0.0:
+        parser.error("--temperature must be non-negative")
+    if not frozen_lane and args.sampling_seed is not None:
+        parser.error("--sampling-seed only applies to frozen lanes")
+    if not frozen_lane and args.temperature < 0.0:
+        parser.error("--temperature must be non-negative")
+    if prefix_lane and args.temperature > 0.0 and args.sampling_seed is None:
+        parser.error(
+            "prefix-KV stochastic rollout requires --sampling-seed; unseeded "
+            "sampling would open C5"
         )
     if args.judge_source and not args.judge_model_id:
         parser.error("--judge-source requires --judge-model-id")
@@ -746,6 +772,8 @@ def main(argv: list[str] | None = None) -> int:
         run_directory = "p1-learned" if args.projector_artifact else "p1"
     else:
         run_directory = ""
+    if frozen_lane and args.sampling_seed is not None:
+        run_directory = f"{run_directory}-rollout-seed-{args.sampling_seed}"
     output = Path(args.output).expanduser() if args.output else (
         REPO_ROOT
         / "artifacts"
@@ -856,7 +884,31 @@ def main(argv: list[str] | None = None) -> int:
         "user_ids": sorted({case.user_id for case in cases}),
         "probe_ids": sorted({case.probe_id for case in cases}),
         "case_count": len(cases),
+        "temperature": args.temperature,
+        "sampling_seed": args.sampling_seed,
+        "per_turn_seed_contract": (
+            "sha256(state-kv-rollout-seed.v1, rollout_seed, arm, probe); "
+            "user_id excluded"
+            if args.sampling_seed is not None
+            else ""
+        ),
     }
+    if args.sampling_seed is not None:
+        fingerprint_payload["identification_material"][
+            "sample_aligned_turn_seeds"
+        ] = [
+            {
+                "arm": label,
+                "probe": probe_id,
+                "sampling_seed": derive_aligned_sampling_seed(
+                    rollout_seed=args.sampling_seed,
+                    arm_label=label,
+                    probe_id=probe_id,
+                ),
+            }
+            for label in arm_labels
+            for probe_id in sorted({case.probe_id for case in cases})
+        ]
     recording = RecordingSynthesizer(
         LLMResponseSynthesizer(
             runtime=runtime,
@@ -890,6 +942,7 @@ def main(argv: list[str] | None = None) -> int:
         judge=judge,
         bootstrap_seed=args.judge_bootstrap_seed,
         candidate_arm_label=candidate_arm_label,
+        rollout_seed=args.sampling_seed,
     )
     if judge is not None:
         fingerprint_payload["blind_judge"] = judge.as_json_dict()

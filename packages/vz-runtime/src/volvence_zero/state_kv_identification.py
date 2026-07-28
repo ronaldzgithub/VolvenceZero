@@ -33,6 +33,7 @@ below does not change between the two.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 from collections.abc import Mapping, Sequence
@@ -70,6 +71,7 @@ __all__ = [
     "bootstrap_matching_ci",
     "build_identification_verdict",
     "context_for_arm",
+    "derive_aligned_sampling_seed",
     "observe_arm",
     "run_identification_smoke",
 ]
@@ -249,6 +251,7 @@ def context_for_arm(
     arm: IdentificationArm,
     case: ProbeCase,
     base_context: ResponseContext,
+    sampling_seed: int | None = None,
 ) -> ResponseContext:
     """Apply one arm's delivery settings to a probe case.
 
@@ -288,7 +291,33 @@ def context_for_arm(
         personal_conditioning_carrier=(
             "prefix_kv" if arm.conditioning_mode == "prefix_kv" else "residual"
         ),
+        sampling_seed=sampling_seed,
     )
+
+
+def derive_aligned_sampling_seed(
+    *,
+    rollout_seed: int,
+    arm_label: str,
+    probe_id: str,
+) -> int:
+    """Derive a per-turn seed that is aligned across users.
+
+    The user id is deliberately excluded: the same arm/probe pair receives the
+    same RNG seed for both users, closing C5 for stochastic rollout while still
+    varying the random stream across probes and arms.
+    """
+
+    if rollout_seed < 0:
+        raise ValueError(f"rollout_seed must be non-negative, got {rollout_seed}.")
+    payload = (
+        "state-kv-rollout-seed.v1\n"
+        f"rollout_seed={rollout_seed}\n"
+        f"arm={arm_label}\n"
+        f"probe={probe_id}"
+    )
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return int(digest[:16], 16) % (2**63 - 1)
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +335,7 @@ class IdentificationTurn:
     prompt_fp: str
     prompt_state_sections: int
     decode_fp: str
+    sampling_seed: int | None
     conditioning_applied: bool
     conditioning_delivered: bool
     text: str
@@ -318,6 +348,7 @@ class IdentificationTurn:
             "prompt_fp": self.prompt_fp,
             "prompt_state_sections": self.prompt_state_sections,
             "decode_fp": self.decode_fp,
+            "sampling_seed": self.sampling_seed,
             "conditioning_applied": self.conditioning_applied,
             "conditioning_delivered": self.conditioning_delivered,
         }
@@ -336,6 +367,16 @@ def _single_tag(tags: Sequence[str], key: str) -> str:
     return matches[0]
 
 
+def _optional_single_tag(tags: Sequence[str], key: str) -> str | None:
+    prefix = f"{key}="
+    matches = [tag[len(prefix) :] for tag in tags if tag.startswith(prefix)]
+    if len(matches) > 1:
+        raise ValueError(
+            f"expected at most one {key!r} attestation tag, got {matches!r}"
+        )
+    return matches[0] if matches else None
+
+
 def turn_from_response(
     *,
     arm: IdentificationArm,
@@ -350,6 +391,7 @@ def turn_from_response(
 
     tags = tuple(getattr(response, "rationale_tags", ()))
     applied_tags = [t for t in tags if t.startswith("personal_conditioning=")]
+    sampling_seed_tag = _optional_single_tag(tags, "sampling_seed")
     return IdentificationTurn(
         arm_label=arm.label,
         user_id=case.user_id,
@@ -357,6 +399,9 @@ def turn_from_response(
         prompt_fp=_single_tag(tags, "prompt_fp"),
         prompt_state_sections=int(_single_tag(tags, "prompt_state_sections")),
         decode_fp=_single_tag(tags, "decode_fp"),
+        sampling_seed=(
+            None if sampling_seed_tag is None else int(sampling_seed_tag)
+        ),
         conditioning_applied=bool(applied_tags),
         conditioning_delivered=conditioning_delivered,
         text=str(getattr(response, "text", "")),
@@ -383,6 +428,7 @@ def observe_arm(
     cases: Sequence[ProbeCase],
     synthesizer: object,
     base_context: ResponseContext,
+    rollout_seed: int | None = None,
 ) -> ArmObservation:
     """Run every probe case through one arm and record its attestation."""
 
@@ -390,7 +436,21 @@ def observe_arm(
         raise ValueError(f"arm {arm.label!r} needs at least one probe case.")
     turns: list[IdentificationTurn] = []
     for case in cases:
-        context = context_for_arm(arm=arm, case=case, base_context=base_context)
+        sampling_seed = (
+            None
+            if rollout_seed is None
+            else derive_aligned_sampling_seed(
+                rollout_seed=rollout_seed,
+                arm_label=arm.label,
+                probe_id=case.probe_id,
+            )
+        )
+        context = context_for_arm(
+            arm=arm,
+            case=case,
+            base_context=base_context,
+            sampling_seed=sampling_seed,
+        )
         response = synthesizer.synthesize(
             context=context, assembly=case.assembly
         )
@@ -977,6 +1037,7 @@ def run_identification_smoke(
     judge: BlindMatchingJudge | None = None,
     bootstrap_seed: int = 20260726,
     candidate_arm_label: str = DEFAULT_CANDIDATE_ARM_LABEL,
+    rollout_seed: int | None = None,
 ) -> IdentificationVerdict:
     """Run every arm over every probe case and build the verdict.
 
@@ -990,6 +1051,7 @@ def run_identification_smoke(
             cases=cases,
             synthesizer=synthesizer,
             base_context=base_context,
+            rollout_seed=rollout_seed,
         )
         for label in arm_labels
     ]
@@ -1023,6 +1085,14 @@ def run_identification_smoke(
                     judge_model_id=judge.judge_model_id,
                 )
             )
+    rollout_notes = (
+        (
+            "stochastic rollout seed alignment active: per-turn seed is "
+            "derived from rollout_seed + arm + probe and excludes user_id",
+        )
+        if rollout_seed is not None
+        else ()
+    )
     return build_identification_verdict(
         observations=observations,
         substrate_kind=substrate_kind,
@@ -1030,4 +1100,5 @@ def run_identification_smoke(
         matching=tuple(matching),
         judge_model_id=judge.judge_model_id if judge is not None else "",
         candidate_arm_label=candidate_arm_label,
+        extra_notes=rollout_notes,
     )

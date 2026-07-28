@@ -204,8 +204,8 @@ def test_prefix_carrier_reports_injection_only_when_state_is_admitted(
     assert absent.personal_conditioning_applied is False
 
 
-def test_prefix_carrier_refuses_sampling(prefix_runtime) -> None:
-    with pytest.raises(ValueError, match="greedy-only"):
+def test_prefix_carrier_refuses_unseeded_sampling(prefix_runtime) -> None:
+    with pytest.raises(ValueError, match="requires sampling_seed"):
         prefix_runtime.generate(
             prompt=PROMPT,
             system_context=SYSTEM,
@@ -216,6 +216,33 @@ def test_prefix_carrier_refuses_sampling(prefix_runtime) -> None:
             personal_conditioning_carrier="prefix_kv",
             personal_conditioning=_conditioning(value=0.8),
         )
+
+
+def test_prefix_carrier_seeded_sampling_is_reproducible(prefix_runtime) -> None:
+    first = prefix_runtime.generate(
+        prompt=PROMPT,
+        system_context=SYSTEM,
+        chat_messages=MESSAGES,
+        max_new_tokens=4,
+        temperature=0.7,
+        capture_residuals=False,
+        personal_conditioning_carrier="prefix_kv",
+        personal_conditioning=_conditioning(value=0.8),
+        sampling_seed=1701,
+    )
+    second = prefix_runtime.generate(
+        prompt=PROMPT,
+        system_context=SYSTEM,
+        chat_messages=MESSAGES,
+        max_new_tokens=4,
+        temperature=0.7,
+        capture_residuals=False,
+        personal_conditioning_carrier="prefix_kv",
+        personal_conditioning=_conditioning(value=0.8),
+        sampling_seed=1701,
+    )
+
+    assert first.text == second.text
 
 
 def test_residual_carrier_is_unchanged_by_a_loaded_prefix(

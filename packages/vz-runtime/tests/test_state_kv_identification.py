@@ -50,6 +50,7 @@ from volvence_zero.state_kv_identification import (
     bootstrap_matching_ci,
     build_identification_verdict,
     context_for_arm,
+    derive_aligned_sampling_seed,
     run_identification_smoke,
 )
 
@@ -270,6 +271,46 @@ def test_text_arm_refuses_an_empty_rendered_statement() -> None:
         )
 
 
+def test_rollout_seed_is_aligned_across_users_but_varies_by_arm_and_probe() -> None:
+    cases = _cases()
+    arm = arm_from_profile(PREFIX_ARM_LABEL)
+
+    alice = context_for_arm(
+        arm=arm,
+        case=cases[0],
+        base_context=_base_context(),
+        sampling_seed=derive_aligned_sampling_seed(
+            rollout_seed=1701,
+            arm_label=arm.label,
+            probe_id=cases[0].probe_id,
+        ),
+    )
+    bob_same_probe = context_for_arm(
+        arm=arm,
+        case=cases[2],
+        base_context=_base_context(),
+        sampling_seed=derive_aligned_sampling_seed(
+            rollout_seed=1701,
+            arm_label=arm.label,
+            probe_id=cases[2].probe_id,
+        ),
+    )
+    other_probe_seed = derive_aligned_sampling_seed(
+        rollout_seed=1701,
+        arm_label=arm.label,
+        probe_id=cases[1].probe_id,
+    )
+    other_arm_seed = derive_aligned_sampling_seed(
+        rollout_seed=1701,
+        arm_label=PURE_ARM_LABELS[0],
+        probe_id=cases[0].probe_id,
+    )
+
+    assert alice.sampling_seed == bob_same_probe.sampling_seed
+    assert alice.sampling_seed != other_probe_seed
+    assert alice.sampling_seed != other_arm_seed
+
+
 # ---------------------------------------------------------------------------
 # The smoke run: claim 1 computed and passing, verdict honestly capped
 # ---------------------------------------------------------------------------
@@ -364,6 +405,7 @@ def _turn(
     applied: bool = True,
     delivered: bool = True,
     text: str | None = None,
+    sampling_seed: int | None = None,
 ) -> IdentificationTurn:
     return IdentificationTurn(
         arm_label=arm,
@@ -372,6 +414,7 @@ def _turn(
         prompt_fp=prompt_fp,
         prompt_state_sections=0,
         decode_fp=decode_fp,
+        sampling_seed=sampling_seed,
         conditioning_applied=applied,
         conditioning_delivered=delivered,
         text=text if text is not None else f"{arm}-{user}-{probe}",

@@ -243,6 +243,7 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         generation_constraints: Any | None = None,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
+        sampling_seed: int | None = None,
     ) -> GenerationResult:
         if personal_conditioning is not None:
             raise NotImplementedError(
@@ -250,6 +251,12 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 "conditioning because vLLM does not expose residual hooks. "
                 "Use the transformers open-weight runtime or disable the "
                 "personal_conditioning owner."
+            )
+        if sampling_seed is not None:
+            raise NotImplementedError(
+                "VLLMOpenWeightResidualRuntime does not yet expose the "
+                "per-request sampling_seed contract required for State-KV "
+                "stochastic rollout evidence. Use the transformers runtime."
             )
         del system_context, chat_messages, control_parameters, control_scale
         del generation_constraints, capture_residuals

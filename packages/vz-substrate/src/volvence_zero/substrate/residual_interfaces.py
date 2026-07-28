@@ -164,6 +164,7 @@ class OpenWeightResidualRuntime(ABC):
         generation_constraints: "GenerationConstraints | None" = None,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
+        sampling_seed: int | None = None,
     ) -> GenerationResult:
         """Generate text using the underlying model.
 
@@ -182,7 +183,7 @@ class OpenWeightResidualRuntime(ABC):
         believe the model was conditioned). Runtimes that can apply or
         observably trace the conditioning override ``generate``.
         """
-        del generation_constraints, capture_residuals
+        del generation_constraints, capture_residuals, sampling_seed
         if personal_conditioning is not None:
             raise NotImplementedError(
                 f"{type(self).__name__} cannot apply personal conditioning "
@@ -378,4 +379,3 @@ def _extract_activation_at_layer(
         f"capture_for_contrastive: no activation tuple at layer_index="
         f"{layer_index!r}; the runtime did not capture this layer."
     )
-

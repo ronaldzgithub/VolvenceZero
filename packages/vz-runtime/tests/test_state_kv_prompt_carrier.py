@@ -128,6 +128,7 @@ def _context(
     *,
     prompt_state_delivery: str = "text",
     conditioning: PersonalConditioningSnapshot | None = None,
+    sampling_seed: int | None = None,
 ) -> ResponseContext:
     return ResponseContext(
         regime_id="steady",
@@ -146,6 +147,7 @@ def _context(
         user_input="我又搞砸了",
         prompt_state_delivery=prompt_state_delivery,
         personal_conditioning=conditioning,
+        sampling_seed=sampling_seed,
     )
 
 
@@ -319,6 +321,42 @@ def test_decode_fingerprint_ignores_none_constraints_consistently() -> None:
     assert decode_fingerprint(
         constraints=None, temperature=0.7, max_new_tokens=512
     ) != decode_fingerprint(constraints=None, temperature=0.2, max_new_tokens=512)
+
+
+def test_decode_fingerprint_includes_sampling_seed() -> None:
+    assert decode_fingerprint(
+        constraints=None,
+        temperature=0.7,
+        max_new_tokens=512,
+        sampling_seed=7,
+    ) == decode_fingerprint(
+        constraints=None,
+        temperature=0.7,
+        max_new_tokens=512,
+        sampling_seed=7,
+    )
+    assert decode_fingerprint(
+        constraints=None,
+        temperature=0.7,
+        max_new_tokens=512,
+        sampling_seed=7,
+    ) != decode_fingerprint(
+        constraints=None,
+        temperature=0.7,
+        max_new_tokens=512,
+        sampling_seed=8,
+    )
+
+
+def test_sampling_seed_is_forwarded_and_audited() -> None:
+    runtime = _RecordingRuntime()
+
+    response = LLMResponseSynthesizer(runtime=runtime).synthesize(
+        context=_context(sampling_seed=1234), assembly=_alice_assembly()
+    )
+
+    assert runtime.calls[0]["sampling_seed"] == 1234
+    assert _tag_value(response, "sampling_seed") == "1234"
 
 
 # ---------------------------------------------------------------------------

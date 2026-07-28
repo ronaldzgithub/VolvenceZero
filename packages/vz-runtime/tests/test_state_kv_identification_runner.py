@@ -163,9 +163,11 @@ def test_smoke_cli_writes_verdict_transcript_and_fingerprint(
         # The prefix artifact has no meaning on a lane that never runs arm G.
         ["--lane", "p1", "--prefix-kv-artifact", "prefix.json"],
         ["--lane", "smoke", "--prefix-kv-artifact", "prefix.json"],
-        # Sampling on a frozen lane would let RNG masquerade as a carrier.
+        # Sampling on a frozen lane needs an aligned rollout seed.
         ["--lane", "p3", "--prefix-kv-artifact", "p.json", "--temperature", "0.7"],
         ["--lane", "p2", "--prefix-kv-artifact", "p.json", "--temperature", "0.7"],
+        ["--lane", "p3", "--prefix-kv-artifact", "p.json", "--sampling-seed", "7"],
+        ["--lane", "smoke", "--sampling-seed", "7"],
         # A trace-only fake substrate cannot satisfy the cross-family rule.
         ["--lane", "smoke", "--judge-model-id", "TinyLlama/test"],
     ],

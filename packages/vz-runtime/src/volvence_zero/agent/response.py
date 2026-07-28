@@ -129,8 +129,26 @@ class ResponseContext:
     # both cases -- only the carrier differs, which is what makes the two arms
     # a controlled comparison rather than two different experiments.
     personal_conditioning_carrier: str = "residual"
+    # Evidence-only rollout control for stochastic carrier runs. ``None`` keeps
+    # the production path unchanged. When supplied, the seed is forwarded to the
+    # substrate, included in C5 decode attestation, and emitted as a rationale
+    # tag so matched sampling is auditably aligned across users.
+    sampling_seed: int | None = None
 
     def __post_init__(self) -> None:
+        if self.sampling_seed is not None:
+            if isinstance(self.sampling_seed, bool) or not isinstance(
+                self.sampling_seed, int
+            ):
+                raise ValueError(
+                    "ResponseContext sampling_seed must be an int or None, "
+                    f"got {type(self.sampling_seed).__name__}."
+                )
+            if self.sampling_seed < 0:
+                raise ValueError(
+                    "ResponseContext sampling_seed must be non-negative, "
+                    f"got {self.sampling_seed}."
+                )
         if self.personal_conditioning_carrier not in ("residual", "prefix_kv"):
             raise ValueError(
                 "ResponseContext personal_conditioning_carrier must be "
@@ -568,6 +586,7 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             control_scale=control_scale,
             generation_constraints=constraints,
             personal_conditioning=context.personal_conditioning,
+            sampling_seed=context.sampling_seed,
             # The expression layer consumes text + token_count only. Residual
             # captures are owned by substrate/control paths; retaining every
             # hooked hidden state during long benchmark arcs can crash native
@@ -601,8 +620,11 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
                 constraints=constraints,
                 temperature=self._temperature,
                 max_new_tokens=self._max_new_tokens,
+                sampling_seed=context.sampling_seed,
             )
         )
+        if context.sampling_seed is not None:
+            rationale_parts.append(f"sampling_seed={context.sampling_seed}")
         if assembly is not None and assembly.abstract_action:
             rationale_parts.append(f"temporal={assembly.abstract_action}")
         elif context.abstract_action:

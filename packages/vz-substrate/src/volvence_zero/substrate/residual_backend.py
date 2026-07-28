@@ -989,7 +989,20 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
         personal_conditioning_carrier: str = "residual",
+        sampling_seed: int | None = None,
     ) -> GenerationResult:
+        if sampling_seed is not None:
+            if isinstance(sampling_seed, bool) or not isinstance(
+                sampling_seed, int
+            ):
+                raise ValueError(
+                    "sampling_seed must be an int or None, got "
+                    f"{type(sampling_seed).__name__}."
+                )
+            if sampling_seed < 0:
+                raise ValueError(
+                    f"sampling_seed must be non-negative, got {sampling_seed}."
+                )
         if personal_conditioning_carrier not in ("residual", "prefix_kv"):
             raise ValueError(
                 "unknown personal_conditioning_carrier "
@@ -1111,17 +1124,20 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     if effective_top_p < 0.999:
                         generate_kwargs["top_p"] = effective_top_p
                 if personal_conditioning_carrier == "prefix_kv":
-                    output_ids = self._greedy_generate_with_prefix(
+                    output_ids = self._generate_with_prefix(
                         model_inputs=model_inputs,
                         prefix_pairs=prefix_pairs,
                         max_new_tokens=effective_max_new_tokens,
                         repetition_penalty=effective_repetition_penalty,
                         temperature=effective_temperature,
+                        top_p=effective_top_p,
+                        sampling_seed=sampling_seed,
                     )
                 else:
-                    output_ids = self._model.generate(
-                        **model_inputs, **generate_kwargs
-                    )
+                    with self._temporary_torch_seed(sampling_seed):
+                        output_ids = self._model.generate(
+                            **model_inputs, **generate_kwargs
+                        )
         finally:
             for hook in hooks:
                 hook.remove()
@@ -2031,7 +2047,40 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         assert self._prefix_generator is not None  # guarded in generate()
         return self._prefix_generator.build(conditioning.state_vector)
 
-    def _greedy_generate_with_prefix(
+    @contextlib.contextmanager
+    def _temporary_torch_seed(self, seed: int | None):
+        if seed is None:
+            yield
+            return
+        torch = self._torch
+        cpu_state = torch.random.get_rng_state()
+        cuda_states = None
+        cuda = getattr(torch, "cuda", None)
+        if cuda is not None and cuda.is_available():
+            cuda_states = cuda.get_rng_state_all()
+        mps_state = None
+        mps = getattr(torch, "mps", None)
+        if mps is not None and hasattr(mps, "get_rng_state"):
+            try:
+                mps_state = mps.get_rng_state()
+            except RuntimeError as exc:
+                _LOG.debug("MPS RNG state is not available: %r", exc)
+        torch.manual_seed(int(seed))
+        try:
+            yield
+        finally:
+            torch.random.set_rng_state(cpu_state)
+            if cuda is not None and cuda_states is not None:
+                cuda.set_rng_state_all(cuda_states)
+            if mps is not None and mps_state is not None and hasattr(
+                mps, "set_rng_state"
+            ):
+                try:
+                    mps.set_rng_state(mps_state)
+                except RuntimeError as exc:
+                    _LOG.debug("MPS RNG state could not be restored: %r", exc)
+
+    def _generate_with_prefix(
         self,
         *,
         model_inputs: dict[str, Any],
@@ -2039,8 +2088,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         max_new_tokens: int,
         repetition_penalty: float,
         temperature: float,
+        top_p: float,
+        sampling_seed: int | None,
     ):
-        """Greedy decode over a state-derived key/value prefix.
+        """Decode over a state-derived key/value prefix.
 
         ``model.generate`` cannot be used here. It derives ``cache_position``
         from ``past_key_values.get_seq_length()``, so a pre-filled cache makes
@@ -2059,12 +2110,19 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
         torch = self._torch
         if temperature > 0:
-            # Matching sampling across arms needs per-turn seed alignment that
-            # the identification runner does not implement yet; silently
-            # sampling here would let RNG masquerade as a state carrier.
+            # Evidence runs must close C5 by aligning the RNG source across
+            # the two users for the same arm/probe. Letting prefix-KV sample
+            # without an explicit per-turn seed would let RNG masquerade as a
+            # state carrier.
+            if sampling_seed is None:
+                raise ValueError(
+                    "the prefix-KV carrier requires sampling_seed when "
+                    "temperature > 0."
+                )
+        elif sampling_seed is not None:
             raise ValueError(
-                "the prefix-KV carrier is greedy-only; pass temperature=0 "
-                "until per-turn seed alignment is wired."
+                "sampling_seed has no effect when temperature=0 on the "
+                "prefix-KV carrier; omit it or open stochastic rollout."
             )
         input_ids = model_inputs["input_ids"]
         if int(input_ids.shape[0]) != 1:
@@ -2105,48 +2163,102 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         positions = torch.arange(
             prompt_length, device=input_ids.device
         ).unsqueeze(0)
-        for step in range(max_new_tokens):
-            outputs = self._model(
-                input_ids=step_input,
-                attention_mask=mask,
-                position_ids=positions,
-                past_key_values=cache,
-                use_cache=True,
-            )
-            logits = self._extract_logits(outputs=outputs)[0, -1].to(
-                torch.float32
-            )
-            if penalty and penalty != 1.0:
-                # Same transform as transformers' RepetitionPenaltyLogitsProcessor,
-                # over prompt plus generated tokens.
-                index = torch.tensor(
-                    sorted(set(seen)), device=logits.device, dtype=torch.long
+        with self._temporary_torch_seed(sampling_seed):
+            for step in range(max_new_tokens):
+                outputs = self._model(
+                    input_ids=step_input,
+                    attention_mask=mask,
+                    position_ids=positions,
+                    past_key_values=cache,
+                    use_cache=True,
                 )
-                scored = logits[index]
-                logits[index] = torch.where(
-                    scored < 0, scored * penalty, scored / penalty
+                logits = self._extract_logits(outputs=outputs)[0, -1].to(
+                    torch.float32
                 )
-            next_id = int(logits.argmax())
-            if next_id in stop_ids:
-                break
-            generated.append(next_id)
-            seen.append(next_id)
-            step_input = torch.tensor(
-                [[next_id]], device=input_ids.device, dtype=input_ids.dtype
-            )
-            positions = torch.tensor(
-                [[prompt_length + step]], device=input_ids.device
-            )
-            mask = torch.cat(
-                [mask, torch.ones((1, 1), dtype=mask.dtype, device=mask.device)],
-                dim=-1,
-            )
+                if penalty and penalty != 1.0:
+                    # Same transform as transformers'
+                    # RepetitionPenaltyLogitsProcessor, over prompt plus
+                    # generated tokens.
+                    index = torch.tensor(
+                        sorted(set(seen)), device=logits.device, dtype=torch.long
+                    )
+                    scored = logits[index]
+                    logits[index] = torch.where(
+                        scored < 0, scored * penalty, scored / penalty
+                    )
+                if temperature > 0:
+                    next_id = self._sample_next_token_id(
+                        logits=logits,
+                        temperature=temperature,
+                        top_p=top_p,
+                    )
+                else:
+                    next_id = int(logits.argmax())
+                if next_id in stop_ids:
+                    break
+                generated.append(next_id)
+                seen.append(next_id)
+                step_input = torch.tensor(
+                    [[next_id]], device=input_ids.device, dtype=input_ids.dtype
+                )
+                positions = torch.tensor(
+                    [[prompt_length + step]], device=input_ids.device
+                )
+                mask = torch.cat(
+                    [
+                        mask,
+                        torch.ones((1, 1), dtype=mask.dtype, device=mask.device),
+                    ],
+                    dim=-1,
+                )
         if not generated:
             return input_ids
         tail = torch.tensor(
             [generated], device=input_ids.device, dtype=input_ids.dtype
         )
         return torch.cat([input_ids, tail], dim=-1)
+
+    def _sample_next_token_id(
+        self,
+        *,
+        logits: Any,
+        temperature: float,
+        top_p: float,
+    ) -> int:
+        torch = self._torch
+        scaled = logits / max(float(temperature), 1e-6)
+        if top_p < 0.999:
+            sorted_logits, sorted_indices = torch.sort(scaled, descending=True)
+            sorted_probs = torch.softmax(sorted_logits, dim=-1)
+            cumulative = torch.cumsum(sorted_probs, dim=-1)
+            remove = cumulative > float(top_p)
+            remove[0] = False
+            sorted_logits = sorted_logits.masked_fill(remove, float("-inf"))
+            filtered = torch.full_like(scaled, float("-inf"))
+            filtered.scatter_(0, sorted_indices, sorted_logits)
+            scaled = filtered
+        probs = torch.softmax(scaled, dim=-1)
+        next_token = torch.multinomial(probs, num_samples=1)
+        return int(next_token.item())
+
+    def _greedy_generate_with_prefix(
+        self,
+        *,
+        model_inputs: dict[str, Any],
+        prefix_pairs: list[tuple[Any, Any]] | None,
+        max_new_tokens: int,
+        repetition_penalty: float,
+        temperature: float,
+    ):
+        return self._generate_with_prefix(
+            model_inputs=model_inputs,
+            prefix_pairs=prefix_pairs,
+            max_new_tokens=max_new_tokens,
+            repetition_penalty=repetition_penalty,
+            temperature=temperature,
+            top_p=1.0,
+            sampling_seed=None,
+        )
 
     def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> SubstrateRareHeavyCheckpoint:
         adapter_layers = self._export_adapter_layers()

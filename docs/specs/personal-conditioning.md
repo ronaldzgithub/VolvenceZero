@@ -167,7 +167,9 @@ residual——静默回落会发布一条标着 prefix-KV 而证据来自另一�
 像个能用的载体。因此该臂走自带的贪心循环，把真实 token 钉在位置 `0..n-1`。守门
 测试断言：不给前缀时，该循环与 `model.generate` 的贪心输出**逐字节相同**。这条
 等价性是 arm G 可以和 A / E / B′ 相比的前提，一旦破了，臂间差异就可能来自解码器
-而不是被测载体。该循环只支持 greedy，`temperature > 0` 直接 raise。
+而不是被测载体。默认路径仍用 greedy 复核这条等价性；若打开 `temperature > 0` 的
+stochastic rollout，必须由证据 runner 显式传 per-turn `sampling_seed`，seed 进入
+C5 `decode_fp` 与 rationale tag。未对齐 seed 的 prefix-KV 采样直接 raise。
 
 `personal-conditioning-prefix-kv` capability 与 `personal-conditioning-off` /
 `-text` / `-residual` 互斥，守门测试断言除 `state-kv-arm-g-prefix-pure` 外没有任何

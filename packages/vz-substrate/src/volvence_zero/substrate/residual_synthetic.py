@@ -259,6 +259,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         generation_constraints: "GenerationConstraints | None" = None,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
+        sampling_seed: int | None = None,
     ) -> GenerationResult:
         """Placeholder generation with trace-only conditioning intake.
 
@@ -283,6 +284,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             control_scale,
             generation_constraints,
             capture_residuals,
+            sampling_seed,
         )
         conditioning_note = ""
         if personal_conditioning is not None:
@@ -713,4 +715,3 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for layer, vectors in values.items()
             if vectors
         }
-

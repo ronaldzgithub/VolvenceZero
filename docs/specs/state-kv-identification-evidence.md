@@ -1,6 +1,6 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 上保持可识别；默认 ACTIVE 晋升和 true stochastic generation rollout gate 仍未完成。
+> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke（temperature 0.2，seed 1701，G-prefix 12/12，C5 decode-matched）。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 上保持可识别；默认 ACTIVE 晋升和 P2 held-out true stochastic rollout gate 仍未完成。
 > Last updated: 2026-07-28
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
@@ -126,7 +126,8 @@ claim 状态相同的运行无法区分测的是哪条通道。判据 4 的控�
 |---|---|
 | `prompt_fp=<sha256[:16]>` | 实际送入 substrate 的 system prompt + chat messages 的 canonical 指纹 |
 | `prompt_state_sections=<n>` | 本轮进入 prompt 的状态派生段数量；`suppressed` 下必须为 0 |
-| `decode_fp=<sha256[:16]>` | 解码相关配置（profile / temperature / max tokens / 约束）的指纹 |
+| `decode_fp=<sha256[:16]>` | 解码相关配置（profile / temperature / max tokens / 约束 / sampling seed）的指纹 |
+| `sampling_seed=<int>` | 仅 stochastic rollout 出现；由 base rollout seed + arm + probe 派生，刻意不含 user id |
 
 三个 tag 在**所有** LLM turn 上无条件发出，不只在实验臂——否则「默认臂也没有 prompt 载运」
 这类说法无法被反驳，也无法被证实。
@@ -205,8 +206,10 @@ P1 默认只解析本地 Hugging Face snapshot，缺权重时 fail loudly；只�
 `TransformersOpenWeightResidualRuntime` 实例，runtime 构造时保持基底冻结，
 `temperature=0`，并对两个 persona 使用同一份 `ResponseAssemblySnapshot`。
 因此 P0-smoke 故意保留的 per-user C5 差异不会进入 P1；P1 的 `decode_fp` 应在
-每个 probe 上一致。若需要采样 / 多 seed，必须在后续盲裁判包中显式实现逐 turn
-seed 对齐，当前入口拒绝非零 temperature，避免随机采样冒充模型层载体。
+每个 probe 上一致。非零 temperature 只允许显式传 `--sampling-seed`：runner 按
+`rollout_seed + arm + probe` 派生 per-turn seed，两个用户共享同一 arm/probe 的
+seed，arm/probe 之间不同，且 seed 进入 `decode_fp` 与 `sampling_seed` tag。
+未传 seed 的冻结 lane 继续 fail loudly，避免随机采样冒充模型层载体。
 
 每次运行在 verdict 同目录写三件套：
 
@@ -790,11 +793,47 @@ python scripts/run_state_kv_retention_gate.py \
 | aggregate causality | **pass** | A-pure 32/64，CI **0.375..0.625** 覆盖 chance；G-prefix 清 chance |
 | bootstrap seed stability | **pass** | seeds `20260726 / 20260727 / 20260728 / 1701 / 31337` 下 per-verdict 与 aggregate CI 下界均清 chance |
 
-这关闭的是**聚合与 bootstrap seed 稳定性**，不是随机生成 rollout。Prefix-KV 解码路径仍是
-greedy-only：`temperature > 0` 会 fail loudly，因为 matched sampling 需要按
-arm / probe / user 对齐 RNG seed、cache position 与 decode fingerprint。下一包若要关闭
-true stochastic rollout gate，必须先在 prefix-KV greedy loop 之外新增这条 per-turn
-seed alignment 契约，不能直接打开采样。
+这关闭的是**聚合与 bootstrap seed 稳定性**，不是随机生成 rollout。true stochastic rollout
+需要另跑 seed-aligned verdict，不得用 greedy retention 结果替代。
+
+#### P3 stochastic rollout seed-alignment smoke（2026-07-28）
+
+本包新增 `sampling_seed` 契约：冻结 lane 只要 `temperature > 0` 就必须传
+`--sampling-seed`；runner 按 `rollout_seed + arm + probe` 派生 per-turn seed，并刻意
+不含 `user_id`。该 seed 进入 runtime、`decode_fp`、`sampling_seed` rationale tag、
+`prompt_fp_table` 与 `substrate_fingerprint.json` 的 `identification_material`。
+
+命令（CPU；当前 Python / PyTorch 进程报告 `mps_built=True` 但 `mps_available=False`，
+显式 `--device mps` 在 `.to("mps")` 时被 PyTorch 拒绝，错误为
+`MPS backend is supported on MacOS 14.0+`，因此本条不是 MPS 证据）：
+
+```bash
+python scripts/run_state_kv_identification.py \
+  --lane p3 --device cpu --max-new-tokens 48 \
+  --temperature 0.2 --sampling-seed 1701 \
+  --personal-conditioning-scale 0.12 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
+  --judge-kind embedding --judge-model-id BAAI/bge-m3 \
+  --judge-source /Users/mengfu/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181 \
+  --judge-device cpu \
+  --output artifacts/state_kv/p3-state-strategy-routed-rollout-seed-1701/verdict_identification.json
+```
+
+结果：
+
+| 项 | 结果 |
+|---|---|
+| overall | **`retain-strict`** |
+| `claim_prompt_identity` | **pass**：24 turns across 6 probes，pure prompt identity 成立 |
+| `claim_output_divergence` | **pass**：G-prefix 每个 delivered turn 均注入，且每个 probe 双人输出分叉 |
+| `claim_identification_above_chance` | **pass**：G-prefix 12/12，CI **1.000..1.000**，judge `BAAI/bge-m3` |
+| `claim_carrier_causality` | **pass**：A-pure 6/12，CI **0.250..0.750** 覆盖 chance；G-prefix 清 chance |
+| C5 | **decode-matched**：每个 probe 的双人 `decode_fp` 相同 |
+| seed audit | **pass**：60/60 turns 有 `sampling_seed` tag 与表格字段；唯一 seed 数 30 = 5 arms × 6 probes |
+
+这证明 prefix-KV 自定义解码路径已经具备 stochastic rollout 的 per-turn seed alignment
+契约，并在 P3 原始 persona/probe 集上通过一次真实冻结模型复核。P2 held-out 的
+多 pair stochastic retention 仍需单独跑，不能由本 P3 smoke 外推。
 
 ### P0-smoke 实测结果（2026-07-26）
 

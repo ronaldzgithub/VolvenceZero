@@ -66,11 +66,13 @@ def decode_fingerprint(
     constraints: "GenerationConstraints | None",
     temperature: float,
     max_new_tokens: int,
+    sampling_seed: int | None = None,
 ) -> str:
     """Fingerprint the sampling-layer configuration for this turn.
 
     Covers the snapshot-derived decode surface (``GenerationConstraints``)
-    plus the two synthesizer-level knobs. Control code / control scale are
+    plus synthesizer-level knobs and optional stochastic rollout seed.
+    Control code / control scale are
     deliberately excluded: those are model-layer carriers (C4), not
     sampling configuration, and folding them in here would let a
     latent-carrier difference masquerade as a decode difference.
@@ -79,6 +81,7 @@ def decode_fingerprint(
     payload: dict[str, object] = {
         "temperature": round(float(temperature), 6),
         "max_new_tokens": int(max_new_tokens),
+        "sampling_seed": None if sampling_seed is None else int(sampling_seed),
     }
     if constraints is None:
         payload["constraints"] = None
