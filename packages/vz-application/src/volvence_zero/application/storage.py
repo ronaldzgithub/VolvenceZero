@@ -598,15 +598,9 @@ class ApplicationCaseMemoryStore:
     ) -> tuple[CaseActionAbstractionEvidence, ...]:
         """Publish typed, unpromoted evidence without exposing record parsing."""
 
-        promoted_families = {
-            (
-                promotion.action_family_id,
-                promotion.action_family_version,
-            )
-            for record in self._records.values()
-            for promotion in (record.action_abstraction_promotion,)
-            if promotion is not None
-        }
+        promoted_families = set(
+            self.promoted_action_abstraction_family_versions()
+        )
         evidence_by_outcome: dict[str, CaseActionAbstractionEvidence] = {}
         for record in self._records.values():
             evidence = record.action_abstraction_evidence
@@ -627,6 +621,25 @@ class ApplicationCaseMemoryStore:
         return tuple(
             evidence_by_outcome[outcome_id]
             for outcome_id in sorted(evidence_by_outcome)
+        )
+
+    def promoted_action_abstraction_family_versions(
+        self,
+    ) -> tuple[tuple[str, int], ...]:
+        """Publish promoted family identities so new evidence stays closed."""
+
+        return tuple(
+            sorted(
+                {
+                    (
+                        promotion.action_family_id,
+                        promotion.action_family_version,
+                    )
+                    for record in self._records.values()
+                    for promotion in (record.action_abstraction_promotion,)
+                    if promotion is not None
+                }
+            )
         )
 
     def upsert_records(self, records: Iterable[CaseMemoryRecord]) -> None:

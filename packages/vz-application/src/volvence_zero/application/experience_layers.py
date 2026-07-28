@@ -75,6 +75,9 @@ class ApplicationPriorProposalInputs:
     prior_action_abstraction_evidence: tuple[
         CaseActionAbstractionEvidence, ...
     ] = ()
+    promoted_action_abstraction_family_versions: tuple[
+        tuple[str, int], ...
+    ] = ()
     action_abstraction_decoder: ActionAbstractionDecoder | None = None
 
 
@@ -89,6 +92,9 @@ class ApplicationPriorProposalBuilder:
         retrieval_updates: list[RetrievalReadoutPriorUpdate] = []
         primary_domain = next(iter(inputs.experience_domains), "general_guidance_patterns")
         outcome_label = "improved" if inputs.mean_experience_quality >= 0.6 else "stable"
+        promoted_action_families = set(
+            inputs.promoted_action_abstraction_family_versions
+        )
         current_action_abstraction_experiences = tuple(
             ActionAbstractionExperience(
                 outcome_id=evidence.outcome_id,
@@ -107,6 +113,11 @@ class ApplicationPriorProposalBuilder:
                 and evidence.action_family_id
                 and evidence.action_family_version > 0
                 and evidence.situation_statement.strip()
+                and (
+                    evidence.action_family_id,
+                    evidence.action_family_version,
+                )
+                not in promoted_action_families
             )
         )
         prior_action_abstraction_experiences = tuple(
@@ -122,11 +133,28 @@ class ApplicationPriorProposalBuilder:
                 controller_code_digest=evidence.controller_code_digest,
             )
             for evidence in inputs.prior_action_abstraction_evidence
+            if (
+                evidence.action_family_id,
+                evidence.action_family_version,
+            )
+            not in promoted_action_families
         )
         action_abstraction_experiences = merge_action_abstraction_experiences(
             prior_action_abstraction_experiences,
             current_action_abstraction_experiences,
         )
+        action_abstraction_groups: dict[
+            tuple[str, int],
+            list[ActionAbstractionExperience],
+        ] = {}
+        for experience in action_abstraction_experiences:
+            action_abstraction_groups.setdefault(
+                (
+                    experience.action_family_id,
+                    experience.action_family_version,
+                ),
+                [],
+            ).append(experience)
         for evidence in inputs.experienced_actions:
             action_schema = evidence.action_schema
             intervention_ordering = (
@@ -246,6 +274,11 @@ class ApplicationPriorProposalBuilder:
                                 and evidence.action_family_id
                                 and evidence.action_family_version > 0
                                 and evidence.situation_statement.strip()
+                                and (
+                                    evidence.action_family_id,
+                                    evidence.action_family_version,
+                                )
+                                not in promoted_action_families
                             )
                             else None
                         ),
@@ -258,14 +291,19 @@ class ApplicationPriorProposalBuilder:
                 )
             )
         if inputs.action_abstraction_decoder is not None:
-            candidate = ActionAbstractionOwner().propose(
-                experiences=action_abstraction_experiences,
-                decoder=inputs.action_abstraction_decoder,
-            )
-            if candidate is not None:
+            for family_key in sorted(action_abstraction_groups):
+                family_experiences = tuple(
+                    action_abstraction_groups[family_key]
+                )
+                candidate = ActionAbstractionOwner().propose(
+                    experiences=family_experiences,
+                    decoder=inputs.action_abstraction_decoder,
+                )
+                if candidate is None:
+                    continue
                 source_confidence = min(
                     evidence.confidence
-                    for evidence in action_abstraction_experiences
+                    for evidence in family_experiences
                     if evidence.outcome_id in candidate.source_outcome_ids
                 )
                 confidence = _clamp(

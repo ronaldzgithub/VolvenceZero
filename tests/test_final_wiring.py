@@ -557,6 +557,41 @@ def test_action_abstraction_requires_independent_stable_family_evidence():
     )
     assert provider.call_count == 0
 
+    stable_peer = ExperiencedActionEvidence(
+        outcome_id="outcome-stable-peer",
+        action_id="action-stable-peer",
+        situation_statement=(
+            "At another location, a stranger faces a different immediate "
+            "physical threat."
+        ),
+        action_statement="Step in and clearly tell the aggressor to stop.",
+        outcome_statement="The second threat ended.",
+        evidence=("scene-stable-peer",),
+        confidence=0.88,
+        action_family_id="discovered_family_2",
+        action_family_version=3,
+        controller_code_digest=(0.12, 0.22),
+    )
+    ApplicationPriorProposalBuilder().build(
+        inputs=ApplicationPriorProposalInputs(
+            job_id="job-stable-family-with-unrelated-pending",
+            closed_at_turn=5,
+            regime_id="protective_action",
+            knowledge_domains=(),
+            experience_domains=("moral_dilemma",),
+            case_problem_patterns=(),
+            case_risk_markers=("risk-high",),
+            boundary_trigger_reasons=(),
+            knowledge_weight=0.2,
+            experience_weight=0.8,
+            case_hit_count=0,
+            mean_experience_quality=0.85,
+            experienced_actions=(base, stable_peer, conflicting),
+            action_abstraction_decoder=decoder,
+        )
+    )
+    assert provider.call_count == 1
+
 
 def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
     tmp_path,
@@ -596,8 +631,9 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
     def build_inputs(
         *,
         job_id: str,
-        current: ExperiencedActionEvidence,
+        current: tuple[ExperiencedActionEvidence, ...],
         prior: tuple[CaseActionAbstractionEvidence, ...] = (),
+        promoted: tuple[tuple[str, int], ...] = (),
         decoder: LLMActionAbstractionDecoder,
     ) -> ApplicationPriorProposalInputs:
         return ApplicationPriorProposalInputs(
@@ -613,8 +649,9 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
             experience_weight=0.8,
             case_hit_count=0,
             mean_experience_quality=0.86,
-            experienced_actions=(current,),
+            experienced_actions=current,
             prior_action_abstraction_evidence=prior,
+            promoted_action_abstraction_family_versions=promoted,
             action_abstraction_decoder=decoder,
         )
 
@@ -688,7 +725,7 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
     first_proposal = ApplicationPriorProposalBuilder().build(
         inputs=build_inputs(
             job_id="session-a",
-            current=first_experience,
+            current=(first_experience,),
             decoder=decoder,
         )
     )
@@ -707,7 +744,7 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
     second_proposal = ApplicationPriorProposalBuilder().build(
         inputs=build_inputs(
             job_id="session-b",
-            current=second_experience,
+            current=(second_experience,),
             prior=pending,
             decoder=decoder,
         )
@@ -727,6 +764,25 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
     promoted_store = ApplicationCaseMemoryStore(persistence_backend=backend)
     assert promoted_store.load_from_backend()
     assert promoted_store.pending_action_abstraction_evidence() == ()
+    promoted_families = (
+        promoted_store.promoted_action_abstraction_family_versions()
+    )
+    assert promoted_families == (("discovered_family_2", 3),)
+    post_promotion_proposal = ApplicationPriorProposalBuilder().build(
+        inputs=build_inputs(
+            job_id="session-c",
+            current=(first_experience, second_experience),
+            promoted=promoted_families,
+            decoder=decoder,
+        )
+    )
+    assert post_promotion_proposal is not None
+    assert provider.call_count == 1
+    assert all(
+        update.modification_evidence is None
+        and update.record.action_abstraction_evidence is None
+        for update in post_promotion_proposal.case_memory_updates
+    )
 
 
 def test_action_abstraction_rejects_conflicting_duplicate_outcome():

@@ -769,6 +769,10 @@ class SessionWritebackPhaseMixin:
                     self._case_memory_store
                     .pending_action_abstraction_evidence()
                 ),
+                promoted_action_abstraction_family_versions=(
+                    self._case_memory_store
+                    .promoted_action_abstraction_family_versions()
+                ),
                 action_abstraction_decoder=(
                     self._action_abstraction_decoder
                 ),
