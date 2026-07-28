@@ -271,6 +271,88 @@ Character behavioral-fidelity harness 同样是 evaluation-side 的独立只读�
   `0.450`，差值 `+0.454`。证据源为 `llm_judge`，所以只允许 diagnostic pass，不升级为
   external-validated claim。
 
+### Character behavior widening matrix v1（2026-07-29）
+
+单一正负例通过后，必须先冻结 widening matrix，再修改行为主链。公开只读工件
+`BehaviorFidelityMatrix` 由 character vertical 持有，不新增 runtime slot，也不向
+PE、credit、memory、regime 或 Internal RL 写回。
+
+首个矩阵 `zhang-wuji-action-applicability-v1` 固定为 16 个 oracle-separated held-out
+case，四类各 4 个：
+
+1. `positive`：不同地点、人物和伤害方式下的迫近第三方伤害；
+2. `near_negative`：同意照护、受监督训练、合法安全约束和无暴力争执；
+3. `insufficient_evidence`：不可见事件、已结束事件、语义不明和模糊未来警告；
+4. `competing_behavior`：温和援助、事实调查、关系修复和边界维护。
+
+矩阵 digest 冻结为
+`5cf094b9446cad43bdf0544cdcf9c8d37fcc5cc8fbeb75731886bf71cae9e1b7`。
+通过标准在运行矩阵前固定：正例 promotion 命中至少 `3/4`，其余 12 个 case 的 promotion
+误触发必须为 `0`；每例行为保真不得低于 `0.75`；正例 baked-cold 平均差至少 `+0.20`；
+competing case 必须匹配替代行为族；所有 capture 必须验证 source digest、不提交
+outcome/evaluation feedback。
+
+本收敛包只冻结输入、reference、类别、阈值和 digest，不发布 16-case 系统成绩。
+后续执行发现的失败必须拆为独立 owner 收敛包；禁止修改 reference、删除失败 case 或放宽
+阈值来制造通过。
+
+### Four-arm causal ablation（2026-07-29）
+
+冻结矩阵随后以同一 profile holdout、同一 structured provider 和同一 capture contract
+运行四臂：
+
+- `baked`：ch-11/ch-17 schema holdout，Internal-RL runtime replay ACTIVE；
+- `cold`：没有章节经历或 promotion；
+- `no_rl`：执行相同章节，但 runtime replay 与 segment credit DISABLED；chapter bake
+  proof gate 必须如实失败，不能把该臂记成成功 bake；
+- `shuffled_lineage`：第一章后仅经 CaseMemory checkpoint owner API 改写 pending
+  evidence 的 opaque family ID，使第二章不能与其闭合。
+
+当前只完成 lineage/capture 层结果，未注入 reviewed fidelity score：
+
+| arm | TP / FP / FN / TN | precision | recall | specificity | source/no-feedback |
+|---|---:|---:|---:|---:|---|
+| baked | 4 / 0 / 0 / 12 | 1.000 | 1.000 | 1.000 | pass |
+| cold | 0 / 0 / 4 / 12 | undefined | 0.000 | 1.000 | pass |
+| no-RL | 0 / 0 / 4 / 12 | undefined | 0.000 | 1.000 | pass |
+| shuffled-lineage | 0 / 0 / 4 / 12 | undefined | 0.000 | 1.000 | pass |
+
+`BehaviorFidelityArmReport` 直接发布上述 confusion counts 与
+`promotion_precision / promotion_recall / promotion_specificity`；当一个 arm 没有任何
+promotion 预测时 precision 保持 `None`，不得伪造为 `0` 或 `1`。这些数值只校准 learned
+promotion 的适用性边界，不能替代五维 reviewed behavior score。当前结论因此仍是
+`lineage-causal-diagnostic-pass`，不是 behavior-causal pass。
+
+初始 baseline 曾得到 baked/no-RL=`4/4`，暴露 CaseMemory 只检查 family continuity、
+没有检查学习链闭合的缺口。修复位于正式 producer→evidence→admission 链：Credit owner
+发布结构化 prediction/outcome lineage；Internal-RL owner 按 outcome 发布双轨 settlement、
+credit record 与 optimizer consumption/policy-update 证明；CaseMemory 只接纳
+`ActionLearningLineage.admission_ready` 的 schema-free evidence。evaluation 不读取 arm
+名称参与决策。
+
+修复后 `no_rl_target_promotion_absent=pass`，四臂报告为
+`lineage-causal-diagnostic-pass`：当前可声称 promotion 的形成依赖已消费的 Internal-RL
+lineage。因本包仍没有逐例 reviewed fidelity score，behavior evidence 门继续为
+`insufficient_data`；不得把 lineage 因果通过升级为人物行为因果通过。
+
+### Multi-family owner portfolio（2026-07-29）
+
+单一 protection schema 不能证明人物拥有多面的行为结构。只读
+`BehaviorFamilyPortfolioReport` 要求至少两个 CaseMemory promotion 具有不同 opaque
+family ID、互不重叠的 source outcomes，并各自通过一个 held-out routing case；尚未达到
+两经历门槛的 family 可以保持 pending，但必须与 promoted family 隔离，不能被强行合并。
+
+当前 n_z=4 longitudinal diagnostic 依次 live-through ch-8、ch-9、ch-10、ch-11、
+ch-12、ch-26、ch-30 的 schema-held-out 场景。最终形成两个独立 promotion：
+
+- `intervene-immediately-to-protect-life`：ch-11 / ch-12 的即时护生行动；
+- `withhold-disclosure-until-moral-clarity`：ch-26 / ch-30 的延迟定论与守护披露边界。
+
+两个 held-out case 分别只召回自己的 promotion，`2/2` routing 正确；另有两个单例
+family 保持 pending 且未污染 promotion。状态为
+`multi-family-owner-diagnostic-pass`。这证明 owner separation 与 retrieval routing，
+不等于五维人物行为评分通过，也不升级 external validation。
+
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.7 节
 
 ## 与其他能力域的关系
@@ -287,6 +369,9 @@ Character behavioral-fidelity harness 同样是 evaluation-side 的独立只读�
 
 ## 变更日志
 
+- 2026-07-29: 增加 multi-family owner portfolio：真实纵向章节形成两个不同 family promotion，held-out routing `2/2`，两个单例 family 继续 pending 且隔离；结论限定为 owner-level diagnostic。
+- 2026-07-29: 四臂报告增加 TP/FP/FN/TN 与 promotion precision/recall/specificity；baked 为 `4/0/0/12` 且三项 `1.000`，零预测正例 arm 的 precision 保持 undefined，行为评分门不升级。
+- 2026-07-29: 四臂 lineage admission 修复后 baked/cold/no-RL/shuffled 正例命中为 `4/0/0/0`；lineage 因果门通过，behavior 门因缺 reviewed scores 保持 insufficient data。
 - 2026-07-29: 完成真实双章节晋升后的独立 held-out behavior-fidelity gate：一次性 persistence sandbox、source digest 复核、CaseMemory promotion lineage、profile-answer holdout、无 outcome/evaluation 回灌与 baked/cold 五维 reviewed score 全部闭合；`0.904 vs 0.450`、delta `+0.454`，结论限于 llm-judge diagnostic pass。
 - 2026-07-28: 增加 profile-answer holdout gate。此前 `0.840 vs 0.030` 的响应被发现逐项复用了 `protecting-bystander-from-collateral` 冷启动 case，降级为 action-realization mechanism diagnostic；新 causal test 同时删除该 case 与 strategy prior，并要求 baked source lineage 来自 gated lived-action slow-loop、cold 不具备该 lineage。
 - 2026-07-28: 第十二回 action-realization 收敛后重跑同一只读 matched control：baked `0.840`、cold `0.030`、delta `+0.810`。证据源为 `llm_judge`，只升级为 diagnostic pass；external claim 仍关闭。

@@ -218,8 +218,54 @@ protection schema，转而命中人物原有的陌生人温和援助案例。rev
 且无结果或评估回灌。这证明当前 learned schema 已具备最小的适用/不适用边界；样本仍只有
 一正一负，不能声称广泛校准。
 
+分布扩展的第一步已经冻结为 `zhang-wuji-action-applicability-v1`：16 个全新 held-out
+场景按 positive、near-negative、insufficient-evidence、competing-behavior 四类各 4 个，
+并在运行前固定 promotion 命中/误触发、行为保真、baked-cold 差值、source digest 与
+no-feedback 门。矩阵内容及 reference 与 ledger/profile 精确文本隔离，digest 为
+`5cf094b9446cad43bdf0544cdcf9c8d37fcc5cc8fbeb75731886bf71cae9e1b7`。
+
+四臂 lineage 收敛已运行完毕：baked 为 `4/4` 正例命中、`0/12` 非正例误触发；
+cold、no-RL 和 shuffled-lineage 均为 `0/4`，所有 arm 的 source digest/no-feedback 门
+通过。初始 no-RL=`4/4` 的失败已由正式学习链修复：Credit owner 发布结构化
+prediction/outcome credit lineage，Internal-RL owner 绑定双轨 settlement 与 optimizer
+consumption，CaseMemory 只聚合 admission-ready 的 `ActionLearningLineage`。旧 checkpoint
+缺字段时可加载，但 fail closed，不参与 promotion。
+
+因此当前可以声称 learned promotion 依赖稳定 family continuity 与实际消费的 Internal-RL
+lineage，四臂状态为 `lineage-causal-diagnostic-pass`。reviewed behavior score 尚未提供，
+人物行为因果门仍是 `insufficient_data`；不得表述为 16-case behavior widening 已通过。
+
+16-case capture 现已进一步固化为可审计 confusion matrix：baked 为
+`TP/FP/FN/TN=4/0/0/12`，promotion precision、recall、specificity 均为 `1.000`；
+cold、no-RL、shuffled-lineage 均为 `0/0/4/12`，recall `0.000`、specificity `1.000`，
+且因没有预测正例，precision 明确保留为 undefined。该结果收敛的是 action abstraction
+的适用性 calibration，不是张无忌行为本身的五维 reviewed fidelity；后者仍需独立、
+candidate-digest-bound 的 assessor 证据。
+
+多行为族纵向包进一步使用 n_z=4、跨 session owner hydration，按时间顺序 live-through
+ch-8/ch-9/ch-10/ch-11/ch-12/ch-26/ch-30 的 schema-held-out 场景。它修复了双轨
+family 分歧时把 aggregate `world:<id>|self:<id>` 当作 executed family 的绑定错误：
+outcome lineage 与 ResponseAssembly 现在都以 RetrievalPolicy owner 实际选中的单轨
+`abstract_action` 为准。
+
+CaseMemory 最终分别晋升：
+
+- ch-11 + ch-12 → `intervene-immediately-to-protect-life`；
+- ch-26 + ch-30 → `withhold-disclosure-until-moral-clarity`。
+
+两者 opaque family ID 不同、source outcomes 不交叠；保护生命与延迟披露两个 held-out
+场景各自只召回对应 promotion，routing 为 `2/2`。ch-9/ch-10 所在的两个单例 family
+继续 pending，未被凑数晋升。报告为 `multi-family-owner-diagnostic-pass`。该结论证明
+张无忌的 bake 没有被单一 protection schema 垄断，但仍不是 external reviewed
+五维行为保真结论。
+
 ## 变更日志
 
+- 2026-07-29: 完成真实章节 multi-family owner portfolio：修复双轨 aggregate action 误绑定，两个独立 family promotion 的 held-out routing 为 `2/2`，未闭合 family 保持 pending。
+- 2026-07-29: 为四臂 16-case 报告增加 TP/FP/FN/TN 与 promotion precision/recall/specificity；baked 为 `4/0/0/12` 且三项 `1.000`，无预测正例 arm 的 precision 保持 undefined，reviewed behavior 门不升级。
+- 2026-07-29: 为 action abstraction admission 接通 typed Credit→Internal-RL→CaseMemory lineage；四臂修复后 baked/cold/no-RL/shuffled 正例 promotion 命中为 `4/0/0/0`，lineage 因果门通过，reviewed behavior 门保持 insufficient data。
+- 2026-07-29: 初始 16-case 四臂 baseline 为 `4/0/4/0`，冻结了 no-RL 仍可 promotion 的 producer lineage 缺口，作为本次 admission 修复的回归证据。
+- 2026-07-29: 冻结首个 16-case behavior widening matrix：四类场景各 4 个，固定 promotion precision、行为保真、matched-control、source digest 与 no-feedback 门；本包不改运行时、不发布矩阵成绩。
 - 2026-07-29: 完成 promotion 正负适用性收敛：typed applicability conditions 随 CaseMemory checkpoint 持久化，turn-time structured gate 对缺失/低置信判定 fail closed；同源未知渡口正例命中、同意照护负例拒绝 promotion，reviewed diagnostic 分别为 `0.904` 与 `0.918`。
 - 2026-07-29: 完成真实双章节 promotion 的独立未知场景行为保真收敛：源 checkpoint 克隆到 disposable sandbox，capture v2 记录 promotion lineage；profile-held-out baked `0.904`、cold `0.450`、delta `+0.454`，无章节实体/outcome 泄漏和评估回灌，结论限于 llm-judge 单场景 diagnostic pass。
 - 2026-07-29: 完成 ch-11/ch-17 真实双章节 schema-holdout 收敛：自然同族、跨 session typed evidence 恢复、单次 structured decode、BACKGROUND gate 晋升均通过；结论限定为真实多经历抽象进入 owner，未升级为未见行为保真。

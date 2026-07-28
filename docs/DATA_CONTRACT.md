@@ -774,6 +774,41 @@ applicability_conditions`。旧 checkpoint 可恢复为空 conditions，但 lear
 Memory 语境、schema id、typed conditions 与 record risk markers；它不拥有行动、不产生
 学习信号，且禁止读取 intervention ordering、outcome、PE、credit 或 evaluation。
 
+`BehaviorFidelityMatrix` 是 character vertical 发布的 evaluation-only 不可变工件，不是
+runtime snapshot。v1 shape 为：
+
+- suite metadata：`schema_version / suite_id / character_id / target_schema_id /
+  source_chapter_ids / reviewed_by / description`；
+- frozen thresholds：四类 required counts、正例最小 promotion hits、非正例最大误触发、
+  每例最低 fidelity、正例平均 baked-cold delta，以及 source-digest/no-feedback/
+  competing-family 三个强制门；
+- matrix case：`kind / promotion_expectation / expected_behavior_family`，以及相互 digest
+  隔离的 `BehaviorFidelityStimulus / BehaviorFidelityReference` 和 reviewed rationale。
+
+该工件只冻结评估分布和 acceptance，不选择 runtime action、不发布 reward，也不回灌
+PE、credit、memory、regime 或 Internal RL。loader 对多余字段、错误类型、类别计数、
+stimulus/reference binding 和 promotion semantic role mismatch 均 fail loudly。
+
+`BehaviorFidelityArmReport` 是同一 evaluation-only 链的派生工件，按 frozen matrix 的
+`PromotionExpectation` 与 capture 中已发生的 `target_promotion_used` 发布
+`TP / FP / FN / TN`，以及 promotion precision、recall、specificity。无预测正例时
+precision 必须为 `None`；consumer 不得把 undefined precision 改写为通过，也不得把这些
+applicability 指标解释成 behavior-fidelity score 或学习信号。
+
+`BehaviorFidelityCaseObservation / BehaviorFidelityArmReport /
+BehaviorFidelityCausalAblationReport` 是同一 evaluation-only 域的只读工件，不新增 slot。
+每个 observation 必须绑定 matrix digest、arm、case id/kind/promotion expectation、
+CaseMemory 已发布的 grounding lineage、source digest/no-feedback 证明；reviewed fidelity
+与 competing-family match 可暂缺，但缺失时对应 gate 必须显式为 `insufficient_data`。
+四臂 coverage 必须精确覆盖 `baked / cold / no_rl / shuffled_lineage × 全部 matrix cases`，
+重复、缺失、额外 case 或 digest/semantic binding 错配均 fail loudly。
+
+因果报告分别发布 `lineage_causal_supported` 与 `behavior_causal_supported`，禁止用前者
+替代后者。初始 v1 baseline 的 no-RL arm 形成 target promotion，冻结了 producer
+lineage 缺口；正式链修复后 baked/cold/no-RL/shuffled 正例命中为 `4/0/0/0`，
+`no_rl_target_promotion_absent=pass`，整体为 `lineage-causal-diagnostic-pass`。
+reviewed fidelity 缺失时 `behavior_causal_supported` 仍为 false/`insufficient_data`。
+
 详见 `docs/specs/domain-experience-layer.md`。
 
 ### 2.15 Figure Artifact Bundle（真实人物 vertical 不可变 artifact）

@@ -28,6 +28,7 @@ include = ["lifeform_domain_character*"]
 
 [tool.setuptools.package-data]
 "lifeform_domain_character" = [
+    "evaluation/*.json",
     "scenarios/*.json",
     "prompts/*.md",
     "schemas/*.json",
