@@ -1,7 +1,8 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
 > Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已通过 P3/P4、P2 held-out、generation seeds 1701/1702/1703 聚合（G-prefix 192/192，A-pure 96/192 且 CI 覆盖随机）、`BAAI/bge-m3` + `moka-ai/m3e-base` 双裁判 court（floor 0.703）以及 substrate→`z_t`/`beta_t` 物理因果门。`state-kv-deployment-gate.v1` 随后在冻结 Qwen CPU 上通过：cold-start、零置信度、SHADOW、revoked 与 rollback 均逐字节回到 baseline；正确/错用户状态均实际注入并分叉，A→B→A 重放稳定且用户 cache scope 隔离。显式 `state-kv-active-v1` profile 因而可用并硬绑定该 artifact；仓库默认 `pe-eta` 仍保持 `personal_conditioning=SHADOW`，没有全局静默切换。
-> Last updated: 2026-07-28
+> Cost status: `state-kv-cost-gate.v1` 在同一冻结 Qwen CPU 上通过。Prefix-KV 在 24/24 个 matched turn 上严格节省 attention slots，平均节省 51.0%；中位生成延迟为 469.9ms/token，文本载体为 1672.2ms/token。
+> Last updated: 2026-07-29
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
 > [`continuum-memory.md`](./continuum-memory.md)（`mb.*` 行为证据阶梯）、
@@ -1104,6 +1105,28 @@ python scripts/run_state_kv_deployment_gate.py \
 通过只授权显式 `state-kv-active-v1`，不改变默认 profile。原子回滚是把
 `personal_conditioning` 调回 `SHADOW` / `DISABLED` 或省略部署 profile；无需迁移
 owner snapshot、用户数据或基础模型权重。
+
+#### Prefix-KV cost / latency gate（2026-07-29）
+
+`state-kv-cost-gate.v1` 用 production `LLMResponseSynthesizer` 在同一冻结
+Qwen2.5-0.5B CPU 上比较 `state-kv-arm-g-prefix-pure` 与同信息量文本载体
+`state-kv-arm-bprime`。透明 proxy 只计量实际发送的 chat payload 和真实 `generate`
+调用；Prompt token 使用同一 tokenizer/chat template 计数，Prefix-KV 的 4 个 K/V slot
+也计入 attention 成本。latency 以每生成 token 的 wall-clock 归一化，避免不同 EOS 长度
+把行为差异误计为 carrier 成本；trace-only substrate 不能得到 latency pass。
+
+2 personas × 6 probes × 2 repeats 共 24 个 matched turn：
+
+| claim | 结果 |
+|---|---|
+| conditioning payload | **pass**：Prefix-KV 24/24 严格更小；中位 220 prompt tokens + 4 slots，对照文本载体 457 tokens，平均 attention-slot 节省 51.0% |
+| latency | **pass**：Prefix-KV 中位 469.9ms/token；文本载体 1672.2ms/token；候选低于 `baseline × 1.10` 预算 |
+| substrate | **frozen-weights**：`Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33` |
+| overall | **`pass`** |
+
+artifact：
+`artifacts/state_kv/cost-gate/verdict_cost_gate.json`。该结果关闭 P3 的“相对同信息量文本
+状态成本占优”子命题，不改变默认 SHADOW wiring，也不替代质量、隔离、撤销和行为 court。
 
 ### P0-smoke 实测结果（2026-07-26）
 
