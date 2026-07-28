@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from volvence_zero.application.runtime import (
+    ApplicationModificationEvidence,
     ApplicationPriorUpdate,
     BoundaryPolicyPriorUpdate,
     BoundaryPriorHint,
@@ -17,11 +18,22 @@ from volvence_zero.application.runtime import (
     RetrievalReadoutPriorUpdate,
     StrategyPlaybookPriorUpdate,
 )
+from volvence_zero.application.action_abstraction import (
+    ActionAbstractionDecoder,
+    ActionAbstractionExperience,
+    ActionAbstractionOwner,
+    merge_action_abstraction_experiences,
+)
 from volvence_zero.application.retrieval_readout import (
     RetrievalControlReadoutParameters,
     RetrievalReadoutCheckpoint,
 )
-from volvence_zero.application.storage import CaseMemoryRecord, DomainKnowledgeRecord
+from volvence_zero.application.storage import (
+    CaseActionAbstractionEvidence,
+    CaseActionAbstractionPromotion,
+    CaseMemoryRecord,
+    DomainKnowledgeRecord,
+)
 
 
 def _clamp(value: float) -> float:
@@ -60,6 +72,10 @@ class ApplicationPriorProposalInputs:
     retrieval_mean_action_alignment: float = 0.0
     retrieval_mean_sequence_payoff: float = 0.0
     experienced_actions: tuple[ExperiencedActionEvidence, ...] = ()
+    prior_action_abstraction_evidence: tuple[
+        CaseActionAbstractionEvidence, ...
+    ] = ()
+    action_abstraction_decoder: ActionAbstractionDecoder | None = None
 
 
 class ApplicationPriorProposalBuilder:
@@ -73,6 +89,44 @@ class ApplicationPriorProposalBuilder:
         retrieval_updates: list[RetrievalReadoutPriorUpdate] = []
         primary_domain = next(iter(inputs.experience_domains), "general_guidance_patterns")
         outcome_label = "improved" if inputs.mean_experience_quality >= 0.6 else "stable"
+        current_action_abstraction_experiences = tuple(
+            ActionAbstractionExperience(
+                outcome_id=evidence.outcome_id,
+                action_id=evidence.action_id,
+                action_family_id=evidence.action_family_id,
+                action_family_version=evidence.action_family_version,
+                situation_statement=evidence.situation_statement,
+                action_statement=evidence.action_statement,
+                evidence=evidence.evidence,
+                confidence=evidence.confidence,
+                controller_code_digest=evidence.controller_code_digest,
+            )
+            for evidence in inputs.experienced_actions
+            if (
+                evidence.action_schema is None
+                and evidence.action_family_id
+                and evidence.action_family_version > 0
+                and evidence.situation_statement.strip()
+            )
+        )
+        prior_action_abstraction_experiences = tuple(
+            ActionAbstractionExperience(
+                outcome_id=evidence.outcome_id,
+                action_id=evidence.action_id,
+                action_family_id=evidence.action_family_id,
+                action_family_version=evidence.action_family_version,
+                situation_statement=evidence.situation_statement,
+                action_statement=evidence.action_statement,
+                evidence=evidence.evidence,
+                confidence=evidence.confidence,
+                controller_code_digest=evidence.controller_code_digest,
+            )
+            for evidence in inputs.prior_action_abstraction_evidence
+        )
+        action_abstraction_experiences = merge_action_abstraction_experiences(
+            prior_action_abstraction_experiences,
+            current_action_abstraction_experiences,
+        )
         for evidence in inputs.experienced_actions:
             action_schema = evidence.action_schema
             intervention_ordering = (
@@ -169,6 +223,32 @@ class ApplicationPriorProposalBuilder:
                             if evidence.action_family_id
                             else ""
                         ),
+                        action_abstraction_evidence=(
+                            CaseActionAbstractionEvidence(
+                                outcome_id=evidence.outcome_id,
+                                action_id=evidence.action_id,
+                                action_family_id=evidence.action_family_id,
+                                action_family_version=(
+                                    evidence.action_family_version
+                                ),
+                                situation_statement=(
+                                    evidence.situation_statement
+                                ),
+                                action_statement=evidence.action_statement,
+                                evidence=evidence.evidence,
+                                confidence=evidence.confidence,
+                                controller_code_digest=(
+                                    evidence.controller_code_digest
+                                ),
+                            )
+                            if (
+                                evidence.action_schema is None
+                                and evidence.action_family_id
+                                and evidence.action_family_version > 0
+                                and evidence.situation_statement.strip()
+                            )
+                            else None
+                        ),
                     ),
                     confidence=confidence,
                     description=(
@@ -177,6 +257,123 @@ class ApplicationPriorProposalBuilder:
                     ),
                 )
             )
+        if inputs.action_abstraction_decoder is not None:
+            candidate = ActionAbstractionOwner().propose(
+                experiences=action_abstraction_experiences,
+                decoder=inputs.action_abstraction_decoder,
+            )
+            if candidate is not None:
+                source_confidence = min(
+                    evidence.confidence
+                    for evidence in action_abstraction_experiences
+                    if evidence.outcome_id in candidate.source_outcome_ids
+                )
+                confidence = _clamp(
+                    candidate.confidence * 0.7
+                    + source_confidence * 0.3
+                )
+                target = (
+                    "application.case_memory.records.action-abstraction."
+                    f"{candidate.action_family_id}."
+                    f"{candidate.action_family_version}"
+                )
+                case_updates.append(
+                    CaseMemoryPriorUpdate(
+                        update_id=(
+                            f"{inputs.job_id}:action-abstraction:"
+                            f"{candidate.schema_id}"
+                        ),
+                        target=target,
+                        record=CaseMemoryRecord(
+                            case_id=(
+                                "case:slow-loop:action-abstraction:"
+                                f"{candidate.action_family_id}:"
+                                f"{candidate.action_family_version}"
+                            ),
+                            domain=primary_domain,
+                            problem_pattern=" ".join(
+                                (
+                                    "learned-action-schema:"
+                                    f"{candidate.schema_id}",
+                                    *candidate.applicability_conditions,
+                                )
+                            ),
+                            user_state_pattern=(
+                                "background-slow:gated-action-abstraction"
+                            ),
+                            risk_markers=inputs.case_risk_markers,
+                            track_tags=("world", "self"),
+                            regime_tags=(
+                                (inputs.regime_id,)
+                                if inputs.regime_id is not None
+                                else ()
+                            ),
+                            intervention_ordering=candidate.action_steps,
+                            outcome_label=outcome_label,
+                            delayed_signal_count=len(
+                                candidate.source_outcome_ids
+                            ),
+                            escalation_observed=False,
+                            repair_observed=False,
+                            confidence=confidence,
+                            relevance_score=confidence,
+                            description=(
+                                "Background-slow learned action abstraction "
+                                f"for family={candidate.action_family_id} "
+                                f"version={candidate.action_family_version}; "
+                                "source_outcome_ids="
+                                f"{candidate.source_outcome_ids}. "
+                                f"{candidate.description}"
+                            ),
+                            action_abstraction_promotion=(
+                                CaseActionAbstractionPromotion(
+                                    schema_id=candidate.schema_id,
+                                    action_family_id=(
+                                        candidate.action_family_id
+                                    ),
+                                    action_family_version=(
+                                        candidate.action_family_version
+                                    ),
+                                    source_outcome_ids=(
+                                        candidate.source_outcome_ids
+                                    ),
+                                )
+                            ),
+                        ),
+                        confidence=confidence,
+                        description=(
+                            "Promote a multi-experience latent-family "
+                            "semantic abstraction into CaseMemory."
+                        ),
+                        modification_evidence=(
+                            ApplicationModificationEvidence(
+                                validation_delta=max(
+                                    0.0,
+                                    min(
+                                        candidate.confidence,
+                                        source_confidence,
+                                    )
+                                    - 0.70,
+                                ),
+                                capacity_cost=min(
+                                    0.40,
+                                    0.02
+                                    * (
+                                        len(
+                                            candidate.applicability_conditions
+                                        )
+                                        + len(candidate.action_steps)
+                                    ),
+                                ),
+                                rollback_evidence=(
+                                    "Remove CaseMemory target "
+                                    f"{target} and restore the prior "
+                                    "application case-memory checkpoint."
+                                ),
+                            )
+                        ),
+                    )
+                )
         for pattern in inputs.case_problem_patterns:
             ordering = self._application_ordering_for_pattern(problem_pattern=pattern, regime_id=inputs.regime_id)
             case_updates.append(

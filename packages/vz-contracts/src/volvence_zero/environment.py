@@ -177,6 +177,7 @@ class EnvironmentOutcome:
     environment_state_delta_kind: str = "none"
     measurement: EnvironmentMeasurement | None = None
     action_schema: EnvironmentActionSchema | None = None
+    situation_summary: str = ""
 
     def __post_init__(self) -> None:
         _require_non_empty("outcome_id", self.outcome_id)
@@ -197,6 +198,10 @@ class EnvironmentOutcome:
             ("reversible", "costly", "irreversible"),
         )
         _require_non_empty("environment_state_delta_kind", self.environment_state_delta_kind)
+        if self.situation_summary and not self.situation_summary.strip():
+            raise ValueError(
+                "EnvironmentOutcome situation_summary cannot be whitespace-only."
+            )
 
 
 def build_primary_environment_frame(

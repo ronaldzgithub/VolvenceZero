@@ -157,10 +157,14 @@ def test_environment_outcome_is_traceable_and_bounded() -> None:
         confidence=0.9,
         prediction_id="prediction-1",
         evidence=("tool result event",),
+        situation_summary="A tool result was required for the active plan.",
     )
 
     assert outcome.event_id == "evt-1"
     assert outcome.prediction_id == "prediction-1"
+    assert outcome.situation_summary == (
+        "A tool result was required for the active plan."
+    )
 
     with pytest.raises(ValueError, match="confidence"):
         EnvironmentOutcome(
@@ -172,6 +176,18 @@ def test_environment_outcome_is_traceable_and_bounded() -> None:
             summary="tool completed",
             detail="detail",
             confidence=1.5,
+        )
+
+    with pytest.raises(ValueError, match="situation_summary"):
+        EnvironmentOutcome(
+            outcome_id="out-whitespace-situation",
+            event_id="evt-1",
+            outcome_kind=EnvironmentEventKind.SCENE_EVENT,
+            action_id="action-1",
+            status="observed",
+            summary="acted",
+            detail="detail",
+            situation_summary=" ",
         )
 
 

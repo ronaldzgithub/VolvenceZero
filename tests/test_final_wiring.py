@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
+
+import pytest
 
 from volvence_zero.application import (
+    LLMActionAbstractionDecoder,
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
     ApplicationPriorUpdate,
@@ -10,6 +14,7 @@ from volvence_zero.application import (
     ApplicationRareHeavyState,
     BoundaryDecision,
     BoundaryPolicySnapshot,
+    CaseActionAbstractionEvidence,
     CaseMemoryPriorUpdate,
     CaseMemorySnapshot,
     CaseMemoryRecord,
@@ -36,6 +41,7 @@ from volvence_zero.application import (
     RetrievalReadoutPriorUpdate,
     RiskBand,
     StrategyPlaybookPriorUpdate,
+    build_filesystem_persistence_backend,
 )
 from volvence_zero.application.experience_layers import (
     ApplicationPriorProposalBuilder,
@@ -54,6 +60,7 @@ from volvence_zero.application.runtime import _response_ordering_plan
 from volvence_zero.audit import AuditSnapshot
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.evaluation import EvaluationScore
+from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.environment import EnvironmentActionSchema
 from volvence_zero.integration import _apply_application_prior_writeback, FinalRolloutConfig, run_final_wiring_turn
 from volvence_zero.joint_loop import ScheduledJointLoopResult
@@ -288,6 +295,501 @@ def test_schema_free_lived_action_is_family_linked_but_not_renderable():
     )
     assert update.record.intervention_ordering == ()
     assert "schema-pending" in update.record.user_state_pattern
+
+
+def test_multi_experience_action_abstraction_passes_real_background_gate():
+    class RecordingProvider:
+        def __init__(self) -> None:
+            self.prompts: list[str] = []
+
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 384,
+            temperature: float = 0.0,
+        ) -> str:
+            del max_new_tokens, temperature
+            self.prompts.append(prompt)
+            return json.dumps(
+                {
+                    "schema_id": "protect-unknown-third-party",
+                    "action_family_id": "discovered_family_2",
+                    "action_family_version": 3,
+                    "applicability_conditions": [
+                        "an uninvolved person faces imminent physical harm",
+                        "the threatening actor's identity remains uncertain",
+                    ],
+                    "action_steps": [
+                        "intervene immediately to stop the imminent harm",
+                        "issue a clear verbal interruption",
+                    ],
+                    "source_outcome_ids": ["outcome-a", "outcome-b"],
+                    "confidence": 0.91,
+                    "description": (
+                        "Cross-episode semantic compression of a stable "
+                        "latent action family."
+                    ),
+                }
+            )
+
+    provider = RecordingProvider()
+    decoder = LLMActionAbstractionDecoder(provider=provider)
+    experiences = (
+        ExperiencedActionEvidence(
+            outcome_id="outcome-a",
+            action_id="action-a",
+            situation_statement=(
+                "At a clinic doorway, an unidentified person is holding "
+                "an injured visitor while another blow is imminent."
+            ),
+            action_statement=(
+                "Step between them and call firmly for the aggressor to stop."
+            ),
+            outcome_statement="The injured visitor was released.",
+            evidence=("scene-a",),
+            confidence=0.9,
+            action_family_id="discovered_family_2",
+            action_family_version=3,
+            controller_code_digest=(0.1, 0.2, 0.3),
+        ),
+        ExperiencedActionEvidence(
+            outcome_id="outcome-b",
+            action_id="action-b",
+            situation_statement=(
+                "Beside a remote shelter, a masked stranger is restraining "
+                "a traveler and immediate injury is likely."
+            ),
+            action_statement=(
+                "Move in at once to interrupt the restraint and speak a "
+                "direct command to stop."
+            ),
+            outcome_statement="The traveler moved out of immediate danger.",
+            evidence=("scene-b",),
+            confidence=0.88,
+            action_family_id="discovered_family_2",
+            action_family_version=3,
+            controller_code_digest=(0.12, 0.18, 0.31),
+        ),
+    )
+    proposal = ApplicationPriorProposalBuilder().build(
+        inputs=ApplicationPriorProposalInputs(
+            job_id="job-action-abstraction",
+            closed_at_turn=8,
+            regime_id="protective_action",
+            knowledge_domains=(),
+            experience_domains=("moral_dilemma",),
+            case_problem_patterns=(),
+            case_risk_markers=("risk-high",),
+            boundary_trigger_reasons=(),
+            knowledge_weight=0.2,
+            experience_weight=0.8,
+            case_hit_count=0,
+            mean_experience_quality=0.86,
+            experienced_actions=experiences,
+            action_abstraction_decoder=decoder,
+        )
+    )
+
+    assert proposal is not None
+    learned_update = next(
+        update
+        for update in proposal.case_memory_updates
+        if update.modification_evidence is not None
+    )
+    assert learned_update.record.intervention_ordering == (
+        "intervene immediately to stop the imminent harm",
+        "issue a clear verbal interruption",
+    )
+    assert provider.prompts
+    assert all(
+        experience.outcome_statement not in provider.prompts[0]
+        for experience in experiences
+    )
+
+    clean_evaluation = EvaluationSnapshot(
+        turn_scores=(),
+        session_scores=(),
+        alerts=(),
+        description="Clean structural gate evidence.",
+    )
+    case_store = ApplicationCaseMemoryStore()
+    applied, blocked, audits, report = _apply_application_prior_writeback(
+        prior_update=ApplicationPriorUpdate(
+            source_session_post_job_id=proposal.source_session_post_job_id,
+            case_memory_updates=(learned_update,),
+            description="Isolated learned action abstraction promotion.",
+        ),
+        domain_knowledge_store=ApplicationDomainKnowledgeStore(),
+        case_memory_store=case_store,
+        application_rare_heavy_state=ApplicationRareHeavyState(),
+        credit_snapshot=None,
+        evaluation_snapshot=clean_evaluation,
+        timestamp_ms=9,
+        checkpoint_id="action-abstraction-checkpoint",
+        apply_enabled=True,
+        blocked_reason="allow",
+    )
+
+    assert applied
+    assert not blocked
+    assert report is not None
+    assert report.applied_targets == (learned_update.target,)
+    assert audits[-1].gate is ModificationGate.BACKGROUND
+    assert audits[-1].decision is GateDecision.ALLOW
+    assert case_store.records == (learned_update.record,)
+
+    blocked_store = ApplicationCaseMemoryStore()
+    _, missing_eval_blocks, missing_eval_audits, _ = (
+        _apply_application_prior_writeback(
+            prior_update=ApplicationPriorUpdate(
+                source_session_post_job_id=(
+                    proposal.source_session_post_job_id
+                ),
+                case_memory_updates=(learned_update,),
+                description="Missing-evaluation fail-closed probe.",
+            ),
+            domain_knowledge_store=ApplicationDomainKnowledgeStore(),
+            case_memory_store=blocked_store,
+            application_rare_heavy_state=ApplicationRareHeavyState(),
+            credit_snapshot=None,
+            evaluation_snapshot=None,
+            timestamp_ms=10,
+            checkpoint_id="missing-evaluation-checkpoint",
+            apply_enabled=True,
+            blocked_reason="allow",
+        )
+    )
+    assert missing_eval_blocks
+    assert missing_eval_audits[-1].decision is GateDecision.BLOCK
+    assert blocked_store.records == ()
+
+
+def test_action_abstraction_requires_independent_stable_family_evidence():
+    class CountingProvider:
+        def __init__(self) -> None:
+            self.call_count = 0
+
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 384,
+            temperature: float = 0.0,
+        ) -> str:
+            del prompt, max_new_tokens, temperature
+            self.call_count += 1
+            return "{}"
+
+    provider = CountingProvider()
+    decoder = LLMActionAbstractionDecoder(provider=provider)
+    base = ExperiencedActionEvidence(
+        outcome_id="outcome-single",
+        action_id="action-single",
+        situation_statement="One person faces an immediate threat.",
+        action_statement="Intervene and ask the threatening person to stop.",
+        outcome_statement="The threat ended.",
+        evidence=("scene-single",),
+        confidence=0.9,
+        action_family_id="discovered_family_2",
+        action_family_version=3,
+        controller_code_digest=(0.1, 0.2),
+    )
+
+    single_proposal = ApplicationPriorProposalBuilder().build(
+        inputs=ApplicationPriorProposalInputs(
+            job_id="job-single-evidence",
+            closed_at_turn=3,
+            regime_id="protective_action",
+            knowledge_domains=(),
+            experience_domains=("moral_dilemma",),
+            case_problem_patterns=(),
+            case_risk_markers=("risk-high",),
+            boundary_trigger_reasons=(),
+            knowledge_weight=0.2,
+            experience_weight=0.8,
+            case_hit_count=0,
+            mean_experience_quality=0.85,
+            experienced_actions=(base,),
+            action_abstraction_decoder=decoder,
+        )
+    )
+    assert single_proposal is not None
+    assert all(
+        update.modification_evidence is None
+        for update in single_proposal.case_memory_updates
+    )
+
+    conflicting = ExperiencedActionEvidence(
+        outcome_id="outcome-conflict",
+        action_id="action-conflict",
+        situation_statement="A different situation requires a different act.",
+        action_statement="Pause and gather more information.",
+        outcome_statement="More information became available.",
+        evidence=("scene-conflict",),
+        confidence=0.9,
+        action_family_id="discovered_family_7",
+        action_family_version=3,
+        controller_code_digest=(0.7, 0.8),
+    )
+    conflicting_proposal = ApplicationPriorProposalBuilder().build(
+        inputs=ApplicationPriorProposalInputs(
+            job_id="job-conflicting-family",
+            closed_at_turn=4,
+            regime_id="protective_action",
+            knowledge_domains=(),
+            experience_domains=("moral_dilemma",),
+            case_problem_patterns=(),
+            case_risk_markers=("risk-high",),
+            boundary_trigger_reasons=(),
+            knowledge_weight=0.2,
+            experience_weight=0.8,
+            case_hit_count=0,
+            mean_experience_quality=0.85,
+            experienced_actions=(base, conflicting),
+            action_abstraction_decoder=decoder,
+        )
+    )
+    assert conflicting_proposal is not None
+    assert all(
+        update.modification_evidence is None
+        for update in conflicting_proposal.case_memory_updates
+    )
+    assert provider.call_count == 0
+
+
+def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
+    tmp_path,
+):
+    class RecordingProvider:
+        def __init__(self) -> None:
+            self.call_count = 0
+
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 384,
+            temperature: float = 0.0,
+        ) -> str:
+            del prompt, max_new_tokens, temperature
+            self.call_count += 1
+            return json.dumps(
+                {
+                    "schema_id": "protect-unknown-third-party",
+                    "action_family_id": "discovered_family_2",
+                    "action_family_version": 3,
+                    "applicability_conditions": [
+                        "an uninvolved person faces imminent physical harm",
+                        "the threatening actor's identity remains uncertain",
+                    ],
+                    "action_steps": [
+                        "intervene immediately to stop the imminent harm",
+                        "issue a clear verbal interruption",
+                    ],
+                    "source_outcome_ids": ["outcome-a", "outcome-b"],
+                    "confidence": 0.91,
+                    "description": "Cross-session semantic compression.",
+                }
+            )
+
+    def build_inputs(
+        *,
+        job_id: str,
+        current: ExperiencedActionEvidence,
+        prior: tuple[CaseActionAbstractionEvidence, ...] = (),
+        decoder: LLMActionAbstractionDecoder,
+    ) -> ApplicationPriorProposalInputs:
+        return ApplicationPriorProposalInputs(
+            job_id=job_id,
+            closed_at_turn=8,
+            regime_id="protective_action",
+            knowledge_domains=(),
+            experience_domains=("moral_dilemma",),
+            case_problem_patterns=(),
+            case_risk_markers=("risk-high",),
+            boundary_trigger_reasons=(),
+            knowledge_weight=0.2,
+            experience_weight=0.8,
+            case_hit_count=0,
+            mean_experience_quality=0.86,
+            experienced_actions=(current,),
+            prior_action_abstraction_evidence=prior,
+            action_abstraction_decoder=decoder,
+        )
+
+    def apply_proposal(
+        *,
+        proposal: ApplicationPriorUpdate,
+        store: ApplicationCaseMemoryStore,
+        checkpoint_id: str,
+    ) -> None:
+        applied, blocked, _, _ = _apply_application_prior_writeback(
+            prior_update=proposal,
+            domain_knowledge_store=ApplicationDomainKnowledgeStore(),
+            case_memory_store=store,
+            application_rare_heavy_state=ApplicationRareHeavyState(),
+            credit_snapshot=None,
+            evaluation_snapshot=EvaluationSnapshot(
+                turn_scores=(),
+                session_scores=(),
+                alerts=(),
+                description="Clean structural gate evidence.",
+            ),
+            timestamp_ms=9,
+            checkpoint_id=checkpoint_id,
+            apply_enabled=True,
+            blocked_reason="allow",
+        )
+        assert applied
+        assert not blocked
+
+    provider = RecordingProvider()
+    decoder = LLMActionAbstractionDecoder(provider=provider)
+    first_experience = ExperiencedActionEvidence(
+        outcome_id="outcome-a",
+        action_id="action-a",
+        situation_statement=(
+            "At a clinic doorway, an unidentified person is holding an "
+            "injured visitor while another blow is imminent."
+        ),
+        action_statement=(
+            "Step between them and call firmly for the aggressor to stop."
+        ),
+        outcome_statement="The injured visitor was released.",
+        evidence=("scene-a",),
+        confidence=0.9,
+        action_family_id="discovered_family_2",
+        action_family_version=3,
+        controller_code_digest=(0.1, 0.2, 0.3),
+    )
+    second_experience = ExperiencedActionEvidence(
+        outcome_id="outcome-b",
+        action_id="action-b",
+        situation_statement=(
+            "Beside a remote shelter, a masked stranger is restraining a "
+            "traveler and immediate injury is likely."
+        ),
+        action_statement=(
+            "Move in at once to interrupt the restraint and speak a direct "
+            "command to stop."
+        ),
+        outcome_statement="The traveler moved out of immediate danger.",
+        evidence=("scene-b",),
+        confidence=0.88,
+        action_family_id="discovered_family_2",
+        action_family_version=3,
+        controller_code_digest=(0.12, 0.18, 0.31),
+    )
+    backend = build_filesystem_persistence_backend(
+        base_dir=str(tmp_path / "case-memory")
+    )
+    first_store = ApplicationCaseMemoryStore(persistence_backend=backend)
+    first_proposal = ApplicationPriorProposalBuilder().build(
+        inputs=build_inputs(
+            job_id="session-a",
+            current=first_experience,
+            decoder=decoder,
+        )
+    )
+    assert first_proposal is not None
+    assert provider.call_count == 0
+    apply_proposal(
+        proposal=first_proposal,
+        store=first_store,
+        checkpoint_id="session-a-checkpoint",
+    )
+
+    second_store = ApplicationCaseMemoryStore(persistence_backend=backend)
+    assert second_store.load_from_backend()
+    pending = second_store.pending_action_abstraction_evidence()
+    assert tuple(item.outcome_id for item in pending) == ("outcome-a",)
+    second_proposal = ApplicationPriorProposalBuilder().build(
+        inputs=build_inputs(
+            job_id="session-b",
+            current=second_experience,
+            prior=pending,
+            decoder=decoder,
+        )
+    )
+    assert second_proposal is not None
+    assert provider.call_count == 1
+    assert any(
+        update.modification_evidence is not None
+        for update in second_proposal.case_memory_updates
+    )
+    apply_proposal(
+        proposal=second_proposal,
+        store=second_store,
+        checkpoint_id="session-b-checkpoint",
+    )
+
+    promoted_store = ApplicationCaseMemoryStore(persistence_backend=backend)
+    assert promoted_store.load_from_backend()
+    assert promoted_store.pending_action_abstraction_evidence() == ()
+
+
+def test_action_abstraction_rejects_conflicting_duplicate_outcome():
+    class NoCallProvider:
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 384,
+            temperature: float = 0.0,
+        ) -> str:
+            del prompt, max_new_tokens, temperature
+            raise AssertionError("Conflicting evidence must fail before decode.")
+
+    current = ExperiencedActionEvidence(
+        outcome_id="outcome-duplicate",
+        action_id="action-current",
+        situation_statement="A person faces an immediate physical threat.",
+        action_statement="Intervene and clearly ask the aggressor to stop.",
+        outcome_statement="The immediate threat ended.",
+        evidence=("current-session",),
+        confidence=0.9,
+        action_family_id="discovered_family_2",
+        action_family_version=3,
+        controller_code_digest=(0.1, 0.2),
+    )
+    prior = CaseActionAbstractionEvidence(
+        outcome_id="outcome-duplicate",
+        action_id="action-prior-conflict",
+        situation_statement="A contradictory stored situation.",
+        action_statement="Wait without intervening.",
+        evidence=("prior-session",),
+        confidence=0.8,
+        action_family_id="discovered_family_2",
+        action_family_version=3,
+        controller_code_digest=(0.3, 0.4),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Conflicting action-abstraction evidence",
+    ):
+        ApplicationPriorProposalBuilder().build(
+            inputs=ApplicationPriorProposalInputs(
+                job_id="duplicate-conflict",
+                closed_at_turn=3,
+                regime_id="protective_action",
+                knowledge_domains=(),
+                experience_domains=("moral_dilemma",),
+                case_problem_patterns=(),
+                case_risk_markers=("risk-high",),
+                boundary_trigger_reasons=(),
+                knowledge_weight=0.2,
+                experience_weight=0.8,
+                case_hit_count=0,
+                mean_experience_quality=0.85,
+                experienced_actions=(current,),
+                prior_action_abstraction_evidence=(prior,),
+                action_abstraction_decoder=LLMActionAbstractionDecoder(
+                    provider=NoCallProvider()
+                ),
+            )
+        )
 
 
 def test_application_prior_writeback_applies_retrieval_readout_checkpoint_owner_side():
@@ -1594,6 +2096,7 @@ def test_final_wiring_can_defer_slow_writeback_into_session_post_request():
     assert result.writeback_result is None
     assert result.session_post_writeback_request is not None
     assert result.session_post_writeback_request.context_session_id == "s-deferred"
+    assert result.session_post_writeback_request.evaluation_snapshot is not None
     assert after == before
 
 

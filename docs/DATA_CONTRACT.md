@@ -294,6 +294,8 @@ Environment Event 是 `docs/specs/environment-interface.md` 定义的生命体�
 - `environment_state_delta_kind`
 - `action_schema: EnvironmentActionSchema | None`：可选、reviewed、outcome-free；
   只含 `schema_id / applicability_conditions / action_steps / description`
+- `situation_summary: str`：可选、outcome-free 的 pre-action observable context；
+  供 application background-slow semantic compression 使用，不是 reward/evaluation
 
 **Temporal segment closure 字段**：
 
@@ -526,6 +528,20 @@ class CaseMemorySnapshot:
   intervention steps、case description 与 outcome 不参与相似度，避免答案泄漏进选择
 - lived-action case 的跨 session 复用必须经过 application owner persistence；
   profile seed 与 slow-loop case 的 source lineage 不得混写
+- multi-experience semantic candidate 由 application `ActionAbstractionOwner` 唯一拥有：
+  至少两条独立 schema-free evidence 必须共享完全一致的 temporal family/version；
+  structured decoder 只读 situation/action，不读 outcome、PE 或 evaluation。
+  每条待聚合证据以 `CaseMemoryRecord.action_abstraction_evidence` 的 frozen typed
+  payload 随 CaseMemory checkpoint 持久化；晋升以
+  `CaseMemoryRecord.action_abstraction_promotion` 记录 family/version 与 source closure。
+  consumer 只能调用 owner 的 `pending_action_abstraction_evidence()`，不得解析
+  `description`、`problem_pattern` 或 case id 重建证据。owner 会折叠内容完全一致的
+  outcome，遇到同 outcome 的矛盾 payload 则 fail loudly；已有 promotion 的
+  family/version 不再发布为 pending，避免跨 session 重复提案
+  `LearnedActionSchemaCandidate` 与 reviewed `EnvironmentActionSchema` provenance 隔离；
+  promotion 以 `ApplicationModificationEvidence` 进入 runtime，并由正式
+  `ModificationProposal(BACKGROUND) + evaluate_gate_reasons()` 决定。缺 evaluation
+  snapshot 时 fail closed；evaluation 只作 gate readout，不成为学习源
 
 ### 2.10 Application Playbook / Experience Consolidation（应用层策略先验与经验沉淀）
 

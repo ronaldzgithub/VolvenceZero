@@ -241,6 +241,12 @@ Character behavioral-fidelity harness 同样是 evaluation-side 的独立只读�
   family/version/`z_t` digest 到达 slow-loop application persistence；该 case 必须保持
   `schema-pending`、不可渲染，未见场景不得复述 episode。通过此门只证明 Internal RL
   lineage 存活，不能升级为 emergent semantic action abstraction；
+- multi-experience abstraction gate 至少需要两条 outcome/situation 独立、同一
+  temporal family/version 的 schema-free evidence；decoder prompt 不得包含 outcome、
+  PE 或 evaluation。candidate 必须通过正式 BACKGROUND ModificationGate 才能进入
+  CaseMemory。跨 session 测试必须实际保存并重新加载 CaseMemory checkpoint，再用 owner
+  的 typed pending evidence 接续第二经历；promotion 后再次加载必须不再产生 pending。
+  synthetic 第二经历只能证明机制可达，不能补入 character bake 的 learned behavior claim；
 - evidence source 使用 `system_self_eval / llm_judge / external_validated` 三态，非外部验证不得升级为 external claim；
 - capture 不提交 outcome/evaluation feedback，sandbox 产生的临时学习状态全部丢弃，不进入 PE、credit、memory、regime 或 Internal RL。
 

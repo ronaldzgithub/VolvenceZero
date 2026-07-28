@@ -525,6 +525,7 @@ class SessionWritebackPhaseMixin:
                 outcome_statement=settled.outcome.detail,
                 evidence=settled.outcome.evidence,
                 confidence=settled.outcome.confidence,
+                situation_statement=settled.outcome.situation_summary,
                 action_schema=settled.outcome.action_schema,
                 action_family_id=settled.action_family_id,
                 action_family_version=settled.action_family_version,
@@ -764,6 +765,13 @@ class SessionWritebackPhaseMixin:
                     else 0.0
                 ),
                 experienced_actions=job.experienced_actions,
+                prior_action_abstraction_evidence=(
+                    self._case_memory_store
+                    .pending_action_abstraction_evidence()
+                ),
+                action_abstraction_decoder=(
+                    self._action_abstraction_decoder
+                ),
             )
         )
         application_apply_enabled = (
@@ -795,6 +803,9 @@ class SessionWritebackPhaseMixin:
                 case_memory_store=self._case_memory_store,
                 application_rare_heavy_state=self._application_rare_heavy_state,
                 credit_snapshot=job.writeback_request.credit_snapshot,
+                evaluation_snapshot=(
+                    job.writeback_request.evaluation_snapshot
+                ),
                 timestamp_ms=max(job.closed_at_turn, 1) + 2,
                 checkpoint_id=job.writeback_request.checkpoint_id,
                 apply_enabled=application_apply_enabled,

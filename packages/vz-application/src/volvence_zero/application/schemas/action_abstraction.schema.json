@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LearnedActionSchemaCandidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "action_family_id",
+    "action_family_version",
+    "applicability_conditions",
+    "action_steps",
+    "source_outcome_ids",
+    "confidence",
+    "description"
+  ],
+  "properties": {
+    "schema_id": {"type": "string", "minLength": 1},
+    "action_family_id": {"type": "string", "minLength": 1},
+    "action_family_version": {"type": "integer", "minimum": 1},
+    "applicability_conditions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "action_steps": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "source_outcome_ids": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "description": {"type": "string", "minLength": 1}
+  }
+}

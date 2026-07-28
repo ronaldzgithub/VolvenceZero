@@ -228,6 +228,7 @@ class EnvironmentOutcome:
     environment_state_delta_kind: str = "none"
     measurement: EnvironmentMeasurement | None = None
     action_schema: EnvironmentActionSchema | None = None
+    situation_summary: str = ""
 ```
 
 The single-user compatibility path is `build_user_input_environment_event(...)`, which supplies the explicit `primary -> self` frame instead of leaving speaker / audience / subject scope for downstream inference.
@@ -242,6 +243,10 @@ measurement。
 `EnvironmentActionSchema` 是可选的 reviewer/adapter 观察契约：只描述该次已执行动作的
 适用条件与 outcome-free action steps。它不得携带 reward、事后结果、当前 turn 的首选回答，
 也不得承载 trust/common-ground 等语义 owner delta。无 schema 的既有 producer 保持兼容。
+
+`situation_summary` 是可选的 pre-action 可观察情境，用于让 background-slow
+CaseMemory decoder 比较多条异质经历。它不得包含事后结果、reward、PE/evaluation
+或 owner semantic delta；空字符串保持既有 producer 兼容。
 
 ## 与其他能力域的关系
 

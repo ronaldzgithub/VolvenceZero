@@ -579,6 +579,10 @@ class ChapterLiveThroughDriver:
                     terminal=True,
                 ),
                 action_schema=scene.canonical_action_schema,
+                situation_summary=(
+                    f"{scene.setting}\nDecision point: "
+                    f"{scene.decision_point}"
+                ),
             )
         )
         assimilation_result = await session.run_turn(

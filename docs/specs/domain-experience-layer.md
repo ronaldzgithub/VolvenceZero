@@ -123,6 +123,40 @@ application persistence，但新场景必须拒绝召回该非语义 case，且�
 语义抽象器聚合同一稳定 family 的多次异质经历，经 `ModificationGate` 发布 typed schema，
 之后才能声称 Internal RL 发现了可迁移动作抽象。
 
+### Multi-experience action abstraction
+
+当前 background-slow 收敛只属于 CaseMemory/application owner：
+
+1. schema-free terminal outcome 额外携带 environment adapter 当时可观察的
+   `situation_summary`；decoder 输入只含多条经历的
+   `outcome_id / situation / executed_action`，明确不含 outcome 文本、reward、PE 数值或
+   evaluation。
+2. `ActionAbstractionOwner` 至少要求两条 outcome id 唯一、situation 不同且
+   `action_family_id / action_family_version` 完全一致的经历。单例、重复 episode、
+   family/version 冲突在调用 decoder 前 fail closed。
+3. 默认 `NoOpActionAbstractionDecoder` 不产生任何候选；只有显式注入的
+   structured background decoder 才能发布 `LearnedActionSchemaCandidate`。
+   prompt 与 JSON schema 位于 application wheel 的 `prompts/`、`schemas/`，禁止关键词归纳。
+4. owner 校验 candidate family/source closure、最低置信度和整句 episode-copy guard，
+   再生成带 `ApplicationModificationEvidence` 的 `CaseMemoryPriorUpdate`。
+5. runtime 将该 evidence 映射成 `ModificationProposal(BACKGROUND)`，调用正式
+   `evaluate_gate_reasons()`；缺 evaluation snapshot、结构门失败或既有 credit block
+   均不得写入。evaluation 在这里只是 promotion gate readout，不参与候选生成。
+6. 单个 session 未满足计数时，CaseMemory 把 schema-free lineage 存入
+   `CaseMemoryRecord.action_abstraction_evidence`，并随既有 checkpoint 原样恢复。
+   下一 session 只通过 store owner 的 `pending_action_abstraction_evidence()` 合并历史
+   与当前证据，禁止扫描 case description。内容完全一致的 outcome 只计一次，同 outcome
+   的矛盾内容直接失败；晋升 record 的 typed promotion marker 会排除整个
+   family/version 的 pending evidence，阻止重复 decoder/promotion。
+
+promoted record 仍由 `ApplicationCaseMemoryStore` 唯一写入和持久化，expression 仍只消费
+CaseMemory/ResponseAssembly 发布的 action realization。learned candidate 与 reviewer
+发布的 `EnvironmentActionSchema` 是两个来源不同的 typed object，禁止混写 provenance。
+
+第十一回 schema-holdout 目前只有一条独立经历，因此按本契约保持 `schema-pending`；
+不能复制同一 scene 凑足计数。当前测试只用两条 synthetic heterogeneous evidence
+证明 owner/gate 机制可达，不把它计作张无忌已经自主形成语义抽象。
+
 ## 工程挑战
 
 - 用一套通用 schema 表达不同垂直场景，而不把女性陪伴、职业、健康等逻辑写进内核。
@@ -174,6 +208,8 @@ application persistence，但新场景必须拒绝召回该非语义 case，且�
 
 ## 变更日志
 
+- 2026-07-28: 冻结 CaseMemory-owned action-abstraction pending/promotion checkpoint 契约：schema-free evidence 可跨 session 恢复，consumer 只读类型化 owner API；矛盾 outcome fail loudly，已晋升 family/version 自动停止重复提案。
+- 2026-07-28: 新增 multi-experience background action abstraction：structured decoder 不读 outcome/evaluation，CaseMemory owner 要求至少两条异质同族经历并校验 source closure；candidate 必须经正式 BACKGROUND ModificationGate 才能写入。ch-11 单例继续 fail closed，不声明自主 schema discovery。
 - 2026-07-28: 增加 action-schema holdout 的 fail-closed 收敛：terminal outcome 在提交时绑定 temporal family/version/controller-code digest；无 schema 的 family-linked case 可持久化审计，但 intervention ordering 为空，禁止 expression 或 CaseMemory 把原 episode 复述成抽象策略。
 - 2026-07-28: 新增 terminal `SCENE_EVENT` → `ExperiencedActionEvidence` → gated `CaseMemoryPriorUpdate` 的 lived-action 慢层落地；新会话从 application persistence 读取已生活过的动作，tool/non-terminal outcome 不参与，action statement 与未来 outcome 隔离。
 - 2026-07-28: 新增 reviewed `EnvironmentActionSchema` 未见场景迁移收敛：action applicability 与 steps 经 terminal outcome/slow-loop 写入 CaseMemory，检索只读适用条件，行动/结果不参与路由；ch-11 held-out baked/cold 内部测试通过，外部盲评与 emergent schema discovery 仍未证明。

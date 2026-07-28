@@ -177,8 +177,22 @@ schema，也尚未获得外部人类行为保真。
 当前该 gate 已通过，因此可以声称 live-through 保留了 Internal RL 行为族 lineage；
 仍不能声称系统自主形成了“立即制止 + 言语喝止”的语义抽象。
 
+background-slow multi-experience abstraction 现已具备 typed decoder、CaseMemory owner
+校验和正式 BACKGROUND ModificationGate promotion 路径；但第十一回 schema-holdout
+只有一条独立经历，必须继续保持 `schema-pending`。机制测试中的第二条异质经历是
+synthetic contract evidence，不属于张无忌 bake，也不能用来升级角色行为声明。只有未来
+另一个真实章节/episode 被 temporal owner 归入同一稳定 family，且 candidate 通过 gate
+与未见场景评估，才允许进入下一层结论。
+
+pending evidence 现已作为 CaseMemory record 的 typed payload 随 checkpoint 跨 session
+恢复；后续真实章节无需复制或重放第十一回即可与其合并。promotion marker 写回后，同一
+family/version 会从 owner 的 pending 发布中退出。该连续性测试证明“未来第二条真实经历
+可以接上”，不改变当前只有一条张无忌独立证据的事实。
+
 ## 变更日志
 
+- 2026-07-28: 增加 action-abstraction 跨 session owner continuity：schema-pending evidence 随 CaseMemory checkpoint 恢复，第二经历只经 typed owner API 合并，promotion 后同族证据自动退出 pending；ch-11 仍只有一条真实经历。
+- 2026-07-28: 接入 multi-experience background semantic candidate 与正式 BACKGROUND ModificationGate；明确 ch-11 schema-holdout 单例仍不 promotion，synthetic 异质 evidence 只证明机制，不计入张无忌自主抽象声明。
 - 2026-07-28: 增加 ch-11 action-schema holdout：latent family/version/`z_t` digest 经 terminal outcome 与 slow-loop 持久化，但 schema-pending case fail closed、未见场景拒绝 episode replay；结论限定为 Internal RL lineage 存活，不是自主语义抽象成功。
 - 2026-07-28: 增加未见同构威胁场景迁移测试与 reviewed `EnvironmentActionSchema`：适用条件/动作步骤经 terminal outcome → session-post → CaseMemory persistence，检索不读取 action/outcome，baked/cold 与章节实体泄漏门通过；当前结论限定为 reviewed abstraction transfer。
 - 2026-07-28: 增加 profile-answer holdout causal gate，并修复 lived action 只进 Memory/PE、未进入 CaseMemory 的断点：terminal scene outcome 经 typed evidence 和既有慢层 gate 写入 application owner、跨 session persistence 后再召回；baked/cold 公共 profile 不再含被测答案。此前 `0.840 vs 0.030` 降级为 mechanism diagnostic。

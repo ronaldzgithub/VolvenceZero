@@ -1,4 +1,5 @@
 from volvence_zero.application.runtime import (
+    ApplicationModificationEvidence,
     ApplicationPriorUpdate,
     ApplicationPriorWritebackReport,
     ApprenticeshipProtocolAlignmentModule,
@@ -61,6 +62,14 @@ from volvence_zero.application.runtime import (
     StrategyPlaybookModule,
     StrategyPlaybookSnapshot,
 )
+from volvence_zero.application.action_abstraction import (
+    ActionAbstractionDecoder,
+    ActionAbstractionExperience,
+    ActionAbstractionOwner,
+    LearnedActionSchemaCandidate,
+    LLMActionAbstractionDecoder,
+    NoOpActionAbstractionDecoder,
+)
 from volvence_zero.application.retrieval_readout import (
     RetrievalControlReadoutParameters,
     RetrievalReadoutCheckpoint,
@@ -68,6 +77,8 @@ from volvence_zero.application.retrieval_readout import (
 from volvence_zero.application.storage import (
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
+    CaseActionAbstractionEvidence,
+    CaseActionAbstractionPromotion,
     CaseLifecycle,
     CaseMemoryCheckpoint,
     CaseMemoryRecord,
@@ -97,7 +108,11 @@ from volvence_zero.application.domain_experience import (
 )
 
 __all__ = [
+    "ActionAbstractionDecoder",
+    "ActionAbstractionExperience",
+    "ActionAbstractionOwner",
     "ApplicationCaseCluster",
+    "ApplicationModificationEvidence",
     "ApplicationPriorUpdate",
     "ApplicationPriorWritebackReport",
     "ApprenticeshipProtocolAlignmentModule",
@@ -116,6 +131,8 @@ __all__ = [
     "BoundaryPriorHint",
     "BoundaryPolicySnapshot",
     "CaseLifecycle",
+    "CaseActionAbstractionEvidence",
+    "CaseActionAbstractionPromotion",
     "CaseMemoryCheckpoint",
     "CaseEpisodeHit",
     "CaseInterventionStep",
@@ -171,6 +188,9 @@ __all__ = [
     "KnowledgeReviewStatus",
     "KnowledgeSourceKind",
     "KnowledgeSourceType",
+    "LearnedActionSchemaCandidate",
+    "LLMActionAbstractionDecoder",
+    "NoOpActionAbstractionDecoder",
     "PlaybookRule",
     "ProfessionalScope",
     "ReviewedKnowledgeCandidate",

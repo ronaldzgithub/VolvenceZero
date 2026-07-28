@@ -53,11 +53,17 @@ flowchart TD
 | `monetary_cost` | `float` | `0.0` | 归一化成本 |
 | `reversibility` | `str` | `"reversible"` | `reversible` / `costly` / `irreversible` |
 | `environment_state_delta_kind` | `str` | `"none"` | host / owner 控制枚举；默认无外部状态变化 |
+| `situation_summary` | `str` | `""` | 可选、outcome-free 的 pre-action 可观察情境；只供 background semantic compression，不是 reward |
 
 reviewed environment adapter 还可选择发布
 `EnvironmentActionSchema(schema_id, applicability_conditions, action_steps, description)`，
 用于把已经执行的动作与 episode-specific 文案分离。它是 action observation 的结构化注释，
 不是 reward、evaluation label 或 token-space policy；未提供时保持旧契约。
+
+`situation_summary` 不授予 environment adapter 语义 owner 身份。它与 action statement
+可由 application 的 background-slow decoder 读取；outcome/detail、PE 与 evaluation
+不得进入 semantic candidate prompt。candidate 属于 CaseMemory owner，并与 reviewed
+`EnvironmentActionSchema` 保持不同 provenance。
 
 显式不加入：
 
@@ -170,6 +176,12 @@ posterior、`beta_t`、行为 likelihood 与 prediction lineage；下一拍只�
 - `pe-owner-remains-single`: 仓库不存在 runtime slot `action_outcome_trace`；PE 仍是唯一 mismatch owner。
 - `segment-closure-from-beta`: delayed outcome 边界来自 temporal `closed_segments`。
 - `outcome-fields-observable-only`: `EnvironmentOutcome` 不包含 trust / common-ground / commitment / information-gain semantic delta。
+- `background-action-abstraction-no-outcome-label`: semantic decoder 只读多条
+  situation/action observation；单例或 latent family/version 冲突不得调用 decoder，
+  promotion 必须经过 `ModificationGate.BACKGROUND`。
+- `background-action-abstraction-owner-continuity`: schema-free evidence 只以
+  CaseMemory-owned typed checkpoint 跨 session 续接；consumer 不解析描述文本，同
+  outcome 矛盾 fail loudly，已有 promotion 的 family/version 不再发布 pending evidence。
 - `credit-from-pe-only`: segment/action credit records 只从 `PredictionErrorSnapshot` 派生。
 - `replay-from-snapshots`: replay artifact 可由现有 snapshots 生成，不依赖 trace-specific runtime schema。
 - `runtime-replay-owner-bounded`: online replay 只存在于 Internal-RL/joint-loop owner checkpoint，不新增 slot 或第二 trace owner。
@@ -200,6 +212,7 @@ posterior、`beta_t`、行为 likelihood 与 prediction lineage；下一拍只�
 
 ## 变更日志
 
+- 2026-07-28: 增加 outcome-free `situation_summary` 与 application-owned multi-experience semantic candidate 边界；decoder 不读 outcome/evaluation，candidate 与 reviewed EnvironmentActionSchema provenance 隔离，并经 BACKGROUND ModificationGate promotion。
 - 2026-07-20: 增加 online runtime transition replay 边界。明确它是 joint-loop/Internal-RL owner 内的有界训练状态，与只读 snapshot replay export 不同；三态 gate 独立于 optimizer backend，ACTIVE 禁止 synthetic fallback，并保持公共 snapshot schema 不变。
 - 2026-05-12: Packet B (long-horizon-closure) — 修复 `derive_segment_closure_credit_records` 在 segment id 不匹配时误返回 `None` 的 bug（改为返回 empty tuple）；新增 `affordance_name` / `prediction_id` 到 segment credit record 的 context 字符串，对应 acceptance gate `segment-credit-attributes-to-tool`；测试见 `tests/longitudinal/test_affordance_delayed_credit.py`。
 - 2026-05-02: 重写 Phase 1 方案，移除 `action_outcome_trace` owner / delayed ledger / action-outcome encoder owner，改为 PE + temporal segment closure 的 ETA/NL 第一性实现。

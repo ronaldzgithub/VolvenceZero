@@ -194,6 +194,7 @@ class ExperiencedActionEvidence:
     outcome_statement: str
     evidence: tuple[str, ...]
     confidence: float
+    situation_statement: str = ""
     action_schema: EnvironmentActionSchema | None = None
     action_family_id: str = ""
     action_family_version: int = 0
@@ -213,6 +214,11 @@ class ExperiencedActionEvidence:
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError(
                 "ExperiencedActionEvidence confidence must be in [0, 1]."
+            )
+        if self.situation_statement and not self.situation_statement.strip():
+            raise ValueError(
+                "ExperiencedActionEvidence situation_statement cannot be "
+                "whitespace-only."
             )
         if self.action_family_version < 0:
             raise ValueError(
@@ -737,12 +743,30 @@ class BoundaryPriorHint:
 
 
 @dataclass(frozen=True)
+class ApplicationModificationEvidence:
+    """Application-owned structural evidence for runtime gate evaluation."""
+
+    validation_delta: float
+    capacity_cost: float
+    rollback_evidence: str
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.validation_delta):
+            raise ValueError("validation_delta must be finite.")
+        if not math.isfinite(self.capacity_cost) or self.capacity_cost < 0.0:
+            raise ValueError("capacity_cost must be finite and non-negative.")
+        if not self.rollback_evidence.strip():
+            raise ValueError("rollback_evidence must be non-empty.")
+
+
+@dataclass(frozen=True)
 class CaseMemoryPriorUpdate:
     update_id: str
     target: str
     record: CaseMemoryRecord
     confidence: float
     description: str
+    modification_evidence: ApplicationModificationEvidence | None = None
 
 
 @dataclass(frozen=True)

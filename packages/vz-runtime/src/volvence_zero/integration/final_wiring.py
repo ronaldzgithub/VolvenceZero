@@ -54,6 +54,7 @@ from volvence_zero.credit.gate import (
     derive_delayed_attribution_credit_records,
     derive_learning_evidence_credit_records,
     derive_social_prediction_error_credit_records,
+    evaluate_gate_reasons,
     has_blocking_writeback,
     record_nstep_outcomes_from_segment_closure,
 )
@@ -831,6 +832,7 @@ class SessionPostWritebackRequest:
     checkpoint_id: str
     description: str
     semantic_state_descriptions: tuple[str, ...] = ()
+    evaluation_snapshot: EvaluationSnapshot | None = None
 
 
 def _judge_allows_structural_writeback(evolution_judgement: EvolutionJudgement | None) -> bool:
@@ -961,6 +963,7 @@ def _build_session_post_writeback_request(
     reflection_mode: WritebackMode,
     structural_writeback_allowed: bool,
     semantic_state_values: tuple[object, ...] = (),
+    evaluation_snapshot: Snapshot[Any] | None = None,
 ) -> SessionPostWritebackRequest | None:
     if (
         session_report is None
@@ -971,6 +974,12 @@ def _build_session_post_writeback_request(
     credit_value = (
         credit_snapshot.value
         if credit_snapshot is not None and isinstance(credit_snapshot.value, CreditSnapshot)
+        else None
+    )
+    evaluation_value = (
+        evaluation_snapshot.value
+        if evaluation_snapshot is not None
+        and isinstance(evaluation_snapshot.value, EvaluationSnapshot)
         else None
     )
     return SessionPostWritebackRequest(
@@ -996,6 +1005,7 @@ def _build_session_post_writeback_request(
             for description in (getattr(value, "description", ""),)
             if isinstance(description, str) and description
         ),
+        evaluation_snapshot=evaluation_value,
     )
 
 
@@ -1006,6 +1016,7 @@ def _apply_application_prior_writeback(
     case_memory_store: ApplicationCaseMemoryStore,
     application_rare_heavy_state: ApplicationRareHeavyState,
     credit_snapshot: CreditSnapshot | None,
+    evaluation_snapshot: EvaluationSnapshot | None = None,
     timestamp_ms: int,
     checkpoint_id: str,
     apply_enabled: bool,
@@ -1106,6 +1117,51 @@ def _apply_application_prior_writeback(
                 )
             )
             continue
+        if update.modification_evidence is not None:
+            if evaluation_snapshot is None:
+                gate_reasons = (
+                    "background modification gate requires evaluation snapshot",
+                )
+            else:
+                evidence = update.modification_evidence
+                gate_reasons = evaluate_gate_reasons(
+                    proposal=ModificationProposal(
+                        target=update.target,
+                        desired_gate=ModificationGate.BACKGROUND,
+                        old_value_hash=before_hash,
+                        new_value_hash=stable_value_hash(update.record),
+                        justification=update.description,
+                        is_reversible=True,
+                        validation_delta=evidence.validation_delta,
+                        capacity_cost=evidence.capacity_cost,
+                        rollback_evidence=evidence.rollback_evidence,
+                    ),
+                    evaluation_snapshot=evaluation_snapshot,
+                )
+            if gate_reasons:
+                blocked_targets.append(update.target)
+                blocked_operations.append(
+                    "application-prior:block:"
+                    f"{update.target}:modification-gate-block"
+                )
+                audit_records.append(
+                    SelfModificationRecord(
+                        target=update.target,
+                        gate=ModificationGate.BACKGROUND,
+                        decision=GateDecision.BLOCK,
+                        old_value_hash=before_hash,
+                        new_value_hash=before_hash,
+                        justification=(
+                            "Application action abstraction blocked by "
+                            "ModificationGate: "
+                            + "; ".join(gate_reasons)
+                        ),
+                        timestamp_ms=timestamp_ms,
+                        is_reversible=True,
+                        checkpoint_id=checkpoint_id,
+                    )
+                )
+                continue
         if should_block_target(update.target):
             blocked_targets.append(update.target)
             blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
@@ -2838,6 +2894,7 @@ async def run_final_wiring_turn(
         reflection_mode=reflection_mode,
         structural_writeback_allowed=judge_allows_structural_writeback,
         semantic_state_values=semantic_state_values,
+        evaluation_snapshot=active_snapshots.get("evaluation"),
     )
     if (
         apply_slow_writeback

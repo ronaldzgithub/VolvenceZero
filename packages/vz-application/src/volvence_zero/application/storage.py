@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+import math
 from typing import Iterable
 
 from volvence_zero.memory import (
@@ -76,6 +77,79 @@ class DomainKnowledgeCheckpoint:
 
 
 @dataclass(frozen=True)
+class CaseActionAbstractionEvidence:
+    """CaseMemory-owned schema-free evidence awaiting semantic compression."""
+
+    outcome_id: str
+    action_id: str
+    action_family_id: str
+    action_family_version: int
+    situation_statement: str
+    action_statement: str
+    evidence: tuple[str, ...]
+    confidence: float
+    controller_code_digest: tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("outcome_id", self.outcome_id),
+            ("action_id", self.action_id),
+            ("action_family_id", self.action_family_id),
+            ("situation_statement", self.situation_statement),
+            ("action_statement", self.action_statement),
+        ):
+            if not value.strip():
+                raise ValueError(
+                    f"CaseActionAbstractionEvidence {name} must be non-empty."
+                )
+        if self.action_family_version <= 0:
+            raise ValueError(
+                "CaseActionAbstractionEvidence action_family_version must be > 0."
+            )
+        if not math.isfinite(self.confidence) or not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                "CaseActionAbstractionEvidence confidence must be finite and in [0, 1]."
+            )
+        if any(not math.isfinite(value) for value in self.controller_code_digest):
+            raise ValueError(
+                "CaseActionAbstractionEvidence controller_code_digest must be finite."
+            )
+
+
+@dataclass(frozen=True)
+class CaseActionAbstractionPromotion:
+    """CaseMemory-owned marker that one latent family version was promoted."""
+
+    schema_id: str
+    action_family_id: str
+    action_family_version: int
+    source_outcome_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("schema_id", self.schema_id),
+            ("action_family_id", self.action_family_id),
+        ):
+            if not value.strip():
+                raise ValueError(
+                    f"CaseActionAbstractionPromotion {name} must be non-empty."
+                )
+        if self.action_family_version <= 0:
+            raise ValueError(
+                "CaseActionAbstractionPromotion action_family_version must be > 0."
+            )
+        if (
+            not self.source_outcome_ids
+            or any(not item.strip() for item in self.source_outcome_ids)
+            or len(set(self.source_outcome_ids)) != len(self.source_outcome_ids)
+        ):
+            raise ValueError(
+                "CaseActionAbstractionPromotion source_outcome_ids must contain "
+                "unique non-empty values."
+            )
+
+
+@dataclass(frozen=True)
 class CaseMemoryRecord:
     case_id: str
     domain: str
@@ -104,6 +178,8 @@ class CaseMemoryRecord:
     ttl_seconds: int | None = None
     expires_at_tick: int | None = None
     provisional_origin: str = ""
+    action_abstraction_evidence: CaseActionAbstractionEvidence | None = None
+    action_abstraction_promotion: CaseActionAbstractionPromotion | None = None
 
     def __post_init__(self) -> None:
         # Ownership invariants:
@@ -131,6 +207,14 @@ class CaseMemoryRecord:
             raise ValueError(
                 f"CaseMemoryRecord.expires_at_tick must be >= 0 when set, "
                 f"got {self.expires_at_tick!r}"
+            )
+        if (
+            self.action_abstraction_evidence is not None
+            and self.action_abstraction_promotion is not None
+        ):
+            raise ValueError(
+                "CaseMemoryRecord cannot be both pending action-abstraction "
+                "evidence and an action-abstraction promotion."
             )
 
     def is_available_for_retrieval(self) -> bool:
@@ -230,6 +314,20 @@ def _reconstruct_case_memory_checkpoint(parsed: dict[str, object]) -> CaseMemory
                     else None
                 ),
                 provisional_origin=str(record.get("provisional_origin", "")),
+                action_abstraction_evidence=(
+                    _reconstruct_action_abstraction_evidence(
+                        record["action_abstraction_evidence"]
+                    )
+                    if record.get("action_abstraction_evidence") is not None
+                    else None
+                ),
+                action_abstraction_promotion=(
+                    _reconstruct_action_abstraction_promotion(
+                        record["action_abstraction_promotion"]
+                    )
+                    if record.get("action_abstraction_promotion") is not None
+                    else None
+                ),
             )
             for record in records_raw
         )
@@ -239,6 +337,41 @@ def _reconstruct_case_memory_checkpoint(parsed: dict[str, object]) -> CaseMemory
         )
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _reconstruct_action_abstraction_evidence(
+    raw: object,
+) -> CaseActionAbstractionEvidence:
+    if not isinstance(raw, dict):
+        raise TypeError("action_abstraction_evidence must be an object.")
+    return CaseActionAbstractionEvidence(
+        outcome_id=str(raw["outcome_id"]),
+        action_id=str(raw["action_id"]),
+        action_family_id=str(raw["action_family_id"]),
+        action_family_version=int(raw["action_family_version"]),
+        situation_statement=str(raw["situation_statement"]),
+        action_statement=str(raw["action_statement"]),
+        evidence=tuple(str(item) for item in raw.get("evidence", ())),
+        confidence=float(raw["confidence"]),
+        controller_code_digest=tuple(
+            float(item) for item in raw.get("controller_code_digest", ())
+        ),
+    )
+
+
+def _reconstruct_action_abstraction_promotion(
+    raw: object,
+) -> CaseActionAbstractionPromotion:
+    if not isinstance(raw, dict):
+        raise TypeError("action_abstraction_promotion must be an object.")
+    return CaseActionAbstractionPromotion(
+        schema_id=str(raw["schema_id"]),
+        action_family_id=str(raw["action_family_id"]),
+        action_family_version=int(raw["action_family_version"]),
+        source_outcome_ids=tuple(
+            str(item) for item in raw.get("source_outcome_ids", ())
+        ),
+    )
 
 
 DEFAULT_DOMAIN_KNOWLEDGE_RECORDS: tuple[DomainKnowledgeRecord, ...] = (
@@ -459,6 +592,42 @@ class ApplicationCaseMemoryStore:
     @property
     def records(self) -> tuple[CaseMemoryRecord, ...]:
         return tuple(self._records.values())
+
+    def pending_action_abstraction_evidence(
+        self,
+    ) -> tuple[CaseActionAbstractionEvidence, ...]:
+        """Publish typed, unpromoted evidence without exposing record parsing."""
+
+        promoted_families = {
+            (
+                promotion.action_family_id,
+                promotion.action_family_version,
+            )
+            for record in self._records.values()
+            for promotion in (record.action_abstraction_promotion,)
+            if promotion is not None
+        }
+        evidence_by_outcome: dict[str, CaseActionAbstractionEvidence] = {}
+        for record in self._records.values():
+            evidence = record.action_abstraction_evidence
+            if evidence is None:
+                continue
+            if (
+                evidence.action_family_id,
+                evidence.action_family_version,
+            ) in promoted_families:
+                continue
+            existing = evidence_by_outcome.get(evidence.outcome_id)
+            if existing is not None and existing != evidence:
+                raise ValueError(
+                    "CaseMemory contains conflicting action-abstraction evidence "
+                    f"for outcome_id={evidence.outcome_id!r}."
+                )
+            evidence_by_outcome[evidence.outcome_id] = evidence
+        return tuple(
+            evidence_by_outcome[outcome_id]
+            for outcome_id in sorted(evidence_by_outcome)
+        )
 
     def upsert_records(self, records: Iterable[CaseMemoryRecord]) -> None:
         for record in records:

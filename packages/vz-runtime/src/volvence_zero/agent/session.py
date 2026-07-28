@@ -49,6 +49,11 @@ from volvence_zero.application.storage import (
     build_default_domain_knowledge_store,
     build_filesystem_persistence_backend,
 )
+from volvence_zero.application.action_abstraction import (
+    ActionAbstractionDecoder,
+    LLMActionAbstractionDecoder,
+    NoOpActionAbstractionDecoder,
+)
 from volvence_zero.application.domain_experience import (
     DomainExperiencePackage,
     apply_domain_experience_packages,
@@ -847,11 +852,17 @@ class AgentSessionRunner(
         # fail-closes the ToM / common-ground LLM auto-wire.
         self._tom_proposal_runtime: SemanticProposalRuntime | None = None
         self._common_ground_proposal_runtime: LLMCommonGroundProposalRuntime | None = None
+        self._action_abstraction_decoder: ActionAbstractionDecoder = (
+            NoOpActionAbstractionDecoder()
+        )
         if isinstance(self._semantic_proposal_runtime, LLMSemanticProposalRuntime):
             self._tom_proposal_runtime = LLMToMProposalRuntime(
                 provider=self._semantic_proposal_runtime.text_provider
             )
             self._common_ground_proposal_runtime = LLMCommonGroundProposalRuntime(
+                provider=self._semantic_proposal_runtime.text_provider
+            )
+            self._action_abstraction_decoder = LLMActionAbstractionDecoder(
                 provider=self._semantic_proposal_runtime.text_provider
             )
         self._pending_semantic_events: list[ExternalSemanticEvent] = []
