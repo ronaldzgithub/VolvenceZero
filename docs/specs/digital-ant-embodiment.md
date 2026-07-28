@@ -346,12 +346,16 @@ promotion gate：
   转向可区分、home 方向对齐）与 `food_steering_alignment` 硬门验收。历史注意事项：heat
   逃逸与 carrying-home 转向在 v22 及以前由 base policy 承载,exclusive steering 转移
   contrast 轴所有权后需经 head 重新习得,若训练后这两项 gate 失败即为能力回退证据。
-  P1 固定 schedule 含两类强制起点 bootstrap，均只初始化身体状态并同步 body-side PI，
-  不发布坐标/目标方位/动作标签：`forced_return`（巢外携食，练归巢；起始 heading 与
+  P1 固定 schedule 含两类强制起点 bootstrap，均同步 body-side PI 且不发布坐标/目标方位/
+  动作标签：`forced_return`（每只 body 在巢外各自的黄油源上以未携食状态起步，第一 act
+  必须经 `AntWorld` 真实 contact 形成 `carrying_food: False→True`，下一 act 才能消费携食
+  observation 并切换动作族；起始 heading 与
   home bearing 偏离为左右均衡的 `±3π/4`：v10 的 `±π/2` 虽堵住“直线接近但掠过
   交付盘”领取正 home-progress 的退化解，却只训练 90° 修正，不能覆盖自然拾取后接近
   180° 的返向；`±3π/4` 让零转向从第一步就远离巢，同时保留非零的左右符号信用。精确
-  `π` 禁止使用，因为其侧向分量为零、左右修正不可辨）与 `forced_approach`
+  `π` 禁止使用，因为其侧向分量为零、左右修正不可辨；初始 5 局后，后半程每 3 个 primary
+  layout 交错复习 1 局，共再复习 5 局，防止 heat/composite/neutral-context 学习覆盖返向映射）与
+  `forced_approach`
   （butter-near 专用，练觅食转向：body 生成在蝶油拾取盘外、朝向偏离食物方位、
   左右修正方向按 body 交替平衡；生成半径 `1.45–2.9×拾取半径`、偏离角 `0.4π–0.8π`
   由 layout seed 逐 body 随机抽样——固定生成环可被单一"固定曲率轨道"非定向解收割，
@@ -364,7 +368,8 @@ promotion gate：
   拾取后的返程。P1/P2 因此另设冻结 `post_pickup_uturn_progress` 硬门：每个 checkpoint
   分别从左右 `±3π/4` 朝向进入同一真实黄油拾取事件，随后在 16 tick 内关闭 policy
   optimization 与 joint learning；两条 lane 都必须保持 policy 与 temporal-learning
-  fingerprint 不变，并实际交付，或使拾取后巢距净下降至少一个 plant step（0.4）且连续
+  fingerprint 不变，并在拾取后的前 2 个 action 内发布一次真实 `is_switching`，随后实际
+  交付，或使拾取后巢距净下降至少一个 plant step（0.4）且连续
   至少 3 步下降。左右任一失败即该 body 失败；正式门仍要求至少 60% body 通过。该门读取
   embodiment owner 发布的真实 pickup/delivery 与逐 tick pose，只作冻结 evaluation readout，
   不向 PE、credit 或训练链回灌。这样“单步方向正确但转角几乎为零、随后持续远离巢”的策略
@@ -387,8 +392,8 @@ promotion gate：
   真正要求的同一能力。此门只读已发布的 probe 方向 truth，绝不回灌学习（evaluation 仍是 PE 的下游
   readout）。综合 outcome score 与 composite/
   matched-ablation 比较不含 obstacle-contact 惩罚项。外层 bundle/report schema 为
-  `digital-ant-ecology-checkpoint.v4` / `digital-ant-ecology-curriculum.v12`（v3/v2 是木棍仍作
-  回避目标的历史语义，v11 及更早缺少当前冻结掉头轨迹门；这些 artifact 只作诊断，
+  `digital-ant-ecology-checkpoint.v4` / `digital-ant-ecology-curriculum.v13`（v3/v2 是木棍仍作
+  回避目标的历史语义，v12 及更早缺少真实 pickup-return 训练 transition；这些 artifact 只作诊断，
   loader 必须拒绝）。
   settlement coverage 的分母是 `captured - pending_capture_count`；episode 尾部尚无下一状态的
   capture 被明确发布为 pending，不得误报为 drop，也不得借此忽略真实 drop reason。

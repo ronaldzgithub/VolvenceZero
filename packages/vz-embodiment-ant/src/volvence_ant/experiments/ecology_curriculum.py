@@ -46,6 +46,13 @@ from volvence_ant.runtime import (
 )
 
 
+# v13 makes forced-return train the transition that its frozen gate grades:
+# every body starts unladen on a dedicated source, picks up through the real
+# world contact path, and only then sees the carrying-state observation that
+# must trigger a large-angle policy switch. v12 started these episodes already
+# carrying, so a run could collect return credit without ever training the
+# pickup-triggered action-family change.
+#
 # v12 adds the frozen post-pickup U-turn gate: a real pickup must be followed
 # by sustained home-distance reduction on both +/-135-degree lanes. v11 only
 # changed training geometry; its reports could still PASS by checking a
@@ -91,7 +98,7 @@ from volvence_ant.runtime import (
 # * the tier geometry changed (near pickup disc and nest delivery disc), so
 #   every pickup/delivery count in a v7 report was produced in a different
 #   world.
-ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v12"
+ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v13"
 ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY = 8192
 ECOLOGY_REQUIRED_GATE_NAMES = (
     "training_layout_mastery",
@@ -1015,6 +1022,41 @@ def _world(
         data_split=data_split,
         tier=tier,
     )
+    if forced_return:
+        if stage is not EcologyStage.BUTTER:
+            raise ValueError(
+                "forced return is a butter-only pickup-to-return curriculum"
+            )
+        radius = _FORCED_RETURN_RADIUS[tier]
+        geometry = ECOLOGY_TIER_GEOMETRY[tier]
+        # Replace the ordinary layout source with one inexhaustible source per
+        # body at its forced pose. The first act therefore resolves a genuine
+        # carrying False -> True contact through AntWorld; no coordinate,
+        # target-bearing or action label enters the controller. The smallest
+        # frozen source radius (0.7) exceeds the plant's maximum 0.393-unit
+        # act, so pickup remains guaranteed even though contacts resolve after
+        # movement.
+        objects = tuple(
+            item for item in objects if not isinstance(item, ButterSource)
+        ) + tuple(
+            ButterSource(
+                object_id=f"forced-return-butter-{body_id}",
+                x=_ECOLOGY_PLANT.nest_x
+                + math.cos(
+                    (body_id + 1) * 2.399963229728653 + seed * 0.017
+                )
+                * radius,
+                y=_ECOLOGY_PLANT.nest_y
+                + math.sin(
+                    (body_id + 1) * 2.399963229728653 + seed * 0.017
+                )
+                * radius,
+                strength=2.2,
+                decay=2.4,
+                radius=geometry.pickup_radius,
+            )
+            for body_id in range(config.n_ants)
+        )
     world = ColonyWorld(
         config=_ecology_world_config(seed + split_offset),
         world_objects=objects,
@@ -1059,7 +1101,7 @@ def _world(
                 x=world.nest[0] + math.cos(angle) * radius,
                 y=world.nest[1] + math.sin(angle) * radius,
                 heading=home_bearing - side * bearing_offset,
-                carrying_food=True,
+                carrying_food=False,
             )
     elif forced_approach:
         # Food-steering pressure bootstrap. A plain layout only demands a
@@ -1401,11 +1443,16 @@ def _episode_milestone_round_budget(
             heading_error=_ECOLOGY_FORCED_ESCAPE_HEADING_ERROR,
         )
     if plan.forced_return:
-        # Starts outside the nest already carrying: delivery leg only, with
-        # the heading pinned ``_FORCED_RETURN_BEARING_OFFSET`` off home.
-        return _directed_leg_rounds(
-            _FORCED_RETURN_RADIUS[plan.tier] - ECOLOGY_NEST_RADIUS,
-            heading_error=_FORCED_RETURN_BEARING_OFFSET[plan.tier],
+        # The first act performs a real pickup. Since the controller is still
+        # acting on the unladen observation, conservatively charge one full
+        # ceiling step of outward displacement and a worst-case pi re-aim
+        # after the carrying-state transition. This remains a sufficient
+        # budget without assuming the very switch the episode exists to train.
+        return 1 + _directed_leg_rounds(
+            _FORCED_RETURN_RADIUS[plan.tier]
+            + ECOLOGY_PLANT_STEP_CEILING
+            - ECOLOGY_NEST_RADIUS,
+            heading_error=_ECOLOGY_FREE_SPAWN_HEADING_ERROR,
         )
     if plan.forced_approach:
         # Starts on a ring around the butter: worst-case approach to the

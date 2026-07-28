@@ -24,6 +24,7 @@ from volvence_zero.agent import (
 from volvence_ant.controllers import FixedRuleAnt, FixedRuleConfig, RandomAnt
 from volvence_ant.env.world_objects import ButterSource, BurningMatch, WoodStick
 from volvence_ant.experiments.ecology_probe import (
+    ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY,
     ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS,
     ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS,
     EcologyCheckpointPostPickupUTurnProbe,
@@ -52,6 +53,11 @@ from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
+# v30 binds curriculum v13's real pickup-to-return training transition,
+# pickup-triggered frozen switch requirement and late interleaved return
+# rehearsal. v29 trained forced-return bodies already carrying, so it skipped
+# the exact action-family transition that the real-pickup gate exposed.
+#
 # v29 binds curriculum v12's frozen post-pickup U-turn gate. v28 could still
 # accept a one-tick carrying-home direction that never reduced home distance
 # over a trajectory, so its report semantics are not comparable.
@@ -74,7 +80,10 @@ from volvence_ant.substrate import AntSenseSchema, sense_channels
 #   * ``composite`` gains the matched no-optimize exposure conjunct and
 #     ``temporal_non_timeout_closure`` becomes a per-layout ratio;
 #   * the held-out budget is aligned to P2's frozen 120 rounds.
-ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v29"
+ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v30"
+# v27 follows curriculum v13 / P1 v30. The forced-return world and schedule
+# now contain real pickup transitions plus late rehearsal, so v26 optimizer
+# state is from a different experiment and must never be resumed.
 # v26 follows curriculum v12 / P1 v29. A clean journal is required so the
 # report's hard U-turn evidence and the checkpoint it grades share one
 # declared generation rather than attaching a new gate to prior training.
@@ -92,7 +101,7 @@ ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v29"
 # v22 bound sense schema and input dim into the resume archive compatibility
 # (spec sections 3 and 8: archive compatibility binds sense schema / input dim
 # / latent dim / ant count).
-ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v26"
+ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v27"
 ECOLOGY_P1_DIAGNOSTICS_SCHEMA_VERSION = "digital-ant-ecology-p1-diagnostics.v3"
 ECOLOGY_P1_ARM_NAMES = (
     "learned",
@@ -979,9 +988,9 @@ def _curriculum_config(config: EcologyP1Config) -> EcologyCurriculumConfig:
 
 def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan, ...]:
     specs: list[
-        tuple[EcologyStage, EcologyTrainingTier, bool, bool, bool]
+        tuple[EcologyStage, EcologyTrainingTier, bool, bool, bool, bool]
     ] = [
-        (stage, EcologyTrainingTier.NEAR, forced_escape, False, False)
+        (stage, EcologyTrainingTier.NEAR, forced_escape, False, False, False)
         for stage, forced_escape in (
             (EcologyStage.BUTTER, False),
             (EcologyStage.BURNING_MATCH, True),
@@ -995,6 +1004,7 @@ def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan
             EcologyTrainingTier.NEAR,
             False,
             True,
+            False,
             False,
         )
         for _ in range(config.layouts_per_tier)
@@ -1013,31 +1023,48 @@ def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan
             False,
             False,
             True,
+            False,
         )
         for _ in range(config.layouts_per_tier)
     )
     specs.extend(
-        (EcologyStage.BUTTER, tier, False, False, False)
+        (EcologyStage.BUTTER, tier, False, False, False, False)
         for tier in (EcologyTrainingTier.MEDIUM, EcologyTrainingTier.FAR)
         for _ in range(config.layouts_per_tier)
     )
-    specs.extend(
-        (stage, tier, forced_escape, False, False)
+    late_primary = tuple(
+        (stage, tier, forced_escape, False, False, False)
         for stage, tier, forced_escape in (
             (EcologyStage.BURNING_MATCH, EcologyTrainingTier.NEAR, True),
             (EcologyStage.COMPOSITE, EcologyTrainingTier.FAR, False),
             (EcologyStage.WOOD_STICK, EcologyTrainingTier.FAR, False),
-            (EcologyStage.COMPOSITE, EcologyTrainingTier.FAR, False),
         )
         for _ in range(config.layouts_per_tier)
     )
+    # Five late return rehearsals replace the retired duplicate composite-far
+    # block, preserving the 55-episode formal budget. Spacing one rehearsal
+    # after every three primary layouts keeps the pickup-triggered return
+    # mapping alive while heat/composite/neutral-context learning continues.
+    for offset, primary in enumerate(late_primary, start=1):
+        specs.append(primary)
+        if offset % 3 == 0:
+            specs.append(
+                (
+                    EcologyStage.BUTTER,
+                    EcologyTrainingTier.NEAR,
+                    False,
+                    True,
+                    False,
+                    True,
+                )
+            )
     return tuple(
         EcologyTrainingEpisodePlan(
             stage=stage,
             tier=tier,
             seed=config.seed + 10_000 + index * 101,
             episode_index=index,
-            interleaved=False,
+            interleaved=interleaved,
             forced_escape=forced_escape,
             forced_return=forced_return,
             forced_approach=forced_approach,
@@ -1048,6 +1075,7 @@ def _fixed_schedule(config: EcologyP1Config) -> tuple[EcologyTrainingEpisodePlan
             forced_escape,
             forced_return,
             forced_approach,
+            interleaved,
         ) in enumerate(specs)
     )
 
@@ -2705,6 +2733,8 @@ async def run_ecology_p1(
                         (
                             lane.side,
                             lane.picked_up,
+                            lane.post_pickup_switch_observed,
+                            lane.first_post_pickup_switch_step,
                             lane.delivered,
                             lane.net_home_progress,
                             lane.max_consecutive_approach_steps,
@@ -2719,8 +2749,10 @@ async def run_ecology_p1(
         ),
         threshold=(
             f">={required_bodies}/{config.n_ants} bodies pass both +/-135-degree "
-            "frozen lanes after a real pickup; each lane must deliver or reduce "
-            "home distance by >="
+            "frozen lanes after a real pickup; each lane must switch action "
+            "family within <="
+            f"{ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY} post-pickup "
+            "steps, then deliver or reduce home distance by >="
             f"{ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS:.3f} with >="
             f"{ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS} "
             "consecutive approach steps, while policy and temporal-learning "

@@ -82,6 +82,11 @@ from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
+#: v7 binds P1 v30 / curriculum v13: forced-return now contains a real pickup
+#: transition and late interleaved rehearsal, while the frozen lane additionally
+#: requires a bounded post-pickup action-family switch. v6 artifacts were
+#: trained and graded under the skipped-transition contract.
+#:
 #: v6 binds the P1 v29 / curriculum v12 post-pickup U-turn hard gate. v5
 #: reports could still promote a checkpoint that only passed one-tick home
 #: direction checks and never sustained home-distance reduction.
@@ -102,20 +107,20 @@ from volvence_ant.substrate import AntSenseSchema, sense_channels
 #: complete or incomplete. A v2 report pinned "one identical P1 *file*", which
 #: a multi-seed matrix can never satisfy, and it carried no way to recover the
 #: held-out device/layout namespace a promotion bundle has to record.
-ECOLOGY_P2_SCHEMA_VERSION = "digital-ant-ecology-p2-confirmatory.v6"
+ECOLOGY_P2_SCHEMA_VERSION = "digital-ant-ecology-p2-confirmatory.v7"
 #: v2 carries ``source_provenance``, ``archive_corruption_rejected`` and the
 #: widened layout rows (secondary endpoints). v1 shards are refused by
 #: :func:`shard_report_from_dict`.
 #: v3 carries the P1 prerequisite's *configuration* identity, which is what the
 #: aggregate pins across seeds; a v2 shard carries only the file digest and
 #: therefore cannot be checked against its siblings.
-ECOLOGY_P2_SHARD_SCHEMA_VERSION = "digital-ant-ecology-p2-shard.v6"
+ECOLOGY_P2_SHARD_SCHEMA_VERSION = "digital-ant-ecology-p2-shard.v7"
 # v2 binds sense schema and input dim into the shard resume compatibility, so
 # an interrupted formal shard cannot rehydrate from a checkpoint trained on a
 # different sensory body. v1 journals carry neither key and are refused.
 # v3 journals the widened layout rows; a v2 journal would silently drop the
 # secondary endpoints of every already-evaluated layout.
-ECOLOGY_P2_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p2-progress.v6"
+ECOLOGY_P2_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p2-progress.v7"
 ECOLOGY_P2_PREFLIGHT_SCHEMA_VERSION = "digital-ant-ecology-p2-preflight.v1"
 
 #: Held-out namespace. Disjoint from the P1 held-out base (``2_000_003`` plus a

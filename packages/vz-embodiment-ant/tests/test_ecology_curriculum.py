@@ -170,6 +170,8 @@ def _episode(
 @pytest.mark.parametrize(
     "retired",
     [
+        # v12 graded a real pickup but trained forced-return already carrying.
+        "digital-ant-ecology-curriculum.v12",
         # v11 changed training geometry but had no sustained U-turn hard gate.
         "digital-ant-ecology-curriculum.v11",
         # v10 trained only a quarter-turn return, not the natural near-pi leg.
@@ -184,10 +186,10 @@ def _episode(
 def test_curriculum_schema_bump_rejects_earlier_reports(
     retired: str,
 ) -> None:
-    """v12 semantics must never be read out of a v11 (or older) journal."""
+    """v13 semantics must never be read out of a v12 (or older) journal."""
 
     assert ECOLOGY_CURRICULUM_SCHEMA_VERSION == (
-        "digital-ant-ecology-curriculum.v12"
+        "digital-ant-ecology-curriculum.v13"
     )
     legacy = {
         "schema_version": retired,
@@ -991,7 +993,16 @@ def test_forced_return_curriculum_balances_state_without_action_labels() -> None
 
     _synchronize_curriculum_navigators(runner)
 
-    assert all(world.body(body_id).carrying_food for body_id in range(2))
+    assert all(
+        not world.body(body_id).carrying_food for body_id in range(2)
+    )
+    sources = tuple(
+        item
+        for item in world.world_objects()
+        if isinstance(item, ButterSource)
+    )
+    assert len(sources) == config.n_ants
+    assert all(world.observe(body_id).at_food for body_id in range(2))
     assert all(
         session.navigator.state.home_distance > world.config.nest_radius
         for session in runner.sessions
@@ -1027,6 +1038,8 @@ def test_forced_return_curriculum_balances_state_without_action_labels() -> None
             step_command=world.config.step_size * 0.5,
             body_id=body_id,
         )
+    assert world.food_pickups == config.n_ants
+    assert all(world.body(body_id).carrying_food for body_id in range(2))
     after = tuple(
         math.hypot(
             world.body(body_id).x - world.nest[0],

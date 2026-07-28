@@ -53,6 +53,7 @@ from volvence_ant.experiments.ecology_p1 import (
 )
 from volvence_ant.experiments.ecology_probe import (
     ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET,
+    ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY,
     _max_consecutive_approach_steps,
     ecology_probe_world_config,
     run_ecology_checkpoint_post_pickup_uturn_probes,
@@ -283,7 +284,13 @@ async def test_p1_uses_fixed_schedule_per_body_mastery(
     assert report.schedule[:3] and all(
         item.tier.value == "near" for item in report.schedule[:3]
     )
-    assert sum(item.forced_return for item in report.schedule) == 1
+    assert sum(item.forced_return for item in report.schedule) == (
+        2 * config.layouts_per_tier
+    )
+    assert sum(
+        item.forced_return and item.interleaved
+        for item in report.schedule
+    ) == config.layouts_per_tier
     assert sum(item.forced_approach for item in report.schedule) == 1
     assert all(
         item.stage.value == "butter" and item.tier.value == "near"
@@ -356,6 +363,29 @@ async def test_p1_uses_fixed_schedule_per_body_mastery(
             ),
             progress_dir=progress_dir,
         )
+
+
+def test_fixed_schedule_interleaves_late_pickup_return_rehearsal() -> None:
+    schedule = _fixed_schedule(_FROZEN_BUDGET)
+
+    assert len(schedule) == 55
+    assert tuple(
+        item.episode_index
+        for item in schedule
+        if item.forced_return and item.interleaved
+    ) == (38, 42, 46, 50, 54)
+    assert all(
+        item.stage is EcologyStage.BUTTER
+        and item.tier is EcologyTrainingTier.NEAR
+        for item in schedule
+        if item.forced_return
+    )
+    assert sum(
+        item.stage is EcologyStage.COMPOSITE
+        and item.tier is EcologyTrainingTier.FAR
+        and not item.interleaved
+        for item in schedule
+    ) == _FROZEN_BUDGET.layouts_per_tier
 
 
 # ---------------------------------------------------------------------------
@@ -786,6 +816,19 @@ async def test_post_pickup_uturn_probe_is_real_balanced_and_frozen() -> None:
     )
     assert all(lane.picked_up for lane in lanes)
     assert all(lane.home_distances_after_pickup for lane in lanes)
+    assert all(
+        all(step >= 1 for step in lane.switch_steps_after_pickup)
+        for lane in lanes
+    )
+    assert all(
+        lane.post_pickup_switch_observed
+        == (
+            lane.first_post_pickup_switch_step is not None
+            and lane.first_post_pickup_switch_step
+            <= ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY
+        )
+        for lane in lanes
+    )
     assert all(lane.policy_fingerprint_stable for lane in lanes)
     assert all(
         lane.temporal_learning_fingerprint_stable for lane in lanes

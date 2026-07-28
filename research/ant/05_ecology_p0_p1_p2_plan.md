@@ -243,11 +243,13 @@ P1 仍是 development evidence，不产生正式 promotion artifact。
 #### Stage 0：Near bootstrap（不计最终 mastery）
 
 - 目的仅是保证产生足够 pickup/delivery/heat 样本供 optimizer 学习。
-- 增加与 forced-escape 对称的 forced-return bootstrap：从巢外携食状态起步并同步 body-side
-  path integration，左右 home-bearing 均衡；controller 仍只消费常规 sense，不提供目标方向或
-  action label。
-- forced-return near 初始几何固定在 minimal-criterion 区间：冷策略可产生正负
-  home-progress 且部分轨迹可 delivery，但持续错误转向仍会失败。
+- 增加与 forced-escape 对称的 forced-return bootstrap：每个 body 在巢外专属黄油源上从未携食
+  状态起步，经真实 contact 完成 pickup 后才进入返向；同步 body-side path integration，左右
+  `±3π/4` home-bearing 均衡；controller 仍只消费常规 sense，不提供目标方向或 action label。
+- 初始 forced-return block 后，在后半程每 3 个 primary layout 交错一次返向复习（共 5 局），
+  避免后续 heat/composite/neutral-context 学习覆盖 pickup-triggered return mapping。
+- forced-return near 的专属 source 半径大于 plant 单步上限，保证第一 act 真实 pickup；
+  `±3π/4` 下零转向从下一步起远离巢，只有拾取后及时切换并主动修正的策略才能 delivery。
 - near 结果进入训练报告，但不得使任何正式能力 gate 通过。
 
 #### Stage 1：Butter medium/far

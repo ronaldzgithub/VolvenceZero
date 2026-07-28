@@ -77,6 +77,10 @@ ECOLOGY_POST_PICKUP_UTURN_HORIZON = 16
 ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET = 3.0 * math.pi / 4.0
 ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS = ECOLOGY_PROBE_STEP_SIZE
 ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS = 3
+# The action that resolves pickup was selected from the pre-pickup
+# observation. The first two subsequent actions are the bounded window in
+# which the persisted action family must acknowledge carrying_food=True.
+ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY = 2
 _ECOLOGY_POST_PICKUP_UTURN_START_DISTANCE = 2.0
 _ECOLOGY_POST_PICKUP_UTURN_SOURCE_RADIUS = 0.7
 
@@ -140,6 +144,9 @@ class EcologyPostPickupUTurnLane:
     delivery_tick: int | None
     home_distances_after_pickup: tuple[float, ...]
     turn_commands_after_pickup: tuple[float, ...]
+    switch_steps_after_pickup: tuple[int, ...]
+    first_post_pickup_switch_step: int | None
+    post_pickup_switch_observed: bool
     net_home_progress: float
     max_consecutive_approach_steps: int
     policy_fingerprint_stable: bool
@@ -1073,13 +1080,16 @@ async def _run_post_pickup_uturn_lane(
     )
 
     pickup_tick: int | None = None
+    pickup_step: int | None = None
     delivery_tick: int | None = None
     distances: list[float] = []
     turns: list[float] = []
-    for _ in range(ECOLOGY_POST_PICKUP_UTURN_HORIZON):
+    switch_steps: list[int] = []
+    for step_index in range(ECOLOGY_POST_PICKUP_UTURN_HORIZON):
         record = await session.step()
         if record.picked_up and pickup_tick is None:
             pickup_tick = record.tick
+            pickup_step = step_index
         if pickup_tick is not None:
             distances.append(
                 math.hypot(
@@ -1088,6 +1098,15 @@ async def _run_post_pickup_uturn_lane(
                 )
             )
             turns.append(record.command.turn_command)
+        # Do not count the pickup act itself: its action was selected from the
+        # unladen observation. Only a later switch can prove that the policy
+        # reacted to the carrying-state transition.
+        if (
+            pickup_step is not None
+            and step_index > pickup_step
+            and record.is_switching
+        ):
+            switch_steps.append(step_index - pickup_step)
         if record.delivered:
             delivery_tick = record.tick
             break
@@ -1110,8 +1129,15 @@ async def _run_post_pickup_uturn_lane(
     )
     consecutive = _max_consecutive_approach_steps(distances)
     delivered = delivery_tick is not None
+    first_switch_step = switch_steps[0] if switch_steps else None
+    prompt_switch = (
+        first_switch_step is not None
+        and first_switch_step
+        <= ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY
+    )
     passed = (
         pickup_tick is not None
+        and prompt_switch
         and policy_stable
         and temporal_stable
         and (
@@ -1135,6 +1161,9 @@ async def _run_post_pickup_uturn_lane(
         delivery_tick=delivery_tick,
         home_distances_after_pickup=tuple(distances),
         turn_commands_after_pickup=tuple(turns),
+        switch_steps_after_pickup=tuple(switch_steps),
+        first_post_pickup_switch_step=first_switch_step,
+        post_pickup_switch_observed=prompt_switch,
         net_home_progress=net_progress,
         max_consecutive_approach_steps=consecutive,
         policy_fingerprint_stable=policy_stable,
@@ -1186,6 +1215,7 @@ __all__ = [
     "ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET",
     "ECOLOGY_POST_PICKUP_UTURN_HORIZON",
     "ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS",
+    "ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY",
     "ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS",
     "EcologyActionProbe",
     "EcologyBackendExecutionEvidence",
