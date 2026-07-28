@@ -78,9 +78,21 @@ class _FakeSession:
         self.end_scene_calls: list[dict[str, Any]] = []
         self._brain_session = _FakeBrainSession()
 
-    async def run_turn(self, user_input: str, *, trigger_kind=None):
+    async def run_turn(
+        self,
+        user_input: str,
+        *,
+        trigger_kind=None,
+        environment_provenance: str | None = None,
+        environment_consent_context: tuple[str, ...] = (),
+    ):
         self.run_turn_calls.append(
-            {"user_input": user_input, "trigger_kind": trigger_kind}
+            {
+                "user_input": user_input,
+                "trigger_kind": trigger_kind,
+                "environment_provenance": environment_provenance,
+                "environment_consent_context": environment_consent_context,
+            }
         )
         return _FakeAgentTurnResult()
 
@@ -386,6 +398,16 @@ async def test_observe_corpus_ingest_runs_pipeline_and_emits_report():
     )
     # IngestionPipeline drives the kernel via run_turn for each chunk.
     assert len(session.run_turn_calls) >= 1
+    assert all(
+        call["environment_provenance"].startswith(
+            "IngestionPipeline:ingestion:"
+        )
+        for call in session.run_turn_calls
+    )
+    assert all(
+        call["environment_consent_context"] == ()
+        for call in session.run_turn_calls
+    )
     assert body["ingestion_report"]["processed_chunks"] >= 1
     assert body["observation_type"] == "corpus_ingest"
 
