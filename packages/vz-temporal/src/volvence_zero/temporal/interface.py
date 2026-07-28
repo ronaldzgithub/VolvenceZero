@@ -2204,6 +2204,17 @@ class MetacontrollerParameterStore:
     def prediction_error_switch_pressure_delta(self) -> float:
         return self._prediction_error_switch_pressure_delta
 
+    def prediction_error_boundary_requested(self) -> bool:
+        """Return whether the PE owner requested a temporal boundary.
+
+        A qualifying prediction error is a boundary event, not merely another
+        fixed logit bias. The learned beta threshold may move during SSL or
+        reflection, so the temporal owner resolves this request relative to
+        its current threshold when it makes the switch decision.
+        """
+
+        return self._prediction_error_switch_pressure_delta > 0.0
+
     def record_protocol_prior_signals(
         self,
         *,
@@ -4565,6 +4576,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             + self._protocol_prior_switch_delta()
             + self._thinking_advisory_switch_delta()
         )
+        prediction_error_boundary_requested = (
+            self._parameter_store.prediction_error_boundary_requested()
+        )
         if self._runtime_backend is WiringLevel.SHADOW:
             from volvence_zero.temporal.backend_ndim_runtime import (
                 runtime_ndim_shadow_compare,
@@ -4582,6 +4596,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 active_family_reuse=active_family_reuse,
                 active_family_persistence=active_family_persistence,
                 external_switch_pressure_delta=fast_prior_switch_pressure_delta,
+                external_boundary_request=(
+                    prediction_error_boundary_requested
+                ),
                 # CP-06 (GAP-09): behaviour-level comparison — segment-closure
                 # decision and nearest action family per backend.
                 beta_threshold=self._parameter_store.beta_threshold,
@@ -4776,10 +4793,18 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             effective_gate = tuple(effective_scalar_beta for _ in range(n_z))
             persistence_window = 0.0 if is_switching_scalar else float(previous_steps + 1)
         else:
-            effective_scalar_beta = scalar_beta
+            effective_scalar_beta = (
+                max(
+                    scalar_beta,
+                    self._parameter_store.beta_threshold,
+                )
+                if prediction_error_boundary_requested
+                else scalar_beta
+            )
             is_switching_scalar = (
                 not self._has_recurrent_state
-                or scalar_beta >= self._parameter_store.beta_threshold
+                or effective_scalar_beta
+                >= self._parameter_store.beta_threshold
             )
             effective_gate = tuple(
                 1.0 if is_switching_scalar else 0.0
@@ -4915,6 +4940,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             + self._protocol_prior_switch_delta()
             + self._thinking_advisory_switch_delta()
         )
+        prediction_error_boundary_requested = (
+            self._parameter_store.prediction_error_boundary_requested()
+        )
         switch_decision = self._switch_unit.compute_decision(
             previous_code=previous_code,
             z_tilde=encoded.z_tilde,
@@ -4949,8 +4977,18 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             binary_switch_rate = float(int(is_switching))
             switch_sparsity = 1.0 - effective_switch_gate
         else:
-            effective_switch_gate = switch_decision.beta_continuous
-            is_switching = bool(switch_decision.beta_binary)
+            effective_switch_gate = (
+                max(
+                    switch_decision.beta_continuous,
+                    self._parameter_store.beta_threshold,
+                )
+                if prediction_error_boundary_requested
+                else switch_decision.beta_continuous
+            )
+            is_switching = (
+                prediction_error_boundary_requested
+                or bool(switch_decision.beta_binary)
+            )
             mean_persistence_window = switch_decision.mean_persistence_window
             binary_switch_rate = switch_decision.binary_switch_rate
             switch_sparsity = switch_decision.sparsity

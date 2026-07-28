@@ -46,6 +46,12 @@ from volvence_ant.runtime import (
 )
 
 
+# v14 binds the PE-triggered temporal-boundary contract used by real pickup:
+# a qualifying direction-free prediction error must request a segment boundary
+# relative to the current learned beta threshold. v13 used a fixed additive
+# pressure that could remain below a calibrated threshold, so its carrying
+# credit could stay mixed into the outbound segment.
+#
 # v13 makes forced-return train the transition that its frozen gate grades:
 # every body starts unladen on a dedicated source, picks up through the real
 # world contact path, and only then sees the carrying-state observation that
@@ -98,7 +104,7 @@ from volvence_ant.runtime import (
 # * the tier geometry changed (near pickup disc and nest delivery disc), so
 #   every pickup/delivery count in a v7 report was produced in a different
 #   world.
-ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v13"
+ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v14"
 ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY = 8192
 ECOLOGY_REQUIRED_GATE_NAMES = (
     "training_layout_mastery",

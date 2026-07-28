@@ -20,6 +20,7 @@ ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
 # cross-episode checkpoint before it ever reaches the optimizer.
 ANT_RUNTIME_SEGMENT_MAX_STEPS = 16
 ANT_RUNTIME_BATCH_TRANSITION_SIZE = 4
+ANT_PREDICTION_ERROR_BOUNDARY_FLOOR = 0.45
 ANT_CAUSAL_ACTION_HEAD_STRENGTH = 1.0
 ANT_CAUSAL_ACTION_HEAD_RANK = 16
 # Frozen motor_decode consumes steering in z[0:2] and speed in z[2].
@@ -177,7 +178,9 @@ def ant_runtime_replay_rollout_config(
             else WiringLevel.DISABLED
         ),
         prediction_error_temporal_switch_strength=0.35,
-        prediction_error_temporal_switch_floor=0.5,
+        prediction_error_temporal_switch_floor=(
+            ANT_PREDICTION_ERROR_BOUNDARY_FLOOR
+        ),
     )
 
 
@@ -192,6 +195,7 @@ __all__ = [
     "ANT_RUNTIME_EXPLORATION_STRENGTH",
     "ANT_RUNTIME_BATCH_TRANSITION_SIZE",
     "ANT_RUNTIME_MODULATION_STRENGTH",
+    "ANT_PREDICTION_ERROR_BOUNDARY_FLOOR",
     "ANT_RUNTIME_SEGMENT_MAX_STEPS",
     "ant_runtime_replay_rollout_config",
 ]

@@ -307,6 +307,7 @@ def runtime_ndim_shadow_compare(
     active_family_reuse: float = 0.0,
     active_family_persistence: float = 0.0,
     external_switch_pressure_delta: float = 0.0,
+    external_boundary_request: bool = False,
     tolerance: float = 1e-7,
     latency_budget_ms: float = 50.0,
     beta_threshold: float = 0.55,
@@ -347,7 +348,10 @@ def runtime_ndim_shadow_compare(
             external_switch_pressure_delta=external_switch_pressure_delta,
             params=sw_p,
         )
-        is_switching = scalar >= beta_threshold
+        is_switching = (
+            external_boundary_request
+            or scalar >= beta_threshold
+        )
         latent = enc.posterior.z_tilde if is_switching else prev
         dec = mc.decode(latent_code=latent, params=dec_p)
         elapsed = (time.perf_counter() - t0) * 1000.0
@@ -405,8 +409,14 @@ def runtime_ndim_shadow_compare(
     d_mean, d_z, d_beta, d_applied = md("posterior_mean"), md("z_tilde"), md("beta"), md("applied")
     within = max(d_mean, d_z, d_beta, d_applied) <= tolerance
     latency_ok = torch_latency <= latency_budget_ms
-    switch_pure = pure_out["switch_scalar"] >= beta_threshold
-    switch_torch = torch_out["switch_scalar"] >= beta_threshold
+    switch_pure = (
+        external_boundary_request
+        or pure_out["switch_scalar"] >= beta_threshold
+    )
+    switch_torch = (
+        external_boundary_request
+        or torch_out["switch_scalar"] >= beta_threshold
+    )
     family_pure = _nearest_family(pure_out["latent"])
     family_torch = _nearest_family(torch_out["latent"])
     return RuntimeNdimShadowReport(

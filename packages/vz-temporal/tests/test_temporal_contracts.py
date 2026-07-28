@@ -736,6 +736,46 @@ def test_full_policy_episode_transfer_reset_clears_only_recurrent_state() -> Non
     )
 
 
+@pytest.mark.parametrize(
+    "runtime_backend",
+    (WiringLevel.DISABLED, WiringLevel.ACTIVE),
+)
+def test_prediction_error_boundary_request_crosses_learned_beta_threshold(
+    runtime_backend: WiringLevel,
+) -> None:
+    snapshot = _trace_step_snapshot(_trace("pe-boundary-request"))
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=store,
+        runtime_backend=runtime_backend,
+    )
+
+    first = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=None,
+    )
+    assert first.controller_state.is_switching is True
+
+    store.beta_threshold = 0.95
+    without_request = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=None,
+    )
+    assert without_request.controller_state.is_switching is False
+
+    # PE publishes only a direction-free boundary request. The temporal owner
+    # resolves it against the current learned threshold instead of relying on
+    # a fixed additive bias that calibrated beta can outrun.
+    store.record_prediction_error_switch_pressure(1e-6)
+    with_request = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=None,
+    )
+
+    assert with_request.controller_state.is_switching is True
+    assert with_request.controller_state.switch_gate >= store.beta_threshold
+
+
 @torch_only
 def test_store_ssl_decoder_keeps_gradient_at_bounded_zero() -> None:
     import torch

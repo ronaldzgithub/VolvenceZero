@@ -53,6 +53,11 @@ from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
+# v31 binds curriculum v14's threshold-relative PE boundary request. v30
+# observed real pickup but its PE magnitude remained below the profile floor;
+# even a positive fixed pressure could be outrun by a learned beta threshold,
+# so outbound and carrying credit were still allowed to share one segment.
+#
 # v30 binds curriculum v13's real pickup-to-return training transition,
 # pickup-triggered frozen switch requirement and late interleaved return
 # rehearsal. v29 trained forced-return bodies already carrying, so it skipped
@@ -80,7 +85,11 @@ from volvence_ant.substrate import AntSenseSchema, sense_channels
 #   * ``composite`` gains the matched no-optimize exposure conjunct and
 #     ``temporal_non_timeout_closure`` becomes a per-layout ratio;
 #   * the held-out budget is aligned to P2's frozen 120 rounds.
-ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v30"
+ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v31"
+# v28 follows curriculum v14 / P1 v31. The same physical schedule now closes
+# a qualifying PE boundary relative to the current learned beta threshold, so
+# v27 optimizer state contains differently segmented action credit and cannot
+# be resumed.
 # v27 follows curriculum v13 / P1 v30. The forced-return world and schedule
 # now contain real pickup transitions plus late rehearsal, so v26 optimizer
 # state is from a different experiment and must never be resumed.
@@ -101,7 +110,7 @@ ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v30"
 # v22 bound sense schema and input dim into the resume archive compatibility
 # (spec sections 3 and 8: archive compatibility binds sense schema / input dim
 # / latent dim / ant count).
-ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v27"
+ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v28"
 ECOLOGY_P1_DIAGNOSTICS_SCHEMA_VERSION = "digital-ant-ecology-p1-diagnostics.v3"
 ECOLOGY_P1_ARM_NAMES = (
     "learned",
@@ -648,9 +657,9 @@ def _read_progress_archive(
     except ValueError as exc:
         raise ValueError(
             "P1 progress checkpoint is not compatible with this run "
-            f"({archive_path.name}): {exc}. Journals written before "
-            f"{ECOLOGY_P1_PROGRESS_SCHEMA_VERSION} do not bind sense schema "
-            "and input dim and cannot be resumed; start a new "
+            f"({archive_path.name}): {exc}. Journals from a different "
+            f"algorithm or schema generation than "
+            f"{ECOLOGY_P1_PROGRESS_SCHEMA_VERSION} cannot be resumed; start a new "
             "--progress-dir for this configuration."
         ) from exc
     if dict(collection.metadata.compatibility) != dict(

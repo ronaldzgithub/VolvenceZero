@@ -100,6 +100,13 @@ FSM 手写的梯度跟随答案直接喂给控制器，而"如何朝食物走"�
 禁止 `AntWorld` 直接传 reward 给 temporal/Internal RL，禁止 evaluation 反灌 reward，禁止 runtime
 另建 mismatch slot。历史上只依赖 drive PE 的结果可以保留为机制 smoke，但不是 learned foraging 证据。
 
+ecology evidence profile 将 `prediction_error_temporal_switch` 设为 `ACTIVE`，并把方向无关的
+PE boundary floor 冻结为 `0.45`。超过该值只表示“上一动作产生了足够大的状态突变，需要关闭旧
+segment”；它不携带食物、巢穴、左右或动作标签。temporal owner 必须相对当前 learned
+`beta_threshold` 完成边界请求，不能只叠加一个固定上限的 logit pressure——否则 threshold 校准可让
+真实 pickup 的 `carrying_food: False→True` 继续沿用 outbound action family，并把 carrying credit
+混回拾取前 segment。低于 floor 的普通扰动不得强制切段；PE-off/SHADOW 仍是原有回滚与因果对照。
+
 这里的“只有两个 task milestone”不等于系统其余 PE 必须为零：局部 food/pheromone/heading 感知仍会
 产生 substrate prediction mismatch，Internal-RL 可把它作为内在 PE 信号。它不读取食物坐标或全局距离，
 不是 task shaping；但因此 learned-vs-PE-off 只能证明“含内在 PE 的完整架构贡献”，不能写成

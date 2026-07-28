@@ -170,6 +170,8 @@ def _episode(
 @pytest.mark.parametrize(
     "retired",
     [
+        # v13 used fixed PE pressure that a learned beta threshold could outrun.
+        "digital-ant-ecology-curriculum.v13",
         # v12 graded a real pickup but trained forced-return already carrying.
         "digital-ant-ecology-curriculum.v12",
         # v11 changed training geometry but had no sustained U-turn hard gate.
@@ -186,10 +188,10 @@ def _episode(
 def test_curriculum_schema_bump_rejects_earlier_reports(
     retired: str,
 ) -> None:
-    """v13 semantics must never be read out of a v12 (or older) journal."""
+    """v14 semantics must never be read out of a v13 (or older) journal."""
 
     assert ECOLOGY_CURRICULUM_SCHEMA_VERSION == (
-        "digital-ant-ecology-curriculum.v13"
+        "digital-ant-ecology-curriculum.v14"
     )
     legacy = {
         "schema_version": retired,
@@ -1050,6 +1052,70 @@ def test_forced_return_curriculum_balances_state_without_action_labels() -> None
     assert all(
         current > initial
         for initial, current in zip(before, after, strict=True)
+    )
+
+
+async def test_real_forced_return_pickup_closes_outbound_segment() -> None:
+    config = _config()
+    active_world = _world(
+        config=config,
+        stage=EcologyStage.BUTTER,
+        seed=10,
+        data_split=EcologyDataSplit.TRAIN,
+        tier=EcologyTrainingTier.NEAR,
+        forced_return=True,
+    )
+    active_runner = KernelColonyRunner(
+        active_world,
+        base_config=_session_config(
+            config=config,
+            seed=10,
+            session_id="forced-return-boundary-test",
+            optimize=False,
+        ),
+    )
+    _synchronize_curriculum_navigators(active_runner)
+
+    active_rounds = await active_runner.run(3)
+
+    assert all(step.carrying_food for step in active_rounds[0].ant_steps)
+    # The outcome and PE traverse their typed owners before the next temporal
+    # decision, so the boundary is visible by the second post-pickup action.
+    assert all(
+        active_rounds[2].ant_steps[body_id].is_switching
+        for body_id in range(config.n_ants)
+    )
+    assert all(
+        active_rounds[2].ant_steps[body_id].runtime_closed_segments
+        > active_rounds[1].ant_steps[body_id].runtime_closed_segments
+        for body_id in range(config.n_ants)
+    )
+
+    pe_off_world = _world(
+        config=config,
+        stage=EcologyStage.BUTTER,
+        seed=10,
+        data_split=EcologyDataSplit.TRAIN,
+        tier=EcologyTrainingTier.NEAR,
+        forced_return=True,
+    )
+    pe_off_runner = KernelColonyRunner(
+        pe_off_world,
+        base_config=_session_config(
+            config=config,
+            seed=10,
+            session_id="forced-return-boundary-pe-off-test",
+            optimize=False,
+            prediction_error_enabled=False,
+        ),
+    )
+    _synchronize_curriculum_navigators(pe_off_runner)
+    pe_off_rounds = await pe_off_runner.run(3)
+
+    assert all(step.carrying_food for step in pe_off_rounds[0].ant_steps)
+    assert all(
+        not pe_off_rounds[2].ant_steps[body_id].is_switching
+        for body_id in range(config.n_ants)
     )
 
 

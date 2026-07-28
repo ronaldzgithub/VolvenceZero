@@ -20,6 +20,10 @@ from volvence_ant.evidence.provenance import (
     AntRunProvenance,
     verify_ant_artifact_manifest,
 )
+from volvence_ant.evidence.runtime_profile import (
+    ANT_PREDICTION_ERROR_BOUNDARY_FLOOR,
+    ant_runtime_replay_rollout_config,
+)
 from volvence_ant.experiments.ecology_mechanism_audit import (
     ECOLOGY_AUDIT_BACKEND_PARITY_EXERCISE_STEPS,
     ECOLOGY_AUDIT_BACKEND_PARITY_TOLERANCE,
@@ -407,6 +411,46 @@ def test_prediction_error_bridge_adds_only_active_switch_pressure() -> None:
         disabled.world_temporal_policy.parameter_store
         .prediction_error_switch_pressure_delta()
         == 0.0
+    )
+
+
+def test_ant_prediction_error_boundary_floor_separates_pickup_from_quiet_noise() -> None:
+    profile = ant_runtime_replay_rollout_config(
+        enable_sparse_exploration=False,
+    )
+    assert ANT_PREDICTION_ERROR_BOUNDARY_FLOOR == pytest.approx(0.45)
+    assert profile.prediction_error_temporal_switch_floor == pytest.approx(
+        ANT_PREDICTION_ERROR_BOUNDARY_FLOOR
+    )
+
+    loop = ETANLJointLoop(
+        prediction_error_temporal_switch=WiringLevel.ACTIVE,
+        prediction_error_temporal_switch_strength=(
+            profile.prediction_error_temporal_switch_strength
+        ),
+        prediction_error_temporal_switch_floor=(
+            profile.prediction_error_temporal_switch_floor
+        ),
+    )
+    loop.set_external_learning_signals(
+        {"prediction_error_magnitude": 0.44}
+    )
+    assert (
+        loop.world_temporal_policy.parameter_store
+        .prediction_error_boundary_requested()
+        is False
+    )
+
+    # v30's frozen real-pickup trace measured 0.4789 on the carrying-state
+    # transition. This value must cross the calibrated lower bound without
+    # turning ordinary sub-floor noise into a boundary.
+    loop.set_external_learning_signals(
+        {"prediction_error_magnitude": 0.4789}
+    )
+    assert (
+        loop.world_temporal_policy.parameter_store
+        .prediction_error_boundary_requested()
+        is True
     )
 
 
