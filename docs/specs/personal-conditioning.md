@@ -74,15 +74,19 @@ temporal 决策仍早于这次注入。
 |------|------|-----------|
 | `"residual"`（默认） | 快照经 `ResponseContext.personal_conditioning` 进入 runtime 残差通道（上文第 4–6 条） | 臂 E |
 | `"text"` | owner 的 `rendered_statement` 经 `ResponseContext.personal_conditioning_statement` 进入 system prompt 的稳定前段；runtime **收不到**条件化快照 | 臂 B′ |
+| `"prefix_kv"` | 同一份快照经 `ResponseContext.personal_conditioning_carrier="prefix_kv"` 进入 runtime 的有界 State-KV 前缀通道；system prompt 不收到 `rendered_statement` | 臂 G |
 
-slot 为 `SHADOW` / `DISABLED` 时该开关无效（臂 A = 默认 `SHADOW`）。三个臂以
-显式 dialogue profile 提供：`state-kv-arm-a` / `state-kv-arm-bprime` /
-`state-kv-arm-e`，**不进**默认 ablation 矩阵，跑分需显式传 `profile_labels=`。
+slot 为 `SHADOW` / `DISABLED` 时该开关无效（臂 A = 默认 `SHADOW`）：没有 ACTIVE
+快照进入 `session_observation`，`ResponseContext` 回到无条件化的 residual 默认载体。
+臂以显式 dialogue profile 提供：`state-kv-arm-a` / `state-kv-arm-bprime` /
+`state-kv-arm-e` / `state-kv-arm-g-prefix-pure`，**不进**默认 ablation 矩阵，
+跑分需显式传 `profile_labels=`。
 
 审计：text 模式在 rationale tags 记录
 `personal_conditioning_text={schema}:{confidence}:{fingerprint 前缀}`，与
-residual 模式的 `personal_conditioning` / `personal_conditioning_not_applied`
-标签同级，保证两种投递形态同等可审计。
+residual / prefix-KV 模式的 `personal_conditioning` /
+`personal_conditioning_not_applied` 标签同级；prefix-KV 还通过 runtime decode
+attestation 记录 carrier 与 seed，保证三种投递形态同等可审计。
 
 ### 3.2 载体识别臂（prompt 载体闭合）
 
@@ -132,7 +136,7 @@ runtime 加载时对 schema、artifact hash、模型、宽度和 hook 层逐项 
 成为默认 ACTIVE 路径。省略 `personal_conditioning_projector` 参数即可原子回滚
 到 `fixed-sine-cosine-v1` 的单层行为；无需改快照 owner、runtime wiring 或权重。
 
-### 3.4 版本化 Prefix-KV artifact 与单一 substrate owner（证据专用）
+### 3.4 版本化 Prefix-KV artifact 与单一 substrate owner
 
 §3.3 的 projector 只能改注入**方向**，改不了幅度：`clamp_personal_conditioning_scale`
 把 residual 通道硬钉在 `[0, 0.12]`，实测相对扰动约 0.25%，两条 artifact 都没能让
@@ -155,11 +159,20 @@ runtime 加载时对 schema、artifact hash、模型、宽度和 hook 层逐项 
 就已经把输出打成 `'......'`，gain 1.0 完全崩坏。因此 `reference_*_norms` 必须为正
 且有限，否则该层的 cap 会在 artifact 仍自称有界的情况下静默失效——契约层直接拒绝。
 
-载体由 `ResponseContext.personal_conditioning_carrier` 选择（`"residual"` 默认 /
-`"prefix_kv"`）。两条载体互斥：同一轮只会构建其中一个 delta，否则无法归因是哪条
-通道带的状态。快照准入条件完全相同（缺失 / cold-start / 零置信度都不注入），所以
-两臂的差别只有载体本身。缺少 artifact 时请求 `prefix_kv` 直接 raise，不回落到
-residual——静默回落会发布一条标着 prefix-KV 而证据来自另一条通道的臂。
+载体由 `FinalRolloutConfig.personal_conditioning_mode="prefix_kv"` 通过
+`session_observation` 写入 `ResponseContext.personal_conditioning_carrier` 选择。
+两条潜载体互斥：同一轮只会构建 residual delta 或 prefix-KV delta 中的一个，
+否则无法归因是哪条通道带的状态。快照准入条件完全相同（缺失 / cold-start /
+零置信度都不注入），所以两臂的差别只有载体本身。缺少 artifact 时请求
+`prefix_kv` 直接 raise，不回落到 residual——静默回落会发布一条标着 prefix-KV
+而证据来自另一条通道的臂。
+
+默认 rollout 仍保留 `personal_conditioning=SHADOW` 与
+`personal_conditioning_mode="residual"` 作为字节级回滚点。正式打开 prefix-KV
+需要同时满足：`personal_conditioning=ACTIVE`、`personal_conditioning_mode="prefix_kv"`、
+runtime 装载兼容 `state-kv-prefix.v1` artifact。回滚方式是把 slot 调回
+`SHADOW` / `DISABLED`，或在 runtime 构造中省略 `personal_conditioning_prefix`
+artifact；已加载但未被请求的 artifact 对默认载体保持惰性。
 
 **已知非对称：解码路径。** prefix 载体不能用 `model.generate`：预填充 cache 会让它
 把 prompt 前 `num_slots` 个 token 当成已缓存而截断 prompt，并从加宽后的 mask 推出
@@ -229,8 +242,9 @@ prompt identity 与 output divergence。但 wrong-user training control 仍只�
   G-prefix 64/64，A-pure 32/64 且 CI 覆盖随机；per-turn seed audit 320/320 通过。
 
 这把“state readout 能进入 Prefix-KV 并影响冻结 Qwen 输出”证明到标准 artifact
-级别，并补上了未见过 persona/probe 的 held-out 行为识别。它仍是证据专用 artifact，
-不是默认 `ACTIVE` 晋升；默认 wiring / 回滚开关与多模型裁判矩阵仍需后续包处理。
+级别，并补上了未见过 persona/probe 的 held-out 行为识别。runtime wiring 已把
+prefix-KV 接成正式 opt-in 投递模式；默认全局 `ACTIVE` 晋升仍需随部署 profile
+绑定兼容 artifact，并补上多模型裁判矩阵。
 
 完整数据与反主张边界见
 [`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3 / §P4。

@@ -104,6 +104,46 @@ if TYPE_CHECKING:
 _RUNNER_TENANT_SCOPE = "runner-local"
 
 
+def _personal_conditioning_delivery_from_config(
+    *,
+    active_conditioning: PersonalConditioningSnapshot | None,
+    personal_conditioning_mode: str,
+) -> tuple[PersonalConditioningSnapshot | None, str, str, str]:
+    """Select exactly one live personal-state delivery carrier."""
+
+    if (
+        active_conditioning is None
+        or active_conditioning.is_cold_start
+        or active_conditioning.confidence <= 0.0
+    ):
+        return None, "", "", "residual"
+    if personal_conditioning_mode == "text":
+        if not active_conditioning.rendered_statement:
+            raise ValueError(
+                "personal_conditioning_mode='text' requires a non-empty "
+                "PersonalConditioningSnapshot.rendered_statement for a "
+                "non-cold-start snapshot."
+            )
+        return (
+            None,
+            active_conditioning.rendered_statement,
+            (
+                f"{active_conditioning.schema_version}:"
+                f"{active_conditioning.confidence:.2f}:"
+                f"{active_conditioning.source_fingerprint[:12]}"
+            ),
+            "residual",
+        )
+    if personal_conditioning_mode == "residual":
+        return active_conditioning, "", "", "residual"
+    if personal_conditioning_mode == "prefix_kv":
+        return active_conditioning, "", "", "prefix_kv"
+    raise ValueError(
+        "personal_conditioning_mode must be 'residual', 'text', or "
+        f"'prefix_kv', got {personal_conditioning_mode!r}."
+    )
+
+
 class SessionObservationMixin:
     """Methods that build the substrate adapter / training trace / turn result.
 
@@ -305,25 +345,17 @@ class SessionObservationMixin:
             else None
         )
         # State KV arm wiring (docs/specs/personal-conditioning.md): the
-        # same ACTIVE snapshot is delivered either as a latent residual
-        # bias ("residual", arm E) or as the owner-rendered statement in
-        # the system prompt ("text", arm B-prime). The two paths are
-        # mutually exclusive so an arm never receives both.
-        personal_conditioning = None
-        personal_conditioning_statement = ""
-        personal_conditioning_statement_ref = ""
-        if active_conditioning is not None:
-            if self._config.personal_conditioning_mode == "text":
-                personal_conditioning_statement = (
-                    active_conditioning.rendered_statement
-                )
-                personal_conditioning_statement_ref = (
-                    f"{active_conditioning.schema_version}:"
-                    f"{active_conditioning.confidence:.2f}:"
-                    f"{active_conditioning.source_fingerprint[:12]}"
-                )
-            else:
-                personal_conditioning = active_conditioning
+        # same ACTIVE snapshot is delivered through exactly one carrier:
+        # residual (arm E), text (arm B-prime), or prefix-KV (arm G).
+        (
+            personal_conditioning,
+            personal_conditioning_statement,
+            personal_conditioning_statement_ref,
+            personal_conditioning_carrier,
+        ) = _personal_conditioning_delivery_from_config(
+            active_conditioning=active_conditioning,
+            personal_conditioning_mode=self._config.personal_conditioning_mode,
+        )
         # State KV P1 lineage: project the ACTIVE personal snapshot onto the
         # generic bank so this turn records which state versions shaped it.
         # Built for both delivery modes -- residual and text both influence
@@ -411,6 +443,7 @@ class SessionObservationMixin:
                 personal_conditioning=personal_conditioning,
                 personal_conditioning_statement=personal_conditioning_statement,
                 personal_conditioning_statement_ref=personal_conditioning_statement_ref,
+                personal_conditioning_carrier=personal_conditioning_carrier,
                 prompt_state_delivery=self._config.prompt_state_delivery,
             ),
             assembly=response_assembly,

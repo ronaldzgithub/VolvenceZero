@@ -219,6 +219,9 @@ class FinalRolloutConfig:
     #   - "text": arm B-prime -- the owner-rendered natural-language
     #     statement is placed in the system prompt and the runtime receives
     #     no conditioning snapshot. The two paths are mutually exclusive.
+    #   - "prefix_kv": latent path -- the same snapshot goes to the runtime
+    #     as a bounded state-prefix KV carrier (arm G). The runtime must have
+    #     a compatible prefix artifact loaded; otherwise it fails loudly.
     # Ignored while personal_conditioning is SHADOW/DISABLED.
     personal_conditioning_mode: str = "residual"
     # Whether state-derived sections reach the system prompt at all
@@ -571,9 +574,10 @@ class FinalRolloutConfig:
                 "internal_rl_runtime_outcome_payoff_reward must be None or "
                 f"bool, got {self.internal_rl_runtime_outcome_payoff_reward!r}."
             )
-        if self.personal_conditioning_mode not in ("residual", "text"):
+        if self.personal_conditioning_mode not in ("residual", "text", "prefix_kv"):
             raise ValueError(
-                "personal_conditioning_mode must be 'residual' or 'text', "
+                "personal_conditioning_mode must be 'residual', 'text', or "
+                "'prefix_kv', "
                 f"got {self.personal_conditioning_mode!r}."
             )
         if self.prompt_state_delivery not in ("text", "suppressed"):

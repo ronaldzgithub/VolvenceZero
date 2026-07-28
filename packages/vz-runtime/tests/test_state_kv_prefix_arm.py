@@ -10,6 +10,8 @@ and the artifact records which one was on trial.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from volvence_zero.agent.profile_registry import (
@@ -17,6 +19,9 @@ from volvence_zero.agent.profile_registry import (
     resolve_profile,
 )
 from volvence_zero.agent.response import ResponseContext
+from volvence_zero.agent.session_observation import (
+    _personal_conditioning_delivery_from_config,
+)
 from volvence_zero.application.runtime import (
     ResponseAssemblySnapshot,
     ResponseMode,
@@ -148,6 +153,46 @@ def test_residual_arm_keeps_the_default_carrier() -> None:
     assert context.personal_conditioning_carrier == "residual"
 
 
+def test_session_observation_selects_prefix_carrier_for_active_prefix_mode() -> None:
+    case = _case()
+
+    conditioning, statement, statement_ref, carrier = (
+        _personal_conditioning_delivery_from_config(
+            active_conditioning=case.conditioning,
+            personal_conditioning_mode="prefix_kv",
+        )
+    )
+
+    assert conditioning is case.conditioning
+    assert statement == ""
+    assert statement_ref == ""
+    assert carrier == "prefix_kv"
+
+
+def test_session_observation_rollback_delivers_no_state_without_active_snapshot() -> None:
+    conditioning, statement, statement_ref, carrier = (
+        _personal_conditioning_delivery_from_config(
+            active_conditioning=None,
+            personal_conditioning_mode="prefix_kv",
+        )
+    )
+
+    assert conditioning is None
+    assert statement == ""
+    assert statement_ref == ""
+    assert carrier == "residual"
+
+
+def test_session_observation_text_mode_requires_rendered_statement() -> None:
+    case = _case()
+
+    with pytest.raises(ValueError, match="rendered_statement"):
+        _personal_conditioning_delivery_from_config(
+            active_conditioning=replace(case.conditioning, rendered_statement=""),
+            personal_conditioning_mode="text",
+        )
+
+
 def test_response_context_rejects_an_unknown_carrier() -> None:
     with pytest.raises(ValueError, match="personal_conditioning_carrier"):
         ResponseContext(
@@ -197,6 +242,7 @@ def _turn(*, arm: str, user: str, text: str) -> IdentificationTurn:
         prompt_fp="fp-shared",
         prompt_state_sections=0,
         decode_fp="decode-same",
+        sampling_seed=None,
         conditioning_applied=arm != CONTROL_ARM_LABEL,
         conditioning_delivered=arm != CONTROL_ARM_LABEL,
         text=text,

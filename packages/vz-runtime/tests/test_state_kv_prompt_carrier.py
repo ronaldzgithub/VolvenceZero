@@ -383,6 +383,17 @@ def test_final_rollout_config_rejects_unknown_prompt_state_delivery() -> None:
         FinalRolloutConfig(prompt_state_delivery="latent")
 
 
+def test_final_rollout_config_accepts_prefix_kv_mode() -> None:
+    config = FinalRolloutConfig(personal_conditioning_mode="prefix_kv")
+
+    assert config.personal_conditioning_mode == "prefix_kv"
+
+
+def test_final_rollout_config_rejects_unknown_personal_conditioning_mode() -> None:
+    with pytest.raises(ValueError, match="personal_conditioning_mode"):
+        FinalRolloutConfig(personal_conditioning_mode="soft_prompt")
+
+
 def test_final_rollout_config_rejects_text_mode_under_suppression() -> None:
     with pytest.raises(ValueError, match="prompt_state_delivery='text'"):
         FinalRolloutConfig(

@@ -756,9 +756,10 @@ prompt-suppressed / decode-matched 纪律下，未参与训练的 persona 与 pr
 embedding judge 显著认回；且 A-pure 控制臂保持随机区间，排除 prompt 残留和裁判
 单纯利用探针句的解释。
 
-仍不能外推到默认产品路径或长期稳定性：P2 当前是 deterministic 单配置、pairwise
-二选一，不是多模型裁判矩阵。默认 `ACTIVE` 晋升前还需要把 rollout 稳定性、
-rollout gate 与回滚开关作为独立证据包关闭。
+仍不能外推到默认产品路径：P2 deterministic 证据已经由 full-probe stochastic
+rollout gate 复核，prefix-KV runtime wiring 也具备 `ACTIVE` / `SHADOW` /
+`DISABLED` 回滚开关；默认全局 `ACTIVE` 部署前还需要绑定兼容 artifact profile，
+并补上多模型裁判矩阵。
 
 #### P2 aggregate retention gate（2026-07-28）
 
@@ -907,7 +908,7 @@ python scripts/run_state_kv_retention_gate.py \
 这关闭的是**完整 P2 held-out probe set 上的 seed-aligned stochastic rollout stability**：
 同一标准 artifact、同一冻结 Qwen、同一 embedding judge、同一 seed/base config 下，
 两个 held-out pair 均保持 prompt-closed、decode-matched、G-prefix 可识别，且 A-pure
-控制臂合计随机。仍未关闭的是多模型裁判矩阵与默认产品 wiring。
+控制臂合计随机。仍未关闭的是多模型裁判矩阵与默认全局 `ACTIVE` 部署 profile。
 
 #### P3 stochastic rollout seed-alignment smoke（2026-07-28）
 
