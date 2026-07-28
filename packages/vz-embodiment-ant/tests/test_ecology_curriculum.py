@@ -170,6 +170,8 @@ def _episode(
 @pytest.mark.parametrize(
     "retired",
     [
+        # v10 trained only a quarter-turn return, not the natural near-pi leg.
+        "digital-ant-ecology-curriculum.v10",
         # v9's forced-return pressure rewarded a straight non-delivery path.
         "digital-ant-ecology-curriculum.v9",
         # v8's milestone budgets and mastery eligibility are not v9's.
@@ -180,10 +182,10 @@ def _episode(
 def test_curriculum_schema_bump_rejects_earlier_reports(
     retired: str,
 ) -> None:
-    """v10 semantics must never be read out of a v9 (or older) journal."""
+    """v11 semantics must never be read out of a v10 (or older) journal."""
 
     assert ECOLOGY_CURRICULUM_SCHEMA_VERSION == (
-        "digital-ant-ecology-curriculum.v10"
+        "digital-ant-ecology-curriculum.v11"
     )
     legacy = {
         "schema_version": retired,
@@ -997,11 +999,23 @@ def test_forced_return_curriculum_balances_state_without_action_labels() -> None
         for session in runner.sessions
     )
     assert home_sides[0] * home_sides[1] < 0.0
-    assert all(abs(value) == pytest.approx(1.0) for value in home_sides)
+    assert all(
+        abs(value) == pytest.approx(math.sqrt(0.5))
+        for value in home_sides
+    )
+    home_fronts = tuple(
+        session.navigator.egocentric_home()[0]
+        for session in runner.sessions
+    )
+    assert all(
+        value == pytest.approx(-math.sqrt(0.5))
+        for value in home_fronts
+    )
 
     # A zero-turn policy must not harvest dense home-progress while still
-    # missing the delivery disc. Tangent starts make the first straight step
-    # increase home distance for both left/right-balanced bodies.
+    # missing the delivery disc. Steep +/-135 degree starts make the first
+    # straight step increase home distance for both left/right-balanced
+    # bodies, while retaining a signed lateral correction signal.
     before = tuple(
         session.navigator.state.home_distance for session in runner.sessions
     )

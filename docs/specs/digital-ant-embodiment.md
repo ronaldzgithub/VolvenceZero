@@ -348,8 +348,10 @@ promotion gate：
   contrast 轴所有权后需经 head 重新习得,若训练后这两项 gate 失败即为能力回退证据。
   P1 固定 schedule 含两类强制起点 bootstrap，均只初始化身体状态并同步 body-side PI，
   不发布坐标/目标方位/动作标签：`forced_return`（巢外携食，练归巢；起始 heading 与
-  home bearing 正交为左右均衡的 `±π/2`，使零转向从第一步就远离巢，禁止“直线接近但
-  掠过交付盘”领取正 home-progress 的退化解）与 `forced_approach`
+  home bearing 偏离为左右均衡的 `±3π/4`：v10 的 `±π/2` 虽堵住“直线接近但掠过
+  交付盘”领取正 home-progress 的退化解，却只训练 90° 修正，不能覆盖自然拾取后接近
+  180° 的返向；`±3π/4` 让零转向从第一步就远离巢，同时保留非零的左右符号信用。精确
+  `π` 禁止使用，因为其侧向分量为零、左右修正不可辨）与 `forced_approach`
   （butter-near 专用，练觅食转向：body 生成在蝶油拾取盘外、朝向偏离食物方位、
   左右修正方向按 body 交替平衡；生成半径 `1.45–2.9×拾取半径`、偏离角 `0.4π–0.8π`
   由 layout seed 逐 body 随机抽样——固定生成环可被单一"固定曲率轨道"非定向解收割，

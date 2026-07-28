@@ -48,6 +48,10 @@ from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
+# v28 binds curriculum v11's +/-135 degree forced-return pressure. v27 learned
+# the correct carrying-home direction but not enough authority for the near-pi
+# turn after a natural pickup, so its optimizer state is not comparable.
+#
 # v27 binds curriculum v10's tangent forced-return pressure. A v26 policy
 # could harvest positive home-progress on a straight path that missed the
 # delivery disc, so its homing evidence is not comparable.
@@ -62,7 +66,10 @@ from volvence_ant.substrate import AntSenseSchema, sense_channels
 #   * ``composite`` gains the matched no-optimize exposure conjunct and
 #     ``temporal_non_timeout_closure`` becomes a per-layout ratio;
 #   * the held-out budget is aligned to P2's frozen 120 rounds.
-ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v27"
+ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v28"
+# v25 follows the curriculum v11 / P1 v28 pressure change. A v24 journal
+# contains optimizer state trained only on +/-90 degree return starts and must
+# fail loudly instead of resuming into the stronger large-angle pressure.
 # v24 follows the curriculum v10 / P1 v27 pressure change. A v23 journal
 # contains optimizer state trained on the retired +/-30 degree start and must
 # fail loudly instead of resuming into tangent episodes.
@@ -74,7 +81,7 @@ ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v27"
 # v22 bound sense schema and input dim into the resume archive compatibility
 # (spec sections 3 and 8: archive compatibility binds sense schema / input dim
 # / latent dim / ant count).
-ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v24"
+ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v25"
 ECOLOGY_P1_DIAGNOSTICS_SCHEMA_VERSION = "digital-ant-ecology-p1-diagnostics.v3"
 ECOLOGY_P1_ARM_NAMES = (
     "learned",
