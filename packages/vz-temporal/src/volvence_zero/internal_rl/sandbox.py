@@ -2007,7 +2007,7 @@ class CausalZPolicy:
             # floor-relative normalization, exact local progress rewards are
             # orders of magnitude below the head learning rate and produce a
             # fingerprint change with no durable motor effect.
-            selected_advantages.append(
+            lane_advantage = (
                 1.0
                 if direct_action_target
                 else max(
@@ -2015,6 +2015,7 @@ class CausalZPolicy:
                     min(1.0, advantage / advantage_scale),
                 )
             )
+            selected_advantages.append(lane_advantage)
             if self._causal_action_head_mirror_equivariance:
                 if (
                     len(transition.runtime_action_head_mirror_state)
@@ -2037,9 +2038,12 @@ class CausalZPolicy:
                         ),
                     )
                 )
-                selected_advantages.append(
-                    max(-1.0, min(1.0, advantage / advantage_scale))
-                )
+                # The mirror lane is the SAME transition viewed through the
+                # equivariance involution, not an independent sample: both
+                # lanes must carry identical weight (including the
+                # direct_action_target case) or the augmentation itself
+                # fights the equivariance it exists to enforce.
+                selected_advantages.append(lane_advantage)
         return self._parameter_store.update_causal_action_head(
             track=track,
             state_feature_batch=tuple(state_feature_batch),

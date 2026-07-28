@@ -29,6 +29,7 @@ from volvence_zero.environment import (
 from volvence_zero.internal_rl.sandbox import (
     InternalRLSandbox,
     RuntimeReplayLatentBoundContractError,
+    RuntimeReplayLineageError,
     RuntimeReplayRewardEligibility,
     RuntimeReplayRewardEligibilityError,
     RuntimeReplayRewardEligibilityReason,
@@ -190,21 +191,30 @@ def _prediction_error(
     )
 
 
-def _credit(credit_value: float = 0.5) -> CreditSnapshot:
+def _credit(
+    credit_value: float = 0.5,
+    *,
+    prediction_id: str = "prediction-1",
+    outcome_id: str = "outcome-1",
+) -> CreditSnapshot:
+    lineage_record = CreditRecord(
+        record_id="credit-1",
+        level="abstract_action_segment",
+        track=Track.SHARED,
+        source_event="segment:segment-1",
+        credit_value=credit_value,
+        context="matched PE segment",
+        timestamp_ms=2,
+        prediction_id=prediction_id,
+        environment_outcome_id=outcome_id,
+        segment_id="segment-1",
+        abstract_action_id="family-1",
+    )
     return CreditSnapshot(
-        recent_credits=(
-            CreditRecord(
-                record_id="credit-1",
-                level="abstract_action_segment",
-                track=Track.SHARED,
-                source_event="segment:segment-1",
-                credit_value=credit_value,
-                context="matched PE segment",
-                timestamp_ms=2,
-            ),
-        ),
+        recent_credits=(lineage_record,),
         recent_modifications=(),
         cumulative_credit_by_level=(("abstract_action_segment", 0.5),),
+        recent_action_lineage_credits=(lineage_record,),
     )
 
 
@@ -286,6 +296,16 @@ def test_default_eligibility_reproduces_todays_measurement_free_value() -> None:
         settlement.reward_eligibility_reason
         == RuntimeReplayRewardEligibilityReason.ELIGIBLE.value
     )
+
+
+def test_runtime_replay_rejects_missing_credit_owner_lineage() -> None:
+    credit = replace(_credit(), recent_action_lineage_credits=())
+
+    with pytest.raises(
+        RuntimeReplayLineageError,
+        match="missing Credit-owner action lineage",
+    ):
+        _settle(_captured_sandbox(), credit_snapshot=credit)
 
 
 def test_strict_eligibility_zeroes_measurement_free_reward_and_tags_it() -> None:
@@ -597,7 +617,10 @@ def _drive_turns(
                     else measurement.action_payoff
                 ),
             ),
-            credit_snapshot=_credit(),
+            credit_snapshot=_credit(
+                prediction_id=settled_prediction_id,
+                outcome_id=outcome_id,
+            ),
         )
 
 

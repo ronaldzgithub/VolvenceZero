@@ -412,6 +412,22 @@ class FinalRolloutConfig:
     # previous turn's prediction-error magnitude above the configured floor
     # into bounded switch pressure; it never supplies an action or target
     # direction. DISABLED is the byte-stable default.
+    #
+    # The pressure carries value/sign dual semantics and only the SIGN
+    # reaches the boundary decision: pressure > 0 (iff magnitude > floor)
+    # requests a temporal boundary that forces the switch, while the additive
+    # VALUE is published as observable intensity with no marginal effect on
+    # the decision (below the floor it is exactly zero; above it the boundary
+    # is already forced). ``_floor`` is therefore the ONLY boundary
+    # calibration knob. ``_strength`` acts as a channel switch (0.0 disables
+    # the boundary even above the floor) plus readout scale; sweeping it in
+    # (0, 1] never changes a decision. Pinned by
+    # tests/test_temporal_contracts.py::
+    # test_pe_switch_strength_value_is_inert_for_boundary_decisions.
+    #
+    # The generic default floor is 0.5; the digital-ant profile overrides it
+    # to ANT_PREDICTION_ERROR_BOUNDARY_FLOOR = 0.45 (volvence_ant
+    # evidence/runtime_profile.py) to sit below its measured pickup PE.
     prediction_error_temporal_switch: WiringLevel = WiringLevel.DISABLED
     prediction_error_temporal_switch_strength: float = 0.35
     prediction_error_temporal_switch_floor: float = 0.5

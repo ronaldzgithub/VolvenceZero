@@ -1946,6 +1946,174 @@ def test_live_action_head_residual_is_mirror_equivariant() -> None:
     assert direct[3] == pytest.approx(0.0)
 
 
+def test_mirror_lane_advantage_matches_direct_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both equivariance lanes of one transition must carry one weight.
+
+    The mirror lane is the SAME transition viewed through the involution,
+    not an independent sample. With ``direct_action_target=True`` the direct
+    lane used a hardcoded 1.0 while its mirror partner still received
+    ``advantage / advantage_scale``, so on any runtime-replay batch whose
+    advantages differ from the batch scale the augmentation weighted the two
+    lanes apart -- pushing the head AWAY from the equivariant solution the
+    augmentation exists to enforce.
+    """
+
+    from volvence_zero.internal_rl.sandbox import CausalZPolicy, ZTransition
+    from volvence_zero.temporal_types import ControllerState
+
+    n_z = 4
+    store = MetacontrollerParameterStore(n_z=n_z, n_input=n_z)
+    policy = CausalZPolicy(
+        parameter_store=store,
+        causal_action_head_wiring=WiringLevel.ACTIVE,
+        causal_action_head_strength=1.0,
+        causal_action_head_effective_dims=(0, 1, 2),
+        causal_action_head_contrast_pairs=((0, 1),),
+        causal_action_head_exclusive_steering=True,
+        causal_action_head_mirror_equivariance=True,
+    )
+    captured: dict[str, tuple[float, ...]] = {}
+    original_update = store.update_causal_action_head
+
+    def capture(**kwargs: object) -> float:
+        captured["advantages"] = kwargs["advantages"]
+        return original_update(**kwargs)
+
+    monkeypatch.setattr(store, "update_causal_action_head", capture)
+
+    def transition(step_index: int, seed: float) -> ZTransition:
+        vector = tuple(
+            min(1.0, 0.1 + seed * 0.05 * (index + 1)) for index in range(n_z)
+        )
+        return ZTransition(
+            step_index=step_index,
+            track=Track.WORLD,
+            abstract_action="mirror-lane-weight",
+            controller_state=ControllerState(
+                code=vector,
+                code_dim=n_z,
+                switch_gate=1.0,
+                is_switching=True,
+                steps_since_switch=0,
+            ),
+            observation_signature=vector,
+            policy_action=tuple(value + 0.2 for value in vector),
+            latent_code=vector,
+            decoder_output=vector,
+            applied_control=vector,
+            downstream_effect=vector,
+            hidden_state=vector,
+            policy_score=0.5,
+            log_prob=-1.0,
+            reward=0.3,
+            raw_reward=0.3,
+            policy_replacement_quality=0.5,
+            backend_name="test",
+            backend_fidelity=1.0,
+            policy_mean=vector,
+            policy_std=tuple(0.2 for _ in range(n_z)),
+            transition_source="runtime-replay",
+            runtime_beta_t=1.0,
+            runtime_action_head_state=vector,
+            runtime_action_head_mirror_state=tuple(reversed(vector)),
+            direct_action_target=True,
+        )
+
+    # Advantages chosen so ``advantage / advantage_scale`` differs from the
+    # direct lane's hardcoded 1.0 -- the exact asymmetry under test.
+    policy._update_causal_action_head(
+        track=Track.WORLD,
+        transitions=(transition(0, 1.0), transition(1, 2.0)),
+        advantages=(0.5, 1.5),
+    )
+
+    lanes = captured["advantages"]
+    assert len(lanes) == 4
+    direct_lanes = lanes[0::2]
+    mirror_lanes = lanes[1::2]
+    assert mirror_lanes == direct_lanes
+
+
+def test_pe_switch_strength_value_is_inert_for_boundary_decisions() -> None:
+    """Sweeping strength never changes a decision; crossing the floor does.
+
+    Contract-honesty check for the dual-semantics PE switch knob.
+    ``prediction_error_temporal_switch_strength`` scales the ADDITIVE switch
+    pressure VALUE, but the boundary decision consumes only its SIGN
+    (``pressure > 0`` iff ``magnitude > floor``): below the floor the
+    pressure is exactly zero for every strength, and above the floor the
+    boundary request already forces ``is_switching`` so the additive value
+    has no marginal effect. The one behavioural cliff inside the strength
+    range is ``strength == 0.0``, which zeroes the pressure and silently
+    disables the boundary channel even above the floor.
+    """
+
+    from volvence_zero.joint_loop import ETANLJointLoop
+
+    floor = 0.45
+    snapshot = _trace_step_snapshot(_trace())
+
+    def run(
+        strength: float,
+        magnitude: float,
+    ) -> tuple[tuple[bool, ...], bool, float]:
+        loop = ETANLJointLoop(
+            prediction_error_temporal_switch=WiringLevel.ACTIVE,
+            prediction_error_temporal_switch_strength=strength,
+            prediction_error_temporal_switch_floor=floor,
+        )
+        policy = loop.world_temporal_policy
+        loop.set_external_learning_signals(
+            {"prediction_error_magnitude": magnitude}
+        )
+        decisions = tuple(
+            policy.step(
+                substrate_snapshot=snapshot,
+                previous_snapshot=None,
+            ).controller_state.is_switching
+            for _ in range(4)
+        )
+        store = policy.parameter_store
+        return (
+            decisions,
+            store.prediction_error_boundary_requested(),
+            store.prediction_error_switch_pressure_delta(),
+        )
+
+    strengths = (0.05, 0.35, 0.9)
+    below = tuple(run(strength, 0.44) for strength in strengths)
+    above = tuple(run(strength, 0.60) for strength in strengths)
+
+    for decisions, boundary, pressure in below:
+        assert pressure == 0.0
+        assert boundary is False
+        # This fixture never switches naturally, so the all-switching
+        # trajectory above the floor is attributable to the boundary alone.
+        assert not any(decisions)
+
+    for decisions, boundary, _pressure in above:
+        assert boundary is True
+        assert all(decisions)
+        assert decisions == above[0][0]
+
+    # The additive VALUE is alive (monotone in strength) yet inert for the
+    # decision (asserted identical above): value/sign dual semantics.
+    above_pressures = tuple(pressure for _, _, pressure in above)
+    assert above_pressures[0] < above_pressures[1] < above_pressures[2]
+
+    # At fixed strength, crossing the floor is what flips the decision.
+    assert below[1][1] is False
+    assert above[1][1] is True
+
+    # strength == 0.0 is the sign-semantics cliff: it disables the boundary
+    # channel even for a magnitude above the floor.
+    _, zero_boundary, zero_pressure = run(0.0, 0.60)
+    assert zero_pressure == 0.0
+    assert zero_boundary is False
+
+
 def test_clone_temporal_policy_preserves_mode_and_splits_the_store() -> None:
     """The second track must be an independent store in the source mode.
 
