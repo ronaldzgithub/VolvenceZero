@@ -899,30 +899,86 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         applied_control: tuple[float, ...],
         track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
     ) -> ContinuationScore:
+        return self.score_continuations(
+            source_text=source_text,
+            continuation_texts=(continuation_text,),
+            applied_control=applied_control,
+            track_scale=track_scale,
+        )[0]
+
+    def score_continuations(
+        self,
+        *,
+        source_text: str,
+        continuation_texts: tuple[str, ...],
+        applied_control: tuple[float, ...],
+        track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
+    ) -> tuple[ContinuationScore, ...]:
         effective_source = source_text.strip() or "<empty>"
-        if not continuation_text.strip():
-            raise ValueError("continuation_text must be nonempty")
-        combined_text = (
-            f"{effective_source.rstrip()} {continuation_text.strip()}"
-        )
+        if not continuation_texts:
+            raise ValueError(
+                "continuation_texts must contain at least one continuation"
+            )
+        if any(not text.strip() for text in continuation_texts):
+            raise ValueError("continuation_texts must all be nonempty")
         source_inputs = self._tokenize(source_text=effective_source)
-        combined_inputs = self._tokenize(source_text=combined_text)
         source_ids = source_inputs["input_ids"]
-        combined_ids = combined_inputs["input_ids"]
         source_length = int(source_ids.shape[-1])
-        combined_length = int(combined_ids.shape[-1])
-        if combined_length <= source_length:
-            raise ValueError(
-                "continuation_text did not add any scoreable tokens"
+        combined_ids_by_row = []
+        combined_lengths = []
+        for continuation_text in continuation_texts:
+            combined_text = (
+                f"{effective_source.rstrip()} "
+                f"{continuation_text.strip()}"
             )
-        if not self._torch.equal(
-            combined_ids[:, :source_length],
-            source_ids,
-        ):
-            raise ValueError(
-                "source tokenization is not a prefix of source+continuation; "
-                "continuation score would be misaligned"
+            combined_ids = self._tokenize(
+                source_text=combined_text
+            )["input_ids"]
+            combined_length = int(combined_ids.shape[-1])
+            if combined_length <= source_length:
+                raise ValueError(
+                    "continuation_text did not add any scoreable tokens"
+                )
+            if not self._torch.equal(
+                combined_ids[:, :source_length],
+                source_ids,
+            ):
+                raise ValueError(
+                    "source tokenization is not a prefix of "
+                    "source+continuation; continuation score would be "
+                    "misaligned"
+                )
+            combined_ids_by_row.append(combined_ids[0])
+            combined_lengths.append(combined_length)
+        max_length = max(combined_lengths)
+        pad_token_id = getattr(self._tokenizer, "pad_token_id", None)
+        if pad_token_id is None:
+            pad_token_id = getattr(
+                self._tokenizer,
+                "eos_token_id",
+                None,
             )
+        if pad_token_id is None:
+            pad_token_id = 0
+        batched_ids = self._torch.full(
+            (len(combined_ids_by_row), max_length),
+            int(pad_token_id),
+            dtype=combined_ids_by_row[0].dtype,
+            device=self._device,
+        )
+        attention_mask = self._torch.zeros(
+            (len(combined_ids_by_row), max_length),
+            dtype=self._torch.long,
+            device=self._device,
+        )
+        for row_index, row_ids in enumerate(combined_ids_by_row):
+            row_length = combined_lengths[row_index]
+            batched_ids[row_index, :row_length] = row_ids
+            attention_mask[row_index, :row_length] = 1
+        combined_inputs = {
+            "input_ids": batched_ids,
+            "attention_mask": attention_mask,
+        }
         control_delta = self._build_control_delta(
             applied_control=applied_control,
             track_scale=track_scale,
@@ -950,41 +1006,53 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         logits = self._extract_logits(outputs=outputs).to(
             dtype=self._torch.float32
         )
-        prediction_logits = logits[
-            :,
-            source_length - 1 : combined_length - 1,
-            :,
-        ]
-        target_ids = combined_ids[:, source_length:combined_length].cpu()
-        token_log_probabilities = self._torch.log_softmax(
-            prediction_logits,
-            dim=-1,
-        ).gather(
-            dim=-1,
-            index=target_ids.unsqueeze(-1),
-        ).squeeze(-1)
-        mean_log_probability = float(
-            token_log_probabilities.mean().item()
-        )
-        token_count = int(target_ids.numel())
-        mean_nll = -mean_log_probability
-        return ContinuationScore(
-            source_text=effective_source,
-            continuation_text=continuation_text,
-            token_count=token_count,
-            mean_negative_log_likelihood=mean_nll,
-            geometric_mean_probability=float(
-                self._torch.exp(
-                    self._torch.tensor(mean_log_probability)
-                ).item()
-            ),
-            applied_control=applied_control,
-            backend_name=f"transformers-open-weight:{self.model_id}",
-            description=(
-                "Observed continuation scored under prefix-aligned frozen "
-                f"residual control on {self.model_id}."
-            ),
-        )
+        scores = []
+        for row_index, continuation_text in enumerate(
+            continuation_texts
+        ):
+            combined_length = combined_lengths[row_index]
+            prediction_logits = logits[
+                row_index : row_index + 1,
+                source_length - 1 : combined_length - 1,
+                :,
+            ]
+            target_ids = batched_ids[
+                row_index : row_index + 1,
+                source_length:combined_length,
+            ]
+            token_log_probabilities = self._torch.log_softmax(
+                prediction_logits,
+                dim=-1,
+            ).gather(
+                dim=-1,
+                index=target_ids.unsqueeze(-1),
+            ).squeeze(-1)
+            mean_log_probability = float(
+                token_log_probabilities.mean().item()
+            )
+            scores.append(
+                ContinuationScore(
+                    source_text=effective_source,
+                    continuation_text=continuation_text,
+                    token_count=int(target_ids.numel()),
+                    mean_negative_log_likelihood=-mean_log_probability,
+                    geometric_mean_probability=float(
+                        self._torch.exp(
+                            self._torch.tensor(mean_log_probability)
+                        ).item()
+                    ),
+                    applied_control=applied_control,
+                    backend_name=(
+                        f"transformers-open-weight:{self.model_id}"
+                    ),
+                    description=(
+                        "Observed continuation cohort scored under "
+                        "prefix-aligned frozen residual control on "
+                        f"{self.model_id}."
+                    ),
+                )
+            )
+        return tuple(scores)
 
     def _capture_control_summary(
         self,

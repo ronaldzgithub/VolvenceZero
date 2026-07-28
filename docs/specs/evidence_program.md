@@ -132,16 +132,26 @@
 	  的随机基线 `0.136364`。这排除了“只因手工 state、PCA/hash 或 8 维捕获
 	  丢信息”作为充分根因。
 
-	  当前更深的时序错误是 target 定义：逐 prefix oracle 在看到实际下一段后，
-	  选择让该单个 realized continuation NLL 最低的动作；controller 决策时却
-	  只有 prefix residual。存在多个合理 continuation 时，该 ex-post 标签含有
-	  不可约的 realized-outcome 噪声，prefix-only selector 未必可辨识。verdict
-	  保持 `mechanism-supported`，selector 注入继续关闭。下一包必须把监督信号
-	  改为决策时可定义的 expected action value，例如每个 prefix 的多条独立
-	  continuation 期望，或真实下游 outcome；不得继续在现有 eval 上更换 probe、
-	  调参、降低阈值或加入语义 action label。
+	  v30 把这一时序假设做成可证伪实验：每个 prefix 从冻结 Qwen 的零控制
+	  分布按 SHA256(case/prefix/cohort/index) 固定种子采样多条 continuation，
+	  target cohort 只负责拟合动作价值，完全独立的 audit cohort 只负责
+	  train route-CV 模型选择与只读验证；fresh validation 在运行前冻结。
+	  transformers substrate 对同一 prefix/control 的 cohort 做一次 batch
+	  forward，并由等价测试保证与逐条 NLL 一致。2026-07-28 的 full-width
+	  `896`、CPU、单 seed、2 target + 2 audit 校准生成 `576` 条 continuation，
+	  selector 在 train/fresh-validation/eval target 上的 selected delta 为
+	  `-0.001990 / -0.003317 / -0.005052`，对应独立 audit 为
+	  `+0.001393 / -0.001125 / -0.000569`；development-heldout audit 只有
+	  `+0.000077`，近于零。fresh validation audit 为负，top-3
+	  `0.136364` 等于 22 动作随机基线；尽管 validation target/audit oracle
+	  分别为 `+0.011997 / +0.014453`，selector 仍未学到可泛化映射。
+	  因此 verdict 保持 `mechanism-supported`，
+	  `selector_ready_for_shadow_injection=false`。2+2 只属于校准/反证，
+	  不替代 manifest 默认 4+4、跨 seed 或 locked confirmation；当前不再投入
+	  4+4 来调同一个 self-distribution NLL 目标，下一包转向真实 downstream
+	  outcome / environment PE。
 	  当前最新 falsification artifact 为
-	  `artifacts/eta_gate2_residual_causal_v29_full_width896_kernel_selector_qwen25_05b_cpu_1seed_20260728`；
+	  `artifacts/eta_gate2_residual_causal_v30_prefix_expected_2x2_calibration_fullwidth896_qwen25_05b_cpu_1seed_20260728`；
 	  v24 仍是当前最佳 12 维候选基线：
   `artifacts/eta_gate2_residual_causal_v24_canonical_state12_direct_8updates_train8_qwen25_05b_cpu_1seed_20260728`。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
@@ -598,6 +608,11 @@ bundle dir 中必须有：
 
 ## 变更日志
 
+- 2026-07-28: 归档 ETA Gate 2 v30 prefix expected-value 2+2 校准。新增固定
+  seed target/audit cohort、fresh validation、action selection audit readout
+  与 batch continuation scoring 证据；Qwen2.5-0.5B full-width 896 CPU 单 seed
+  validation audit 为负，维持 `mechanism-supported` 和 injection disabled，
+  并把下一包冻结为真实 downstream outcome target。
 - 2026-07-17: semantic grounding claims 的两个实验包实现完成：`volvence_zero.agent.semantic_grounding`（D1/D2/D3 + shuffled controls）+ `scripts/build_semantic_grounding_report.py`；`lifeform_evolution.semantic_proposal_ablation`（9-slot scripted probe、on/off matched 双臂、case-level bootstrap CI、两臂 grounding 交叉读数）+ `scripts/build_semantic_proposal_ablation_report.py` + vertical 工厂 `VZ_SEMANTIC_PROPOSAL_CHANNEL` 通道级开关。synthetic smoke lane 差分设计验证通过；hf substrate 真实 trace 运行 pending。
 - 2026-07-17: 新增 semantic grounding claims（`claim_latent_abstraction_semantically_grounded` / `claim_semantic_tracking_not_llm_dependent`），绑定 `docs/specs/semantic-grounding-evidence.md` 的两个实验设计与 non-gating artifact；实现与真实 trace 运行 pending。
 - 2026-07-14: evidence bundle v2 统一入口（CP-00 / GAP-10）。新增

@@ -76,3 +76,59 @@ def test_continuation_score_rejects_empty_target() -> None:
             continuation_text=" ",
             applied_control=(0.0, 0.0, 0.0),
         )
+
+
+def test_continuation_batch_score_matches_individual_scores() -> None:
+    runtime = build_builtin_transformers_runtime(
+        model_id="continuation-batch-score-test",
+    )
+    continuations = (
+        "continue",
+        "inspect carefully",
+    )
+    control = (0.2, -0.1, 0.3)
+
+    batch_scores = runtime.score_continuations(
+        source_text="repair inspect",
+        continuation_texts=continuations,
+        applied_control=control,
+        track_scale=(0.7, 0.7, 0.7),
+    )
+    individual_scores = tuple(
+        runtime.score_continuation(
+            source_text="repair inspect",
+            continuation_text=continuation,
+            applied_control=control,
+            track_scale=(0.7, 0.7, 0.7),
+        )
+        for continuation in continuations
+    )
+
+    assert tuple(score.continuation_text for score in batch_scores) == (
+        continuations
+    )
+    assert tuple(score.token_count for score in batch_scores) == tuple(
+        score.token_count for score in individual_scores
+    )
+    assert tuple(
+        score.mean_negative_log_likelihood for score in batch_scores
+    ) == pytest.approx(
+        tuple(
+            score.mean_negative_log_likelihood
+            for score in individual_scores
+        ),
+        abs=1e-7,
+    )
+
+
+def test_continuation_batch_score_rejects_empty_cohort() -> None:
+    runtime = build_builtin_transformers_runtime(
+        model_id="continuation-batch-empty-cohort",
+    )
+
+    with pytest.raises(ValueError, match="at least one continuation"):
+        runtime.score_continuations(
+            source_text="repair",
+            continuation_texts=(),
+            applied_control=(0.0, 0.0, 0.0),
+        )

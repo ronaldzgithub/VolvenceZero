@@ -30,6 +30,8 @@ def main() -> None:
     parser.add_argument("--train-epochs", type=int, default=None)
     parser.add_argument("--device", default="mps")
     parser.add_argument("--activation-width", type=int, default=None)
+    parser.add_argument("--target-samples", type=int, default=None)
+    parser.add_argument("--audit-samples", type=int, default=None)
     parser.add_argument(
         "--model-id",
         default=ETAOpenWeightRuntimeConfig().model_id,
@@ -43,6 +45,10 @@ def main() -> None:
         parser.error("--train-epochs must be at least 1")
     if args.activation_width is not None and args.activation_width < 1:
         parser.error("--activation-width must be at least 1")
+    if args.target_samples is not None and args.target_samples < 1:
+        parser.error("--target-samples must be at least 1")
+    if args.audit_samples is not None and args.audit_samples < 1:
+        parser.error("--audit-samples must be at least 1")
 
     manifest = build_eta_gate2_residual_manifest(
         suite_tier=args.suite_tier,
@@ -74,6 +80,24 @@ def main() -> None:
                     name,
                     (str(args.activation_width),)
                     if name == "real_residual_activation_width"
+                    else values,
+                )
+                for name, values in manifest.case_groups
+            ),
+        )
+    sample_overrides = {
+        "counterfactual_target_sample_count": args.target_samples,
+        "counterfactual_audit_sample_count": args.audit_samples,
+    }
+    if any(value is not None for value in sample_overrides.values()):
+        manifest = replace(
+            manifest,
+            case_groups=tuple(
+                (
+                    name,
+                    (str(sample_overrides[name]),)
+                    if name in sample_overrides
+                    and sample_overrides[name] is not None
                     else values,
                 )
                 for name, values in manifest.case_groups

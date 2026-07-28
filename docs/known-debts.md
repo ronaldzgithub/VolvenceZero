@@ -2169,7 +2169,7 @@ return (
 
 - **命题**：`z_t` 携带可复用抽象动作，`beta_t` 标记有后果意义的切换边界；KL/rate pressure 控制抽象粒度，next-action/prediction loss 保留任务信息；decoder 输出 `U_t` 对真实 frozen substrate residual stream 产生可测因果作用。
 - **2026-07-28 residual matched-control packet**：`eta-gate2-residual-causal`
-	  已演进到 v29 证据契约，在同一已训练 policy checkpoint、场景、seed、
+	  已演进到 v30 证据契约，在同一已训练 policy checkpoint、场景、seed、
 	  prefix 和 Qwen2.5-0.5B frozen substrate 上逐步比较
 	  `U_t=identity / zero / shuffled / reversed`，并输出本债规定的 12 文件
 	  bundle。真实 CPU 单 seed 机制验证已满足 fallback=0、hook coverage=1.0、
@@ -2209,32 +2209,44 @@ return (
 	  `0.135417 / 0.166667 / 0.142857`，仍接近随机且不允许注入。
 - **结论**：Gate 2 保持 **`mechanism-supported`**，不能声明
 	  `causal-supported`。v25-v29 已依次反证“只扩同型无标签 route”“只换
-	  PCA/ridge”“去掉 hash/PCA”以及“恢复完整 residual 坐标”足以修复。当前
-	  最小根因转为 target 的决策时序错位：`direct_action_target` 在看到实际
-	  下一段后，选择让这一个 realized continuation NLL 最低的动作；controller
-	  决策时只有 prefix residual。若同一 prefix 有多个合理 continuation，标签
-	  含不可约 outcome/sample 噪声，prefix-only selector 未必存在可迁移解。
+	  PCA/ridge”“去掉 hash/PCA”以及“恢复完整 residual 坐标”足以修复。v30
+	  进一步把单条 ex-post continuation target 替换为同 prefix 多续写的
+	  expected action value，并用独立 audit cohort 与 fresh validation 检验。
+	  full-width 896、CPU、单 seed 2+2 校准中，selector 的
+	  train/validation/eval target delta 为
+	  `-0.001990 / -0.003317 / -0.005052`，独立 audit 为
+	  `+0.001393 / -0.001125 / -0.000569`；development-heldout audit
+	  `+0.000077` 近于零。validation 的 target/audit oracle 仍为
+	  `+0.011997 / +0.014453`，所以问题仍是 prefix→action 选择不能泛化，
+	  不是动作空间不可达。模型自身零控制采样分布的 expected NLL 也没有成为
+	  可迁移控制目标；继续扩大同类采样只会更精确地估计这一错误目标。
 - **当前最佳候选基线**：
   `artifacts/eta_gate2_residual_causal_v24_canonical_state12_direct_8updates_train8_qwen25_05b_cpu_1seed_20260728`。
   v24 精确复现 v22 的 eval `-0.0161553224`、development-heldout
   `+0.0059789079` 和 eval oracle `+0.0211502314`；同时修正计量语义为
   `360` 条 optimizer transition 与 `7920` 次候选评分，二者不再混称。
 - **当前最新反证 artifact**：
-	  `artifacts/eta_gate2_residual_causal_v29_full_width896_kernel_selector_qwen25_05b_cpu_1seed_20260728`。
-	  v29 manifest 显式登记 residual width `896`，provenance 同样为 `896`，
-	  selector input `8076`；它是 latest falsification，不替代 v24 baseline。
+	  `artifacts/eta_gate2_residual_causal_v30_prefix_expected_2x2_calibration_fullwidth896_qwen25_05b_cpu_1seed_20260728`。
+	  v30 manifest 显式登记 residual width `896`、expected-value target、
+	  2 target + 2 audit 校准覆盖和 frozen validation；共生成 `576` 条固定种子
+	  continuation，selector input `8076`。本地 CPU 实际运行约 42 分钟；
+	  `score_continuations` 已合并同 control 的续写前向，但 22 个 control
+	  候选仍逐一运行，是正式 4+4 的主要算力债。它是 latest falsification，
+	  不替代 v24 baseline，也不满足默认 4+4 / 跨 seed / confirmation 门槛。
 - **证据污染约束**：现有 heldout 已在 v1-v15 调参中反复观察，只能记为
   `development-heldout`。v16 晋升必须同时满足 eval 方向为正，以及一个
   从未用于本轮设计/停止决策的 locked `confirmation` split 相对最佳
   matched control 达到 `0.02`；manifest 还必须显式声明
   `confirmation_split_locked=true`。缺 confirmation 或锁定声明时机器
-	  verdict 必须拒绝 causal 晋升。下一收敛包必须重定义训练信号，而非再换
-	  state probe：对同一 prefix 采样多条独立 continuation，聚合成决策时可定义
-	  的 expected action value，或使用真实 downstream outcome；不得加入语义
-	  action label。模型选择先限于 train route-CV，随后只在新鲜 validation
-	  一次性检验。现有 eval/development-heldout 已用于 v26-v29 诊断，禁止继续
-	  调参；expected-value selector 在新 validation 稳定为正前，不得注入
-	  substrate，更不得开启 confirmation split。
+	  verdict 必须拒绝 causal 晋升。v30 已完成多 continuation expected-value
+	  反证，fresh validation audit 为负，故不再用 4+4 扩大同类 self-NLL
+	  调参，也不得加入语义 action label、降低阈值或开启 confirmation split。
+	  下一收敛包必须把动作 target 迁到真实 downstream outcome / environment
+	  PE：在动作时刻冻结 prediction，环境结果到达后经 PE owner 与 segment
+	  credit 回写 `z_t` action value；模型自身 continuation NLL 仅保留辅助
+	  readout。现有 eval/development-heldout 继续只作 development 诊断，
+	  新 outcome selector 仍须 train route-CV 后在另一组新鲜 validation
+	  一次性检验，稳定为正前不得注入 substrate。
 - **必须测试**：
   - `alpha`/KL 权重 sweep：压缩率与 switch sparsity 随 rate pressure 有方向变化，同时 held-out action prediction / family reuse 不塌缩。
   - 与人工 causal boundary 只用于评估的 held-out episode 比较 `beta_t` boundary precision/recall/F1；增加 text/topic boundary 干扰，检查 `beta_t` 没有只学到段落或 token 边界。

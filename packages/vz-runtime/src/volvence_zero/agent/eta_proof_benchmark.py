@@ -2004,7 +2004,7 @@ def _sample_prefix_continuations(
     return tuple(continuations)
 
 
-def _mean_continuation_nll(
+def _continuation_nlls(
     *,
     runtime: OpenWeightResidualRuntime,
     source_text: str,
@@ -2014,29 +2014,59 @@ def _mean_continuation_nll(
         tuple[str, str, tuple[float, ...]],
         float,
     ],
-) -> float:
+) -> tuple[float, ...]:
     if not continuation_texts:
         raise ValueError(
             "counterfactual continuation cohort must be non-empty"
         )
-    values = []
+    missing_continuations = []
+    seen_missing = set()
     for continuation_text in continuation_texts:
         score_key = (
             source_text,
             continuation_text,
             applied_control,
         )
-        mean_nll = score_cache.get(score_key)
-        if mean_nll is None:
-            mean_nll = runtime.score_continuation(
-                source_text=source_text,
-                continuation_text=continuation_text,
-                applied_control=applied_control,
-                track_scale=(0.7, 0.7, 0.7),
-            ).mean_negative_log_likelihood
+        if score_key not in score_cache and score_key not in seen_missing:
+            missing_continuations.append(continuation_text)
+            seen_missing.add(score_key)
+    if missing_continuations:
+        scores = runtime.score_continuations(
+            source_text=source_text,
+            continuation_texts=tuple(missing_continuations),
+            applied_control=applied_control,
+            track_scale=(0.7, 0.7, 0.7),
+        )
+        if len(scores) != len(missing_continuations):
+            raise ValueError(
+                "continuation batch score count must match requested cohort"
+            )
+        for continuation_text, score in zip(
+            missing_continuations,
+            scores,
+            strict=True,
+        ):
+            if score.continuation_text != continuation_text:
+                raise ValueError(
+                    "continuation batch scores must preserve cohort order"
+                )
+            score_key = (
+                source_text,
+                continuation_text,
+                applied_control,
+            )
+            mean_nll = score.mean_negative_log_likelihood
             score_cache[score_key] = mean_nll
-        values.append(mean_nll)
-    return _mean(tuple(values))
+    return tuple(
+        score_cache[
+            (
+                source_text,
+                continuation_text,
+                applied_control,
+            )
+        ]
+        for continuation_text in continuation_texts
+    )
 
 
 def _with_counterfactual_continuation_pe_rewards(
@@ -2150,22 +2180,19 @@ def _with_counterfactual_continuation_pe_rewards(
         else:
             target_continuations = (observed_continuation_text,)
             audit_continuations = ()
+        continuation_cohort = target_continuations + audit_continuations
+        target_cohort_size = len(target_continuations)
         zero_control = (0.0, 0.0, 0.0)
-        zero_nll = _mean_continuation_nll(
+        zero_cohort_nlls = _continuation_nlls(
             runtime=runtime,
             source_text=source_text,
-            continuation_texts=target_continuations,
+            continuation_texts=continuation_cohort,
             applied_control=zero_control,
             score_cache=score_cache,
         )
+        zero_nll = _mean(zero_cohort_nlls[:target_cohort_size])
         audit_zero_nll = (
-            _mean_continuation_nll(
-                runtime=runtime,
-                source_text=source_text,
-                continuation_texts=audit_continuations,
-                applied_control=zero_control,
-                score_cache=score_cache,
-            )
+            _mean(zero_cohort_nlls[target_cohort_size:])
             if audit_continuations
             else None
         )
@@ -2177,12 +2204,15 @@ def _with_counterfactual_continuation_pe_rewards(
                 decoder_matrix=policy.parameter_store.decoder_matrix,
                 hidden_matrix=policy.parameter_store.decoder_hidden,
             )
-            candidate_nll = _mean_continuation_nll(
+            candidate_cohort_nlls = _continuation_nlls(
                 runtime=runtime,
                 source_text=source_text,
-                continuation_texts=target_continuations,
+                continuation_texts=continuation_cohort,
                 applied_control=decoded.applied_control,
                 score_cache=score_cache,
+            )
+            candidate_nll = _mean(
+                candidate_cohort_nlls[:target_cohort_size]
             )
             raw_prediction_error = (
                 zero_nll - candidate_nll
@@ -2197,12 +2227,8 @@ def _with_counterfactual_continuation_pe_rewards(
                 )
             )
             if audit_zero_nll is not None:
-                audit_candidate_nll = _mean_continuation_nll(
-                    runtime=runtime,
-                    source_text=source_text,
-                    continuation_texts=audit_continuations,
-                    applied_control=decoded.applied_control,
-                    score_cache=score_cache,
+                audit_candidate_nll = _mean(
+                    candidate_cohort_nlls[target_cohort_size:]
                 )
                 audit_candidate_prediction_errors.append(
                     audit_zero_nll - audit_candidate_nll

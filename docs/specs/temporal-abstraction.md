@@ -149,13 +149,25 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 	  `-0.002488`、eval `-0.019454`、development-heldout `-0.001422`，
 	  top-3 近随机。故当前只证明执行器可达与机制生效，尚未证明 controller
 	  因果增益；selector live injection 保持 disabled。
-- v29 后不再把问题表述为“换一个 learned residual encoder 即可”。现有
-  `direct_action_target` 是 ex-post realized-continuation oracle：标签使用动作
-  后实际出现的单条 continuation，而动作时刻只有 prefix residual。下一收敛包
-  必须在决策时定义 prefix-level expected action value，以同 prefix 的多条独立
-  continuation 或真实 downstream outcome 聚合目标；先做 train route-CV，再用
-  新鲜 validation 一次性检验。现有 eval 只保留 development 诊断用途，禁止继续
-  用于 probe 选择。
+- v29 后不再把问题表述为“换一个 learned residual encoder 即可”。v30 将
+  ex-post 单条 continuation 标签替换为决策时可定义的 prefix-level expected
+  value：同一 prefix 使用固定种子的 target continuation cohort 求 22 个动作的
+  平均 `NLL(0)-NLL(U)`，另用完全独立的 audit cohort 只做模型选择与只读验证。
+  target/audit 的采样 key、cohort 和 index 进入 SHA256 seed；fresh validation
+  在运行前冻结，selector 拟合后不得更新。`OpenWeightResidualRuntime` 同时提供
+  `score_continuations(...)`：默认实现保持逐条兼容，transformers backend 对同一
+  prefix/control 做一次右填充 batch forward；返回顺序和逐条 NLL 必须等价，
+  空 cohort 或 token prefix 错位 fail loudly。
+- v30 的 Qwen2.5-0.5B、full-width 896、CPU、单 seed 2 target + 2 audit 校准
+  生成 `576` 条固定种子 continuation。selector 在 train target / fresh
+  validation target / eval target 上的 selected delta 分别为
+  `-0.001990 / -0.003317 / -0.005052`；独立 audit 分别为
+  `+0.001393 / -0.001125 / -0.000569`。fresh validation audit 为负，故
+  `selector_ready_for_shadow_injection=false`，live injection 保持关闭。
+  各 split 的 action oracle 仍为正，说明动作可达而 prefix→action 映射没有
+  泛化。该 2+2 轨迹是校准/反证，不替代 manifest 默认 4+4、跨 seed 或 locked
+  confirmation。下一包必须把训练目标迁到真实 downstream outcome / environment
+  PE，不能继续在模型自身采样分布的 NLL 上调 probe 或阈值。
 - 当前 proof profile 已包含 matched ablation `full-no-fast-prior`：它保留 full internal RL + causal replacement，但关闭 temporal fast prior ingestion，用于衡量 fast prior 对 held-out family reuse、credit alignment 与 strong success 的增益
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter
@@ -252,6 +264,12 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-28: ETA Gate 2 v30 将单 realized continuation target 升级为
+  prefix-level target/audit 双 cohort expected value，并冻结 fresh validation
+  只读检验。transformers substrate 新增同 prefix/control 的 batch continuation
+  scoring，保持逐条数值和顺序契约。full-width 896、CPU、单 seed 2+2 校准的
+  validation audit selected delta 为负，selector 注入继续关闭；下一目标迁到
+  真实 environment outcome / PE。
 - 2026-07-28: ETA segment-credit 第六收敛包修复动作族运行时脱轨与评估真值
   泄漏。SSL topology discovery 现在以 `z_tilde` proposal 及其 decoder control
   为对象，`beta_t` 只决定该 proposal 是否在当前时刻成为 active code；因果

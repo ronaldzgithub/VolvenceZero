@@ -181,6 +181,30 @@ class OpenWeightResidualRuntime(ABC):
             f"{type(self).__name__} does not expose real continuation scoring"
         )
 
+    def score_continuations(
+        self,
+        *,
+        source_text: str,
+        continuation_texts: tuple[str, ...],
+        applied_control: tuple[float, ...],
+        track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
+    ) -> tuple[ContinuationScore, ...]:
+        """Score a continuation cohort under one shared residual control."""
+
+        if not continuation_texts:
+            raise ValueError(
+                "continuation_texts must contain at least one continuation"
+            )
+        return tuple(
+            self.score_continuation(
+                source_text=source_text,
+                continuation_text=continuation_text,
+                applied_control=applied_control,
+                track_scale=track_scale,
+            )
+            for continuation_text in continuation_texts
+        )
+
     def generate(
         self,
         *,
