@@ -1,0 +1,56 @@
+{
+  "arm_id": "cold",
+  "candidate_response_sha256": "1886a36d1af0813ce12ed84f0bc443c32236eeba0b8ad281aa4b1c1692152fe4",
+  "case_id": "behavior-fidelity:zhang-wuji:ch-11-scene-1",
+  "dimension_rationales": [
+    [
+      "action_choice_alignment",
+      "候选建议保持温暖并提问，没有给出对蒙面威胁者采取的具体行动。"
+    ],
+    [
+      "protective_intent_alignment",
+      "温暖的关系姿态仅有极弱的普遍亲社会含义，但没有识别或保护当前受威胁者。"
+    ],
+    [
+      "risk_posture_alignment",
+      "候选完全回避了现场人身风险与介入代价。"
+    ],
+    [
+      "situation_model_alignment",
+      "候选把危机场景误建模为关系建立阶段，没有表示理解现场威胁。"
+    ],
+    [
+      "character_motivation_alignment",
+      "温和与避免交易感和角色的一般善意略有弱相关，但没有呈现危机中的果断保护动机。"
+    ]
+  ],
+  "dimension_scores": [
+    [
+      "action_choice_alignment",
+      0.0
+    ],
+    [
+      "protective_intent_alignment",
+      0.05
+    ],
+    [
+      "risk_posture_alignment",
+      0.0
+    ],
+    [
+      "situation_model_alignment",
+      0.0
+    ],
+    [
+      "character_motivation_alignment",
+      0.1
+    ]
+  ],
+  "evidence_source": "llm_judge",
+  "future_knowledge_leakage": false,
+  "future_knowledge_rationale": "候选没有引用决策点之后的身份揭示或实际结果。",
+  "reference_digest": "3c89d8de345669b14c15102c22666fd3beee2da0e847dbd39b7b432557667d50",
+  "reviewer": "codex-independent-semantic-review-2026-07-28",
+  "schema_version": "character-behavior-fidelity.v1",
+  "stimulus_digest": "8c2d978200efcc366d53a89e5c17e70ec3325dcd992d5bc616d5c301ec2558b1"
+}

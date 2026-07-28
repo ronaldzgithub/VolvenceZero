@@ -15,6 +15,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from volvence_zero.environment import EnvironmentActionSchema
 from volvence_zero.semantic_state import SemanticProposalOperation
 
 from lifeform_domain_character.chapter_experience import (
@@ -192,6 +193,24 @@ def _experience_from_json(raw: dict[str, Any]) -> ReviewedChapterExperience:
 
 
 def _scene_from_json(raw: dict[str, Any]) -> NarrativeScene:
+    action_schema_raw = raw.get("canonical_action_schema")
+    action_schema = None
+    if action_schema_raw is not None:
+        if not isinstance(action_schema_raw, dict):
+            raise ValueError(
+                "NarrativeScene.canonical_action_schema must be an object"
+            )
+        action_schema = EnvironmentActionSchema(
+            schema_id=str(action_schema_raw["schema_id"]),
+            applicability_conditions=tuple(
+                str(item)
+                for item in action_schema_raw["applicability_conditions"]
+            ),
+            action_steps=tuple(
+                str(item) for item in action_schema_raw["action_steps"]
+            ),
+            description=str(action_schema_raw["description"]),
+        )
     return NarrativeScene(
         scene_id=str(raw["scene_id"]),
         phase_label=str(raw["phase_label"]),
@@ -203,6 +222,7 @@ def _scene_from_json(raw: dict[str, Any]) -> NarrativeScene:
         risk_markers=tuple(str(item) for item in raw.get("risk_markers", ())),
         expected_regime=raw.get("expected_regime"),
         evidence_locator=str(raw["evidence_locator"]),
+        canonical_action_schema=action_schema,
     )
 
 

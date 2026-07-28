@@ -367,6 +367,7 @@ class ResponseSynthesizer:
         # each regime gets a visibly different turn shape rather than falling
         # through to the generic regime-tail templates below.
         _STRUCTURED_INTENTS = {
+            "action-grounded",
             "support-first",
             "support-before-decision",
             "repair-first",
@@ -388,6 +389,15 @@ class ResponseSynthesizer:
                 ]
                 if effective_abstract_action:
                     rationale_parts.append(f"temporal={effective_abstract_action}")
+                if assembly.action_realization is not None:
+                    rationale_parts.append(
+                        "action_case="
+                        f"{assembly.action_realization.source_case_id}"
+                    )
+                    rationale_parts.append(
+                        "action_grounding_confidence="
+                        f"{assembly.action_realization.grounding_confidence:.3f}"
+                    )
                 rationale_parts.append(f"switch_gate={context.temporal_switch_gate:.2f}")
                 rationale_parts.append(f"question_budget={assembly.max_questions}")
                 rationale = ", ".join(rationale_parts)

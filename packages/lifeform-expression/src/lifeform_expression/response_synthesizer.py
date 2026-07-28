@@ -332,13 +332,16 @@ class GroundedResponseSynthesizer(ResponseSynthesizer):
         """
         return self._clone(affordance=provider, replace_affordance=True)
 
-    # Intents we delegate to the base kernel renderer. Judgment-process is
-    # rendered locally now: the base template was too repetitive for
-    # companion widening transcripts, while the grounded section renderer can
-    # still surface the "show your reasoning" posture without collapsing all
-    # such turns to one sentence.
+    # Action-grounded is delegated because the ResponseAssembly owner already
+    # published the concrete case-derived speech plan; Face must render that
+    # plan rather than independently reconstruct the selected action.
+    # Judgment-process remains rendered locally for companion widening.
     _DELEGATE_TO_BASE: frozenset[TurnIntent] = frozenset(
-        {TurnIntent.REFER_OUT, TurnIntent.DIRECT_ANSWER}
+        {
+            TurnIntent.ACTION_GROUNDED,
+            TurnIntent.REFER_OUT,
+            TurnIntent.DIRECT_ANSWER,
+        }
     )
 
     def synthesize(

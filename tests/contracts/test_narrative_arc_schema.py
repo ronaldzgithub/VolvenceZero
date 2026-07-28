@@ -18,6 +18,7 @@ import pytest
 
 from lifeform_domain_character import build_zhang_wuji_demo_arc
 from lifeform_domain_character.narrative import NarrativeArc, NarrativeScene
+from volvence_zero.environment import EnvironmentActionSchema
 
 
 def _good_scene(**overrides) -> NarrativeScene:
@@ -59,6 +60,18 @@ def test_scene_accepts_none_expected_regime() -> None:
     schema must allow ``None`` rather than forcing a string."""
     scene = _good_scene(expected_regime=None)
     assert scene.expected_regime is None
+
+
+def test_scene_accepts_reviewed_action_schema() -> None:
+    schema = EnvironmentActionSchema(
+        schema_id="protect-third-party",
+        applicability_conditions=("a third party faces imminent harm",),
+        action_steps=("interrupt_the_harm",),
+        description="Reviewed reusable action abstraction.",
+    )
+    scene = _good_scene(canonical_action_schema=schema)
+
+    assert scene.canonical_action_schema is schema
 
 
 def test_arc_rejects_too_few_scenes() -> None:

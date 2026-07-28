@@ -84,6 +84,7 @@ class TurnIntent(str, Enum):
     DIRECT_ANSWER = "direct-answer"
     REFER_OUT = "refer-out"
     JUDGMENT_PROCESS = "judgment-process"
+    ACTION_GROUNDED = "action-grounded"
 
 
 @dataclass(frozen=True)
@@ -150,6 +151,7 @@ _DEFAULT_QUESTION_BUDGET_BY_INTENT: dict[TurnIntent, int] = {
     TurnIntent.DIRECT_ANSWER: 0,
     TurnIntent.REFER_OUT: 0,
     TurnIntent.JUDGMENT_PROCESS: 0,
+    TurnIntent.ACTION_GROUNDED: 0,
 }
 
 

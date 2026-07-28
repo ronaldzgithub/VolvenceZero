@@ -206,6 +206,7 @@ from volvence_zero.temporal import (
     resolve_temporal_bootstrap_snapshot,
 )
 from volvence_zero.agent.session_post_slow_loop import (
+    SettledEnvironmentAction,
     SessionPostSlowLoopJob,
     SessionPostSlowLoopModule,
     SessionPostSlowLoopQueue,
@@ -322,6 +323,7 @@ class AgentTurnResult:
     session_post_completed_job_count: int = 0
     session_post_last_completed_job_id: str | None = None
     online_fast_substrate_result: "OnlineFastSubstrateTurnResult | None" = None
+    track_z_t_codes: tuple[tuple[str, tuple[float, ...]], ...] = ()
 
 
 # W5 of ssot-cleanup-p0-p4: pure helper functions extracted to
@@ -854,7 +856,8 @@ class AgentSessionRunner(
             )
         self._pending_semantic_events: list[ExternalSemanticEvent] = []
         self._pending_environment_outcome_id: str = ""
-        self._pending_environment_outcome: EnvironmentOutcome | None = None
+        self._pending_environment_outcome: SettledEnvironmentAction | None = None
+        self._settled_environment_outcomes: list[SettledEnvironmentAction] = []
         # Packet A (long-horizon-closure): mirror of
         # ``_pending_environment_outcome_id`` for the prediction_id /
         # plan_ref lineage. Populated by ``remember_environment_prediction_id``
@@ -911,6 +914,11 @@ class AgentSessionRunner(
         # receives this ONE instance so weights accumulate across turns;
         # settlement happens below from the published PE snapshot.
         self._reflection_consolidation_learner = ConsolidationScoreLearner()
+        if self._owner_hydration_store is not None:
+            self._owner_hydration_store.hydrate_owner_if_present(
+                self._reflection_consolidation_learner,
+                "reflection.consolidation_score",
+            )
         # W1.C (CP-16/17): session-held ToM / common-ground record store
         # so those owners keep cross-turn records, settle prior-turn
         # predictions, and drive PE-weighted promote/retire.
@@ -1056,6 +1064,16 @@ class AgentSessionRunner(
                 f"{self._config.internal_rl_runtime_latent_unit_clamp!r}, "
                 f"loop={self._joint_loop.runtime_replay_latent_unit_clamp!r}"
             )
+        if self._owner_hydration_store is not None:
+            joint_learning_snapshot = (
+                self._owner_hydration_store.load_snapshot(
+                    "joint_loop.learning"
+                )
+            )
+            if joint_learning_snapshot is not None:
+                self._joint_loop.hydrate_learning_from_persistence(
+                    joint_learning_snapshot
+                )
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         if not joint_learning_enabled and joint_schedule is not None:
             raise ValueError(
@@ -1854,7 +1872,18 @@ class AgentSessionRunner(
                 learning_enabled=self._joint_learning_enabled,
             )
             pending_semantic_events = self._drain_pending_semantic_events()
-            environment_outcome = self._consume_pending_environment_outcome()
+            settled_environment_action = (
+                self._consume_pending_environment_outcome()
+            )
+            environment_outcome = (
+                settled_environment_action.outcome
+                if settled_environment_action is not None
+                else None
+            )
+            if settled_environment_action is not None:
+                self._settled_environment_outcomes.append(
+                    settled_environment_action
+                )
             environment_outcome_id = (
                 environment_outcome.outcome_id
                 if environment_outcome is not None

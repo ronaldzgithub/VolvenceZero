@@ -18,6 +18,9 @@ from typing import TYPE_CHECKING, Any, Mapping
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
+from volvence_zero.semantic_embedding import (
+    semantic_topic_similarity,
+)
 from volvence_zero.social_cognition import (
     BeliefAboutOtherSnapshot,
     CommonGroundSnapshot,
@@ -51,6 +54,13 @@ from volvence_zero.application.scoring_helpers import clamp01 as _clamp
 from volvence_zero.application.types import *  # noqa: F401,F403 -- typed surface
 from volvence_zero.application.runtime_helpers import *  # noqa: F401,F403
 from volvence_zero.application.rare_heavy_state import ApplicationRareHeavyState  # noqa: F401
+
+
+_ACTION_REQUEST_PROTOTYPE = (
+    "The speaker must choose and state a specific action to take now. "
+    "请说明现在采取的具体行动。"
+)
+_MIN_ACTION_REQUEST_ALIGNMENT = 0.16
 
 
 class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
@@ -100,6 +110,16 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                 regime_id=retrieval_policy.regime_id,
                 risk_band=retrieval_policy.risk_band.value,
                 limit=3,
+            )
+            if self._store is not None
+            else ()
+        )
+        action_candidate_records = (
+            self._store.query(
+                experience_domains=retrieval_policy.experience_domains,
+                regime_id=retrieval_policy.regime_id,
+                risk_band=retrieval_policy.risk_band.value,
+                limit=12,
             )
             if self._store is not None
             else ()
@@ -275,6 +295,15 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
         task_prior = _clamp(
             sum(1.0 for hit in hits if Track.WORLD.value in hit.track_tags) / total_hits
         )
+        action_grounding = _select_action_grounding(
+            records=action_candidate_records,
+            entries=(
+                memory_value.retrieved_entries
+                if memory_value is not None
+                else ()
+            ),
+            abstract_action=retrieval_policy.abstract_action,
+        )
         return self.publish(
             CaseMemorySnapshot(
                 retrieval_policy_id=retrieval_policy_id,
@@ -294,9 +323,11 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                 ),
                 support_prior=support_prior,
                 task_prior=task_prior,
+                action_grounding=action_grounding,
                 description=(
                     f"Case memory produced {len(hits)} compact case hits for "
-                    f"{len(retrieval_policy.experience_domains)} experience domains."
+                    f"{len(retrieval_policy.experience_domains)} experience domains; "
+                    f"action_grounding={action_grounding.source_case_id if action_grounding is not None else 'none'}."
                 ),
             )
         )
@@ -342,3 +373,105 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
             for hit in snapshot.hits
         )
 
+
+def _select_action_grounding(
+    *,
+    records: tuple[CaseMemoryRecord, ...],
+    entries: tuple[MemoryEntry, ...],
+    abstract_action: str | None,
+) -> CaseActionGrounding | None:
+    """Publish one semantic case analogue for a concrete-action request.
+
+    The gate and ranking use the shared semantic-embedding seam.  There is
+    deliberately no keyword table and no mapping from natural-language text
+    to a hand-authored action.  The selected action labels remain owned by
+    the reviewed case record that published them.
+    """
+
+    if abstract_action is None or not records or not entries:
+        return None
+    current_turn_entries = tuple(
+        entry
+        for entry in entries
+        if "user_input" in entry.tags and entry.content.strip()
+    )
+    if not current_turn_entries:
+        return None
+    ranked_query_entries = tuple(
+        (
+            semantic_topic_similarity(
+                entry.content.strip(),
+                _ACTION_REQUEST_PROTOTYPE,
+            ),
+            entry,
+        )
+        for entry in current_turn_entries
+    )
+    action_request_alignment, query_entry = max(
+        ranked_query_entries,
+        key=lambda item: (
+            item[0],
+            item[1].created_at_ms,
+            item[1].last_accessed_ms,
+            item[1].entry_id,
+        ),
+    )
+    query_text = query_entry.content.strip()
+    if action_request_alignment < _MIN_ACTION_REQUEST_ALIGNMENT:
+        return None
+
+    ranked: list[tuple[float, float, str, CaseMemoryRecord]] = []
+    for record in records:
+        if not record.intervention_ordering:
+            continue
+        applicability_text = " ".join(
+            (
+                record.problem_pattern,
+                record.user_state_pattern,
+                *record.risk_markers,
+            )
+        )
+        case_alignment = semantic_topic_similarity(
+            query_text,
+            applicability_text,
+        )
+        score = _clamp(
+            case_alignment * 0.65
+            + record.relevance_score * 0.25
+            + record.confidence * 0.10
+        )
+        ranked.append((score, case_alignment, record.case_id, record))
+    if not ranked:
+        return None
+    _score, case_alignment, _case_id, selected = max(
+        ranked,
+        key=lambda item: (item[0], item[1], item[2]),
+    )
+    action_labels = tuple(selected.intervention_ordering)
+    if not action_labels:
+        return None
+    rendered_steps = tuple(label.replace("_", " ") for label in action_labels)
+    action_statement = (
+        "I will "
+        + ", then ".join(rendered_steps)
+        + "."
+    )
+    confidence = _clamp(
+        selected.confidence * 0.55
+        + case_alignment * 0.45
+    )
+    return CaseActionGrounding(
+        source_case_id=selected.case_id,
+        abstract_action=abstract_action,
+        action_labels=action_labels,
+        action_statement=action_statement,
+        action_request_alignment=action_request_alignment,
+        case_alignment=case_alignment,
+        confidence=confidence,
+        description=(
+            "CaseMemory owner selected a reviewed intervention sequence "
+            f"for abstract_action={abstract_action} from case={selected.case_id}; "
+            f"action_request_alignment={action_request_alignment:.3f} "
+            f"case_alignment={case_alignment:.3f}."
+        ),
+    )

@@ -61,6 +61,14 @@
 
 **优势**：动作空间降维、时间尺度压缩、信用分配简化、探索效率提升。
 
+运行时对 terminal environment outcome 的跨层 lineage 由 orchestrator 在 outcome
+提交时从 `TemporalAbstractionSnapshot` 捕获：
+`active_abstract_action / action_family_version / controller_state.code digest`。
+这只是保存 temporal owner 已发布的不可变证据，不把 family 语义解释权迁给 runtime。
+family ID 本身是 opaque latent identity；没有 gated semantic decoder 产出的 typed
+action schema 时，application/expression 禁止将它或同 episode 的 action 文本解释成
+可复用行为规则。
+
 ### 自监督训练目标（ETA Eq.3）
 
 ```
@@ -90,6 +98,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 **产出的输出**：
 - `temporal_abstraction` 快照：`TemporalAbstractionSnapshot`
+- `active_abstract_action` / discovered family 保持无业务语义的 controller identity。具体行动由 application 的 `CaseMemorySnapshot.action_grounding` 解释，再由 `ResponseAssemblySnapshot.action_realization` 与同拍 action id 绑定；temporal owner 不保存 case 文本，expression 也不得建立 family-id → 行为字符串表。
   - 控制器状态（`z_t`, `β_t`, `steps_since_switch`）
   - 当前抽象动作的语义描述
   - 控制器参数哈希

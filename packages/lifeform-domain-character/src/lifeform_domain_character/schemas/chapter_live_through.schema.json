@@ -55,6 +55,32 @@
                 "setting": { "type": "string" },
                 "decision_point": { "type": "string" },
                 "canonical_action": { "type": "string" },
+                "canonical_action_schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "schema_id",
+                    "applicability_conditions",
+                    "action_steps",
+                    "description"
+                  ],
+                  "properties": {
+                    "schema_id": { "type": "string" },
+                    "applicability_conditions": {
+                      "type": "array",
+                      "minItems": 1,
+                      "uniqueItems": true,
+                      "items": { "type": "string" }
+                    },
+                    "action_steps": {
+                      "type": "array",
+                      "minItems": 1,
+                      "uniqueItems": true,
+                      "items": { "type": "string" }
+                    },
+                    "description": { "type": "string" }
+                  }
+                },
                 "canonical_outcome": { "type": "string" },
                 "emotional_register": {
                   "type": "string",

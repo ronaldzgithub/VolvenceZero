@@ -28,6 +28,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from volvence_zero.environment import EnvironmentActionSchema
+
 
 _VALID_PHASE_LABELS: frozenset[str] = frozenset(
     {"child", "adolescent", "mature", "elder"}
@@ -78,6 +80,7 @@ class NarrativeScene:
     risk_markers: tuple[str, ...]
     expected_regime: str | None
     evidence_locator: str
+    canonical_action_schema: EnvironmentActionSchema | None = None
 
     def __post_init__(self) -> None:
         for field_name, value in (

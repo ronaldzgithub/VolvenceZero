@@ -137,6 +137,21 @@ OWNER_HYDRATION_MATRIX: tuple[OwnerHydrationMatrixEntry, ...] = (
         reason="RegimeModule owns persistent regime identity, delayed payoff, and bounded calibration state.",
     ),
     OwnerHydrationMatrixEntry(
+        owner_name="joint_loop.learning",
+        decision="hydrate",
+        storage_key=_key_for("joint_loop.learning"),
+        reason=(
+            "ETANLJointLoop owns the dual-track metacontroller and Internal-RL "
+            "learned state; its strict owner archive excludes episode-local replay."
+        ),
+    ),
+    OwnerHydrationMatrixEntry(
+        owner_name="reflection.consolidation_score",
+        decision="hydrate",
+        storage_key=_key_for("reflection.consolidation_score"),
+        reason="ConsolidationScoreLearner owns its bounded background-slow learned readout.",
+    ),
+    OwnerHydrationMatrixEntry(
         owner_name="world_temporal",
         decision="explicit-no-hydrate",
         storage_key="none",

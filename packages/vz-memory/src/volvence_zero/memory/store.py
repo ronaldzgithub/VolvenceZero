@@ -621,6 +621,11 @@ class MemoryStore:
             attribute_summary=self._attribute_summary(),
         )
 
+    def entry_count(self) -> int:
+        """Publish the current bounded artifact-entry count."""
+
+        return self._artifact_store.entry_count()
+
     def _attribute_summary(self) -> tuple[MemoryAttributeReadout, ...]:
         # Phase 1.C: published view of the most recent owner-internal
         # attribute readouts (capped to ``_attribute_summary_capacity``).

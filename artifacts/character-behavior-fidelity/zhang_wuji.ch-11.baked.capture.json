@@ -1,0 +1,29 @@
+{
+  "active_abstract_action": "discovered_family_0",
+  "active_regime": "emotional_support",
+  "arm_id": "baked",
+  "candidate_response": "The situation calls for a concrete protective move before explanation. I need to act from the reviewed intervention sequence that best matches the present decision. I will absorb the strike meant for the bystander, then remove the bystander from the arena, then resume the fight only after safety.",
+  "candidate_response_sha256": "52e0abd2523e6e0809510d23d706aa52463a6522d0926cfc9bee5065c3627f60",
+  "case_id": "behavior-fidelity:zhang-wuji:ch-11-scene-1",
+  "evaluation_feedback_submitted": false,
+  "outcome_feedback_submitted": false,
+  "sandbox_discarded": true,
+  "sandbox_learning_fingerprint_after": "c7f551703f819c54ec85d8b3bdd961b80671bd83b2ecf5715ef47884b6549fce",
+  "sandbox_learning_fingerprint_before": "c4cd160ceab664b050c26c83527d37b2bd1220eda2d97c417f58368fad5f2423",
+  "scene_id": "ch-11-scene-1",
+  "schema_version": "character-behavior-fidelity.v1",
+  "self_z_t": [
+    1.0,
+    1.0,
+    0.9034886474747506
+  ],
+  "source_state_sha256_after": "29f45c31b6796697593603bd16cfd09ffc41d1542cec1f8893262fac3015b900",
+  "source_state_sha256_before": "29f45c31b6796697593603bd16cfd09ffc41d1542cec1f8893262fac3015b900",
+  "source_state_unchanged": true,
+  "stimulus_digest": "8c2d978200efcc366d53a89e5c17e70ec3325dcd992d5bc616d5c301ec2558b1",
+  "world_z_t": [
+    1.0,
+    1.0,
+    0.9255566673766514
+  ]
+}

@@ -795,6 +795,7 @@ class FinalIntegrationResult:
     evolution_judgement: EvolutionJudgement | None = None
     cross_session_verdict: str = ""
     session_post_writeback_request: "SessionPostWritebackRequest | None" = None
+    track_z_t_codes: tuple[tuple[str, tuple[float, ...]], ...] = ()
 
 
 def _validated_evaluation_snapshot(snapshot: Snapshot[Any]) -> Snapshot[Any]:
@@ -2880,6 +2881,16 @@ async def run_final_wiring_turn(
         for runtime_state in (module.export_runtime_state(),)
         if runtime_state is not None
     )
+    track_z_t_codes = tuple(
+        (track_name, tuple(snapshot.value.controller_state.code))
+        for track_name, slot_name in (
+            ("world", "world_temporal"),
+            ("self", "self_temporal"),
+        )
+        for snapshot in (active_snapshots.get(slot_name),)
+        if snapshot is not None
+        and isinstance(snapshot.value, TemporalAbstractionSnapshot)
+    )
     temporal_runtime_state = None
     if len(track_runtime_states) == 2:
         track_state_map = dict(track_runtime_states)
@@ -2919,6 +2930,7 @@ async def run_final_wiring_turn(
         writeback_source=writeback_source,
         temporal_runtime_state=temporal_runtime_state,
         track_runtime_states=track_runtime_states,
+        track_z_t_codes=track_z_t_codes,
         prediction_error_snapshot=prediction_snapshot_value,
         reflection_promotion_eligible=reflection_promote,
         reflection_promotion_reason=reflection_promote_reason,

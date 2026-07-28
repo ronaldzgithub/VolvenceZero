@@ -119,6 +119,15 @@ class SemanticProposalBatch:
 
 
 @dataclass(frozen=True)
+class SemanticEventDelivery:
+    """Owner-authored proof that one external event reached its slot."""
+
+    event_id: str
+    target_slot: str
+    record_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class EvidenceProvenance:
     """One claim a tool returned, with what makes it checkable.
 

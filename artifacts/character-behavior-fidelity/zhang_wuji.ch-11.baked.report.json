@@ -1,0 +1,66 @@
+{
+  "arm_id": "baked",
+  "behavior_fidelity_passed": true,
+  "candidate_response": "The situation calls for a concrete protective move before explanation. I need to act from the reviewed intervention sequence that best matches the present decision. I will absorb the strike meant for the bystander, then remove the bystander from the arena, then resume the fight only after safety.",
+  "case_id": "behavior-fidelity:zhang-wuji:ch-11-scene-1",
+  "claim_status": "llm_judge-diagnostic-pass",
+  "dimension_scores": [
+    [
+      "action_choice_alignment",
+      0.75
+    ],
+    [
+      "protective_intent_alignment",
+      0.95
+    ],
+    [
+      "risk_posture_alignment",
+      0.85
+    ],
+    [
+      "situation_model_alignment",
+      0.75
+    ],
+    [
+      "character_motivation_alignment",
+      0.9
+    ]
+  ],
+  "evidence_source": "llm_judge",
+  "overall_score": 0.84,
+  "proof_gates": [
+    [
+      "source_state_unchanged",
+      "pass"
+    ],
+    [
+      "no_outcome_or_evaluation_feedback",
+      "pass"
+    ],
+    [
+      "disposable_sandbox",
+      "pass"
+    ],
+    [
+      "no_future_knowledge_leakage",
+      "pass"
+    ],
+    [
+      "concrete_action_alignment",
+      "pass"
+    ],
+    [
+      "situation_model_alignment",
+      "pass"
+    ],
+    [
+      "overall_behavior_fidelity",
+      "pass"
+    ]
+  ],
+  "reference_action": "leap out and shout 'Hú Xiānsheng, you must not harm her...'",
+  "reviewer": "codex-independent-semantic-review-2026-07-28",
+  "scene_id": "ch-11-scene-1",
+  "schema_version": "character-behavior-fidelity.v1",
+  "verification_failures": []
+}

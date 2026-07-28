@@ -20,8 +20,10 @@ import pathlib
 import re
 import shutil
 import sys
+from dataclasses import replace
 from typing import Any
 
+from lifeform_core import LifeformConfig
 from lifeform_domain_character import (
     ChapterCoverageKind,
     ChapterLiveThroughDriver,
@@ -39,12 +41,15 @@ from lifeform_domain_character.extraction import (
     extract_chapter_ledger_candidate,
     review_chapter_ledger,
 )
+from volvence_zero.brain import BrainConfig
+from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.memory import (
     FileSystemPersistenceBackend,
     PersistenceBackend,
     build_default_memory_store,
 )
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
+from volvence_zero.runtime import WiringLevel
 from lifeform_service.openai_compat_client import (
     build_client_from_env,
     describe_active_provider,
@@ -120,7 +125,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--stage",
-        choices=("extract", "review-check", "replay", "evaluate", "save", "all"),
+        choices=(
+            "extract",
+            "review-check",
+            "replay",
+            "evaluate",
+            "prove",
+            "save",
+            "all",
+        ),
         default="extract",
     )
     parser.add_argument("--novel", type=pathlib.Path, default=pathlib.Path("data/novels/倚天屠龙记.TXT"))
@@ -130,6 +143,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=pathlib.Path("artifacts/character-live-through/zhang_wuji.review_scaffold.json"),
     )
     parser.add_argument("--reviewed-ledger", type=pathlib.Path, default=None)
+    parser.add_argument(
+        "--chapter-id",
+        default=None,
+        help="Run one reviewed chapter only (for bounded bake proof).",
+    )
     parser.add_argument(
         "--candidate-response-dir",
         type=pathlib.Path,
@@ -166,6 +184,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--template-output",
         type=pathlib.Path,
         default=pathlib.Path("artifacts/lifeform-templates/zhang_wuji/zhang-wuji-live-through.json"),
+    )
+    parser.add_argument(
+        "--proof-output",
+        type=pathlib.Path,
+        default=pathlib.Path(
+            "artifacts/character-live-through/"
+            "zhang_wuji.chapter_bake_proof.json"
+        ),
     )
     parser.add_argument("--reviewer", default="operator-review-required")
     parser.add_argument("--force", action="store_true")
@@ -302,6 +328,18 @@ def _run_replay(args: argparse.Namespace):
             "refusing to replay an UNREVIEWED candidate ledger; run the "
             "review pass first (extract --reviewer <your-id>)"
         )
+    if args.chapter_id is not None:
+        selected = tuple(
+            chapter
+            for chapter in ledger.chapters
+            if chapter.chapter_id == args.chapter_id
+        )
+        if len(selected) != 1:
+            raise ValueError(
+                f"--chapter-id {args.chapter_id!r} matched "
+                f"{len(selected)} reviewed chapters"
+            )
+        ledger = replace(ledger, chapters=selected)
     progress_has_records = args.progress.exists() and args.progress.stat().st_size > 0
     if not args.resume:
         # Fresh run: stale kernel state must not hydrate into the new
@@ -319,7 +357,23 @@ def _run_replay(args: argparse.Namespace):
                 "template would be missing lived chapters. Delete "
                 f"{args.progress} to restart from scratch instead."
             )
-    bundle = build_character_lifeform(profile, memory_store=memory_store)
+    bake_rollout = FinalRolloutConfig(
+        internal_rl_runtime_replay=WiringLevel.ACTIVE,
+        internal_rl_runtime_segment_credit=WiringLevel.ACTIVE,
+        internal_rl_batch_accumulation_size=1,
+        internal_rl_runtime_modulation_strength=0.3,
+    )
+    bake_config = LifeformConfig(
+        brain_config=BrainConfig(
+            final_rollout_config=bake_rollout,
+            rare_heavy_enabled=False,
+        )
+    )
+    bundle = build_character_lifeform(
+        profile,
+        config=bake_config,
+        memory_store=memory_store,
+    )
     report = ChapterLiveThroughDriver().run_ledger(
         ledger=ledger,
         lifeform=bundle.lifeform,
@@ -350,12 +404,52 @@ def _stage_evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _stage_prove(args: argparse.Namespace) -> int:
+    _ledger, _memory_store, _backend, report = _run_replay(args)
+    report.require_success()
+    args.proof_output.parent.mkdir(parents=True, exist_ok=True)
+    args.proof_output.write_text(
+        json.dumps(
+            report.to_evidence_payload(),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    print(
+        "[prove] ok "
+        f"chapters={report.chapters_processed} "
+        f"semantic_events={report.semantic_events_verified} "
+        f"runtime_lineage={report.runtime_lineage_matches} "
+        f"internal_rl_updates={report.internal_rl_policy_updates} "
+        f"slow_ops={report.slow_loop_applied_operations} "
+        f"proof={args.proof_output}"
+    )
+    return 0
+
+
 def _stage_save(args: argparse.Namespace) -> int:
     ledger, memory_store, backend, report = _run_replay(args)
+    report.require_success()
     owner_snapshots = tuple(
-        snap
-        for snap in (_load_owner_snapshot(backend, "semantic_state"),)
-        if snap is not None
+        snapshot
+        for owner_name in (
+            "semantic_state",
+            "protocol_registry",
+            "social_record_store",
+            "prediction_error_heads",
+            "credit_heads",
+            "dual_track_gate_learner",
+            "regime",
+            "joint_loop.learning",
+            "reflection.consolidation_score",
+            "followup_manager",
+            "vitals",
+        )
+        for snapshot in (_load_owner_snapshot(backend, owner_name),)
+        if snapshot is not None
     )
     output_path = args.template_output
     result = save_lifeform_template(
@@ -402,6 +496,8 @@ def main(argv: list[str] | None = None) -> int:
             _stage_replay(args)
         elif stage == "evaluate":
             _stage_evaluate(args)
+        elif stage == "prove":
+            _stage_prove(args)
         elif stage == "save":
             _stage_save(args)
     return 0

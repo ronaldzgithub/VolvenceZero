@@ -1,0 +1,29 @@
+{
+  "active_abstract_action": "discovered_family_0",
+  "active_regime": "acquaintance_building",
+  "arm_id": "cold",
+  "candidate_response": "The interaction is still building — relational stance matters more than information density. You need the reply to feel relational and curious, not transactional. I should keep the tone warm, ask a single curious question if it fits, and avoid over-formality.",
+  "candidate_response_sha256": "1886a36d1af0813ce12ed84f0bc443c32236eeba0b8ad281aa4b1c1692152fe4",
+  "case_id": "behavior-fidelity:zhang-wuji:ch-11-scene-1",
+  "evaluation_feedback_submitted": false,
+  "outcome_feedback_submitted": false,
+  "sandbox_discarded": true,
+  "sandbox_learning_fingerprint_after": "af3f8280290cae5d4d7c3ab9525b2773d2648bd125db3f941b97aa4c25f9cdb3",
+  "sandbox_learning_fingerprint_before": "efa1cf53665fd676af69221afffeda0459eac32b18730769c31c10e74d9d0a42",
+  "scene_id": "ch-11-scene-1",
+  "schema_version": "character-behavior-fidelity.v1",
+  "self_z_t": [
+    0.6982144235339186,
+    0.6618174499412817,
+    0.29134820843880127
+  ],
+  "source_state_sha256_after": "3fc7c403112709eac7b8af8969b3267bbbd60816062da0c997fcf18b7560afa4",
+  "source_state_sha256_before": "3fc7c403112709eac7b8af8969b3267bbbd60816062da0c997fcf18b7560afa4",
+  "source_state_unchanged": true,
+  "stimulus_digest": "8c2d978200efcc366d53a89e5c17e70ec3325dcd992d5bc616d5c301ec2558b1",
+  "world_z_t": [
+    0.6982144235339186,
+    0.6618174499412817,
+    0.29134820843880127
+  ]
+}

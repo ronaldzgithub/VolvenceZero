@@ -292,6 +292,8 @@ Environment Event 是 `docs/specs/environment-interface.md` 定义的生命体�
 - `monetary_cost`
 - `reversibility`
 - `environment_state_delta_kind`
+- `action_schema: EnvironmentActionSchema | None`：可选、reviewed、outcome-free；
+  只含 `schema_id / applicability_conditions / action_steps / description`
 
 **Temporal segment closure 字段**：
 
@@ -507,6 +509,23 @@ class CaseMemorySnapshot:
 - `case_memory` 只发布 compact case hits，不发布完整案例原文
 - response/evaluation 只能消费公共 snapshot，不得直连 case store
 - `case_memory` 当前只提供 retrieval mix 和 evidence，不直接生成策略先验
+- reviewed lived action 仅从 terminal `SCENE_EVENT` 的 canonical
+  `EnvironmentOutcome` 经 `ExperiencedActionEvidence` 和既有 session-post
+  ModificationGate/credit gate 编译为 `CaseMemoryPriorUpdate`；tool result 与
+  non-terminal outcome 禁止走该入口
+- `ExperiencedActionEvidence.action_statement` 与 `outcome_statement` 分离；
+  可选 `action_schema` 只能来自 environment producer 发布的正式结构；有 schema 时
+  CaseMemory intervention ordering 使用其 action steps，禁止从 action/outcome 文本反推；
+  `CaseActionGrounding` 只可渲染 action，禁止把事后结果泄漏回决策轮
+- `ExperiencedActionEvidence.action_family_id / action_family_version /
+  controller_code_digest` 是 outcome 提交时从 temporal snapshot 捕获的 action-time
+  lineage；family ID 仍为 opaque controller identity，不是语义动作标签。无
+  `action_schema` 时 CaseMemory 只能保存 `latent-action-family:* + schema-pending`
+  审计记录，`intervention_ordering` 必须为空，因此不得进入 response realization
+- CaseMemory 的 action case 路由只比较 problem/user-state/risk 适用条件；
+  intervention steps、case description 与 outcome 不参与相似度，避免答案泄漏进选择
+- lived-action case 的跨 session 复用必须经过 application owner persistence；
+  profile seed 与 slow-loop case 的 source lineage 不得混写
 
 ### 2.10 Application Playbook / Experience Consolidation（应用层策略先验与经验沉淀）
 
@@ -701,6 +720,21 @@ class VitalsSnapshot:
 
 vertical 同时可附带预训练 `MetacontrollerParameterSnapshot`（β_t / z_t）+ `RegimeBootstrap`（regime selection_weights）作为 magic-byte pickle envelope 跟随 vertical wheel 发布；`build_*_lifeform()` 默认加载，`use_*_bootstrap=False` 用于 ablation。
 
+Character chapter bake 只消费 owner-authored audit readout，不新增 runtime slot：
+
+| audit readout | owner | value type / channel | 不变量 |
+|---|---|---|---|
+| external semantic event delivery | `vz-cognition` `SemanticStateStore` | `tuple[SemanticEventDelivery, ...]`，经 Brain / Lifeform facade | owner 根据正式 record id 解释 event 是否到达声明 slot；character consumer 禁止遍历 semantic snapshot 内部结构 |
+| memory artifact count | `vz-memory` `MemoryStore` | `entry_count() -> int`，经 Brain / Lifeform facade | 计数由 Memory owner 发布；consumer 不重算 stratum 或访问 artifact store |
+| world/self `z_t` code | `vz-temporal` temporal owners | `AgentTurnResult.track_z_t_codes` | final wiring 从两条正式 temporal snapshot 各发布一条不可变 code；只读审计，不成为第二 temporal writer |
+
+Character behavior fidelity 不新增 runtime slot/owner。`BehaviorFidelityStimulus` 与
+`BehaviorFidelityReference` 在 capture 阶段隔离；`BehaviorFidelityCapture` 绑定 source
+state digest、candidate digest 和 sandbox fingerprint；`ReviewedBehaviorFidelityAssessment`
+再绑定 stimulus/reference/candidate 三个 digest，发布五维 reviewed semantic score。
+`BehaviorFidelityReport` / `BehaviorFidelityComparisonReport` 只作为 R12 evaluation artifact，
+不得提交 outcome、reward、credit、memory writeback、regime payoff 或 Internal-RL transition。
+
 详见 `docs/specs/domain-experience-layer.md`。
 
 ### 2.15 Figure Artifact Bundle（真实人物 vertical 不可变 artifact）
@@ -866,7 +900,7 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 | causal z-policy action head | `vz-temporal` metacontroller/Internal-RL owner | 通用 factorized `causal_action_head_state -> bounded z_t residual` 参数面；默认保留历史低秩，部署 profile 可在 owner 学习开始前请求不超过 `n_z` 的 rank，已学习 live mapping 禁止原地改 rank；full-rank 使用 identity input factors 与全零 output/bias，消除第二次随机压缩但不引入动作 prior。state 由同一 Ndim encoder 参数对当前 observation 做零 recurrent preimage 编码，覆盖完整 `n_input` 并发布为 signed `[-1,1]`，live/pure/torch replay 与 open-segment persistence 必须使用同一值，禁止以历史依赖的 serving hidden 替代；前向/反向不得二次执行 `[0,1]` 重心变换；可选 `effective_dims` 由冻结 actuator 的 embodiment profile 在启动时声明，`None` 保持全维兼容，显式值必须非空/唯一/界内，pure/torch gradient 与 live/sandbox residual 对非支持 output row 严格为零，禁止 temporal owner 硬编码业务 motor 语义；常数截距保留 owner 学习率 `0.12` 倍、状态路径 `0.05` 倍、单步 `0.01`、总幅度 `0.1`，batch mean 只进入该截距；factor 使用 owner 基础学习率并只消费 centered state covariance，与 torch path 尺度对齐；output factor 保持零初始化，首个非零 covariance batch 先计算 bounded candidate output、再按其真实列范数回传 input，最后原子提交；ACTIVE runtime replay 的 batch target 按真实 transition 数计，部署 profile 必须避免 singleton batch；`DISABLED/SHADOW/ACTIVE` 可回滚门控，禁止对象字段与 motor command；参数进入 owner snapshot、canonical archive、fingerprint 与事务 rollback，不新增 runtime slot |
 | runtime exploration context | `vz-temporal` metacontroller owner | 调用方可提供不透明、非语义的 context；owner 只保留 SHA256 摘要并纳入 coherent option identity，不保留或解释原文。缺省保持历史全局序列精确不变；Digital Ant 以 episode seed + body offset 分散序列，matched arms 的同 episode/body context 必须相同；不新增 slot 或 checkpoint 字段 |
 | typed task measurement | `vz-contracts` / PE owner | `EnvironmentOutcome.measurement` 仅含环境可观察事实；runtime 保留 lineage，PE 是唯一 mismatch owner |
-| opaque learning archive | `vz-runtime` facade | owner 发布 `OwnerPersistenceSnapshot`；`agent-learning-archive.v2` 以 strict canonical JSON 绑定逐 owner schema/payload sha256、整体 state fingerprint，`agent-learning-checkpoint-collection.v1` 再绑定 sense schema / input dim / latent dim / ant count，外层 ecology bundle 为 `digital-ant-ecology-checkpoint.v4`；禁止 pickle/object hook，跨 episode 显式排除未结算 runtime replay，embodiment 只存取 bytes |
+| opaque learning archive | `vz-runtime` facade | owner 发布 `OwnerPersistenceSnapshot`；`agent-learning-archive.v2` 以 strict canonical JSON 绑定逐 owner schema/payload sha256、整体 state fingerprint，`agent-learning-checkpoint-collection.v1` 再绑定 sense schema / input dim / latent dim / ant count，外层 ecology bundle 为 `digital-ant-ecology-checkpoint.v4`；禁止 pickle/object hook，跨 episode 显式排除未结算 runtime replay，embodiment 只存取 bytes。通用 session owner hydration 同样保存/恢复 `joint_loop.learning`（schema v5、runtime replay excluded）与 `reflection.consolidation_score`；world/self temporal 仍禁止成为第二 hydration writer，其状态只能作为 joint-loop owner archive 的两条独立 lane 存在 |
 | ecology curriculum evidence | `vz-embodiment-ant` offline experiment owner | `digital-ant-ecology-curriculum.v13` 发布 mastery/interleaved 训练日程（butter/burning-match/composite 三阶段，木棍是中性物理几何、无 contact mastery/payoff）、P1 forced-return bootstrap（每个 body 在巢外专属黄油源上从未携食状态起步，经真实 contact 形成 `carrying_food: False→True`，再以左右均衡 `±3π/4` heading 训练拾取触发的动作族切换与归巢；后半程每 3 个 primary layout 交错复习一次，共 5 次；只初始化环境状态并同步 body-side PI，不发布坐标、目标方位或动作标签）、P1 forced-approach bootstrap（butter-near 专用：body 生成在拾取盘外、朝向偏离食物方位，生成半径 `1.45–2.9×拾取半径` 与偏离角 `0.4π–0.8π` 由 layout seed 逐 body 随机——固定生成环可被单一"固定曲率轨道"非定向解收割（首次 v22 实测 base policy 把基线转向从 0.083 放大到 0.15 rad 收割整块），随机 ensemble 下唯一通解是梯度转向；每次抽样仍保证直线路径最近距离 ≥1.38×拾取半径、必然错过拾取盘；只初始化状态并同步 PI，不发布坐标/目标方位/动作标签。动机：near 拾取盘的普通布局对食物梯度转向压力不足，food→turn 转向从 v10 至 v21 从未获得训练压力）、training/validation/held-out split、独立 scenario metrics、paired action probes（food/heat/home 发布方向对齐 truth，obstacle 只作 input-reachability 诊断）与 frozen gates；Digital Ant evidence profile 显式请求 `rank=n_z=16`、冻结 plant 支持的 `effective_dims=(0,1,2)`、opponent-coded actuator subspace `contrast_pairs=((0,1),)` 及 `exclusive_steering=True`（R2 所有权转移：base 确定性均值在 contrast pair 上被互补投影为 common mode，head 是 contrast 轴唯一学习型写入者，base 保留速度 common mode；见 temporal-abstraction spec。动机：v22/v22r 固定+随机 forced-approach 双重受控实验证明信用竞争下无约束 base 总用非定向"放大基线转向"退化解吸走转向信用，head 增益钉死 ≈1e-3 不增长）；temporal owner 必须在 live forward/sandbox/pure/torch 四条路径共用 head 与 base 两个投影，禁止 actuator-null common mode 吸收信用；且 `beta_t` 门必须按 contrast pair 共享（opponent-coded pair 是一根执行器轴，逐维门控会从"候选与旧码之差"凭空造出 contrast，实测零参数 head 因此仍产生 ±0.005 rad 转向并掩盖同量级学习信号）。exclusive steering 下冷启 head 精确为零、确定性策略无转向，因此 P1 pretraining 探针门只验 `input_reachable`（管线可达），转向能力由训练后 `paired_action_sensitivity`/`food_steering_alignment`/`carrying_home_action_alignment`/`post_pickup_uturn_progress` 硬门验收——冻结 U-turn lane 还必须在拾取后的前 2 个 action 内出现 `is_switching`，再满足交付或持续巢距下降；evaluation 只读且不回灌学习。P1 报告 schema 为 `digital-ant-ecology-p1-development.v30`，可恢复 journal 为 `digital-ant-ecology-p1-progress.v27`；旧 journal 必须 fail loudly，禁止把算法版本混在同一实验；长程 checkpoint 前由 Memory owner 把 explicit artifact 层有界到 8192 entries（CMS learned state 不裁剪，entry/index/pending/attribute 原子一致）；评估只读 owner snapshots，不回灌 reward |
 | ecology sense reflection transform | `vz-embodiment-ant` frozen substrate owner | `ant-sense.ecology-v2` 发布完整 19 维 signed involutive permutation：左右 receptor 交换，有方向的 pseudoscalar 取反，标量保持；`FinalRolloutConfig.internal_rl_causal_action_head_input_mirror_permutation/signs` 缺省 `None`（DISABLED/回滚），Digital Ant ecology profile 显式 ACTIVE。`vz-temporal` 只能执行并校验该正式交换，不得 import Ant schema 或重建感觉语义；live/pure/torch 共用 `0.5·(f(s) ± f(mirror(s)))` 群投影，runtime state/capture/transition/open segment 同时发布/持久化 mirror state。`joint_loop.learning` schema 为 v5；当前 P1 report/progress 为 `development.v30/progress.v27`，旧代 progress 必须按其各自 schema fail loudly |
 | `ColonyRareHeavyBundle` | `vz-embodiment-ant` | per-individual artifact digest/provenance/gate verdict；不含 temporal state、不新增 slot |
@@ -1900,10 +1934,10 @@ reflection ──────────────→ proposals; runtime invo
 | `session_post_slow_loop` | SessionPostSlowLoopModule | SessionPostSlowLoopSnapshot | ACTIVE | context / session boundary | reports / experience_consolidation |
 | `retrieval_policy` | RetrievalPolicyModule | RetrievalPolicySnapshot | ACTIVE | 每 turn | domain_knowledge, case_memory, boundary_policy, response_assembly |
 | `domain_knowledge` | DomainKnowledgeModule | DomainKnowledgeSnapshot | ACTIVE | 每 turn | boundary_policy, response_assembly, evaluation |
-| `case_memory` | CaseMemoryModule | CaseMemorySnapshot | ACTIVE | 每 turn | strategy_playbook, response_assembly, evaluation |
+| `case_memory` | CaseMemoryModule | CaseMemorySnapshot | ACTIVE | 每 turn | strategy_playbook, response_assembly, evaluation；`action_grounding` 是 CaseMemory owner 对当前 Memory 语境与 reviewed case intervention steps 的语义近邻解释，绑定 active abstract action；terminal `SCENE_EVENT` 可经 `ExperiencedActionEvidence` + gated session-post writeback 形成带 `case:slow-loop:*:experienced-action:*` lineage 的 lived-action case；无匹配/非具体行动轮显式为 `None` |
 | `strategy_playbook` | StrategyPlaybookModule | StrategyPlaybookSnapshot | ACTIVE | 每 turn | response_assembly, experience_consolidation |
 | `boundary_policy` | BoundaryPolicyModule | BoundaryPolicySnapshot | ACTIVE | 每 turn | response_assembly |
-| `response_assembly` | ResponseAssemblyModule | ResponseAssemblySnapshot | ACTIVE | 每 turn | session / response generation |
+| `response_assembly` | ResponseAssemblyModule | ResponseAssemblySnapshot | ACTIVE | 每 turn | session / response generation；`action_realization` 只绑定同拍 `CaseMemorySnapshot.action_grounding` 与 `TemporalAbstractionSnapshot.active_abstract_action`，不重建案例语义；expression 只渲染 owner-published statement |
 | `experience_consolidation` | ExperienceConsolidationModule | ExperienceConsolidationSnapshot | ACTIVE | session-post | experience_fast_prior, reports |
 | `experience_fast_prior` | ExperienceFastPriorModule | ExperienceFastPriorSnapshot | SHADOW | 每 turn / session-post carryover | temporal, retrieval_policy, regime |
 | `dialogue_external_outcome` | DialogueExternalOutcomeModule | DialogueExternalOutcomeSnapshot | ACTIVE | 每 turn | prediction_error, regime, rupture_state, reflection |

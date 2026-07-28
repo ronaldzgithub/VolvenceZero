@@ -35,6 +35,8 @@ def test_owner_hydration_matrix_freezes_owner_by_owner_decisions() -> None:
     assert matrix["credit_heads"].decision == "hydrate"
     assert matrix["memory"].decision == "external-owner"
     assert matrix["regime"].decision == "hydrate"
+    assert matrix["joint_loop.learning"].decision == "hydrate"
+    assert matrix["reflection.consolidation_score"].decision == "hydrate"
     assert matrix["world_temporal"].decision == "explicit-no-hydrate"
     assert matrix["self_temporal"].decision == "explicit-no-hydrate"
     assert len(matrix) == len(OWNER_HYDRATION_MATRIX)

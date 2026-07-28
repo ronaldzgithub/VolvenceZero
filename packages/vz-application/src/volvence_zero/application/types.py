@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, Mapping
 
 from volvence_zero.behavior_protocol import ProtocolRevisionProposal
 from volvence_zero.dual_track import DualTrackSnapshot
+from volvence_zero.environment import EnvironmentActionSchema
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
 from volvence_zero.social_cognition import (
@@ -179,6 +180,104 @@ class CaseEpisodeHit:
 
 
 @dataclass(frozen=True)
+class ExperiencedActionEvidence:
+    """Canonical action/outcome evidence admitted by the environment owner.
+
+    This is the typed slow-loop input used by CaseMemory to compile a lived
+    action into an application case.  It is not an evaluation label and it
+    never contains a preferred response for the current turn.
+    """
+
+    outcome_id: str
+    action_id: str
+    action_statement: str
+    outcome_statement: str
+    evidence: tuple[str, ...]
+    confidence: float
+    action_schema: EnvironmentActionSchema | None = None
+    action_family_id: str = ""
+    action_family_version: int = 0
+    controller_code_digest: tuple[float, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("outcome_id", self.outcome_id),
+            ("action_id", self.action_id),
+            ("action_statement", self.action_statement),
+            ("outcome_statement", self.outcome_statement),
+        ):
+            if not value.strip():
+                raise ValueError(
+                    f"ExperiencedActionEvidence {name} must be non-empty."
+                )
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                "ExperiencedActionEvidence confidence must be in [0, 1]."
+            )
+        if self.action_family_version < 0:
+            raise ValueError(
+                "ExperiencedActionEvidence action_family_version must be >= 0."
+            )
+        if self.action_family_id:
+            if not self.controller_code_digest:
+                raise ValueError(
+                    "ExperiencedActionEvidence family lineage requires a "
+                    "controller_code_digest."
+                )
+        elif self.action_family_version != 0 or self.controller_code_digest:
+            raise ValueError(
+                "ExperiencedActionEvidence family version/code require a "
+                "non-empty action_family_id."
+            )
+        if any(
+            not math.isfinite(value)
+            for value in self.controller_code_digest
+        ):
+            raise ValueError(
+                "ExperiencedActionEvidence controller_code_digest must be finite."
+            )
+
+
+@dataclass(frozen=True)
+class CaseActionGrounding:
+    """Case-memory-owned realization prior for one concrete action turn.
+
+    The case owner selects and explains the analogue.  Downstream response
+    assembly may bind it to the current temporal action, but must not rerank
+    cases or reconstruct intervention semantics itself.
+    """
+
+    source_case_id: str
+    abstract_action: str
+    action_labels: tuple[str, ...]
+    action_statement: str
+    action_request_alignment: float
+    case_alignment: float
+    confidence: float
+    description: str
+
+    def __post_init__(self) -> None:
+        if not self.source_case_id.strip() or not self.abstract_action.strip():
+            raise ValueError(
+                "CaseActionGrounding requires source_case_id and "
+                "abstract_action."
+            )
+        if not self.action_labels or not self.action_statement.strip():
+            raise ValueError(
+                "CaseActionGrounding requires action labels and a statement."
+            )
+        for name, value in (
+            ("action_request_alignment", self.action_request_alignment),
+            ("case_alignment", self.case_alignment),
+            ("confidence", self.confidence),
+        ):
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(
+                    f"CaseActionGrounding {name} must be in [0, 1]."
+                )
+
+
+@dataclass(frozen=True)
 class PlaybookRule:
     rule_id: str
     problem_pattern: str
@@ -281,6 +380,7 @@ class CaseMemorySnapshot:
     mean_continuum_position: float = 0.0
     support_prior: float = 0.0
     task_prior: float = 0.0
+    action_grounding: CaseActionGrounding | None = None
 
 
 @dataclass(frozen=True)
@@ -306,6 +406,35 @@ class ExperienceFastPriorSnapshot:
     source_attribution_ids: tuple[str, ...]
     source_sequence_ids: tuple[str, ...]
     description: str
+
+
+@dataclass(frozen=True)
+class ResponseActionRealization:
+    """Response-assembly-owned binding of ETA action to case semantics."""
+
+    abstract_action: str
+    source_case_id: str
+    action_labels: tuple[str, ...]
+    action_statement: str
+    grounding_confidence: float
+    description: str
+
+    def __post_init__(self) -> None:
+        if (
+            not self.abstract_action.strip()
+            or not self.source_case_id.strip()
+            or not self.action_labels
+            or not self.action_statement.strip()
+        ):
+            raise ValueError(
+                "ResponseActionRealization requires action, source case, "
+                "labels, and statement."
+            )
+        if not 0.0 <= self.grounding_confidence <= 1.0:
+            raise ValueError(
+                "ResponseActionRealization grounding_confidence must be "
+                "in [0, 1]."
+            )
 
 
 @dataclass(frozen=True)
@@ -344,6 +473,7 @@ class ResponseAssemblySnapshot:
     speech_plan: ResponseSpeechPlan | None = None
     support_before_decision_pressure: float = 0.0
     eta_action_family: str = ""
+    action_realization: ResponseActionRealization | None = None
 
 
 @dataclass(frozen=True)
@@ -744,4 +874,3 @@ class ApplicationRareHeavyCheckpoint:
 from volvence_zero.application.scoring_helpers import (
     dedupe as _dedupe,
 )
-

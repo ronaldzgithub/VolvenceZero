@@ -1,0 +1,245 @@
+{
+  "application_owner_targets_updated": [
+    "application.case_memory.records.lineage-loyalty-conflicts-with-mercy",
+    "application.case_memory.records.my-fight-spills-onto-uninvolved-third-party",
+    "application.case_memory.records.mentor-attacked-by-overwhelming-force",
+    "application.case_memory.records.relational-repair",
+    "application.domain_knowledge.records.family_transition.knowledge-family-transition-1",
+    "application.strategy_playbook.rules.lineage-loyalty-conflicts-with-mercy",
+    "application.strategy_playbook.rules.my-fight-spills-onto-uninvolved-third-party",
+    "application.strategy_playbook.rules.mentor-attacked-by-overwhelming-force",
+    "application.strategy_playbook.rules.relational-repair",
+    "application.boundary_policy.hints.acquaintance_building.3",
+    "application.retrieval_readout.checkpoint"
+  ],
+  "bake_succeeded": true,
+  "chapters_processed": 1,
+  "experienced_chapters": 1,
+  "final_vitals": [
+    [
+      "compassion_active",
+      0.7949999999999999
+    ],
+    [
+      "decisive_under_crisis",
+      0.46
+    ],
+    [
+      "loyalty_to_kin",
+      0.8200000000000001
+    ],
+    [
+      "martial_curiosity",
+      0.7300000000000001
+    ],
+    [
+      "self_sacrifice_pull",
+      0.4
+    ]
+  ],
+  "internal_rl_policy_updates": 1,
+  "learned_chapters": 0,
+  "ledger_character_id": "zhang-wuji",
+  "memory_entry_delta": 50,
+  "no_change_chapters": 0,
+  "not_known_chapters": 0,
+  "per_chapter": [
+    {
+      "application_owner_targets_updated": [
+        "application.case_memory.records.lineage-loyalty-conflicts-with-mercy",
+        "application.case_memory.records.my-fight-spills-onto-uninvolved-third-party",
+        "application.case_memory.records.mentor-attacked-by-overwhelming-force",
+        "application.case_memory.records.relational-repair",
+        "application.domain_knowledge.records.family_transition.knowledge-family-transition-1",
+        "application.strategy_playbook.rules.lineage-loyalty-conflicts-with-mercy",
+        "application.strategy_playbook.rules.my-fight-spills-onto-uninvolved-third-party",
+        "application.strategy_playbook.rules.mentor-attacked-by-overwhelming-force",
+        "application.strategy_playbook.rules.relational-repair",
+        "application.boundary_policy.hints.acquaintance_building.3",
+        "application.retrieval_readout.checkpoint"
+      ],
+      "bake_verified": true,
+      "chapter_id": "ch-11",
+      "chapter_index": 11,
+      "coverage": "experienced",
+      "environment_outcomes_settled": 1,
+      "final_drive_levels": [
+        [
+          "compassion_active",
+          0.7949999999999999
+        ],
+        [
+          "decisive_under_crisis",
+          0.46
+        ],
+        [
+          "loyalty_to_kin",
+          0.8200000000000001
+        ],
+        [
+          "martial_curiosity",
+          0.7300000000000001
+        ],
+        [
+          "self_sacrifice_pull",
+          0.4
+        ]
+      ],
+      "internal_rl_policy_updates": 1,
+      "memory_entry_delta": 50,
+      "notes": [
+        "llm-candidate:ch-11",
+        "reviewed-from:chapter_live_through.system.v2"
+      ],
+      "runtime_lineage_matches": 2,
+      "runtime_transitions": 2,
+      "scenes_processed": 1,
+      "semantic_events_applied_after_outcome": true,
+      "semantic_events_submitted": 3,
+      "semantic_events_verified": 3,
+      "semantic_owner_slots_verified": [
+        "user_model",
+        "belief_assumption",
+        "relationship_state"
+      ],
+      "slow_loop_applied_operations": 20,
+      "total_pe_signal": 1.0913,
+      "verification_failures": []
+    }
+  ],
+  "per_scene": [
+    {
+      "active_regime": "acquaintance_building",
+      "canonical_action": "leap out and shout 'Hú Xiānsheng, you must not harm her...'",
+      "drive_level_after": [
+        [
+          "compassion_active",
+          0.7949999999999999
+        ],
+        [
+          "decisive_under_crisis",
+          0.46
+        ],
+        [
+          "loyalty_to_kin",
+          0.8200000000000001
+        ],
+        [
+          "martial_curiosity",
+          0.7300000000000001
+        ],
+        [
+          "self_sacrifice_pull",
+          0.4
+        ]
+      ],
+      "outcome_kind": "decision_clearer",
+      "pe_magnitude": 1.0913,
+      "phase_label": "adolescent",
+      "predicted_action_snippet": "The interaction is still building — relational stance matters more than information density. You need the reply to feel relational and curious, not transactional. I should keep the tone warm, ask a single curious question if it fits, and av...",
+      "scene_id": "ch-11-scene-1"
+    }
+  ],
+  "per_scene_evidence": [
+    {
+      "application_owner_targets_updated": [
+        "application.case_memory.records.lineage-loyalty-conflicts-with-mercy",
+        "application.case_memory.records.my-fight-spills-onto-uninvolved-third-party",
+        "application.case_memory.records.mentor-attacked-by-overwhelming-force",
+        "application.case_memory.records.relational-repair",
+        "application.domain_knowledge.records.family_transition.knowledge-family-transition-1",
+        "application.strategy_playbook.rules.lineage-loyalty-conflicts-with-mercy",
+        "application.strategy_playbook.rules.my-fight-spills-onto-uninvolved-third-party",
+        "application.strategy_playbook.rules.mentor-attacked-by-overwhelming-force",
+        "application.strategy_playbook.rules.relational-repair",
+        "application.boundary_policy.hints.acquaintance_building.3",
+        "application.retrieval_readout.checkpoint"
+      ],
+      "bake_verified": true,
+      "delayed_credit_published": true,
+      "environment_event_id": "live-through-zhang-wuji:scene-00001:turn-2:environment",
+      "environment_outcome_id": "chapter-replay:ch-11-scene-1:outcome:pe:prediction_error:turn-2:next",
+      "evaluated_prediction_id": "pe:prediction_error:turn-2:next",
+      "internal_rl_backend": "runtime-replay",
+      "internal_rl_policy_epochs": 6,
+      "internal_rl_policy_update_applied": true,
+      "internal_rl_rollback_reasons": [],
+      "internal_rl_total_reward": 1.6974725404674822,
+      "memory_entry_delta": 50,
+      "pe_environment_outcome_id": "chapter-replay:ch-11-scene-1:outcome:pe:prediction_error:turn-2:next",
+      "pe_magnitude": 1.0913,
+      "prediction_id": "pe:prediction_error:turn-2:next",
+      "runtime_lineage_match_delta": 2,
+      "runtime_replay_wiring": "active",
+      "runtime_settled_delta": 2,
+      "runtime_transition_delta": 2,
+      "scene_id": "ch-11-scene-1",
+      "self_z_t": [
+        0.7879571977011345,
+        0.741832962594915,
+        0.30854232846320057
+      ],
+      "slow_loop_applied_operations": [
+        "temporal-prior:residual=0.495",
+        "temporal-prior:memory=0.308",
+        "temporal-prior:reflection=0.197",
+        "temporal-prior:switch-bias=0.338",
+        "temporal-prior:persistence=0.696",
+        "temporal-prior:learning-rate=0.087",
+        "temporal-prior:encoder=0.075",
+        "temporal-prior:decoder=0.051",
+        "temporal-prior:track-world=0.031",
+        "application-prior:case-memory:case:slow-loop:live-through-zhang-wuji:context-1:slow-loop:4:lineage-loyalty-conflicts-with-mercy",
+        "application-prior:case-memory:case:slow-loop:live-through-zhang-wuji:context-1:slow-loop:4:my-fight-spills-onto-uninvolved-third-party",
+        "application-prior:case-memory:case:slow-loop:live-through-zhang-wuji:context-1:slow-loop:4:mentor-attacked-by-overwhelming-force",
+        "application-prior:case-memory:case:slow-loop:live-through-zhang-wuji:context-1:slow-loop:4:relational-repair",
+        "application-prior:domain-knowledge:knowledge:slow-loop:live-through-zhang-wuji:context-1:slow-loop:4:knowledge-family-transition-1:1",
+        "application-prior:playbook:lineage-loyalty-conflicts-with-mercy",
+        "application-prior:playbook:my-fight-spills-onto-uninvolved-third-party",
+        "application-prior:playbook:mentor-attacked-by-overwhelming-force",
+        "application-prior:playbook:relational-repair",
+        "application-prior:boundary:boundary-hint:live-through-zhang-wuji:context-1:slow-loop:4",
+        "application-prior:retrieval-readout:retrieval-readout:live-through-zhang-wuji:context-1:slow-loop:4"
+      ],
+      "slow_loop_completed": true,
+      "verification_failures": [],
+      "world_z_t": [
+        0.7879571977011345,
+        0.741832962594915,
+        0.30854232846320057
+      ]
+    }
+  ],
+  "proof_gates": [
+    [
+      "full_chapter_coverage",
+      "pass"
+    ],
+    [
+      "semantic_events_reached_declared_owners_after_outcome",
+      "pass"
+    ],
+    [
+      "canonical_outcomes_settled_by_prediction_error",
+      "pass"
+    ],
+    [
+      "runtime_replay_lineage_reached_internal_rl",
+      "pass"
+    ],
+    [
+      "internal_rl_updated_z_policy",
+      "pass"
+    ],
+    [
+      "background_slow_memory_and_policy_integration",
+      "pass"
+    ]
+  ],
+  "runtime_lineage_matches": 2,
+  "runtime_transitions": 2,
+  "semantic_events_verified": 3,
+  "slow_loop_applied_operations": 20,
+  "total_pe_signal": 1.0913,
+  "verification_failures": []
+}

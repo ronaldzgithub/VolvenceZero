@@ -1,7 +1,7 @@
 # Expression Layer Spec
 
 > Status: draft
-> Last updated: 2026-05-06
+> Last updated: 2026-07-28
 > 对应需求: R4 (内部控制在 token 空间之上), R8 (契约优先 / 快照优先), R11 (内部状态可发布)
 
 ## 要解决的问题
@@ -43,6 +43,9 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
    expression-facing readout contract（如 `volvence_zero.regime.hints`）。
 8. LLM judge / expression naturalness score 永远是 readout；不得写回 reward、
    `ModificationGate`、controller gradient、Face fine-tune 或 owner 内部状态。
+9. `action-grounded` intent 只能渲染
+   `ResponseAssemblySnapshot.action_realization` 已绑定的 case-owned action statement；
+   Face 不得按 abstract-action id、regime 或用户文本重建动作语义。
 
 ## 工程挑战
 
@@ -63,6 +66,7 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 |---|---|---|
 | `regime` | `RegimeSnapshot` | `regime=<id>`, `regime_switched` |
 | `temporal_abstraction` | `TemporalAbstractionSnapshot` | `temporal=<action>`, `switch_gate=<float>` |
+| `response_assembly` | `ResponseAssemblySnapshot.action_realization` | `action_case=<case_id>`, `action_grounding_confidence=<float>` |
 | `rupture_state` | `RuptureStateSnapshot` | `repair_alpha=<kind>`, `repair_confidence=<float>` |
 | `vitals` (lifeform) | `VitalsSnapshot` | `vitals_pressure=<drives>`, `vitals_total_pe=<float>` |
 | `interlocutor` | `InterlocutorState` | `interlocutor_conf=<float>`, `il_*` |
@@ -104,6 +108,7 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 
 ## 变更日志
 
+- **2026-07-28**: 增加 `action-grounded` 表达契约。Grounded 与 kernel synthesizer 均消费 ResponseAssembly 已发布的具体行动计划，Face 只负责渲染并发布来源标签，禁止自己解释 temporal family。
 - **2026-05-06**: 初版（W1 part A + part B）。引入 `rationale_tags` 字段、render
   section variant tags、`ReflectionLessonId` / `ReflectionTensionId` enum、
   `lifeform_expression.reflection_hints` 模块。kernel `ResponseSynthesizer.synthesize`

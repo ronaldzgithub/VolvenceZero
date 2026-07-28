@@ -54,6 +54,9 @@ from volvence_zero.joint_loop import (
     RareHeavyImportResult,
 )
 from volvence_zero.prediction.error import PredictionErrorSnapshot
+from volvence_zero.agent.session_post_slow_loop import (
+    SettledEnvironmentAction,
+)
 from volvence_zero.semantic_state import (
     ExternalSemanticEvent,
     ExternalSemanticEventBatch,
@@ -296,11 +299,46 @@ class SessionLifecycleMixin:
             raise RuntimeError(
                 "pending EnvironmentOutcome must be consumed before submitting another"
             )
-        self._pending_environment_outcome = outcome
+        temporal_snapshot = self._upstream_snapshots.get(
+            "temporal_abstraction"
+        )
+        temporal_value = (
+            temporal_snapshot.value
+            if temporal_snapshot is not None
+            and isinstance(
+                temporal_snapshot.value,
+                TemporalAbstractionSnapshot,
+            )
+            else None
+        )
+        action_family_id = (
+            temporal_value.active_abstract_action
+            if temporal_value is not None
+            else ""
+        )
+        self._pending_environment_outcome = SettledEnvironmentAction(
+            outcome=outcome,
+            action_family_id=action_family_id,
+            action_family_version=(
+                temporal_value.action_family_version
+                if temporal_value is not None and action_family_id
+                else 0
+            ),
+            controller_code_digest=(
+                tuple(
+                    round(value, 6)
+                    for value in temporal_value.controller_state.code[:8]
+                )
+                if temporal_value is not None and action_family_id
+                else ()
+            ),
+        )
         self._pending_environment_outcome_id = ""
         self._pending_environment_prediction_id = outcome.prediction_id or ""
 
-    def _consume_pending_environment_outcome(self) -> EnvironmentOutcome | None:
+    def _consume_pending_environment_outcome(
+        self,
+    ) -> SettledEnvironmentAction | None:
         outcome = self._pending_environment_outcome
         self._pending_environment_outcome = None
         return outcome
@@ -366,6 +404,17 @@ class SessionLifecycleMixin:
             self._social_record_store, "social_record_store"
         )
         persisted.append("social_record_store")
+        self._owner_hydration_store.save_snapshot(
+            self._joint_loop.export_learning_persistence_snapshot(
+                include_runtime_replay=False,
+            )
+        )
+        persisted.append("joint_loop.learning")
+        self._owner_hydration_store.export_and_save_owner(
+            self._reflection_consolidation_learner,
+            "reflection.consolidation_score",
+        )
+        persisted.append("reflection.consolidation_score")
         return tuple(persisted)
 
     def begin_new_context(self, *, reason: str = "manual") -> tuple[str, ...]:
@@ -374,6 +423,7 @@ class SessionLifecycleMixin:
         session_post_job = self._build_session_post_slow_loop_job(
             active_report=active_report,
         )
+        self._settled_environment_outcomes = []
         if active_report is not None:
             self._completed_session_reports.append(active_report)
             operations.append(f"session-report:checkpoint:{self.active_context_session_id}")

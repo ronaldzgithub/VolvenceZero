@@ -309,6 +309,10 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             ordering_plan=ordering_plan,
             response_mode=response_mode,
         )
+        action_realization = _bind_action_realization(
+            temporal_snapshot=temporal_snapshot,
+            case_memory_snapshot=case_memory_snapshot,
+        )
         expression_intent, judgment_focus = _response_expression_intent(
             regime_id=regime_id,
             response_mode=response_mode,
@@ -316,6 +320,12 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             semantic_control_signal=semantic_control,
             support_before_decision_pressure=support_before_decision_pressure,
         )
+        if action_realization is not None:
+            expression_intent = "action-grounded"
+            judgment_focus = (
+                "the concrete action selected from reviewed case experience",
+                "why protection precedes explanation in this turn",
+            )
         clarification_required = (
             boundary_expression_relevant
             and boundary_policy_value.active_decision.clarification_required
@@ -326,6 +336,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             regime_name=regime_value.active_regime.name,
             judgment_focus=judgment_focus,
             clarification_required=clarification_required,
+            action_realization=action_realization,
         )
         if expression_intent == "judgment-process":
             prompt_residue_summary = (
@@ -383,6 +394,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 speech_plan=speech_plan,
                 support_before_decision_pressure=support_before_decision_pressure,
                 eta_action_family=eta_action_family,
+                action_realization=action_realization,
                 description=(
                     f"Response assembly published mode={response_mode.value} depth="
                     f"{boundary_policy_value.active_decision.answer_depth_limit} "
@@ -392,6 +404,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                     f"semantic_control={semantic_control:.2f} expression={expression_intent} "
                     f"support_before_decision={support_before_decision_pressure:.2f} "
                     f"eta_action_family={eta_action_family or 'none'} "
+                    f"action_realization={action_realization.source_case_id if action_realization is not None else 'none'} "
                     f"questions={speech_plan.question_budget}."
                 ),
             )
@@ -400,3 +413,39 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
     async def process_standalone(self, **kwargs: Any) -> Snapshot[ResponseAssemblySnapshot]:
         raise NotImplementedError("ResponseAssemblyModule should be driven by runtime upstream state.")
 
+
+def _bind_action_realization(
+    *,
+    temporal_snapshot: "TemporalAbstractionSnapshot | None",
+    case_memory_snapshot: CaseMemorySnapshot | None,
+) -> ResponseActionRealization | None:
+    grounding = (
+        case_memory_snapshot.action_grounding
+        if case_memory_snapshot is not None
+        else None
+    )
+    if grounding is None:
+        return None
+    if temporal_snapshot is None:
+        raise ValueError(
+            "CaseMemory action grounding requires a temporal snapshot."
+        )
+    active_action = temporal_snapshot.active_abstract_action
+    if grounding.abstract_action != active_action:
+        raise ValueError(
+            "CaseMemory action grounding abstract_action does not match "
+            "the active temporal action: "
+            f"{grounding.abstract_action!r} != {active_action!r}"
+        )
+    return ResponseActionRealization(
+        abstract_action=active_action,
+        source_case_id=grounding.source_case_id,
+        action_labels=grounding.action_labels,
+        action_statement=grounding.action_statement,
+        grounding_confidence=grounding.confidence,
+        description=(
+            "ResponseAssembly bound the active temporal action to the "
+            f"CaseMemory owner readout from {grounding.source_case_id}; "
+            f"confidence={grounding.confidence:.3f}."
+        ),
+    )

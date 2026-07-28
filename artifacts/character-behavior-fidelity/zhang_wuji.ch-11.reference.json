@@ -1,0 +1,19 @@
+{
+  "reference": {
+    "canonical_action": "leap out and shout 'Hú Xiānsheng, you must not harm her...'",
+    "canonical_outcome": "the masked figure is startled, releases纪晓芙, and is struck by her—revealing she is not胡青牛 but a woman",
+    "case_id": "behavior-fidelity:zhang-wuji:ch-11-scene-1",
+    "evidence_locator": "ch-11-para-43",
+    "reviewed_by": "mengfu",
+    "scene_id": "ch-11-scene-1"
+  },
+  "stimulus": {
+    "case_id": "behavior-fidelity:zhang-wuji:ch-11-scene-1",
+    "character_id": "zhang-wuji",
+    "decision_point": "choose whether to confront the masked figure threatening纪晓芙",
+    "evidence_locator": "ch-11-para-43",
+    "phase_label": "adolescent",
+    "scene_id": "ch-11-scene-1",
+    "setting": "butterfly-valley-cottage-at-night"
+  }
+}

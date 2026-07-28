@@ -175,6 +175,38 @@ def test_environment_outcome_is_traceable_and_bounded() -> None:
         )
 
 
+def test_environment_action_schema_is_structured_and_outcome_free() -> None:
+    from volvence_zero.environment import EnvironmentActionSchema
+
+    schema = EnvironmentActionSchema(
+        schema_id="protect-third-party",
+        applicability_conditions=("a third party faces imminent harm",),
+        action_steps=("interrupt_the_harm",),
+        description="Reviewed reusable action abstraction.",
+    )
+    outcome = EnvironmentOutcome(
+        outcome_id="out-action-schema",
+        event_id="evt-1",
+        outcome_kind=EnvironmentEventKind.SCENE_EVENT,
+        action_id="action-1",
+        status="observed",
+        summary="intervened",
+        detail="the threat stopped",
+        action_schema=schema,
+    )
+
+    assert outcome.action_schema is schema
+    assert outcome.action_schema.action_steps == ("interrupt_the_harm",)
+
+    with pytest.raises(ValueError, match="action_steps"):
+        EnvironmentActionSchema(
+            schema_id="invalid",
+            applicability_conditions=("imminent harm",),
+            action_steps=(),
+            description="Invalid empty action sequence.",
+        )
+
+
 def test_environment_outcome_observable_fields_are_minimal_and_validated() -> None:
     outcome = EnvironmentOutcome(
         outcome_id="out-3",

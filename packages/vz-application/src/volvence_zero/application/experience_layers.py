@@ -9,6 +9,7 @@ from volvence_zero.application.runtime import (
     CaseMemoryPriorUpdate,
     ConversationKnowledgeCandidate,
     DomainKnowledgePriorUpdate,
+    ExperiencedActionEvidence,
     KnowledgeHit,
     KnowledgeReviewStatus,
     KnowledgeSourceKind,
@@ -58,6 +59,7 @@ class ApplicationPriorProposalInputs:
     retrieval_mean_regime_alignment: float = 0.0
     retrieval_mean_action_alignment: float = 0.0
     retrieval_mean_sequence_payoff: float = 0.0
+    experienced_actions: tuple[ExperiencedActionEvidence, ...] = ()
 
 
 class ApplicationPriorProposalBuilder:
@@ -71,6 +73,110 @@ class ApplicationPriorProposalBuilder:
         retrieval_updates: list[RetrievalReadoutPriorUpdate] = []
         primary_domain = next(iter(inputs.experience_domains), "general_guidance_patterns")
         outcome_label = "improved" if inputs.mean_experience_quality >= 0.6 else "stable"
+        for evidence in inputs.experienced_actions:
+            action_schema = evidence.action_schema
+            intervention_ordering = (
+                action_schema.action_steps
+                if action_schema is not None
+                else ()
+            )
+            problem_pattern = (
+                " ".join(
+                    (
+                        f"lived-action-schema:{action_schema.schema_id}",
+                        *action_schema.applicability_conditions,
+                    )
+                )
+                if action_schema is not None
+                else (
+                    f"latent-action-family:{evidence.action_family_id}"
+                    if evidence.action_family_id
+                    else f"unresolved-lived-action:{evidence.action_id}"
+                )
+            )
+            confidence = _clamp(
+                evidence.confidence * 0.7
+                + inputs.mean_experience_quality * 0.3
+            )
+            relevance = _clamp(
+                0.60
+                + evidence.confidence * 0.25
+                + inputs.mean_experience_quality * 0.15
+            )
+            case_updates.append(
+                CaseMemoryPriorUpdate(
+                    update_id=(
+                        f"{inputs.job_id}:experienced-action:"
+                        f"{evidence.outcome_id}"
+                    ),
+                    target=(
+                        "application.case_memory.records."
+                        f"experienced-action.{evidence.outcome_id}"
+                    ),
+                    record=CaseMemoryRecord(
+                        case_id=(
+                            f"case:slow-loop:{inputs.job_id}:"
+                            f"experienced-action:{evidence.action_id}"
+                        ),
+                        domain=primary_domain,
+                        problem_pattern=problem_pattern,
+                        user_state_pattern=(
+                            "reviewed-environment-outcome"
+                            if action_schema is not None
+                            else "schema-pending:latent-family-linked"
+                            if evidence.action_family_id
+                            else "schema-pending:unclassified"
+                        ),
+                        risk_markers=inputs.case_risk_markers,
+                        track_tags=("world", "self"),
+                        regime_tags=(
+                            (inputs.regime_id,)
+                            if inputs.regime_id is not None
+                            else ()
+                        ),
+                        intervention_ordering=intervention_ordering,
+                        outcome_label=outcome_label,
+                        delayed_signal_count=1,
+                        escalation_observed=False,
+                        repair_observed=False,
+                        confidence=confidence,
+                        relevance_score=relevance,
+                        description=(
+                            (
+                                "Reviewed reusable action conditions: "
+                                + "; ".join(
+                                    action_schema.applicability_conditions
+                                )
+                                + ". "
+                            )
+                            if action_schema is not None
+                            else ""
+                        )
+                        + (
+                            "Reviewed lived action: "
+                            f"{evidence.action_statement} "
+                            "Observed outcome: "
+                            f"{evidence.outcome_statement}"
+                        )
+                        + (
+                            (
+                                " Latent family lineage: "
+                                f"{evidence.action_family_id} "
+                                f"version={evidence.action_family_version} "
+                                "controller_code_digest="
+                                f"{evidence.controller_code_digest}."
+                            )
+                            if evidence.action_family_id
+                            else ""
+                        ),
+                    ),
+                    confidence=confidence,
+                    description=(
+                        "Compile canonical environment action "
+                        f"{evidence.action_id} into CaseMemory."
+                    ),
+                )
+            )
         for pattern in inputs.case_problem_patterns:
             ordering = self._application_ordering_for_pattern(problem_pattern=pattern, regime_id=inputs.regime_id)
             case_updates.append(

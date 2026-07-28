@@ -203,6 +203,14 @@ class EnvironmentEvent:
 
 
 @dataclass(frozen=True)
+class EnvironmentActionSchema:
+    schema_id: str
+    applicability_conditions: tuple[str, ...]
+    action_steps: tuple[str, ...]
+    description: str
+
+
+@dataclass(frozen=True)
 class EnvironmentOutcome:
     outcome_id: str
     event_id: str
@@ -219,6 +227,7 @@ class EnvironmentOutcome:
     reversibility: str = "reversible"
     environment_state_delta_kind: str = "none"
     measurement: EnvironmentMeasurement | None = None
+    action_schema: EnvironmentActionSchema | None = None
 ```
 
 The single-user compatibility path is `build_user_input_environment_event(...)`, which supplies the explicit `primary -> self` frame instead of leaving speaker / audience / subject scope for downstream inference.
@@ -229,6 +238,10 @@ The single-user compatibility path is `build_user_input_environment_event(...)`,
 outcome 与 lineage，下一 turn 交给 Prediction Error owner 合并进 `ActualOutcome`；runtime/environment
 均不得成为第二 mismatch owner。数字蚂蚁 pickup 只作事件 lineage，delivery 默认是稀疏 terminal
 measurement。
+
+`EnvironmentActionSchema` 是可选的 reviewer/adapter 观察契约：只描述该次已执行动作的
+适用条件与 outcome-free action steps。它不得携带 reward、事后结果、当前 turn 的首选回答，
+也不得承载 trust/common-ground 等语义 owner delta。无 schema 的既有 producer 保持兼容。
 
 ## 与其他能力域的关系
 

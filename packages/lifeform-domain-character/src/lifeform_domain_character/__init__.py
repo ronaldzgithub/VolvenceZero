@@ -16,6 +16,24 @@ novel text.
 from __future__ import annotations
 
 from lifeform_domain_character.arcs import build_zhang_wuji_demo_arc
+from lifeform_domain_character.behavior_fidelity import (
+    BEHAVIOR_FIDELITY_DIMENSIONS,
+    BEHAVIOR_FIDELITY_SCHEMA_VERSION,
+    BehaviorFidelityCapture,
+    BehaviorFidelityComparisonReport,
+    BehaviorFidelityEvidenceSource,
+    BehaviorFidelityReference,
+    BehaviorFidelityReport,
+    BehaviorFidelityStimulus,
+    ReviewedBehaviorFidelityAssessment,
+    behavior_fidelity_capture_from_dict,
+    behavior_fidelity_report_from_dict,
+    build_scene_behavior_fidelity_inputs,
+    capture_behavior_fidelity_async,
+    compare_behavior_fidelity_reports,
+    review_behavior_fidelity,
+    reviewed_behavior_fidelity_assessment_from_dict,
+)
 from lifeform_domain_character.compiler import (
     build_character_ingestion_envelope,
     build_character_package,
@@ -43,6 +61,7 @@ from lifeform_domain_character.chapter_replay import (
     ChapterLiveThroughDriver,
     ChapterLiveThroughReport,
     ChapterReplayRecord,
+    ChapterSceneBakeEvidence,
 )
 from lifeform_domain_character.chapter_artifacts import (
     SourceChapter,
@@ -115,12 +134,21 @@ from lifeform_domain_character.profiles import build_zhang_wuji_profile
 from lifeform_domain_character.sample_excerpts import zhang_wuji_long_arc_excerpt
 
 __all__ = [
+    "BEHAVIOR_FIDELITY_DIMENSIONS",
+    "BEHAVIOR_FIDELITY_SCHEMA_VERSION",
+    "BehaviorFidelityCapture",
+    "BehaviorFidelityComparisonReport",
+    "BehaviorFidelityEvidenceSource",
+    "BehaviorFidelityReference",
+    "BehaviorFidelityReport",
+    "BehaviorFidelityStimulus",
     "CharacterBoundaryPrior",
     "ChapterCoverageKind",
     "ChapterLiveThroughDriver",
     "ChapterLiveThroughLedger",
     "ChapterLiveThroughReport",
     "ChapterReplayRecord",
+    "ChapterSceneBakeEvidence",
     "ChapterLedgerCandidate",
     "SourceChapter",
     "CharacterDrivePrior",
@@ -137,7 +165,15 @@ __all__ = [
     "NarrativeArc",
     "NarrativeScene",
     "ReviewedChapterExperience",
+    "ReviewedBehaviorFidelityAssessment",
     "build_review_scaffold",
+    "build_scene_behavior_fidelity_inputs",
+    "behavior_fidelity_capture_from_dict",
+    "behavior_fidelity_report_from_dict",
+    "capture_behavior_fidelity_async",
+    "compare_behavior_fidelity_reports",
+    "review_behavior_fidelity",
+    "reviewed_behavior_fidelity_assessment_from_dict",
     "ReplayReport",
     "SceneReplayRecord",
     "to_first_person",

@@ -1,7 +1,7 @@
 # Domain Experience Layer Spec
 
 > Status: draft
-> Last updated: 2026-04-29
+> Last updated: 2026-07-28
 > 对应需求: R5, R6, R7, R8, R12, R15
 
 ## 要解决的问题
@@ -60,6 +60,69 @@ Domain Experience Layer 的目标是为关系陪伴、工程结对、女性情�
 - 经验 → ETA 的所有影响只能通过 public snapshot 或正式 gate 暴露
 - 同样的边界对 knowledge → ETA 也成立：`domain_knowledge` 不因 turn-time usefulness 而吞并 `temporal` / `memory` owner
 
+## Abstract action 到具体行动的落地
+
+`TemporalAbstractionSnapshot.active_abstract_action` 是无业务语义的控制器身份，不能由
+expression 根据 family id 建立字符串映射。具体行动沿以下正式交换落地：
+
+1. `CaseMemoryModule` 从 `MemorySnapshot.retrieved_entries` 取得当前 owner-published
+   语境，只用统一 semantic-embedding seam 判断是否是具体行动请求，并在已检索的
+   reviewed `CaseMemoryRecord` 中选择一个语义近邻。
+2. `CaseMemorySnapshot.action_grounding: CaseActionGrounding | None` 发布来源 case、
+   与当前 abstract action 绑定的 intervention labels、owner 渲染的 action statement
+   及 alignment/confidence。CaseMemory 是该解释的唯一 owner。
+3. `ResponseAssemblyModule` 只校验 grounding 的 abstract action 与当前
+   `TemporalAbstractionSnapshot` 一致，再发布
+   `ResponseAssemblySnapshot.action_realization: ResponseActionRealization | None`。
+4. expression 只渲染 `ResponseSpeechPlan` 中的 owner-published action statement；
+   禁止重新检索案例、重排 intervention steps 或从自然语言做关键词动作分类。
+
+`action_grounding=None` 是冷启动/非行动轮的正常显式状态。恢复旧行为的回滚方式是让
+CaseMemory 不发布 grounding；不需要删除 temporal family、case records 或修改模型权重。
+
+### Lived action 的慢层落地
+
+reviewed live-through 不能只把 canonical action 留在普通 Memory 文本里，也不能依赖
+profile 预置一个同答案的 signature case。当前正式路径为：
+
+1. 环境 owner 发布 `SCENE_EVENT + terminal measurement` 的 canonical
+   `EnvironmentOutcome`；`summary` 只承载已经发生的 action statement，`detail`
+   承载 outcome，二者保持隔离。reviewed scene 可另外携带 outcome-free
+   `EnvironmentActionSchema`，其 applicability conditions 与 action steps 不包含
+   章节人物名或事后结果。
+2. session-post 在 scene boundary 将其转换为 typed
+   `ExperiencedActionEvidence`；同时绑定 outcome 提交时 temporal owner 已发布的
+   `active_abstract_action / action_family_version / controller code digest`。该 lineage
+   必须在 action-time 捕获，不能用 scene boundary 时已经变化的 family 反填；
+   tool result、非 terminal scene event 不进入该路径。
+3. `ApplicationPriorProposalBuilder` 经既有 PE-derived quality、credit gate 和
+   structural writeback gate 编译为 `CaseMemoryPriorUpdate`，由
+   `ApplicationCaseMemoryStore` 唯一写入；有 action schema 时 intervention ordering
+   只使用 schema steps，原始 action/outcome 仅保留为审计描述。没有 schema 时仍可保存
+   `latent-action-family:*` 证据，但 `intervention_ordering=()` 且标记
+   `schema-pending`，因此 CaseMemory 不得把单次 episode 文本渲染成可迁移动作。
+4. 新 session 必须通过 application owner persistence 重新加载该 lived-action
+   case；评估时 CaseMemory 仅用 problem/user-state/risk 适用条件做语义选择，
+   action steps 和 outcome 均不参与路由。expression 仍只消费
+   `CaseActionGrounding.action_statement`。
+
+因此，动作与结果都确实经过环境、PE、慢反思和 application owner；但“后来发生的结果”
+不会被拼回当时的动作回答。停止收集 terminal scene evidence 或回滚 corresponding
+CaseMemory checkpoint 即可退出，无需触碰 Memory/Temporal owner。
+
+当前 ch-11 内部行为测试已覆盖一个未出现在 ledger/profile/case store 的陌生人威胁
+场景：profile-answer holdout 后 baked 命中 `case:slow-loop:*:experienced-action:*`
+并发布通用两步行动，cold 不具备该 schema，且回答不泄漏胡青牛、纪晓芙或 canonical
+outcome。该测试证明 reviewed abstraction 的 owner 迁移路径；它不证明 Internal RL
+自行发现了这组语义标签，也不替代外部盲评。
+
+schema-holdout 测试进一步删除同一 scene 的 reviewed `EnvironmentActionSchema`：
+action-time `discovered_family_*`、family version 与 `z_t` digest 仍进入 gated
+application persistence，但新场景必须拒绝召回该非语义 case，且不得复述章节动作。
+这证明 latent family lineage 已贯穿 bake；它同时明确了剩余断点：需要 background-slow
+语义抽象器聚合同一稳定 family 的多次异质经历，经 `ModificationGate` 发布 typed schema，
+之后才能声称 Internal RL 发现了可迁移动作抽象。
+
 ## 工程挑战
 
 - 用一套通用 schema 表达不同垂直场景，而不把女性陪伴、职业、健康等逻辑写进内核。
@@ -111,6 +174,10 @@ Domain Experience Layer 的目标是为关系陪伴、工程结对、女性情�
 
 ## 变更日志
 
+- 2026-07-28: 增加 action-schema holdout 的 fail-closed 收敛：terminal outcome 在提交时绑定 temporal family/version/controller-code digest；无 schema 的 family-linked case 可持久化审计，但 intervention ordering 为空，禁止 expression 或 CaseMemory 把原 episode 复述成抽象策略。
+- 2026-07-28: 新增 terminal `SCENE_EVENT` → `ExperiencedActionEvidence` → gated `CaseMemoryPriorUpdate` 的 lived-action 慢层落地；新会话从 application persistence 读取已生活过的动作，tool/non-terminal outcome 不参与，action statement 与未来 outcome 隔离。
+- 2026-07-28: 新增 reviewed `EnvironmentActionSchema` 未见场景迁移收敛：action applicability 与 steps 经 terminal outcome/slow-loop 写入 CaseMemory，检索只读适用条件，行动/结果不参与路由；ch-11 held-out baked/cold 内部测试通过，外部盲评与 emergent schema discovery 仍未证明。
+- 2026-07-28: 新增 CaseMemory-owned action grounding 与 ResponseAssembly action realization，把无语义 abstract-action id 经 reviewed case intervention steps 落成具体动作计划；语义选择走统一 embedding seam，expression 仅渲染，不成为第二动作 owner。
 - 2026-05-12: 与 [`mcp-bridge.md`](mcp-bridge.md) 对齐：MCP-derived knowledge 走 ingestion envelope path 进 `domain_knowledge`，不走 `DomainExperiencePackage` 直接 compile（外部 repo 解耦于 schema 演进）。
 - 2026-04-29: 吸收原 `docs/application_*.md`（已删除）中"经验进入 ETA 的 4 个正式接入点"设计原则，补充 retrieval mix / fast-path priors / delayed credit / evolution gating 边界。
 - 2026-04-25: 初始版本，新增通用 Domain Experience Package 层，编译到现有 application stores、rare-heavy checkpoint 和 typed prior update，不新增 runtime slot。

@@ -17,6 +17,7 @@ from volvence_zero.application import (
     DomainKnowledgePriorUpdate,
     DomainKnowledgeRecord,
     EvidenceStrength,
+    ExperiencedActionEvidence,
     ExperienceConsolidationSnapshot,
     ExperienceFastPriorActionBias,
     ExperienceFastPriorFamilyBias,
@@ -53,6 +54,7 @@ from volvence_zero.application.runtime import _response_ordering_plan
 from volvence_zero.audit import AuditSnapshot
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.evaluation import EvaluationScore
+from volvence_zero.environment import EnvironmentActionSchema
 from volvence_zero.integration import _apply_application_prior_writeback, FinalRolloutConfig, run_final_wiring_turn
 from volvence_zero.joint_loop import ScheduledJointLoopResult
 from volvence_zero.memory import (
@@ -203,6 +205,28 @@ def test_application_prior_proposal_builder_stays_owner_side_and_typed():
             mean_experience_quality=0.74,
             knowledge_hits=knowledge_hits,
             conversation_knowledge_candidates=conversation_knowledge_candidates,
+            experienced_actions=(
+                ExperiencedActionEvidence(
+                    outcome_id="outcome-1",
+                    action_id="action-1",
+                    action_statement="called out to stop the attack",
+                    outcome_statement="the attacker released the traveler",
+                    evidence=("reviewed-scene-1",),
+                    confidence=0.9,
+                    action_schema=EnvironmentActionSchema(
+                        schema_id="protect-unknown-third-party",
+                        applicability_conditions=(
+                            "a third party faces imminent physical harm",
+                            "the threatening actor is not yet identified",
+                        ),
+                        action_steps=(
+                            "intervene_immediately",
+                            "verbally_interrupt_the_attacker",
+                        ),
+                        description="Reviewed transfer schema.",
+                    ),
+                ),
+            ),
         )
     )
 
@@ -212,8 +236,58 @@ def test_application_prior_proposal_builder_stays_owner_side_and_typed():
     assert proposal.boundary_policy_updates
     assert proposal.domain_knowledge_updates
     assert proposal.case_memory_updates[0].target.startswith("application.case_memory.records.")
+    assert proposal.case_memory_updates[0].record.intervention_ordering == (
+        "intervene_immediately",
+        "verbally_interrupt_the_attacker",
+    )
+    assert (
+        "the attacker released the traveler"
+        not in proposal.case_memory_updates[0].record.intervention_ordering
+    )
     assert proposal.strategy_playbook_updates[0].rule.recommended_ordering
     assert proposal.boundary_policy_updates[0].hint.trigger_reasons
+
+
+def test_schema_free_lived_action_is_family_linked_but_not_renderable():
+    proposal = ApplicationPriorProposalBuilder().build(
+        inputs=ApplicationPriorProposalInputs(
+            job_id="job-schema-holdout",
+            closed_at_turn=4,
+            regime_id="protective_action",
+            knowledge_domains=(),
+            experience_domains=("moral_dilemma",),
+            case_problem_patterns=(),
+            case_risk_markers=("risk-high",),
+            boundary_trigger_reasons=(),
+            knowledge_weight=0.2,
+            experience_weight=0.8,
+            case_hit_count=0,
+            mean_experience_quality=0.8,
+            experienced_actions=(
+                ExperiencedActionEvidence(
+                    outcome_id="outcome-schema-holdout",
+                    action_id="action-schema-holdout",
+                    action_statement=(
+                        "leap out and address the supposed attacker by name"
+                    ),
+                    outcome_statement="the threatened person was released",
+                    evidence=("reviewed-scene",),
+                    confidence=0.9,
+                    action_family_id="discovered_family_2",
+                    action_family_version=3,
+                    controller_code_digest=(0.1, 0.2, 0.3),
+                ),
+            ),
+        )
+    )
+
+    assert proposal is not None
+    update = proposal.case_memory_updates[0]
+    assert update.record.problem_pattern == (
+        "latent-action-family:discovered_family_2"
+    )
+    assert update.record.intervention_ordering == ()
+    assert "schema-pending" in update.record.user_state_pattern
 
 
 def test_application_prior_writeback_applies_retrieval_readout_checkpoint_owner_side():

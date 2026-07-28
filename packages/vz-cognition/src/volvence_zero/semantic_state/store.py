@@ -33,6 +33,7 @@ from volvence_zero.semantic_state.contracts import (
     ExecutionResultOutcome,
     FollowupPolicy,
     PlanIntentOutcome,
+    SemanticEventDelivery,
     SemanticProposal,
     SemanticProposalOperation,
     SemanticRecord,
@@ -334,6 +335,33 @@ class SemanticStateStore:
 
     def records_for(self, slot: str) -> tuple[SemanticRecord, ...]:
         return self._records[slot]
+
+    def external_event_delivery(
+        self,
+        events: tuple[tuple[str, str], ...],
+    ) -> tuple[SemanticEventDelivery, ...]:
+        """Publish exact owner-side delivery evidence for external events."""
+
+        deliveries: list[SemanticEventDelivery] = []
+        for event_id, target_slot in events:
+            if target_slot not in SEMANTIC_OWNER_SLOTS:
+                raise ValueError(
+                    f"unknown semantic owner slot {target_slot!r}"
+                )
+            record_ids = tuple(
+                record.record_id
+                for record in self._records[target_slot]
+                if record.record_id.startswith(f"{event_id}:")
+            )
+            if record_ids:
+                deliveries.append(
+                    SemanticEventDelivery(
+                        event_id=event_id,
+                        target_slot=target_slot,
+                        record_ids=record_ids,
+                    )
+                )
+        return tuple(deliveries)
 
     def completed_refs_for(self, slot: str) -> tuple[str, ...]:
         return self._completed_refs[slot]

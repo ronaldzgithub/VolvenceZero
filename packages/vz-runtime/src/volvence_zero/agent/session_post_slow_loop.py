@@ -5,6 +5,7 @@ from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 
+from volvence_zero.environment import EnvironmentOutcome
 from volvence_zero.application.runtime import (
     ApplicationPriorUpdate,
     ApplicationPriorWritebackReport,
@@ -12,6 +13,7 @@ from volvence_zero.application.runtime import (
     ApplicationSequencePayoff,
     ConversationKnowledgeCandidate,
     DelayedCreditSummary,
+    ExperiencedActionEvidence,
     ExperienceDelta,
     KnowledgeHit,
 )
@@ -20,6 +22,16 @@ from volvence_zero.integration import SessionPostWritebackRequest
 from volvence_zero.credit.gate import SelfModificationRecord
 from volvence_zero.reflection import WritebackResult
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+
+
+@dataclass(frozen=True)
+class SettledEnvironmentAction:
+    """One outcome bound to the temporal family active when it was submitted."""
+
+    outcome: EnvironmentOutcome
+    action_family_id: str
+    action_family_version: int
+    controller_code_digest: tuple[float, ...]
 
 
 @dataclass(frozen=True)
@@ -63,6 +75,7 @@ class SessionPostSlowLoopJob:
     retrieval_knowledge_weight_bias: float = 0.0
     retrieval_experience_weight_bias: float = 0.0
     semantic_state_descriptions: tuple[str, ...] = ()
+    experienced_actions: tuple[ExperiencedActionEvidence, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -86,6 +99,8 @@ class SessionPostSlowLoopResult:
     case_band_ids: tuple[str, ...] = ()
     playbook_band_ids: tuple[str, ...] = ()
     semantic_state_descriptions: tuple[str, ...] = ()
+    experienced_action_family_ids: tuple[str, ...] = ()
+    schema_free_action_family_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,70 @@
+{
+  "arm_id": "cold",
+  "behavior_fidelity_passed": false,
+  "candidate_response": "The interaction is still building — relational stance matters more than information density. You need the reply to feel relational and curious, not transactional. I should keep the tone warm, ask a single curious question if it fits, and avoid over-formality.",
+  "case_id": "behavior-fidelity:zhang-wuji:ch-11-scene-1",
+  "claim_status": "llm_judge-diagnostic-fail",
+  "dimension_scores": [
+    [
+      "action_choice_alignment",
+      0.0
+    ],
+    [
+      "protective_intent_alignment",
+      0.05
+    ],
+    [
+      "risk_posture_alignment",
+      0.0
+    ],
+    [
+      "situation_model_alignment",
+      0.0
+    ],
+    [
+      "character_motivation_alignment",
+      0.1
+    ]
+  ],
+  "evidence_source": "llm_judge",
+  "overall_score": 0.03,
+  "proof_gates": [
+    [
+      "source_state_unchanged",
+      "pass"
+    ],
+    [
+      "no_outcome_or_evaluation_feedback",
+      "pass"
+    ],
+    [
+      "disposable_sandbox",
+      "pass"
+    ],
+    [
+      "no_future_knowledge_leakage",
+      "pass"
+    ],
+    [
+      "concrete_action_alignment",
+      "fail"
+    ],
+    [
+      "situation_model_alignment",
+      "fail"
+    ],
+    [
+      "overall_behavior_fidelity",
+      "fail"
+    ]
+  ],
+  "reference_action": "leap out and shout 'Hú Xiānsheng, you must not harm her...'",
+  "reviewer": "codex-independent-semantic-review-2026-07-28",
+  "scene_id": "ch-11-scene-1",
+  "schema_version": "character-behavior-fidelity.v1",
+  "verification_failures": [
+    "concrete_action_alignment",
+    "situation_model_alignment",
+    "overall_behavior_fidelity"
+  ]
+}

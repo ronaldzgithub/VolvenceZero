@@ -1469,6 +1469,7 @@ def _response_speech_plan(
     regime_name: str,
     judgment_focus: tuple[str, ...],
     clarification_required: bool,
+    action_realization: ResponseActionRealization | None = None,
 ) -> ResponseSpeechPlan:
     """Render a ``ResponseSpeechPlan`` per ``expression_intent``.
 
@@ -1479,6 +1480,31 @@ def _response_speech_plan(
     regime. This is the surface-level evidence for R14 (regime persistence).
     """
     question_budget = 1 if clarification_required else 0
+
+    if expression_intent == "action-grounded":
+        if action_realization is None:
+            raise ValueError(
+                "action-grounded expression intent requires a "
+                "ResponseActionRealization."
+            )
+        return ResponseSpeechPlan(
+            cue=(
+                "The situation calls for a concrete protective move "
+                "before explanation."
+            ),
+            inferred_need=(
+                "I need to act from the reviewed intervention sequence "
+                "that best matches the present decision."
+            ),
+            response_adjustment=action_realization.action_statement,
+            question_budget=0,
+            required_steps=action_realization.action_labels,
+            description=(
+                f"Speech plan for {regime_name}: action-grounded from "
+                f"{action_realization.source_case_id} with "
+                f"abstract_action={action_realization.abstract_action}."
+            ),
+        )
 
     if expression_intent == "judgment-process":
         return ResponseSpeechPlan(

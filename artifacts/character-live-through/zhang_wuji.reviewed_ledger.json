@@ -531,6 +531,19 @@
       "scenes": [
         {
           "canonical_action": "leap out and shout 'Hú Xiānsheng, you must not harm her...'",
+          "canonical_action_schema": {
+            "action_steps": [
+              "intervene_immediately_to_stop_imminent_harm",
+              "verbally_interrupt_the_attacker"
+            ],
+            "applicability_conditions": [
+              "a third party faces imminent physical harm",
+              "the threatening actor's identity and motive are uncertain",
+              "delay would increase the danger"
+            ],
+            "description": "Intervene without waiting for identity certainty when an unknown third party faces immediate physical harm.",
+            "schema_id": "protect-unknown-third-party-under-imminent-harm"
+          },
           "canonical_outcome": "the masked figure is startled, releases纪晓芙, and is struck by her—revealing she is not胡青牛 but a woman",
           "decision_point": "choose whether to confront the masked figure threatening纪晓芙",
           "emotional_register": "crisis",

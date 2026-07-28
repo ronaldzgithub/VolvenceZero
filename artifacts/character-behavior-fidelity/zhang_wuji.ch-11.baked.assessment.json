@@ -1,0 +1,56 @@
+{
+  "arm_id": "baked",
+  "candidate_response_sha256": "52e0abd2523e6e0809510d23d706aa52463a6522d0926cfc9bee5065c3627f60",
+  "case_id": "behavior-fidelity:zhang-wuji:ch-11-scene-1",
+  "dimension_rationales": [
+    [
+      "action_choice_alignment",
+      "候选明确选择立即以身体介入、承受面向旁人的攻击、把受威胁者移出险境，再处理攻击者；与参考中的跳出喝止同属即时保护性介入，但具体动作不同。"
+    ],
+    [
+      "protective_intent_alignment",
+      "候选将保护受威胁的旁人置于解释和继续交战之前，保护意图清晰且居于行动首位。"
+    ],
+    [
+      "risk_posture_alignment",
+      "候选选择替旁人承受攻击，主动承担显著人身风险，和参考行动中暴露自己以阻止伤害的姿态高度一致。"
+    ],
+    [
+      "situation_model_alignment",
+      "候选正确建模为正在发生的人身威胁和需要立即介入的局势，但使用了泛化的旁人/攻击者表述，没有点明蒙面人和纪晓芙。"
+    ],
+    [
+      "character_motivation_alignment",
+      "候选呈现先护住弱者、自己承担代价、确认安全后才继续应敌的动机，与张无忌的保护性自我牺牲倾向高度一致。"
+    ]
+  ],
+  "dimension_scores": [
+    [
+      "action_choice_alignment",
+      0.75
+    ],
+    [
+      "protective_intent_alignment",
+      0.95
+    ],
+    [
+      "risk_posture_alignment",
+      0.85
+    ],
+    [
+      "situation_model_alignment",
+      0.75
+    ],
+    [
+      "character_motivation_alignment",
+      0.9
+    ]
+  ],
+  "evidence_source": "llm_judge",
+  "future_knowledge_leakage": false,
+  "future_knowledge_rationale": "候选没有引用蒙面人身份或受击揭面等决策点之后才发生的结果，只依据当前威胁作出保护性行动。",
+  "reference_digest": "3c89d8de345669b14c15102c22666fd3beee2da0e847dbd39b7b432557667d50",
+  "reviewer": "codex-independent-semantic-review-2026-07-28",
+  "schema_version": "character-behavior-fidelity.v1",
+  "stimulus_digest": "8c2d978200efcc366d53a89e5c17e70ec3325dcd992d5bc616d5c301ec2558b1"
+}

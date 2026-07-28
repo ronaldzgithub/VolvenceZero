@@ -1,0 +1,15 @@
+{
+  "baked_arm_id": "baked",
+  "baked_minus_cold": 0.81,
+  "baked_passed": true,
+  "baked_score": 0.84,
+  "case_id": "behavior-fidelity:zhang-wuji:ch-11-scene-1",
+  "claim_status": "diagnostic-fail",
+  "cold_arm_id": "cold",
+  "cold_passed": false,
+  "cold_score": 0.03,
+  "description": "Read-only matched-control comparison; reviewed scores never enter PE, credit, regime, memory, or Internal RL. Learned advantage additionally requires a profile-answer holdout.",
+  "learned_behavior_advantage": false,
+  "profile_answer_holdout_passed": false,
+  "schema_version": "character-behavior-fidelity.v1"
+}

@@ -756,6 +756,7 @@ class SessionObservationMixin:
             runtime_backbone_hook_coverage=runtime_backbone_hook_coverage,
             fast_memory_signal_norm=fast_memory_signal_norm,
             fast_memory_runtime_alignment=fast_memory_runtime_alignment,
+            track_z_t_codes=integration_result.track_z_t_codes,
             session_post_pending_job_count=effective_queue_state.pending_job_count,
             session_post_completed_job_count=effective_queue_state.completed_job_count,
             session_post_last_completed_job_id=effective_queue_state.last_completed_job_id,

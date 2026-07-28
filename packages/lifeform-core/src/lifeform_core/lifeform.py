@@ -59,7 +59,11 @@ from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeKind,
 )
-from volvence_zero.environment import EnvironmentFrame, build_environment_event
+from volvence_zero.environment import (
+    EnvironmentFrame,
+    EnvironmentOutcome,
+    build_environment_event,
+)
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.memory import MemoryStore
 from volvence_zero.semantic_state import (
@@ -923,6 +927,10 @@ class LifeformSession:
         # ``ProvisionalReconcileResult``. None means no scene has
         # closed yet.
         self._latest_case_reconcile: Any = None
+        # Detailed immutable results consumed at the latest scene boundary.
+        # Vertical orchestrators use this readout to prove that the
+        # background-slow memory and policy integrations actually completed.
+        self._latest_session_post_slow_loop_results: tuple[Any, ...] = ()
         # Gap 4 slice 2c: optional thinking adapter. Duck-typed (Any)
         # so lifeform-core does not import lifeform-thinking. The
         # adapter (when present) is called at three well-defined
@@ -1065,7 +1073,9 @@ class LifeformSession:
         turn's foreground generate, keeping the single shared runtime's
         residual-capture state uncorrupted. Cheap no-op when idle.
         """
-        return await self._brain_session.drain_session_post_slow_loop()
+        results = await self._brain_session.drain_session_post_slow_loop()
+        self._latest_session_post_slow_loop_results = tuple(results)
+        return self._latest_session_post_slow_loop_results
 
     async def flush_mcp_resources(self) -> tuple[Any, ...]:
         """Drain the lifeform's pending MCP resource envelopes
@@ -1448,6 +1458,12 @@ class LifeformSession:
         return self._latest_case_reconcile
 
     @property
+    def latest_session_post_slow_loop_results(self) -> tuple[Any, ...]:
+        """Detailed immutable results from the latest drained slow loop."""
+
+        return self._latest_session_post_slow_loop_results
+
+    @property
     def thinking_adapter(self) -> Any:
         """Return the attached thinking adapter (or None).
 
@@ -1790,6 +1806,24 @@ class LifeformSession:
     def submit_semantic_events(self, events: ExternalSemanticEventBatch) -> tuple[str, ...]:
         return self._brain_session.submit_semantic_events(events)
 
+    def semantic_event_delivery(
+        self,
+        events: tuple[tuple[str, str], ...],
+    ) -> tuple[Any, ...]:
+        """Return owner-authored proof that external events reached slots."""
+
+        return self._brain_session.semantic_event_delivery(events)
+
+    def memory_entry_count(self) -> int:
+        """Return the Memory owner's current artifact-entry count."""
+
+        return self._brain_session.memory_entry_count()
+
+    def submit_environment_outcome(self, outcome: EnvironmentOutcome) -> None:
+        """Forward canonical action evidence to next-turn PE settlement."""
+
+        self._brain_session.submit_environment_outcome(outcome)
+
     def submit_tool_result(self, **kwargs: Any) -> tuple[str, ...]:
         return self._brain_session.submit_tool_result(**kwargs)
 
@@ -2093,7 +2127,7 @@ class LifeformSession:
         runner = self._brain_session.runner
         runner.begin_new_context(reason=reason)
         if drain_slow_loop:
-            await runner.drain_session_post_slow_loop()
+            await self.drain_session_post_slow_loop()
         # Gap 4 slice 2a: after drain (so any provisional cases the
         # slow loop just wrote are part of the decision set) sweep
         # case_memory with the lifeform's current tick. Idle-timeout

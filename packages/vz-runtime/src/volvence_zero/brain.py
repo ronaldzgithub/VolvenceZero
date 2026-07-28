@@ -45,6 +45,7 @@ from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
+    SemanticEventDelivery,
     SemanticProposalRuntime,
     semantic_events_from_profile,
     semantic_events_from_reviewed_knowledge,
@@ -254,6 +255,19 @@ class BrainSession:
 
     def submit_semantic_events(self, events: ExternalSemanticEventBatch) -> tuple[str, ...]:
         return self._runner.enqueue_semantic_events(events)
+
+    def semantic_event_delivery(
+        self,
+        events: tuple[tuple[str, str], ...],
+    ) -> tuple[SemanticEventDelivery, ...]:
+        """Return semantic-owner-authored external-event delivery proof."""
+
+        return self._runner.semantic_state_store.external_event_delivery(events)
+
+    def memory_entry_count(self) -> int:
+        """Return the Memory owner-published artifact-entry count."""
+
+        return self._runner.memory_store.entry_count()
 
     def submit_environment_outcome(self, outcome: EnvironmentOutcome) -> None:
         """Submit one canonical outcome to next-turn Prediction Error settlement."""

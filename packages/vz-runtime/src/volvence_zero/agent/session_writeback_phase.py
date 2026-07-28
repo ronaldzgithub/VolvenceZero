@@ -54,6 +54,7 @@ from volvence_zero.application.runtime import (
     DelayedCreditSummary,
     DomainKnowledgeSnapshot,
     ExperienceConsolidationSnapshot,
+    ExperiencedActionEvidence,
     ExperienceFastPriorSnapshot,
     KnowledgeHit,
     RetrievalPolicySnapshot,
@@ -86,6 +87,7 @@ from volvence_zero.evaluation import (
     EvaluationScore,
     EvaluationSnapshot,
 )
+from volvence_zero.environment import EnvironmentEventKind
 from volvence_zero.integration import (
     _apply_application_prior_writeback,
     apply_session_post_writeback_request,
@@ -515,6 +517,27 @@ class SessionWritebackPhaseMixin:
             source_turn_index=self._turn_index,
             boundary_trigger_reasons=boundary_trigger_reasons,
         )
+        experienced_actions = tuple(
+            ExperiencedActionEvidence(
+                outcome_id=settled.outcome.outcome_id,
+                action_id=settled.outcome.action_id,
+                action_statement=settled.outcome.summary,
+                outcome_statement=settled.outcome.detail,
+                evidence=settled.outcome.evidence,
+                confidence=settled.outcome.confidence,
+                action_schema=settled.outcome.action_schema,
+                action_family_id=settled.action_family_id,
+                action_family_version=settled.action_family_version,
+                controller_code_digest=settled.controller_code_digest,
+            )
+            for settled in self._settled_environment_outcomes
+            if (
+                settled.outcome.outcome_kind
+                is EnvironmentEventKind.SCENE_EVENT
+                and settled.outcome.measurement is not None
+                and settled.outcome.measurement.terminal
+            )
+        )
         job = SessionPostSlowLoopJob(
             job_id=f"{request.context_session_id}:slow-loop:{self._turn_index}",
             context_session_id=request.context_session_id,
@@ -558,6 +581,7 @@ class SessionWritebackPhaseMixin:
             retrieval_knowledge_weight_bias=retrieval_knowledge_weight_bias,
             retrieval_experience_weight_bias=retrieval_experience_weight_bias,
             semantic_state_descriptions=request.semantic_state_descriptions,
+            experienced_actions=experienced_actions,
         )
         self._last_session_post_writeback_request = None
         return job
@@ -739,6 +763,7 @@ class SessionWritebackPhaseMixin:
                     if sequence_payoffs
                     else 0.0
                 ),
+                experienced_actions=job.experienced_actions,
             )
         )
         application_apply_enabled = (
@@ -835,6 +860,23 @@ class SessionWritebackPhaseMixin:
             case_band_ids=job.case_band_ids,
             playbook_band_ids=job.playbook_band_ids,
             semantic_state_descriptions=job.semantic_state_descriptions,
+            experienced_action_family_ids=tuple(
+                dict.fromkeys(
+                    evidence.action_family_id
+                    for evidence in job.experienced_actions
+                    if evidence.action_family_id
+                )
+            ),
+            schema_free_action_family_ids=tuple(
+                dict.fromkeys(
+                    evidence.action_family_id
+                    for evidence in job.experienced_actions
+                    if (
+                        evidence.action_schema is None
+                        and evidence.action_family_id
+                    )
+                )
+            ),
         )
 
     def _publish_session_post_snapshot(

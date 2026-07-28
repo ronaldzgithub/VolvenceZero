@@ -54,12 +54,18 @@ flowchart TD
 | `reversibility` | `str` | `"reversible"` | `reversible` / `costly` / `irreversible` |
 | `environment_state_delta_kind` | `str` | `"none"` | host / owner 控制枚举；默认无外部状态变化 |
 
+reviewed environment adapter 还可选择发布
+`EnvironmentActionSchema(schema_id, applicability_conditions, action_steps, description)`，
+用于把已经执行的动作与 episode-specific 文案分离。它是 action observation 的结构化注释，
+不是 reward、evaluation label 或 token-space policy；未提供时保持旧契约。
+
 显式不加入：
 
 - `trust_delta`
 - `common_ground_delta`
 - `commitment_progress_delta`
 - `information_gain`
+- future outcome / preferred current response
 
 这些不是 invoker 可观察事实，必须由 `relationship_state`、`common_ground`、`commitment`、memory / knowledge owner 自己发布并由 PE owner 读取。
 

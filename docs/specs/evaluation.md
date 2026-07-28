@@ -222,6 +222,28 @@ VZ-MemProbe 测的是「**retrieval 端的连续性 / 排序 / 跨语境隔离**
 - 它验证的是 paper-like hierarchical sparse-reward 命题，而不是普通 turn-level PE 响应；当前 acceptance 已把 primary outcomes（held-out success / reuse / credit alignment）与 composite readout（strong success score）显式分离
 - 它**不**改变 `EvaluationSnapshot` 公共结构，也不成为新的学习 owner
 
+Character behavioral-fidelity harness 同样是 evaluation-side 的独立只读证明工件：
+
+- oracle-free capture 只给 sandbox `setting / decision_point`，canonical action/outcome 由独立 reference 工件持有；
+- semantic verdict 来自 digest-bound reviewed assessment，不在 runtime 中以关键词或正则重建行动；
+- baked arm 必须同时通过绝对 fidelity 门并领先 matched cold control，才能声明 learned behavior advantage；
+- learned-behavior claim 还必须做 profile-answer holdout：从 baked/cold 两臂的共同
+  `CharacterSoulProfile` 中删除与评估答案同源的 signature case / strategy prior，
+  并证明 baked 的 `CaseActionGrounding.source_case_id` 来自本次
+  `case:slow-loop:*:experienced-action:*`，而 cold 不具备该 lineage；
+- profile holdout replay 只能证明“已生活 episode 被正式 owner 召回”。当前另有
+  synthetic unseen-transfer gate：刺激不得出现在 ledger/profile/case store，baked 必须
+  从 slow-loop lineage 发布 reviewed action schema，cold 不得具备同一 schema，回答不得
+  泄漏原 episode entity/outcome。它仍不能替代外部盲评，也不能证明 Internal RL 自主发现
+  schema；若 action 直接来自 `rid-character:case:*` 冷启动种子，
+  即使文本得分高也只能算 mechanism diagnostic，不能声明 bake learned advantage；
+- schema-holdout gate 必须删除 reviewed action schema 并证明 action-time latent
+  family/version/`z_t` digest 到达 slow-loop application persistence；该 case 必须保持
+  `schema-pending`、不可渲染，未见场景不得复述 episode。通过此门只证明 Internal RL
+  lineage 存活，不能升级为 emergent semantic action abstraction；
+- evidence source 使用 `system_self_eval / llm_judge / external_validated` 三态，非外部验证不得升级为 external claim；
+- capture 不提交 outcome/evaluation feedback，sandbox 产生的临时学习状态全部丢弃，不进入 PE、credit、memory、regime 或 Internal RL。
+
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.7 节
 
 ## 与其他能力域的关系
@@ -238,6 +260,9 @@ VZ-MemProbe 测的是「**retrieval 端的连续性 / 排序 / 跨语境隔离**
 
 ## 变更日志
 
+- 2026-07-28: 增加 profile-answer holdout gate。此前 `0.840 vs 0.030` 的响应被发现逐项复用了 `protecting-bystander-from-collateral` 冷启动 case，降级为 action-realization mechanism diagnostic；新 causal test 同时删除该 case 与 strategy prior，并要求 baked source lineage 来自 gated lived-action slow-loop、cold 不具备该 lineage。
+- 2026-07-28: 第十二回 action-realization 收敛后重跑同一只读 matched control：baked `0.840`、cold `0.030`、delta `+0.810`。证据源为 `llm_judge`，只升级为 diagnostic pass；external claim 仍关闭。
+- 2026-07-28: 新增 character behavioral-fidelity read-only harness 边界：oracle-free sandbox capture、digest-bound reviewed semantic assessment、baked/cold matched control、三态 evidence source 和 source-state/no-feedback 证明；禁止用 bake 机制 telemetry 代替行为结果。
 - 2026-07-20 (Lane D geometry 监控面): COG-3 persona geometry readout 升级为持续监控面：`EvaluationBackbone` 内新增 owner-internal `_PersonaGeometryMonitor`（冻结 baseline + trailing window trend + 持续漂移 `persona_geometry_drift_sustained` MEDIUM alert）。MEDIUM 档位为设计选择——ModificationGate 只对 HIGH/CRITICAL 阻断，监控面保持只读不进 gate；契约测试 `tests/contracts/test_persona_geometry_monitor.py` 固化"持续漂移报警但不翻 gate"与"禁止 probe→train"边界。分层依据见 `cognitive-regime.md` §瞬时 substrate readout vs 持久 regime owner 的分层。
 - 2026-07-20: 新增 §"风险类评估的四维拆分"（capability / propensity / elicitation pressure / evaluation awareness），F6 风险结论禁止单一平均风险率；"未触发≠安全证据"与"动态发现→静态反例化"入约。来源 `research/frontier-sweep-2026-07-20.md` §D2 / §6 同步项。
 - 2026-05-22: COG-3 最小切片。新增 evaluation-side read-only `persona_geometry_drift` / `persona_regime_geometry_alignment` enrichment，用于 regime/persona 几何漂移监控；不新增 runtime owner 或 snapshot 字段。

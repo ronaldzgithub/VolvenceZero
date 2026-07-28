@@ -133,6 +133,31 @@ class EnvironmentMeasurement:
 
 
 @dataclass(frozen=True)
+class EnvironmentActionSchema:
+    """Reviewed, outcome-free abstraction of an executed action.
+
+    The environment adapter may attach this schema when a reviewer can
+    distinguish the reusable situation and action steps from episode-specific
+    wording.  It describes what was done and when that action applies; it does
+    not contain reward, preferred future output, or semantic-owner deltas.
+    """
+
+    schema_id: str
+    applicability_conditions: tuple[str, ...]
+    action_steps: tuple[str, ...]
+    description: str
+
+    def __post_init__(self) -> None:
+        _require_non_empty("schema_id", self.schema_id)
+        _require_non_empty_unique_tuple(
+            "applicability_conditions",
+            self.applicability_conditions,
+        )
+        _require_non_empty_unique_tuple("action_steps", self.action_steps)
+        _require_non_empty("description", self.description)
+
+
+@dataclass(frozen=True)
 class EnvironmentOutcome:
     """Canonical evidence produced after an environment-facing action."""
 
@@ -151,6 +176,7 @@ class EnvironmentOutcome:
     reversibility: str = "reversible"
     environment_state_delta_kind: str = "none"
     measurement: EnvironmentMeasurement | None = None
+    action_schema: EnvironmentActionSchema | None = None
 
     def __post_init__(self) -> None:
         _require_non_empty("outcome_id", self.outcome_id)
