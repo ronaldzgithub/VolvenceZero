@@ -67,6 +67,7 @@ from volvence_zero.agent.conditioning_lineage import (
 from volvence_zero.conditioning_bank_adapters import personal_conditioning_to_bank
 from volvence_zero.conditioning_bank_contracts import (
     ConditioningLineageRef,
+    ConditioningRevocationState,
     ConditioningScope,
 )
 from volvence_zero.personal_conditioning_contracts import (
@@ -115,6 +116,9 @@ def _personal_conditioning_delivery_from_config(
     *,
     active_conditioning: PersonalConditioningSnapshot | None,
     personal_conditioning_mode: str,
+    revocation_state: ConditioningRevocationState = (
+        ConditioningRevocationState.ACTIVE
+    ),
 ) -> tuple[PersonalConditioningSnapshot | None, str, str, str]:
     """Select exactly one live personal-state delivery carrier."""
 
@@ -122,6 +126,7 @@ def _personal_conditioning_delivery_from_config(
         active_conditioning is None
         or active_conditioning.is_cold_start
         or active_conditioning.confidence <= 0.0
+        or revocation_state is ConditioningRevocationState.REVOKED
     ):
         return None, "", "", "residual"
     if personal_conditioning_mode == "text":
@@ -158,6 +163,9 @@ def _substrate_conditioning_lineage_from_previous(
     session_scope: str,
     personal_conditioning_wiring: WiringLevel,
     personal_conditioning_mode: str,
+    revocation_state: ConditioningRevocationState = (
+        ConditioningRevocationState.ACTIVE
+    ),
 ) -> ConditioningLineageRef | None:
     if personal_conditioning_wiring is not WiringLevel.ACTIVE:
         return None
@@ -172,6 +180,7 @@ def _substrate_conditioning_lineage_from_previous(
             user_scope=user_scope,
             session_scope=session_scope,
         ),
+        revocation_state=revocation_state,
     )
     return build_conditioning_lineage_ref(
         session_scope=session_scope,
@@ -198,6 +207,7 @@ class SessionObservationMixin:
             session_scope=self._session_id,
             personal_conditioning_wiring=self._config.personal_conditioning,
             personal_conditioning_mode=self._config.personal_conditioning_mode,
+            revocation_state=self._personal_conditioning_revocation_state,
         )
         capture_conditioning = (
             self._previous_personal_conditioning_snapshot
@@ -407,6 +417,7 @@ class SessionObservationMixin:
         ) = _personal_conditioning_delivery_from_config(
             active_conditioning=active_conditioning,
             personal_conditioning_mode=self._config.personal_conditioning_mode,
+            revocation_state=self._personal_conditioning_revocation_state,
         )
         # State KV P1 lineage: project the ACTIVE personal snapshot onto the
         # generic bank so this turn records which state versions shaped it.
@@ -420,6 +431,9 @@ class SessionObservationMixin:
                         tenant_scope=_RUNNER_TENANT_SCOPE,
                         user_scope=self.user_scope,
                         session_scope=self._session_id,
+                    ),
+                    revocation_state=(
+                        self._personal_conditioning_revocation_state
                     ),
                 ),
             )

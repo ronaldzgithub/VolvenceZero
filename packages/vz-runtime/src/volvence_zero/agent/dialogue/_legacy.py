@@ -8085,6 +8085,20 @@ def build_standard_dialogue_runner(
     def _base_session_id(label: str) -> str:
         return f"dialogue-ablation:{label}:{case.case_id}"
 
+    from volvence_zero.state_kv_deployment import (
+        STATE_KV_DEPLOYMENT_PROFILE_LABEL,
+        build_state_kv_deployment_config,
+    )
+
+    if profile_label == STATE_KV_DEPLOYMENT_PROFILE_LABEL:
+        return AgentSessionRunner(
+            session_id=_base_session_id(profile_label),
+            config=build_state_kv_deployment_config(residual_runtime),
+            default_residual_runtime=residual_runtime,
+            joint_schedule=_benchmark_joint_schedule(),
+            allow_live_substrate_mutation=False,
+        )
+
     if profile_label in _PHASE2_SHADOW_EVIDENCE_PROFILES or profile_label in _PHASE3_COMBINATION_SHADOW_PROFILES:
         from volvence_zero.agent.profile_registry import resolve_profile
 

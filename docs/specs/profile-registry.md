@@ -476,6 +476,22 @@ flowchart LR
 4. `AgentSessionRunner.__init__` 接收 config，构造各 module 时把 `config.capability_wirings.get(module.slot_name, {})` 传入 `capability_overrides=`
 5. module 内部用 `self.capability_active("foo")` 决定 sub-capability shadow path
 
+### State-KV 显式部署 profile
+
+`state-kv-active-v1` 是 registry 中唯一允许在非证据路径选择 Prefix-KV 的 profile。
+它依赖两个 capability：
+
+- `personal-conditioning-prefix-kv`：设置
+  `personal_conditioning=ACTIVE` 与 `personal_conditioning_mode="prefix_kv"`；
+- `state-kv-standard-artifact-binding`：把 substrate runtime 精确绑定到 artifact
+  `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238`。
+
+该 profile 不使用 `prompt-state-suppressed`，因此保留正常生产 boundary /
+disclaimer prompt 安全段。`build_standard_dialogue_runner` 对它执行额外启动校验：
+必须显式传入冻结 `TransformersOpenWeightResidualRuntime`，模型必须是
+`Qwen/Qwen2.5-0.5B-Instruct`，loaded prefix ID 必须等于绑定 ID；任何不匹配都
+fail loudly。通过部署门只授权这个显式 profile，默认 `pe-eta` 仍是 SHADOW/residual。
+
 ---
 
 ## 错误处理与 fail-loudly

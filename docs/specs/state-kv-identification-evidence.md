@@ -1,6 +1,6 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke、P2 full-probe stochastic retention gate，以及 generation seeds 1701/1702/1703 的跨 seed 聚合（G-prefix 192/192，A-pure 96/192 且 CI 覆盖随机）。`state-kv-temporal-causal.v1` 四臂 matched ablation 证明 correct/wrong State-KV 在真实 prefill residual、`z_t` 与 `beta_t` 上产生可归因分叉，revoked 精确回到 baseline。`state-kv-judge-court.v1` 先用 `sentence-transformers/all-MiniLM-L6-v2` 验证了弱裁判 fail-closed，随后由 `BAAI/bge-m3` 与跨家族 `moka-ai/m3e-base` 在同一 full-probe cache 上共同通过（court floor 0.703）。因此载体进入、被读、进入 temporal 抽象、多 generation-seed 稳定性与双裁判 held-out 行为识别均已成立；默认 ACTIVE 晋升仅剩部署安全 profile 与回滚门。
+> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已通过 P3/P4、P2 held-out、generation seeds 1701/1702/1703 聚合（G-prefix 192/192，A-pure 96/192 且 CI 覆盖随机）、`BAAI/bge-m3` + `moka-ai/m3e-base` 双裁判 court（floor 0.703）以及 substrate→`z_t`/`beta_t` 物理因果门。`state-kv-deployment-gate.v1` 随后在冻结 Qwen CPU 上通过：cold-start、零置信度、SHADOW、revoked 与 rollback 均逐字节回到 baseline；正确/错用户状态均实际注入并分叉，A→B→A 重放稳定且用户 cache scope 隔离。显式 `state-kv-active-v1` profile 因而可用并硬绑定该 artifact；仓库默认 `pe-eta` 仍保持 `personal_conditioning=SHADOW`，没有全局静默切换。
 > Last updated: 2026-07-28
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
@@ -1064,6 +1064,46 @@ artifact：
 `artifacts/state_kv/temporal-causal-state-strategy-routed-cpu/verdict_temporal_causal.json`。
 这关闭“State-KV 是否真的经过残差并进入 ETA 抽象”的物理因果问题；它不替代行为层
 judge court、多个 generation seed 的稳定性或部署安全门。
+
+#### ACTIVE deployment safety gate（2026-07-28）
+
+`state-kv-deployment-gate.v1` 是最终只读晋升门，组合三个已经发布的上游 report：
+`state-kv-temporal-causal.v1`、`state-kv-judge-court.v1` 与
+`state-kv-generation-seed-gate.v1`。三个 gate 必须都通过且绑定同一 artifact。
+
+部署声明只有一个：`state-kv-active-v1`。它在 profile registry 中组合
+`personal-conditioning-prefix-kv` 与 `state-kv-standard-artifact-binding`，
+使用正常生产 `prompt_state_delivery="text"`，不会复用移除 boundary/disclaimer 的
+证据专用 `suppressed` prompt。runner 启动时必须显式收到冻结的
+`TransformersOpenWeightResidualRuntime`，其 `model_id` 和已加载 prefix artifact ID
+必须精确匹配；缺 runtime、错模型、错 artifact 均直接 raise，不回落 residual。
+
+命令：
+
+```bash
+python scripts/run_state_kv_deployment_gate.py \
+  --model-source /Users/mengfu/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775 \
+  --device cpu \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
+  --temporal-causal artifacts/state_kv/temporal-causal-state-strategy-routed-cpu/verdict_temporal_causal.json \
+  --judge-court artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-bge-m3e-judge-court/verdict_judge_court.json \
+  --generation-seed-gate artifacts/state_kv/p2-state-strategy-routed-rollout-seeds-1701-1703-full-max16-generation-seed-gate/verdict_generation_seed_gate.json \
+  --output artifacts/state_kv/deployment-state-strategy-routed-cpu/verdict_deployment_gate.json
+```
+
+| claim | 结果 |
+|---|---|
+| upstream evidence | **pass**：temporal causal、judge court、generation-seed gate 全部通过 |
+| profile/artifact binding | **pass**：profile、冻结模型、安全 run 与三份证据绑定 artifact `8064f8...` |
+| cold-start / SHADOW | **pass**：cold-start、零置信度和 SHADOW 均 baseline-equivalent 且 `applied=false` |
+| revocation | **pass**：session 的一等 `ConditioningRevocationState.REVOKED` 同时关闭 capture、generation 与 lineage，输出回到 baseline |
+| cross-user isolation | **pass**：两个 user cache scope 不同；两份状态均 `applied=true`、输出分叉；A→B→A 的 A 重放逐字节一致 |
+| rollback | **pass**：撤掉 profile / 传 `None` 的输出与 baseline SHA-256 相同 |
+| overall | **`pass`** |
+
+通过只授权显式 `state-kv-active-v1`，不改变默认 profile。原子回滚是把
+`personal_conditioning` 调回 `SHADOW` / `DISABLED` 或省略部署 profile；无需迁移
+owner snapshot、用户数据或基础模型权重。
 
 ### P0-smoke 实测结果（2026-07-26）
 

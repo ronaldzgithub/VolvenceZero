@@ -47,6 +47,10 @@ from volvence_zero.state_kv_identification import (
     build_identification_verdict,
     context_for_arm,
 )
+from volvence_zero.state_kv_deployment import (
+    STATE_KV_DEPLOYMENT_ARTIFACT_ID,
+    STATE_KV_DEPLOYMENT_PROFILE_LABEL,
+)
 
 
 def _assembly() -> ResponseAssemblySnapshot:
@@ -213,12 +217,11 @@ def test_response_context_rejects_an_unknown_carrier() -> None:
         )
 
 
-def test_prefix_carrier_is_evidence_only() -> None:
-    """No profile outside the explicit State-KV arms may select prefix-KV.
+def test_prefix_carrier_is_limited_to_evidence_and_bound_deployment() -> None:
+    """Only the explicit evidence arm and bound deployment may select prefix-KV.
 
-    The carrier has no production owner yet: it is greedy-only, it bypasses
-    ``model.generate``, and its bandwidth is bounded by an artifact that ships
-    separately from the weights.
+    The deployment profile must bind the promoted artifact exactly; all other
+    profiles stay off the prefix carrier.
     """
 
     offenders = [
@@ -228,10 +231,17 @@ def test_prefix_carrier_is_evidence_only() -> None:
             "personal_conditioning_mode"
         )
         == "prefix_kv"
-        and label != PREFIX_ARM_LABEL
+        and label not in (PREFIX_ARM_LABEL, STATE_KV_DEPLOYMENT_PROFILE_LABEL)
     ]
 
     assert offenders == []
+    deployment = resolve_profile(STATE_KV_DEPLOYMENT_PROFILE_LABEL)
+    assert (
+        deployment.merged_flag_overrides[
+            "personal_conditioning_prefix_artifact_id"
+        ]
+        == STATE_KV_DEPLOYMENT_ARTIFACT_ID
+    )
 
 
 def _turn(*, arm: str, user: str, text: str) -> IdentificationTurn:

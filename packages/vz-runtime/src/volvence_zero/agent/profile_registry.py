@@ -36,6 +36,10 @@ from types import MappingProxyType
 from typing import Any
 
 from volvence_zero.runtime.kernel import WiringLevel
+from volvence_zero.state_kv_deployment import (
+    STATE_KV_DEPLOYMENT_ARTIFACT_ID,
+    STATE_KV_DEPLOYMENT_PROFILE_LABEL,
+)
 
 __all__ = [
     "ProfileCapability",
@@ -568,6 +572,20 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
             "single-layer additive residual."
         ),
     ),
+    ProfileCapability(
+        name="state-kv-standard-artifact-binding",
+        applies_to_owner="substrate",
+        flag_overrides={
+            "personal_conditioning_prefix_artifact_id": (
+                STATE_KV_DEPLOYMENT_ARTIFACT_ID
+            ),
+        },
+        requires=("personal-conditioning-prefix-kv",),
+        description=(
+            "Deployment binding for the promoted State-KV artifact. Runtime "
+            "startup must fail if the loaded prefix id differs."
+        ),
+    ),
     # Carrier-identification evidence (docs/specs/state-kv-identification-
     # evidence.md). Closes the prompt carrier C1 so the system prompt is
     # byte-identical across users; evidence-only, never on a deployed profile.
@@ -745,6 +763,15 @@ _BUILTIN_PROFILES: tuple[ProfileSpec, ...] = (
             "The residual carrier measured out at a ~0.3% perturbation and "
             "produced identical text across users; this arm tests the "
             "higher-bandwidth carrier under the same prompt closure."
+        ),
+    ),
+    ProfileSpec(
+        label=STATE_KV_DEPLOYMENT_PROFILE_LABEL,
+        capabilities=("state-kv-standard-artifact-binding",),
+        description=(
+            "Explicit deployed State-KV profile: ACTIVE prefix-KV with normal "
+            "production prompt safety sections and an exact artifact binding. "
+            "It is never part of default benchmark/profile matrices."
         ),
     ),
 )

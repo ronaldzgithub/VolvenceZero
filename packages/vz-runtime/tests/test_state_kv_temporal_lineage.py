@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from volvence_zero.conditioning_bank_contracts import (
     ConditioningLineageRef,
+    ConditioningRevocationState,
 )
 from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_SCHEMA_VERSION,
@@ -242,6 +243,9 @@ def test_session_observation_passes_previous_state_into_physical_capture() -> No
     runner = SimpleNamespace(
         _substrate_adapter_factory=None,
         _previous_personal_conditioning_snapshot=_personal_conditioning(),
+        _personal_conditioning_revocation_state=(
+            ConditioningRevocationState.ACTIVE
+        ),
         user_scope="user-a",
         _session_id="session-a",
         _config=SimpleNamespace(
@@ -260,6 +264,32 @@ def test_session_observation_passes_previous_state_into_physical_capture() -> No
     assert snapshot.personal_conditioning_applied is True
     assert snapshot.conditioning_lineage is not None
     assert snapshot.conditioning_lineage.carrier == "prefix_kv"
+
+
+def test_session_observation_revocation_blocks_capture_and_lineage() -> None:
+    runner = SimpleNamespace(
+        _substrate_adapter_factory=None,
+        _previous_personal_conditioning_snapshot=_personal_conditioning(),
+        _personal_conditioning_revocation_state=(
+            ConditioningRevocationState.REVOKED
+        ),
+        user_scope="user-a",
+        _session_id="session-a",
+        _config=SimpleNamespace(
+            personal_conditioning=WiringLevel.ACTIVE,
+            personal_conditioning_mode="prefix_kv",
+        ),
+        _default_residual_runtime=_Runtime(),
+    )
+
+    adapter = SessionObservationMixin._build_substrate_adapter(
+        runner,
+        user_input="hello",
+    )
+    snapshot = asyncio.run(adapter.capture())
+
+    assert snapshot.personal_conditioning_applied is False
+    assert snapshot.conditioning_lineage is None
 
 
 def test_temporal_snapshot_preserves_substrate_lineage() -> None:

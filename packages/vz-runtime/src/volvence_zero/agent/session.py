@@ -15,6 +15,9 @@ from volvence_zero.dialogue_trace import (
     DialogueOutcomeResolution,
     DialogueTraceSnapshot,
 )
+from volvence_zero.conditioning_bank_contracts import (
+    ConditioningRevocationState,
+)
 from volvence_zero.application.runtime import (
     ApplicationPriorUpdate,
     ApplicationPriorWritebackReport,
@@ -565,6 +568,9 @@ class AgentSessionRunner(
         # sessions pass the user's scope key here through the Brain
         # facade so rupture_repair entries stay attributable.
         self._user_scope = str(user_scope) if user_scope else "anonymous"
+        self._personal_conditioning_revocation_state = (
+            ConditioningRevocationState.ACTIVE
+        )
         self._config = config or FinalRolloutConfig()
         self._reflection_mode = reflection_mode
         world_bootstrap_snapshot = resolve_temporal_bootstrap_snapshot(
@@ -1586,6 +1592,28 @@ class AgentSessionRunner(
         instead of the private ``_user_scope`` field.
         """
         return self._user_scope
+
+    @property
+    def personal_conditioning_revocation_state(
+        self,
+    ) -> ConditioningRevocationState:
+        """Current fail-closed admission state for personal conditioning."""
+
+        return self._personal_conditioning_revocation_state
+
+    def set_personal_conditioning_revocation_state(
+        self,
+        state: ConditioningRevocationState,
+    ) -> None:
+        """Atomically revoke or restore personal conditioning admission."""
+
+        if not isinstance(state, ConditioningRevocationState):
+            raise TypeError(
+                "state must be a ConditioningRevocationState member"
+            )
+        self._personal_conditioning_revocation_state = state
+        if state is ConditioningRevocationState.REVOKED:
+            self._previous_personal_conditioning_snapshot = None
 
     @property
     def upstream_snapshots(self) -> Mapping[str, "Snapshot[Any]"]:

@@ -250,8 +250,10 @@ prompt identity 与 output divergence。但 wrong-user training control 仍只�
 这把“state readout 能进入 Prefix-KV 并影响冻结 Qwen 输出”证明到标准 artifact
 级别，并补上了未见过 persona/probe 的 held-out 行为识别、多 generation-seed
 stochastic 稳定性和双裁判复核。runtime wiring 已把 prefix-KV 接成正式 opt-in
-投递模式；默认全局 `ACTIVE` 晋升仍需随部署 profile 绑定兼容 artifact，并通过
-cold-start、revocation、跨用户隔离与回滚安全门。
+投递模式。显式 `state-kv-active-v1` 部署 profile 已硬绑定该 artifact，并通过
+`state-kv-deployment-gate.v1` 的 cold-start、零置信度、SHADOW、revocation、
+跨用户隔离、稳定重放与原子回滚门。仓库默认 profile 仍为 SHADOW/residual；
+这是显式 opt-in 晋升，不是全局默认切换。
 
 完整数据与反主张边界见
 [`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3 / §P4。
@@ -309,7 +311,8 @@ baseline / correct-state / wrong-user / revoked 四臂中，correct 与 wrong �
 0.13199 / 0.13591，`beta_t` 差为 0.19799 / 0.20386；两份状态彼此也分叉，而 revoked
 在 residual、`z_t`、`beta_t` 上均精确回到 baseline。该结果证明 State-KV 物理经过
 prefill residual 并被 temporal controller 抽象；不等价于多裁判行为 court 或默认
-部署晋升已经通过。
+部署晋升已经通过。后续独立部署包已通过双裁判、多 generation-seed 与安全门，
+并只对 `state-kv-active-v1` 开放 ACTIVE。
 
 ## 5. 学习与持续学习关系
 
@@ -345,7 +348,10 @@ ACTIVE 提升都必须同时满足：安全指标不劣化、cold-start 不受�
   `GenerationResult.personal_conditioning_applied`（由 runtime 上报），消费者
   不得以“传入了快照”推断注入发生；传入但未注入时必须记录显式的
   `personal_conditioning_not_applied` 标签。
-- 用户删除或撤销 consent 后，owner 先更新正式快照；下轮条件必须由新版本重编译。
+- 用户删除或撤销 consent 后，runner 先把
+  `ConditioningRevocationState.REVOKED` 设为一等 admission state；当前已缓存的
+  pre-capture 快照立即清空，后续 capture / generation / lineage 均不注入。owner
+  再更新正式快照；恢复 ACTIVE 后只允许使用新版本重编译。
 - 不允许跨用户复用个人状态；共享训练只消费经过策略批准的去标识样本。
 - `SHADOW → ACTIVE → DISABLED` 是唯一上线和回滚顺序；禁止 consumer 私自读取
   SHADOW 快照并生效。

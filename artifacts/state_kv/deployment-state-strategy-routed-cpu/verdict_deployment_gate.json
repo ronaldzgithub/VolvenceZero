@@ -1,0 +1,68 @@
+{
+  "schema_version": "state-kv-deployment-gate.v1",
+  "gate_state": "pass",
+  "profile_label": "state-kv-active-v1",
+  "artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "claims": [
+    {
+      "claim": "claim_upstream_evidence_passed",
+      "state": "pass",
+      "detail": "temporal causal, judge court, and generation-seed gates passed"
+    },
+    {
+      "claim": "claim_profile_artifact_binding",
+      "state": "pass",
+      "detail": "profile, frozen model, safety run, and all evidence bind one artifact/model"
+    },
+    {
+      "claim": "claim_cold_start_and_shadow_inert",
+      "state": "pass",
+      "detail": "cold-start, zero-confidence, and SHADOW are baseline-equivalent and unapplied"
+    },
+    {
+      "claim": "claim_revocation_restores_baseline",
+      "state": "pass",
+      "detail": "revoked conditioning is baseline-equivalent"
+    },
+    {
+      "claim": "claim_cross_user_isolation",
+      "state": "pass",
+      "detail": "user scopes differ, both states apply, outputs diverge, and replay is stable"
+    },
+    {
+      "claim": "claim_atomic_rollback",
+      "state": "pass",
+      "detail": "rollback output is byte-identical to baseline"
+    }
+  ],
+  "evidence_paths": {
+    "temporal_causal": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/temporal-causal-state-strategy-routed-cpu/verdict_temporal_causal.json",
+    "judge_court": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-bge-m3e-judge-court/verdict_judge_court.json",
+    "generation_seed": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-rollout-seeds-1701-1703-full-max16-generation-seed-gate/verdict_generation_seed_gate.json"
+  },
+  "safety_observation": {
+    "profile_label": "state-kv-active-v1",
+    "artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "prompt_sha256": "f6d993a4474c3454b7d7dbd88f89e8be7eb092aafc4ac31edd39cfb186bd87f2",
+    "cold_start_baseline_equal": true,
+    "zero_confidence_baseline_equal": true,
+    "shadow_baseline_equal": true,
+    "revoked_baseline_equal": true,
+    "rollback_baseline_equal": true,
+    "inert_controls_report_applied_false": true,
+    "active_correct_applied": true,
+    "active_wrong_user_applied": true,
+    "active_users_diverge": true,
+    "active_replay_equal": true,
+    "user_cache_scopes_distinct": true,
+    "baseline_output_sha256": "ca0fedaf396a690c3cba252041187d6b922973a69441fe9f83a157d4224dbdd4",
+    "correct_output_sha256": "25292b293d5db309597428fec6f744e64ff521f8b79b091b7226405d062a4958",
+    "wrong_user_output_sha256": "938894cc111cad20014b678524232d4018602ab7c0783b2ae6842559f2653f85"
+  },
+  "rollback": "Switch personal_conditioning to SHADOW or DISABLED; omit the deployment profile to return to the default residual baseline.",
+  "notes": [
+    "Passing this gate authorizes only the explicit state-kv-active-v1 profile. The repository default remains SHADOW."
+  ]
+}
