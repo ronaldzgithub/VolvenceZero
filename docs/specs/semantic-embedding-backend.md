@@ -43,9 +43,14 @@
 
 - **已迁到 seam**：`dual_track/core.py`（WORLD/SELF track）、`evaluation/semantic_readouts.py`（+ `backbone.py` 调用点）、`application/storage.py`（domain-knowledge 检索）、`application/scoring_helpers.py`（`semantic_similarity` 逐调用嵌入，lazy，与 runtime_helpers prototype 同空间）。
 - **topic similarity 消费者（v0.2）**：`apprenticeship/core.py` 矛盾检测、`application/modules/apprenticeship_protocol_alignment.py` strategy/knowledge 覆盖匹配——均由手写 stub-token Jaccard 迁到 `semantic_topic_similarity`（无 backend 时行为 byte-identical）。
+- **动作 promotion 适用性边界**：topic similarity 继续承担一般 case 排序，但不得用单一
+  相似度阈值解释否定、同意或“无迫近伤害”等条件逻辑。CaseMemory 对 learned
+  action-abstraction promotion 先走独立的 structured applicability gate，再进入该
+  seam 排序；缺少有效判定时 promotion fail closed。
 - **多 substrate 进程共存（v0.2）**：owner-scoped 安装 + conflict 降级 stub（见上），多实例部署不再依赖"人工保持 DISABLED"；conflict 可经 `semantic_embedding_backend_status()` 观测。
 
 ## 变更日志
 
+- 2026-07-29：明确 learned action promotion 的否定/同意语义不由 embedding 阈值承担，CaseMemory 先做 structured applicability gate，再做 topic-similarity 排序。
 - 2026-07-16：v0.2（M1 / #91 follow-up）。owner-scoped 安装 + 多 substrate conflict 降级 + `semantic_embedding_backend_status` 可观测性；新增 `semantic_topic_similarity` hybrid 接缝并迁移 apprenticeship 矛盾检测与 protocol alignment 覆盖匹配；scoring_helpers 确认逐调用 lazy 嵌入。契约测试扩 owner/conflict/topic-similarity 分支（`tests/contracts/test_semantic_embedding_ssot.py`）。
 - 2026-07-04：v0.1 初版。seam（vz-contracts）+ SubstrateTextEncoderBackend（vz-substrate）+ Brain 注入 + dual_track/evaluation/storage 迁移 + 契约测试。落地 known-debts #91 修法 1。

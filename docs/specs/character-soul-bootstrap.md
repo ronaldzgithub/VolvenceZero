@@ -209,8 +209,18 @@ source directory 提交 outcome、PE、evaluation 或学习写回。baked 的
 保护弱者、身份未明时先制止眼前伤害、愿承担介入风险这一稳定倾向的行为优势。证据源仍是
 `llm_judge`，只能称 diagnostic pass；单场景不能证明分布级泛化，也不能冒充外部人类盲评。
 
+下一收敛已把单一正例扩成同源正负判别。promotion checkpoint 现在保存 typed
+`applicability_conditions`；CaseMemory 在行动排序前调用结构化 evaluator，并且不向它
+暴露动作步骤、章节 outcome、PE、credit 或 evaluation。渡口迫近暴力正例继续命中
+promotion，路边医舍负例明确包含“当事人同意、无施害者、无人受威胁”，因此拒绝
+protection schema，转而命中人物原有的陌生人温和援助案例。reviewed 五维分数分别为
+`0.904` 与 `0.918`，source checkpoint 在两次 capture 前后均由 digest reader 验证不变，
+且无结果或评估回灌。这证明当前 learned schema 已具备最小的适用/不适用边界；样本仍只有
+一正一负，不能声称广泛校准。
+
 ## 变更日志
 
+- 2026-07-29: 完成 promotion 正负适用性收敛：typed applicability conditions 随 CaseMemory checkpoint 持久化，turn-time structured gate 对缺失/低置信判定 fail closed；同源未知渡口正例命中、同意照护负例拒绝 promotion，reviewed diagnostic 分别为 `0.904` 与 `0.918`。
 - 2026-07-29: 完成真实双章节 promotion 的独立未知场景行为保真收敛：源 checkpoint 克隆到 disposable sandbox，capture v2 记录 promotion lineage；profile-held-out baked `0.904`、cold `0.450`、delta `+0.454`，无章节实体/outcome 泄漏和评估回灌，结论限于 llm-judge 单场景 diagnostic pass。
 - 2026-07-29: 完成 ch-11/ch-17 真实双章节 schema-holdout 收敛：自然同族、跨 session typed evidence 恢复、单次 structured decode、BACKGROUND gate 晋升均通过；结论限定为真实多经历抽象进入 owner，未升级为未见行为保真。
 - 2026-07-28: 增加 action-abstraction 跨 session owner continuity：schema-pending evidence 随 CaseMemory checkpoint 恢复，第二经历只经 typed owner API 合并，promotion 后同族证据自动退出 pending；ch-11 仍只有一条真实经历。

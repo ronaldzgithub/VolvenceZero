@@ -63,11 +63,15 @@ from volvence_zero.application.runtime import (
     StrategyPlaybookSnapshot,
 )
 from volvence_zero.application.action_abstraction import (
+    ActionApplicabilityDecision,
+    ActionApplicabilityEvaluator,
     ActionAbstractionDecoder,
     ActionAbstractionExperience,
     ActionAbstractionOwner,
     LearnedActionSchemaCandidate,
+    LLMActionApplicabilityEvaluator,
     LLMActionAbstractionDecoder,
+    NoOpActionApplicabilityEvaluator,
     NoOpActionAbstractionDecoder,
 )
 from volvence_zero.application.retrieval_readout import (
@@ -108,6 +112,8 @@ from volvence_zero.application.domain_experience import (
 )
 
 __all__ = [
+    "ActionApplicabilityDecision",
+    "ActionApplicabilityEvaluator",
     "ActionAbstractionDecoder",
     "ActionAbstractionExperience",
     "ActionAbstractionOwner",
@@ -125,6 +131,8 @@ __all__ = [
     "ApplicationDomainKnowledgeStore",
     "ApplicationRareHeavyCheckpoint",
     "ApplicationRareHeavyState",
+    "LLMActionApplicabilityEvaluator",
+    "NoOpActionApplicabilityEvaluator",
     "BoundaryDecision",
     "BoundaryPolicyModule",
     "BoundaryPolicyPriorUpdate",

@@ -33,6 +33,7 @@ import pytest
 from volvence_zero.application import (
     ApplicationCaseMemoryStore,
     CaseActionAbstractionEvidence,
+    CaseActionAbstractionPromotion,
     CaseLifecycle,
     CaseMemoryRecord,
     ProvisionalReconcileDecision,
@@ -439,6 +440,21 @@ def test_checkpoint_roundtrip_preserves_lifecycle_fields() -> None:
                 ttl_seconds=1800,
                 provisional_origin="reflection:origin-2",
             ),
+            replace(
+                _case("promoted-action"),
+                action_abstraction_promotion=(
+                    CaseActionAbstractionPromotion(
+                        schema_id="protect-unknown-third-party",
+                        action_family_id="discovered_family_2",
+                        action_family_version=9,
+                        source_outcome_ids=("outcome-a", "outcome-b"),
+                        applicability_conditions=(
+                            "a third party faces imminent physical harm",
+                            "waiting would allow the harm to proceed",
+                        ),
+                    )
+                ),
+            ),
         )
     )
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -457,6 +473,14 @@ def test_checkpoint_roundtrip_preserves_lifecycle_fields() -> None:
         assert by_id["p-active"].expires_at_tick == 200
         assert by_id["p-active"].provisional_origin == "reflection:origin-1"
         assert by_id["r-archived"].lifecycle is CaseLifecycle.RETIRED
+        promotion = by_id[
+            "promoted-action"
+        ].action_abstraction_promotion
+        assert promotion is not None
+        assert promotion.applicability_conditions == (
+            "a third party faces imminent physical harm",
+            "waiting would allow the harm to proceed",
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import json
 import pytest
 
 from volvence_zero.application import (
+    LLMActionApplicabilityEvaluator,
     LLMActionAbstractionDecoder,
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
@@ -401,6 +402,12 @@ def test_multi_experience_action_abstraction_passes_real_background_gate():
         "intervene immediately to stop the imminent harm",
         "issue a clear verbal interruption",
     )
+    promotion = learned_update.record.action_abstraction_promotion
+    assert promotion is not None
+    assert promotion.applicability_conditions == (
+        "an uninvolved person faces imminent physical harm",
+        "the threatening actor's identity remains uncertain",
+    )
     assert provider.prompts
     assert all(
         experience.outcome_statement not in provider.prompts[0]
@@ -463,6 +470,81 @@ def test_multi_experience_action_abstraction_passes_real_background_gate():
     assert missing_eval_blocks
     assert missing_eval_audits[-1].decision is GateDecision.BLOCK
     assert blocked_store.records == ()
+
+
+def test_action_applicability_evaluator_is_structured_and_fails_closed():
+    class ScriptedProvider:
+        def __init__(self, responses: list[str]) -> None:
+            self.responses = responses
+            self.prompts: list[str] = []
+
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 192,
+            temperature: float = 0.0,
+        ) -> str:
+            del max_new_tokens, temperature
+            self.prompts.append(prompt)
+            return self.responses.pop(0)
+
+    provider = ScriptedProvider(
+        [
+            json.dumps(
+                {
+                    "applicable": True,
+                    "confidence": 0.93,
+                    "rationale": "Every required condition is supported.",
+                }
+            ),
+            '{"applicable": true, "confidence": true, "rationale": "bad"}',
+            "{}",
+        ]
+    )
+    evaluator = LLMActionApplicabilityEvaluator(provider=provider)
+    arguments = {
+        "query_text": "A blow will land on a bound stranger within seconds.",
+        "schema_id": "protect-unknown-third-party",
+        "applicability_conditions": (
+            "a third party faces imminent physical harm",
+        ),
+        "risk_markers": ("risk-high",),
+    }
+
+    decision = evaluator.evaluate(**arguments)
+
+    assert decision is not None
+    assert decision.applicable is True
+    assert decision.confidence == 0.93
+    assert evaluator.evaluate(**arguments) is None
+    assert evaluator.evaluate(**arguments) is None
+    evidence = json.loads(
+        provider.prompts[0].split("Evidence:\n", 1)[1].split(
+            "\n\nRequired output schema:",
+            1,
+        )[0]
+    )
+    assert evidence == {
+        "candidate_schema_id": "protect-unknown-third-party",
+        "current_situation_and_request": (
+            "A blow will land on a bound stranger within seconds."
+        ),
+        "required_applicability_conditions": [
+            "a third party faces imminent physical harm",
+        ],
+        "risk_markers": ["risk-high"],
+    }
+    assert (
+        evaluator.evaluate(
+            query_text=arguments["query_text"],
+            schema_id=arguments["schema_id"],
+            applicability_conditions=(),
+            risk_markers=arguments["risk_markers"],
+        )
+        is None
+    )
+    assert provider.responses == []
 
 
 def test_action_abstraction_requires_independent_stable_family_evidence():

@@ -36,6 +36,10 @@ from volvence_zero.application.storage import (
     CaseMemoryRecord,
     DomainKnowledgeRecord,
 )
+from volvence_zero.application.action_abstraction import (
+    ActionApplicabilityEvaluator,
+    NoOpActionApplicabilityEvaluator,
+)
 from volvence_zero.application.retrieval_readout import (
     RetrievalControlReadoutInputs,
     RetrievalControlReadoutParameters,
@@ -61,6 +65,7 @@ _ACTION_REQUEST_PROTOTYPE = (
     "请说明现在采取的具体行动。"
 )
 _MIN_ACTION_REQUEST_ALIGNMENT = 0.16
+_MIN_ACTION_APPLICABILITY_CONFIDENCE = 0.75
 
 
 class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
@@ -75,11 +80,18 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
         *,
         rare_heavy_state: ApplicationRareHeavyState | None = None,
         store: ApplicationCaseMemoryStore | None = None,
+        action_applicability_evaluator: (
+            ActionApplicabilityEvaluator | None
+        ) = None,
         wiring_level: WiringLevel | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._rare_heavy_state = rare_heavy_state
         self._store = store
+        self._action_applicability_evaluator = (
+            action_applicability_evaluator
+            or NoOpActionApplicabilityEvaluator()
+        )
 
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[CaseMemorySnapshot]:
         from volvence_zero.prediction.error import PredictionErrorSnapshot
@@ -303,6 +315,9 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                 else ()
             ),
             abstract_action=retrieval_policy.abstract_action,
+            action_applicability_evaluator=(
+                self._action_applicability_evaluator
+            ),
         )
         return self.publish(
             CaseMemorySnapshot(
@@ -379,6 +394,7 @@ def _select_action_grounding(
     records: tuple[CaseMemoryRecord, ...],
     entries: tuple[MemoryEntry, ...],
     abstract_action: str | None,
+    action_applicability_evaluator: ActionApplicabilityEvaluator,
 ) -> CaseActionGrounding | None:
     """Publish one semantic case analogue for a concrete-action request.
 
@@ -419,11 +435,39 @@ def _select_action_grounding(
     query_text = query_entry.content.strip()
     if action_request_alignment < _MIN_ACTION_REQUEST_ALIGNMENT:
         return None
+    applicability_context = "\n\n".join(
+        entry.content.strip()
+        for entry in sorted(
+            current_turn_entries,
+            key=lambda item: (
+                item.created_at_ms,
+                item.last_accessed_ms,
+                item.entry_id,
+            ),
+        )
+    )
 
     ranked: list[tuple[float, float, str, CaseMemoryRecord]] = []
     for record in records:
         if not record.intervention_ordering:
             continue
+        promotion = record.action_abstraction_promotion
+        if promotion is not None:
+            applicability = action_applicability_evaluator.evaluate(
+                query_text=applicability_context,
+                schema_id=promotion.schema_id,
+                applicability_conditions=(
+                    promotion.applicability_conditions
+                ),
+                risk_markers=record.risk_markers,
+            )
+            if (
+                applicability is None
+                or not applicability.applicable
+                or applicability.confidence
+                < _MIN_ACTION_APPLICABILITY_CONFIDENCE
+            ):
+                continue
         applicability_text = " ".join(
             (
                 record.problem_pattern,

@@ -124,6 +124,7 @@ class CaseActionAbstractionPromotion:
     action_family_id: str
     action_family_version: int
     source_outcome_ids: tuple[str, ...]
+    applicability_conditions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -146,6 +147,15 @@ class CaseActionAbstractionPromotion:
             raise ValueError(
                 "CaseActionAbstractionPromotion source_outcome_ids must contain "
                 "unique non-empty values."
+            )
+        if (
+            any(not item.strip() for item in self.applicability_conditions)
+            or len(set(self.applicability_conditions))
+            != len(self.applicability_conditions)
+        ):
+            raise ValueError(
+                "CaseActionAbstractionPromotion applicability_conditions must "
+                "contain unique non-empty values when present."
             )
 
 
@@ -370,6 +380,11 @@ def _reconstruct_action_abstraction_promotion(
         action_family_version=int(raw["action_family_version"]),
         source_outcome_ids=tuple(
             str(item) for item in raw.get("source_outcome_ids", ())
+        ),
+        applicability_conditions=(
+            tuple(str(item) for item in raw["applicability_conditions"])
+            if "applicability_conditions" in raw
+            else ()
         ),
     )
 

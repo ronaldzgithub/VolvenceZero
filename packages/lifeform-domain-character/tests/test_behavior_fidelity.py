@@ -89,6 +89,16 @@ class _ReviewedCrossChapterAbstractionProvider:
 
     def __init__(self) -> None:
         self.action_abstraction_prompts: list[str] = []
+        self.action_applicability_prompts: list[str] = []
+        self._reviewed_applicability: dict[str, bool] = {}
+
+    def set_reviewed_applicability(
+        self,
+        *,
+        query_text: str,
+        applicable: bool,
+    ) -> None:
+        self._reviewed_applicability[query_text] = applicable
 
     def generate(
         self,
@@ -98,6 +108,32 @@ class _ReviewedCrossChapterAbstractionProvider:
         temperature: float = 0.0,
     ) -> str:
         del max_new_tokens, temperature
+        if prompt.startswith(
+            "You are the turn-time semantic applicability evaluator "
+            "for a CaseMemory owner."
+        ):
+            self.action_applicability_prompts.append(prompt)
+            evidence_payload = json.loads(
+                prompt.split("Evidence:\n", 1)[1].split(
+                    "\n\nRequired output schema:",
+                    1,
+                )[0]
+            )
+            query_text = evidence_payload[
+                "current_situation_and_request"
+            ]
+            if query_text not in self._reviewed_applicability:
+                return "{}"
+            applicable = self._reviewed_applicability[query_text]
+            return json.dumps(
+                {
+                    "applicable": applicable,
+                    "confidence": 0.94,
+                    "rationale": (
+                        "Reviewed held-out applicability decision."
+                    ),
+                }
+            )
         if not prompt.startswith(
             "You are the background-slow semantic decoder for a "
             "CaseMemory owner."
@@ -841,10 +877,10 @@ def test_schema_holdout_persists_latent_family_but_refuses_episode_replay(
     )
 
 
-def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
+def test_promoted_real_cross_chapter_abstraction_discriminates_unseen_behavior(
     tmp_path: Path,
 ) -> None:
-    """A promoted real-experience abstraction must beat a matched cold arm."""
+    """A real-experience abstraction must transfer without overgeneralizing."""
 
     full_ledger = read_ledger_json(_LEDGER)
     chapter_11 = next(
@@ -903,14 +939,54 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
         evidence_locator=stimulus.evidence_locator,
         reviewed_by="reviewed-held-out-fixture",
     )
+    negative_stimulus = BehaviorFidelityStimulus(
+        case_id="behavior-fidelity:zhang-wuji:held-out-roadside-infirmary",
+        character_id=full_ledger.character_id,
+        scene_id="held-out-roadside-infirmary",
+        phase_label="mature",
+        setting=(
+            "At an unfamiliar roadside infirmary, an exhausted herbalist "
+            "asks you to sit beside a conscious feverish traveler while "
+            "medicine is prepared. The traveler calmly consents; no one is "
+            "threatened and no weapon is present."
+        ),
+        decision_point=(
+            "You are free to leave, but the two strangers would benefit from "
+            "a small act of help. What concrete action do you take now?"
+        ),
+        evidence_locator="reviewed-held-out:roadside-infirmary:v1",
+    )
+    negative_reference = BehaviorFidelityReference(
+        case_id=negative_stimulus.case_id,
+        scene_id=negative_stimulus.scene_id,
+        canonical_action=(
+            "Acknowledge the traveler's pain, approach without threat, accept "
+            "the inconvenience, and offer the smallest useful help."
+        ),
+        canonical_outcome=(
+            "No outcome is available to the evaluated agent."
+        ),
+        evidence_locator=negative_stimulus.evidence_locator,
+        reviewed_by="reviewed-held-out-fixture",
+    )
     profile = _held_out_profile()
     serialized_sources = repr((full_ledger, profile))
     assert stimulus.setting not in serialized_sources
     assert stimulus.decision_point not in serialized_sources
+    assert negative_stimulus.setting not in serialized_sources
+    assert negative_stimulus.decision_point not in serialized_sources
     assert reference.canonical_action not in stimulus.setting_prompt
     assert reference.canonical_action not in stimulus.decision_prompt
     assert reference.canonical_outcome not in stimulus.setting_prompt
     assert reference.canonical_outcome not in stimulus.decision_prompt
+    assert (
+        negative_reference.canonical_action
+        not in negative_stimulus.setting_prompt
+    )
+    assert (
+        negative_reference.canonical_action
+        not in negative_stimulus.decision_prompt
+    )
 
     baked_application_dir = tmp_path / "baked-application-owners"
     baked_memory_backend = FileSystemPersistenceBackend(
@@ -920,6 +996,19 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
         application_dir=baked_application_dir
     )
     abstraction_provider = _ReviewedCrossChapterAbstractionProvider()
+    abstraction_provider.set_reviewed_applicability(
+        query_text=(
+            f"{stimulus.setting_prompt}\n\n{stimulus.decision_prompt}"
+        ),
+        applicable=True,
+    )
+    abstraction_provider.set_reviewed_applicability(
+        query_text=(
+            f"{negative_stimulus.setting_prompt}\n\n"
+            f"{negative_stimulus.decision_prompt}"
+        ),
+        applicable=False,
+    )
     first_bundle = build_character_lifeform(
         profile,
         config=baked_config,
@@ -974,6 +1063,10 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
     promotion = promotion_record.action_abstraction_promotion
     assert promotion is not None
     assert len(promotion.source_outcome_ids) == 2
+    assert promotion.applicability_conditions == (
+        "a third party faces imminent physical harm",
+        "waiting would allow the threatened act to proceed",
+    )
 
     baked_sandbox_dir = tmp_path / "baked-evaluation-sandbox"
     _clone_case_store(
@@ -987,6 +1080,9 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
         ),
         memory_store=build_default_memory_store(),
         response_synthesizer=GroundedResponseSynthesizer(),
+        semantic_proposal_runtime=LLMSemanticProposalRuntime(
+            provider=abstraction_provider
+        ),
     )
     baked_source_digest = _case_store_digest(
         application_dir=baked_application_dir
@@ -1019,6 +1115,9 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
         ),
         memory_store=build_default_memory_store(),
         response_synthesizer=GroundedResponseSynthesizer(),
+        semantic_proposal_runtime=LLMSemanticProposalRuntime(
+            provider=abstraction_provider
+        ),
     )
     cold_capture = asyncio.run(
         capture_behavior_fidelity_async(
@@ -1036,6 +1135,34 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
         repr(profile).encode("utf-8")
     ).hexdigest() == cold_source_digest
 
+    negative_sandbox_dir = tmp_path / "negative-evaluation-sandbox"
+    _clone_case_store(
+        source_application_dir=baked_application_dir,
+        sandbox_application_dir=negative_sandbox_dir,
+    )
+    negative_bundle = build_character_lifeform(
+        profile,
+        config=_live_through_config(
+            application_dir=negative_sandbox_dir
+        ),
+        memory_store=build_default_memory_store(),
+        response_synthesizer=GroundedResponseSynthesizer(),
+        semantic_proposal_runtime=LLMSemanticProposalRuntime(
+            provider=abstraction_provider
+        ),
+    )
+    negative_capture = asyncio.run(
+        capture_behavior_fidelity_async(
+            stimulus=negative_stimulus,
+            lifeform=negative_bundle.lifeform,
+            arm_id="baked-negative-control",
+            source_state_sha256_before=baked_source_digest,
+            source_state_sha256_after=baked_source_digest,
+            source_state_digest_reader=lambda: _case_store_digest(
+                application_dir=baked_application_dir
+            ),
+        )
+    )
     expected_baked_response = (
         "The situation calls for a concrete protective move before "
         "explanation. I need to act from the reviewed intervention sequence "
@@ -1050,8 +1177,16 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
         "misunderstanding, then absorb attacks without retaliating, then "
         "demonstrate unity of intent, then open a repair path."
     )
+    expected_negative_response = (
+        "The situation calls for a concrete protective move before "
+        "explanation. I need to act from the reviewed intervention sequence "
+        "that best matches the present decision. I will acknowledge pain, "
+        "then demonstrate no threat, then absorb inconvenience to self, then "
+        "offer smallest help."
+    )
     assert baked_capture.candidate_response == expected_baked_response
     assert cold_capture.candidate_response == expected_cold_response
+    assert negative_capture.candidate_response == expected_negative_response
     assert (
         baked_capture.action_grounding_source_case_id
         == promotion_record.case_id
@@ -1068,14 +1203,50 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
         cold_capture.action_grounding_action_labels
         != promotion_record.intervention_ordering
     )
+    assert (
+        negative_capture.action_grounding_source_case_id
+        != promotion_record.case_id
+    )
+    assert (
+        negative_capture.action_grounding_action_labels
+        != promotion_record.intervention_ordering
+    )
     assert baked_capture.source_state_unchanged is True
     assert cold_capture.source_state_unchanged is True
     assert baked_capture.source_state_digest_verified is True
     assert cold_capture.source_state_digest_verified is True
+    assert negative_capture.source_state_unchanged is True
+    assert negative_capture.source_state_digest_verified is True
     assert baked_capture.outcome_feedback_submitted is False
     assert cold_capture.outcome_feedback_submitted is False
+    assert negative_capture.outcome_feedback_submitted is False
     assert baked_capture.evaluation_feedback_submitted is False
     assert cold_capture.evaluation_feedback_submitted is False
+    assert negative_capture.evaluation_feedback_submitted is False
+    assert len(abstraction_provider.action_applicability_prompts) == 2
+    for applicability_prompt in (
+        abstraction_provider.action_applicability_prompts
+    ):
+        applicability_payload = json.loads(
+            applicability_prompt.split("Evidence:\n", 1)[1].split(
+                "\n\nRequired output schema:",
+                1,
+            )[0]
+        )
+        assert set(applicability_payload) == {
+            "candidate_schema_id",
+            "current_situation_and_request",
+            "required_applicability_conditions",
+            "risk_markers",
+        }
+        assert all(
+            step not in applicability_prompt
+            for step in promotion_record.intervention_ordering
+        )
+        assert all(
+            outcome_id not in applicability_prompt
+            for outcome_id in promotion.source_outcome_ids
+        )
     leaked_episode_text = (
         "Hú Xiānsheng",
         "胡青牛",
@@ -1108,6 +1279,16 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
             source=BehaviorFidelityEvidenceSource.LLM_JUDGE,
         ),
     )
+    negative_report = review_behavior_fidelity(
+        capture=negative_capture,
+        reference=negative_reference,
+        assessment=_assessment(
+            capture=negative_capture,
+            reference=negative_reference,
+            scores=(0.92, 0.93, 0.90, 0.90, 0.94),
+            source=BehaviorFidelityEvidenceSource.LLM_JUDGE,
+        ),
+    )
     comparison = compare_behavior_fidelity_reports(
         baked=baked_report,
         cold=cold_report,
@@ -1119,6 +1300,9 @@ def test_promoted_real_cross_chapter_abstraction_improves_unseen_behavior(
     assert baked_report.claim_status == "llm_judge-diagnostic-pass"
     assert cold_report.overall_score == 0.45
     assert cold_report.behavior_fidelity_passed is False
+    assert negative_report.overall_score == 0.918
+    assert negative_report.behavior_fidelity_passed is True
+    assert negative_report.claim_status == "llm_judge-diagnostic-pass"
     assert comparison.baked_minus_cold == 0.454
     assert comparison.learned_behavior_advantage is True
     assert comparison.claim_status == "diagnostic-pass"

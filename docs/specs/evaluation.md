@@ -251,6 +251,12 @@ Character behavioral-fidelity harness 同样是 evaluation-side 的独立只读�
   的 typed pending evidence 接续第二经历；promotion 后再次加载必须不再产生 pending。
   当前 ch-11/ch-17 schema-holdout 已提供两条真实证据并完成 promotion；这只升级
   multi-experience owner-chain 结论，不替代独立 held-out behavior-fidelity gate；
+- promotion 的 held-out gate 必须包含正负 discrimination，而不只测一次正向迁移：
+  同一 source checkpoint 下，满足 typed conditions 的未知迫近伤害场景必须命中
+  promotion；明确同意、无施害者、无迫近暴力的未知照护场景必须拒绝同一 promotion。
+  applicability readout 不得看到 action steps、source outcome、PE 或 evaluation。
+  当前 reviewed diagnostic 结果为正例 `0.904`、负例 `0.918`，两者均通过且负例
+  grounding lineage 明确不是 promotion；这不升级为外部人类盲评或分布级结论；
 - evidence source 使用 `system_self_eval / llm_judge / external_validated` 三态，非外部验证不得升级为 external claim；
 - capture 不提交 outcome/evaluation feedback，sandbox 产生的临时学习状态全部丢弃，不进入 PE、credit、memory、regime 或 Internal RL。
 - `BehaviorFidelityCapture` v2 必须保存 CaseMemory owner 已发布的 action-grounding source

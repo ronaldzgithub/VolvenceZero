@@ -29,6 +29,104 @@ class ActionAbstractionTextProvider(Protocol):
 
 
 @dataclass(frozen=True)
+class ActionApplicabilityDecision:
+    """Structured readout for one promoted schema in the current situation."""
+
+    applicable: bool
+    confidence: float
+    rationale: str
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                "ActionApplicabilityDecision confidence must be in [0, 1]."
+            )
+        if not self.rationale.strip():
+            raise ValueError(
+                "ActionApplicabilityDecision rationale must be non-empty."
+            )
+
+
+class ActionApplicabilityEvaluator(Protocol):
+    """CaseMemory collaborator; never an action or learning owner."""
+
+    def evaluate(
+        self,
+        *,
+        query_text: str,
+        schema_id: str,
+        applicability_conditions: tuple[str, ...],
+        risk_markers: tuple[str, ...],
+    ) -> ActionApplicabilityDecision | None: ...
+
+
+class NoOpActionApplicabilityEvaluator:
+    """Fail closed when no structured semantic evaluator is wired."""
+
+    def evaluate(
+        self,
+        *,
+        query_text: str,
+        schema_id: str,
+        applicability_conditions: tuple[str, ...],
+        risk_markers: tuple[str, ...],
+    ) -> ActionApplicabilityDecision | None:
+        del query_text, schema_id, applicability_conditions, risk_markers
+        return None
+
+
+class LLMActionApplicabilityEvaluator:
+    """Structured applicability evaluator backed by an injected provider."""
+
+    def __init__(
+        self,
+        *,
+        provider: ActionAbstractionTextProvider,
+        max_new_tokens: int = 192,
+    ) -> None:
+        if max_new_tokens <= 0:
+            raise ValueError("max_new_tokens must be positive.")
+        self._provider = provider
+        self._max_new_tokens = max_new_tokens
+
+    def evaluate(
+        self,
+        *,
+        query_text: str,
+        schema_id: str,
+        applicability_conditions: tuple[str, ...],
+        risk_markers: tuple[str, ...],
+    ) -> ActionApplicabilityDecision | None:
+        if (
+            not query_text.strip()
+            or not schema_id.strip()
+            or not applicability_conditions
+        ):
+            return None
+        prompt = _load_action_applicability_prompt_template().format(
+            evidence_json=json.dumps(
+                {
+                    "current_situation_and_request": query_text,
+                    "candidate_schema_id": schema_id,
+                    "required_applicability_conditions": (
+                        applicability_conditions
+                    ),
+                    "risk_markers": risk_markers,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            output_schema=_load_action_applicability_schema_text(),
+        )
+        raw = self._provider.generate(
+            prompt=prompt,
+            max_new_tokens=self._max_new_tokens,
+            temperature=0.0,
+        )
+        return _parse_action_applicability_decision(raw)
+
+
+@dataclass(frozen=True)
 class ActionAbstractionExperience:
     """Normalized schema-free evidence accepted by the abstraction owner."""
 
@@ -275,6 +373,51 @@ def _load_output_schema_text() -> str:
     ).read_text(encoding="utf-8")
 
 
+def _load_action_applicability_prompt_template() -> str:
+    return (
+        _RESOURCE_ROOT / "prompts" / "action_applicability.md"
+    ).read_text(encoding="utf-8")
+
+
+def _load_action_applicability_schema_text() -> str:
+    return (
+        _RESOURCE_ROOT / "schemas" / "action_applicability.schema.json"
+    ).read_text(encoding="utf-8")
+
+
+def _parse_action_applicability_decision(
+    text: str,
+) -> ActionApplicabilityDecision | None:
+    cleaned = text.strip()
+    if cleaned.startswith("```") and cleaned.endswith("```"):
+        lines = cleaned.splitlines()
+        cleaned = "\n".join(lines[1:-1]).strip()
+    try:
+        payload = json.loads(cleaned)
+    except JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if set(payload) != {"applicable", "confidence", "rationale"}:
+        return None
+    if not isinstance(payload["applicable"], bool):
+        return None
+    if (
+        isinstance(payload["confidence"], bool)
+        or not isinstance(payload["confidence"], (int, float))
+        or not isinstance(payload["rationale"], str)
+    ):
+        return None
+    try:
+        return ActionApplicabilityDecision(
+            applicable=payload["applicable"],
+            confidence=float(payload["confidence"]),
+            rationale=payload["rationale"],
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_candidate(text: str) -> LearnedActionSchemaCandidate | None:
     cleaned = text.strip()
     if cleaned.startswith("```") and cleaned.endswith("```"):
@@ -328,12 +471,16 @@ def _require_non_empty_unique(
 
 
 __all__ = [
+    "ActionApplicabilityDecision",
+    "ActionApplicabilityEvaluator",
     "ActionAbstractionDecoder",
     "ActionAbstractionExperience",
     "ActionAbstractionOwner",
     "ActionAbstractionTextProvider",
+    "LLMActionApplicabilityEvaluator",
     "LearnedActionSchemaCandidate",
     "LLMActionAbstractionDecoder",
     "merge_action_abstraction_experiences",
+    "NoOpActionApplicabilityEvaluator",
     "NoOpActionAbstractionDecoder",
 ]

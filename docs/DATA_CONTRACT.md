@@ -767,6 +767,13 @@ action_grounding_action_labels`，只用于证明最终行为来自哪个 owner 
 只读评估 turn 直接连到 baked source directory 后再用调用方传入的相同 digest 假定源状态
 未变。
 
+多经历 action-abstraction promotion 的 owner-only checkpoint payload 包含
+`schema_id / action_family_id / action_family_version / source_outcome_ids /
+applicability_conditions`。旧 checkpoint 可恢复为空 conditions，但 learned promotion
+在 turn-time 必须 fail closed。CaseMemory-owned applicability evaluator 只消费当前
+Memory 语境、schema id、typed conditions 与 record risk markers；它不拥有行动、不产生
+学习信号，且禁止读取 intervention ordering、outcome、PE、credit 或 evaluation。
+
 详见 `docs/specs/domain-experience-layer.md`。
 
 ### 2.15 Figure Artifact Bundle（真实人物 vertical 不可变 artifact）
@@ -1966,7 +1973,7 @@ reflection ──────────────→ proposals; runtime invo
 | `session_post_slow_loop` | SessionPostSlowLoopModule | SessionPostSlowLoopSnapshot | ACTIVE | context / session boundary | reports / experience_consolidation |
 | `retrieval_policy` | RetrievalPolicyModule | RetrievalPolicySnapshot | ACTIVE | 每 turn | domain_knowledge, case_memory, boundary_policy, response_assembly |
 | `domain_knowledge` | DomainKnowledgeModule | DomainKnowledgeSnapshot | ACTIVE | 每 turn | boundary_policy, response_assembly, evaluation |
-| `case_memory` | CaseMemoryModule | CaseMemorySnapshot | ACTIVE | 每 turn | strategy_playbook, response_assembly, evaluation；`action_grounding` 是 CaseMemory owner 对当前 Memory 语境与 reviewed case intervention steps 的语义近邻解释，绑定 active abstract action；terminal `SCENE_EVENT` 可经 `ExperiencedActionEvidence` + gated session-post writeback 形成带 `case:slow-loop:*:experienced-action:*` lineage 的 lived-action case，多经历晋升则使用 `case:slow-loop:action-abstraction:*` lineage；无匹配/非具体行动轮显式为 `None` |
+| `case_memory` | CaseMemoryModule | CaseMemorySnapshot | ACTIVE | 每 turn | strategy_playbook, response_assembly, evaluation；`action_grounding` 是 CaseMemory owner 对当前 Memory 语境与 reviewed case intervention steps 的语义近邻解释，绑定 active abstract action；terminal `SCENE_EVENT` 可经 `ExperiencedActionEvidence` + gated session-post writeback 形成带 `case:slow-loop:*:experienced-action:*` lineage 的 lived-action case，多经历晋升则使用 `case:slow-loop:action-abstraction:*` lineage，并在排序前通过只读 structured applicability gate（缺 provider/typed conditions/高置信适用判定时 fail closed）；无匹配/非具体行动轮显式为 `None` |
 | `strategy_playbook` | StrategyPlaybookModule | StrategyPlaybookSnapshot | ACTIVE | 每 turn | response_assembly, experience_consolidation |
 | `boundary_policy` | BoundaryPolicyModule | BoundaryPolicySnapshot | ACTIVE | 每 turn | response_assembly |
 | `response_assembly` | ResponseAssemblyModule | ResponseAssemblySnapshot | ACTIVE | 每 turn | session / response generation；`action_realization` 只绑定同拍 `CaseMemorySnapshot.action_grounding` 与 `TemporalAbstractionSnapshot.active_abstract_action`，不重建案例语义；expression 只渲染 owner-published statement |

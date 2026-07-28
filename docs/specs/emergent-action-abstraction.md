@@ -184,6 +184,11 @@ posterior、`beta_t`、行为 likelihood 与 prediction lineage；下一拍只�
   CaseMemory-owned typed checkpoint 跨 session 续接；consumer 不解析描述文本，同
   outcome 矛盾 fail loudly，compact snapshot 回灌不得擦除 typed payload，已有
   promotion 的整个 family ID 不再发布 pending evidence。
+- `promoted-action-applicability-fail-closed`: promotion checkpoint 必须保存 owner
+  发布的 typed applicability conditions；CaseMemory 只以当前语境、schema id、
+  conditions 与 risk markers 请求 structured readout。缺 evaluator、旧记录缺条件、
+  解析失败、不适用或置信度 `<0.75` 时不得召回该 promotion；action steps、outcome、
+  PE、credit 与 evaluation 不得进入 applicability prompt。
 - `credit-from-pe-only`: segment/action credit records 只从 `PredictionErrorSnapshot` 派生。
 - `replay-from-snapshots`: replay artifact 可由现有 snapshots 生成，不依赖 trace-specific runtime schema。
 - `runtime-replay-owner-bounded`: online replay 只存在于 Internal-RL/joint-loop owner checkpoint，不新增 slot 或第二 trace owner。

@@ -364,6 +364,9 @@ class ApplicationPriorProposalBuilder:
                                     source_outcome_ids=(
                                         candidate.source_outcome_ids
                                     ),
+                                    applicability_conditions=(
+                                        candidate.applicability_conditions
+                                    ),
                                 )
                             ),
                         ),

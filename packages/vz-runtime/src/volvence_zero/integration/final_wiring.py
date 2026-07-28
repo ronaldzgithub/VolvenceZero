@@ -35,6 +35,10 @@ from volvence_zero.application.domain_experience import (
     DomainExperiencePackage,
     apply_domain_experience_packages,
 )
+from volvence_zero.application.action_abstraction import (
+    LLMActionApplicabilityEvaluator,
+    NoOpActionApplicabilityEvaluator,
+)
 from volvence_zero.application.storage import (
     ApplicationCaseMemoryStore,
     ApplicationDomainKnowledgeStore,
@@ -1836,6 +1840,11 @@ def build_final_runtime_modules(
     resolved_self_temporal_policy.set_protocol_prior_enabled(_protocol_prior_active)
     semantic_store = semantic_state_store or SemanticStateStore()
     semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
+    action_applicability_evaluator = NoOpActionApplicabilityEvaluator()
+    if isinstance(semantic_runtime, LLMSemanticProposalRuntime):
+        action_applicability_evaluator = LLMActionApplicabilityEvaluator(
+            provider=semantic_runtime.text_provider
+        )
     # Phase 1 W1.C of the EQ-owner uplift: when an explicit
     # ``tom_proposal_runtime`` is not provided AND the semantic runtime
     # is LLM-backed, share its text provider so the four ToM owners
@@ -2165,6 +2174,9 @@ def build_final_runtime_modules(
         CaseMemoryModule(
             rare_heavy_state=application_rare_heavy_state,
             store=case_memory_store,
+            action_applicability_evaluator=(
+                action_applicability_evaluator
+            ),
             wiring_level=config.level_for("case_memory", WiringLevel.SHADOW),
         ),
         StrategyPlaybookModule(

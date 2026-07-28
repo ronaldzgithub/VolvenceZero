@@ -151,6 +151,11 @@ application persistence，但新场景必须拒绝召回该非语义 case，且�
    的矛盾内容直接失败；compact snapshot 回灌不得擦除既有 typed payload；晋升 record
    的 typed promotion marker 会排除整个 family ID 的 pending evidence，阻止不同 bank
    revision 再次触发 decoder/promotion。
+7. promotion marker 同时固化 decoder 发布的 `applicability_conditions`。CaseMemory
+   在具体行动请求上只把当前 Memory 语境、schema id、typed conditions 与 record risk
+   markers 交给结构化 applicability evaluator；action steps、outcome、PE、credit、
+   evaluation 均不可见。evaluator 缺失、旧 checkpoint 没有 typed conditions、解析失败、
+   判为不适用或置信度低于 `0.75` 时，该 learned promotion 必须 fail closed。
 
 promoted record 仍由 `ApplicationCaseMemoryStore` 唯一写入和持久化，expression 仍只消费
 CaseMemory/ResponseAssembly 发布的 action realization。learned candidate 与 reviewer
@@ -163,6 +168,11 @@ owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早�
 一次 structured background decoder，并经正式 `ModificationGate.BACKGROUND` 晋升。
 该证据足以把“只有 synthetic 第二证据”的旧限制关闭；它仍只证明真实经历形成了
 可审计的候选并进入 owner，不等价于未见场景中的角色行为保真已通过。
+
+独立行为收敛现同时覆盖正负两个未知场景：迫近暴力的渡口正例允许上述 promotion，
+明确同意且无施害者的路边医舍负例拒绝它，并回到张无忌原有的温和援助案例。两次判定
+使用同一 promotion checkpoint 与同一结构化 evaluator；这证明 learned schema 不是
+无条件动作模板，但仍只是两个 reviewed diagnostic case，不代表分布级泛化。
 
 ## 工程挑战
 
@@ -215,6 +225,7 @@ owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早�
 
 ## 变更日志
 
+- 2026-07-29: promotion checkpoint 增加 typed `applicability_conditions`，CaseMemory 增加 turn-time structured applicability gate；缺 provider/条件/有效高置信判定时 learned promotion fail closed，正例命中与同意照护负例拒绝均由独立行为保真测试覆盖。
 - 2026-07-29: 增加 ch-11/ch-17 真实 schema-holdout 跨章节晋升证据；修复 compact CaseMemory snapshot 回灌擦除 owner-only typed evidence，并明确 family ID 是聚合身份、`action_family_version` 是允许跨经历变化的全局 bank revision。
 - 2026-07-28: 冻结 CaseMemory-owned action-abstraction pending/promotion checkpoint 契约：schema-free evidence 可跨 session 恢复，consumer 只读类型化 owner API；矛盾 outcome fail loudly，已晋升 family/version 自动停止重复提案。
 - 2026-07-28: 新增 multi-experience background action abstraction：structured decoder 不读 outcome/evaluation，CaseMemory owner 要求至少两条异质同族经历并校验 source closure；candidate 必须经正式 BACKGROUND ModificationGate 才能写入。ch-11 单例继续 fail closed，不声明自主 schema discovery。
