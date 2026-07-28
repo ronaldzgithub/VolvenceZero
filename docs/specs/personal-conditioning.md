@@ -240,11 +240,18 @@ prompt identity 与 output divergence。但 wrong-user training control 仍只�
 - P2 full-probe stochastic retention gate（CPU）：完整 16 probes、`max_new_tokens=16`、
   `temperature=0.2`、`sampling_seed=1701` 下，两组 P2 均为 `retain-strict`；合计
   G-prefix 64/64，A-pure 32/64 且 CI 覆盖随机；per-turn seed audit 320/320 通过。
+- P2 cross-generation-seed gate（CPU）：同一 full-probe 配置在 generation seeds
+  1701 / 1702 / 1703 上逐 seed retention 均通过；合计 G-prefix 192/192，
+  A-pure 96/192，bootstrap CI 0.427..0.573 覆盖随机。
+- P2 cross-family judge court：`BAAI/bge-m3` panel 为 G-prefix 64/64，
+  `moka-ai/m3e-base` panel 为 52/64，两个完整 panel 的 court 均清 chance并通过；
+  既有 all-MiniLM 弱裁判负对照继续 fail-closed。
 
 这把“state readout 能进入 Prefix-KV 并影响冻结 Qwen 输出”证明到标准 artifact
-级别，并补上了未见过 persona/probe 的 held-out 行为识别。runtime wiring 已把
-prefix-KV 接成正式 opt-in 投递模式；默认全局 `ACTIVE` 晋升仍需随部署 profile
-绑定兼容 artifact，并补上能通过的多模型裁判 panel。
+级别，并补上了未见过 persona/probe 的 held-out 行为识别、多 generation-seed
+stochastic 稳定性和双裁判复核。runtime wiring 已把 prefix-KV 接成正式 opt-in
+投递模式；默认全局 `ACTIVE` 晋升仍需随部署 profile 绑定兼容 artifact，并通过
+cold-start、revocation、跨用户隔离与回滚安全门。
 
 完整数据与反主张边界见
 [`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3 / §P4。

@@ -1,0 +1,153 @@
+{
+  "schema_version": "state-kv-retention-gate.v1",
+  "gate_state": "pass",
+  "claims": [
+    {
+      "claim": "claim_consistent_artifact",
+      "state": "pass",
+      "detail": "2 verdicts share artifact 8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238, substrate Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33, judge moka-ai/m3e-base, candidate state-kv-arm-g-prefix-pure, probe_limit 0, probe_count 16, case_count 32, max_new_tokens 16, temperature 0.2, sampling_seed 1701, stochastic_rollout=True"
+    },
+    {
+      "claim": "claim_individual_retained",
+      "state": "pass",
+      "detail": "2 input verdicts are retain-strict with complete per-turn sampling_seed audit"
+    },
+    {
+      "claim": "claim_heldout_pair_coverage",
+      "state": "pass",
+      "detail": "covered required P2 held-out pairs: boundary-vs-commit, repair-vs-execute"
+    },
+    {
+      "claim": "claim_aggregate_identification",
+      "state": "pass",
+      "detail": "52/64 accuracy=0.812; min CI low across bootstrap seeds is 0.703"
+    },
+    {
+      "claim": "claim_aggregate_carrier_causality",
+      "state": "pass",
+      "detail": "state-kv-arm-a-pure aggregate CI (0.375, 0.625) covers chance; state-kv-arm-g-prefix-pure clears it"
+    },
+    {
+      "claim": "claim_bootstrap_seed_stability",
+      "state": "pass",
+      "detail": "all published per-verdict CI lows clear chance, and aggregate CI lows clear chance across bootstrap seeds (20260726, 20260727, 20260728, 1701, 31337)"
+    }
+  ],
+  "inputs": [
+    {
+      "verdict_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-m3e/verdict_identification.json",
+      "fingerprint_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-m3e/substrate_fingerprint.json",
+      "lane": "p2",
+      "p2_pair": "repair-vs-execute",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "verdict_state": "retain-strict",
+      "c5_grade": "decode-matched",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "judge_model_id": "moka-ai/m3e-base",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "probe_limit": 0,
+      "probe_count": 16,
+      "case_count": 32,
+      "max_new_tokens": 16,
+      "temperature": 0.2,
+      "sampling_seed": 1701,
+      "stochastic_generation_rollout": true,
+      "turn_count": 160,
+      "seeded_turn_count": 160,
+      "unique_turn_seed_count": 80,
+      "candidate": {
+        "correct": 28,
+        "total": 32,
+        "ci_low": 0.75,
+        "ci_high": 0.96875
+      },
+      "control": {
+        "correct": 16,
+        "total": 32,
+        "ci_low": 0.3125,
+        "ci_high": 0.6875
+      }
+    },
+    {
+      "verdict_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1701-full-max16-m3e/verdict_identification.json",
+      "fingerprint_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1701-full-max16-m3e/substrate_fingerprint.json",
+      "lane": "p2",
+      "p2_pair": "boundary-vs-commit",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "verdict_state": "retain-strict",
+      "c5_grade": "decode-matched",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "judge_model_id": "moka-ai/m3e-base",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "probe_limit": 0,
+      "probe_count": 16,
+      "case_count": 32,
+      "max_new_tokens": 16,
+      "temperature": 0.2,
+      "sampling_seed": 1701,
+      "stochastic_generation_rollout": true,
+      "turn_count": 160,
+      "seeded_turn_count": 160,
+      "unique_turn_seed_count": 80,
+      "candidate": {
+        "correct": 24,
+        "total": 32,
+        "ci_low": 0.59375,
+        "ci_high": 0.90625
+      },
+      "control": {
+        "correct": 16,
+        "total": 32,
+        "ci_low": 0.3125,
+        "ci_high": 0.6875
+      }
+    }
+  ],
+  "aggregates": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "correct": 32,
+      "total": 64,
+      "accuracy": 0.5,
+      "ci_low_min": 0.375,
+      "ci_high_max": 0.625,
+      "bootstrap_seeds": [
+        20260726,
+        20260727,
+        20260728,
+        1701,
+        31337
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "correct": 52,
+      "total": 64,
+      "accuracy": 0.8125,
+      "ci_low_min": 0.703125,
+      "ci_high_max": 0.90625,
+      "bootstrap_seeds": [
+        20260726,
+        20260727,
+        20260728,
+        1701,
+        31337
+      ]
+    }
+  ],
+  "required_p2_pairs": [
+    "repair-vs-execute",
+    "boundary-vs-commit"
+  ],
+  "bootstrap_seeds": [
+    20260726,
+    20260727,
+    20260728,
+    1701,
+    31337
+  ],
+  "stochastic_generation_rollout_covered": true,
+  "notes": [
+    "This gate covers held-out pair aggregation, bootstrap-seed robustness, and seed-aligned stochastic generation rollout."
+  ]
+}

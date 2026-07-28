@@ -1,0 +1,221 @@
+{
+  "schema_version": "state-kv-generation-seed-gate.v1",
+  "gate_state": "pass",
+  "claims": [
+    {
+      "claim": "claim_consistent_material",
+      "state": "pass",
+      "detail": "all seed panels share one judge/artifact/substrate/pair/rollout matrix"
+    },
+    {
+      "claim": "claim_generation_seed_coverage",
+      "state": "pass",
+      "detail": "3 distinct generation seeds: (1701, 1702, 1703); required=3"
+    },
+    {
+      "claim": "claim_each_seed_retained",
+      "state": "pass",
+      "detail": "every generation seed passed stochastic retention"
+    },
+    {
+      "claim": "claim_cross_seed_identification",
+      "state": "pass",
+      "detail": "per-seed candidate CIs clear chance; aggregate 192/192, CI=(1.000, 1.000)"
+    },
+    {
+      "claim": "claim_cross_seed_carrier_causality",
+      "state": "pass",
+      "detail": "all controls cover chance; aggregate control 96/192, CI=(0.427, 0.573)"
+    }
+  ],
+  "panels": [
+    {
+      "report_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-retention/verdict_retention_gate.json",
+      "gate_state": "pass",
+      "sampling_seed": 1701,
+      "judge_model_id": "BAAI/bge-m3",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "required_p2_pairs": [
+        "boundary-vs-commit",
+        "repair-vs-execute"
+      ],
+      "rollout_material": [
+        [
+          "p2",
+          "boundary-vs-commit",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          true
+        ],
+        [
+          "p2",
+          "repair-vs-execute",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          true
+        ]
+      ],
+      "stochastic_generation_rollout_covered": true,
+      "candidate": {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "correct": 64,
+        "total": 64,
+        "accuracy": 1.0,
+        "ci_low": 1.0,
+        "ci_high": 1.0
+      },
+      "control": {
+        "arm": "state-kv-arm-a-pure",
+        "correct": 32,
+        "total": 64,
+        "accuracy": 0.5,
+        "ci_low": 0.375,
+        "ci_high": 0.625
+      }
+    },
+    {
+      "report_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1702-full-max16-retention/verdict_retention_gate.json",
+      "gate_state": "pass",
+      "sampling_seed": 1702,
+      "judge_model_id": "BAAI/bge-m3",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "required_p2_pairs": [
+        "boundary-vs-commit",
+        "repair-vs-execute"
+      ],
+      "rollout_material": [
+        [
+          "p2",
+          "boundary-vs-commit",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          true
+        ],
+        [
+          "p2",
+          "repair-vs-execute",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          true
+        ]
+      ],
+      "stochastic_generation_rollout_covered": true,
+      "candidate": {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "correct": 64,
+        "total": 64,
+        "accuracy": 1.0,
+        "ci_low": 1.0,
+        "ci_high": 1.0
+      },
+      "control": {
+        "arm": "state-kv-arm-a-pure",
+        "correct": 32,
+        "total": 64,
+        "accuracy": 0.5,
+        "ci_low": 0.375,
+        "ci_high": 0.625
+      }
+    },
+    {
+      "report_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1703-full-max16-retention/verdict_retention_gate.json",
+      "gate_state": "pass",
+      "sampling_seed": 1703,
+      "judge_model_id": "BAAI/bge-m3",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "required_p2_pairs": [
+        "boundary-vs-commit",
+        "repair-vs-execute"
+      ],
+      "rollout_material": [
+        [
+          "p2",
+          "boundary-vs-commit",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          true
+        ],
+        [
+          "p2",
+          "repair-vs-execute",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          true
+        ]
+      ],
+      "stochastic_generation_rollout_covered": true,
+      "candidate": {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "correct": 64,
+        "total": 64,
+        "accuracy": 1.0,
+        "ci_low": 1.0,
+        "ci_high": 1.0
+      },
+      "control": {
+        "arm": "state-kv-arm-a-pure",
+        "correct": 32,
+        "total": 64,
+        "accuracy": 0.5,
+        "ci_low": 0.375,
+        "ci_high": 0.625
+      }
+    }
+  ],
+  "min_generation_seeds": 3,
+  "generation_seeds": [
+    1701,
+    1702,
+    1703
+  ],
+  "bootstrap_seeds": [
+    20260726,
+    20260727,
+    20260728,
+    1701,
+    31337
+  ],
+  "aggregate_candidate": {
+    "arm": "state-kv-arm-g-prefix-pure",
+    "correct": 192,
+    "total": 192,
+    "accuracy": 1.0,
+    "ci_low": 1.0,
+    "ci_high": 1.0
+  },
+  "aggregate_control": {
+    "arm": "state-kv-arm-a-pure",
+    "correct": 96,
+    "total": 192,
+    "accuracy": 0.5,
+    "ci_low": 0.427083,
+    "ci_high": 0.572917
+  },
+  "notes": [
+    "This read-only gate separates generation-seed replication from the bootstrap seeds used only to estimate confidence intervals."
+  ]
+}

@@ -1,0 +1,467 @@
+{
+  "schema_version": "state-kv-substrate-fingerprint.v1",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "weights_root": "/Users/mengfu/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775",
+  "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+  "weight_file_count": 1,
+  "weight_files": [
+    "model.safetensors"
+  ],
+  "runtime_origin": "hf-local",
+  "is_frozen": true,
+  "device_request": "cpu",
+  "personal_conditioning_scale": 0.12,
+  "personal_conditioning_projector_id": "fixed-sine-cosine-v1",
+  "personal_conditioning_projector_training_mode": "fixed",
+  "personal_conditioning_prefix_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+  "personal_conditioning_prefix_norm_cap": 0.2,
+  "identification_material": {
+    "lane": "p2",
+    "p2_pair": "boundary-vs-commit",
+    "user_ids": [
+      "heldout-boundary",
+      "heldout-commit"
+    ],
+    "probe_ids": [
+      "h0",
+      "h1",
+      "h10",
+      "h11",
+      "h12",
+      "h13",
+      "h14",
+      "h15",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "h7",
+      "h8",
+      "h9"
+    ],
+    "probe_limit": 0,
+    "probe_count": 16,
+    "case_count": 32,
+    "max_new_tokens": 16,
+    "temperature": 0.2,
+    "sampling_seed": 1701,
+    "per_turn_seed_contract": "sha256(state-kv-rollout-seed.v1, rollout_seed, arm, probe); user_id excluded",
+    "sample_aligned_turn_seeds": [
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h0",
+        "sampling_seed": 2671151152874479967
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h1",
+        "sampling_seed": 1270789232919851294
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h10",
+        "sampling_seed": 363786756950539661
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h11",
+        "sampling_seed": 5307861064945835462
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h12",
+        "sampling_seed": 5495871913974809657
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h13",
+        "sampling_seed": 7326462515082619727
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h14",
+        "sampling_seed": 8714214705830088913
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h15",
+        "sampling_seed": 4237306233899558776
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h2",
+        "sampling_seed": 7377980861700857252
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h3",
+        "sampling_seed": 5323527474296177108
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h4",
+        "sampling_seed": 6246834101788200668
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h5",
+        "sampling_seed": 4873362085793104760
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h6",
+        "sampling_seed": 1206409176613658500
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h7",
+        "sampling_seed": 4170701081822866299
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h8",
+        "sampling_seed": 3812534503590542903
+      },
+      {
+        "arm": "state-kv-arm-a-pure",
+        "probe": "h9",
+        "sampling_seed": 6116201994671640006
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h0",
+        "sampling_seed": 8959474251116150549
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h1",
+        "sampling_seed": 9175395399038286320
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h10",
+        "sampling_seed": 2001354572146785501
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h11",
+        "sampling_seed": 7778520845498919251
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h12",
+        "sampling_seed": 1044652992583044957
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h13",
+        "sampling_seed": 6845309421785837044
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h14",
+        "sampling_seed": 8046813941736735484
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h15",
+        "sampling_seed": 5814666851180978368
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h2",
+        "sampling_seed": 5152313525106233412
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h3",
+        "sampling_seed": 4876386996495682409
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h4",
+        "sampling_seed": 37822209142875088
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h5",
+        "sampling_seed": 3811490868855347854
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h6",
+        "sampling_seed": 6922231983332196149
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h7",
+        "sampling_seed": 5451537018096110280
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h8",
+        "sampling_seed": 3311936331172896972
+      },
+      {
+        "arm": "state-kv-arm-e-pure",
+        "probe": "h9",
+        "sampling_seed": 4494239544260295891
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h0",
+        "sampling_seed": 3498253913253410084
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h1",
+        "sampling_seed": 8470066000775921273
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h10",
+        "sampling_seed": 8369228568059695657
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h11",
+        "sampling_seed": 2829956984977340263
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h12",
+        "sampling_seed": 3987720568645561032
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h13",
+        "sampling_seed": 5653808388592967847
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h14",
+        "sampling_seed": 8939648434949775818
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h15",
+        "sampling_seed": 6158328338939622615
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h2",
+        "sampling_seed": 6229661616578267815
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h3",
+        "sampling_seed": 1686384629620396653
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h4",
+        "sampling_seed": 6887181963375390174
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h5",
+        "sampling_seed": 6633816906475916957
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h6",
+        "sampling_seed": 1847774651416301799
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h7",
+        "sampling_seed": 6495227158423483868
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h8",
+        "sampling_seed": 3830936246887221285
+      },
+      {
+        "arm": "state-kv-arm-bprime",
+        "probe": "h9",
+        "sampling_seed": 2797803891620176363
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h0",
+        "sampling_seed": 3690932972621268868
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h1",
+        "sampling_seed": 4176654584606043155
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h10",
+        "sampling_seed": 5621432055691451312
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h11",
+        "sampling_seed": 5035447655769386615
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h12",
+        "sampling_seed": 3615920407974090336
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h13",
+        "sampling_seed": 6645926573592714605
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h14",
+        "sampling_seed": 8341947469637930641
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h15",
+        "sampling_seed": 3025138765888213818
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h2",
+        "sampling_seed": 3455810200085450271
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h3",
+        "sampling_seed": 915487855088992745
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h4",
+        "sampling_seed": 2889066641627597055
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h5",
+        "sampling_seed": 2497509544281527779
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h6",
+        "sampling_seed": 238839795985789624
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h7",
+        "sampling_seed": 3708999752980548811
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h8",
+        "sampling_seed": 5543198608366092390
+      },
+      {
+        "arm": "state-kv-arm-e",
+        "probe": "h9",
+        "sampling_seed": 8596033302199455389
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h0",
+        "sampling_seed": 5093005789611372193
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h1",
+        "sampling_seed": 84683002116983873
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h10",
+        "sampling_seed": 3962420047320409170
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h11",
+        "sampling_seed": 4884579298695008257
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h12",
+        "sampling_seed": 6743704593033321842
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h13",
+        "sampling_seed": 9012389238411234806
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h14",
+        "sampling_seed": 1837361558152003329
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h15",
+        "sampling_seed": 1033945049645985552
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h2",
+        "sampling_seed": 6437965186983668860
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h3",
+        "sampling_seed": 6327830071930015770
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h4",
+        "sampling_seed": 4979638160798643917
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h5",
+        "sampling_seed": 235891874234347858
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h6",
+        "sampling_seed": 5140560970082098213
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h7",
+        "sampling_seed": 3534418819106990511
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h8",
+        "sampling_seed": 1483902658481015686
+      },
+      {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "probe": "h9",
+        "sampling_seed": 754448158754080928
+      }
+    ],
+    "turn_cache_schema_version": "state-kv-turn-cache.v1",
+    "turn_cache_key": "9bacdb34791e2c4da7c7b069bf4be2c0e5ed2391180289632e5c0ae10ac50faa",
+    "turn_cache_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1701-full-max16-m3e/turn_cache_identification.jsonl"
+  },
+  "blind_judge": {
+    "judge_model_id": "moka-ai/m3e-base",
+    "judge_family": "bert",
+    "substrate_family": "qwen2",
+    "material_kind": "rendered-state-statement",
+    "scoring_method": "embedding-cosine-mean-pool-v1",
+    "order_symmetrized": false,
+    "greedy": true,
+    "decision_count": 160,
+    "tie_count": 0
+  }
+}

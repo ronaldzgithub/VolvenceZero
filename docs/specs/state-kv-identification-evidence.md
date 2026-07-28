@@ -1,6 +1,6 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke（temperature 0.2，seed 1701，G-prefix 12/12，C5 decode-matched）、P2 probe-limited stochastic retention gate（G-prefix 合计 16/16）与 P2 full-probe stochastic retention gate（两个 held-out pair，16 probes，max_new_tokens=16，G-prefix 合计 64/64，A-pure 合计随机）。`state-kv-temporal-causal.v1` 四臂 matched ablation 也已在 CPU 上通过，证明 correct/wrong State-KV 在真实 prefill residual、`z_t` 与 `beta_t` 上产生可归因分叉，revoked 精确回到 baseline。`state-kv-judge-court.v1` 多裁判聚合门已落地；实际第二本地裁判 `sentence-transformers/all-MiniLM-L6-v2` 在同一 full-probe cache 上复判为随机（G-prefix 16/32），court 正确返回 `fail`。因此载体进入、被读、进入 temporal 抽象以及单裁判 held-out 行为识别已经成立；默认 ACTIVE 晋升仍等待能通过的第二裁判 panel、多 generation-seed 聚合与部署安全 profile。
+> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke、P2 full-probe stochastic retention gate，以及 generation seeds 1701/1702/1703 的跨 seed 聚合（G-prefix 192/192，A-pure 96/192 且 CI 覆盖随机）。`state-kv-temporal-causal.v1` 四臂 matched ablation 证明 correct/wrong State-KV 在真实 prefill residual、`z_t` 与 `beta_t` 上产生可归因分叉，revoked 精确回到 baseline。`state-kv-judge-court.v1` 先用 `sentence-transformers/all-MiniLM-L6-v2` 验证了弱裁判 fail-closed，随后由 `BAAI/bge-m3` 与跨家族 `moka-ai/m3e-base` 在同一 full-probe cache 上共同通过（court floor 0.703）。因此载体进入、被读、进入 temporal 抽象、多 generation-seed 稳定性与双裁判 held-out 行为识别均已成立；默认 ACTIVE 晋升仅剩部署安全 profile 与回滚门。
 > Last updated: 2026-07-28
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
@@ -932,19 +932,20 @@ python scripts/run_state_kv_identification.py \
   --resume-turn-cache \
   --personal-conditioning-scale 0.12 \
   --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
-  --judge-kind embedding --judge-model-id sentence-transformers/all-MiniLM-L6-v2 \
-  --judge-source /Users/mengfu/.cache/huggingface/hub/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/c9745ed1d9f207416be6d2e6f8de32d1f16199bf \
+  --judge-kind embedding --judge-model-id moka-ai/m3e-base \
+  --judge-source /Users/mengfu/.cache/huggingface/hub/models--moka-ai--m3e-base/snapshots/764b537a0e50e5c7d64db883f2d2e051cbe3c64c \
   --judge-device cpu \
-  --output artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-allminilm/verdict_identification.json
+  --output artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-m3e/verdict_identification.json
 
 python scripts/run_state_kv_retention_gate.py \
-  --verdict artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-allminilm/verdict_identification.json \
-  --output artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-allminilm-retention/verdict_retention_gate.json
+  --verdict artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-m3e/verdict_identification.json \
+  --verdict artifacts/state_kv/p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1701-full-max16-m3e/verdict_identification.json \
+  --output artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-m3e-retention/verdict_retention_gate.json
 
 python scripts/run_state_kv_judge_court.py \
   --retention-report artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-retention/verdict_retention_gate.json \
-  --retention-report artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-allminilm-retention/verdict_retention_gate.json \
-  --output artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-judge-court/verdict_judge_court.json
+  --retention-report artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-m3e-retention/verdict_retention_gate.json \
+  --output artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-bge-m3e-judge-court/verdict_judge_court.json
 ```
 
 结果：
@@ -952,12 +953,53 @@ python scripts/run_state_kv_judge_court.py \
 | panel / gate | 结果 |
 |---|---|
 | BGE full-probe retention | `pass`：G-prefix 64/64，A-pure 32/64 随机 |
-| all-MiniLM repair-vs-execute rejudge | `fail`：G-prefix 16/32，CI 0.344..0.688，A-pure 16/32 随机 |
-| judge court | `fail`：2 个 distinct judges 覆盖成立，但 all-MiniLM panel 未 retain，且只覆盖 1 个 P2 pair |
+| m3e repair-vs-execute | `retain-strict`：G-prefix 28/32，CI 0.750..0.969；A-pure 16/32 随机 |
+| m3e boundary-vs-commit | `retain-strict`：G-prefix 24/32，CI 0.594..0.906；A-pure 16/32 随机 |
+| m3e retention | `pass`：G-prefix 52/64，CI low floor 0.703；A-pure 32/64 随机 |
+| BGE + m3e judge court | **`pass`**：两个 panel 共享同一 artifact / substrate / pair / rollout matrix，court floor 0.703 |
 
-这关闭的是**多裁判矩阵的契约与防放水门**：弱裁判或覆盖不足的第二 panel 不会让
-State-KV 晋升为“多模型裁判通过”。当前可引用主张仍限于 BGE 单裁判 retention；
-默认 `ACTIVE` 晋升前需要补一个能在完整两组 P2 pair 上通过的第二裁判 panel。
+`sentence-transformers/all-MiniLM-L6-v2` 的既有负对照仍保留：它在
+`repair-vs-execute` 上只得到 G-prefix 16/32，且缺第二个 pair，court 正确 fail。
+因此这里同时证明两件事：弱裁判/覆盖不足不会被放行，而通过裁判必须在完整相同
+material 上各自清 chance。m3e 是 BERT family，Qwen 是 decoder-only family，
+满足当前冻结的跨家族 judge 要求。
+
+#### P2 cross-generation-seed gate（2026-07-28）
+
+bootstrap seed 只影响 CI 重采样，不能替代真实生成随机性。新增只读聚合门
+`state-kv-generation-seed-gate.v1`，每个输入必须是不同 `sampling_seed` 的完整
+`state-kv-retention-gate.v1` report。它强制：
+
+1. judge / artifact / substrate / candidate / pair set / rollout config 完全一致；
+2. 至少三个不同 generation seed，且同一 seed 不得重复 report；
+3. 每个 seed 自己的 stochastic retention gate 均为 `pass`；
+4. 每个 seed 的 G-prefix CI 清 chance，A-pure CI 覆盖 chance；
+5. 跨 seed 合计后用预注册 bootstrap seeds 重算 CI，candidate 仍清 chance且
+   control 仍覆盖 chance。
+
+命令：
+
+```bash
+python scripts/run_state_kv_generation_seed_gate.py \
+  --retention-report artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-retention/verdict_retention_gate.json \
+  --retention-report artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1702-full-max16-retention/verdict_retention_gate.json \
+  --retention-report artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1703-full-max16-retention/verdict_retention_gate.json \
+  --output artifacts/state_kv/p2-state-strategy-routed-rollout-seeds-1701-1703-full-max16-generation-seed-gate/verdict_generation_seed_gate.json
+```
+
+结果：
+
+| 项 | 结果 |
+|---|---|
+| overall | **`pass`** |
+| generation seed coverage | 1701 / 1702 / 1703，三个独立 full-probe stochastic rollout |
+| per-seed G-prefix | 每个 seed 均 64/64；每个 retention gate 均 `pass` |
+| aggregate G-prefix | **192/192**，bootstrap CI **1.000..1.000** |
+| aggregate A-pure | **96/192**，bootstrap CI **0.427..0.573**，覆盖随机 |
+| seed audit | 960/960 turns 带 per-turn seed；每个 pair/seed 80 unique arm/probe seeds，同一 seed 的两个 pair 复用预注册 seed matrix |
+
+这关闭的是**真实 generation seed 稳定性**，不再把 bootstrap seed 稳定性误写成
+多次生成复现。它不改变在线 owner，也不把评估结果回灌模型或控制器。
 
 #### P3 stochastic rollout seed-alignment smoke（2026-07-28）
 

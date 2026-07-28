@@ -1,0 +1,147 @@
+{
+  "schema_version": "state-kv-judge-court.v1",
+  "court_state": "pass",
+  "claims": [
+    {
+      "claim": "claim_consistent_material",
+      "state": "pass",
+      "detail": "2 panels share artifact 8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238, substrate Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33, candidate state-kv-arm-g-prefix-pure, required pairs ('boundary-vs-commit', 'repair-vs-execute'), and rollout matrix"
+    },
+    {
+      "claim": "claim_multi_judge_coverage",
+      "state": "pass",
+      "detail": "2 distinct judges observed: BAAI/bge-m3, moka-ai/m3e-base"
+    },
+    {
+      "claim": "claim_panel_retained",
+      "state": "pass",
+      "detail": "2 panels passed their retention gates"
+    },
+    {
+      "claim": "claim_court_identification",
+      "state": "pass",
+      "detail": "all candidate CI lows clear chance; court floor=0.703"
+    },
+    {
+      "claim": "claim_court_carrier_causality",
+      "state": "pass",
+      "detail": "all panels keep A-pure at chance while G-prefix clears chance"
+    }
+  ],
+  "panels": [
+    {
+      "report_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-retention/verdict_retention_gate.json",
+      "gate_state": "pass",
+      "judge_model_id": "BAAI/bge-m3",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "required_p2_pairs": [
+        "boundary-vs-commit",
+        "repair-vs-execute"
+      ],
+      "rollout_matrix": [
+        [
+          "p2",
+          "boundary-vs-commit",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          1701,
+          true
+        ],
+        [
+          "p2",
+          "repair-vs-execute",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          1701,
+          true
+        ]
+      ],
+      "stochastic_generation_rollout_covered": true,
+      "candidate": {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "correct": 64,
+        "total": 64,
+        "accuracy": 1.0,
+        "ci_low_min": 1.0,
+        "ci_high_max": 1.0
+      },
+      "control": {
+        "arm": "state-kv-arm-a-pure",
+        "correct": 32,
+        "total": 64,
+        "accuracy": 0.5,
+        "ci_low_min": 0.375,
+        "ci_high_max": 0.625
+      }
+    },
+    {
+      "report_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-m3e-retention/verdict_retention_gate.json",
+      "gate_state": "pass",
+      "judge_model_id": "moka-ai/m3e-base",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "required_p2_pairs": [
+        "boundary-vs-commit",
+        "repair-vs-execute"
+      ],
+      "rollout_matrix": [
+        [
+          "p2",
+          "boundary-vs-commit",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          1701,
+          true
+        ],
+        [
+          "p2",
+          "repair-vs-execute",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          1701,
+          true
+        ]
+      ],
+      "stochastic_generation_rollout_covered": true,
+      "candidate": {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "correct": 52,
+        "total": 64,
+        "accuracy": 0.8125,
+        "ci_low_min": 0.703125,
+        "ci_high_max": 0.90625
+      },
+      "control": {
+        "arm": "state-kv-arm-a-pure",
+        "correct": 32,
+        "total": 64,
+        "accuracy": 0.5,
+        "ci_low_min": 0.375,
+        "ci_high_max": 0.625
+      }
+    }
+  ],
+  "min_judges": 2,
+  "judge_model_ids": [
+    "BAAI/bge-m3",
+    "moka-ai/m3e-base"
+  ],
+  "notes": [
+    "Court pass means the same retained State-KV result survived distinct judges on identical published material. It does not train or call any owner."
+  ]
+}
