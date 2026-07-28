@@ -303,6 +303,15 @@ ETA 的公共快照链，但不替代物理注入 attestation：capture 读取
 `SHADOW`、`DISABLED`、`text` carrier、cold-start 与撤销后 zeroed bank 均不注入也不发布
 substrate lineage；`begin_new_context()` 会清空上一轮水合源。
 
+每轮 `DialogueTrace` 同时保存并导出当轮的 `ConditioningLineage`，使延迟到达的
+`DialogueExternalOutcomeEvidence(session_scope, action_turn_index)` 可以只读联回真正
+塑造该动作的 bank set。归因 join 由 runtime 的
+`resolve_conditioning_lineage_for_outcome(...)` 唯一拥有：证据不可归因、目标 turn 已从
+有界 trace 中淘汰或该轮没有 live bank 时显式返回 `None`；证据与 trace 的
+`session_scope` 不一致属于跨用户/跨会话契约错误，必须 fail loudly，禁止猜测邻近 turn
+或回退到当前 bank。该 readout 只服务审计与后续 credit attribution，不修改 trace、
+PE、credit 或 conditioning owner 状态。
+
 2026-07-28 标准 artifact
 `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238`
 在冻结 Qwen2.5-0.5B CPU 上通过 `state-kv-temporal-causal.v1`：同 prompt 的

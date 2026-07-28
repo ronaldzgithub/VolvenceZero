@@ -133,6 +133,12 @@ class DialogueTraceStore:
                     "active_speaker_id": trace.environment_frame.active_speaker_id,
                     "subject_ids": trace.environment_frame.subject_ids,
                     "audience_ids": trace.environment_frame.audience_ids,
+                    # State KV P1 attribution audit: the per-turn lineage must
+                    # survive export, otherwise a delayed outcome (e.g. a CRM
+                    # purchase confirmation) arriving after the session ends
+                    # can be counted but never joined back to the bank set
+                    # that shaped the rated action.
+                    "conditioning_lineage": _lineage_row(trace.conditioning_lineage),
                 }
                 for trace in snapshot.traces
             ),
@@ -328,6 +334,25 @@ class DialogueTraceStore:
                 "structural mapping only."
             ),
         )
+
+
+def _lineage_row(lineage: ConditioningLineage | None) -> dict[str, object] | None:
+    """Flatten a lineage record for the JSON replay artifact.
+
+    ``None`` stays ``None`` so "no bank was live" remains distinguishable
+    from an empty-but-present record in the exported audit.
+    """
+
+    if lineage is None:
+        return None
+    return {
+        "session_scope": lineage.session_scope,
+        "selected_bank_set": lineage.selected_bank_set,
+        "bank_fingerprints": lineage.bank_fingerprints,
+        "state_encoder_version": lineage.state_encoder_version,
+        "prefix_generator_version": lineage.prefix_generator_version,
+        "router_version": lineage.router_version,
+    }
 
 
 def _previous_unresolved_id(

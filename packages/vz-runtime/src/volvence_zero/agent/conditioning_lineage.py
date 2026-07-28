@@ -28,7 +28,11 @@ from volvence_zero.conditioning_bank_contracts import (
     ConditioningBankSnapshot,
     ConditioningLineageRef,
 )
-from volvence_zero.dialogue_trace import ConditioningLineage
+from volvence_zero.dialogue_trace import (
+    ConditioningLineage,
+    DialogueExternalOutcomeEvidence,
+    DialogueTraceSnapshot,
+)
 
 
 def bank_fingerprint(bank: ConditioningBankSnapshot) -> str:
@@ -118,8 +122,62 @@ def build_conditioning_lineage_ref(
     )
 
 
+def resolve_conditioning_lineage_for_outcome(
+    *,
+    evidence: DialogueExternalOutcomeEvidence,
+    trace_snapshot: DialogueTraceSnapshot,
+) -> ConditioningLineage | None:
+    """Join an external outcome back to the bank set that shaped its action.
+
+    This is the attribution join the two contracts were built for: the
+    outcome carries ``(session_scope, action_turn_index)``, the dialogue
+    trace carries per-turn ``conditioning_lineage``, and this function is
+    the single place the two halves meet.
+
+    Returns ``None`` in exactly three documented cases, each of which means
+    "counted but not attributable" rather than an error:
+
+    * the evidence is not attributable (missing session scope or declared
+      action turn) -- guessing a turn would credit the wrong bank set;
+    * no trace exists for the declared turn (trimmed from the bounded
+      store, or never recorded) -- falling back to a nearby turn would
+      misattribute, so the honest answer is "cannot resolve";
+    * the turn exists but recorded no lineage -- no bank influenced that
+      action, which is a meaningful negative result for credit assignment.
+
+    A session-scope mismatch between the evidence and the located turn's
+    lineage raises instead of returning ``None``: the caller joined
+    evidence against the wrong session's trace snapshot, and silently
+    reporting "unattributable" would hide that wiring bug.
+    """
+
+    if not evidence.is_attributable:
+        return None
+    target = next(
+        (
+            trace
+            for trace in reversed(trace_snapshot.traces)
+            if trace.turn_index == evidence.action_turn_index
+        ),
+        None,
+    )
+    if target is None or target.conditioning_lineage is None:
+        return None
+    lineage = target.conditioning_lineage
+    if lineage.session_scope != evidence.session_scope:
+        raise ValueError(
+            "External outcome attribution joined across sessions: evidence "
+            f"session_scope={evidence.session_scope!r} does not match the "
+            f"lineage session_scope={lineage.session_scope!r} recorded for "
+            f"turn {evidence.action_turn_index}. The caller resolved against "
+            "the wrong session's dialogue trace snapshot."
+        )
+    return lineage
+
+
 __all__ = [
     "bank_fingerprint",
     "build_conditioning_lineage",
     "build_conditioning_lineage_ref",
+    "resolve_conditioning_lineage_for_outcome",
 ]

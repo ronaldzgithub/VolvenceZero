@@ -40,8 +40,12 @@ from volvence_zero.application.runtime import ApplicationPriorUpdate
 from volvence_zero.agent.dialogue_outcome_producers import (
     structural_outcome_evidence_from_external,
 )
+from volvence_zero.agent.conditioning_lineage import (
+    resolve_conditioning_lineage_for_outcome,
+)
 from volvence_zero.credit.gate import CreditSnapshot
 from volvence_zero.dialogue_trace import (
+    ConditioningLineage,
     DialogueExternalOutcomeEvidence,
     DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeKind,
@@ -272,6 +276,27 @@ class SessionLifecycleMixin:
                 evidence=(structural,),
             )
         return evidence
+
+    def resolve_dialogue_outcome_attribution(
+        self,
+        evidence: DialogueExternalOutcomeEvidence,
+    ) -> ConditioningLineage | None:
+        """Resolve an external outcome to the bank lineage of its action turn.
+
+        Read-only audit surface over this session's own dialogue trace: given
+        evidence previously produced by :meth:`submit_dialogue_outcome` (or
+        reconstructed from a durable sink), it answers "which conditioning
+        banks, at which state versions, shaped the action this outcome is
+        rating". Returns ``None`` for unattributable evidence, a trimmed or
+        unrecorded turn, or a turn where no bank was live -- see
+        :func:`resolve_conditioning_lineage_for_outcome` for the exact
+        semantics. It never mutates trace, PE, or credit state.
+        """
+
+        return resolve_conditioning_lineage_for_outcome(
+            evidence=evidence,
+            trace_snapshot=self._dialogue_trace_store.snapshot(),
+        )
 
     def enqueue_semantic_events(
         self,
