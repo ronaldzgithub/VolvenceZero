@@ -7,14 +7,17 @@ from volvence_zero.agent.eta_gate2_residual_evidence import (
     ETA_GATE2_REQUIRED_FILES,
     ETA_GATE2_REQUIRED_MANIFEST_KEYS,
     _build_ablation_results,
+    _promotion_verdict,
     build_eta_gate2_residual_manifest,
     export_eta_gate2_residual_bundle,
 )
 from volvence_zero.agent.eta_proof_benchmark import (
     ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+    ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME,
     ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
     ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS,
     ETAOpenWeightRuntimeConfig,
+    _counterfactual_selector_metric_rows,
     default_eta_proof_cases,
     eta_gate2_expanded_cases,
     eta_gate2_expected_value_cases,
@@ -23,6 +26,7 @@ from volvence_zero.agent.eta_proof_benchmark import (
     run_eta_internal_rl_paper_suite,
     run_eta_internal_rl_proof_benchmark,
 )
+from volvence_zero.internal_rl import CounterfactualActionSelection
 from volvence_zero.substrate import build_builtin_transformers_runtime
 
 
@@ -166,10 +170,22 @@ def test_eta_gate2_freezes_expected_value_validation_corpus() -> None:
     ] == ("disabled",)
     assert case_groups["real_residual_activation_width"] == ("896",)
     assert case_groups["counterfactual_target_mode"] == (
-        ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
+        ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME,
     )
-    assert case_groups["counterfactual_target_sample_count"] == ("4",)
-    assert case_groups["counterfactual_audit_sample_count"] == ("4",)
+    assert case_groups["counterfactual_target_sample_count"] == ("1",)
+    assert case_groups["counterfactual_audit_sample_count"] == ("1",)
+    assert case_groups["counterfactual_outcome_chain"] == (
+        "z-candidate->residual-forward->realized-continuation-nll"
+        "->prediction-error->action-credit",
+    )
+    assert case_groups["counterfactual_audit_surface"] == (
+        "subsequent-realized-segment-teacher-forced-"
+        "nll-improvement-vs-zero-control",
+    )
+    assert case_groups["counterfactual_primary_target"] == (
+        "realized-next-segment-teacher-forced-"
+        "nll-improvement-vs-zero-control",
+    )
     assert not any(
         case.split == "confirmation" for case in expected_value_cases
     )
@@ -216,7 +232,7 @@ def test_eta_gate2_independent_training_text_avoids_development_content_words() 
     assert independent_words.isdisjoint(development_words)
 
 
-def test_eta_gate2_v30_validation_text_is_lexically_fresh() -> None:
+def test_eta_gate2_v31_validation_text_is_lexically_fresh() -> None:
     stop_words = {
         "a",
         "across",
@@ -258,7 +274,7 @@ def test_eta_gate2_v30_validation_text_is_lexically_fresh() -> None:
     assert validation_words.isdisjoint(existing_words)
 
 
-def test_eta_gate2_bundle_exports_frozen_v30_file_contract(
+def test_eta_gate2_bundle_exports_frozen_v31_file_contract(
     tmp_path,
 ) -> None:
     manifest = build_eta_gate2_residual_manifest(suite_tier="ci-smoke")
@@ -332,16 +348,29 @@ def test_eta_gate2_bundle_exports_frozen_v30_file_contract(
         "live_injection": "disabled",
     }
     assert manifest_payload["counterfactual_target"] == {
-        "mode": ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
-        "target_sample_count": 4,
-        "audit_sample_count": 4,
-        "sampling_temperature": 0.8,
-        "sampling_max_new_tokens": 4,
+        "mode": ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME,
+        "target_sample_count": 1,
+        "audit_sample_count": 1,
+        "sampling_temperature": 0.0,
+        "sampling_max_new_tokens": 0,
         "sampling_seed_protocol": (
-            "sha256-case-prefix-cohort-index"
+            "not-applicable-deterministic-environment-forward"
         ),
         "audit_role": (
-            "readout-and-train-route-cv-model-selection-only"
+            "subsequent-realized-segment-transfer-readout-and-"
+            "train-route-cv-model-selection-only"
+        ),
+        "outcome_chain": (
+            "z-candidate->residual-forward->realized-continuation-nll"
+            "->prediction-error->action-credit"
+        ),
+        "primary_target": (
+            "realized-next-segment-teacher-forced-"
+            "nll-improvement-vs-zero-control"
+        ),
+        "audit_surface": (
+            "subsequent-realized-segment-teacher-forced-"
+            "nll-improvement-vs-zero-control"
         ),
     }
     assert manifest_payload["residual_capture"] == {
@@ -455,6 +484,7 @@ def test_eta_gate2_causal_verdict_requires_eval_and_fresh_confirmation() -> None
         predictions=[],
         outcomes=outcomes,
         metric_samples={},
+        counterfactual_outcomes=[],
         confirmation_split_locked=True,
     )
 
@@ -471,6 +501,7 @@ def test_eta_gate2_causal_verdict_requires_eval_and_fresh_confirmation() -> None
             row for row in outcomes if row["split"] != "confirmation"
         ],
         metric_samples={},
+        counterfactual_outcomes=[],
         confirmation_split_locked=True,
     )
     assert not without_confirmation["causal_gates"][
@@ -484,10 +515,141 @@ def test_eta_gate2_causal_verdict_requires_eval_and_fresh_confirmation() -> None
         predictions=[],
         outcomes=outcomes,
         metric_samples={},
+        counterfactual_outcomes=[],
     )
     assert not unlocked_confirmation["causal_gates"][
         "fresh_confirmation_split_locked"
     ]
+
+
+def _counterfactual_grid_rows(
+    *,
+    split: str,
+    prefix_count: int,
+    audit_tracks_target: bool,
+) -> list[dict]:
+    target_credits = (0.0, 0.01, 0.002, -0.004)
+    if audit_tracks_target:
+        # Same candidate wins on the independent audit cohort: real signal.
+        audit_credits = (0.0, 0.008, 0.001, -0.003)
+    else:
+        # Target argmax (index 1) lands below the audit candidate mean:
+        # the target oracle is max-of-noise selection bias.
+        audit_credits = (0.0, -0.009, 0.006, 0.006)
+    rows: list[dict] = []
+    for prefix in range(prefix_count):
+        for candidate_index in range(len(target_credits)):
+            rows.append(
+                {
+                    "profile_label": "full-internal-rl",
+                    "split": split,
+                    "observation_id": (
+                        f"route-a:{split}-0:prefix-{prefix}"
+                        f":candidate-{candidate_index}"
+                    ),
+                    "candidate_index": candidate_index,
+                    "action_credit": target_credits[candidate_index],
+                    "audit_action_credit": audit_credits[
+                        candidate_index
+                    ],
+                }
+            )
+    return rows
+
+
+def test_eta_gate2_signal_gates_reject_max_of_noise_oracle() -> None:
+    rows = [
+        *_counterfactual_grid_rows(
+            split="train",
+            prefix_count=3,
+            audit_tracks_target=False,
+        ),
+        *_counterfactual_grid_rows(
+            split="validation",
+            prefix_count=2,
+            audit_tracks_target=False,
+        ),
+    ]
+    ablation = _build_ablation_results(
+        predictions=[],
+        outcomes=[],
+        metric_samples={},
+        counterfactual_outcomes=rows,
+    )
+
+    train_diagnostics = ablation["oracle_permutation_null_by_split"][
+        "train"
+    ]
+    # The trap this gate exists for: target-cohort oracle looks positive...
+    assert train_diagnostics["observed_oracle_target_mean"] > 0.0
+    # ...but the argmax candidate does not survive independent audit.
+    assert (
+        train_diagnostics["transfer_excess_over_null_mean"] < 0.0
+    )
+    assert not ablation["signal_gates"][
+        "train_oracle_transfer_exceeds_permutation_null"
+    ]
+    assert not ablation["signal_gates"][
+        "validation_oracle_transfer_exceeds_permutation_null"
+    ]
+    assert ablation["reachable_solution_evidence"] is False
+
+    verdict = _promotion_verdict(ablation)
+    assert verdict["promotion_allowed"] is False
+    assert verdict["reachable_solution_evidence"] is False
+    assert (
+        "train_oracle_transfer_exceeds_permutation_null"
+        in verdict["kill_conditions"]
+    )
+
+
+def test_eta_gate2_reachable_solution_evidence_gates_causal_promotion() -> None:
+    def _ablation_with_grid(*, audit_tracks_target: bool) -> dict:
+        rows = [
+            *_counterfactual_grid_rows(
+                split="train",
+                prefix_count=3,
+                audit_tracks_target=audit_tracks_target,
+            ),
+            *_counterfactual_grid_rows(
+                split="validation",
+                prefix_count=2,
+                audit_tracks_target=audit_tracks_target,
+            ),
+        ]
+        return _build_ablation_results(
+            predictions=[],
+            outcomes=[],
+            metric_samples={},
+            counterfactual_outcomes=rows,
+        )
+
+    transferable = _ablation_with_grid(audit_tracks_target=True)
+    assert all(transferable["signal_gates"].values())
+    assert transferable["reachable_solution_evidence"] is True
+
+    noise = _ablation_with_grid(audit_tracks_target=False)
+    assert noise["reachable_solution_evidence"] is False
+
+    # With mechanism + causal gates all green, promotion must still hinge on
+    # reachable-solution evidence.
+    other_gates_green = {
+        "all_mechanism_gates_passed": True,
+        "all_causal_gates_passed": True,
+        "mechanism_gates": {"probe": True},
+        "causal_gates": {"probe": True},
+    }
+    promoted = _promotion_verdict({**transferable, **other_gates_green})
+    assert promoted["status"] == "causal-supported"
+    assert promoted["promotion_allowed"] is True
+
+    refused = _promotion_verdict({**noise, **other_gates_green})
+    assert refused["status"] == "mechanism-supported"
+    assert refused["promotion_allowed"] is False
+    assert any(
+        gate in refused["kill_conditions"]
+        for gate in noise["signal_gates"]
+    )
 
 
 def test_eta_real_residual_records_observed_continuation_nll() -> None:
@@ -638,3 +800,117 @@ def test_eta_real_residual_records_observed_continuation_nll() -> None:
             ]
             == 0.0
         )
+
+
+def test_eta_environment_outcome_target_uses_pe_credit_not_self_nll() -> None:
+    cases = default_eta_proof_cases()
+    train_case = next(case for case in cases if case.split == "train")
+    heldout_case = next(
+        case for case in cases if case.split == "heldout"
+    )
+    runtime = build_builtin_transformers_runtime(
+        model_id="eta-environment-outcome-target-test",
+    )
+
+    report = run_eta_internal_rl_proof_benchmark(
+        cases=(train_case, heldout_case),
+        profile_labels=("full-internal-rl",),
+        backend_label="transformers-open-weight",
+        train_epochs=1,
+        open_weight_runtime=runtime,
+        open_weight_config=ETAOpenWeightRuntimeConfig(
+            require_real_backend=False,
+            max_prefix_steps=4,
+        ),
+        training_signal=ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+        latent_unit_clamp=True,
+        continuation_counterfactual_grid=True,
+        counterfactual_target_mode=(
+            ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+        ),
+    )
+
+    profile = report.profile_reports[0]
+    metrics = dict(profile.metric_means)
+    assert metrics["continuation_pe_training_transition_count"] > 0.0
+    assert metrics["counterfactual_generated_continuation_count"] == 0.0
+    assert metrics["counterfactual_environment_outcome_target_active"] == 1.0
+    assert metrics["counterfactual_environment_application_count"] > 0.0
+    assert (
+        metrics[
+            "counterfactual_environment_pe_credit_transition_count"
+        ]
+        == metrics["continuation_pe_training_transition_count"]
+    )
+    assert metrics["counterfactual_self_nll_target_active"] == 0.0
+    records = profile.counterfactual_outcome_records
+    assert records
+    assert all(
+        record.outcome_chain
+        == (
+            "residual-forward->environment-outcome->prediction-error"
+            "->action-credit"
+        )
+        for record in records
+    )
+    assert any(record.action_credit > 0.0 for record in records)
+    assert any(record.action_credit < 0.0 for record in records)
+    assert all(
+        record.target_signature != record.audit_target_signature
+        for record in records
+    )
+
+
+def test_eta_selector_injection_requires_positive_audit_on_every_frozen_split() -> None:
+    def selection(
+        split: str,
+        *,
+        audit_selected_raw_delta: float,
+    ) -> CounterfactualActionSelection:
+        return CounterfactualActionSelection(
+            example_id=f"{split}:example",
+            group_id=f"{split}:group",
+            split=split,
+            prediction_source="test-frozen-selector",
+            selected_action_index=1,
+            oracle_action_index=1,
+            predicted_top3_action_indices=(1, 2, 3),
+            selected_raw_delta=0.1,
+            oracle_raw_delta=0.1,
+            oracle_regret=0.0,
+            top1_match=True,
+            top3_match=True,
+            selected_positive=True,
+            audit_selected_raw_delta=audit_selected_raw_delta,
+            audit_oracle_raw_delta=max(
+                audit_selected_raw_delta,
+                0.1,
+            ),
+            audit_oracle_regret=max(
+                0.0,
+                0.1 - audit_selected_raw_delta,
+            ),
+            audit_selected_positive=(
+                audit_selected_raw_delta > 0.0
+            ),
+            model_fingerprint="test-selector",
+        )
+
+    metrics = dict(
+        _counterfactual_selector_metric_rows(
+            selections=(
+                selection("train", audit_selected_raw_delta=0.1),
+                selection("eval", audit_selected_raw_delta=-0.01),
+                selection("heldout", audit_selected_raw_delta=0.1),
+                selection("validation", audit_selected_raw_delta=0.1),
+            ),
+            input_dim=4,
+            latent_dim=4,
+            action_count=22,
+            ridge_strength=1.0,
+            model_candidate_count=3,
+            explained_variance_ratio=1.0,
+        )
+    )
+
+    assert metrics["counterfactual_selector_injection_gate_passed"] == 0.0

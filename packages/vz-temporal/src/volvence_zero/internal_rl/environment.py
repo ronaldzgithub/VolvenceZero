@@ -238,6 +238,23 @@ class InternalRLProofProgress:
     terminal_success: bool = False
 
 
+@dataclass(frozen=True)
+class InternalRLOutcomeMeasurement:
+    """Read-only environment result for one residual intervention.
+
+    The environment owns the mapping from an observed post-control residual
+    state to normalized task progress. Prediction Error and credit remain
+    downstream owners; this contract contains no reward or preferred action.
+    """
+
+    target_signature: tuple[float, ...]
+    observed_signature: tuple[float, ...]
+    downstream_effect: tuple[float, ...]
+    task_progress: float
+    action_payoff: float
+    description: str
+
+
 class InternalRLEnvironment:
     """Trace-driven internal RL environment with explicit decoder control."""
 
@@ -418,6 +435,108 @@ class InternalRLEnvironment:
             return 0.0
         dot = sum(lv * rv for lv, rv in zip(normalized_left, normalized_right, strict=True))
         return max(0.0, min(1.0, (dot + 1.0) * 0.5))
+
+    def measure_residual_outcome(
+        self,
+        *,
+        applied_snapshot: SubstrateSnapshot,
+        target_signature: tuple[float, ...],
+        downstream_effect: tuple[float, ...],
+    ) -> InternalRLOutcomeMeasurement:
+        """Measure an actual post-intervention state against an environment target.
+
+        This is deliberately read-only: callers perform the residual forward,
+        then give the resulting immutable snapshot to the environment owner.
+        The score uses the observed residual state only, never the requested
+        control vector, so a large or semantically convenient action cannot
+        receive payoff unless the frozen substrate actually moved toward the
+        target.
+        """
+
+        if not target_signature:
+            raise ValueError(
+                "residual outcome measurement requires a target signature"
+            )
+        sequence = residual_sequence_from_snapshot(applied_snapshot)
+        observed_steps = tuple(
+            summarize_residual_activations(
+                step.residual_activations,
+                step.feature_surface,
+            )
+            for step in sequence
+        )
+        observed_signature = tuple(
+            sum(step[index] for step in observed_steps)
+            / len(observed_steps)
+            for index in range(3)
+        )
+        normalized_target = self._compress_signature(
+            target_signature,
+            size=3,
+        )
+        progress = self._alignment_score(
+            observed_signature,
+            normalized_target,
+        )
+        return InternalRLOutcomeMeasurement(
+            target_signature=normalized_target,
+            observed_signature=observed_signature,
+            downstream_effect=downstream_effect,
+            task_progress=progress,
+            action_payoff=progress,
+            description=(
+                "Observed post-control residual outcome "
+                f"progress={progress:.6f}; requested control is excluded "
+                "from the payoff calculation."
+            ),
+        )
+
+    def measure_realized_continuation_outcome(
+        self,
+        *,
+        zero_control_mean_nll: float,
+        observed_mean_nll: float,
+        downstream_effect: tuple[float, ...],
+    ) -> InternalRLOutcomeMeasurement:
+        """Measure an intervention against the realized next environment state.
+
+        The realized continuation (the actual next route segment that arrived
+        in the environment) is the outcome target. Task progress is the signed
+        per-token log-likelihood improvement of that realized segment under
+        the observed post-control forward relative to the frozen zero-control
+        forward, clamped to the signed unit interval. Both quantities are
+        deterministic teacher-forced observations of the frozen substrate's
+        behavior; the requested control vector never enters the payoff.
+
+        This readout replaces the residual-signature alignment for
+        counterfactual outcome grids: the signature summary saturates its
+        clamped statistics and is nearly orthogonal to the bounded control
+        basis, which capped observable effects at the 1e-4 scale regardless
+        of the actual behavioral consequence of the intervention.
+        """
+
+        if zero_control_mean_nll < 0.0 or observed_mean_nll < 0.0:
+            raise ValueError(
+                "realized continuation outcome requires nonnegative "
+                "mean negative log-likelihoods"
+            )
+        improvement = max(
+            -1.0,
+            min(1.0, zero_control_mean_nll - observed_mean_nll),
+        )
+        return InternalRLOutcomeMeasurement(
+            target_signature=(zero_control_mean_nll,),
+            observed_signature=(observed_mean_nll,),
+            downstream_effect=downstream_effect,
+            task_progress=improvement,
+            action_payoff=improvement,
+            description=(
+                "Realized-continuation outcome: signed per-token NLL "
+                f"improvement {improvement:+.6f} of the realized next "
+                "segment versus the frozen zero-control forward; requested "
+                "control is excluded from the payoff calculation."
+            ),
+        )
 
     def _proof_signature(
         self,

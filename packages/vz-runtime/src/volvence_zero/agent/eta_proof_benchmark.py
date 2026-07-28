@@ -25,6 +25,14 @@ from volvence_zero.evaluation import (
     build_pairwise_metric_effect,
     build_metric_interval_summaries,
 )
+from volvence_zero.credit.gate import (
+    derive_prediction_error_credit_records,
+)
+from volvence_zero.environment import (
+    EnvironmentEventKind,
+    EnvironmentMeasurement,
+    EnvironmentOutcome,
+)
 
 from volvence_zero.internal_rl import (
     CausalPolicyCheckpoint,
@@ -46,6 +54,12 @@ from volvence_zero.internal_rl import (
     residual_action_state_vector,
     select_counterfactual_actions,
     summarize_action_selections,
+)
+from volvence_zero.prediction.error import (
+    ActualOutcome,
+    PredictedOutcome,
+    PredictionActionContext,
+    PredictionErrorModule,
 )
 from volvence_zero.memory import Track
 from volvence_zero.runtime import WiringLevel
@@ -86,6 +100,9 @@ ETA_COUNTERFACTUAL_TARGET_OBSERVED = "observed-single-continuation"
 ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED = (
     "sampled-prefix-expected-value"
 )
+ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME = (
+    "environment-outcome-pe-credit"
+)
 
 
 @dataclass(frozen=True)
@@ -125,6 +142,34 @@ class ETAResidualInterventionRecord:
     continuation_token_count: int = 0
     continuation_mean_nll: float | None = None
     continuation_geometric_mean_probability: float | None = None
+
+
+@dataclass(frozen=True)
+class ETACounterfactualOutcomeRecord:
+    observation_id: str
+    case_id: str
+    split: str
+    phase: str
+    step_index: int
+    segment_id: str
+    candidate_index: int
+    latent_code: tuple[float, ...]
+    applied_control: tuple[float, ...]
+    target_signature: tuple[float, ...]
+    observed_signature: tuple[float, ...]
+    downstream_effect: tuple[float, ...]
+    expected_task_progress: float
+    actual_task_progress: float
+    prediction_error_magnitude: float
+    action_credit: float
+    audit_target_signature: tuple[float, ...]
+    audit_actual_task_progress: float
+    audit_prediction_error_magnitude: float
+    audit_action_credit: float
+    outcome_chain: str = (
+        "residual-forward->realized-continuation-nll->prediction-error"
+        "->action-credit"
+    )
 
 
 @dataclass(frozen=True)
@@ -192,6 +237,9 @@ class ETAProofProfileReport:
     description: str
     action_selection_records: tuple[
         CounterfactualActionSelection, ...
+    ] = ()
+    counterfactual_outcome_records: tuple[
+        ETACounterfactualOutcomeRecord, ...
     ] = ()
 
 
@@ -2069,11 +2117,498 @@ def _continuation_nlls(
     )
 
 
-def _with_counterfactual_continuation_pe_rewards(
+def _pe_action_credit(
     *,
+    prediction_error_module: PredictionErrorModule,
+    expected_outcome: EnvironmentOutcome,
+    actual_outcome: EnvironmentOutcome,
+    segment_id: str,
+    abstract_action_id: str,
+    z_t_digest: tuple[float, ...],
+    timestamp_ms: int,
+) -> tuple[float, float]:
+    expected_measurement = expected_outcome.measurement
+    actual_measurement = actual_outcome.measurement
+    if expected_measurement is None or actual_measurement is None:
+        raise ValueError(
+            "counterfactual environment outcomes require measurements"
+        )
+    if (
+        expected_measurement.task_progress is None
+        or expected_measurement.action_payoff is None
+        or actual_measurement.task_progress is None
+        or actual_measurement.action_payoff is None
+    ):
+        raise ValueError(
+            "counterfactual environment outcomes require task progress "
+            "and action payoff"
+        )
+    action_context = PredictionActionContext(
+        segment_id=segment_id,
+        abstract_action_id=abstract_action_id,
+        z_t_digest=z_t_digest,
+        environment_event_id=actual_outcome.event_id,
+        environment_outcome_id=actual_outcome.outcome_id,
+        environment_task_progress=actual_measurement.task_progress,
+        environment_action_payoff=actual_measurement.action_payoff,
+        environment_outcome_terminal=actual_measurement.terminal,
+        prediction_id=expected_outcome.prediction_id or "",
+    )
+    predicted = PredictedOutcome(
+        source_turn_index=timestamp_ms,
+        target_turn_index=timestamp_ms + 1,
+        predicted_task_progress=expected_measurement.task_progress,
+        predicted_relationship_delta=0.0,
+        predicted_regime_stability=0.0,
+        predicted_action_payoff=expected_measurement.action_payoff,
+        confidence=expected_outcome.confidence,
+        description=(
+            "Frozen zero-control environment outcome used as the "
+            "pre-action counterfactual prediction."
+        ),
+        action_context=action_context,
+        prediction_id=expected_outcome.prediction_id or "",
+    )
+    actual = ActualOutcome(
+        observed_turn_index=timestamp_ms + 1,
+        task_progress=actual_measurement.task_progress,
+        relationship_delta=0.0,
+        regime_stability=0.0,
+        action_payoff=actual_measurement.action_payoff,
+        description=actual_outcome.detail,
+        action_context=action_context,
+    )
+    prediction_error = prediction_error_module.compute_prediction_error(
+        predicted=predicted,
+        actual_outcome=actual,
+    )
+    action_records = tuple(
+        record
+        for record in derive_prediction_error_credit_records(
+            prediction_error=prediction_error,
+            timestamp_ms=timestamp_ms,
+            action_context=action_context,
+        )
+        if record.source_event == "pe:action"
+    )
+    if len(action_records) != 1:
+        raise ValueError(
+            "PE credit owner must publish exactly one pe:action record"
+        )
+    return (
+        action_records[0].credit_value,
+        prediction_error.magnitude,
+    )
+
+
+def _with_counterfactual_environment_outcome_rewards(
+    *,
+    case: ETAProofCase,
+    evidence_phase: str,
     runtime: OpenWeightResidualRuntime,
     rollout: ZRollout,
+    substrate_steps: tuple[SubstrateSnapshot, ...],
     source_text_by_step: tuple[str, ...],
+    proof_episode: InternalRLProofEpisode,
+    policy: FullLearnedTemporalPolicy,
+    application_cache: dict[
+        tuple[str, tuple[float, ...]],
+        Any,
+    ],
+    score_cache: dict[
+        tuple[str, str, tuple[float, ...]],
+        float,
+    ],
+    outcome_records: list[ETACounterfactualOutcomeRecord],
+) -> tuple[
+    ZRollout,
+    tuple[float, ...],
+    tuple[tuple[float, ...], ...],
+    tuple[tuple[float, ...], ...],
+]:
+    """Score the counterfactual grid against realized route continuations.
+
+    Outcome definition (schema v33): for each grid step the primary outcome is
+    the deterministic teacher-forced per-token NLL of the realized next route
+    segment under each candidate control, and the audit outcome is the same
+    measurement on the subsequent realized segment scored from the next
+    prefix. The environment owner converts the (zero-control, candidate) NLL
+    pair into a signed likelihood-improvement measurement; PE and credit stay
+    downstream. This replaces the v31 residual-signature alignment readout,
+    whose clamped 3-dim summary was nearly orthogonal to the bounded control
+    basis and capped observable effects at the 1e-4 scale.
+    """
+
+    if len(substrate_steps) != len(rollout.transitions):
+        raise ValueError(
+            "environment outcome target requires one substrate snapshot "
+            "per rollout transition"
+        )
+    if len(source_text_by_step) != len(substrate_steps):
+        raise ValueError(
+            "environment outcome target requires one source prefix per "
+            "substrate snapshot"
+        )
+    if policy.parameter_store.n_z != 3:
+        raise ValueError(
+            "ETA environment outcome counterfactual grid currently "
+            "requires n_z=3"
+        )
+    subgoals_by_id = {
+        subgoal.subgoal_id: subgoal
+        for subgoal in proof_episode.subgoals
+    }
+    if not subgoals_by_id:
+        raise ValueError(
+            "environment outcome target requires proof subgoals"
+        )
+    environment = InternalRLEnvironment()
+    prediction_error_module = PredictionErrorModule()
+    decoder = ResidualDecoder()
+    candidates = _continuation_counterfactual_candidates()
+    all_prediction_errors: list[float] = []
+    target_rows: list[tuple[float, ...]] = []
+    audit_rows: list[tuple[float, ...]] = []
+    updated_transitions = []
+
+    for index, transition in enumerate(rollout.transitions[:-1]):
+        if index + 2 >= len(source_text_by_step):
+            # The realized audit segment (prefix i+1 -> i+2) does not exist
+            # for the final grid step; the grid only emits rows whose primary
+            # and audit outcomes are both realized in the route.
+            continue
+        subgoal = subgoals_by_id.get(transition.proof_subgoal_id or "")
+        if subgoal is None:
+            raise ValueError(
+                "environment outcome target requires a published active "
+                f"proof subgoal at step {index}"
+            )
+        source_text = source_text_by_step[index]
+        next_prefix = source_text_by_step[index + 1]
+        audit_prefix = source_text_by_step[index + 2]
+        realized_segment = next_prefix[len(source_text):].strip()
+        audit_segment = audit_prefix[len(next_prefix):].strip()
+        if not realized_segment or not audit_segment:
+            raise ValueError(
+                "environment outcome target requires strictly growing "
+                f"route prefixes at step {index} of case {case.case_id}"
+            )
+        substrate_snapshot = substrate_steps[index]
+        candidate_evidence = []
+        for candidate_index, candidate in enumerate(candidates):
+            decoded = decoder.decode(
+                latent_code=candidate,
+                decoder_matrix=policy.parameter_store.decoder_matrix,
+                hidden_matrix=policy.parameter_store.decoder_hidden,
+            )
+            cache_key = (source_text, decoded.applied_control)
+            application = application_cache.get(cache_key)
+            if application is None:
+                application = runtime.apply_control(
+                    source_text=source_text,
+                    substrate_snapshot=substrate_snapshot,
+                    applied_control=decoded.applied_control,
+                    track_scale=(0.7, 0.7, 0.7),
+                )
+                application_cache[cache_key] = application
+            primary_nll = _continuation_nlls(
+                runtime=runtime,
+                source_text=source_text,
+                continuation_texts=(realized_segment,),
+                applied_control=decoded.applied_control,
+                score_cache=score_cache,
+            )[0]
+            audit_nll = _continuation_nlls(
+                runtime=runtime,
+                source_text=next_prefix,
+                continuation_texts=(audit_segment,),
+                applied_control=decoded.applied_control,
+                score_cache=score_cache,
+            )[0]
+            candidate_evidence.append(
+                (
+                    candidate_index,
+                    candidate,
+                    decoded,
+                    application,
+                    primary_nll,
+                    audit_nll,
+                )
+            )
+
+        (
+            _zero_index,
+            zero_candidate,
+            _zero_decoded,
+            zero_application,
+            zero_primary_nll,
+            zero_audit_nll,
+        ) = candidate_evidence[0]
+        if zero_candidate != (0.0, 0.0, 0.0):
+            raise ValueError(
+                "environment outcome grid must use zero control as the "
+                "frozen pre-action prediction"
+            )
+        zero_primary = environment.measure_realized_continuation_outcome(
+            zero_control_mean_nll=zero_primary_nll,
+            observed_mean_nll=zero_primary_nll,
+            downstream_effect=zero_application.downstream_effect,
+        )
+        zero_audit = environment.measure_realized_continuation_outcome(
+            zero_control_mean_nll=zero_audit_nll,
+            observed_mean_nll=zero_audit_nll,
+            downstream_effect=zero_application.downstream_effect,
+        )
+        event_id = f"{proof_episode.episode_id}:prefix-{index}"
+        prediction_id = f"{event_id}:zero-control-prediction"
+        expected_primary = EnvironmentOutcome(
+            outcome_id=f"{event_id}:primary:expected",
+            event_id=event_id,
+            outcome_kind=EnvironmentEventKind.INTERNAL_DRIVE,
+            action_id="counterfactual-zero-control",
+            status="observed",
+            summary=(
+                "Frozen zero-control realized-continuation baseline."
+            ),
+            detail=zero_primary.description,
+            confidence=1.0,
+            prediction_id=prediction_id,
+            evidence=("teacher-forced-realized-continuation",),
+            measurement=EnvironmentMeasurement(
+                task_progress=zero_primary.task_progress,
+                action_payoff=zero_primary.action_payoff,
+            ),
+        )
+        expected_audit = replace(
+            expected_primary,
+            outcome_id=f"{event_id}:audit:expected",
+            summary=(
+                "Frozen zero-control audit baseline on the subsequent "
+                "realized route segment."
+            ),
+            detail=zero_audit.description,
+            measurement=EnvironmentMeasurement(
+                task_progress=zero_audit.task_progress,
+                action_payoff=zero_audit.action_payoff,
+            ),
+        )
+        scored_candidates = []
+        target_row = []
+        audit_row = []
+        for (
+            candidate_index,
+            candidate,
+            decoded,
+            application,
+            primary_nll,
+            audit_nll,
+        ) in candidate_evidence:
+            primary_measurement = (
+                environment.measure_realized_continuation_outcome(
+                    zero_control_mean_nll=zero_primary_nll,
+                    observed_mean_nll=primary_nll,
+                    downstream_effect=application.downstream_effect,
+                )
+            )
+            audit_measurement = (
+                environment.measure_realized_continuation_outcome(
+                    zero_control_mean_nll=zero_audit_nll,
+                    observed_mean_nll=audit_nll,
+                    downstream_effect=application.downstream_effect,
+                )
+            )
+            action_id = f"counterfactual-z-{candidate_index}"
+            actual_primary = EnvironmentOutcome(
+                outcome_id=f"{event_id}:primary:{candidate_index}",
+                event_id=event_id,
+                outcome_kind=EnvironmentEventKind.INTERNAL_DRIVE,
+                action_id=action_id,
+                status="observed",
+                summary="Observed realized-continuation outcome.",
+                detail=primary_measurement.description,
+                confidence=1.0,
+                prediction_id=prediction_id,
+                evidence=("teacher-forced-realized-continuation",),
+                measurement=EnvironmentMeasurement(
+                    task_progress=primary_measurement.task_progress,
+                    action_payoff=primary_measurement.action_payoff,
+                ),
+            )
+            actual_audit = replace(
+                actual_primary,
+                outcome_id=f"{event_id}:audit:{candidate_index}",
+                summary=(
+                    "Observed realized-continuation audit outcome on the "
+                    "subsequent route segment."
+                ),
+                detail=audit_measurement.description,
+                measurement=EnvironmentMeasurement(
+                    task_progress=audit_measurement.task_progress,
+                    action_payoff=audit_measurement.action_payoff,
+                ),
+            )
+            segment_id = (
+                f"{proof_episode.episode_id}:{subgoal.subgoal_id}"
+            )
+            primary_credit, primary_pe_magnitude = _pe_action_credit(
+                prediction_error_module=prediction_error_module,
+                expected_outcome=expected_primary,
+                actual_outcome=actual_primary,
+                segment_id=segment_id,
+                abstract_action_id=transition.abstract_action,
+                z_t_digest=candidate,
+                timestamp_ms=index,
+            )
+            audit_credit, audit_pe_magnitude = _pe_action_credit(
+                prediction_error_module=prediction_error_module,
+                expected_outcome=expected_audit,
+                actual_outcome=actual_audit,
+                segment_id=segment_id,
+                abstract_action_id=transition.abstract_action,
+                z_t_digest=candidate,
+                timestamp_ms=index,
+            )
+            outcome_records.append(
+                ETACounterfactualOutcomeRecord(
+                    observation_id=(
+                        f"{case.case_id}:{evidence_phase}:prefix-{index}:"
+                        f"candidate-{candidate_index}"
+                    ),
+                    case_id=case.case_id,
+                    split=case.split,
+                    phase=evidence_phase,
+                    step_index=index,
+                    segment_id=segment_id,
+                    candidate_index=candidate_index,
+                    latent_code=candidate,
+                    applied_control=decoded.applied_control,
+                    target_signature=primary_measurement.target_signature,
+                    observed_signature=primary_measurement.observed_signature,
+                    downstream_effect=application.downstream_effect,
+                    expected_task_progress=zero_primary.task_progress,
+                    actual_task_progress=primary_measurement.task_progress,
+                    prediction_error_magnitude=primary_pe_magnitude,
+                    action_credit=primary_credit,
+                    audit_target_signature=(
+                        audit_measurement.target_signature
+                    ),
+                    audit_actual_task_progress=(
+                        audit_measurement.task_progress
+                    ),
+                    audit_prediction_error_magnitude=(
+                        audit_pe_magnitude
+                    ),
+                    audit_action_credit=audit_credit,
+                )
+            )
+            all_prediction_errors.append(primary_credit)
+            target_row.append(primary_credit)
+            audit_row.append(audit_credit)
+            scored_candidates.append(
+                (
+                    candidate,
+                    decoded,
+                    application,
+                    primary_measurement,
+                    primary_credit,
+                    primary_pe_magnitude,
+                    audit_measurement,
+                    audit_credit,
+                    audit_pe_magnitude,
+                )
+            )
+        target_rows.append(tuple(target_row))
+        audit_rows.append(tuple(audit_row))
+        mean_credit = _mean(tuple(target_row))
+        credit_range = max(max(target_row) - min(target_row), 1e-8)
+        (
+            best_candidate,
+            best_decoded,
+            best_application,
+            best_primary,
+            best_credit,
+            best_pe_magnitude,
+            best_audit,
+            best_audit_credit,
+            best_audit_pe_magnitude,
+        ) = max(
+            scored_candidates,
+            key=lambda evidence: evidence[4],
+        )
+        centered_reward = max(
+            -1.0,
+            min(1.0, (best_credit - mean_credit) / credit_range),
+        )
+        updated_transitions.append(
+            replace(
+                transition,
+                policy_action=best_candidate,
+                latent_code=best_candidate,
+                decoder_output=best_decoded.decoder_output,
+                control_before_ablation=best_decoded.applied_control,
+                applied_control=best_decoded.applied_control,
+                downstream_effect=best_application.downstream_effect,
+                reward=centered_reward,
+                raw_reward=best_credit,
+                reward_components=(
+                    (
+                        "environment_outcome_task_progress",
+                        best_primary.task_progress,
+                    ),
+                    (
+                        "environment_outcome_zero_task_progress",
+                        zero_primary.task_progress,
+                    ),
+                    ("prediction_error_magnitude", best_pe_magnitude),
+                    ("pe_action_credit", best_credit),
+                    (
+                        "audit_next_prefix_task_progress",
+                        best_audit.task_progress,
+                    ),
+                    (
+                        "audit_prediction_error_magnitude",
+                        best_audit_pe_magnitude,
+                    ),
+                    ("audit_pe_action_credit", best_audit_credit),
+                    ("counterfactual_centered_reward", centered_reward),
+                ),
+                reward_mode=(
+                    f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
+                    f"counterfactual-"
+                    f"{ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME}"
+                ),
+                direct_action_target=True,
+            )
+        )
+    transitions = tuple(updated_transitions)
+    return (
+        replace(
+            rollout,
+            transitions=transitions,
+            total_reward=sum(
+                transition.reward for transition in transitions
+            ),
+            reward_mode=(
+                f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
+                f"counterfactual-"
+                f"{ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME}"
+            ),
+        ),
+        tuple(all_prediction_errors),
+        tuple(target_rows),
+        tuple(audit_rows),
+    )
+
+
+def _with_counterfactual_continuation_pe_rewards(
+    *,
+    case: ETAProofCase,
+    evidence_phase: str,
+    runtime: OpenWeightResidualRuntime,
+    rollout: ZRollout,
+    substrate_steps: tuple[SubstrateSnapshot, ...],
+    source_text_by_step: tuple[str, ...],
+    proof_episode: InternalRLProofEpisode,
     policy: FullLearnedTemporalPolicy,
     score_cache: dict[
         tuple[str, str, tuple[float, ...]],
@@ -2089,12 +2624,41 @@ def _with_counterfactual_continuation_pe_rewards(
         tuple[str, str, str, int],
         str,
     ] | None = None,
+    outcome_application_cache: dict[
+        tuple[str, tuple[float, ...]],
+        Any,
+    ] | None = None,
+    counterfactual_outcome_records: list[
+        ETACounterfactualOutcomeRecord
+    ] | None = None,
 ) -> tuple[
     ZRollout,
     tuple[float, ...],
     tuple[tuple[float, ...], ...],
     tuple[tuple[float, ...], ...],
 ]:
+    if target_mode == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME:
+        if outcome_application_cache is None:
+            raise ValueError(
+                "environment outcome target requires an application cache"
+            )
+        if counterfactual_outcome_records is None:
+            raise ValueError(
+                "environment outcome target requires an evidence sink"
+            )
+        return _with_counterfactual_environment_outcome_rewards(
+            case=case,
+            evidence_phase=evidence_phase,
+            runtime=runtime,
+            rollout=rollout,
+            substrate_steps=substrate_steps,
+            source_text_by_step=source_text_by_step,
+            proof_episode=proof_episode,
+            policy=policy,
+            application_cache=outcome_application_cache,
+            score_cache=score_cache,
+            outcome_records=counterfactual_outcome_records,
+        )
     if len(source_text_by_step) != len(rollout.transitions):
         raise ValueError(
             "source prefix count must match rollout transition count"
@@ -2106,6 +2670,7 @@ def _with_counterfactual_continuation_pe_rewards(
     if target_mode not in {
         ETA_COUNTERFACTUAL_TARGET_OBSERVED,
         ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
+        ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME,
     }:
         raise ValueError(
             f"Unsupported counterfactual target mode {target_mode!r}"
@@ -2422,9 +2987,21 @@ def _counterfactual_selector_metric_rows(
     injection_gate_passed = (
         (
             summaries["train"]["count"] > 0.0
+            and summaries["eval"]["count"] > 0.0
+            and summaries["heldout"]["count"] > 0.0
             and summaries["validation"]["count"] > 0.0
+            and summaries["eval"]["audit_available_rate"] == 1.0
+            and summaries["heldout"]["audit_available_rate"] == 1.0
             and summaries["validation"]["audit_available_rate"] == 1.0
             and summaries["train"][
+                "mean_audit_selected_raw_delta"
+            ]
+            > 0.0
+            and summaries["eval"][
+                "mean_audit_selected_raw_delta"
+            ]
+            > 0.0
+            and summaries["heldout"][
                 "mean_audit_selected_raw_delta"
             ]
             > 0.0
@@ -3262,6 +3839,9 @@ def run_eta_internal_rl_proof_benchmark(
         selector_selections: list[
             CounterfactualActionSelection
         ] = []
+        counterfactual_outcome_records: list[
+            ETACounterfactualOutcomeRecord
+        ] = []
         selector_artifact = None
         selector_model_candidate_count = 0
         evaluation_counterfactual_diagnostics: dict[
@@ -3280,6 +3860,10 @@ def run_eta_internal_rl_proof_benchmark(
         continuation_generation_cache: dict[
             tuple[str, str, str, int],
             str,
+        ] = {}
+        outcome_application_cache: dict[
+            tuple[str, tuple[float, ...]],
+            Any,
         ] = {}
         real_substrate_snapshots: list[SubstrateSnapshot] = []
         pre_training_checkpoint = sandbox.create_checkpoint(
@@ -3302,6 +3886,8 @@ def run_eta_internal_rl_proof_benchmark(
                     enabled=(
                         real_steps_enabled
                         and not profile.use_noop_backend
+                        and counterfactual_target_mode
+                        != ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
                         and (open_weight_config or ETAOpenWeightRuntimeConfig()).calibrate_proof_signatures
                     ),
                 )
@@ -3349,9 +3935,13 @@ def run_eta_internal_rl_proof_benchmark(
                             rollout_counterfactual_diagnostics,
                             rollout_counterfactual_audit,
                         ) = _with_counterfactual_continuation_pe_rewards(
+                            case=case,
+                            evidence_phase=f"train-{epoch}",
                             runtime=active_open_weight_runtime,
                             rollout=train_rollout,
+                            substrate_steps=snapshots,
                             source_text_by_step=source_text_by_step,
+                            proof_episode=rollout_case.proof_episode,
                             policy=sandbox.policy,
                             score_cache=continuation_score_cache,
                             target_mode=counterfactual_target_mode,
@@ -3370,6 +3960,12 @@ def run_eta_internal_rl_proof_benchmark(
                             sampling_key=case.case_id,
                             generation_cache=(
                                 continuation_generation_cache
+                            ),
+                            outcome_application_cache=(
+                                outcome_application_cache
+                            ),
+                            counterfactual_outcome_records=(
+                                counterfactual_outcome_records
                             ),
                         )
                         continuation_counterfactual_diagnostics.extend(
@@ -3494,6 +4090,8 @@ def run_eta_internal_rl_proof_benchmark(
                 enabled=(
                     real_steps_enabled
                     and not profile.use_noop_backend
+                    and counterfactual_target_mode
+                    != ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
                     and (open_weight_config or ETAOpenWeightRuntimeConfig()).calibrate_proof_signatures
                 ),
             )
@@ -3554,9 +4152,13 @@ def run_eta_internal_rl_proof_benchmark(
                     diagnostic_rows,
                     audit_rows,
                 ) = _with_counterfactual_continuation_pe_rewards(
+                    case=case,
+                    evidence_phase="frozen-eval",
                     runtime=active_open_weight_runtime,
                     rollout=rollout,
+                    substrate_steps=snapshots,
                     source_text_by_step=source_text_by_step,
+                    proof_episode=rollout_case.proof_episode,
                     policy=sandbox.policy,
                     score_cache=continuation_score_cache,
                     target_mode=counterfactual_target_mode,
@@ -3574,6 +4176,12 @@ def run_eta_internal_rl_proof_benchmark(
                     ),
                     sampling_key=case.case_id,
                     generation_cache=continuation_generation_cache,
+                    outcome_application_cache=(
+                        outcome_application_cache
+                    ),
+                    counterfactual_outcome_records=(
+                        counterfactual_outcome_records
+                    ),
                 )
                 evaluation_counterfactual_diagnostics[
                     case.split
@@ -3731,6 +4339,31 @@ def run_eta_internal_rl_proof_benchmark(
                 float(len(continuation_generation_cache)),
             ),
             (
+                "counterfactual_environment_outcome_target_active",
+                1.0
+                if counterfactual_target_mode
+                == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                else 0.0,
+            ),
+            (
+                "counterfactual_environment_application_count",
+                float(len(outcome_application_cache)),
+            ),
+            (
+                "counterfactual_environment_pe_credit_transition_count",
+                float(training_transition_count)
+                if counterfactual_target_mode
+                == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                else 0.0,
+            ),
+            (
+                "counterfactual_self_nll_target_active",
+                0.0
+                if counterfactual_target_mode
+                == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                else 1.0,
+            ),
+            (
                 "continuation_pe_training_mean_raw_delta",
                 _mean(
                     tuple(
@@ -3803,6 +4436,9 @@ def run_eta_internal_rl_proof_benchmark(
                     f"on backend={backend_label} with batch_updates={rollout_batch_count}."
                 ),
                 action_selection_records=tuple(selector_selections),
+                counterfactual_outcome_records=tuple(
+                    counterfactual_outcome_records
+                ),
             )
         )
     baseline_report = next(report for report in profile_reports if report.profile_label == baseline_label)
@@ -3875,6 +4511,9 @@ def run_eta_internal_rl_proof_benchmark(
                 description=report.description,
                 action_selection_records=(
                     report.action_selection_records
+                ),
+                counterfactual_outcome_records=(
+                    report.counterfactual_outcome_records
                 ),
             )
             for report in profile_reports

@@ -154,6 +154,69 @@
 	  `artifacts/eta_gate2_residual_causal_v30_prefix_expected_2x2_calibration_fullwidth896_qwen25_05b_cpu_1seed_20260728`；
 	  v24 仍是当前最佳 12 维候选基线：
   `artifacts/eta_gate2_residual_causal_v24_canonical_state12_direct_8updates_train8_qwen25_05b_cpu_1seed_20260728`。
+
+	  v31 不再把 self-distribution NLL 当作 selector target。对同一冻结 prefix
+	  的 22 个候选逐一执行真实 residual forward；environment owner 用干预后
+	  residual snapshot 对预注册 proof subgoal target 计算
+	  `EnvironmentMeasurement(task_progress, action_payoff)`，且 payoff 明确排除
+	  requested control。zero-control 的实际 measurement 作为冻结事前预测，
+	  候选 measurement 依次经过 Prediction Error owner 和 credit owner，最终
+	  `pe:action` signed credit 才作为 direct action-value target。真实 prefix
+	  calibration 在该模式下禁用；下一 prefix 的未干预 residual trajectory
+	  另作 audit，只用于 train-route CV 选型与冻结验证。builtin 数值探针在
+	  1 train route 上得到 88 条候选记录、primary/audit 各 85 个不同 credit；
+	  primary `[-0.049736, +0.025664]`、audit
+	  `[-0.045159, +0.033482]`，primary/audit target 重合率为 `0.0`。这只证明
+	  目标链可区分、未塌缩，不等于真实 Qwen selector 已泛化。
+
+	  v31 bundle schema 为 `eta-gate2-residual-causal.v31`，新增
+	  `counterfactual_outcomes.jsonl`。每条记录必须带
+	  observation/segment/candidate lineage、实际 residual forward、primary 与
+	  audit outcome、PE magnitude、action credit；缺任一链路时
+	  `environment_outcome_reaches_pe_credit` 必须失败。v30
+	  `sampled-prefix-expected-value` 仍可显式回滚复现，但默认 manifest 使用
+	  `environment-outcome-pe-credit`，并要求
+	  `self_nll_excluded_from_selector_target=true`。
+
+	  v32（schema `eta-gate2-residual-causal.v32`）在 bundle 契约中新增
+	  signal gates（oracle-vs-permutation-null 门）。动机：2026-07-29 对
+	  v30/v31 落盘数据的复检证明，v19-v30 的 continuation-NLL oracle 正值
+	  （`+0.012~+0.020`）全部低于 22 候选纯噪声取 max 的期望上限
+	  （单点测量噪声 `σ≈0.011` → `E[max22]≈+0.021~+0.024`），且同一动作在
+	  target 与独立 audit 续写上的效果相关性仅 ~0.1——此前「oracle 为正即
+	  可达解存在」的解读是 max-of-noise 选择偏差。v32 的机器化防线：对每个
+	  prefix 取 target cohort 的 argmax 候选，在独立 audit cohort 上复测，
+	  其 audit action credit 必须超过 audit 候选均值（可交换零假设下的
+	  期望）至少 measurement floor，train 与 validation 两个 split 都要
+	  通过；`ablation_results.json` / `promotion_verdict.json` 新增
+	  `signal_gates` / `reachable_solution_evidence` /
+	  `oracle_permutation_null_by_split`。`reachable_solution_evidence=false`
+	  时 verdict 记「无可达解证据」，即使 mechanism/causal gates 全绿也
+	  拒绝 causal 晋升，失败的 signal gate 进 kill_conditions。契约测试：
+	  `test_eta_gate2_signal_gates_reject_max_of_noise_oracle` 与
+	  `test_eta_gate2_reachable_solution_evidence_gates_causal_promotion`
+	  （`packages/vz-runtime/tests/test_eta_residual_causal_controls.py`）。
+
+	  2026-07-29 的 Qwen2.5-0.5B、full-width 896、CPU、单 seed v31 完整
+	  outcome run 产出 `3168` 条候选记录；MPS 在当前 Torch 2.10 runtime
+	  `is_built=true` 但 `is_available=false`，因此 provenance 明确记录 CPU，
+	  不把 CPU 结果冒充 MPS。v32 对该批不可变原始记录做只读 gate replay，
+	  benchmark 与 `counterfactual_outcomes.jsonl` 的 SHA256 均与 v31 源包
+	  一致，未重跑 forward、未修改 measurement / PE / credit。oracle 在独立
+	  audit 上相对 permutation null 的 excess 为 train `+0.000249169`、
+	  eval `+0.000488147`、heldout `+0.000277891`、validation
+	  `+0.000064799`，train/validation signal gates 均通过，故
+	  `reachable_solution_evidence=true`：动作空间中的可迁移信号不是单纯
+	  max-of-noise。
+
+	  当前 selector 仍未完成：train / eval / heldout / validation 的 audit
+	  selected credit 分别为 `+0.000044220 / -0.000131504 /
+	  +0.000138137 / +0.000015486`。旧门只检查 train+validation，会错误给出
+	  injection allowed；v32 严格门要求四个冻结分区 audit 全部为正，因此
+	  `selector_ready_for_shadow_injection=false`、
+	  `selector_injection_allowed=false`。confirmation 仍未锁定，最终 verdict
+	  为 `mechanism-supported`，不是 Gate 2 完成。权威重判 artifact：
+	  `artifacts/eta_gate2_residual_causal_v32_environment_outcome_strict_replay_fullwidth896_qwen25_05b_cpu_1seed_20260729`。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。

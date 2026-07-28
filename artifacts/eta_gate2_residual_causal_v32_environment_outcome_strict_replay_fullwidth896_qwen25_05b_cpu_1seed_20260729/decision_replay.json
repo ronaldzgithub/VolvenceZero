@@ -1,0 +1,9 @@
+{
+  "gate_code_schema": "eta-gate2-residual-causal.v32",
+  "mode": "read-only-gate-replay",
+  "model_forward_reexecuted": false,
+  "raw_candidate_values_modified": false,
+  "source_artifact": "artifacts/eta_gate2_residual_causal_v31_environment_outcome_fullwidth896_qwen25_05b_cpu_1seed_20260729",
+  "source_benchmark_sha256": "7a071730c76be2959efbce947c6ea95712d7be5644a97fe160db456ca6676d95",
+  "source_counterfactual_outcomes_sha256": "6c12e77eb15de164684d0c2e7f8418f7e5becbf2b128923d2ff214d112d397e3"
+}

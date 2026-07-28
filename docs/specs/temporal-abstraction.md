@@ -168,6 +168,24 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   泛化。该 2+2 轨迹是校准/反证，不替代 manifest 默认 4+4、跨 seed 或 locked
   confirmation。下一包必须把训练目标迁到真实 downstream outcome / environment
   PE，不能继续在模型自身采样分布的 NLL 上调 probe 或阈值。
+- v31 将 counterfactual selector target 迁到正式结果链：
+  `candidate z_t -> residual forward -> EnvironmentOutcome.measurement ->
+  PredictionError -> pe:action credit`。primary target 是运行前冻结的 proof
+  subgoal signature；环境 owner 只比较干预后实际 residual snapshot 与该 target，
+  计算 payoff 时禁止读取 requested control。zero-control 的实际结果冻结为事前
+  prediction，各候选实际结果由 PE owner 结算，再由 credit owner 发布 signed
+  action credit；该 credit 才能进入 `direct_action_target`。真实 residual prefix
+  calibration 在此模式下必须关闭，避免把验证轨迹写进 primary target。下一
+  prefix 的未干预 residual trajectory 是独立 audit surface，只参与 train-route
+  CV 模型选择与只读验证，不参与 selector 拟合。旧
+  `sampled-prefix-expected-value` 保留为显式回滚模式；v31 默认
+  `environment-outcome-pe-credit`，self-NLL 不再是动作价值 owner。
+- v31 每个候选必须发布不可变 `ETACounterfactualOutcomeRecord`，包含
+  observation/segment ID、候选 z、实际 control、primary/audit target、实际
+  residual signature、downstream effect、PE magnitude 与 action credit。
+  evidence bundle 将其独立写入 `counterfactual_outcomes.jsonl`；仅有汇总均值
+  而缺候选级 lineage 时，Gate 2 结果链证据无效。selector live injection 仍
+  维持 disabled，直到 fresh validation audit credit 为正并通过既有注入门。
 - 当前 proof profile 已包含 matched ablation `full-no-fast-prior`：它保留 full internal RL + causal replacement，但关闭 temporal fast prior ingestion，用于衡量 fast prior 对 held-out family reuse、credit alignment 与 strong success 的增益
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter
@@ -180,6 +198,8 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 `temporal` owner 已补充 family competition memory：owner 内部会持续维护 `reuse_streak`、`stagnation_pressure`、`monopoly_pressure`、`competition_score`，并用这些竞争状态影响反塌缩的 topology maintenance
 - 当前 public runtime state 只发布 compact family competition summary（如 active-family competition score、monopoly pressure、turnover health、family version/count），不发布 raw internal competition ledger；这条 bridge 为下一阶段 delayed credit ledger 预留了显式版本锚点
 - 当前 `full-learned` 已把 `z_t` owner 更新规则收敛到显式 posterior + learned switch 路径：`z_t = beta_t * z_candidate + (1 - beta_t) * z_{t-1}`，其中 `z_candidate` 默认来自 posterior `z_tilde`，也可由 internal RL causal policy override
+- **PE 边界请求**：`prediction_error_temporal_switch=ACTIVE` 时，joint-loop 只把超过 profile 下限的 typed PE 压缩为方向无关、单拍有效的 boundary request；temporal owner 仍是唯一 `beta_t` 决策者，并相对自己当前学到的 `beta_threshold` 解析该请求。请求成立时 effective beta 至少达到当前 threshold，因此 SSL/reflection 对 threshold 的有界校准不能把已确认的 PE 边界永久屏蔽；未超过下限、SHADOW 或 DISABLED 均不得强制切段。固定的 pressure 数值仍作为可观察强度与普通 additive prior 保留，但禁止把“是否能跨过门槛”交给一个与当前 threshold 无关的绝对上限。
+  **`strength` 的值/符号双语义（已由测试证实，勿再当调参旋钮）**：`prediction_error_temporal_switch_strength` 只缩放加性 pressure 的**数值**（`min(0.18, strength·tanh(magnitude − floor))`），该数值对边界决策与 `is_switching` **没有任何边际作用**——低于 floor 时 pressure 恰为 0（任何 strength 下相同），高于 floor 时切段已被 boundary request 本身强制，加性数值不再产生可观察行为差异。strength 范围内唯一的行为悬崖是 `strength == 0.0`：它把 pressure 恒置零，从而即使幅度超过 floor 也整体关闭边界通道。因此 **floor 是唯一的边界标定旋钮**；strength 的实际作用域 = 通道开关（零/非零）+ 发布出去的 readout 强度。证据：`packages/vz-temporal/tests/test_temporal_contracts.py::test_pe_switch_strength_value_is_inert_for_boundary_decisions`（扫描 strength 0.05/0.35/0.9：决策序列全同而 pressure 单调递增；固定 strength 下 0.44→0.60 跨 floor 翻转决策；strength=0 在 floor 之上也不请求边界）。
 - **reward→code 桥（runtime track modulation）**：此前 Internal-RL 只写 `track_weights`（+ `align_temporal_from_tracks` 投进 legacy 3-d `temporal_weights`/`switch_bias`），而 ndim `_step_impl_ndim` 产生 `code` 时不消费这些，导致奖励驱动学习与运行时 `z_t` **结构性脱钩**（只有 SSL 训练的 ndim encoder 能移动 `z_t`）。现新增 `MetacontrollerParameterStore.runtime_track_modulated_code`：以学习到的每-track 混合对 `z_candidate` 做**逐维、以 1.0 为中心、界于 [0.5,1.5]** 的增益调制（`gain_i = 1 + strength·(mean_i·n_z − 1)`）。由 `FinalRolloutConfig.internal_rl_runtime_modulation_strength`（默认 `0.0`）经 `FullLearnedTemporalPolicy.set_runtime_track_modulation` 注入。sandbox 的 `CausalZPolicy` 与 torch PPO 使用同一公式：先生成未调制 causal candidate，再以正在优化的 track 覆盖 store 中对应 track 后调用同一 aggregate gain；`step_with_causal_override` 接收的已是最终调制 candidate，因此 live forward 不再二次调制。这样 rollout reward、PPO surrogate 与真实 ndim 前向对 `track_weights` 的因果语义一致。`strength=0` 是**精确字节级 no-op（即时回滚基线）**，并保留历史 sandbox / torch PPO 方程；均匀混合在任意 strength 下亦为 no-op；`strength>0` 让 RL 学到的偏离-均匀方向真正进入 `code`。与 R2 不冲突（作用于控制器层，基底仍冻结），与 R8 不冲突（只读 owner 内部 `track_weights`，公共 snapshot schema 不变）。证据：`tests/test_temporal_contracts.py`（strength=0 时 mutate `track_weights` → `code` 不变；strength>0 时 skewed 混合 → `code` 变；sandbox mean 与 live helper 严格相等；causal override 不重复调制；torch PPO writeback 后真实 ndim `code` 改变；负 strength fail loudly）
 - **真实 runtime transition replay**：`FinalRolloutConfig.internal_rl_runtime_replay` 是独立于 pure/torch optimizer backend 的 transition-source gate，默认 `DISABLED`。Internal-RL owner 在动作拍保存真实 `SubstrateSnapshot`、world/self runtime state、实际 `z_t`、posterior、`beta_t`、行为 likelihood 与 PE `prediction_id`；下一拍只用匹配的既有 `EnvironmentOutcome`、`PredictionErrorSnapshot`、PE 派生 `CreditSnapshot` 和真实 next-substrate delta 结算 `runtime-replay` transition。`SHADOW` 只收集 lineage/coverage，不进入训练 staging；`ACTIVE` 只消费已结算真实 replay，样本不足显式报告 `waiting-for-runtime-replay`，禁止静默回退 synthetic。`FinalRolloutConfig.internal_rl_batch_accumulation_size` 默认 1；synthetic 按 rollout 数判断 batch，ACTIVE runtime replay 则按已结算 transition 数判断，使多个 singleton segment 不会各自进入 centered-gradient optimizer，一个已含足够 transition 的长段仍可立即训练。pure 与 torch PPO 均按保存的 ndim posterior/switch/modulation 上下文重建 old/new likelihood；capture/transition 还必须持久化实际 `posterior_sample_scale`：历史 encoder `z_tilde` 为 `0.5 × posterior_std`，显式 runtime exploration 为 `1.0 × posterior_std`，禁止用固定 `0.5` 重建 exploration action 的方差。旧 synthetic 公式保持兼容且同批禁止混源。pending capture 与已结算 staging 属于 joint-loop owner 的有界 checkpoint 状态，不新增 runtime slot；action-head ACTIVE/SHADOW 时 runtime state 额外发布正式 `causal_action_head_state`，并随 capture/transition 持久化。cycle rollback/no-optimize 只回滚 policy/critic，不重复消费环境证据。`create_learning_checkpoint(include_runtime_replay=False)` 是 owner 定义的跨 episode transfer 模式：保留 learned policy/temporal/memory state，但导出空 pending rollout 且不携带 replay report/capture，防止上个 episode 的 action 与新环境 outcome 错配；同 episode rollback/audit 仍使用默认 `True`。`joint_loop.learning` persistence schema 因此升级为 v4。
 - **`beta_t` segment 长程信用**：`FinalRolloutConfig.internal_rl_runtime_segment_credit` 默认 `DISABLED`，通用 runtime 因而保持 one-step replay；Digital Ant profile 显式设为 `ACTIVE`。ACTIVE 时 joint-loop owner 只在内部维护 world/self 对齐的 open segment：遇到真实 switch 时先闭合旧段并从当前动作开启新段，milestone/terminal 或 `internal_rl_runtime_segment_max_steps` 也强制闭合。只有闭合段进入既有 pending rollout 队列，连续 `step_index` 让既有 GAE 可把末端价态传播给接近、绕行、逃逸和回巢的前序动作。open segment、closed count 与 longest length 随 joint-loop owner checkpoint/canonical archive/rollback；不新增第二 ledger 或公共 slot。`joint_loop.learning` persistence schema 因此升级为 v2。
@@ -264,6 +284,18 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-07-29: ETA Gate 2 v32 对 v31 的 `3168` 条 Qwen 候选记录增加
+  target-oracle 到独立 audit 的 permutation-null transfer gate，并把 selector
+  injection 门收紧为 train/eval/heldout/validation 四个冻结分区 audit 均为正。
+  reachable-solution evidence 通过，但 eval audit selected credit 为
+  `-0.000131504`，故 selector 注入保持关闭；confirmation 尚未锁定，Gate 2
+  仍为 `mechanism-supported`。重判只读复用原始 measurement/PE/credit，并以
+  SHA256 固定源 artifact。
+- 2026-07-29: ETA Gate 2 v31 将 counterfactual action-value target 从模型自身
+  continuation NLL 迁到真实 residual forward 的 EnvironmentOutcome，经 PE owner
+  与 credit owner 形成 signed action credit。primary 使用未校准的预注册 proof
+  target，next-prefix residual 仅作独立 audit；新增候选级
+  `counterfactual_outcomes.jsonl`，旧 v30 target 保留为显式回滚。
 - 2026-07-28: ETA Gate 2 v30 将单 realized continuation target 升级为
   prefix-level target/audit 双 cohort expected value，并冻结 fresh validation
   只读检验。transformers substrate 新增同 prefix/control 的 batch continuation
@@ -716,6 +748,15 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志补充
 
+- 2026-07-29: learned backend 终态链 gate 补全。新增
+  `LearnedPromotionChainVerdict` / `evaluate_learned_active_chain(...)`，
+  要求 terminal evidence 对 runtime / SSL / Internal-RL / CMS 四组件各有且
+  仅有一行，并把 `terminal_candidate_ready`（允许在隔离环境直接验证四项终态
+  wiring）与 `production_terminal_ready`（四组件已按固定顺序全部 ACTIVE）
+  分开。证据采集可并行、终态候选可一次测试；生产晋级状态必须是
+  runtime→SSL→Internal-RL→CMS 的有序前缀，报告只为首个未 ACTIVE 组件生成
+  `recommended_env`。缺行、重复行和非前缀 ACTIVE 声明均 fail loudly；默认
+  wiring 不变，回滚仍为把单项 backend 降回 SHADOW / DISABLED。
 - 2026-07-13: CP-15 / CP-23 ACTIVE candidate gate evaluator. 新增
   `volvence_zero.agent.learned_active_gate`：`LearnedActiveEvidence` /
   `LearnedActiveGateVerdict` / `evaluate_learned_active_candidate(...)`，将
