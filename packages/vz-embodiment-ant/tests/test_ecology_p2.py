@@ -280,6 +280,8 @@ def _shard(
                 action_chain_failures=(),
                 home_probe_count=config.n_ants,
                 home_aligned_bodies=config.n_ants,
+                uturn_probe_count=config.n_ants,
+                uturn_aligned_bodies=config.n_ants,
                 food_probe_count=config.n_ants,
                 food_aligned_bodies=config.n_ants,
                 required_aligned_bodies=max(

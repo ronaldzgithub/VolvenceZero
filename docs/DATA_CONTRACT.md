@@ -874,12 +874,15 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 | realtime app DTO | `vz-embodiment-ant` | `digital-ant-app.v2` 的 frozen config/frame/status/command/disturbance；新增 typed object upsert/move/remove、`AppFrame.objects` 和 checkpoint provenance；**不**进入 §3/§6 slot 注册表 |
 
 **Ecology evidence 当前代际（2026-07-28）**：curriculum owner 的现行 schema 为
-`digital-ant-ecology-curriculum.v11`；P1 report/progress 为
-`digital-ant-ecology-p1-development.v28` / `digital-ant-ecology-p1-progress.v25`；
-P2 confirmatory/shard/progress 为 v5。v11 将 forced-return 冻结为左右均衡的
+`digital-ant-ecology-curriculum.v12`；P1 report/progress 为
+`digital-ant-ecology-p1-development.v29` / `digital-ant-ecology-p1-progress.v26`；
+P2 confirmatory/shard/progress 为 v6。v11 将 forced-return 冻结为左右均衡的
 `±3π/4` large-angle start：它保留 v10“零转向不能领取正 home-progress”的约束，同时覆盖
 自然拾取后接近 `π` 的返向压力；精确 `π` 因侧向符号退化而不使用。所有旧 journal/report
-必须 fail loudly，禁止跨代恢复或聚合。
+必须 fail loudly，禁止跨代恢复或聚合。v12 新增冻结 `post_pickup_uturn_progress`
+证据：真实拾取后的左右 `±3π/4` lane 必须交付，或在 16 tick 内实现至少 0.4 净巢距下降且
+连续至少 3 步下降；policy 与 temporal-learning fingerprint 必须不变。该硬门补上旧
+`carrying_home_action_alignment` 只验单步方向、不验转角幅度和轨迹闭环的覆盖缺口。
 
 **关键不变量**：
 

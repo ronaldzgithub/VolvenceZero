@@ -51,7 +51,12 @@ from volvence_ant.experiments.ecology_p1 import (
     run_ecology_p1,
     run_ecology_p1_diagnostics,
 )
-from volvence_ant.experiments.ecology_probe import ecology_probe_world_config
+from volvence_ant.experiments.ecology_probe import (
+    ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET,
+    _max_consecutive_approach_steps,
+    ecology_probe_world_config,
+    run_ecology_checkpoint_post_pickup_uturn_probes,
+)
 from volvence_ant.runtime import KernelColonyRunner
 
 _TINY = EcologyP1Config(
@@ -236,8 +241,14 @@ async def test_p1_uses_fixed_schedule_per_body_mastery(
         "regime_diagnostic",
         "regime_gap_summary",
         "repeat_reference",
+        "post_pickup_uturn_probes",
     ):
         assert field in payload, field
+    assert len(report.post_pickup_uturn_probes) == config.n_ants
+    assert all(
+        len(probe.lanes) == 2
+        for probe in report.post_pickup_uturn_probes
+    )
     # allow_nan=False: an unserialisable sentinel must fail here, not in the
     # artifact writer after a formal run has already been spent.
     round_tripped = json.loads(
@@ -740,10 +751,48 @@ def test_probe_world_matches_curriculum_sensor_geometry() -> None:
         tier=EcologyTrainingTier.FAR,
     )
     probe_config = ecology_probe_world_config(seed=11)
-    for field in ("antenna_offset_deg", "antenna_reach", "step_size"):
+    for field in (
+        "antenna_offset_deg",
+        "antenna_reach",
+        "step_size",
+        "nest_radius",
+    ):
         assert getattr(probe_config, field) == getattr(
             curriculum_world.config, field
         ), field
+
+
+def test_post_pickup_uturn_requires_sustained_distance_reduction() -> None:
+    assert _max_consecutive_approach_steps((2.0, 1.9, 1.8, 1.7)) == 3
+    assert _max_consecutive_approach_steps((2.0, 1.8, 1.9, 1.7)) == 1
+    assert _max_consecutive_approach_steps((2.0, 2.0, 1.9, 1.8)) == 2
+
+
+async def test_post_pickup_uturn_probe_is_real_balanced_and_frozen() -> None:
+    probes = await run_ecology_checkpoint_post_pickup_uturn_probes(
+        temporal_latent_dim=_TINY.temporal_latent_dim,
+        seed=71,
+        checkpoints=_bootstrap_checkpoints(_TINY),
+    )
+
+    assert len(probes) == _TINY.n_ants
+    lanes = probes[0].lanes
+    assert tuple(lane.side for lane in lanes) == ("left", "right")
+    assert tuple(lane.heading_offset for lane in lanes) == pytest.approx(
+        (
+            ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET,
+            -ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET,
+        )
+    )
+    assert all(lane.picked_up for lane in lanes)
+    assert all(lane.home_distances_after_pickup for lane in lanes)
+    assert all(lane.policy_fingerprint_stable for lane in lanes)
+    assert all(
+        lane.temporal_learning_fingerprint_stable for lane in lanes
+    )
+    # A cold checkpoint must not receive credit merely for emitting an action
+    # with the right sign on one tick.
+    assert probes[0].passed is False
 
 
 def test_milestone_budget_lever_is_bound_to_the_formal_budget_predicate() -> (

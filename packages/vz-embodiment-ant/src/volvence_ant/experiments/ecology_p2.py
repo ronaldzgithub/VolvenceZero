@@ -76,11 +76,16 @@ from volvence_ant.experiments.ecology_p1 import (
 from volvence_ant.experiments.ecology_probe import (
     EcologyProbeKind,
     run_ecology_checkpoint_action_probes,
+    run_ecology_checkpoint_post_pickup_uturn_probes,
 )
 from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
+#: v6 binds the P1 v29 / curriculum v12 post-pickup U-turn hard gate. v5
+#: reports could still promote a checkpoint that only passed one-tick home
+#: direction checks and never sustained home-distance reduction.
+#:
 #: v4 binds the P1 v27 / curriculum v10 tangent forced-return schedule. v3
 #: shards and journals used a different homing-pressure world and cannot be
 #: mixed into the same confirmatory matrix.
@@ -97,20 +102,20 @@ from volvence_ant.substrate import AntSenseSchema, sense_channels
 #: complete or incomplete. A v2 report pinned "one identical P1 *file*", which
 #: a multi-seed matrix can never satisfy, and it carried no way to recover the
 #: held-out device/layout namespace a promotion bundle has to record.
-ECOLOGY_P2_SCHEMA_VERSION = "digital-ant-ecology-p2-confirmatory.v5"
+ECOLOGY_P2_SCHEMA_VERSION = "digital-ant-ecology-p2-confirmatory.v6"
 #: v2 carries ``source_provenance``, ``archive_corruption_rejected`` and the
 #: widened layout rows (secondary endpoints). v1 shards are refused by
 #: :func:`shard_report_from_dict`.
 #: v3 carries the P1 prerequisite's *configuration* identity, which is what the
 #: aggregate pins across seeds; a v2 shard carries only the file digest and
 #: therefore cannot be checked against its siblings.
-ECOLOGY_P2_SHARD_SCHEMA_VERSION = "digital-ant-ecology-p2-shard.v5"
+ECOLOGY_P2_SHARD_SCHEMA_VERSION = "digital-ant-ecology-p2-shard.v6"
 # v2 binds sense schema and input dim into the shard resume compatibility, so
 # an interrupted formal shard cannot rehydrate from a checkpoint trained on a
 # different sensory body. v1 journals carry neither key and are refused.
 # v3 journals the widened layout rows; a v2 journal would silently drop the
 # secondary endpoints of every already-evaluated layout.
-ECOLOGY_P2_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p2-progress.v5"
+ECOLOGY_P2_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p2-progress.v6"
 ECOLOGY_P2_PREFLIGHT_SCHEMA_VERSION = "digital-ant-ecology-p2-preflight.v1"
 
 #: Held-out namespace. Disjoint from the P1 held-out base (``2_000_003`` plus a
@@ -416,6 +421,7 @@ ECOLOGY_P2_GATE_NAMES: tuple[str, ...] = (
     "e2e_rl_baseline_present",
     "p0_action_sensitivity",
     "carrying_home_action_alignment",
+    "post_pickup_uturn_progress",
     "food_steering_alignment",
     "temporal_non_timeout_closure",
     "frozen_evaluation",
@@ -629,6 +635,8 @@ class EcologyP2ProbeSummary:
     action_chain_failures: tuple[str, ...]
     home_probe_count: int
     home_aligned_bodies: int
+    uturn_probe_count: int
+    uturn_aligned_bodies: int
     food_probe_count: int
     food_aligned_bodies: int
     required_aligned_bodies: int
@@ -1814,6 +1822,11 @@ async def _probe_summary(
         for probe in body.probes
         if probe.kind is EcologyProbeKind.FOOD
     )
+    uturn = await run_ecology_checkpoint_post_pickup_uturn_probes(
+        temporal_latent_dim=config.temporal_latent_dim,
+        seed=training_seed + ECOLOGY_P2_PROBE_SEED_OFFSET,
+        checkpoints=trained,
+    )
 
     def aligned(probe) -> bool:
         return bool(
@@ -1827,6 +1840,8 @@ async def _probe_summary(
         action_chain_failures=action_chain_failures,
         home_probe_count=len(home),
         home_aligned_bodies=sum(aligned(probe) for probe in home),
+        uturn_probe_count=len(uturn),
+        uturn_aligned_bodies=sum(probe.passed for probe in uturn),
         food_probe_count=len(food),
         food_aligned_bodies=sum(aligned(probe) for probe in food),
         required_aligned_bodies=_required_bodies(config),
@@ -3225,6 +3240,33 @@ def aggregate_ecology_p2_shards(
     )
     gates.append(
         _gate(
+            "post_pickup_uturn_progress",
+            passed=probes_complete
+            and all(
+                item.uturn_probe_count == item.home_probe_count
+                and item.uturn_aligned_bodies
+                >= item.required_aligned_bodies
+                for item in probe_summaries
+            ),
+            observed=repr(
+                tuple(
+                    (
+                        item.uturn_aligned_bodies,
+                        item.uturn_probe_count,
+                        item.required_aligned_bodies,
+                    )
+                    for item in probe_summaries
+                )
+            ),
+            threshold=(
+                "in every training seed, >=60% bodies pass both frozen "
+                "+/-135-degree post-pickup lanes by delivering or sustaining "
+                "net home-distance reduction; direction-only turns do not pass"
+            ),
+        )
+    )
+    gates.append(
+        _gate(
             "food_steering_alignment",
             passed=probes_complete
             and all(
@@ -3724,6 +3766,8 @@ def shard_report_from_dict(payload: dict[str, Any]) -> EcologyP2ShardReport:
             ),
             home_probe_count=int(raw_probe["home_probe_count"]),
             home_aligned_bodies=int(raw_probe["home_aligned_bodies"]),
+            uturn_probe_count=int(raw_probe["uturn_probe_count"]),
+            uturn_aligned_bodies=int(raw_probe["uturn_aligned_bodies"]),
             food_probe_count=int(raw_probe["food_probe_count"]),
             food_aligned_bodies=int(raw_probe["food_aligned_bodies"]),
             required_aligned_bodies=int(raw_probe["required_aligned_bodies"]),

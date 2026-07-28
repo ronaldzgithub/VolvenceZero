@@ -68,6 +68,17 @@ ECOLOGY_PROBE_LANE_WIRING_KEYS: tuple[str, ...] = (
 ECOLOGY_PROBE_ANTENNA_OFFSET_DEG = 45.0
 ECOLOGY_PROBE_ANTENNA_REACH = 0.9
 ECOLOGY_PROBE_STEP_SIZE = 0.4
+ECOLOGY_PROBE_NEST_RADIUS = 0.5
+
+# Frozen post-pickup U-turn gate. Sixteen ticks leave ample room for the
+# graded plant to correct a 3*pi/4 heading error (three acts at its pi/4
+# ceiling) and then demonstrate more than a one-tick directional coincidence.
+ECOLOGY_POST_PICKUP_UTURN_HORIZON = 16
+ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET = 3.0 * math.pi / 4.0
+ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS = ECOLOGY_PROBE_STEP_SIZE
+ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS = 3
+_ECOLOGY_POST_PICKUP_UTURN_START_DISTANCE = 2.0
+_ECOLOGY_POST_PICKUP_UTURN_SOURCE_RADIUS = 0.7
 
 
 def ecology_probe_world_config(*, seed: int) -> AntWorldConfig:
@@ -82,6 +93,7 @@ def ecology_probe_world_config(*, seed: int) -> AntWorldConfig:
         step_size=ECOLOGY_PROBE_STEP_SIZE,
         antenna_offset_deg=ECOLOGY_PROBE_ANTENNA_OFFSET_DEG,
         antenna_reach=ECOLOGY_PROBE_ANTENNA_REACH,
+        nest_radius=ECOLOGY_PROBE_NEST_RADIUS,
     )
 
 
@@ -114,6 +126,35 @@ class EcologyPosteriorHiddenSummary:
     l1_norm: float
     l2_norm: float
     max_abs: float
+
+
+@dataclass(frozen=True)
+class EcologyPostPickupUTurnLane:
+    """One frozen large-angle return lane after a real pickup transition."""
+
+    side: str
+    heading_offset: float
+    picked_up: bool
+    pickup_tick: int | None
+    delivered: bool
+    delivery_tick: int | None
+    home_distances_after_pickup: tuple[float, ...]
+    turn_commands_after_pickup: tuple[float, ...]
+    net_home_progress: float
+    max_consecutive_approach_steps: int
+    policy_fingerprint_stable: bool
+    temporal_learning_fingerprint_stable: bool
+    passed: bool
+
+
+@dataclass(frozen=True)
+class EcologyCheckpointPostPickupUTurnProbe:
+    """Frozen ±135-degree U-turn evidence for one isolated body checkpoint."""
+
+    body_id: int
+    checkpoint_id: str
+    lanes: tuple[EcologyPostPickupUTurnLane, ...]
+    passed: bool
 
 
 @dataclass(frozen=True)
@@ -952,16 +993,205 @@ async def run_ecology_checkpoint_action_probes(
     return tuple(reports)
 
 
+def _max_consecutive_approach_steps(
+    distances: Sequence[float],
+) -> int:
+    longest = 0
+    current = 0
+    for previous, following in zip(
+        distances,
+        distances[1:],
+        strict=False,
+    ):
+        if following < previous:
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return longest
+
+
+async def _run_post_pickup_uturn_lane(
+    *,
+    checkpoint: AntLearningCheckpoint,
+    temporal_latent_dim: int,
+    seed: int,
+    side: int,
+) -> EcologyPostPickupUTurnLane:
+    if side not in {-1, 1}:
+        raise ValueError(f"U-turn lane side must be -1 or 1, got {side}")
+    start_x = _ECOLOGY_POST_PICKUP_UTURN_START_DISTANCE
+    start_y = 0.0
+    home_bearing = math.pi
+    heading = (
+        home_bearing
+        - side * ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET
+    )
+    world = AntWorld(
+        config=ecology_probe_world_config(seed=seed),
+        world_objects=(
+            ButterSource(
+                object_id="post-pickup-uturn-butter",
+                x=start_x,
+                y=start_y,
+                strength=2.2,
+                decay=2.4,
+                radius=_ECOLOGY_POST_PICKUP_UTURN_SOURCE_RADIUS,
+            ),
+        ),
+    )
+    world.set_body_pose(
+        x=start_x,
+        y=start_y,
+        heading=heading,
+        carrying_food=False,
+    )
+    session = AntSession(
+        world,
+        config=AntSessionConfig(
+            temporal_latent_dim=temporal_latent_dim,
+            session_id=f"post-pickup-uturn:{seed}:{side}",
+            seed=seed,
+            heading_noise=0.0,
+            step_noise=0.0,
+            rollout_config=ant_runtime_replay_rollout_config(
+                enable_sparse_exploration=False,
+                sense_schema=AntSenseSchema.ECOLOGY_V2,
+            ),
+            joint_apply_policy_optimization=False,
+            joint_learning_enabled=False,
+            objective=AntObjectiveKind.ECOLOGY,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+        ),
+    )
+    session.restore_learning_checkpoint(checkpoint)
+    session.navigator.sync_to(
+        x=start_x,
+        y=start_y,
+        heading=heading,
+        nest=world.nest,
+    )
+
+    pickup_tick: int | None = None
+    delivery_tick: int | None = None
+    distances: list[float] = []
+    turns: list[float] = []
+    for _ in range(ECOLOGY_POST_PICKUP_UTURN_HORIZON):
+        record = await session.step()
+        if record.picked_up and pickup_tick is None:
+            pickup_tick = record.tick
+        if pickup_tick is not None:
+            distances.append(
+                math.hypot(
+                    record.x - world.nest[0],
+                    record.y - world.nest[1],
+                )
+            )
+            turns.append(record.command.turn_command)
+        if record.delivered:
+            delivery_tick = record.tick
+            break
+
+    post = session.export_learning_checkpoint(
+        checkpoint_id=f"post-pickup-uturn:{seed}:{side}:post",
+        include_runtime_replay=False,
+    )
+    policy_stable = (
+        post.policy_fingerprint == checkpoint.policy_fingerprint
+    )
+    temporal_stable = (
+        post.temporal_learning_fingerprint
+        == checkpoint.temporal_learning_fingerprint
+    )
+    net_progress = (
+        distances[0] - distances[-1]
+        if len(distances) >= 2
+        else 0.0
+    )
+    consecutive = _max_consecutive_approach_steps(distances)
+    delivered = delivery_tick is not None
+    passed = (
+        pickup_tick is not None
+        and policy_stable
+        and temporal_stable
+        and (
+            delivered
+            or (
+                net_progress
+                >= ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS
+                and consecutive
+                >= ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS
+            )
+        )
+    )
+    return EcologyPostPickupUTurnLane(
+        side="left" if side > 0 else "right",
+        heading_offset=(
+            side * ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET
+        ),
+        picked_up=pickup_tick is not None,
+        pickup_tick=pickup_tick,
+        delivered=delivered,
+        delivery_tick=delivery_tick,
+        home_distances_after_pickup=tuple(distances),
+        turn_commands_after_pickup=tuple(turns),
+        net_home_progress=net_progress,
+        max_consecutive_approach_steps=consecutive,
+        policy_fingerprint_stable=policy_stable,
+        temporal_learning_fingerprint_stable=temporal_stable,
+        passed=passed,
+    )
+
+
+async def run_ecology_checkpoint_post_pickup_uturn_probes(
+    *,
+    temporal_latent_dim: int,
+    seed: int,
+    checkpoints: tuple[AntLearningCheckpoint, ...],
+) -> tuple[EcologyCheckpointPostPickupUTurnProbe, ...]:
+    """Grade sustained frozen homing after a real pickup, on both turn sides."""
+
+    reports: list[EcologyCheckpointPostPickupUTurnProbe] = []
+    for body_id, checkpoint in enumerate(checkpoints):
+        lane_rows: list[EcologyPostPickupUTurnLane] = []
+        for side in (1, -1):
+            lane_rows.append(
+                await _run_post_pickup_uturn_lane(
+                    checkpoint=checkpoint,
+                    temporal_latent_dim=temporal_latent_dim,
+                    seed=seed,
+                    side=side,
+                )
+            )
+        lanes = tuple(lane_rows)
+        reports.append(
+            EcologyCheckpointPostPickupUTurnProbe(
+                body_id=body_id,
+                checkpoint_id=checkpoint.checkpoint_id,
+                lanes=lanes,
+                passed=all(lane.passed for lane in lanes),
+            )
+        )
+    return tuple(reports)
+
+
 __all__ = [
     "ECOLOGY_PROBE_ANTENNA_OFFSET_DEG",
     "ECOLOGY_PROBE_ANTENNA_REACH",
     "ECOLOGY_PROBE_FINITE_DIFFERENCE_EPSILON",
     "ECOLOGY_PROBE_LANE_WIRING_KEYS",
     "ECOLOGY_PROBE_NEAR_NULL_SPACE_ALIGNMENT",
+    "ECOLOGY_PROBE_NEST_RADIUS",
     "ECOLOGY_PROBE_STEP_SIZE",
+    "ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET",
+    "ECOLOGY_POST_PICKUP_UTURN_HORIZON",
+    "ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS",
+    "ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS",
     "EcologyActionProbe",
     "EcologyBackendExecutionEvidence",
     "EcologyCheckpointActionProbe",
+    "EcologyCheckpointPostPickupUTurnProbe",
+    "EcologyPostPickupUTurnLane",
     "EcologyPosteriorHiddenSummary",
     "EcologyProbeBackendLane",
     "EcologyProbeKind",
@@ -970,5 +1200,6 @@ __all__ = [
     "ecology_probe_world_config",
     "merge_ecology_backend_execution",
     "run_ecology_checkpoint_action_probes",
+    "run_ecology_checkpoint_post_pickup_uturn_probes",
     "run_ecology_action_probes",
 ]

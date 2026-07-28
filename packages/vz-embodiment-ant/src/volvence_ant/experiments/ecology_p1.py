@@ -24,8 +24,12 @@ from volvence_zero.agent import (
 from volvence_ant.controllers import FixedRuleAnt, FixedRuleConfig, RandomAnt
 from volvence_ant.env.world_objects import ButterSource, BurningMatch, WoodStick
 from volvence_ant.experiments.ecology_probe import (
+    ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS,
+    ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS,
+    EcologyCheckpointPostPickupUTurnProbe,
     EcologyProbeKind,
     run_ecology_checkpoint_action_probes,
+    run_ecology_checkpoint_post_pickup_uturn_probes,
 )
 from volvence_ant.experiments.ecology_curriculum import (
     ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY,
@@ -48,6 +52,10 @@ from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
+# v29 binds curriculum v12's frozen post-pickup U-turn gate. v28 could still
+# accept a one-tick carrying-home direction that never reduced home distance
+# over a trajectory, so its report semantics are not comparable.
+#
 # v28 binds curriculum v11's +/-135 degree forced-return pressure. v27 learned
 # the correct carrying-home direction but not enough authority for the near-pi
 # turn after a natural pickup, so its optimizer state is not comparable.
@@ -66,7 +74,10 @@ from volvence_ant.substrate import AntSenseSchema, sense_channels
 #   * ``composite`` gains the matched no-optimize exposure conjunct and
 #     ``temporal_non_timeout_closure`` becomes a per-layout ratio;
 #   * the held-out budget is aligned to P2's frozen 120 rounds.
-ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v28"
+ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v29"
+# v26 follows curriculum v12 / P1 v29. A clean journal is required so the
+# report's hard U-turn evidence and the checkpoint it grades share one
+# declared generation rather than attaching a new gate to prior training.
 # v25 follows the curriculum v11 / P1 v28 pressure change. A v24 journal
 # contains optimizer state trained only on +/-90 degree return starts and must
 # fail loudly instead of resuming into the stronger large-angle pressure.
@@ -81,7 +92,7 @@ ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v28"
 # v22 bound sense schema and input dim into the resume archive compatibility
 # (spec sections 3 and 8: archive compatibility binds sense schema / input dim
 # / latent dim / ant count).
-ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v25"
+ECOLOGY_P1_PROGRESS_SCHEMA_VERSION = "digital-ant-ecology-p1-progress.v26"
 ECOLOGY_P1_DIAGNOSTICS_SCHEMA_VERSION = "digital-ant-ecology-p1-diagnostics.v3"
 ECOLOGY_P1_ARM_NAMES = (
     "learned",
@@ -104,6 +115,7 @@ ECOLOGY_P1_GATE_NAMES = (
     "diagnostic_layout_solvability",
     "p0_action_sensitivity",
     "carrying_home_action_alignment",
+    "post_pickup_uturn_progress",
     "food_steering_alignment",
     "temporal_non_timeout_closure",
     "frozen_evaluation",
@@ -420,6 +432,9 @@ class EcologyP1Report:
     regime_diagnostic: tuple[EcologyP1RegimeDiagnosticRow, ...]
     regime_gap_summary: tuple[EcologyP1RegimeGapSummary, ...]
     repeat_reference: EcologyP1RepeatReference | None
+    post_pickup_uturn_probes: tuple[
+        EcologyCheckpointPostPickupUTurnProbe, ...
+    ]
     gates: tuple[EcologyP1Gate, ...]
     verdict: str
     diagnostic_breakpoints: tuple[str, ...]
@@ -2665,6 +2680,53 @@ async def run_ecology_p1(
             "every carrying-state probe changes action and turns toward home"
         ),
     ))
+    post_pickup_uturn_probes = (
+        await run_ecology_checkpoint_post_pickup_uturn_probes(
+            temporal_latent_dim=config.temporal_latent_dim,
+            seed=config.seed + 700_003,
+            checkpoints=arms["learned"],
+        )
+    )
+    aligned_uturn_bodies = sum(
+        probe.passed for probe in post_pickup_uturn_probes
+    )
+    gates.append(EcologyP1Gate(
+        name="post_pickup_uturn_progress",
+        passed=(
+            len(post_pickup_uturn_probes) == config.n_ants
+            and aligned_uturn_bodies >= required_bodies
+        ),
+        observed=repr(
+            tuple(
+                (
+                    probe.body_id,
+                    probe.passed,
+                    tuple(
+                        (
+                            lane.side,
+                            lane.picked_up,
+                            lane.delivered,
+                            lane.net_home_progress,
+                            lane.max_consecutive_approach_steps,
+                            lane.policy_fingerprint_stable,
+                            lane.temporal_learning_fingerprint_stable,
+                        )
+                        for lane in probe.lanes
+                    ),
+                )
+                for probe in post_pickup_uturn_probes
+            )
+        ),
+        threshold=(
+            f">={required_bodies}/{config.n_ants} bodies pass both +/-135-degree "
+            "frozen lanes after a real pickup; each lane must deliver or reduce "
+            "home distance by >="
+            f"{ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS:.3f} with >="
+            f"{ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS} "
+            "consecutive approach steps, while policy and temporal-learning "
+            "fingerprints remain stable"
+        ),
+    ))
     # Near-range food-steering honesty gate. Near pickups can be produced by a
     # small exploration circle that sweeps over nearby food WITHOUT any learned
     # food-gradient steering; that false positive has historically masked the
@@ -2781,6 +2843,7 @@ async def run_ecology_p1(
         regime_diagnostic=regime_tuple,
         regime_gap_summary=regime_summary,
         repeat_reference=repeat_reference,
+        post_pickup_uturn_probes=post_pickup_uturn_probes,
         gates=gate_tuple,
         verdict=verdict,
         diagnostic_breakpoints=breakpoints,

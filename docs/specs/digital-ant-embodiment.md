@@ -360,6 +360,15 @@ promotion gate：
   的拾取盘（蝶油半径 1.1，圆心距巢 0.95–1.35）与巢（半径 1.0）重叠，无方向游走即可拾取，
   因此普通 near 布局对食物梯度转向**零训练压力**——v10–v21 实测 food→turn authority
   始终 ≈0 且不随训练增长，而 pickup 数字看起来健康。
+- 单步 `carrying_home_action_alignment` 只证明输出方向朝巢，不能证明转向幅度足以闭合真实
+  拾取后的返程。P1/P2 因此另设冻结 `post_pickup_uturn_progress` 硬门：每个 checkpoint
+  分别从左右 `±3π/4` 朝向进入同一真实黄油拾取事件，随后在 16 tick 内关闭 policy
+  optimization 与 joint learning；两条 lane 都必须保持 policy 与 temporal-learning
+  fingerprint 不变，并实际交付，或使拾取后巢距净下降至少一个 plant step（0.4）且连续
+  至少 3 步下降。左右任一失败即该 body 失败；正式门仍要求至少 60% body 通过。该门读取
+  embodiment owner 发布的真实 pickup/delivery 与逐 tick pose，只作冻结 evaluation readout，
+  不向 PE、credit 或训练链回灌。这样“单步方向正确但转角几乎为零、随后持续远离巢”的策略
+  无法再通过 home gate。
 - training、validation、正式 held-out 使用三个不重叠的 seed/布局命名空间。held-out 拆成
   butter-only、butter-with-neutral-stick、burning-match route avoidance、burning-match forced
   escape 和 composite 五类：butter-with-neutral-stick 只验证有中性物理阻挡时觅食仍成功（不比
@@ -378,8 +387,9 @@ promotion gate：
   真正要求的同一能力。此门只读已发布的 probe 方向 truth，绝不回灌学习（evaluation 仍是 PE 的下游
   readout）。综合 outcome score 与 composite/
   matched-ablation 比较不含 obstacle-contact 惩罚项。外层 bundle/report schema 为
-  `digital-ant-ecology-checkpoint.v4` / `digital-ant-ecology-curriculum.v3`（v3/v2 是木棍仍作
-  回避目标的历史语义，其 artifact 只作诊断，loader 必须拒绝）。
+  `digital-ant-ecology-checkpoint.v4` / `digital-ant-ecology-curriculum.v12`（v3/v2 是木棍仍作
+  回避目标的历史语义，v11 及更早缺少当前冻结掉头轨迹门；这些 artifact 只作诊断，
+  loader 必须拒绝）。
   settlement coverage 的分母是 `captured - pending_capture_count`；episode 尾部尚无下一状态的
   capture 被明确发布为 pending，不得误报为 drop，也不得借此忽略真实 drop reason。
   任一失败即 `BLOCK`；不得加载为 demo checkpoint，也不得用 `FixedRuleAnt` 或 Canvas 脚本伪装通过。

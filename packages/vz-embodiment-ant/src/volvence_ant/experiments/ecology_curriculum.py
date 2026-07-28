@@ -46,6 +46,11 @@ from volvence_ant.runtime import (
 )
 
 
+# v12 adds the frozen post-pickup U-turn gate: a real pickup must be followed
+# by sustained home-distance reduction on both +/-135-degree lanes. v11 only
+# changed training geometry; its reports could still PASS by checking a
+# single carrying-home action whose direction was correct but magnitude was
+# too small to close the loop.
 # v11 strengthens the forced-return training pressure from +/-90 to +/-135
 # degrees. v27's medium trace showed two bodies picking up at tick 9/10 and
 # then diverging from the nest to distance 9.5+ with PI direction error below
@@ -86,7 +91,7 @@ from volvence_ant.runtime import (
 # * the tier geometry changed (near pickup disc and nest delivery disc), so
 #   every pickup/delivery count in a v7 report was produced in a different
 #   world.
-ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v11"
+ECOLOGY_CURRICULUM_SCHEMA_VERSION = "digital-ant-ecology-curriculum.v12"
 ECOLOGY_CHECKPOINT_MEMORY_ENTRY_CAPACITY = 8192
 ECOLOGY_REQUIRED_GATE_NAMES = (
     "training_layout_mastery",

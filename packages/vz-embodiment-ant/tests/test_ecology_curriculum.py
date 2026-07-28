@@ -170,6 +170,8 @@ def _episode(
 @pytest.mark.parametrize(
     "retired",
     [
+        # v11 changed training geometry but had no sustained U-turn hard gate.
+        "digital-ant-ecology-curriculum.v11",
         # v10 trained only a quarter-turn return, not the natural near-pi leg.
         "digital-ant-ecology-curriculum.v10",
         # v9's forced-return pressure rewarded a straight non-delivery path.
@@ -182,10 +184,10 @@ def _episode(
 def test_curriculum_schema_bump_rejects_earlier_reports(
     retired: str,
 ) -> None:
-    """v11 semantics must never be read out of a v10 (or older) journal."""
+    """v12 semantics must never be read out of a v11 (or older) journal."""
 
     assert ECOLOGY_CURRICULUM_SCHEMA_VERSION == (
-        "digital-ant-ecology-curriculum.v11"
+        "digital-ant-ecology-curriculum.v12"
     )
     legacy = {
         "schema_version": retired,
