@@ -24,7 +24,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from hashlib import sha256
 
-from volvence_zero.conditioning_bank_contracts import ConditioningBankSnapshot
+from volvence_zero.conditioning_bank_contracts import (
+    ConditioningBankSnapshot,
+    ConditioningLineageRef,
+)
 from volvence_zero.dialogue_trace import ConditioningLineage
 
 
@@ -79,4 +82,44 @@ def build_conditioning_lineage(
     )
 
 
-__all__ = ["bank_fingerprint", "build_conditioning_lineage"]
+def build_conditioning_lineage_ref(
+    *,
+    session_scope: str,
+    banks: Sequence[ConditioningBankSnapshot],
+    state_encoder_version: str = "",
+    prefix_generator_version: str = "",
+    router_version: str = "",
+    carrier: str = "",
+    delivery_phase: str = "substrate-capture",
+) -> ConditioningLineageRef | None:
+    """Public snapshot-safe lineage reference for conditioned model surfaces."""
+
+    if not session_scope:
+        return None
+    influencing = [bank for bank in banks if bank.is_injectable]
+    if not influencing:
+        return None
+    influencing.sort(key=lambda bank: bank.bank_type.value)
+    return ConditioningLineageRef(
+        session_scope=session_scope,
+        selected_bank_set=tuple(bank.bank_type.value for bank in influencing),
+        bank_fingerprints=tuple(
+            (bank.bank_type.value, bank_fingerprint(bank)) for bank in influencing
+        ),
+        state_encoder_version=state_encoder_version,
+        prefix_generator_version=prefix_generator_version,
+        router_version=router_version,
+        carrier=carrier,
+        delivery_phase=delivery_phase,
+        description=(
+            "State KV conditioning lineage for public substrate/temporal "
+            "snapshot propagation."
+        ),
+    )
+
+
+__all__ = [
+    "bank_fingerprint",
+    "build_conditioning_lineage",
+    "build_conditioning_lineage_ref",
+]

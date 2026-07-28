@@ -386,6 +386,7 @@ class SessionLifecycleMixin:
         self._context_index += 1
         self._upstream_snapshots = {}
         self._previous_substrate_snapshot = None
+        self._previous_personal_conditioning_snapshot = None
         self._previous_prediction_reward = 0.0
         self._previous_prediction_magnitude = 0.0
         self._previous_prediction_error = None

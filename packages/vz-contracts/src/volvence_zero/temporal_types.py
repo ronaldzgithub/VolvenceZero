@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from volvence_zero.conditioning_bank_contracts import ConditioningLineageRef
+
 
 _ACTION_FAMILY_BY_EXACT_ID: dict[str, str] = {
     "task_controller": "task",
@@ -65,6 +67,7 @@ class TemporalAbstractionSnapshot:
     memory_feedback_signal: tuple[float, ...] = ()
     closed_segments: tuple[TemporalSegmentClosure, ...] = ()
     memory_retrieval_facets: tuple[str, ...] = ()
+    conditioning_lineage_refs: tuple[ConditioningLineageRef, ...] = ()
 
     def __post_init__(self) -> None:
         if self.memory_retrieval_facets:

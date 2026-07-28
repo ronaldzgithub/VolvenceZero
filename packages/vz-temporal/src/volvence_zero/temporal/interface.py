@@ -98,6 +98,38 @@ class TemporalStep:
     action_family_version: int = 0
 
 
+def _conditioning_lineage_refs_from_substrate(
+    substrate_snapshot: SubstrateSnapshot,
+) -> tuple[Any, ...]:
+    if substrate_snapshot.conditioning_lineage is None:
+        return ()
+    return (substrate_snapshot.conditioning_lineage,)
+
+
+def _merge_conditioning_lineage_refs(
+    *groups: tuple[Any, ...],
+) -> tuple[Any, ...]:
+    merged: list[Any] = []
+    seen: set[tuple[object, ...]] = set()
+    for group in groups:
+        for lineage in group:
+            key = (
+                lineage.session_scope,
+                lineage.selected_bank_set,
+                lineage.bank_fingerprints,
+                lineage.state_encoder_version,
+                lineage.prefix_generator_version,
+                lineage.router_version,
+                lineage.carrier,
+                lineage.delivery_phase,
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(lineage)
+    return tuple(merged)
+
+
 @dataclass(frozen=True)
 class CPDSwitchReadout:
     """Read-only SYS-1 change-point evidence for beta_t switching.
@@ -5047,6 +5079,11 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
                 memory_snapshot=memory_value,
                 reflection_snapshot=reflection_value,
             )
+        conditioning_lineage_refs = (
+            _conditioning_lineage_refs_from_substrate(substrate_value)
+            if isinstance(substrate_value, SubstrateSnapshot)
+            else ()
+        )
 
         snapshot_value = TemporalAbstractionSnapshot(
             controller_state=step.controller_state,
@@ -5060,6 +5097,7 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
                 current_step=step,
                 close_turn_index=self._version + 1,
             ),
+            conditioning_lineage_refs=conditioning_lineage_refs,
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
@@ -5095,6 +5133,9 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             description=step.description,
             action_family_version=step.action_family_version,
             memory_feedback_signal=self._policy.latest_encoder_output_for_cms or (),
+            conditioning_lineage_refs=_conditioning_lineage_refs_from_substrate(
+                substrate_snapshot
+            ),
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
@@ -5237,6 +5278,10 @@ def build_temporal_aggregate_snapshot(
                 if segment.segment_id
                 not in {item.segment_id for item in world_snapshot.closed_segments}
             )
+        ),
+        conditioning_lineage_refs=_merge_conditioning_lineage_refs(
+            world_snapshot.conditioning_lineage_refs,
+            self_snapshot.conditioning_lineage_refs,
         ),
     )
 
@@ -5581,6 +5626,11 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
                 memory_snapshot=memory_value,
                 reflection_snapshot=reflection_value,
             )
+        conditioning_lineage_refs = (
+            _conditioning_lineage_refs_from_substrate(substrate_value)
+            if isinstance(substrate_value, SubstrateSnapshot)
+            else ()
+        )
         snapshot_value = TemporalAbstractionSnapshot(
             controller_state=step.controller_state,
             active_abstract_action=step.active_abstract_action,
@@ -5598,6 +5648,7 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
                 current_step=step,
                 close_turn_index=self._version + 1,
             ),
+            conditioning_lineage_refs=conditioning_lineage_refs,
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
@@ -5633,6 +5684,9 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
                 previous_snapshot=self._previous_snapshot,
                 current_step=step,
                 close_turn_index=self._version + 1,
+            ),
+            conditioning_lineage_refs=_conditioning_lineage_refs_from_substrate(
+                substrate_snapshot
             ),
         )
         self._previous_snapshot = snapshot_value

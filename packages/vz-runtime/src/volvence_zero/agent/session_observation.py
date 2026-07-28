@@ -60,16 +60,22 @@ from volvence_zero.evaluation import EvaluationSnapshot
 from volvence_zero.integration import FinalIntegrationResult
 from volvence_zero.joint_loop import ScheduledJointLoopResult
 from volvence_zero.memory import MemorySnapshot
-from volvence_zero.agent.conditioning_lineage import build_conditioning_lineage
+from volvence_zero.agent.conditioning_lineage import (
+    build_conditioning_lineage,
+    build_conditioning_lineage_ref,
+)
 from volvence_zero.conditioning_bank_adapters import personal_conditioning_to_bank
-from volvence_zero.conditioning_bank_contracts import ConditioningScope
+from volvence_zero.conditioning_bank_contracts import (
+    ConditioningLineageRef,
+    ConditioningScope,
+)
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
 from volvence_zero.planning import ImaginationResult, imagine
 from volvence_zero.reflection import ReflectionSnapshot, WritebackResult
 from volvence_zero.regime import RegimeSnapshot
-from volvence_zero.runtime import Snapshot, validate_snapshot_contract
+from volvence_zero.runtime import Snapshot, WiringLevel, validate_snapshot_contract
 from volvence_zero.social_cognition import (
     PRIMARY_INTERLOCUTOR_ID,
     SELF_INTERLOCUTOR_ID,
@@ -102,6 +108,7 @@ if TYPE_CHECKING:
 # tier, which does carry ``tenant_id``) must pass its own value rather than
 # inherit this one, otherwise two tenants would share a cache namespace.
 _RUNNER_TENANT_SCOPE = "runner-local"
+_SUBSTRATE_LINEAGE_CARRIERS = ("residual", "prefix_kv")
 
 
 def _personal_conditioning_delivery_from_config(
@@ -144,6 +151,36 @@ def _personal_conditioning_delivery_from_config(
     )
 
 
+def _substrate_conditioning_lineage_from_previous(
+    *,
+    previous_conditioning: PersonalConditioningSnapshot | None,
+    user_scope: str,
+    session_scope: str,
+    personal_conditioning_wiring: WiringLevel,
+    personal_conditioning_mode: str,
+) -> ConditioningLineageRef | None:
+    if personal_conditioning_wiring is not WiringLevel.ACTIVE:
+        return None
+    if personal_conditioning_mode not in _SUBSTRATE_LINEAGE_CARRIERS:
+        return None
+    if previous_conditioning is None:
+        return None
+    bank = personal_conditioning_to_bank(
+        snapshot=previous_conditioning,
+        scope=ConditioningScope(
+            tenant_scope=_RUNNER_TENANT_SCOPE,
+            user_scope=user_scope,
+            session_scope=session_scope,
+        ),
+    )
+    return build_conditioning_lineage_ref(
+        session_scope=session_scope,
+        banks=(bank,),
+        carrier=personal_conditioning_mode,
+        delivery_phase="substrate-capture",
+    )
+
+
 class SessionObservationMixin:
     """Methods that build the substrate adapter / training trace / turn result.
 
@@ -155,9 +192,17 @@ class SessionObservationMixin:
     def _build_substrate_adapter(self, *, user_input: str) -> SubstrateAdapter:
         if self._substrate_adapter_factory is not None:
             return self._substrate_adapter_factory(user_input, self._turn_index)
+        conditioning_lineage = _substrate_conditioning_lineage_from_previous(
+            previous_conditioning=self._previous_personal_conditioning_snapshot,
+            user_scope=self.user_scope,
+            session_scope=self._session_id,
+            personal_conditioning_wiring=self._config.personal_conditioning,
+            personal_conditioning_mode=self._config.personal_conditioning_mode,
+        )
         return OpenWeightResidualStreamSubstrateAdapter(
             runtime=self._default_residual_runtime,
             default_source_text=user_input,
+            conditioning_lineage=conditioning_lineage,
         )
 
     def _build_training_trace_from_substrate(self, *, user_input: str) -> TrainingTrace:
@@ -611,6 +656,7 @@ class SessionObservationMixin:
                     else:
                         shadow_snapshots["credit"] = new_credit_snapshot
 
+        self._previous_personal_conditioning_snapshot = active_conditioning
         return AgentTurnResult(
             session_id=self.active_context_session_id,
             wave_id=wave_id,

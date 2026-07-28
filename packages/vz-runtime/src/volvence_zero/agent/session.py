@@ -137,6 +137,7 @@ from volvence_zero.joint_loop import (
 from volvence_zero.joint_loop.runtime import RuntimeReplayRewardStream
 from volvence_zero.memory import MemorySnapshot, MemoryStore, Track, build_default_memory_store
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
+from volvence_zero.personal_conditioning_contracts import PersonalConditioningSnapshot
 from volvence_zero.planning import ImaginationResult, imagine
 from volvence_zero.prediction.error import (
     ActualOutcome,
@@ -1093,6 +1094,7 @@ class AgentSessionRunner(
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
+        self._previous_personal_conditioning_snapshot: PersonalConditioningSnapshot | None = None
         self._previous_prediction_reward: float = 0.0
         self._previous_prediction_magnitude: float = 0.0
         self._previous_prediction_error: PredictionError | None = None

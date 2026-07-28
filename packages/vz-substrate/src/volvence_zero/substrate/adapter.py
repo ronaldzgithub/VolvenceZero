@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 import hashlib
 import math
 from typing import TYPE_CHECKING, Any, Mapping
 
+from volvence_zero.conditioning_bank_contracts import ConditioningLineageRef
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 
 if TYPE_CHECKING:
@@ -41,6 +42,7 @@ class ResidualSequenceStep:
     feature_surface: tuple[FeatureSignal, ...]
     residual_activations: tuple[ResidualActivation, ...]
     description: str
+    conditioning_lineage: ConditioningLineageRef | None = None
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,7 @@ class SubstrateSnapshot:
     residual_sequence: tuple[ResidualSequenceStep, ...]
     unavailable_fields: tuple[UnavailableField, ...]
     description: str
+    conditioning_lineage: ConditioningLineageRef | None = None
 
 
 def feature_signal_map(feature_surface: tuple[FeatureSignal, ...]) -> dict[str, tuple[float, ...]]:
@@ -95,11 +98,18 @@ class SubstrateAdapter(ABC):
 class PlaceholderSubstrateAdapter(SubstrateAdapter):
     """Most conservative adapter when no feature surface is available yet."""
 
-    def __init__(self, *, model_id: str, detail: str = "No substrate surface is available yet.") -> None:
+    def __init__(
+        self,
+        *,
+        model_id: str,
+        detail: str = "No substrate surface is available yet.",
+        conditioning_lineage: ConditioningLineageRef | None = None,
+    ) -> None:
         self.model_id = model_id
         self.is_frozen = True
         self.surface_kind = SurfaceKind.PLACEHOLDER
         self._detail = detail
+        self._conditioning_lineage = conditioning_lineage
 
     async def capture(self, *, source_text: str | None = None) -> SubstrateSnapshot:
         return SubstrateSnapshot(
@@ -128,6 +138,7 @@ class PlaceholderSubstrateAdapter(SubstrateAdapter):
                 ),
             ),
             description="Placeholder substrate snapshot with no live model surface.",
+            conditioning_lineage=self._conditioning_lineage,
         )
 
 
@@ -144,12 +155,14 @@ class FeatureSurfaceSubstrateAdapter(SubstrateAdapter):
         feature_surface: tuple[FeatureSignal, ...],
         token_logits: tuple[float, ...] = (),
         is_frozen: bool = True,
+        conditioning_lineage: ConditioningLineageRef | None = None,
     ) -> None:
         self.model_id = model_id
         self.is_frozen = is_frozen
         self.surface_kind = SurfaceKind.FEATURE_SURFACE
         self._feature_surface = feature_surface
         self._token_logits = token_logits
+        self._conditioning_lineage = conditioning_lineage
 
     async def capture(self, *, source_text: str | None = None) -> SubstrateSnapshot:
         source_detail = "Feature-surface substrate snapshot."
@@ -176,6 +189,7 @@ class FeatureSurfaceSubstrateAdapter(SubstrateAdapter):
                 ),
             ),
             description=source_detail,
+            conditioning_lineage=self._conditioning_lineage,
         )
 
 
@@ -377,6 +391,7 @@ class ResidualStreamSubstrateAdapter(SubstrateAdapter):
         token_logits: tuple[float, ...] = (),
         is_frozen: bool = True,
         feature_surface: tuple[FeatureSignal, ...] = (),
+        conditioning_lineage: ConditioningLineageRef | None = None,
     ) -> None:
         self.model_id = model_id
         self.is_frozen = is_frozen
@@ -385,9 +400,13 @@ class ResidualStreamSubstrateAdapter(SubstrateAdapter):
         self._residual_sequence = residual_sequence
         self._token_logits = token_logits
         self._feature_surface = feature_surface
+        self._conditioning_lineage = conditioning_lineage
 
     async def capture(self, *, source_text: str | None = None) -> SubstrateSnapshot:
-        residual_sequence = self._residual_sequence
+        residual_sequence = _residual_sequence_with_lineage(
+            self._residual_sequence,
+            self._conditioning_lineage,
+        )
         if not residual_sequence and self._residual_activations:
             residual_sequence = (
                 ResidualSequenceStep(
@@ -396,6 +415,7 @@ class ResidualStreamSubstrateAdapter(SubstrateAdapter):
                     feature_surface=self._feature_surface,
                     residual_activations=self._residual_activations,
                     description="Single-step residual fallback sequence.",
+                    conditioning_lineage=self._conditioning_lineage,
                 ),
             )
         return SubstrateSnapshot(
@@ -408,15 +428,23 @@ class ResidualStreamSubstrateAdapter(SubstrateAdapter):
             residual_sequence=residual_sequence,
             unavailable_fields=(),
             description="Residual-stream substrate snapshot.",
+            conditioning_lineage=self._conditioning_lineage,
         )
 
 
 class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
     """Hook-ready adapter backed by a frozen open-weight residual runtime."""
 
-    def __init__(self, *, runtime: "OpenWeightResidualRuntime", default_source_text: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        runtime: "OpenWeightResidualRuntime",
+        default_source_text: str | None = None,
+        conditioning_lineage: ConditioningLineageRef | None = None,
+    ) -> None:
         self._runtime = runtime
         self._default_source_text = default_source_text
+        self._conditioning_lineage = conditioning_lineage
         self.model_id = runtime.model_id
         self.is_frozen = runtime.is_frozen
         self.surface_kind = SurfaceKind.RESIDUAL_STREAM
@@ -461,10 +489,28 @@ class OpenWeightResidualStreamSubstrateAdapter(SubstrateAdapter):
             token_logits=capture.token_logits,
             feature_surface=feature_surface,
             residual_activations=capture.residual_activations,
-            residual_sequence=capture.residual_sequence,
+            residual_sequence=_residual_sequence_with_lineage(
+                capture.residual_sequence,
+                self._conditioning_lineage,
+            ),
             unavailable_fields=(),
             description=description,
+            conditioning_lineage=self._conditioning_lineage,
         )
+
+
+def _residual_sequence_with_lineage(
+    residual_sequence: tuple[ResidualSequenceStep, ...],
+    conditioning_lineage: ConditioningLineageRef | None,
+) -> tuple[ResidualSequenceStep, ...]:
+    if conditioning_lineage is None:
+        return residual_sequence
+    return tuple(
+        step
+        if step.conditioning_lineage == conditioning_lineage
+        else replace(step, conditioning_lineage=conditioning_lineage)
+        for step in residual_sequence
+    )
 
 
 class SubstrateModule(RuntimeModule[SubstrateSnapshot]):

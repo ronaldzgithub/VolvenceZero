@@ -322,10 +322,63 @@ class ConditioningBankSnapshot:
         )
 
 
+@dataclass(frozen=True)
+class ConditioningLineageRef:
+    """Stable public reference to the bank versions that conditioned a surface.
+
+    This is the cross-wheel lineage shape for State KV: substrate and temporal
+    may publish it without becoming semantic owners. It carries only scope,
+    bank names and fingerprints, plus the carrier/version knobs that identify
+    the conditioned model-layer path.
+    """
+
+    session_scope: str
+    selected_bank_set: tuple[str, ...]
+    bank_fingerprints: tuple[tuple[str, str], ...]
+    state_encoder_version: str = ""
+    prefix_generator_version: str = ""
+    router_version: str = ""
+    carrier: str = ""
+    delivery_phase: str = "substrate-capture"
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.session_scope:
+            raise ValueError("ConditioningLineageRef session_scope must be non-empty.")
+        if not self.selected_bank_set:
+            raise ValueError(
+                "ConditioningLineageRef selected_bank_set must be non-empty."
+            )
+        if len(set(self.selected_bank_set)) != len(self.selected_bank_set):
+            raise ValueError(
+                "ConditioningLineageRef selected_bank_set must not contain duplicates."
+            )
+        fingerprint_names = tuple(name for name, _ in self.bank_fingerprints)
+        if fingerprint_names != self.selected_bank_set:
+            raise ValueError(
+                "ConditioningLineageRef bank_fingerprints must match "
+                "selected_bank_set order and names."
+            )
+        if any(not fingerprint for _, fingerprint in self.bank_fingerprints):
+            raise ValueError(
+                "ConditioningLineageRef bank_fingerprints must be non-empty."
+            )
+        if self.carrier and self.carrier not in ("residual", "prefix_kv", "text"):
+            raise ValueError(
+                "ConditioningLineageRef carrier must be 'residual', "
+                "'prefix_kv', 'text', or empty."
+            )
+        if not self.delivery_phase:
+            raise ValueError(
+                "ConditioningLineageRef delivery_phase must be non-empty."
+            )
+
+
 __all__ = [
     "CONDITIONING_BANK_SCHEMA_VERSION",
     "CONDITIONING_BANK_SLOTS",
     "ConditioningBankSnapshot",
+    "ConditioningLineageRef",
     "ConditioningBankType",
     "ConditioningRevocationState",
     "ConditioningScope",
