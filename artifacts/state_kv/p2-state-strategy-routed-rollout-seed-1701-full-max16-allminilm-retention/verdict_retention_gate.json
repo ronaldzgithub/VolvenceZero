@@ -1,0 +1,119 @@
+{
+  "schema_version": "state-kv-retention-gate.v1",
+  "gate_state": "fail",
+  "claims": [
+    {
+      "claim": "claim_consistent_artifact",
+      "state": "pass",
+      "detail": "1 verdicts share artifact 8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238, substrate Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33, judge sentence-transformers/all-MiniLM-L6-v2, candidate state-kv-arm-g-prefix-pure, probe_limit 0, probe_count 16, case_count 32, max_new_tokens 16, temperature 0.2, sampling_seed 1701, stochastic_rollout=True"
+    },
+    {
+      "claim": "claim_individual_retained",
+      "state": "fail",
+      "detail": "all input verdicts must be retain-strict/decode-matched; failed inputs: verdict_identification.json; stochastic seed audit failures: "
+    },
+    {
+      "claim": "claim_heldout_pair_coverage",
+      "state": "insufficient_data",
+      "detail": "missing required P2 held-out pairs: boundary-vs-commit"
+    },
+    {
+      "claim": "claim_aggregate_identification",
+      "state": "fail",
+      "detail": "aggregate candidate CI lower bound 0.312 does not clear chance"
+    },
+    {
+      "claim": "claim_aggregate_carrier_causality",
+      "state": "fail",
+      "detail": "control aggregate CI (0.312, 0.688); candidate CI low 0.312"
+    },
+    {
+      "claim": "claim_bootstrap_seed_stability",
+      "state": "fail",
+      "detail": "per-verdict CI low floor=0.344; aggregate CI low floor=0.312"
+    }
+  ],
+  "inputs": [
+    {
+      "verdict_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-allminilm/verdict_identification.json",
+      "fingerprint_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-allminilm/substrate_fingerprint.json",
+      "lane": "p2",
+      "p2_pair": "repair-vs-execute",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "verdict_state": "fail",
+      "c5_grade": "decode-matched",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "judge_model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "probe_limit": 0,
+      "probe_count": 16,
+      "case_count": 32,
+      "max_new_tokens": 16,
+      "temperature": 0.2,
+      "sampling_seed": 1701,
+      "stochastic_generation_rollout": true,
+      "turn_count": 160,
+      "seeded_turn_count": 160,
+      "unique_turn_seed_count": 80,
+      "candidate": {
+        "correct": 16,
+        "total": 32,
+        "ci_low": 0.34375,
+        "ci_high": 0.6875
+      },
+      "control": {
+        "correct": 16,
+        "total": 32,
+        "ci_low": 0.3125,
+        "ci_high": 0.65625
+      }
+    }
+  ],
+  "aggregates": [
+    {
+      "arm": "state-kv-arm-a-pure",
+      "correct": 16,
+      "total": 32,
+      "accuracy": 0.5,
+      "ci_low_min": 0.3125,
+      "ci_high_max": 0.6875,
+      "bootstrap_seeds": [
+        20260726,
+        20260727,
+        20260728,
+        1701,
+        31337
+      ]
+    },
+    {
+      "arm": "state-kv-arm-g-prefix-pure",
+      "correct": 16,
+      "total": 32,
+      "accuracy": 0.5,
+      "ci_low_min": 0.3125,
+      "ci_high_max": 0.6875,
+      "bootstrap_seeds": [
+        20260726,
+        20260727,
+        20260728,
+        1701,
+        31337
+      ]
+    }
+  ],
+  "required_p2_pairs": [
+    "repair-vs-execute",
+    "boundary-vs-commit"
+  ],
+  "bootstrap_seeds": [
+    20260726,
+    20260727,
+    20260728,
+    1701,
+    31337
+  ],
+  "stochastic_generation_rollout_covered": true,
+  "notes": [
+    "This gate covers held-out pair aggregation, bootstrap-seed robustness, and seed-aligned stochastic generation rollout."
+  ]
+}

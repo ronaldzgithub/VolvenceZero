@@ -1,0 +1,136 @@
+{
+  "schema_version": "state-kv-judge-court.v1",
+  "court_state": "fail",
+  "claims": [
+    {
+      "claim": "claim_consistent_material",
+      "state": "fail",
+      "detail": "panels do not share one artifact/substrate/candidate/required-pair/rollout matrix: artifacts=['8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238'], substrates=['Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33'], candidates=['state-kv-arm-g-prefix-pure'], required_pairs=[('boundary-vs-commit', 'repair-vs-execute')], rollout_matrix_count=2, stochastic_flags=[True]"
+    },
+    {
+      "claim": "claim_multi_judge_coverage",
+      "state": "pass",
+      "detail": "2 distinct judges observed: BAAI/bge-m3, sentence-transformers/all-MiniLM-L6-v2"
+    },
+    {
+      "claim": "claim_panel_retained",
+      "state": "fail",
+      "detail": "all judge panels must pass their retention gate; failed: verdict_retention_gate.json"
+    },
+    {
+      "claim": "claim_court_identification",
+      "state": "fail",
+      "detail": "each judge must clear chance on the candidate arm; weak panels: sentence-transformers/all-MiniLM-L6-v2:0.312"
+    },
+    {
+      "claim": "claim_court_carrier_causality",
+      "state": "fail",
+      "detail": "each judge must keep the A-pure control at chance while the candidate clears it; failures: sentence-transformers/all-MiniLM-L6-v2:control=(0.312,0.688)"
+    }
+  ],
+  "panels": [
+    {
+      "report_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-retention/verdict_retention_gate.json",
+      "gate_state": "pass",
+      "judge_model_id": "BAAI/bge-m3",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "required_p2_pairs": [
+        "boundary-vs-commit",
+        "repair-vs-execute"
+      ],
+      "rollout_matrix": [
+        [
+          "p2",
+          "boundary-vs-commit",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          1701,
+          true
+        ],
+        [
+          "p2",
+          "repair-vs-execute",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          1701,
+          true
+        ]
+      ],
+      "stochastic_generation_rollout_covered": true,
+      "candidate": {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "correct": 64,
+        "total": 64,
+        "accuracy": 1.0,
+        "ci_low_min": 1.0,
+        "ci_high_max": 1.0
+      },
+      "control": {
+        "arm": "state-kv-arm-a-pure",
+        "correct": 32,
+        "total": 64,
+        "accuracy": 0.5,
+        "ci_low_min": 0.375,
+        "ci_high_max": 0.625
+      }
+    },
+    {
+      "report_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-allminilm-retention/verdict_retention_gate.json",
+      "gate_state": "fail",
+      "judge_model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33",
+      "candidate_arm": "state-kv-arm-g-prefix-pure",
+      "required_p2_pairs": [
+        "boundary-vs-commit",
+        "repair-vs-execute"
+      ],
+      "rollout_matrix": [
+        [
+          "p2",
+          "repair-vs-execute",
+          0,
+          16,
+          32,
+          16,
+          0.2,
+          1701,
+          true
+        ]
+      ],
+      "stochastic_generation_rollout_covered": true,
+      "candidate": {
+        "arm": "state-kv-arm-g-prefix-pure",
+        "correct": 16,
+        "total": 32,
+        "accuracy": 0.5,
+        "ci_low_min": 0.3125,
+        "ci_high_max": 0.6875
+      },
+      "control": {
+        "arm": "state-kv-arm-a-pure",
+        "correct": 16,
+        "total": 32,
+        "accuracy": 0.5,
+        "ci_low_min": 0.3125,
+        "ci_high_max": 0.6875
+      }
+    }
+  ],
+  "min_judges": 2,
+  "judge_model_ids": [
+    "BAAI/bge-m3",
+    "sentence-transformers/all-MiniLM-L6-v2"
+  ],
+  "notes": [
+    "Court did not pass; keep claims scoped to the individual judge retention reports that passed."
+  ]
+}

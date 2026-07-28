@@ -244,7 +244,7 @@ prompt identity 与 output divergence。但 wrong-user training control 仍只�
 这把“state readout 能进入 Prefix-KV 并影响冻结 Qwen 输出”证明到标准 artifact
 级别，并补上了未见过 persona/probe 的 held-out 行为识别。runtime wiring 已把
 prefix-KV 接成正式 opt-in 投递模式；默认全局 `ACTIVE` 晋升仍需随部署 profile
-绑定兼容 artifact，并补上多模型裁判矩阵。
+绑定兼容 artifact，并补上能通过的多模型裁判 panel。
 
 完整数据与反主张边界见
 [`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3 / §P4。

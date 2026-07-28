@@ -1,6 +1,6 @@
 # 状态载体识别证据（Carrier-Identification Evidence）
 
-> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke（temperature 0.2，seed 1701，G-prefix 12/12，C5 decode-matched）、P2 probe-limited stochastic retention gate（G-prefix 合计 16/16）与 P2 full-probe stochastic retention gate（两个 held-out pair，16 probes，max_new_tokens=16，G-prefix 合计 64/64，A-pure 合计随机）。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 与 seed-aligned 随机生成路径上保持可识别；默认 ACTIVE 晋升与多模型裁判矩阵仍未完成。
+> Status: P0-contract / P0-smoke 已落地；P1 residual 两条 artifact 均未过输出分叉门槛，且其唯一分叉经设备交叉验证判定为数值噪声；旧 `teacher-distilled-prefix-v1` 的 P4 机制门定位为门 A fail / 门 B pass，通道退化为 residual 的多层版本；2026-07-28 `teacher-distilled-routed-prefix-v1` 在 `route_weight=1.0` 下通过 P4（Gate A/B pass，`carrier_is_live=true`），但行为识别仍缺跨家族 blind judge；同日新增 `state-strategy-routed-prefix-v1`，用 16 维状态直接生成策略目标。标准 artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238` 已在 MPS 上通过 P3 `retain-strict`（embedding judge 12/12，CI 1.0..1.0）、P4 机制门（Gate A/B pass，`carrier_is_live=true`）、P2 held-out 两组 pairwise 识别（27/32 与 29/32，CI 下界均 > 0.5）与 P2 aggregate retention gate（合计 56/64，bootstrap seed CI low floor 0.781，A-pure 合计随机）；同日新增 per-turn seed alignment 契约，并在 CPU 上通过 P3 stochastic rollout smoke（temperature 0.2，seed 1701，G-prefix 12/12，C5 decode-matched）、P2 probe-limited stochastic retention gate（G-prefix 合计 16/16）与 P2 full-probe stochastic retention gate（两个 held-out pair，16 probes，max_new_tokens=16，G-prefix 合计 64/64，A-pure 合计随机）。`state-kv-judge-court.v1` 多裁判聚合门已落地；实际第二本地裁判 `sentence-transformers/all-MiniLM-L6-v2` 在同一 full-probe cache 上复判为随机（G-prefix 16/32），court 正确返回 `fail`。这证明标准 State-KV artifact 已进入系统、被模型读取，并能在未见过的 persona/probe 与 seed-aligned 随机生成路径上保持可识别；默认 ACTIVE 晋升仍等待能通过的第二裁判 panel 与部署 profile。
 > Last updated: 2026-07-28
 > 对应需求: R4（token 空间之上的内部控制）、R8（快照优先）、R11（内部状态可命名可发布）、R12（评估只读）、R15（可解释 + 可回滚证据）
 > 上游 spec: [`personal-conditioning.md`](./personal-conditioning.md)（16 维状态与三臂投递形态的 owner）、
@@ -186,7 +186,7 @@ prompt」的效果（设计方案 §9.3 原文）。即便日后判据 2 通过�
 | P4-mechanism | slot 注意力非退化检验（门 A）+ 状态线性可读出探针（门 B） | 0 | 门 A fail / 门 B pass；`carrier_is_live=false` |
 | P2-retain-heldout | held-out personas + held-out probes，出 pairwise `verdict_identification.json` | MPS + 本地 embedding judge | ✅ 已落地，见 §P2 |
 | P2-retain-aggregate | 聚合两组 P2 verdict，复核同 artifact / substrate / judge 与 bootstrap seed 稳定性 | 本地只读聚合 | ✅ 已落地，见 §P2 |
-| P2-retain-rollout | true stochastic generation / 多模型裁判复核，同一 artifact 的稳定性门 | CPU / 批准预算 | ✅ full-probe seed-aligned CPU gate 已落地；多模型裁判 pending |
+| P2-retain-rollout | true stochastic generation / 多模型裁判复核，同一 artifact 的稳定性门 | CPU / 批准预算 | ✅ full-probe seed-aligned CPU gate 已落地；court gate 已落地，all-MiniLM 负裁判未通过 |
 
 ### P1 frozen-Qwen runner
 
@@ -908,7 +908,56 @@ python scripts/run_state_kv_retention_gate.py \
 这关闭的是**完整 P2 held-out probe set 上的 seed-aligned stochastic rollout stability**：
 同一标准 artifact、同一冻结 Qwen、同一 embedding judge、同一 seed/base config 下，
 两个 held-out pair 均保持 prompt-closed、decode-matched、G-prefix 可识别，且 A-pure
-控制臂合计随机。仍未关闭的是多模型裁判矩阵与默认全局 `ACTIVE` 部署 profile。
+控制臂合计随机。仍未关闭的是能通过的多模型裁判 panel 与默认全局 `ACTIVE` 部署 profile。
+
+#### P2 judge court gate（2026-07-28）
+
+第三层只读聚合门 `state-kv-judge-court.v1` 消费已经发布的
+`state-kv-retention-gate.v1` report，每个 report 对应一个 judge。它不重跑模型、
+不调用 judge、不训练，也不读取 owner；只检查：
+
+1. 至少两个不同 `judge_model_id`；
+2. 每个 judge panel 覆盖同一 artifact、substrate、candidate、P2 pair 集与 rollout
+   matrix；
+3. 每个 panel 的 retention gate 本身为 `pass`；
+4. 每个 judge 的 G-prefix candidate CI 下界都高于 0.5；
+5. 每个 judge 的 A-pure control CI 覆盖 0.5，且 candidate 清 chance。
+
+命令（实际 court 复核；第二 judge 使用已缓存 response，只重判，不重生成）：
+
+```bash
+python scripts/run_state_kv_identification.py \
+  --lane p2 --p2-pair repair-vs-execute --device cpu \
+  --max-new-tokens 16 --temperature 0.2 --sampling-seed 1701 \
+  --resume-turn-cache \
+  --personal-conditioning-scale 0.12 \
+  --prefix-kv-artifact artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.json \
+  --judge-kind embedding --judge-model-id sentence-transformers/all-MiniLM-L6-v2 \
+  --judge-source /Users/mengfu/.cache/huggingface/hub/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/c9745ed1d9f207416be6d2e6f8de32d1f16199bf \
+  --judge-device cpu \
+  --output artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-allminilm/verdict_identification.json
+
+python scripts/run_state_kv_retention_gate.py \
+  --verdict artifacts/state_kv/p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-allminilm/verdict_identification.json \
+  --output artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-allminilm-retention/verdict_retention_gate.json
+
+python scripts/run_state_kv_judge_court.py \
+  --retention-report artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-retention/verdict_retention_gate.json \
+  --retention-report artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-allminilm-retention/verdict_retention_gate.json \
+  --output artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-judge-court/verdict_judge_court.json
+```
+
+结果：
+
+| panel / gate | 结果 |
+|---|---|
+| BGE full-probe retention | `pass`：G-prefix 64/64，A-pure 32/64 随机 |
+| all-MiniLM repair-vs-execute rejudge | `fail`：G-prefix 16/32，CI 0.344..0.688，A-pure 16/32 随机 |
+| judge court | `fail`：2 个 distinct judges 覆盖成立，但 all-MiniLM panel 未 retain，且只覆盖 1 个 P2 pair |
+
+这关闭的是**多裁判矩阵的契约与防放水门**：弱裁判或覆盖不足的第二 panel 不会让
+State-KV 晋升为“多模型裁判通过”。当前可引用主张仍限于 BGE 单裁判 retention；
+默认 `ACTIVE` 晋升前需要补一个能在完整两组 P2 pair 上通过的第二裁判 panel。
 
 #### P3 stochastic rollout seed-alignment smoke（2026-07-28）
 
