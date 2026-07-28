@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from volvence_zero.application import (
+    ActionLearningLineage,
     LLMActionApplicabilityEvaluator,
     LLMActionAbstractionDecoder,
     ApplicationCaseMemoryStore,
@@ -58,6 +60,9 @@ from volvence_zero.application.retrieval_readout import (
     RetrievalControlReadoutStrategy,
 )
 from volvence_zero.application.runtime import _response_ordering_plan
+from volvence_zero.application.modules.response_assembly import (
+    _bind_action_realization,
+)
 from volvence_zero.audit import AuditSnapshot
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision, ModificationGate, SelfModificationRecord
 from volvence_zero.evaluation import EvaluationScore
@@ -110,6 +115,24 @@ from volvence_zero.environment import (
     EnvironmentEventKind,
     EnvironmentFrame,
 )
+
+
+def _action_learning_lineage(
+    outcome_id: str,
+    *,
+    optimizer_consumed: bool = True,
+    policy_update_applied: bool = True,
+) -> ActionLearningLineage:
+    return ActionLearningLineage(
+        environment_outcome_id=outcome_id,
+        prediction_id=f"prediction:{outcome_id}",
+        world_capture_id=f"world:{outcome_id}",
+        self_capture_id=f"self:{outcome_id}",
+        credit_record_ids=(f"credit:{outcome_id}",),
+        transition_count=2,
+        optimizer_consumed=optimizer_consumed,
+        policy_update_applied=policy_update_applied,
+    )
 
 
 def test_retrieval_control_readout_stays_compact_and_adjusts_domains():
@@ -353,6 +376,7 @@ def test_multi_experience_action_abstraction_passes_real_background_gate():
             action_family_id="discovered_family_2",
             action_family_version=3,
             controller_code_digest=(0.1, 0.2, 0.3),
+            learning_lineage=_action_learning_lineage("outcome-a"),
         ),
         ExperiencedActionEvidence(
             outcome_id="outcome-b",
@@ -371,6 +395,7 @@ def test_multi_experience_action_abstraction_passes_real_background_gate():
             action_family_id="discovered_family_2",
             action_family_version=9,
             controller_code_digest=(0.12, 0.18, 0.31),
+            learning_lineage=_action_learning_lineage("outcome-b"),
         ),
     )
     proposal = ApplicationPriorProposalBuilder().build(
@@ -547,6 +572,40 @@ def test_action_applicability_evaluator_is_structured_and_fails_closed():
     assert provider.responses == []
 
 
+def test_action_realization_binds_retrieval_selected_track_when_tracks_diverge():
+    grounding = SimpleNamespace(
+        source_case_id="case:family:self",
+        abstract_action="discovered_family_0",
+        action_labels=("preserve the entrusted boundary",),
+        action_statement="I will preserve the entrusted boundary.",
+        confidence=0.91,
+    )
+    case_memory = SimpleNamespace(action_grounding=grounding)
+    retrieval_policy = SimpleNamespace(
+        abstract_action="discovered_family_0",
+    )
+
+    realization = _bind_action_realization(
+        retrieval_policy_snapshot=retrieval_policy,
+        case_memory_snapshot=case_memory,
+    )
+
+    assert realization is not None
+    assert realization.abstract_action == "discovered_family_0"
+    assert realization.source_case_id == "case:family:self"
+
+    with pytest.raises(
+        ValueError,
+        match="retrieval-selected temporal action",
+    ):
+        _bind_action_realization(
+            retrieval_policy_snapshot=SimpleNamespace(
+                abstract_action="discovered_family_2",
+            ),
+            case_memory_snapshot=case_memory,
+        )
+
+
 def test_action_abstraction_requires_independent_stable_family_evidence():
     class CountingProvider:
         def __init__(self) -> None:
@@ -576,6 +635,7 @@ def test_action_abstraction_requires_independent_stable_family_evidence():
         action_family_id="discovered_family_2",
         action_family_version=3,
         controller_code_digest=(0.1, 0.2),
+        learning_lineage=_action_learning_lineage("outcome-single"),
     )
 
     single_proposal = ApplicationPriorProposalBuilder().build(
@@ -613,6 +673,7 @@ def test_action_abstraction_requires_independent_stable_family_evidence():
         action_family_id="discovered_family_7",
         action_family_version=3,
         controller_code_digest=(0.7, 0.8),
+        learning_lineage=_action_learning_lineage("outcome-conflict"),
     )
     conflicting_proposal = ApplicationPriorProposalBuilder().build(
         inputs=ApplicationPriorProposalInputs(
@@ -653,6 +714,7 @@ def test_action_abstraction_requires_independent_stable_family_evidence():
         action_family_id="discovered_family_2",
         action_family_version=3,
         controller_code_digest=(0.12, 0.22),
+        learning_lineage=_action_learning_lineage("outcome-stable-peer"),
     )
     ApplicationPriorProposalBuilder().build(
         inputs=ApplicationPriorProposalInputs(
@@ -673,6 +735,77 @@ def test_action_abstraction_requires_independent_stable_family_evidence():
         )
     )
     assert provider.call_count == 1
+
+
+def test_action_abstraction_admission_requires_consumed_learning_lineage():
+    class NoCallProvider:
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 384,
+            temperature: float = 0.0,
+        ) -> str:
+            del prompt, max_new_tokens, temperature
+            raise AssertionError("Unadmitted evidence must not reach decoder.")
+
+    missing = ExperiencedActionEvidence(
+        outcome_id="outcome-missing-lineage",
+        action_id="action-missing-lineage",
+        situation_statement="A stranger faces an immediate physical threat.",
+        action_statement="Step in and ask the aggressor to stop.",
+        outcome_statement="The immediate threat ended.",
+        evidence=("scene-missing",),
+        confidence=0.9,
+        action_family_id="discovered_family_2",
+        action_family_version=3,
+        controller_code_digest=(0.1, 0.2),
+    )
+    not_consumed = ExperiencedActionEvidence(
+        outcome_id="outcome-not-consumed",
+        action_id="action-not-consumed",
+        situation_statement="Another stranger faces imminent harm.",
+        action_statement="Interrupt the harmful act.",
+        outcome_statement="The second threat ended.",
+        evidence=("scene-not-consumed",),
+        confidence=0.9,
+        action_family_id="discovered_family_2",
+        action_family_version=4,
+        controller_code_digest=(0.2, 0.3),
+        learning_lineage=_action_learning_lineage(
+            "outcome-not-consumed",
+            optimizer_consumed=False,
+            policy_update_applied=False,
+        ),
+    )
+
+    proposal = ApplicationPriorProposalBuilder().build(
+        inputs=ApplicationPriorProposalInputs(
+            job_id="job-unadmitted-lineage",
+            closed_at_turn=5,
+            regime_id="protective_action",
+            knowledge_domains=(),
+            experience_domains=("moral_dilemma",),
+            case_problem_patterns=(),
+            case_risk_markers=("risk-high",),
+            boundary_trigger_reasons=(),
+            knowledge_weight=0.2,
+            experience_weight=0.8,
+            case_hit_count=0,
+            mean_experience_quality=0.85,
+            experienced_actions=(missing, not_consumed),
+            action_abstraction_decoder=LLMActionAbstractionDecoder(
+                provider=NoCallProvider()
+            ),
+        )
+    )
+
+    assert proposal is not None
+    assert all(
+        update.record.action_abstraction_evidence is None
+        and update.modification_evidence is None
+        for update in proposal.case_memory_updates
+    )
 
 
 def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
@@ -781,6 +914,7 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
         action_family_id="discovered_family_2",
         action_family_version=3,
         controller_code_digest=(0.1, 0.2, 0.3),
+        learning_lineage=_action_learning_lineage("outcome-a"),
     )
     second_experience = ExperiencedActionEvidence(
         outcome_id="outcome-b",
@@ -799,6 +933,7 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
         action_family_id="discovered_family_2",
         action_family_version=54,
         controller_code_digest=(0.12, 0.18, 0.31),
+        learning_lineage=_action_learning_lineage("outcome-b"),
     )
     backend = build_filesystem_persistence_backend(
         base_dir=str(tmp_path / "case-memory")
@@ -890,6 +1025,7 @@ def test_action_abstraction_rejects_conflicting_duplicate_outcome():
         action_family_id="discovered_family_2",
         action_family_version=3,
         controller_code_digest=(0.1, 0.2),
+        learning_lineage=_action_learning_lineage("outcome-duplicate"),
     )
     prior = CaseActionAbstractionEvidence(
         outcome_id="outcome-duplicate",
@@ -901,6 +1037,7 @@ def test_action_abstraction_rejects_conflicting_duplicate_outcome():
         action_family_id="discovered_family_2",
         action_family_version=3,
         controller_code_digest=(0.3, 0.4),
+        learning_lineage=_action_learning_lineage("outcome-duplicate"),
     )
 
     with pytest.raises(

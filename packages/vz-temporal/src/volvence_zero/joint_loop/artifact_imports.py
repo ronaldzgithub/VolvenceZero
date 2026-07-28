@@ -187,6 +187,9 @@ class _JointLoopArtifactImportMixin:
             self._runtime_replay_drop_reasons = list(
                 replay_report.drop_reasons
             )
+            self._runtime_replay_outcome_lineages = list(
+                replay_report.outcome_lineages
+            )
             self._runtime_last_segment_close_reason = (
                 replay_report.last_segment_close_reason
             )

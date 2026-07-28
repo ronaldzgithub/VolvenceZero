@@ -33,6 +33,20 @@ class DefaultContinualLearningSurface:
 
 
 @dataclass(frozen=True)
+class RuntimeReplayOutcomeLineage:
+    """Internal-RL-owner proof for one dual-track settled outcome."""
+
+    environment_outcome_id: str
+    prediction_id: str
+    world_capture_id: str
+    self_capture_id: str
+    credit_record_ids: tuple[str, ...]
+    transition_count: int
+    optimizer_consumed: bool = False
+    policy_update_applied: bool = False
+
+
+@dataclass(frozen=True)
 class RuntimeReplayReport:
     wiring_level: str
     transition_source: str
@@ -50,6 +64,7 @@ class RuntimeReplayReport:
     longest_segment_length: int = 0
     last_segment_close_reason: str = ""
     segment_close_reason_counts: tuple[tuple[str, int], ...] = ()
+    outcome_lineages: tuple[RuntimeReplayOutcomeLineage, ...] = ()
 
 
 @dataclass(frozen=True)

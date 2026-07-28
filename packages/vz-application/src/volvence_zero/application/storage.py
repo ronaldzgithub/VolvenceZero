@@ -5,6 +5,7 @@ from enum import Enum
 import math
 from typing import Iterable
 
+from volvence_zero.application.action_lineage import ActionLearningLineage
 from volvence_zero.memory import (
     FileSystemPersistenceBackend,
     PersistenceBackend,
@@ -89,6 +90,7 @@ class CaseActionAbstractionEvidence:
     evidence: tuple[str, ...]
     confidence: float
     controller_code_digest: tuple[float, ...]
+    learning_lineage: ActionLearningLineage | None = None
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -113,6 +115,14 @@ class CaseActionAbstractionEvidence:
         if any(not math.isfinite(value) for value in self.controller_code_digest):
             raise ValueError(
                 "CaseActionAbstractionEvidence controller_code_digest must be finite."
+            )
+        if (
+            self.learning_lineage is not None
+            and self.learning_lineage.environment_outcome_id != self.outcome_id
+        ):
+            raise ValueError(
+                "CaseActionAbstractionEvidence learning lineage must bind the "
+                "same environment outcome."
             )
 
 
@@ -354,6 +364,20 @@ def _reconstruct_action_abstraction_evidence(
 ) -> CaseActionAbstractionEvidence:
     if not isinstance(raw, dict):
         raise TypeError("action_abstraction_evidence must be an object.")
+    learning_lineage_raw = raw.get("learning_lineage")
+    if learning_lineage_raw is not None and not isinstance(
+        learning_lineage_raw, dict
+    ):
+        raise TypeError("learning_lineage must be an object.")
+    if learning_lineage_raw is not None and (
+        not isinstance(learning_lineage_raw.get("optimizer_consumed"), bool)
+        or not isinstance(
+            learning_lineage_raw.get("policy_update_applied"), bool
+        )
+    ):
+        raise TypeError(
+            "learning_lineage consumption/update flags must be bool."
+        )
     return CaseActionAbstractionEvidence(
         outcome_id=str(raw["outcome_id"]),
         action_id=str(raw["action_id"]),
@@ -365,6 +389,35 @@ def _reconstruct_action_abstraction_evidence(
         confidence=float(raw["confidence"]),
         controller_code_digest=tuple(
             float(item) for item in raw.get("controller_code_digest", ())
+        ),
+        learning_lineage=(
+            ActionLearningLineage(
+                environment_outcome_id=str(
+                    learning_lineage_raw["environment_outcome_id"]
+                ),
+                prediction_id=str(learning_lineage_raw["prediction_id"]),
+                world_capture_id=str(
+                    learning_lineage_raw["world_capture_id"]
+                ),
+                self_capture_id=str(
+                    learning_lineage_raw["self_capture_id"]
+                ),
+                credit_record_ids=tuple(
+                    str(item)
+                    for item in learning_lineage_raw["credit_record_ids"]
+                ),
+                transition_count=int(
+                    learning_lineage_raw["transition_count"]
+                ),
+                optimizer_consumed=learning_lineage_raw[
+                    "optimizer_consumed"
+                ],
+                policy_update_applied=learning_lineage_raw[
+                    "policy_update_applied"
+                ],
+            )
+            if learning_lineage_raw is not None
+            else None
         ),
     )
 

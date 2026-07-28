@@ -26,6 +26,7 @@ import math
 from typing import TYPE_CHECKING, Any, Mapping
 
 from volvence_zero.behavior_protocol import ProtocolRevisionProposal
+from volvence_zero.application.action_lineage import ActionLearningLineage
 from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.environment import EnvironmentActionSchema
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
@@ -199,6 +200,7 @@ class ExperiencedActionEvidence:
     action_family_id: str = ""
     action_family_version: int = 0
     controller_code_digest: tuple[float, ...] = ()
+    learning_lineage: ActionLearningLineage | None = None
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -241,6 +243,14 @@ class ExperiencedActionEvidence:
         ):
             raise ValueError(
                 "ExperiencedActionEvidence controller_code_digest must be finite."
+            )
+        if (
+            self.learning_lineage is not None
+            and self.learning_lineage.environment_outcome_id != self.outcome_id
+        ):
+            raise ValueError(
+                "ExperiencedActionEvidence learning lineage must bind the same "
+                "environment outcome."
             )
 
 

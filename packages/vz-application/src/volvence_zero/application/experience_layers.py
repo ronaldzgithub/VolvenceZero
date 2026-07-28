@@ -117,6 +117,8 @@ class ApplicationPriorProposalBuilder:
                 and evidence.action_family_version > 0
                 and evidence.situation_statement.strip()
                 and evidence.action_family_id not in promoted_action_family_ids
+                and evidence.learning_lineage is not None
+                and evidence.learning_lineage.admission_ready
             )
         )
         prior_action_abstraction_experiences = tuple(
@@ -132,7 +134,11 @@ class ApplicationPriorProposalBuilder:
                 controller_code_digest=evidence.controller_code_digest,
             )
             for evidence in inputs.prior_action_abstraction_evidence
-            if evidence.action_family_id not in promoted_action_family_ids
+            if (
+                evidence.action_family_id not in promoted_action_family_ids
+                and evidence.learning_lineage is not None
+                and evidence.learning_lineage.admission_ready
+            )
         )
         action_abstraction_experiences = merge_action_abstraction_experiences(
             prior_action_abstraction_experiences,
@@ -260,6 +266,7 @@ class ApplicationPriorProposalBuilder:
                                 controller_code_digest=(
                                     evidence.controller_code_digest
                                 ),
+                                learning_lineage=evidence.learning_lineage,
                             )
                             if (
                                 evidence.action_schema is None
@@ -268,6 +275,8 @@ class ApplicationPriorProposalBuilder:
                                 and evidence.situation_statement.strip()
                                 and evidence.action_family_id
                                 not in promoted_action_family_ids
+                                and evidence.learning_lineage is not None
+                                and evidence.learning_lineage.admission_ready
                             )
                             else None
                         ),

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from volvence_zero.application import RetrievalPolicySnapshot
 from volvence_zero.environment import EnvironmentOutcome
 from volvence_zero.application.knowledge_channels import (
     domain_knowledge_prior_updates_from_reviewed,
@@ -311,8 +312,25 @@ class SessionLifecycleMixin:
             )
             else None
         )
+        retrieval_snapshot = self._upstream_snapshots.get(
+            "retrieval_policy"
+        )
+        retrieval_value = (
+            retrieval_snapshot.value
+            if retrieval_snapshot is not None
+            and isinstance(
+                retrieval_snapshot.value,
+                RetrievalPolicySnapshot,
+            )
+            else None
+        )
         action_family_id = (
-            temporal_value.active_abstract_action
+            retrieval_value.abstract_action
+            if (
+                retrieval_value is not None
+                and retrieval_value.abstract_action is not None
+            )
+            else temporal_value.active_abstract_action
             if temporal_value is not None
             else ""
         )

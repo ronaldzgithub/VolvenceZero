@@ -19,6 +19,7 @@ from volvence_zero.memory import Track
 from volvence_zero.prediction import (
     ActualOutcome,
     PredictedOutcome,
+    PredictionActionContext,
     PredictionErrorModule,
     PredictionErrorSnapshot,
     derive_actual_outcome_from_substrate,
@@ -256,9 +257,23 @@ def test_prediction_error_credit_records():
     records = derive_prediction_error_credit_records(
         prediction_error=snap.value.error,
         timestamp_ms=1,
+        action_context=PredictionActionContext(
+            segment_id="segment-1",
+            abstract_action_id="family-1",
+            environment_event_id="event-1",
+            environment_outcome_id="outcome-1",
+            prediction_id="prediction-1",
+        ),
     )
     assert len(records) == 4
     assert {r.source_event for r in records} == {"pe:task", "pe:relationship", "pe:regime", "pe:action"}
+    assert all(
+        record.prediction_id == "prediction-1"
+        and record.environment_outcome_id == "outcome-1"
+        and record.segment_id == "segment-1"
+        and record.abstract_action_id == "family-1"
+        for record in records
+    )
 
 
 def test_alignment_reject_transition_enters_relationship_prediction_error():

@@ -81,6 +81,11 @@ class CreditRecord:
     credit_value: float
     context: str
     timestamp_ms: int
+    prediction_id: str = ""
+    environment_event_id: str = ""
+    environment_outcome_id: str = ""
+    segment_id: str = ""
+    abstract_action_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -186,6 +191,8 @@ class CreditSnapshot:
     # C3: latest report-only learned gate-risk readout (None until the
     # first proposal passes through the gate this session).
     gate_risk_readout: GateRiskShadowReadout | None = None
+    # Owner-published structured lineage survives the generic recent window.
+    recent_action_lineage_credits: tuple[CreditRecord, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -621,6 +628,29 @@ def derive_prediction_error_credit_records(
     action_context: PredictionActionContext | None = None,
 ) -> tuple[CreditRecord, ...]:
     context_suffix = _action_context_suffix(action_context)
+    lineage_fields = {
+        "prediction_id": (
+            action_context.prediction_id if action_context is not None else ""
+        ),
+        "environment_event_id": (
+            action_context.environment_event_id
+            if action_context is not None
+            else ""
+        ),
+        "environment_outcome_id": (
+            action_context.environment_outcome_id
+            if action_context is not None
+            else ""
+        ),
+        "segment_id": (
+            action_context.segment_id if action_context is not None else ""
+        ),
+        "abstract_action_id": (
+            action_context.abstract_action_id
+            if action_context is not None
+            else ""
+        ),
+    }
     records = (
         CreditRecord(
             record_id=str(uuid4()),
@@ -630,6 +660,7 @@ def derive_prediction_error_credit_records(
             credit_value=_clamp(prediction_error.task_error),
             context=f"{prediction_error.description}{context_suffix}",
             timestamp_ms=timestamp_ms,
+            **lineage_fields,
         ),
         CreditRecord(
             record_id=str(uuid4()),
@@ -639,6 +670,7 @@ def derive_prediction_error_credit_records(
             credit_value=_clamp(prediction_error.relationship_error),
             context=f"{prediction_error.description}{context_suffix}",
             timestamp_ms=timestamp_ms,
+            **lineage_fields,
         ),
         CreditRecord(
             record_id=str(uuid4()),
@@ -648,6 +680,7 @@ def derive_prediction_error_credit_records(
             credit_value=_clamp(prediction_error.regime_error),
             context=f"{prediction_error.description}{context_suffix}",
             timestamp_ms=timestamp_ms,
+            **lineage_fields,
         ),
         CreditRecord(
             record_id=str(uuid4()),
@@ -657,6 +690,7 @@ def derive_prediction_error_credit_records(
             credit_value=_clamp(prediction_error.action_error),
             context=f"{prediction_error.description}{context_suffix}",
             timestamp_ms=timestamp_ms,
+            **lineage_fields,
         ),
     )
     return records
@@ -705,6 +739,11 @@ def derive_segment_closure_credit_records(
                 f"pe={prediction_error_snapshot.error.description}"
             ),
             timestamp_ms=timestamp_ms,
+            prediction_id=context.prediction_id,
+            environment_event_id=context.environment_event_id,
+            environment_outcome_id=context.environment_outcome_id,
+            segment_id=context.segment_id,
+            abstract_action_id=context.abstract_action_id,
         ),
     )
 
@@ -1114,6 +1153,16 @@ def extend_credit_snapshot(
     for record in extra_records:
         cumulative[record.level] = cumulative.get(record.level, 0.0) + record.credit_value
     recent_credits = tuple((credit_snapshot.recent_credits + extra_records)[-20:])
+    recent_action_lineage_credits = tuple(
+        (
+            credit_snapshot.recent_action_lineage_credits
+            + tuple(
+                record
+                for record in extra_records
+                if record.prediction_id and record.environment_outcome_id
+            )
+        )[-20:]
+    )
     recent_modifications = tuple((credit_snapshot.recent_modifications + extra_modifications)[-20:])
     return CreditSnapshot(
         recent_credits=recent_credits,
@@ -1130,6 +1179,8 @@ def extend_credit_snapshot(
         rewarding_state_head=credit_snapshot.rewarding_state_head,
         counterfactual_readouts=credit_snapshot.counterfactual_readouts,
         least_control_readout=credit_snapshot.least_control_readout,
+        gate_risk_readout=credit_snapshot.gate_risk_readout,
+        recent_action_lineage_credits=recent_action_lineage_credits,
     )
 
 
@@ -2011,6 +2062,11 @@ class CreditLedger:
             counterfactual_readouts=tuple(self._recent_counterfactual_readouts[-5:]),
             least_control_readout=self.least_control_readout(),
             gate_risk_readout=self._latest_gate_risk_readout,
+            recent_action_lineage_credits=tuple(
+                record
+                for record in self._recent_credits
+                if record.prediction_id and record.environment_outcome_id
+            )[-20:],
         )
 
 

@@ -68,6 +68,7 @@ from volvence_zero.joint_loop.contracts import (
     OnlineFastImportResult,
     RareHeavyImportCheckpoint,
     RareHeavyImportResult,
+    RuntimeReplayOutcomeLineage,
     RuntimeReplayReport,
     ScheduledJointLoopResult,
 )
@@ -341,6 +342,9 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._runtime_replay_transition_count = 0
         self._runtime_replay_lineage_match_count = 0
         self._runtime_replay_drop_reasons: list[str] = []
+        self._runtime_replay_outcome_lineages: list[
+            RuntimeReplayOutcomeLineage
+        ] = []
         # Optimizer-visible reward stream audit (published, never consumed).
         self._runtime_reward_eligible_count = 0
         self._runtime_reward_ineligible_count = 0
@@ -532,6 +536,9 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             segment_close_reason_counts=tuple(
                 sorted(self._runtime_segment_close_reason_counts.items())
             ),
+            outcome_lineages=tuple(
+                self._runtime_replay_outcome_lineages[-64:]
+            ),
         )
 
     def observe_runtime_transition(
@@ -613,6 +620,48 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 )
                 if len(self._runtime_replay_drop_reasons) > 20:
                     del self._runtime_replay_drop_reasons[:-20]
+        if (
+            world_settlement.rollout is not None
+            and self_settlement.rollout is not None
+        ):
+            world_transition = world_settlement.rollout.transitions[0]
+            self_transition = self_settlement.rollout.transitions[0]
+            if (
+                world_transition.environment_outcome_id
+                != self_transition.environment_outcome_id
+                or world_transition.prediction_id
+                != self_transition.prediction_id
+                or world_settlement.credit_record_ids
+                != self_settlement.credit_record_ids
+            ):
+                raise RuntimeError(
+                    "runtime replay outcome/PE/credit lineage diverged "
+                    "between world and self tracks"
+                )
+            outcome_id = world_transition.environment_outcome_id
+            if any(
+                lineage.environment_outcome_id == outcome_id
+                for lineage in self._runtime_replay_outcome_lineages
+            ):
+                raise RuntimeError(
+                    "runtime replay published duplicate outcome lineage: "
+                    f"{outcome_id!r}"
+                )
+            self._runtime_replay_outcome_lineages.append(
+                RuntimeReplayOutcomeLineage(
+                    environment_outcome_id=outcome_id,
+                    prediction_id=world_transition.prediction_id,
+                    world_capture_id=world_settlement.capture_id,
+                    self_capture_id=self_settlement.capture_id,
+                    credit_record_ids=world_settlement.credit_record_ids,
+                    transition_count=(
+                        len(world_settlement.rollout.transitions)
+                        + len(self_settlement.rollout.transitions)
+                    ),
+                )
+            )
+            if len(self._runtime_replay_outcome_lineages) > 64:
+                del self._runtime_replay_outcome_lineages[:-64]
         if self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
             if (
                 world_settlement.rollout is None
@@ -681,6 +730,35 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             self._runtime_reward_nonzero_payoff_count += 1
         if abs(settlement.segment_bonus) > 1e-12:
             self._runtime_reward_nonzero_bonus_count += 1
+
+    def _mark_runtime_outcomes_consumed(
+        self,
+        *,
+        outcome_ids: tuple[str, ...],
+        policy_update_applied: bool,
+    ) -> None:
+        """Bind optimizer consumption back to owner-published outcome lineage."""
+
+        pending = set(outcome_ids)
+        updated: list[RuntimeReplayOutcomeLineage] = []
+        for lineage in self._runtime_replay_outcome_lineages:
+            if lineage.environment_outcome_id not in pending:
+                updated.append(lineage)
+                continue
+            updated.append(
+                replace(
+                    lineage,
+                    optimizer_consumed=True,
+                    policy_update_applied=policy_update_applied,
+                )
+            )
+            pending.remove(lineage.environment_outcome_id)
+        if pending:
+            raise RuntimeError(
+                "optimizer consumed runtime replay without published outcome "
+                f"lineage: {tuple(sorted(pending))!r}"
+            )
+        self._runtime_replay_outcome_lineages = updated
 
     def _stage_runtime_segment_pair(
         self,
@@ -1113,6 +1191,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             self._runtime_replay_transition_count = 0
             self._runtime_replay_lineage_match_count = 0
             self._runtime_replay_drop_reasons = []
+            self._runtime_replay_outcome_lineages = []
             self._runtime_segment_closed_count = 0
             self._runtime_longest_segment_length = 0
             self._runtime_last_segment_close_reason = ""
@@ -1830,6 +1909,39 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         temporal_writeback_applied = bool(
             temporal_writeback_operations or self_track_temporal_writeback_operations
         )
+        if (
+            self._internal_rl_runtime_replay is WiringLevel.ACTIVE
+            and batch_due
+        ):
+            task_outcome_ids = tuple(
+                dict.fromkeys(
+                    transition.environment_outcome_id
+                    for rollout in task_batch
+                    for transition in rollout.transitions
+                    if transition.environment_outcome_id
+                )
+            )
+            relationship_outcome_ids = tuple(
+                dict.fromkeys(
+                    transition.environment_outcome_id
+                    for rollout in relationship_batch
+                    for transition in rollout.transitions
+                    if transition.environment_outcome_id
+                )
+            )
+            if set(task_outcome_ids) != set(relationship_outcome_ids):
+                raise RuntimeError(
+                    "optimizer runtime replay outcome lineage diverged "
+                    "between world and self batches"
+                )
+            self._mark_runtime_outcomes_consumed(
+                outcome_ids=task_outcome_ids,
+                policy_update_applied=bool(
+                    optimization_result.policy_update_applied
+                    and apply_policy_optimization
+                    and not policy_rollback_applied
+                ),
+            )
         default_continual_learning_surface = DefaultContinualLearningSurface(
             surface_id=f"{self.owner_path}:cycle-{cycle_index}:default-continual",
             active=bool(memory_regime_writeback_applied or temporal_writeback_applied or regime_operations),
@@ -2365,6 +2477,7 @@ __all__ = [
     "OnlineFastImportResult",
     "RareHeavyImportCheckpoint",
     "RareHeavyImportResult",
+    "RuntimeReplayOutcomeLineage",
     "RuntimeReplayReport",
     "ScheduledJointLoopResult",
 ]

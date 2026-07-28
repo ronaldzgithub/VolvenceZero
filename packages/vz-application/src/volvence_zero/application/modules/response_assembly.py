@@ -310,7 +310,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             response_mode=response_mode,
         )
         action_realization = _bind_action_realization(
-            temporal_snapshot=temporal_snapshot,
+            retrieval_policy_snapshot=retrieval_policy_snapshot,
             case_memory_snapshot=case_memory_snapshot,
         )
         expression_intent, judgment_focus = _response_expression_intent(
@@ -416,7 +416,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
 
 def _bind_action_realization(
     *,
-    temporal_snapshot: "TemporalAbstractionSnapshot | None",
+    retrieval_policy_snapshot: RetrievalPolicySnapshot | None,
     case_memory_snapshot: CaseMemorySnapshot | None,
 ) -> ResponseActionRealization | None:
     grounding = (
@@ -426,25 +426,32 @@ def _bind_action_realization(
     )
     if grounding is None:
         return None
-    if temporal_snapshot is None:
+    if retrieval_policy_snapshot is None:
         raise ValueError(
-            "CaseMemory action grounding requires a temporal snapshot."
+            "CaseMemory action grounding requires a retrieval-policy "
+            "snapshot."
         )
-    active_action = temporal_snapshot.active_abstract_action
-    if grounding.abstract_action != active_action:
+    selected_action = retrieval_policy_snapshot.abstract_action
+    if selected_action is None:
+        raise ValueError(
+            "CaseMemory action grounding requires retrieval policy to "
+            "publish an abstract action."
+        )
+    if grounding.abstract_action != selected_action:
         raise ValueError(
             "CaseMemory action grounding abstract_action does not match "
-            "the active temporal action: "
-            f"{grounding.abstract_action!r} != {active_action!r}"
+            "the retrieval-selected temporal action: "
+            f"{grounding.abstract_action!r} != {selected_action!r}"
         )
     return ResponseActionRealization(
-        abstract_action=active_action,
+        abstract_action=selected_action,
         source_case_id=grounding.source_case_id,
         action_labels=grounding.action_labels,
         action_statement=grounding.action_statement,
         grounding_confidence=grounding.confidence,
         description=(
-            "ResponseAssembly bound the active temporal action to the "
+            "ResponseAssembly bound the retrieval-selected temporal action "
+            "to the "
             f"CaseMemory owner readout from {grounding.source_case_id}; "
             f"confidence={grounding.confidence:.3f}."
         ),

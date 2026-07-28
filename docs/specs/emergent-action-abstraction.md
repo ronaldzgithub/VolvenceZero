@@ -137,7 +137,11 @@ derive_segment_closure_credit_records(
 - 不读取 raw outcome text。
 - 不持有 trace store。
 - 当前主链路中 `CreditModule` 声明消费 `temporal_abstraction`，在 PE-first credit 派生后追加该 helper 的结果；`closed_segments` 为空或不匹配时返回空 tuple（Packet B 修复了之前 mismatch 分支误返回 `None` 的 bug），不影响既有 credit。
-- credit context 现在显式带 `affordance_name` / `prediction_id` / `environment_event_id` / `environment_outcome_id` lineage（Packet B），但不改变 PE 或 credit 数值公式；这条 lineage 让下游 reflection / replay 可按 tool 名 + 调用绑定的 prediction id 直接 grep credit record，而不需要回溯 PE snapshot。
+- Credit owner 现在以 `CreditRecord.prediction_id / segment_id / abstract_action_id /
+  environment_event_id / environment_outcome_id` 发布结构化 lineage，并在
+  `CreditSnapshot.recent_action_lineage_credits` 保留 owner view；通用 recent window
+  截断不会擦除动作 lineage。`context` 仍可带相同内容供人读，但 consumer 禁止解析文本
+  重建 lineage。这些字段不改变 PE 或 credit 数值公式。
 
 ## Layer 6. Snapshot Replay Export
 
@@ -168,8 +172,15 @@ posterior、`beta_t`、行为 likelihood 与 prediction lineage；下一拍只�
 - `SHADOW`：捕获、结算并报告 coverage/lineage/drop reason，但不进入训练 staging；
 - `ACTIVE`：只训练已结算 runtime replay；样本不足显式等待，不得回退 synthetic。
 
-该状态随 owner checkpoint 往返，但不扩 `EnvironmentOutcome`、`PredictionErrorSnapshot`、
-`CreditSnapshot` 或 public temporal snapshot shape，也不让 environment/evaluation 直接提供 reward。
+该状态随 owner checkpoint 往返；除 Credit owner 新增的结构化 lineage view 外，不扩
+`EnvironmentOutcome`、`PredictionErrorSnapshot` 或 public temporal snapshot shape，
+也不让 environment/evaluation 直接提供 reward。
+
+Internal-RL owner 还在 `RuntimeReplayReport.outcome_lineages` 发布最近 outcome-bound
+`RuntimeReplayOutcomeLineage`：world/self capture IDs、prediction/outcome、Credit owner
+record IDs、双轨 transition count，以及 optimizer consumption / policy update 状态。
+session runtime 只把匹配 outcome 的证明映射为 application 的 `ActionLearningLineage`；
+CaseMemory 不从全局计数、arm 名称或描述文本推断 admission。
 
 ## Acceptance Gates
 
@@ -189,6 +200,21 @@ posterior、`beta_t`、行为 likelihood 与 prediction lineage；下一拍只�
   conditions 与 risk markers 请求 structured readout。缺 evaluator、旧记录缺条件、
   解析失败、不适用或置信度 `<0.75` 时不得召回该 promotion；action steps、outcome、
   PE、credit 与 evaluation 不得进入 applicability prompt。
+- `promotion-requires-internal-rl-lineage`: 四臂冻结消融要求 baked 命中 target
+  promotion，而 cold、no-RL 与 shuffled-lineage 不得命中。Credit owner 通过
+  `recent_action_lineage_credits` 保留结构化 prediction/outcome lineage；Internal-RL
+  owner 按 outcome 发布双轨 settlement、credit record IDs、optimizer consumption 与
+  policy-update 状态；runtime 只映射为 `ActionLearningLineage`，CaseMemory 只聚合
+  `admission_ready` evidence。旧 checkpoint 缺 lineage 时可恢复但 fail closed。
+  修复后 baked/cold/no-RL/shuffled 为 `4/0/0/0`，该 lineage gate 通过；evaluation
+  不得依据 arm label 或文本描述代替证明。
+- `selected-family-not-aggregate-label`: world/self temporal family 分歧时，
+  `TemporalAggregateSnapshot.active_abstract_action` 可发布
+  `world:<id>|self:<id>` 供审计，但环境 outcome 的 lived-action family 与
+  `ResponseActionRealization` 必须绑定同拍 `RetrievalPolicySnapshot.abstract_action`
+  所选单轨 family。禁止把 aggregate 组合字符串作为稳定 family identity 写进
+  CaseMemory，也禁止 response consumer 用 aggregate 字符串否决 owner 已发布的
+  action grounding。
 - `credit-from-pe-only`: segment/action credit records 只从 `PredictionErrorSnapshot` 派生。
 - `replay-from-snapshots`: replay artifact 可由现有 snapshots 生成，不依赖 trace-specific runtime schema。
 - `runtime-replay-owner-bounded`: online replay 只存在于 Internal-RL/joint-loop owner checkpoint，不新增 slot 或第二 trace owner。
@@ -216,9 +242,12 @@ posterior、`beta_t`、行为 likelihood 与 prediction lineage；下一拍只�
 - segment credit helper 可不接 final wiring。
 - replay export 是 out-of-turn artifact，可单独关闭。
 - online runtime replay 默认 `DISABLED`；回滚 transition source gate 即恢复 synthetic 路径，pending owner state 随 checkpoint 恢复。
+- 旧 CaseMemory checkpoint 缺 `ActionLearningLineage` 时仍可加载，但 schema-free evidence
+  不参与 abstraction；回滚本包可恢复旧 admission 行为，不能声称 no-RL 因果隔离。
 
 ## 变更日志
 
+- 2026-07-29: 增加 Credit owner 结构化 action lineage、Internal-RL outcome-bound consumption report 与 CaseMemory fail-closed admission；四臂 no-RL promotion 从 `4/4` 降为 `0/4`。
 - 2026-07-28: 增加 outcome-free `situation_summary` 与 application-owned multi-experience semantic candidate 边界；decoder 不读 outcome/evaluation，candidate 与 reviewed EnvironmentActionSchema provenance 隔离，并经 BACKGROUND ModificationGate promotion。
 - 2026-07-20: 增加 online runtime transition replay 边界。明确它是 joint-loop/Internal-RL owner 内的有界训练状态，与只读 snapshot replay export 不同；三态 gate 独立于 optimizer backend，ACTIVE 禁止 synthetic fallback，并保持公共 snapshot schema 不变。
 - 2026-05-12: Packet B (long-horizon-closure) — 修复 `derive_segment_closure_credit_records` 在 segment id 不匹配时误返回 `None` 的 bug（改为返回 empty tuple）；新增 `affordance_name` / `prediction_id` 到 segment credit record 的 context 字符串，对应 acceptance gate `segment-credit-attributes-to-tool`；测试见 `tests/longitudinal/test_affordance_delayed_credit.py`。

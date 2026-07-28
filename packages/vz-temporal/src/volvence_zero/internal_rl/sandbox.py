@@ -252,6 +252,7 @@ class RuntimeReplaySettlement:
     reward_eligible: bool = False
     reward_eligibility: str = ""
     reward_eligibility_reason: str = ""
+    credit_record_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -2752,6 +2753,22 @@ class InternalRLSandbox:
                 f"{capture.prediction_id!r}, outcome_id="
                 f"{environment_outcome.outcome_id!r}; actual={mismatched}"
             )
+        action_lineage_credits = tuple(
+            record
+            for record in credit_snapshot.recent_action_lineage_credits
+            if (
+                record.prediction_id == capture.prediction_id
+                and record.environment_outcome_id
+                == environment_outcome.outcome_id
+            )
+        )
+        if not action_lineage_credits:
+            raise RuntimeReplayLineageError(
+                "runtime replay settlement is missing Credit-owner action "
+                "lineage for "
+                f"prediction_id={capture.prediction_id!r}, "
+                f"outcome_id={environment_outcome.outcome_id!r}"
+            )
         segment_records = tuple(
             record
             for record in credit_snapshot.recent_credits
@@ -2917,6 +2934,9 @@ class InternalRLSandbox:
             reward_eligible=reward_eligible,
             reward_eligibility=reward_eligibility.value,
             reward_eligibility_reason=eligibility_reason.value,
+            credit_record_ids=tuple(
+                record.record_id for record in action_lineage_credits
+            ),
         )
 
     def observe_runtime_transition(

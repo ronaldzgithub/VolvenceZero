@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from volvence_zero.application.action_lineage import ActionLearningLineage
 from volvence_zero.application.experience_layers import (
     ApplicationPriorProposalBuilder,
     ApplicationPriorProposalInputs,
@@ -517,6 +518,12 @@ class SessionWritebackPhaseMixin:
             source_turn_index=self._turn_index,
             boundary_trigger_reasons=boundary_trigger_reasons,
         )
+        replay_lineages_by_outcome = {
+            lineage.environment_outcome_id: lineage
+            for lineage in (
+                self._joint_loop.latest_runtime_replay_report.outcome_lineages
+            )
+        }
         experienced_actions = tuple(
             ExperiencedActionEvidence(
                 outcome_id=settled.outcome.outcome_id,
@@ -530,6 +537,25 @@ class SessionWritebackPhaseMixin:
                 action_family_id=settled.action_family_id,
                 action_family_version=settled.action_family_version,
                 controller_code_digest=settled.controller_code_digest,
+                learning_lineage=(
+                    ActionLearningLineage(
+                        environment_outcome_id=lineage.environment_outcome_id,
+                        prediction_id=lineage.prediction_id,
+                        world_capture_id=lineage.world_capture_id,
+                        self_capture_id=lineage.self_capture_id,
+                        credit_record_ids=lineage.credit_record_ids,
+                        transition_count=lineage.transition_count,
+                        optimizer_consumed=lineage.optimizer_consumed,
+                        policy_update_applied=lineage.policy_update_applied,
+                    )
+                    if (
+                        lineage := replay_lineages_by_outcome.get(
+                            settled.outcome.outcome_id
+                        )
+                    )
+                    is not None
+                    else None
+                ),
             )
             for settled in self._settled_environment_outcomes
             if (

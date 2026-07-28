@@ -1,3 +1,4 @@
+from volvence_zero.application.action_lineage import ActionLearningLineage
 from volvence_zero.application.runtime import (
     ApplicationModificationEvidence,
     ApplicationPriorUpdate,
@@ -112,6 +113,7 @@ from volvence_zero.application.domain_experience import (
 )
 
 __all__ = [
+    "ActionLearningLineage",
     "ActionApplicabilityDecision",
     "ActionApplicabilityEvaluator",
     "ActionAbstractionDecoder",

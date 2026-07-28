@@ -34,7 +34,11 @@ from volvence_zero.internal_rl import (
     ZRollout,
     runtime_replay_policy_distribution,
 )
-from volvence_zero.joint_loop import ETANLJointLoop, JointLoopSchedule
+from volvence_zero.joint_loop import (
+    ETANLJointLoop,
+    JointLoopSchedule,
+    RuntimeReplayOutcomeLineage,
+)
 from volvence_zero.memory import Track
 from volvence_zero.prediction import (
     ActualOutcome,
@@ -378,21 +382,37 @@ def _prediction_error(
     )
 
 
-def _credit() -> CreditSnapshot:
-    return CreditSnapshot(
-        recent_credits=(
-            CreditRecord(
-                record_id="credit-1",
-                level="abstract_action_segment",
-                track=Track.SHARED,
-                source_event="segment:segment-1",
-                credit_value=0.5,
-                context="matched PE segment",
-                timestamp_ms=2,
-            ),
+def _credit(*, include_segment_credit: bool = True) -> CreditSnapshot:
+    lineage_record = CreditRecord(
+        record_id="credit-1",
+        level=(
+            "abstract_action_segment"
+            if include_segment_credit
+            else "prediction_error"
         ),
+        track=Track.SHARED,
+        source_event=(
+            "segment:segment-1"
+            if include_segment_credit
+            else "pe:action"
+        ),
+        credit_value=0.5 if include_segment_credit else 0.0,
+        context="matched PE segment",
+        timestamp_ms=2,
+        prediction_id="prediction-1",
+        environment_outcome_id="outcome-1",
+        segment_id="segment-1",
+        abstract_action_id="family-1",
+    )
+    return CreditSnapshot(
+        recent_credits=(lineage_record,),
         recent_modifications=(),
-        cumulative_credit_by_level=(("abstract_action_segment", 0.5),),
+        cumulative_credit_by_level=(
+            (("abstract_action_segment", 0.5),)
+            if include_segment_credit
+            else (("prediction_error", 0.0),)
+        ),
+        recent_action_lineage_credits=(lineage_record,),
     )
 
 
@@ -558,11 +578,7 @@ def test_runtime_replay_optimizes_realized_utility_not_prediction_surprise() -> 
             action_payoff=0.4,
             signed_reward=-0.7,
         ),
-        credit_snapshot=CreditSnapshot(
-            recent_credits=(),
-            recent_modifications=(),
-            cumulative_credit_by_level=(),
-        ),
+        credit_snapshot=_credit(include_segment_credit=False),
     )
 
     assert settlement.rollout is not None
@@ -586,11 +602,7 @@ def test_runtime_replay_nonterminal_fragment_bootstraps_actor_advantage() -> Non
         prediction_error_snapshot=_prediction_error(
             prediction_id="prediction-1"
         ),
-        credit_snapshot=CreditSnapshot(
-            recent_credits=(),
-            recent_modifications=(),
-            cumulative_credit_by_level=(),
-        ),
+        credit_snapshot=_credit(include_segment_credit=False),
     )
     assert settlement.rollout is not None
     base = replace(
@@ -1110,6 +1122,16 @@ async def test_active_runtime_replay_batches_short_segments_by_transition_count(
         runtime_replay_segment_max_steps=8,
         rl_batch_accumulation_size=4,
     )
+    loop._runtime_replay_outcome_lineages = [
+        RuntimeReplayOutcomeLineage(
+            environment_outcome_id="outcome-1",
+            prediction_id="prediction-1",
+            world_capture_id="world-capture-1",
+            self_capture_id="self-capture-1",
+            credit_record_ids=("credit-1",),
+            transition_count=2,
+        )
+    ]
     optimized_transition_counts: list[int] = []
     original_world_optimize = loop._world_sandbox.optimize
 
