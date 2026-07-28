@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import hashlib
 from itertools import combinations
 from pathlib import Path
 from random import Random
@@ -78,6 +79,13 @@ ETA_CONTINUATION_PE_TRAINING_SIGNAL = "continuation-prediction-error"
 ETA_CONTINUATION_PE_REWARD_SCALE = 0.02
 ETA_DEFAULT_CASE_CORPUS = "eta-proof-default-v1"
 ETA_GATE2_EXPANDED_CASE_CORPUS = "eta-gate2-expanded-continuation-v2"
+ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS = (
+    "eta-gate2-prefix-expected-value-v3"
+)
+ETA_COUNTERFACTUAL_TARGET_OBSERVED = "observed-single-continuation"
+ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED = (
+    "sampled-prefix-expected-value"
+)
 
 
 @dataclass(frozen=True)
@@ -1109,6 +1117,80 @@ def eta_gate2_expanded_routes() -> tuple[HierarchicalRouteSpec, ...]:
     return default_eta_proof_routes() + eta_gate2_expanded_training_routes()
 
 
+def eta_gate2_expected_value_validation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="validation-v30-measurement-estimate",
+            split="validation",
+            source_text=(
+                "Analysts reconcile divergent measurements before "
+                "finalizing estimates"
+            ),
+            waypoints=("entry", "beta", "delta", "epsilon"),
+            distractor_ids=("alpha", "gamma"),
+            split_detail="validation-v30-measurement",
+            description=(
+                "Fresh v30 validation route frozen before expected-value "
+                "selector execution."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v30-workshop-criteria",
+            split="validation",
+            source_text=(
+                "Workshop participants revisit tentative criteria after "
+                "surprising feedback"
+            ),
+            waypoints=("entry", "alpha", "gamma", "epsilon"),
+            distractor_ids=("beta", "delta"),
+            split_detail="validation-v30-criteria",
+            description=(
+                "Fresh v30 validation route for an unseen prefix family."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v30-weather-schedules",
+            split="validation",
+            source_text=(
+                "Neighbors coordinate repairs as weather disrupts schedules"
+            ),
+            waypoints=("entry", "delta", "hub", "beta", "epsilon"),
+            distractor_ids=("gamma",),
+            split_detail="validation-v30-schedules",
+            description=(
+                "Fresh v30 validation route with an unseen lexical field."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v30-editor-drafts",
+            split="validation",
+            source_text=(
+                "Editors preserve unresolved questions across successive "
+                "drafts"
+            ),
+            waypoints=("entry", "hub", "epsilon", "alpha", "delta"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v30-drafts",
+            description=(
+                "Fresh v30 validation route with a loop and return."
+            ),
+        ),
+    )
+
+
+def eta_gate2_expected_value_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        eta_gate2_expanded_routes()
+        + eta_gate2_expected_value_validation_routes()
+    )
+
+
 def _build_eta_proof_cases(
     routes: tuple[HierarchicalRouteSpec, ...],
 ) -> tuple[ETAProofCase, ...]:
@@ -1139,6 +1221,10 @@ def default_eta_proof_cases() -> tuple[ETAProofCase, ...]:
 
 def eta_gate2_expanded_cases() -> tuple[ETAProofCase, ...]:
     return _build_eta_proof_cases(eta_gate2_expanded_routes())
+
+
+def eta_gate2_expected_value_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_expected_value_routes())
 
 
 def default_eta_proof_profiles() -> tuple[str, ...]:
@@ -1849,6 +1935,110 @@ def _continuation_counterfactual_candidates() -> tuple[
     return tuple(candidates)
 
 
+def _counterfactual_sampling_seed(
+    *,
+    sampling_key: str,
+    source_text: str,
+    cohort: str,
+    sample_index: int,
+) -> int:
+    payload = (
+        f"{sampling_key}\x1f{source_text}\x1f{cohort}\x1f"
+        f"{sample_index}"
+    ).encode("utf-8")
+    return int.from_bytes(
+        hashlib.sha256(payload).digest()[:4],
+        byteorder="big",
+        signed=False,
+    )
+
+
+def _sample_prefix_continuations(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    source_text: str,
+    sampling_key: str,
+    cohort: str,
+    sample_count: int,
+    temperature: float,
+    max_new_tokens: int,
+    generation_cache: dict[
+        tuple[str, str, str, int],
+        str,
+    ],
+) -> tuple[str, ...]:
+    if sample_count < 1:
+        raise ValueError(
+            "prefix expected-value continuation sample_count must be positive"
+        )
+    continuations = []
+    for sample_index in range(sample_count):
+        cache_key = (
+            source_text,
+            sampling_key,
+            cohort,
+            sample_index,
+        )
+        continuation_text = generation_cache.get(cache_key)
+        if continuation_text is None:
+            generation = runtime.generate(
+                prompt=source_text,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                capture_residuals=False,
+                sampling_seed=_counterfactual_sampling_seed(
+                    sampling_key=sampling_key,
+                    source_text=source_text,
+                    cohort=cohort,
+                    sample_index=sample_index,
+                ),
+            )
+            continuation_text = generation.text.strip()
+            if not continuation_text:
+                raise ValueError(
+                    "prefix expected-value sampling produced an empty "
+                    f"continuation for {sampling_key}:{cohort}:{sample_index}"
+                )
+            generation_cache[cache_key] = continuation_text
+        continuations.append(continuation_text)
+    return tuple(continuations)
+
+
+def _mean_continuation_nll(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    source_text: str,
+    continuation_texts: tuple[str, ...],
+    applied_control: tuple[float, ...],
+    score_cache: dict[
+        tuple[str, str, tuple[float, ...]],
+        float,
+    ],
+) -> float:
+    if not continuation_texts:
+        raise ValueError(
+            "counterfactual continuation cohort must be non-empty"
+        )
+    values = []
+    for continuation_text in continuation_texts:
+        score_key = (
+            source_text,
+            continuation_text,
+            applied_control,
+        )
+        mean_nll = score_cache.get(score_key)
+        if mean_nll is None:
+            mean_nll = runtime.score_continuation(
+                source_text=source_text,
+                continuation_text=continuation_text,
+                applied_control=applied_control,
+                track_scale=(0.7, 0.7, 0.7),
+            ).mean_negative_log_likelihood
+            score_cache[score_key] = mean_nll
+        values.append(mean_nll)
+    return _mean(tuple(values))
+
+
 def _with_counterfactual_continuation_pe_rewards(
     *,
     runtime: OpenWeightResidualRuntime,
@@ -1859,9 +2049,20 @@ def _with_counterfactual_continuation_pe_rewards(
         tuple[str, str, tuple[float, ...]],
         float,
     ],
+    target_mode: str = ETA_COUNTERFACTUAL_TARGET_OBSERVED,
+    target_sample_count: int = 1,
+    audit_sample_count: int = 0,
+    sampling_temperature: float = 0.8,
+    sampling_max_new_tokens: int = 4,
+    sampling_key: str = "",
+    generation_cache: dict[
+        tuple[str, str, str, int],
+        str,
+    ] | None = None,
 ) -> tuple[
     ZRollout,
     tuple[float, ...],
+    tuple[tuple[float, ...], ...],
     tuple[tuple[float, ...], ...],
 ]:
     if len(source_text_by_step) != len(rollout.transitions):
@@ -1872,10 +2073,42 @@ def _with_counterfactual_continuation_pe_rewards(
         raise ValueError(
             "ETA continuation counterfactual grid currently requires n_z=3"
         )
+    if target_mode not in {
+        ETA_COUNTERFACTUAL_TARGET_OBSERVED,
+        ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
+    }:
+        raise ValueError(
+            f"Unsupported counterfactual target mode {target_mode!r}"
+        )
+    if target_mode == ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED:
+        if not sampling_key:
+            raise ValueError(
+                "prefix expected-value target requires sampling_key"
+            )
+        if target_sample_count < 1 or audit_sample_count < 1:
+            raise ValueError(
+                "prefix expected-value target requires positive target and "
+                "audit sample counts"
+            )
+        if sampling_temperature <= 0.0:
+            raise ValueError(
+                "prefix expected-value target requires stochastic "
+                "sampling_temperature"
+            )
+        if sampling_max_new_tokens < 1:
+            raise ValueError(
+                "prefix expected-value target requires positive "
+                "sampling_max_new_tokens"
+            )
+        if generation_cache is None:
+            raise ValueError(
+                "prefix expected-value target requires generation_cache"
+            )
     decoder = ResidualDecoder()
     candidates = _continuation_counterfactual_candidates()
     prediction_errors: list[float] = []
     prefix_candidate_prediction_errors: list[tuple[float, ...]] = []
+    prefix_audit_prediction_errors: list[tuple[float, ...]] = []
     counterfactual_transitions = []
     for index, transition in enumerate(rollout.transitions[:-1]):
         source_text = source_text_by_step[index]
@@ -1884,39 +2117,73 @@ def _with_counterfactual_continuation_pe_rewards(
             raise ValueError(
                 "ETA continuation PE requires monotonically extended prefixes"
             )
-        continuation_text = next_prefix[len(source_text) :]
-        zero_control = (0.0, 0.0, 0.0)
-        zero_key = (source_text, continuation_text, zero_control)
-        zero_nll = score_cache.get(zero_key)
-        if zero_nll is None:
-            zero_nll = runtime.score_continuation(
+        observed_continuation_text = next_prefix[len(source_text) :]
+        if target_mode == ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED:
+            if generation_cache is None:
+                raise RuntimeError(
+                    "prefix expected-value generation cache disappeared"
+                )
+            target_continuations = _sample_prefix_continuations(
+                runtime=runtime,
                 source_text=source_text,
-                continuation_text=continuation_text,
+                sampling_key=(
+                    f"{sampling_key}:prefix-{index}"
+                ),
+                cohort="target",
+                sample_count=target_sample_count,
+                temperature=sampling_temperature,
+                max_new_tokens=sampling_max_new_tokens,
+                generation_cache=generation_cache,
+            )
+            audit_continuations = _sample_prefix_continuations(
+                runtime=runtime,
+                source_text=source_text,
+                sampling_key=(
+                    f"{sampling_key}:prefix-{index}"
+                ),
+                cohort="audit",
+                sample_count=audit_sample_count,
+                temperature=sampling_temperature,
+                max_new_tokens=sampling_max_new_tokens,
+                generation_cache=generation_cache,
+            )
+        else:
+            target_continuations = (observed_continuation_text,)
+            audit_continuations = ()
+        zero_control = (0.0, 0.0, 0.0)
+        zero_nll = _mean_continuation_nll(
+            runtime=runtime,
+            source_text=source_text,
+            continuation_texts=target_continuations,
+            applied_control=zero_control,
+            score_cache=score_cache,
+        )
+        audit_zero_nll = (
+            _mean_continuation_nll(
+                runtime=runtime,
+                source_text=source_text,
+                continuation_texts=audit_continuations,
                 applied_control=zero_control,
-                track_scale=(0.7, 0.7, 0.7),
-            ).mean_negative_log_likelihood
-            score_cache[zero_key] = zero_nll
+                score_cache=score_cache,
+            )
+            if audit_continuations
+            else None
+        )
         candidate_evidence = []
+        audit_candidate_prediction_errors = []
         for candidate in candidates:
             decoded = decoder.decode(
                 latent_code=candidate,
                 decoder_matrix=policy.parameter_store.decoder_matrix,
                 hidden_matrix=policy.parameter_store.decoder_hidden,
             )
-            candidate_key = (
-                source_text,
-                continuation_text,
-                decoded.applied_control,
+            candidate_nll = _mean_continuation_nll(
+                runtime=runtime,
+                source_text=source_text,
+                continuation_texts=target_continuations,
+                applied_control=decoded.applied_control,
+                score_cache=score_cache,
             )
-            candidate_nll = score_cache.get(candidate_key)
-            if candidate_nll is None:
-                candidate_nll = runtime.score_continuation(
-                    source_text=source_text,
-                    continuation_text=continuation_text,
-                    applied_control=decoded.applied_control,
-                    track_scale=(0.7, 0.7, 0.7),
-                ).mean_negative_log_likelihood
-                score_cache[candidate_key] = candidate_nll
             raw_prediction_error = (
                 zero_nll - candidate_nll
             )
@@ -1929,8 +2196,22 @@ def _with_counterfactual_continuation_pe_rewards(
                     raw_prediction_error,
                 )
             )
+            if audit_zero_nll is not None:
+                audit_candidate_nll = _mean_continuation_nll(
+                    runtime=runtime,
+                    source_text=source_text,
+                    continuation_texts=audit_continuations,
+                    applied_control=decoded.applied_control,
+                    score_cache=score_cache,
+                )
+                audit_candidate_prediction_errors.append(
+                    audit_zero_nll - audit_candidate_nll
+                )
         prefix_candidate_prediction_errors.append(
             tuple(evidence[3] for evidence in candidate_evidence)
+        )
+        prefix_audit_prediction_errors.append(
+            tuple(audit_candidate_prediction_errors)
         )
         mean_prediction_error = _mean(
             tuple(
@@ -1998,7 +2279,7 @@ def _with_counterfactual_continuation_pe_rewards(
                 ),
                 reward_mode=(
                     f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
-                    "counterfactual-best-action"
+                    f"counterfactual-{target_mode}"
                 ),
                 direct_action_target=True,
             )
@@ -2013,11 +2294,12 @@ def _with_counterfactual_continuation_pe_rewards(
             ),
             reward_mode=(
                 f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
-                "counterfactual-best-action"
+                f"counterfactual-{target_mode}"
             ),
         ),
         tuple(prediction_errors),
         tuple(prefix_candidate_prediction_errors),
+        tuple(prefix_audit_prediction_errors),
     )
 
 
@@ -2026,12 +2308,18 @@ def _counterfactual_action_examples(
     case: ETAProofCase,
     snapshots: tuple[SubstrateSnapshot, ...],
     diagnostic_rows: tuple[tuple[float, ...], ...],
+    audit_rows: tuple[tuple[float, ...], ...] = (),
 ) -> tuple[CounterfactualActionExample, ...]:
     if len(snapshots) - 1 != len(diagnostic_rows):
         raise ValueError(
             "counterfactual selector requires one diagnostic row per "
             "scoreable residual prefix: "
             f"snapshots={len(snapshots)}, rows={len(diagnostic_rows)}"
+        )
+    if audit_rows and len(audit_rows) != len(diagnostic_rows):
+        raise ValueError(
+            "counterfactual selector requires audit rows to align with "
+            "target rows"
         )
     return tuple(
         CounterfactualActionExample(
@@ -2042,6 +2330,9 @@ def _counterfactual_action_examples(
                 snapshots[index],
             ),
             candidate_raw_deltas=diagnostic_row,
+            audit_candidate_raw_deltas=(
+                audit_rows[index] if audit_rows else ()
+            ),
         )
         for index, diagnostic_row in enumerate(diagnostic_rows)
     )
@@ -2074,7 +2365,13 @@ def _counterfactual_selector_metric_rows(
         ),
     ]
     summaries: dict[str, dict[str, float]] = {}
-    for split in ("train", "eval", "heldout", "confirmation"):
+    for split in (
+        "train",
+        "eval",
+        "heldout",
+        "validation",
+        "confirmation",
+    ):
         split_summary = dict(
             summarize_action_selections(
                 tuple(
@@ -2093,15 +2390,34 @@ def _counterfactual_selector_metric_rows(
             for name, value in split_summary.items()
         )
     chance_top3_rate = min(3, action_count) / max(action_count, 1)
+    independent_audit_active = (
+        summaries["train"]["audit_available_rate"] == 1.0
+    )
     injection_gate_passed = (
-        summaries["train"]["count"] > 0.0
-        and summaries["eval"]["count"] > 0.0
-        and summaries["heldout"]["count"] > 0.0
-        and summaries["train"]["mean_selected_raw_delta"] > 0.0
-        and summaries["eval"]["mean_selected_raw_delta"] > 0.0
-        and summaries["heldout"]["mean_selected_raw_delta"] > 0.0
-        and summaries["eval"]["top3_rate"] > chance_top3_rate
-        and summaries["heldout"]["top3_rate"] > chance_top3_rate
+        (
+            summaries["train"]["count"] > 0.0
+            and summaries["validation"]["count"] > 0.0
+            and summaries["validation"]["audit_available_rate"] == 1.0
+            and summaries["train"][
+                "mean_audit_selected_raw_delta"
+            ]
+            > 0.0
+            and summaries["validation"][
+                "mean_audit_selected_raw_delta"
+            ]
+            > 0.0
+        )
+        if independent_audit_active
+        else (
+            summaries["train"]["count"] > 0.0
+            and summaries["eval"]["count"] > 0.0
+            and summaries["heldout"]["count"] > 0.0
+            and summaries["train"]["mean_selected_raw_delta"] > 0.0
+            and summaries["eval"]["mean_selected_raw_delta"] > 0.0
+            and summaries["heldout"]["mean_selected_raw_delta"] > 0.0
+            and summaries["eval"]["top3_rate"] > chance_top3_rate
+            and summaries["heldout"]["top3_rate"] > chance_top3_rate
+        )
     )
     metrics.extend(
         (
@@ -2137,9 +2453,18 @@ def _fit_train_selected_counterfactual_selector(
             )
         )
         summary = dict(summarize_action_selections(selections))
+        audit_active = summary["audit_available_rate"] == 1.0
         ranking_key = (
-            summary["mean_selected_raw_delta"],
-            -summary["mean_oracle_regret"],
+            (
+                summary["mean_audit_selected_raw_delta"]
+                if audit_active
+                else summary["mean_selected_raw_delta"]
+            ),
+            -(
+                summary["mean_audit_oracle_regret"]
+                if audit_active
+                else summary["mean_oracle_regret"]
+            ),
             summary["top3_rate"],
             -ridge_strength,
         )
@@ -2792,6 +3117,13 @@ def run_eta_internal_rl_proof_benchmark(
     causal_action_head_state_dim: int | None = None,
     continuation_counterfactual_grid: bool = False,
     counterfactual_action_selector_diagnostic: bool = False,
+    counterfactual_target_mode: str = (
+        ETA_COUNTERFACTUAL_TARGET_OBSERVED
+    ),
+    counterfactual_target_sample_count: int = 1,
+    counterfactual_audit_sample_count: int = 0,
+    counterfactual_sampling_temperature: float = 0.8,
+    counterfactual_sampling_max_new_tokens: int = 4,
 ) -> ETAProofBenchmarkReport:
     if training_signal not in {
         ETA_PROOF_TRAINING_SIGNAL,
@@ -2912,11 +3244,16 @@ def run_eta_internal_rl_proof_benchmark(
         ] = {
             "eval": [],
             "heldout": [],
+            "validation": [],
             "confirmation": [],
         }
         continuation_score_cache: dict[
             tuple[str, str, tuple[float, ...]],
             float,
+        ] = {}
+        continuation_generation_cache: dict[
+            tuple[str, str, str, int],
+            str,
         ] = {}
         real_substrate_snapshots: list[SubstrateSnapshot] = []
         pre_training_checkpoint = sandbox.create_checkpoint(
@@ -2984,12 +3321,30 @@ def run_eta_internal_rl_proof_benchmark(
                             train_rollout,
                             rollout_prediction_errors,
                             rollout_counterfactual_diagnostics,
+                            rollout_counterfactual_audit,
                         ) = _with_counterfactual_continuation_pe_rewards(
                             runtime=active_open_weight_runtime,
                             rollout=train_rollout,
                             source_text_by_step=source_text_by_step,
                             policy=sandbox.policy,
                             score_cache=continuation_score_cache,
+                            target_mode=counterfactual_target_mode,
+                            target_sample_count=(
+                                counterfactual_target_sample_count
+                            ),
+                            audit_sample_count=(
+                                counterfactual_audit_sample_count
+                            ),
+                            sampling_temperature=(
+                                counterfactual_sampling_temperature
+                            ),
+                            sampling_max_new_tokens=(
+                                counterfactual_sampling_max_new_tokens
+                            ),
+                            sampling_key=case.case_id,
+                            generation_cache=(
+                                continuation_generation_cache
+                            ),
                         )
                         continuation_counterfactual_diagnostics.extend(
                             rollout_counterfactual_diagnostics
@@ -3003,6 +3358,9 @@ def run_eta_internal_rl_proof_benchmark(
                                 snapshots=snapshots,
                                 diagnostic_rows=(
                                     rollout_counterfactual_diagnostics
+                                ),
+                                audit_rows=(
+                                    rollout_counterfactual_audit
                                 ),
                             ):
                                 existing = selector_training_examples.get(
@@ -3168,12 +3526,28 @@ def run_eta_internal_rl_proof_benchmark(
                     _diagnostic_rollout,
                     _diagnostic_prediction_errors,
                     diagnostic_rows,
+                    audit_rows,
                 ) = _with_counterfactual_continuation_pe_rewards(
                     runtime=active_open_weight_runtime,
                     rollout=rollout,
                     source_text_by_step=source_text_by_step,
                     policy=sandbox.policy,
                     score_cache=continuation_score_cache,
+                    target_mode=counterfactual_target_mode,
+                    target_sample_count=(
+                        counterfactual_target_sample_count
+                    ),
+                    audit_sample_count=(
+                        counterfactual_audit_sample_count
+                    ),
+                    sampling_temperature=(
+                        counterfactual_sampling_temperature
+                    ),
+                    sampling_max_new_tokens=(
+                        counterfactual_sampling_max_new_tokens
+                    ),
+                    sampling_key=case.case_id,
+                    generation_cache=continuation_generation_cache,
                 )
                 evaluation_counterfactual_diagnostics[
                     case.split
@@ -3189,6 +3563,7 @@ def run_eta_internal_rl_proof_benchmark(
                             case=case,
                             snapshots=snapshots,
                             diagnostic_rows=diagnostic_rows,
+                            audit_rows=audit_rows,
                         )
                     )
                     selector_selections.extend(
@@ -3219,7 +3594,12 @@ def run_eta_internal_rl_proof_benchmark(
         )
         evaluation_counterfactual_diagnostic_metrics = tuple(
             metric
-            for scope in ("eval", "heldout", "confirmation")
+            for scope in (
+                "eval",
+                "heldout",
+                "validation",
+                "confirmation",
+            )
             for metric in _scoped_counterfactual_diagnostic_metrics(
                 tuple(evaluation_counterfactual_diagnostics[scope]),
                 scope=scope,
@@ -3311,6 +3691,18 @@ def run_eta_internal_rl_proof_benchmark(
             (
                 "continuation_counterfactual_unique_score_count",
                 float(len(continuation_score_cache)),
+            ),
+            (
+                "counterfactual_target_sample_count",
+                float(counterfactual_target_sample_count),
+            ),
+            (
+                "counterfactual_audit_sample_count",
+                float(counterfactual_audit_sample_count),
+            ),
+            (
+                "counterfactual_generated_continuation_count",
+                float(len(continuation_generation_cache)),
             ),
             (
                 "continuation_pe_training_mean_raw_delta",
@@ -4239,6 +4631,54 @@ def run_eta_internal_rl_paper_suite(
         ),
         False,
     )
+    counterfactual_target_mode = next(
+        (
+            values[0]
+            for name, values in active_manifest.case_groups
+            if name == "counterfactual_target_mode"
+        ),
+        ETA_COUNTERFACTUAL_TARGET_OBSERVED,
+    )
+    counterfactual_target_sample_count = int(
+        next(
+            (
+                values[0]
+                for name, values in active_manifest.case_groups
+                if name == "counterfactual_target_sample_count"
+            ),
+            "1",
+        )
+    )
+    counterfactual_audit_sample_count = int(
+        next(
+            (
+                values[0]
+                for name, values in active_manifest.case_groups
+                if name == "counterfactual_audit_sample_count"
+            ),
+            "0",
+        )
+    )
+    counterfactual_sampling_temperature = float(
+        next(
+            (
+                values[0]
+                for name, values in active_manifest.case_groups
+                if name == "counterfactual_sampling_temperature"
+            ),
+            "0.8",
+        )
+    )
+    counterfactual_sampling_max_new_tokens = int(
+        next(
+            (
+                values[0]
+                for name, values in active_manifest.case_groups
+                if name == "counterfactual_sampling_max_new_tokens"
+            ),
+            "4",
+        )
+    )
     backend_labels = tuple(
         backend_label
         for name, values in active_manifest.case_groups
@@ -4258,6 +4698,8 @@ def run_eta_internal_rl_paper_suite(
         available_cases = default_eta_proof_cases()
     elif case_corpus == ETA_GATE2_EXPANDED_CASE_CORPUS:
         available_cases = eta_gate2_expanded_cases()
+    elif case_corpus == ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS:
+        available_cases = eta_gate2_expected_value_cases()
     else:
         raise ValueError(f"Unsupported ETA case corpus {case_corpus!r}.")
     available_case_ids = {case.case_id for case in available_cases}
@@ -4302,6 +4744,19 @@ def run_eta_internal_rl_paper_suite(
             ),
             counterfactual_action_selector_diagnostic=(
                 counterfactual_action_selector_diagnostic
+            ),
+            counterfactual_target_mode=counterfactual_target_mode,
+            counterfactual_target_sample_count=(
+                counterfactual_target_sample_count
+            ),
+            counterfactual_audit_sample_count=(
+                counterfactual_audit_sample_count
+            ),
+            counterfactual_sampling_temperature=(
+                counterfactual_sampling_temperature
+            ),
+            counterfactual_sampling_max_new_tokens=(
+                counterfactual_sampling_max_new_tokens
             ),
         )
         backend_report = run_eta_internal_rl_backend_robustness_benchmark(
@@ -4429,6 +4884,19 @@ def run_eta_internal_rl_paper_suite(
         "counterfactual_action_selector_diagnostic": str(
             counterfactual_action_selector_diagnostic
         ).lower(),
+        "counterfactual_target_mode": counterfactual_target_mode,
+        "counterfactual_target_sample_count": str(
+            counterfactual_target_sample_count
+        ),
+        "counterfactual_audit_sample_count": str(
+            counterfactual_audit_sample_count
+        ),
+        "counterfactual_sampling_temperature": str(
+            counterfactual_sampling_temperature
+        ),
+        "counterfactual_sampling_max_new_tokens": str(
+            counterfactual_sampling_max_new_tokens
+        ),
     }
     runtime_descriptor.update(
         _open_weight_runtime_descriptor(

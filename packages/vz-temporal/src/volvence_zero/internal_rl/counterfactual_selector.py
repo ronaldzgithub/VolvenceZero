@@ -19,6 +19,7 @@ class CounterfactualActionExample:
     split: str
     state_features: tuple[float, ...]
     candidate_raw_deltas: tuple[float, ...]
+    audit_candidate_raw_deltas: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,10 @@ class CounterfactualActionSelection:
     top1_match: bool
     top3_match: bool
     selected_positive: bool
+    audit_selected_raw_delta: float | None
+    audit_oracle_raw_delta: float | None
+    audit_oracle_regret: float | None
+    audit_selected_positive: bool | None
     model_fingerprint: str
 
 
@@ -661,6 +666,26 @@ def select_counterfactual_actions(
         selected_index = ranked[0]
         selected_delta = example.candidate_raw_deltas[selected_index]
         oracle_delta = example.candidate_raw_deltas[oracle_index]
+        audit_values = example.audit_candidate_raw_deltas
+        audit_oracle_index = (
+            max(
+                range(artifact.action_count),
+                key=lambda index: (
+                    audit_values[index],
+                    -index,
+                ),
+            )
+            if audit_values
+            else None
+        )
+        audit_selected_delta = (
+            audit_values[selected_index] if audit_values else None
+        )
+        audit_oracle_delta = (
+            audit_values[audit_oracle_index]
+            if audit_oracle_index is not None
+            else None
+        )
         selections.append(
             CounterfactualActionSelection(
                 example_id=example.example_id,
@@ -676,6 +701,24 @@ def select_counterfactual_actions(
                 top1_match=selected_index == oracle_index,
                 top3_match=oracle_index in ranked[:3],
                 selected_positive=selected_delta > 0.0,
+                audit_selected_raw_delta=audit_selected_delta,
+                audit_oracle_raw_delta=audit_oracle_delta,
+                audit_oracle_regret=(
+                    max(
+                        0.0,
+                        audit_oracle_delta - audit_selected_delta,
+                    )
+                    if (
+                        audit_oracle_delta is not None
+                        and audit_selected_delta is not None
+                    )
+                    else None
+                ),
+                audit_selected_positive=(
+                    audit_selected_delta > 0.0
+                    if audit_selected_delta is not None
+                    else None
+                ),
                 model_fingerprint=artifact.model_fingerprint,
             )
         )
@@ -804,8 +847,22 @@ def summarize_action_selections(
             ("top1_rate", 0.0),
             ("top3_rate", 0.0),
             ("selected_positive_rate", 0.0),
+            ("audit_available_rate", 0.0),
+            ("mean_audit_selected_raw_delta", 0.0),
+            ("mean_audit_oracle_raw_delta", 0.0),
+            ("mean_audit_oracle_regret", 0.0),
+            ("audit_selected_positive_rate", 0.0),
         )
     count = len(selections)
+    audit_selections = tuple(
+        selection
+        for selection in selections
+        if selection.audit_selected_raw_delta is not None
+        and selection.audit_oracle_raw_delta is not None
+        and selection.audit_oracle_regret is not None
+        and selection.audit_selected_positive is not None
+    )
+    audit_count = len(audit_selections)
     return (
         ("count", float(count)),
         (
@@ -835,6 +892,59 @@ def summarize_action_selections(
             sum(selection.selected_positive for selection in selections)
             / count,
         ),
+        ("audit_available_rate", audit_count / count),
+        (
+            "mean_audit_selected_raw_delta",
+            (
+                sum(
+                    selection.audit_selected_raw_delta
+                    for selection in audit_selections
+                    if selection.audit_selected_raw_delta is not None
+                )
+                / audit_count
+                if audit_count
+                else 0.0
+            ),
+        ),
+        (
+            "mean_audit_oracle_raw_delta",
+            (
+                sum(
+                    selection.audit_oracle_raw_delta
+                    for selection in audit_selections
+                    if selection.audit_oracle_raw_delta is not None
+                )
+                / audit_count
+                if audit_count
+                else 0.0
+            ),
+        ),
+        (
+            "mean_audit_oracle_regret",
+            (
+                sum(
+                    selection.audit_oracle_regret
+                    for selection in audit_selections
+                    if selection.audit_oracle_regret is not None
+                )
+                / audit_count
+                if audit_count
+                else 0.0
+            ),
+        ),
+        (
+            "audit_selected_positive_rate",
+            (
+                sum(
+                    selection.audit_selected_positive
+                    for selection in audit_selections
+                    if selection.audit_selected_positive is not None
+                )
+                / audit_count
+                if audit_count
+                else 0.0
+            ),
+        ),
     )
 
 
@@ -857,6 +967,16 @@ def _validate_examples(
         raise ValueError(
             "counterfactual selector examples require one positive action count"
         )
+    action_count = next(iter(action_counts))
+    if any(
+        example.audit_candidate_raw_deltas
+        and len(example.audit_candidate_raw_deltas) != action_count
+        for example in examples
+    ):
+        raise ValueError(
+            "counterfactual selector audit action count must match target "
+            "action count"
+        )
     if len({example.example_id for example in examples}) != len(examples):
         raise ValueError(
             "counterfactual selector example_id values must be unique"
@@ -874,6 +994,7 @@ def _validate_examples(
         for value in (
             *example.state_features,
             *example.candidate_raw_deltas,
+            *example.audit_candidate_raw_deltas,
         )
     ):
         raise ValueError(

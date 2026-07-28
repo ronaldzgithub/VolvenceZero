@@ -103,6 +103,12 @@ Environment Interface 是运行时外侧的边界协议，不是新的 kernel ow
 - substrate owner 现已区分三层：`OpenWeightResidualRuntime`（真实 runtime / hook 所有者）、`OpenWeightResidualStreamSubstrateAdapter`（对外发布稳定 `SubstrateSnapshot`）、`OpenWeightResidualInterventionBackend`（owner-side residual control 执行位点）
 - 这意味着未来接 Hugging Face / 其他 open-weight backend 时，只需实现 runtime 契约，不需要改 temporal / internal RL / evaluation 的公共消费面
 - 当前 `TransformersOpenWeightResidualRuntime` 已实现 Hugging Face causal LM 的中层 block forward hook capture / intervention；runtime owner 负责 hook 层选择、冻结边界和控制投影、模型家族 block 解析，以及稳定 feature summary 的发布，消费者继续只读取公共快照
+- `OpenWeightResidualRuntime.score_continuation` 是只读证据接口：给定同一
+  prefix、目标 continuation 与 typed residual control，在真实 frozen
+  causal LM forward 中返回目标 token count、mean NLL 与几何平均概率；
+  它不得更新基底或 adapter。capture baseline 与 intervention summary 都取
+  最新 token，避免全序列 mean 与末 token 的口径错配；zero control 的
+  downstream effect 必须在浮点容差内严格为 0。
 - 当前 runtime owner 已显式支持 `SubstrateFallbackMode`：`allow-builtin` 允许回退到内置 tiny transformers runtime，`deny` 在首选 open-weight runtime 不可用时 fail closed；评估/production-like 路径应优先使用 `deny`
 - 默认 `AgentSessionRunner` / CLI 已切换到真实 `TransformersOpenWeightResidualRuntime` 路径；当首选 HF 模型不可用且 fallback mode 允许时，回退到内置 tiny transformers runtime，而不是 synthetic runtime，保证默认主链仍消费真实 hookable residual substrate
 - 当前 substrate 区域已新增正式 `substrate_self_mod` owner：它消费 `substrate + evaluation + prediction_error`，发布 machine-readable 的 online-fast substrate delta proposal / gate preview / parameter-change telemetry；真正的 apply / rollback 仍只通过 substrate runtime owner surface 执行，避免 `session` / `joint_loop` 直接成为 substrate 第二 owner。默认 continual learner 主路径只把该 surface 作为 review / rare-heavy / experimental evidence；显式 experimental live-mutation runner 才会在通过 schedule + gate 后触发 bounded live substrate mutation，显式 frozen runner 则只发布 proposal / evidence

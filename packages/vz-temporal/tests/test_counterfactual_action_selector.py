@@ -30,6 +30,7 @@ def _example(
     group_id: str,
     first: float,
     second: float,
+    audit_deltas: tuple[float, ...] = (),
 ) -> CounterfactualActionExample:
     best_index = 1 if first > second else 2
     deltas = [0.0, -0.2, -0.2]
@@ -40,6 +41,7 @@ def _example(
         split="train",
         state_features=(first, second, first - second, 1.0),
         candidate_raw_deltas=tuple(deltas),
+        audit_candidate_raw_deltas=audit_deltas,
     )
 
 
@@ -210,6 +212,35 @@ def test_kernel_selector_uses_full_state_and_grouped_cv() -> None:
     assert all(selection.top1_match for selection in selections)
 
 
+def test_selector_reports_independent_audit_values_without_fitting_them() -> None:
+    examples = tuple(
+        _example(
+            example_id=f"audit-{group}-{index}",
+            group_id=f"route-{group}",
+            first=1.0 if index == 0 else 0.0,
+            second=0.0 if index == 0 else 1.0,
+            audit_deltas=(0.0, -0.3, -0.4),
+        )
+        for group in range(4)
+        for index in range(2)
+    )
+
+    selections = grouped_cross_validate_kernel_residual_action_selector(
+        examples,
+        fold_count=4,
+        ridge_strength=0.1,
+    )
+    summary = dict(summarize_action_selections(selections))
+
+    assert summary["audit_available_rate"] == 1.0
+    assert summary["mean_selected_raw_delta"] > 0.0
+    assert summary["mean_audit_selected_raw_delta"] < 0.0
+    assert all(
+        selection.audit_selected_raw_delta is not None
+        for selection in selections
+    )
+
+
 def test_selector_fails_loudly_on_schema_drift() -> None:
     examples = (
         _example(
@@ -232,3 +263,25 @@ def test_selector_fails_loudly_on_schema_drift() -> None:
         match="one positive input dim",
     ):
         fit_residual_action_selector(examples)
+
+
+def test_selector_rejects_audit_action_count_drift() -> None:
+    examples = (
+        _example(
+            example_id="first",
+            group_id="route-a",
+            first=1.0,
+            second=0.0,
+            audit_deltas=(0.0, -0.1),
+        ),
+        _example(
+            example_id="second",
+            group_id="route-b",
+            first=0.0,
+            second=1.0,
+            audit_deltas=(0.0, -0.1),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="audit action count"):
+        fit_kernel_residual_action_selector(examples)
