@@ -25,6 +25,8 @@ def _write_case(
     candidate_total: int = 32,
     control_correct: int = 16,
     control_total: int = 32,
+    temperature: float = 0.0,
+    sampling_seed: int | None = None,
 ) -> Path:
     directory = root / pair
     directory.mkdir(parents=True)
@@ -57,7 +59,68 @@ def _write_case(
                 "judge_model_id": judge,
             },
         ],
-        "prompt_fp_table": [],
+        "prompt_fp_table": [
+            {
+                "arm": "state-kv-arm-a-pure",
+                "user": f"{pair}-a",
+                "probe": "h0",
+                "prompt_fp": "prompt-a",
+                "prompt_state_sections": 0,
+                "decode_fp": "decode-a",
+                **(
+                    {"sampling_seed": 101}
+                    if sampling_seed is not None
+                    else {}
+                ),
+                "conditioning_applied": False,
+                "conditioning_delivered": False,
+            },
+            {
+                "arm": "state-kv-arm-a-pure",
+                "user": f"{pair}-b",
+                "probe": "h0",
+                "prompt_fp": "prompt-a",
+                "prompt_state_sections": 0,
+                "decode_fp": "decode-a",
+                **(
+                    {"sampling_seed": 101}
+                    if sampling_seed is not None
+                    else {}
+                ),
+                "conditioning_applied": False,
+                "conditioning_delivered": False,
+            },
+            {
+                "arm": "state-kv-arm-g-prefix-pure",
+                "user": f"{pair}-a",
+                "probe": "h0",
+                "prompt_fp": "prompt-a",
+                "prompt_state_sections": 0,
+                "decode_fp": "decode-g",
+                **(
+                    {"sampling_seed": 202}
+                    if sampling_seed is not None
+                    else {}
+                ),
+                "conditioning_applied": True,
+                "conditioning_delivered": True,
+            },
+            {
+                "arm": "state-kv-arm-g-prefix-pure",
+                "user": f"{pair}-b",
+                "probe": "h0",
+                "prompt_fp": "prompt-a",
+                "prompt_state_sections": 0,
+                "decode_fp": "decode-g",
+                **(
+                    {"sampling_seed": 202}
+                    if sampling_seed is not None
+                    else {}
+                ),
+                "conditioning_applied": True,
+                "conditioning_delivered": True,
+            },
+        ],
         "judge_model_id": judge,
         "notes": [],
     }
@@ -72,6 +135,8 @@ def _write_case(
             "user_ids": [f"{pair}-a", f"{pair}-b"],
             "probe_ids": ["h0"],
             "case_count": 2,
+            "temperature": temperature,
+            "sampling_seed": sampling_seed,
         },
     }
     verdict_path = directory / "verdict_identification.json"
@@ -112,6 +177,40 @@ def test_retention_gate_passes_on_two_heldout_pairs(tmp_path: Path) -> None:
     assert candidate.correct == 56
     assert candidate.total == 64
     assert candidate.ci_low_min > 0.5
+    assert report.inputs[0].temperature == 0.0
+    assert report.inputs[0].sampling_seed is None
+
+
+def test_retention_gate_marks_stochastic_rollout_coverage(tmp_path: Path) -> None:
+    first = load_retention_evidence(
+        _write_case(
+            tmp_path,
+            pair="repair-vs-execute",
+            candidate_correct=29,
+            temperature=0.2,
+            sampling_seed=1701,
+        )
+    )
+    second = load_retention_evidence(
+        _write_case(
+            tmp_path,
+            pair="boundary-vs-commit",
+            candidate_correct=27,
+            temperature=0.2,
+            sampling_seed=1701,
+        )
+    )
+
+    report = build_retention_gate_report(
+        evidences=(first, second),
+        required_p2_pairs=("repair-vs-execute", "boundary-vs-commit"),
+        bootstrap_seeds=(7, 11, 13),
+    )
+
+    assert report.gate_state is RetentionGateState.PASS
+    assert report.stochastic_generation_rollout_covered is True
+    assert all(item.seeded_turn_count == item.turn_count for item in report.inputs)
+    assert all(item.unique_turn_seed_count == 2 for item in report.inputs)
 
 
 def test_retention_gate_reports_missing_pair_as_insufficient_data(
@@ -139,6 +238,36 @@ def test_retention_gate_fails_mixed_artifacts(tmp_path: Path) -> None:
     )
     second = load_retention_evidence(
         _write_case(tmp_path, pair="boundary-vs-commit", prefix_id="prefix-b")
+    )
+
+    report = build_retention_gate_report(
+        evidences=(first, second),
+        required_p2_pairs=("repair-vs-execute", "boundary-vs-commit"),
+    )
+
+    assert report.gate_state is RetentionGateState.FAIL
+    assert (
+        _claim_state(report, "claim_consistent_artifact")
+        is GateClaimState.FAIL
+    )
+
+
+def test_retention_gate_fails_mixed_rollout_seed(tmp_path: Path) -> None:
+    first = load_retention_evidence(
+        _write_case(
+            tmp_path,
+            pair="repair-vs-execute",
+            temperature=0.2,
+            sampling_seed=1701,
+        )
+    )
+    second = load_retention_evidence(
+        _write_case(
+            tmp_path,
+            pair="boundary-vs-commit",
+            temperature=0.2,
+            sampling_seed=31337,
+        )
     )
 
     report = build_retention_gate_report(

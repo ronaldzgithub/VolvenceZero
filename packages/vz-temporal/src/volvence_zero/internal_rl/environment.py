@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
+from random import Random
 
 from volvence_zero.memory import Track
 from volvence_zero.substrate import (
@@ -21,6 +23,15 @@ def _clamp(value: float) -> float:
     return max(-1.0, min(1.0, value))
 
 
+class ResidualControlMode(str, Enum):
+    """Matched intervention modes for residual-control causal evidence."""
+
+    IDENTITY = "identity"
+    ZERO = "zero"
+    SHUFFLED = "shuffled"
+    REVERSED = "reversed"
+
+
 @dataclass(frozen=True)
 class InternalRLEnvStep:
     temporal_step: TemporalStep
@@ -28,7 +39,9 @@ class InternalRLEnvStep:
     observation_signature: tuple[float, ...]
     latent_code: tuple[float, ...]
     decoder_output: tuple[float, ...]
+    control_before_ablation: tuple[float, ...]
     applied_control: tuple[float, ...]
+    residual_control_mode: str
     applied_snapshot: SubstrateSnapshot
     downstream_effect: tuple[float, ...]
     reward: float
@@ -234,10 +247,16 @@ class InternalRLEnvironment:
         control_backend: ResidualInterventionBackend | None = None,
         evaluation_family_signals: dict[str, float] | None = None,
         primary_prediction_error_enabled: bool = True,
+        residual_control_mode: ResidualControlMode | str = ResidualControlMode.IDENTITY,
+        residual_control_seed: int = 0,
     ) -> None:
         self._control_backend = control_backend or TraceResidualInterventionBackend()
         self._evaluation_family_signals = evaluation_family_signals or {}
         self._primary_prediction_error_enabled = primary_prediction_error_enabled
+        self.set_residual_control_mode(
+            mode=residual_control_mode,
+            seed=residual_control_seed,
+        )
         # CP-07 (GAP-09): most recent step's reward composition readout.
         self._latest_reward_composition: dict[str, object] | None = None
 
@@ -261,6 +280,49 @@ class InternalRLEnvironment:
 
     def set_primary_prediction_error_enabled(self, enabled: bool) -> None:
         self._primary_prediction_error_enabled = enabled
+
+    def set_residual_control_mode(
+        self,
+        *,
+        mode: ResidualControlMode | str,
+        seed: int = 0,
+    ) -> None:
+        try:
+            normalized_mode = ResidualControlMode(mode)
+        except ValueError as exc:
+            supported = ", ".join(item.value for item in ResidualControlMode)
+            raise ValueError(
+                f"Unsupported residual control mode {mode!r}; expected one of {supported}."
+            ) from exc
+        if not isinstance(seed, int) or isinstance(seed, bool):
+            raise TypeError("residual control seed must be an integer")
+        self._residual_control_mode = normalized_mode
+        self._residual_control_seed = seed
+
+    def _transform_residual_control(
+        self,
+        applied_control: tuple[float, ...],
+        *,
+        step_index: int,
+    ) -> tuple[float, ...]:
+        mode = self._residual_control_mode
+        if mode is ResidualControlMode.IDENTITY:
+            return applied_control
+        if mode is ResidualControlMode.ZERO:
+            return tuple(0.0 for _ in applied_control)
+        if mode is ResidualControlMode.REVERSED:
+            return tuple(reversed(applied_control))
+        if len(applied_control) < 2:
+            raise ValueError(
+                "shuffled residual control requires at least two control dimensions"
+            )
+        indices = list(range(len(applied_control)))
+        Random(self._residual_control_seed + step_index * 1_000_003).shuffle(
+            indices
+        )
+        if indices == list(range(len(applied_control))):
+            indices = indices[1:] + indices[:1]
+        return tuple(applied_control[index] for index in indices)
 
     def set_control_backend(self, backend: ResidualInterventionBackend) -> None:
         self._control_backend = backend
@@ -652,10 +714,14 @@ class InternalRLEnvironment:
             if runtime_state is not None
             else temporal_step.controller_state.code
         )
-        applied_control = (
+        control_before_ablation = (
             runtime_state.decoder_applied_control
             if runtime_state is not None and runtime_state.decoder_applied_control
             else decoder_output
+        )
+        applied_control = self._transform_residual_control(
+            control_before_ablation,
+            step_index=step_index,
         )
         active_family_id = (
             runtime_state.active_family_summary.family_id
@@ -755,7 +821,9 @@ class InternalRLEnvironment:
             observation_signature=sequence_signature,
             latent_code=temporal_step.controller_state.code,
             decoder_output=decoder_output,
+            control_before_ablation=control_before_ablation,
             applied_control=applied_control,
+            residual_control_mode=self._residual_control_mode.value,
             applied_snapshot=control_application.applied_snapshot,
             downstream_effect=downstream_effect,
             reward=_clamp(reward),

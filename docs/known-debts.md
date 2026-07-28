@@ -1,7 +1,8 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: **2026-07-17** (v11 — `should-be-learned` 桶两条漏网项清账（纯代码侧）：**#89 残余**「`apply_prediction_error_signal` 固定写入阈值」learned 门控化——新增 `vz-memory` `PeWriteGate`（0.15 固定阈值=初始化+回滚点；PE 写入按 realized usefulness settle，±0.10 包络；readout 经 `lifecycle_metrics` 发布，阈值随 checkpoint 往返），coverage spec 5.3 该行移入 `bounded-learned`，契约测试 `tests/test_memory_pe_write_gate.py` 8/8 绿，见 #89 section；**#91 残余**「`semantic_feature_surface_from_text` hash pull 覆盖真实 readout」修复——adapter 追加 fallback 改单一 owner merge，runtime 混合 hidden-state 语义 pull 不再被 hash 按名覆盖，synthetic/文本-only 路径逐字节不变，契约测试 `tests/contracts/test_substrate_semantic_surface_ownership.py` 4/4 绿，见 #91 section)
+> Last updated: **2026-07-28** (v12 — 新增 **#92**：把 Volvence 整体 thesis 尚需完成的 ETA + NL 证据门统一入档。覆盖 PE 原始数值与真 LSS grounding、`z_t / beta_t` 涌现及残差因果控制、每用户连续性、基于抽象段的主动学习、CMS 多时间尺度与 nested meta-init、SSL→RL 与 wake/sleep、M3 和 Titans/Hope bounded self-modification、rare-heavy artifact 晋升；每门均冻结命题、matched control、指标、EXIT 与原始 artifact。#92 是 #51/#87-#91 的系统级总验收，不复制这些局部债)
+> Earlier: **2026-07-17** (v11 — `should-be-learned` 桶两条漏网项清账（纯代码侧）：**#89 残余**「`apply_prediction_error_signal` 固定写入阈值」learned 门控化——新增 `vz-memory` `PeWriteGate`（0.15 固定阈值=初始化+回滚点；PE 写入按 realized usefulness settle，±0.10 包络；readout 经 `lifecycle_metrics` 发布，阈值随 checkpoint 往返），coverage spec 5.3 该行移入 `bounded-learned`，契约测试 `tests/test_memory_pe_write_gate.py` 8/8 绿，见 #89 section；**#91 残余**「`semantic_feature_surface_from_text` hash pull 覆盖真实 readout」修复——adapter 追加 fallback 改单一 owner merge，runtime 混合 hidden-state 语义 pull 不再被 hash 按名覆盖，synthetic/文本-only 路径逐字节不变，契约测试 `tests/contracts/test_substrate_semantic_surface_ownership.py` 4/4 绿，见 #91 section)
 > Earlier: **2026-07-16** (v10 — 认知 AGI 代码完整度提升计划 A1/A2 debt 影响：**#81 关闭（A2）**——`runtime_helpers` 的 6 个 `if domain == "X":` hint summary / topic_tags 分支迁移为 `vz-cognition.regime.contracts` 的 typed `DomainHintCatalog`（`ApplicationBrief` 旁，含 `language` i18n 接缝 + `DEFAULT_DOMAIN_HINT_CATALOG` 字节不变文本），runtime_helpers 只留读 catalog 的薄 wrapper，契约测试 `tests/contracts/test_domain_hint_catalog.py`（literal-domain 分支归零 + summary/tag 一致性守门 + verbatim 读取）；**#90 protocol 层残余代码侧闭合（A1）**——见 #90 section 2026-07-16 进展（PE-shaped overlay readout + protocol-lineage conflict → typed 修订提案经 `ProtocolRevisionQueueModule` 单 router 走 R10 gate 人审，`tests/contracts/test_apprenticeship_protocol_revision_path.py`）。同日更早 packet（T1-T3/C1-C4/M1/M2/S1）见 [learned-vs-heuristic-coverage.md](specs/learned-vs-heuristic-coverage.md) 变更日志 2026-07-16)
 > Earlier: **2026-07-15** (v9 — **Windows long-soak native crash 根因定案 + 首个连续 real-trace promotion artifact 落地**：v8 记录的 `0xC0000005`/`0xC0000409` 系列崩溃根因是**宿主 CPU 硬件缺陷**——i9-14900KF 运行 pre-fix 微码 `0x120`（Intel 13/14 代 Raptor Lake Vmin Shift 不稳定问题，修复微码 0x125/0x129/0x12B/0x12F 均未安装），P-core 单线程 ~6GHz boost 恰是纯 Python 热循环的工况，故崩溃跨 Windows/WSL、跨进程（Defender mpengine.dll 同期 crash）、位置漂移且 12GB RAM 压测全绿。**软件侧证据**：进程钉到 E-core（affinity `0xFFFF0000`，launcher `.local/run_on_ecores.py`）后 510-turn HF CUDA full-combo soak 连续两次零崩溃跑完；此前生效的 `PYTHON_DISABLE_SPECIALIZATION` 经查在 python312.dll 中不存在该字符串，属安慰剂。**硬件侧待办（用户操作）**：更新 BIOS 至含 0x12B/0x12F 微码版本；CPU 可能已发生不可逆退化，更新后仍不稳则需 RMA。**Lane 变化**：`residual_backend.capture` / `temporal/ssl.py` / `internal_rl/sandbox.py` 三处 Windows-CUDA 降级守卫接入 `VZ_TORCH_BACKENDS_FORCE=1` 旁路（与 `final_wiring.py` 同开关，可回滚）；E-core+force lane 产出首个连续 real-trace soak artifact（`artifacts/learned_active_evidence_root_510_ecore_force/`：`real_trace_turns=509`、strict ETA gate PASS、no-optimize proof PASS、latency SLO OK（3.71s/turn < 5s）、CMS A/B PASS、capacity ladder n_z 16/64/256 synthetic 500-turn 执行）。**promotion 仍 BLOCKED（诚实）**：`validation_delta=0.0139 < 0.02`（学习强度差距，非 infra）+ `pe_off/eta_off` 组件对照位待同基底 P1 ablation verdict；见 #86/#88/#89)
 > Earlier: **2026-07-14** (v8 — 提升计划 A/B/C wiring packet：#87 同基底消融从 5-track serving 扩到 **9-track**（新增 `companion-pe-drive-off` / `companion-eta-off` / `companion-active-learning-off` / `companion-lora-adapter` verticals，roster、serve launcher、preflight fingerprints、P1/P2 health / summary / fingerprint gate 均扩展；P0 9-track smoke PASS，P1/P2 dry-run 均含 9 轨）；#90/#91 follow-up：`LLMGuidanceConstraintExtractor` 走集中 prompt + 真实 HF runtime 注入，apprenticeship coverage 与 application scoring/runtime helpers 迁到 `semantic_embedding` 接缝，`active-learning-off` 使用 reproducible random feedback baseline；#86/#88/#89：`run_learned_shadow_soak.py` 支持 real-substrate lane、capacity arm metadata、backend combo 与 promotion-gate payload，`run_capacity_ladder.py` / `evaluate_learned_backend_promotion.py` 落地；C1 judge-evidence summary artifact 路径落地；3-turn full smoke、HF/CPU smoke、5×10 chunk smoke PASS，但 Windows 连续 500-turn CUDA/HF-CPU/synthetic full lane 触发 native crash（`0xC0000005` / `0xC0000409`），连续 real-trace promotion artifact 仍需 Linux/GPU lane 重跑)
@@ -2109,6 +2110,174 @@ return (
   3. 保持 R8：嵌入仍是 `vz-contracts` 单一 SSOT，消费者零改动。
 - **优先级**：**中**（可与 [#88](#88) substrate runtime forward ACTIVE 同 packet 复用 residual）
 - **关联**：[#3](#3)（SSOT 收敛前史，本债专记「stub→真实嵌入」不重复 SSOT 收敛）· [#88](#88)（substrate residual 复用来源）· [#10D](#10)（retrieval facet disambiguation 同域）· [#86](#86)（learned coverage 子项）
+
+---
+
+## 92. Volvence 整体 thesis 的 ETA + NL 系统级证据门尚未闭合（局部机制存在 ≠ 整体因果链成立）
+
+> **状态（2026-07-28）**：OPEN / evidence design frozen，尚未形成统一真 substrate、长轨迹、多 seed 的总验收 verdict。已有单元测试、synthetic proof、SHADOW artifact 和局部真 trace 只能作为子证据；本债关闭前，对外只能说“架构链与局部机制已实现/待系统验证”，不能说“Volvence 整体 thesis 已被证明”。
+
+- **路径**：
+  - 总论与需求：[`docs/volvence-thesis.md`](volvence-thesis.md) · [`docs/next_gen_emogpt.md`](next_gen_emogpt.md)
+  - PE / LSS：[`docs/specs/prediction-error-loop.md`](specs/prediction-error-loop.md)
+  - ETA：[`docs/specs/temporal-abstraction.md`](specs/temporal-abstraction.md) · [`docs/specs/emergent-action-abstraction.md`](specs/emergent-action-abstraction.md)
+  - NL：[`docs/specs/multi-timescale-learning.md`](specs/multi-timescale-learning.md) · [`docs/specs/continuum-memory.md`](specs/continuum-memory.md) · [`docs/specs/cms-atlas-titans-uplift.md`](specs/cms-atlas-titans-uplift.md)
+  - thesis 因果消融：[`docs/specs/human-world-model-ablation.md`](specs/human-world-model-ablation.md) · [`docs/specs/evidence_program.md`](specs/evidence_program.md)
+  - 已有局部债：[#51](#51)（关系 ground truth）· [#86](#86)（learned coverage / capacity）· [#87](#87)（总 thesis ablation）· [#88](#88)（ETA ACTIVE）· [#89](#89)（CMS 抗遗忘）· [#90](#90)（主动学习）· [#91](#91)（真实语义表征）
+
+- **问题**：目前各 owner 的契约、局部学习核和若干 proof harness 已经存在，但证据分散在不同测试、不同 substrate、不同轨迹长度与不同 artifact 中。它们还不能回答同一个系统级问题：在共享冻结基底、相同输入预算和相同评价条件下，`PE → ETA 抽象 → z 空间信用/主动学习 → NL 多时间尺度沉淀 → rare-heavy 有界晋升` 是否形成了可重复、可归因、跨用户隔离且优于 matched control 的持续学习闭环。
+- **违反**：不违反 R1-R15；这是 thesis 级 evidence debt。若缺少本债仍宣称“持续个体化、涌现时间抽象、NL 记忆体系和有界自我改进已经整体成立”，会把 wiring correctness、局部 proxy 或 synthetic result 误写为因果证明。
+- **风险**：**高（科学结论 / 融资尽调）**，**中（工程路线）**。最坏情况不是系统不能运行，而是增益实际来自 substrate、prompt、普通 memory/RAG、手工阈值或 evaluator，自称的 ETA/NL 因果链并未贡献。
+
+### 统一实验纪律
+
+1. **同基底**：所有比较臂使用同一 frozen substrate checkpoint、tokenizer、采样配置、prompt/context budget 和 residual layer policy；记录 substrate fingerprint。
+2. **同经历**：离线 replay 使用同一 immutable event/outcome trace；在线实验使用预注册 seed schedule、用户 cohort 与 scenario split。禁止 full 臂获得额外文本或隐藏标签。
+3. **同评价**：evaluation 只作 readout / promotion gate，不回灌学习源；学习信号必须逐条追溯到 prediction→actual→PE lineage。
+4. **三层证据分级**：`mechanism` 只证明公式/契约；`causal` 要求 matched ablation；`longitudinal` 要求真 substrate、跨 session、≥500 settled transitions。不得用低层 PASS 代替高层 PASS。
+5. **预注册结论**：每个 gate 在真跑前冻结 primary metric、最小效应、置信区间、seed 数、排除规则和 kill condition；未预注册阈值只能产 diagnostic，不得产 promotion verdict。
+
+### 最小 matched-control 矩阵
+
+以下是 [#87](#87) 八臂 thesis matrix 的 NL/ETA 诊断扩展，不创建新的产品路线：
+
+| 臂 | 保留 | 移除或替换 | 主要回答 |
+|---|---|---|---|
+| `raw-frozen` | frozen substrate | 全部 Volvence 学习层 | 基底能力下限 |
+| `memory-only` | 普通检索/持久 memory | PE-driven ETA/NL/active learning | 增益是否只是 RAG/memory |
+| `full-no-pe-drive` | PE 发布/readout | PE 不驱动 schedule、credit、optimizer | PE 是否真是学习源 |
+| `full-turn-credit` | 其余 full | `beta_t` 段信用替换为逐 turn 信用 | 分段抽象是否有贡献 |
+| `full-random-feedback` | 相同反馈预算 | 主动选样替换为可复现随机选样 | 主动学习是否省标签 |
+| `full-single-timescale` | 相同参数预算 | CMS nested tower 替换为单频层 | 多时间尺度是否必要 |
+| `full-no-meta-init` | 多频层 | 关闭 slow→fast meta-init | slow layer 是否改善快速适应 |
+| `full-no-ssl` | Internal RL | 不做抽象发现/压缩 | RL 是否依赖可用 z 空间 |
+| `full-no-internal-rl` | SSL ETA | 不做 z 空间策略优化 | SSL 表征是否真正用于控制 |
+| `full-no-rare-heavy-import` | 在线/会话/慢反思 | candidate 只审计不导入 | rare-heavy 晋升是否提供增量 |
+| `full` | 全链 | 无 | 总效果 |
+
+### Gate 1 — PE 原始数值与真 LSS grounding
+
+- **命题**：每个可学习结果先有可复现 prediction，后有独立 actual observation；PE 是两者的 owner-side mismatch，且 runtime signed PE 与对应 loss 的真梯度 LSS 在约定符号下对齐。evaluation、credit 和 reward 只能是下游 readout。
+- **必须测试**：
+  - 数值、概率、枚举、向量与分布型 outcome 分别做 deterministic gold case；同一输入重跑得到相同 `pe_raw`、归一化值与 component decomposition。
+  - MSE case 验证 `runtime_signed_pe == -dL/doutput`；非 MSE case 必须登记各自 link function，禁止把量纲不同的误差直接相加。
+  - prediction/outcome 错配、重复结算、缺 observation、bootstrap turn 必须 fail loudly 或明确不计学习证据。
+  - `evaluation-decoupled` 对照中，改变 evaluation 不得改变 actual outcome、PE 或 learning credit。
+- **EXIT**：全部 settled PE 均有一一对应的 `prediction_id / environment_event_id / environment_outcome_id / observed_at`；lineage coverage = 100%，错配接受数 = 0；真 LSS bridge 在声明容差内通过；`full-no-pe-drive` 相比 `full` 出现预注册的学习增益差异，否则收缩“PE 是有效学习源”的主张。
+
+### Gate 2 — ETA 的 `z_t / beta_t` 涌现与因果残差控制
+
+- **命题**：`z_t` 携带可复用抽象动作，`beta_t` 标记有后果意义的切换边界；KL/rate pressure 控制抽象粒度，next-action/prediction loss 保留任务信息；decoder 输出 `U_t` 对真实 frozen substrate residual stream 产生可测因果作用。
+- **必须测试**：
+  - `alpha`/KL 权重 sweep：压缩率与 switch sparsity 随 rate pressure 有方向变化，同时 held-out action prediction / family reuse 不塌缩。
+  - 与人工 causal boundary 只用于评估的 held-out episode 比较 `beta_t` boundary precision/recall/F1；增加 text/topic boundary 干扰，检查 `beta_t` 没有只学到段落或 token 边界。
+  - `full` 对 `turn-credit`、`shuffled-beta`、`no-replacement`、`no-optimize` 和 `ETA-off`；测 held-out composition、delayed-credit alignment、family reuse 与 terminal return。
+  - 真 open-weight residual lane 要求 fallback rate = 0、actual hook fire rate ≥ 0.75、capture/intervention prefix 对齐；做 `U_t` 置零、打乱和反向干预，证明行为差异来自 residual control。
+- **EXIT**：满足 [#88](#88) 的 ≥500 real-trace 与 `validation_delta ≥ 0.02` 门槛；抽象质量和任务结果均优于预注册 matched controls，且不靠语义 action label scaffold；否则只能保留“latent controller 可运行”，不得使用“涌现抽象已证明”。
+
+### Gate 3 — 每用户生命体状态与跨会话连续性
+
+- **命题**：约 500M 的 adapter/model 是共享先验，不是每用户复制；持续性来自每用户独立的 `user_model / relationship_state / memories / z-family credit / beta calibration / commitments / consent` 轨迹。
+- **必须测试**：
+  - 同一共享模型、相同当前输入，分别加载用户 A/B 的合法快照，输出的预测、检索、控制器或关系行为按已知历史产生可解释差异。
+  - 四臂：`stateless`、`correct-user-state`、`swapped-user-state`、`shuffled-history`；必须显示 correct state 改善 held-out callback/commitment/boundary 一致性，而 swapped state 明显破坏该优势。
+  - 多用户并发、保存→进程重启→恢复、删除、checkpoint rollback；结构性 cross-user key/read/write 泄漏数必须为 0。
+  - 关系质量最终结论复用 [#51](#51) 的盲评 ground truth，系统自评只能作为 readout。
+- **EXIT**：跨 session 的正确用户状态对 stateless 有稳定正效应；交换状态负对照按预期失败；隔离、删除和 rollback 全通过。未通过时只能宣称“共享模型 + 可持久化状态”，不能宣称“每用户生命体连续性成立”。
+
+### Gate 4 — 在 ETA 抽象段之上的主动学习
+
+- **命题**：主动学习 scheduler 位于 cognition/runtime 层，但以 ETA `closed_segments / z-family / beta_t` 为经验单位，结合 PE、uncertainty、risk 与 credit 决定何时请求反馈和把学习路由给哪个 owner。
+- **必须测试**：
+  - 相同标签预算下比较 `segment-aware active`、`turn-level active`、`random-feedback`、`no-feedback`。
+  - 测达到同等 held-out alignment 所需标签数、累计 regret、无效请求率、漏问高风险事件率、反馈后 version-space 收缩，以及 z-family credit 的跨情境迁移。
+  - 打乱 segment 边界但保留 PE 数值；若效果不变，说明主动学习并未真正建立在涌现抽象上。
+  - 请求反馈只能产生 typed open loop / proposal；不得由表达层直接决定，也不得越过 consent/boundary owner。
+- **EXIT**：在不降低预注册最终质量与安全指标的前提下，segment-aware active 使用显著更少的人类标签，且优于 turn-level 与 random control；否则把主张降为“PE 驱动的反馈请求”，不能称“基于涌现抽象的主动学习”。
+
+### Gate 5 — CMS 多时间尺度记忆与抗遗忘
+
+- **命题**：`online-fast / session-medium / background-slow / rare-heavy` 更新频率不同、知识分工不同；多频 CMS 相比同参数预算单频 memory 同时提高新知识吸收与旧知识保持。
+- **必须测试**：
+  - 用交错旧知识/新知识的 ≥500 settled transitions 真 trace，比较 `nested CMS`、`single-timescale`、`no-ATLAS-replay`、`no-PE-write-gate` 和 memory-only baseline。
+  - 验证 cadence：快层可每轮更新，中/慢层只在声明边界更新，background-slow 不阻塞 turn latency，rare-heavy 不在线改 base。
+  - 同时报 `new_knowledge_absorption`、`old_knowledge_retention`、memory churn、错误晋升率、检索命中与跨 session payoff；禁止只报训练 loss。
+- **EXIT**：复用 [#89](#89) Stage 1 的真 trace、torch rollback 与双指标门；多频 full 在吸收-保持 Pareto 上优于单频 matched control，且没有用户隔离或延迟 SLO 回归。
+
+### Gate 6 — Nested meta-init / slow→fast 知识转移
+
+- **命题**：慢层学习的不是某个用户的具体事实，而是能让快层更快适应的初始化；`slow_to_fast_init_benefit` 必须来自跨 context 的 meta-learning，而非简单复制或数据泄漏。
+- **必须测试**：
+  - 重复 train-context→reset→held-out-context episode，比较 `meta-init`、`copy-init`、`random-init`、`no-init`；各臂参数预算与可见历史一致。
+  - 测达到目标误差所需步数、前 K 步 adaptation AUC、最终质量、负迁移率；held-out 用户/情境不得出现在 slow target 的训练标签中。
+  - 用 swapped-user slow state 做污染负对照；具体事实泄漏必须为 0，跨用户可迁移的只能是抽象初始化先验。
+- **EXIT**：meta-init 在多 seed held-out context 上减少适应步数或提高前 K 步 AUC，且不增加最终误差、事实泄漏或负迁移；仅“reset 后状态不同”不算通过。
+
+### Gate 7 — SSL→Internal RL 交替与 causal takeover
+
+- **命题**：SSL 先用非因果历史发现压缩结构，随后冻结该结构并由因果策略 `pi(z_t | e_1:t)` 接管；Internal RL 在 z 空间强化，不在 token 空间训练。
+- **必须测试**：
+  - `full`、`no-ssl`、`no-rl`、`reverse-order`、`joint-unfrozen` matched ablation；记录 discovery loss/KL、takeover agreement、switch sparsity retention、family reuse retention、terminal return 和 parameter-change evidence。
+  - held-out 时只给 prefix，严禁 future residual 泄漏；structure-frozen fingerprint 在 RL 阶段保持不变。
+  - rollback 必须同时恢复 SSL 与 policy 的坏 cycle，不能留下半轮混合状态。
+- **EXIT**：`full` 在 held-out delayed-reward/composition 上优于 `no-ssl` 与 `no-rl`；causal takeover 达到预注册一致性阈值；未来信息泄漏 = 0，token-space RL 更新 = 0。
+
+### Gate 8 — Wake/sleep 与 background-slow 反思
+
+- **命题**：wake 阶段积累真实经历，sleep/background-slow 阶段异步压缩已闭合 session 的 PE、credit 与 segment；醒来后通过 memory/temporal/regime owner 的正式状态改善后续行为，而不是靠额外 prompt。
+- **必须测试**：
+  - `sleep-consolidation` 对 `no-sleep`、`memory-only-sleep`、`policy-only-sleep`；输入同一 session trace，比较下一 session 的冷启动损失、callback、延迟 payoff 和行为漂移。
+  - turn latency 与 slow job latency 分开统计；sleep 未完成不得阻塞用户 turn，重复 job 必须幂等。
+  - slow writeback 只能消费 closed/session-post evidence，产物分别进入 memory consolidation 与 policy consolidation；失败、拒绝和 rollback 可审计。
+- **EXIT**：sleep 后在 held-out next-session 指标上有稳定正效应，且不是 prompt/context 增量造成；实时 SLO、幂等、owner 边界和 rollback 全通过。
+
+### Gate 9 — M3 与 Titans/Hope bounded self-modification
+
+- **命题**：M3 的快/慢动量在非平稳梯度上比 plain momentum 更少 overshoot、保留更长模式；Titans/Hope 类更新只作为 PE-gated、owner-local、有界且可回滚的 memory/controller 自修改，不允许在线端到端改 frozen substrate。
+- **必须测试**：
+  - M3 对 SGD、plain momentum、Adam 的 matched non-stationary gradient suite；测 overshoot、收敛时间、反向切换恢复、旧模式保持与计算成本。
+  - PE-gated update 对 `no-update`、`always-update`、`random-gate`；测写入精度、无用写入、漂移、遗忘、收益和 rollback 精确性。
+  - DGD/真正 Hope 自指递归尚属 backlog；实现前不得用现有 proposal/telemetry 测试冒充该能力。
+- **EXIT**：只有在真实 owner trace 上相对 matched optimizer/gate 有稳定增益且风险不劣化，才允许把 M3 或 Titans/Hope 写成产品贡献；否则它们只保留为实现候选/设计模式。
+
+### Gate 10 — Rare-heavy artifact 晋升与持续改进闭环
+
+- **命题**：长期经历可编译成共享 adapter/controller/memory artifact，但训练发生在 offline clone；candidate 必须经过 `ModificationGate`、兼容性检查、replay、held-out 验证和 rollback 后才可发布。单个用户的事实、consent 或关系轨迹不得进入共享 artifact。
+- **必须测试**：
+  - `full-import`、`candidate-review-only`、`rejected-candidate`、`rollback-to-previous`；比较 held-out 增益、灾难性遗忘、跨用户泄漏、兼容性与恢复精确度。
+  - artifact 必须携带来源 cohort、训练模式、参数量、substrate fingerprint、owner checkpoint、评估证据、gate verdict 和 content/privacy attestation。
+  - import 后重放关键旧场景；任何 kill condition 命中必须自动拒绝或回滚，不得依赖 prompt 自律。
+- **EXIT**：candidate 在 held-out cohort 上达到预注册提升且不破坏旧能力、安全、边界与用户隔离；字节级或参数级 rollback 通过；否则只允许保留 review-only artifact。
+
+### 强制 evidence bundle
+
+每次系统级 run 至少归档：
+
+```text
+manifest.yaml
+predictions.jsonl
+outcomes.jsonl
+prediction_errors.jsonl
+segments.jsonl
+credit.jsonl
+state_diff.jsonl
+ablation_results.json
+promotion_verdict.json
+rollback_evidence.json
+report.md
+```
+
+`manifest.yaml` 至少包含 `git_sha / substrate_fingerprint / model_and_adapter_ids / wiring_levels / seed_schedule / scenario_split / cohort_scope / prompt_and_context_budget / metric_version / judge_or_human_protocol`。各 JSONL 必须能用 lineage key 做一一 join；`report.md` 只能引用 bundle 内可复算结果。
+
+- **总 EXIT / 关闭条件**：
+  1. Gate 1-10 均有 `mechanism` verdict；Gate 1-8 与 Gate 10 均有 `causal` verdict。
+  2. Gate 2-8 与 Gate 10 至少有一轮真 substrate、跨 session、≥500 settled transitions 的 `longitudinal` verdict；关键结论跨 seed，置信区间不跨预注册最小效应线。
+  3. [#51](#51) 关系 ground truth、[#87](#87) thesis matched-control、[#88](#88) ETA ACTIVE、[#89](#89) CMS 抗遗忘、[#90](#90) 主动学习、[#91](#91) 真实语义表征的相关前置均达到各自主张所需状态。
+  4. 至少完成一次 full-chain rollback drill：从 ACTIVE candidate 回退到上一已知良好 artifact，用户状态、owner checkpoint 与 substrate fingerprint 全部一致。
+  5. 统一产出 `wiring-ready / mechanism-supported / causal-supported / longitudinal-supported / thesis-retained / thesis-rejected` 六态之一；只有 `thesis-retained` 才关闭本债。任一核心 kill condition 命中则产 `thesis-rejected`，同步收缩对外 thesis，不以继续调参拖延结论。
+
+- **触发条件**：(a) 下一轮 BP / 融资 DD 使用“整体 thesis 已成立”措辞前；(b) 500M 主力 adapter/model 对外发布前；(c) ETA/CMS/Internal-RL 任一后端从 SHADOW 晋升 ACTIVE 前；(d) rare-heavy artifact 首次进入共享生产模型前。
+- **优先级**：**最高（证据计划）**。可先落 Gate 1-4 的统一 artifact/schema 与 2×2 最小矩阵（turn-credit vs ETA segment-credit × stateless vs per-user state），随后扩展 NL 与 rare-heavy；不得因为全矩阵较大而跳过同基底、lineage 或 rollback 纪律。
 
 ---
 

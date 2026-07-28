@@ -98,6 +98,8 @@ class ZTransition:
     runtime_beta_t: float | tuple[float, ...] = ()
     runtime_other_track_sum: tuple[float, ...] = ()
     runtime_action_head_residual: tuple[float, ...] = ()
+    control_before_ablation: tuple[float, ...] = ()
+    residual_control_mode: str = "identity"
     lineage_matched: bool = False
     runtime_segment_id: str = ""
     runtime_terminal: bool = False
@@ -2742,6 +2744,14 @@ class InternalRLSandbox:
             source_text=source_text,
         )
 
+    def configure_residual_control(
+        self,
+        *,
+        mode: str,
+        seed: int = 0,
+    ) -> None:
+        self._env.set_residual_control_mode(mode=mode, seed=seed)
+
     def ingest_temporal_fast_prior(
         self,
         rollouts: ZRollout | tuple[ZRollout, ...],
@@ -3092,6 +3102,7 @@ class InternalRLSandbox:
                     policy_action=policy_action,
                     latent_code=env_step.latent_code,
                     decoder_output=env_step.decoder_output,
+                    control_before_ablation=env_step.control_before_ablation,
                     applied_control=env_step.applied_control,
                     downstream_effect=env_step.downstream_effect,
                     hidden_state=hidden_state,
@@ -3117,6 +3128,7 @@ class InternalRLSandbox:
                     proof_subgoal_completed=env_step.proof_subgoal_completed,
                     proof_terminal_success=env_step.proof_terminal_success,
                     active_family_id=env_step.active_family_id,
+                    residual_control_mode=env_step.residual_control_mode,
                 )
             )
             previous_snapshot = env_step.next_previous_snapshot

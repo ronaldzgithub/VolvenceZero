@@ -1,0 +1,2 @@
+{"event_id": "0:eval-alpha-delta-epsilon:0", "observation_lag": 1, "observed_outcome_step": 1, "outcome_value": 0.26756667786071053, "subgoal_id": "alpha"}
+{"event_id": "0:train-corridor-alpha-beta-delta:0", "observation_lag": 1, "observed_outcome_step": 1, "outcome_value": 0.2675919814050029, "subgoal_id": "alpha"}

@@ -1,0 +1,448 @@
+{
+  "backend_label": "transformers-open-weight",
+  "boundary_cases": [
+    {
+      "active_family_ids": [
+        "discovered_family_0"
+      ],
+      "beta_boundaries": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "case_id": "eval-alpha-delta-epsilon",
+      "f1": 0.33333333333333337,
+      "precision": 0.2,
+      "recall": 1.0,
+      "run_seed": 0,
+      "split": "eval",
+      "true_boundaries": [
+        1
+      ]
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0"
+      ],
+      "beta_boundaries": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "heldout-delta-alpha-gamma-epsilon",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 0,
+      "split": "heldout",
+      "true_boundaries": []
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0"
+      ],
+      "beta_boundaries": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "train-loop-delta-beta-epsilon",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 0,
+      "split": "train",
+      "true_boundaries": []
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0"
+      ],
+      "beta_boundaries": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "case_id": "eval-gamma-beta-delta",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 0,
+      "split": "eval",
+      "true_boundaries": []
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0"
+      ],
+      "beta_boundaries": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "case_id": "train-zigzag-beta-gamma-alpha",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 0,
+      "split": "train",
+      "true_boundaries": []
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0"
+      ],
+      "beta_boundaries": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "case_id": "heldout-epsilon-beta-alpha-delta",
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "run_seed": 0,
+      "split": "heldout",
+      "true_boundaries": []
+    },
+    {
+      "active_family_ids": [
+        "discovered_family_0"
+      ],
+      "beta_boundaries": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "case_id": "train-corridor-alpha-beta-delta",
+      "f1": 0.4,
+      "precision": 0.25,
+      "recall": 1.0,
+      "run_seed": 0,
+      "split": "train",
+      "true_boundaries": [
+        1
+      ]
+    }
+  ],
+  "claim_status": "fail",
+  "controller_dim": 16,
+  "description": "Matched delayed-outcome credit experiment with owner-side residual training mode=ssl-rl-alternating. Both credit arms consume the same frozen-substrate rollouts; only the credit assignment unit differs. The causal rollout keeps the learned switch unit as beta owner; Internal RL supplies z candidates without replacing beta boundaries. Boundary, completion, reward, and outcome labels remain evaluation-only and never supervise beta. Train traces carry environment-demonstrated action vectors with provenance; eval and held-out rollouts receive observations but no action targets.",
+  "device": "mps",
+  "distortion_target": "innovation",
+  "events": [
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "eval-alpha-delta-epsilon",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 0,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0
+      ],
+      "eta_f1": 1.0,
+      "eta_false_credit_rate": 0.0,
+      "eta_family_id": "discovered_family_0",
+      "eta_precision": 1.0,
+      "eta_recall": 1.0,
+      "event_id": "0:eval-alpha-delta-epsilon:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 1,
+      "outcome_value": 0.2777046249964899,
+      "run_seed": 0,
+      "split": "eval",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_0",
+      "turn_credit_steps": [
+        1
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    },
+    {
+      "assignment_reason": "subgoal-complete",
+      "case_id": "train-corridor-alpha-beta-delta",
+      "causal_end_step": 0,
+      "causal_start_step": 0,
+      "eta_credit_end_step": 0,
+      "eta_credit_start_step": 0,
+      "eta_credit_steps": [
+        0
+      ],
+      "eta_f1": 1.0,
+      "eta_false_credit_rate": 0.0,
+      "eta_family_id": "discovered_family_0",
+      "eta_precision": 1.0,
+      "eta_recall": 1.0,
+      "event_id": "0:train-corridor-alpha-beta-delta:0",
+      "observation_lag": 1,
+      "observed_outcome_step": 1,
+      "outcome_value": 0.27712589632338275,
+      "run_seed": 0,
+      "split": "train",
+      "subgoal_id": "alpha",
+      "true_credit_steps": [
+        0
+      ],
+      "true_family_id": "discovered_family_0",
+      "turn_credit_steps": [
+        1
+      ],
+      "turn_f1": 0.0,
+      "turn_false_credit_rate": 1.0,
+      "turn_family_id": "discovered_family_0",
+      "turn_precision": 0.0,
+      "turn_recall": 0.0
+    }
+  ],
+  "expert_action_supervision": true,
+  "fallback_active": false,
+  "gate_choice_weight": 1.0,
+  "metric_intervals": [
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "eta_credit_f1"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "turn_credit_f1"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "credit_f1_delta"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "eta_false_credit_rate"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "turn_false_credit_rate"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "false_credit_reduction"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "eta_family_assignment_accuracy"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "turn_family_assignment_accuracy"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "family_assignment_delta"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "eta_heldout_pe"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "turn_heldout_pe"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "eta_pe_reduction_rate"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "turn_pe_reduction_rate"
+    },
+    {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "mean": 0.0,
+      "metric_name": "pe_reduction_rate_delta"
+    },
+    {
+      "ci_high": 0.08333333333333334,
+      "ci_low": 0.08333333333333334,
+      "mean": 0.08333333333333334,
+      "metric_name": "segment_boundary_f1"
+    }
+  ],
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "prediction_horizon": 3,
+  "proposal_prediction_weight": 0.5,
+  "retain_gates": [
+    [
+      "ssl-uses-expert-action-targets",
+      true,
+      1.0
+    ],
+    [
+      "ssl-consumes-real-residual-trajectories",
+      true,
+      180.0
+    ],
+    [
+      "heldout-delayed-events-observed",
+      false,
+      0.0
+    ],
+    [
+      "ssl-switch-rate-nondegenerate",
+      false,
+      1.0
+    ],
+    [
+      "ssl-active-backend-writes-live-store",
+      true,
+      12.0
+    ],
+    [
+      "ssl-persistent-optimizer-reused",
+      true,
+      11.0
+    ],
+    [
+      "multiple-action-families-emerge",
+      false,
+      1.0
+    ],
+    [
+      "segment-credit-f1-beats-turn",
+      false,
+      0.0
+    ],
+    [
+      "segment-credit-reduces-false-credit",
+      false,
+      0.0
+    ],
+    [
+      "segment-family-assignment-beats-turn",
+      false,
+      0.0
+    ],
+    [
+      "segment-credit-reduces-heldout-pe",
+      false,
+      0.0
+    ],
+    [
+      "beta-boundaries-track-subgoals",
+      false,
+      0.08333333333333334
+    ]
+  ],
+  "rollout_replacement_mode": "causal",
+  "run_metrics": [
+    {
+      "active_family_count": 1,
+      "beta_boundary_count": 42,
+      "credit_f1_delta": 0.0,
+      "eta_credit_f1": 0.0,
+      "eta_false_credit_rate": 0.0,
+      "eta_family_assignment_accuracy": 0.0,
+      "eta_heldout_pe": 0.0,
+      "eta_pe_reduction_rate": 0.0,
+      "event_count": 2,
+      "false_credit_reduction": 0.0,
+      "family_assignment_delta": 0.0,
+      "heldout_event_count": 0,
+      "pe_reduction_rate_delta": 0.0,
+      "run_seed": 0,
+      "segment_boundary_f1": 0.08333333333333334,
+      "ssl_expert_action_supervision": true,
+      "ssl_gate_choice_loss_mean": 0.13675243586879637,
+      "ssl_keep_prediction_loss_mean": 0.13852700632657608,
+      "ssl_kl_loss_mean": 1.7629207669554745,
+      "ssl_optimizer_final_step": 12,
+      "ssl_optimizer_reuse_count": 11,
+      "ssl_parameter_change_count": 36223,
+      "ssl_prediction_loss_mean": 0.13777018905344726,
+      "ssl_supervision_targets": [
+        "expert-action-vector"
+      ],
+      "ssl_switch_frequency_final": 1.0,
+      "ssl_switch_frequency_mean": 0.75,
+      "ssl_switch_prediction_loss_mean": 0.13728145662294647,
+      "ssl_switch_probability_final": 0.5814447116608641,
+      "ssl_switch_probability_mean": 0.5786162079939258,
+      "ssl_switch_rate_loss_mean": 0.6991350025499554,
+      "ssl_target_variance_mean": 0.1363009982638889,
+      "ssl_total_loss_mean": 0.5197005359600849,
+      "ssl_trained_step_count": 180,
+      "ssl_trajectory_count": 36,
+      "ssl_writeback_count": 12,
+      "training_cycle_count": 12,
+      "true_boundary_count": 2,
+      "turn_credit_f1": 0.0,
+      "turn_false_credit_rate": 0.0,
+      "turn_family_assignment_accuracy": 0.0,
+      "turn_heldout_pe": 0.0,
+      "turn_pe_reduction_rate": 0.0
+    }
+  ],
+  "runtime_origin": "hf-local",
+  "schema_version": "eta-segment-credit-evidence.v5",
+  "seed_schedule": [
+    0
+  ],
+  "ssl_alpha": 0.1,
+  "ssl_supervision_target": "expert-action-vector",
+  "switch_binary_weight": 0.001,
+  "switch_group_weight": 0.001,
+  "switch_prior": 0.1,
+  "switch_rate_weight": 0.0,
+  "training_cycles": 12,
+  "training_mode": "ssl-rl-alternating"
+}

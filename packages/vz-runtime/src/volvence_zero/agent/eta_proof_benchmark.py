@@ -76,6 +76,24 @@ class ETAProofCase:
 
 
 @dataclass(frozen=True)
+class ETAResidualInterventionRecord:
+    step_index: int
+    residual_control_mode: str
+    decoder_output: tuple[float, ...]
+    control_before_ablation: tuple[float, ...]
+    applied_control: tuple[float, ...]
+    downstream_effect: tuple[float, ...]
+    applied_control_magnitude: float
+    downstream_effect_magnitude: float
+    replacement_effect_delta: float
+    reward: float
+    switch_gate: float
+    active_family_id: str | None
+    proof_terminal_success: bool
+    backend_name: str
+
+
+@dataclass(frozen=True)
 class ETAProofEpisodeReport:
     case_id: str
     split: str
@@ -119,6 +137,7 @@ class ETAProofEpisodeReport:
     credit_window_miss_rate: float
     terminal_credit_coverage: float
     description: str
+    intervention_records: tuple[ETAResidualInterventionRecord, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -259,6 +278,8 @@ class ETAProofProfileConfig:
     use_noop_backend: bool = False
     use_temporal_fast_prior: bool = True
     bootstrap_init: bool = False
+    residual_control_mode: str = "identity"
+    residual_control_seed: int = 0
 
 
 @dataclass(frozen=True)
@@ -1261,6 +1282,31 @@ def _profile_config(profile_label: str) -> ETAProofProfileConfig:
             optimize_after_rollout=True,
             policy_kind="full",
         )
+    if profile_label == "full-zero-control":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            residual_control_mode="zero",
+        )
+    if profile_label == "full-shuffled-control":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            residual_control_mode="shuffled",
+            residual_control_seed=1729,
+        )
+    if profile_label == "full-reversed-control":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            residual_control_mode="reversed",
+        )
     if profile_label == "noop-backend":
         return ETAProofProfileConfig(
             profile_label=profile_label,
@@ -1344,7 +1390,16 @@ def _build_sandbox(
         runtime = None
     else:
         raise ValueError(f"Unsupported backend label {backend_label!r}")
-    return InternalRLSandbox(policy=policy, env=env, residual_runtime=runtime)
+    sandbox = InternalRLSandbox(
+        policy=policy,
+        env=env,
+        residual_runtime=runtime,
+    )
+    sandbox.configure_residual_control(
+        mode=profile.residual_control_mode,
+        seed=profile.residual_control_seed,
+    )
+    return sandbox
 
 
 def _build_case_snapshots(
@@ -1580,6 +1635,29 @@ def _episode_report(
         description=(
             f"{profile_label} on {case.case_id} ({backend_label}) "
             f"success={rollout.terminal_success} completed={len(rollout.completed_subgoals)}/{len(case.proof_episode.subgoals)}."
+        ),
+        intervention_records=tuple(
+            ETAResidualInterventionRecord(
+                step_index=transition.step_index,
+                residual_control_mode=transition.residual_control_mode,
+                decoder_output=transition.decoder_output,
+                control_before_ablation=transition.control_before_ablation,
+                applied_control=transition.applied_control,
+                downstream_effect=transition.downstream_effect,
+                applied_control_magnitude=_mean_control_magnitude(
+                    transition.applied_control
+                ),
+                downstream_effect_magnitude=_mean_control_magnitude(
+                    transition.downstream_effect
+                ),
+                replacement_effect_delta=transition.replacement_effect_delta,
+                reward=transition.reward,
+                switch_gate=transition.controller_state.switch_gate,
+                active_family_id=transition.active_family_id,
+                proof_terminal_success=transition.proof_terminal_success,
+                backend_name=transition.backend_name,
+            )
+            for transition in rollout.transitions
         ),
     )
 

@@ -113,6 +113,12 @@ class RetentionGateEvidence:
     substrate_fingerprint: str
     judge_model_id: str
     prefix_artifact_id: str
+    temperature: float
+    sampling_seed: int | None
+    stochastic_generation_rollout: bool
+    turn_count: int
+    seeded_turn_count: int
+    unique_turn_seed_count: int
     candidate_correct: int
     candidate_total: int
     candidate_ci_low: float
@@ -134,6 +140,12 @@ class RetentionGateEvidence:
             "substrate_fingerprint": self.substrate_fingerprint,
             "judge_model_id": self.judge_model_id,
             "prefix_artifact_id": self.prefix_artifact_id,
+            "temperature": round(self.temperature, 6),
+            "sampling_seed": self.sampling_seed,
+            "stochastic_generation_rollout": self.stochastic_generation_rollout,
+            "turn_count": self.turn_count,
+            "seeded_turn_count": self.seeded_turn_count,
+            "unique_turn_seed_count": self.unique_turn_seed_count,
             "candidate": {
                 "correct": self.candidate_correct,
                 "total": self.candidate_total,
@@ -245,6 +257,70 @@ def _float_field(payload: Mapping[str, Any], key: str, *, path: Path) -> float:
     return float(value)
 
 
+def _optional_float_field(
+    payload: Mapping[str, Any],
+    key: str,
+    *,
+    default: float,
+    path: Path,
+) -> float:
+    value = payload.get(key, default)
+    if not isinstance(value, int | float):
+        raise ValueError(f"{path} requires numeric field {key!r} when present")
+    return float(value)
+
+
+def _optional_int_field(payload: Mapping[str, Any], key: str, *, path: Path) -> int | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{path} requires integer field {key!r} when present")
+    return value
+
+
+def _turn_seed_audit(
+    verdict: Mapping[str, Any],
+    *,
+    path: Path,
+    stochastic_generation_rollout: bool,
+) -> tuple[int, int, int]:
+    prompt_fp_table = verdict.get("prompt_fp_table")
+    if not isinstance(prompt_fp_table, list):
+        raise ValueError(f"{path} requires a list prompt_fp_table field")
+    turn_count = len(prompt_fp_table)
+    seeds: list[int] = []
+    seed_by_arm_probe: dict[tuple[str, str], int] = {}
+    for row in prompt_fp_table:
+        if not isinstance(row, dict):
+            raise ValueError(f"{path} prompt_fp_table rows must be objects")
+        seed = row.get("sampling_seed")
+        if seed is None:
+            continue
+        if not isinstance(seed, int) or isinstance(seed, bool):
+            raise ValueError(f"{path} prompt_fp_table sampling_seed must be int")
+        seeds.append(seed)
+        arm = row.get("arm")
+        probe = row.get("probe")
+        if not isinstance(arm, str) or not isinstance(probe, str):
+            raise ValueError(f"{path} prompt_fp_table rows require arm/probe")
+        key = (arm, probe)
+        previous = seed_by_arm_probe.get(key)
+        if previous is None:
+            seed_by_arm_probe[key] = seed
+        elif previous != seed:
+            raise ValueError(
+                f"{path} has divergent sampling_seed for arm/probe {key}: "
+                f"{previous} vs {seed}"
+            )
+    if stochastic_generation_rollout and (turn_count == 0 or len(seeds) != turn_count):
+        raise ValueError(
+            f"{path} is stochastic but not every prompt_fp_table row carries "
+            "sampling_seed"
+        )
+    return turn_count, len(seeds), len(set(seeds))
+
+
 def load_retention_evidence(verdict_path: Path | str) -> RetentionGateEvidence:
     """Load and validate one identification verdict plus its fingerprint."""
 
@@ -268,6 +344,26 @@ def load_retention_evidence(verdict_path: Path | str) -> RetentionGateEvidence:
         raise ValueError(
             f"{fingerprint_path} requires identification_material object"
         )
+    temperature = _optional_float_field(
+        material, "temperature", default=0.0, path=fingerprint_path
+    )
+    sampling_seed = _optional_int_field(
+        material, "sampling_seed", path=fingerprint_path
+    )
+    stochastic_generation_rollout = temperature > 0.0
+    if stochastic_generation_rollout and sampling_seed is None:
+        raise ValueError(
+            f"{fingerprint_path} has temperature > 0 but no sampling_seed"
+        )
+    if not stochastic_generation_rollout and sampling_seed is not None:
+        raise ValueError(
+            f"{fingerprint_path} has sampling_seed but temperature is not > 0"
+        )
+    turn_count, seeded_turn_count, unique_turn_seed_count = _turn_seed_audit(
+        verdict,
+        path=resolved,
+        stochastic_generation_rollout=stochastic_generation_rollout,
+    )
     return RetentionGateEvidence(
         verdict_path=resolved,
         fingerprint_path=fingerprint_path,
@@ -285,6 +381,12 @@ def load_retention_evidence(verdict_path: Path | str) -> RetentionGateEvidence:
             "personal_conditioning_prefix_id",
             path=fingerprint_path,
         ),
+        temperature=temperature,
+        sampling_seed=sampling_seed,
+        stochastic_generation_rollout=stochastic_generation_rollout,
+        turn_count=turn_count,
+        seeded_turn_count=seeded_turn_count,
+        unique_turn_seed_count=unique_turn_seed_count,
         candidate_correct=_int_field(candidate, "correct", path=resolved),
         candidate_total=_int_field(candidate, "total", path=resolved),
         candidate_ci_low=_float_field(candidate, "ci_low", path=resolved),
@@ -355,7 +457,25 @@ def build_retention_gate_report(
     substrates = {item.substrate_fingerprint for item in evidences}
     judges = {item.judge_model_id for item in evidences}
     candidates = {item.candidate_arm for item in evidences}
-    if len(prefix_ids) == len(substrates) == len(judges) == len(candidates) == 1:
+    rollout_configs = {
+        (
+            round(item.temperature, 6),
+            item.sampling_seed,
+            item.stochastic_generation_rollout,
+        )
+        for item in evidences
+    }
+    if (
+        len(prefix_ids)
+        == len(substrates)
+        == len(judges)
+        == len(candidates)
+        == len(rollout_configs)
+        == 1
+    ):
+        temperature, sampling_seed, stochastic_rollout = next(
+            iter(rollout_configs)
+        )
         claims.append(
             GateClaim(
                 name=_CLAIM_CONSISTENT_ARTIFACT,
@@ -363,7 +483,9 @@ def build_retention_gate_report(
                 detail=(
                     f"{len(evidences)} verdicts share artifact "
                     f"{next(iter(prefix_ids))}, substrate {next(iter(substrates))}, "
-                    f"judge {next(iter(judges))}, candidate {next(iter(candidates))}"
+                    f"judge {next(iter(judges))}, candidate {next(iter(candidates))}, "
+                    f"temperature {temperature}, sampling_seed {sampling_seed}, "
+                    f"stochastic_rollout={stochastic_rollout}"
                 ),
             )
         )
@@ -374,9 +496,11 @@ def build_retention_gate_report(
                 state=GateClaimState.FAIL,
                 detail=(
                     "input verdicts do not share one artifact/substrate/judge/"
-                    f"candidate: artifacts={sorted(prefix_ids)}, "
+                    "candidate/rollout config: "
+                    f"artifacts={sorted(prefix_ids)}, "
                     f"substrates={sorted(substrates)}, judges={sorted(judges)}, "
-                    f"candidates={sorted(candidates)}"
+                    f"candidates={sorted(candidates)}, "
+                    f"rollout_configs={sorted(rollout_configs)}"
                 ),
             )
         )
@@ -386,14 +510,26 @@ def build_retention_gate_report(
         for item in evidences
         if item.verdict_state != "retain-strict" or item.c5_grade != "decode-matched"
     ]
-    if bad_verdicts:
+    seed_bad_verdicts = [
+        item.verdict_path.name
+        for item in evidences
+        if item.stochastic_generation_rollout
+        and (
+            item.turn_count <= 0
+            or item.seeded_turn_count != item.turn_count
+            or item.unique_turn_seed_count <= 0
+        )
+    ]
+    if bad_verdicts or seed_bad_verdicts:
         claims.append(
             GateClaim(
                 name=_CLAIM_INDIVIDUAL_RETAINED,
                 state=GateClaimState.FAIL,
                 detail=(
                     "all input verdicts must be retain-strict/decode-matched; "
-                    f"failed inputs: {', '.join(bad_verdicts)}"
+                    f"failed inputs: {', '.join(bad_verdicts)}; "
+                    "stochastic seed audit failures: "
+                    f"{', '.join(seed_bad_verdicts)}"
                 ),
             )
         )
@@ -402,7 +538,14 @@ def build_retention_gate_report(
             GateClaim(
                 name=_CLAIM_INDIVIDUAL_RETAINED,
                 state=GateClaimState.PASS,
-                detail=f"{len(evidences)} input verdicts are retain-strict",
+                detail=(
+                    f"{len(evidences)} input verdicts are retain-strict"
+                    + (
+                        " with complete per-turn sampling_seed audit"
+                        if all(item.stochastic_generation_rollout for item in evidences)
+                        else ""
+                    )
+                ),
             )
         )
 
@@ -520,10 +663,20 @@ def build_retention_gate_report(
             )
         )
 
+    stochastic_generation_rollout_covered = all(
+        item.stochastic_generation_rollout for item in evidences
+    )
     notes = (
-        "This gate covers held-out pair aggregation and bootstrap-seed "
-        "robustness only. Prefix-KV generation remains greedy-only, so true "
-        "stochastic generation rollout stability is not covered here.",
+        (
+            "This gate covers held-out pair aggregation, bootstrap-seed "
+            "robustness, and seed-aligned stochastic generation rollout."
+        )
+        if stochastic_generation_rollout_covered
+        else (
+            "This gate covers held-out pair aggregation and bootstrap-seed "
+            "robustness only. Stochastic generation rollout stability is not "
+            "covered by greedy inputs."
+        ),
     )
     return RetentionGateReport(
         schema_version=RETENTION_GATE_SCHEMA_VERSION,
@@ -533,6 +686,6 @@ def build_retention_gate_report(
         aggregates=(control, candidate),
         required_p2_pairs=tuple(required_p2_pairs),
         bootstrap_seeds=tuple(bootstrap_seeds),
-        stochastic_generation_rollout_covered=False,
+        stochastic_generation_rollout_covered=stochastic_generation_rollout_covered,
         notes=notes,
     )

@@ -1,0 +1,10 @@
+{"event_id": "0:eval-alpha-delta-epsilon:0", "observation_lag": 1, "observed_outcome_step": 1, "outcome_value": 0.2799673723701359, "subgoal_id": "alpha"}
+{"event_id": "0:train-corridor-alpha-beta-delta:0", "observation_lag": 1, "observed_outcome_step": 1, "outcome_value": 0.2799320074320771, "subgoal_id": "alpha"}
+{"event_id": "1:train-corridor-alpha-beta-delta:0", "observation_lag": 2, "observed_outcome_step": 2, "outcome_value": 0.2798978372745045, "subgoal_id": "alpha"}
+{"event_id": "1:eval-alpha-delta-epsilon:0", "observation_lag": 2, "observed_outcome_step": 2, "outcome_value": 0.2799908278587572, "subgoal_id": "alpha"}
+{"event_id": "2:eval-alpha-delta-epsilon:0", "observation_lag": 3, "observed_outcome_step": 3, "outcome_value": 0.2798859083073015, "subgoal_id": "alpha"}
+{"event_id": "2:train-corridor-alpha-beta-delta:0", "observation_lag": 3, "observed_outcome_step": 3, "outcome_value": 0.27996404612148845, "subgoal_id": "alpha"}
+{"event_id": "3:train-corridor-alpha-beta-delta:0", "observation_lag": 1, "observed_outcome_step": 1, "outcome_value": 0.27919554015264264, "subgoal_id": "alpha"}
+{"event_id": "3:eval-alpha-delta-epsilon:0", "observation_lag": 1, "observed_outcome_step": 1, "outcome_value": 0.27869335888486163, "subgoal_id": "alpha"}
+{"event_id": "4:eval-alpha-delta-epsilon:0", "observation_lag": 2, "observed_outcome_step": 2, "outcome_value": 0.2796132810167415, "subgoal_id": "alpha"}
+{"event_id": "4:train-corridor-alpha-beta-delta:0", "observation_lag": 2, "observed_outcome_step": 2, "outcome_value": 0.27976595919278613, "subgoal_id": "alpha"}
