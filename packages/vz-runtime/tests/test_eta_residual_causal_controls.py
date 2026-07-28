@@ -12,10 +12,13 @@ from volvence_zero.agent.eta_gate2_residual_evidence import (
 )
 from volvence_zero.agent.eta_proof_benchmark import (
     ETA_CONTINUATION_PE_TRAINING_SIGNAL,
-    ETA_GATE2_EXPANDED_CASE_CORPUS,
+    ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
+    ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS,
     ETAOpenWeightRuntimeConfig,
     default_eta_proof_cases,
     eta_gate2_expanded_cases,
+    eta_gate2_expected_value_cases,
+    eta_gate2_expected_value_validation_routes,
     eta_gate2_independent_training_routes,
     run_eta_internal_rl_paper_suite,
     run_eta_internal_rl_proof_benchmark,
@@ -108,28 +111,38 @@ def test_eta_residual_controls_record_actual_matched_interventions() -> None:
 
 
 def test_eta_proof_source_text_does_not_expose_split_labels() -> None:
-    for case in eta_gate2_expanded_cases():
+    for case in eta_gate2_expected_value_cases():
         source_tokens = set(case.source_text.lower().split())
-        assert source_tokens.isdisjoint({"train", "eval", "heldout"})
+        assert source_tokens.isdisjoint(
+            {"train", "eval", "heldout", "validation"}
+        )
 
 
-def test_eta_gate2_expands_only_the_training_corpus() -> None:
+def test_eta_gate2_freezes_expected_value_validation_corpus() -> None:
     default_cases = default_eta_proof_cases()
     expanded_cases = eta_gate2_expanded_cases()
+    expected_value_cases = eta_gate2_expected_value_cases()
 
     assert sum(case.split == "train" for case in default_cases) == 3
     assert sum(case.split == "train" for case in expanded_cases) == 16
     assert tuple(
         case for case in expanded_cases if case.split != "train"
     ) == tuple(case for case in default_cases if case.split != "train")
+    assert tuple(
+        case for case in expected_value_cases
+        if case.split in {"eval", "heldout"}
+    ) == tuple(case for case in default_cases if case.split != "train")
+    assert sum(
+        case.split == "validation" for case in expected_value_cases
+    ) == 4
 
     manifest = build_eta_gate2_residual_manifest(suite_tier="ci-smoke")
     case_groups = dict(manifest.case_groups)
     assert case_groups["case_corpus"] == (
-        ETA_GATE2_EXPANDED_CASE_CORPUS,
+        ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS,
     )
     assert case_groups["route_ids"] == tuple(
-        case.case_id for case in expanded_cases
+        case.case_id for case in expected_value_cases
     )
     independent_route_ids = tuple(
         route.case_id
@@ -140,6 +153,11 @@ def test_eta_gate2_expands_only_the_training_corpus() -> None:
     )
     assert case_groups["training_route_count"] == ("16",)
     assert case_groups["development_routes_unchanged"] == ("true",)
+    assert case_groups["validation_frozen_before_run"] == ("true",)
+    assert case_groups["validation_route_ids"] == tuple(
+        route.case_id
+        for route in eta_gate2_expected_value_validation_routes()
+    )
     assert case_groups[
         "counterfactual_action_selector_diagnostic"
     ] == ("true",)
@@ -147,8 +165,13 @@ def test_eta_gate2_expands_only_the_training_corpus() -> None:
         "counterfactual_action_selector_live_injection"
     ] == ("disabled",)
     assert case_groups["real_residual_activation_width"] == ("896",)
+    assert case_groups["counterfactual_target_mode"] == (
+        ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
+    )
+    assert case_groups["counterfactual_target_sample_count"] == ("4",)
+    assert case_groups["counterfactual_audit_sample_count"] == ("4",)
     assert not any(
-        case.split == "confirmation" for case in expanded_cases
+        case.split == "confirmation" for case in expected_value_cases
     )
 
 
@@ -193,7 +216,49 @@ def test_eta_gate2_independent_training_text_avoids_development_content_words() 
     assert independent_words.isdisjoint(development_words)
 
 
-def test_eta_gate2_bundle_exports_frozen_v29_file_contract(
+def test_eta_gate2_v30_validation_text_is_lexically_fresh() -> None:
+    stop_words = {
+        "a",
+        "across",
+        "after",
+        "an",
+        "and",
+        "as",
+        "before",
+        "from",
+        "in",
+        "the",
+        "to",
+        "was",
+        "while",
+        "with",
+    }
+
+    def content_words(source_text: str) -> set[str]:
+        return {
+            token.strip(".,:;!?").lower()
+            for token in source_text.split()
+            if token.strip(".,:;!?").lower() not in stop_words
+        }
+
+    existing_words = set().union(
+        *(
+            content_words(case.source_text)
+            for case in eta_gate2_expanded_cases()
+        )
+    )
+    validation_words = set().union(
+        *(
+            content_words(route.source_text)
+            for route in eta_gate2_expected_value_validation_routes()
+        )
+    )
+
+    assert validation_words
+    assert validation_words.isdisjoint(existing_words)
+
+
+def test_eta_gate2_bundle_exports_frozen_v30_file_contract(
     tmp_path,
 ) -> None:
     manifest = build_eta_gate2_residual_manifest(suite_tier="ci-smoke")
@@ -246,16 +311,38 @@ def test_eta_gate2_bundle_exports_frozen_v29_file_contract(
     assert manifest_payload["scenario_split"][
         "development_routes_unchanged"
     ]
+    assert manifest_payload["scenario_split"][
+        "validation_frozen_before_run"
+    ]
+    assert manifest_payload["scenario_split"][
+        "validation_route_ids"
+    ] == [
+        route.case_id
+        for route in eta_gate2_expected_value_validation_routes()
+    ]
     assert manifest_payload["counterfactual_action_selector"] == {
         "diagnostic_active": True,
         "input": "full-layer-coordinate-mean-latest-trend",
         "encoder": "train-only-standardized-linear-kernel",
         "head": "train-only-dual-ridge-ladder-0.1-1-10",
         "model_selection": (
-            "train-route-cv-selected-delta-then-regret"
+            "train-route-cv-audit-delta-then-audit-regret"
         ),
         "cross_validation": "route-grouped-4fold",
         "live_injection": "disabled",
+    }
+    assert manifest_payload["counterfactual_target"] == {
+        "mode": ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
+        "target_sample_count": 4,
+        "audit_sample_count": 4,
+        "sampling_temperature": 0.8,
+        "sampling_max_new_tokens": 4,
+        "sampling_seed_protocol": (
+            "sha256-case-prefix-cohort-index"
+        ),
+        "audit_role": (
+            "readout-and-train-route-cv-model-selection-only"
+        ),
     }
     assert manifest_payload["residual_capture"] == {
         "activation_width": 896,
@@ -437,6 +524,12 @@ def test_eta_real_residual_records_observed_continuation_nll() -> None:
         causal_action_head_state_dim=12,
         continuation_counterfactual_grid=True,
         counterfactual_action_selector_diagnostic=True,
+        counterfactual_target_mode=(
+            ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED
+        ),
+        counterfactual_target_sample_count=1,
+        counterfactual_audit_sample_count=1,
+        counterfactual_sampling_max_new_tokens=1,
     )
 
     for profile in report.profile_reports:
@@ -510,6 +603,15 @@ def test_eta_real_residual_records_observed_continuation_nll() -> None:
     assert baseline_metrics[
         "counterfactual_selector_eval_updates_after_fit"
     ] == 0.0
+    assert baseline_metrics[
+        "counterfactual_selector_train_audit_available_rate"
+    ] == 1.0
+    assert baseline_metrics[
+        "counterfactual_selector_heldout_audit_available_rate"
+    ] == 1.0
+    assert baseline_metrics[
+        "counterfactual_generated_continuation_count"
+    ] > 0.0
     assert profiles[
         "full-internal-rl"
     ].action_selection_records

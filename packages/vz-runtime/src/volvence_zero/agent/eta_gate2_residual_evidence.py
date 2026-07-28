@@ -8,18 +8,20 @@ from statistics import mean
 from typing import Any
 
 from volvence_zero.agent.eta_proof_benchmark import (
+    ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
     ETA_CONTINUATION_PE_REWARD_SCALE,
     ETA_CONTINUATION_PE_TRAINING_SIGNAL,
-    ETA_GATE2_EXPANDED_CASE_CORPUS,
+    ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS,
     ETAProofPaperSuiteAggregateReport,
     build_eta_open_weight_paper_suite_manifest,
-    eta_gate2_expanded_routes,
+    eta_gate2_expected_value_routes,
+    eta_gate2_expected_value_validation_routes,
     eta_gate2_independent_training_routes,
 )
 from volvence_zero.agent.paper_suite import PaperProfileSpec, PaperSuiteManifest
 
 
-ETA_GATE2_SCHEMA_VERSION = "eta-gate2-residual-causal.v29"
+ETA_GATE2_SCHEMA_VERSION = "eta-gate2-residual-causal.v30"
 ETA_GATE2_MIN_CAUSAL_DELTA = 0.02
 ETA_GATE2_MIN_MEASURABLE_EFFECT = 1e-6
 ETA_GATE2_REQUIRED_FILES = (
@@ -46,6 +48,7 @@ ETA_GATE2_REQUIRED_MANIFEST_KEYS = (
     "cohort_scope",
     "prompt_and_context_budget",
     "counterfactual_action_selector",
+    "counterfactual_target",
     "residual_capture",
     "metric_version",
     "judge_or_human_protocol",
@@ -82,11 +85,15 @@ def build_eta_gate2_residual_manifest(
         for profile_label in default_eta_gate2_residual_profiles()
     )
     expanded_route_ids = tuple(
-        route.case_id for route in eta_gate2_expanded_routes()
+        route.case_id for route in eta_gate2_expected_value_routes()
     )
     independent_route_ids = tuple(
         route.case_id
         for route in eta_gate2_independent_training_routes()
+    )
+    validation_route_ids = tuple(
+        route.case_id
+        for route in eta_gate2_expected_value_validation_routes()
     )
     base_case_groups = tuple(
         ("route_ids", expanded_route_ids)
@@ -95,8 +102,10 @@ def build_eta_gate2_residual_manifest(
         for name, values in base.case_groups
     )
     case_groups = base_case_groups + (
-        ("case_corpus", (ETA_GATE2_EXPANDED_CASE_CORPUS,)),
+        ("case_corpus", (ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS,)),
         ("independent_training_route_ids", independent_route_ids),
+        ("validation_route_ids", validation_route_ids),
+        ("validation_frozen_before_run", ("true",)),
         ("training_route_count", ("16",)),
         ("development_routes_unchanged", ("true",)),
         (
@@ -132,7 +141,7 @@ def build_eta_gate2_residual_manifest(
         ),
         (
             "counterfactual_action_selector_model_selection",
-            ("train-route-cv-selected-delta-then-regret",),
+            ("train-route-cv-audit-delta-then-audit-regret",),
         ),
         (
             "counterfactual_action_selector_cv",
@@ -141,6 +150,18 @@ def build_eta_gate2_residual_manifest(
         (
             "counterfactual_action_selector_live_injection",
             ("disabled",),
+        ),
+        (
+            "counterfactual_target_mode",
+            (ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,),
+        ),
+        ("counterfactual_target_sample_count", ("4",)),
+        ("counterfactual_audit_sample_count", ("4",)),
+        ("counterfactual_sampling_temperature", ("0.8",)),
+        ("counterfactual_sampling_max_new_tokens", ("4",)),
+        (
+            "counterfactual_sampling_seed_protocol",
+            ("sha256-case-prefix-cohort-index",),
         ),
         (
             "counterfactual_reward_normalization",
@@ -704,7 +725,12 @@ def _build_ablation_results(
                 "oracle_vs_fixed_gap",
             )
         }
-        for split in ("eval", "heldout", "confirmation")
+        for split in (
+            "eval",
+            "heldout",
+            "validation",
+            "confirmation",
+        )
     }
     selector_metric_names = (
         "counterfactual_selector_input_dim",
@@ -717,7 +743,13 @@ def _build_ablation_results(
         "counterfactual_selector_eval_updates_after_fit",
         *tuple(
             f"counterfactual_selector_{split}_{metric}"
-            for split in ("train", "eval", "heldout", "confirmation")
+            for split in (
+                "train",
+                "eval",
+                "heldout",
+                "validation",
+                "confirmation",
+            )
             for metric in (
                 "count",
                 "mean_selected_raw_delta",
@@ -726,6 +758,11 @@ def _build_ablation_results(
                 "top1_rate",
                 "top3_rate",
                 "selected_positive_rate",
+                "audit_available_rate",
+                "mean_audit_selected_raw_delta",
+                "mean_audit_oracle_raw_delta",
+                "mean_audit_oracle_regret",
+                "audit_selected_positive_rate",
             )
         ),
     )
@@ -744,7 +781,13 @@ def _build_ablation_results(
         continuation_score_count_by_split,
     ) = _continuation_metrics_by_split(
         outcomes=outcomes,
-        split_names=("train", "eval", "heldout", "confirmation"),
+        split_names=(
+            "train",
+            "eval",
+            "heldout",
+            "validation",
+            "confirmation",
+        ),
     )
     continuation_mean_nll = continuation_mean_nll_by_split["heldout"]
     continuation_score_count = continuation_score_count_by_split["heldout"]
@@ -963,6 +1006,27 @@ def _build_ablation_results(
             ]["full-internal-rl"]
             > 0.0
         ),
+        "frozen_validation_predictions_available": (
+            counterfactual_selector_metrics[
+                "counterfactual_selector_validation_count"
+            ]["full-internal-rl"]
+            > 0.0
+        ),
+        "train_independent_audit_available": (
+            counterfactual_selector_metrics[
+                "counterfactual_selector_train_audit_available_rate"
+            ]["full-internal-rl"]
+            >= 1.0
+        ),
+        "validation_independent_audit_available": (
+            counterfactual_selector_metrics[
+                (
+                    "counterfactual_selector_validation_"
+                    "audit_available_rate"
+                )
+            ]["full-internal-rl"]
+            >= 1.0
+        ),
         "no_eval_updates_after_fit": (
             counterfactual_selector_metrics[
                 "counterfactual_selector_eval_updates_after_fit"
@@ -1176,6 +1240,14 @@ def export_eta_gate2_residual_bundle(
         "independent_training_route_ids",
         (),
     )
+    validation_route_ids = case_groups.get(
+        "validation_route_ids",
+        (),
+    )
+    validation_frozen_values = case_groups.get(
+        "validation_frozen_before_run",
+        (),
+    )
     training_route_count_values = case_groups.get(
         "training_route_count",
         (),
@@ -1201,6 +1273,24 @@ def export_eta_gate2_residual_bundle(
         raise ValueError(
             "Gate 2 manifest requires exactly one "
             "real_residual_activation_width value"
+        )
+    if len(validation_frozen_values) != 1:
+        raise ValueError(
+            "Gate 2 manifest requires exactly one "
+            "validation_frozen_before_run value"
+        )
+    validation_frozen = (
+        validation_frozen_values[0].lower() == "true"
+    )
+    if not validation_route_ids or not validation_frozen:
+        raise ValueError(
+            "Gate 2 v30 requires frozen validation routes before execution"
+        )
+    if any(
+        route_id not in route_ids for route_id in validation_route_ids
+    ):
+        raise ValueError(
+            "Gate 2 validation_route_ids must be included in route_ids"
         )
     residual_activation_width = int(
         residual_activation_width_values[0]
@@ -1252,13 +1342,15 @@ def export_eta_gate2_residual_bundle(
             "independent_training_route_ids": list(
                 independent_training_route_ids
             ),
+            "validation_route_ids": list(validation_route_ids),
+            "validation_frozen_before_run": validation_frozen,
             "training_route_count": training_route_count,
             "development_routes_unchanged": (
                 development_routes_unchanged
             ),
             "split_owner": descriptor.get(
                 "case_corpus",
-                ETA_GATE2_EXPANDED_CASE_CORPUS,
+                ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS,
             ),
             "development_heldout_status": "reused-during-gate-development",
             "causal_confirmation_split": None,
@@ -1297,6 +1389,31 @@ def export_eta_gate2_residual_bundle(
             "live_injection": case_groups[
                 "counterfactual_action_selector_live_injection"
             ][0],
+        },
+        "counterfactual_target": {
+            "mode": case_groups["counterfactual_target_mode"][0],
+            "target_sample_count": int(
+                case_groups["counterfactual_target_sample_count"][0]
+            ),
+            "audit_sample_count": int(
+                case_groups["counterfactual_audit_sample_count"][0]
+            ),
+            "sampling_temperature": float(
+                case_groups[
+                    "counterfactual_sampling_temperature"
+                ][0]
+            ),
+            "sampling_max_new_tokens": int(
+                case_groups[
+                    "counterfactual_sampling_max_new_tokens"
+                ][0]
+            ),
+            "sampling_seed_protocol": case_groups[
+                "counterfactual_sampling_seed_protocol"
+            ][0],
+            "audit_role": (
+                "readout-and-train-route-cv-model-selection-only"
+            ),
         },
         "residual_capture": {
             "activation_width": residual_activation_width,

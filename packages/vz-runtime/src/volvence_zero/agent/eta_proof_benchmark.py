@@ -1155,7 +1155,7 @@ def eta_gate2_expected_value_validation_routes() -> tuple[
             case_id="validation-v30-weather-schedules",
             split="validation",
             source_text=(
-                "Neighbors coordinate repairs as weather disrupts schedules"
+                "Neighbors coordinate maintenance as storms disrupt calendars"
             ),
             waypoints=("entry", "delta", "hub", "beta", "epsilon"),
             distractor_ids=("gamma",),
