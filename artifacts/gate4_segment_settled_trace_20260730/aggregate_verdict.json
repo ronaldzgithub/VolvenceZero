@@ -1,0 +1,21 @@
+{
+  "consumer_admission": "allowed",
+  "failed_gates": [],
+  "gate4_causal_status": "not-evaluated",
+  "gate5_causal_status": "not-evaluated",
+  "gate6_causal_status": "not-evaluated",
+  "gate_scope": "Gate 4/5/6 shared trace aggregate",
+  "gates": {
+    "all_seed_contracts_supported": true,
+    "lineage_all_green": true,
+    "partition_totals_exact": true,
+    "runtime_fingerprint_shared": true,
+    "settled_transition_count_1530": true,
+    "substrate_all_green": true,
+    "three_seed_packets_present": true,
+    "trace_digests_distinct": true
+  },
+  "schema_version": "gate456-shared-settled-trace.v1",
+  "status": "trace-contract-supported",
+  "trace_contract_status": "trace-contract-supported"
+}

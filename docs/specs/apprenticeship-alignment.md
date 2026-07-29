@@ -115,6 +115,14 @@ topic，也不写 semantic state：
   `docs/specs/evidence_program.md` 的 `gate4-active-learning.v1` 预注册。
 - 这是 evidence-only owner surface；生产默认 `owner/random/disabled`
   feedback policy 和 rollback 行为不变。
+- 2026-07-30 `gate4-active-learning.v1` 正式结果为
+  `not-supported`：三 seed 的 segment/turn/random/no-feedback/shuffled
+  五臂在 heldout 与 locked 上 balanced accuracy 均为 `0.5`，没有一臂在
+  60-label 预算内达到 `0.80`，segment 相对各 control 的 label gain 为
+  `0`。typed request、OpenLoop actuation、proposal-only 与 boundary
+  non-mutation 机制门全部通过。因此当前只能陈述“反馈请求机制可运行、可
+  审计、可回滚”，不能陈述 PE-driven 或 segment-aware 标签效率增益；同一
+  locked 分区不得调参重跑。
 
 ## 8. 迁移（WiringLevel 三态）
 

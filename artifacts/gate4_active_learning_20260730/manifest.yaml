@@ -1,0 +1,84 @@
+{
+  "aggregate_minimum_label_gain": 10,
+  "alignment_target": 0.8,
+  "arm_schedule": [
+    "segment-aware-active",
+    "turn-level-active",
+    "random-feedback",
+    "no-feedback",
+    "shuffled-segment-boundary"
+  ],
+  "final_accuracy_tolerance": 0.01,
+  "high_risk_label": "actual.task_progress < 0.25 OR actual.action_payoff < 0.20",
+  "label_budget_per_active_arm": 60,
+  "locked_partition": "trace-locked-confirmation",
+  "locked_partition_consumed": true,
+  "model_and_adapter_ids": {
+    "adapter_ids": [],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "substrate_mode": "frozen strict-local corrected segment trace"
+  },
+  "owner": "vz-cognition.ApprenticeshipAlignmentModule/apprenticeship.active_learning",
+  "partition_schedule": [
+    {
+      "count_per_seed": 300,
+      "partition": "trace-train"
+    },
+    {
+      "count_per_seed": 150,
+      "partition": "trace-heldout-context"
+    },
+    {
+      "count_per_seed": 60,
+      "partition": "trace-locked-confirmation"
+    }
+  ],
+  "per_seed_minimum_label_gain": 5,
+  "predictor_feature_contract": "prediction four axes + confidence + public current controller code/switch_gate/steps_since_switch; excludes PE, actual outcome, text, phase, user/context ids",
+  "primary_partition": "trace-heldout-context",
+  "provenance": {
+    "git_branch": "main",
+    "git_sha": "6d9dfa10b0f623eaed4577b930879b9ec2c17add",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "working_tree_dirty": true
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate4-active-learning.v1",
+  "seed_schedule": [
+    401,
+    409,
+    419
+  ],
+  "segment_kill_minimum_gain": 5,
+  "shared_bootstrap_labels": 8,
+  "source_temporal_fix_commit": "f5f551b3",
+  "source_trace_sha256_by_seed": {
+    "401": "c3d8584e6c16bd44d29bcc102beaf5a0897924f3cf9dcb01eb6fec7b747a4b4c",
+    "409": "d4b216d939a068c09c49742dca90b53d9c1e50def96e59f3a851972f481fb7d0",
+    "419": "4ac13eaa85ff6ccc2a49fe8118c2b76208fe80d153a2dfe096ce395cd775157b"
+  },
+  "substrate_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+  "suite_id": "gate4-segment-aware-active-learning",
+  "trace_root": "artifacts/gate4_segment_settled_trace_20260730",
+  "trace_schema_version": "gate456-shared-settled-trace.v1",
+  "wiring_levels": {
+    "apprenticeship_alignment": "ACTIVE evidence replay",
+    "revision_enabled": false,
+    "source_runtime": "ACTIVE frozen trace",
+    "substrate_mutation": "DISABLED"
+  }
+}

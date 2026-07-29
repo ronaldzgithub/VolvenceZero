@@ -1,0 +1,10 @@
+{
+  "failed_gates": [],
+  "gate4_causal_status": "not-evaluated",
+  "gate5_causal_status": "not-evaluated",
+  "gate6_causal_status": "not-evaluated",
+  "gate_scope": "Gate 4/5/6 shared settled trace contract",
+  "schema_version": "gate456-shared-settled-trace.v1",
+  "status": "trace-contract-supported",
+  "trace_contract_status": "trace-contract-supported"
+}

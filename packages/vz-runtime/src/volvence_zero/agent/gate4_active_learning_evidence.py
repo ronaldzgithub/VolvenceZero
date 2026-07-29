@@ -935,6 +935,48 @@ def _source_rows(
     return rows
 
 
+def _segment_diagnostics(
+    records_by_seed: Mapping[int, Sequence[Mapping[str, Any]]],
+) -> dict[str, Any]:
+    by_seed: dict[str, Any] = {}
+    all_lengths: list[int] = []
+    all_families: set[str] = set()
+    for seed in SHARED_SETTLED_TRACE_SEEDS:
+        records = records_by_seed[seed]
+        lengths: list[int] = []
+        families: set[str] = set()
+        features: set[tuple[float, ...]] = set()
+        for record in records:
+            closure = record["temporal_snapshot"]["closed_segments"][-1]
+            length = (
+                int(closure["close_turn_index"])
+                - int(closure["open_turn_index"])
+            )
+            family = str(closure["abstract_action_id"])
+            lengths.append(length)
+            families.add(family)
+            features.add(_segment_features(record))
+        all_lengths.extend(lengths)
+        all_families.update(families)
+        by_seed[str(seed)] = {
+            "closure_count": len(records),
+            "unique_segment_feature_count": len(features),
+            "unique_action_family_count": len(families),
+            "segment_length_min": min(lengths),
+            "segment_length_max": max(lengths),
+        }
+    return {
+        "by_seed": by_seed,
+        "aggregate_unique_action_family_count": len(all_families),
+        "aggregate_segment_length_min": min(all_lengths),
+        "aggregate_segment_length_max": max(all_lengths),
+        "claim_limit": (
+            "Fixed-length or single-family source evidence cannot establish "
+            "generalization to variable-length or multi-family segments."
+        ),
+    }
+
+
 def export_gate4_active_learning_bundle(
     *,
     trace_root: str | Path,
@@ -1091,6 +1133,9 @@ def export_gate4_active_learning_bundle(
             segment_vs_shuffled_gain
         ),
         "gates": gates,
+        "source_segment_diagnostics": _segment_diagnostics(
+            records_by_seed
+        ),
         "elapsed_seconds": time.perf_counter() - started,
     }
     claim = (
@@ -1149,6 +1194,14 @@ def export_gate4_active_learning_bundle(
         (
             "- segment vs shuffled aggregate labels-needed gain: "
             f"`{segment_vs_shuffled_gain}`"
+        ),
+        (
+            "- source segment length range: "
+            f"`{ablation['source_segment_diagnostics']['aggregate_segment_length_min']}"
+            "–"
+            f"{ablation['source_segment_diagnostics']['aggregate_segment_length_max']}`; "
+            "unique action families: "
+            f"`{ablation['source_segment_diagnostics']['aggregate_unique_action_family_count']}`"
         ),
         "",
         "## Segment-aware vs controls",
@@ -1238,9 +1291,10 @@ def verify_gate4_active_learning_bundle(
     comparisons, gates = compare_gate4_arms(metrics)
     if gates != ablation["gates"]:
         raise ValueError("Gate 4 persisted gates do not recompute")
-    if [asdict(item) for item in comparisons] != (
-        ablation["comparisons"]
-    ):
+    recomputed_comparisons = json.loads(
+        json.dumps([asdict(item) for item in comparisons])
+    )
+    if recomputed_comparisons != ablation["comparisons"]:
         raise ValueError(
             "Gate 4 persisted comparisons do not recompute"
         )

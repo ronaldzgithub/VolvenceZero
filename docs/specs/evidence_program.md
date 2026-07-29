@@ -335,6 +335,22 @@
     恒空，boundary/consent 输入输出 digest 必须不变。正式 run 产强制 12 文件
     bundle；失败后不调参、不重跑同一 locked 分区。回滚为
     `feedback_policy=disabled` 或 `no-feedback`，不改 temporal/substrate。
+  - 2026-07-30 正式 run 已完成，locked label 按协议仅消费一次。修正版
+    adjunct trace 在 commit `f5f551b3` 后重新生成，三 seed 各 `510`、
+    合计 `1530` 条，closure/lineage/frozen-substrate admission 全绿。
+    五臂共执行 `720` 次 typed feedback request；typed request 与 open-loop
+    actuation coverage 都为 `1.0`，revision proposal=`0`，
+    boundary digest 不变。所有 seed/arm 的 heldout 与 locked balanced
+    alignment accuracy 都为 `0.5`，labels-needed 都记为 `61`；segment
+    相对 turn、random、shuffled 的 aggregate label gain 均为 `0`。
+    因此 primary 与 shuffled-boundary kill gate 都失败，连预注册的
+    PE-driven-vs-random diagnostic 也未通过；verdict=`not-supported`。
+    不得声称“PE 驱动反馈更省标签”，只能保留“typed feedback request /
+    open-loop 机制可运行、可审计且可回滚”。source 诊断还显示所有 closure
+    长度固定为 `2` 且只有一个 action family，故结果不得外推到可变长或
+    multi-family segment。artifact：
+    `artifacts/gate4_segment_settled_trace_20260730` 与
+    `artifacts/gate4_active_learning_20260730`。
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - ETA Gate 2 residual causal packet 使用
   `volvence_zero.agent.eta_gate2_residual_evidence` 冻结

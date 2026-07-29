@@ -1,0 +1,9 @@
+{
+  "boundary_consent_mutated": false,
+  "feedback_policy": "disabled",
+  "passed": true,
+  "revision_enabled": false,
+  "rollback_arm": "no-feedback",
+  "schema_version": "gate4-active-learning.v1",
+  "substrate_mutated": false
+}

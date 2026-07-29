@@ -2069,6 +2069,16 @@ return (
 
 ## 90. 主动学习（`apprenticeship_alignment`）默认 SHADOW：稀疏反馈请求未成主链行为
 
+> **2026-07-30 Gate 4 正式证据（NO-GO）**：
+> `gate4-active-learning.v1` 在 frozen Qwen、三 seed、五臂同预算上完成；
+> typed request / OpenLoop / no-write / boundary rollback 机制门通过，但所有
+> heldout/locked balanced accuracy 均为 `0.5`，segment、turn、random 与
+> shuffled 的 labels-needed 均为 `61`，无任何样本效率增益。
+> `pe_driven_diagnostic_supported=false`，故不能把主张收缩后继续称为
+> “PE-driven 更省标签”；本债保留，下一轮必须使用可变长、多 family、
+> task-grounded apprentice episode 的 fresh locked corpus，不能重跑本次
+> locked。artifact：`artifacts/gate4_active_learning_20260730`。
+>
 > **2026-07-16 进展（A1，protocol 层残余代码侧闭合）**：`apprenticeship_protocol_alignment` 补全 draft spec 的 Step 2b + Step 3——(1) 快照新增 `pe_overlay_magnitude` / `pe_overlay_source`（结构裁决派生的 PE-shaped 只读 overlay；PE 跨不了 tier，落锤为 application 侧消费，report-only）；(2) protocol-lineage（`protocol:{id}:playbook/knowledge:{entry}`）conflict → 保守 typed `ProtocolRevisionProposal`（WEIGHT_DECAY / L3 / 1-turn window → R10 gate 恒 QUEUED_FOR_HUMAN，单句指导永不静默改协议），`ProtocolRevisionQueueModule` 增依赖统一路由（单 router + dedup）。契约测试 `tests/contracts/test_apprenticeship_protocol_revision_path.py` 5/5 绿。残余仅 (c) `apprenticeship_protocol_alignment` ACTIVE flip（gate 于证据）与 (d) 真实 substrate 稀疏反馈增益 evidence。
 >
 > **2026-07-04 进展（修法部分 land，all_seq packet 2）**：(1) `apprenticeship_alignment` 默认 flip **SHADOW→ACTIVE**（[`final_wiring.py`](../packages/vz-runtime/src/volvence_zero/integration/final_wiring.py)），仅 apprentice/ingestion turn 生效（普通轮 idle → PE overlay + 反馈请求均 no-op，测试面字节不变），`FinalRolloutConfig.apprenticeship_alignment=SHADOW/DISABLED` 可回滚；(2) **反馈请求落点补齐**——owner 快照新增 owner 自持字段 `should_request_feedback` / `feedback_request_reason` / `feedback_request_urgency`（由 reliability/surprise/version-space 派生，R8，非关键词），见 [`apprenticeship/core.py`](../packages/vz-cognition/src/volvence_zero/apprenticeship/core.py) + [`contracts.py`](../packages/vz-cognition/src/volvence_zero/apprenticeship/contracts.py)；(3) **actuator**——`open_loop` owner 依赖 `apprenticeship_alignment` 并冒出 verification 开环（`apprenticeship_verification_requests` + 抬高 closure_pressure/control_signal），[`build_final_runtime_modules`](../packages/vz-runtime/src/volvence_zero/integration/final_wiring.py) 经 `_reposition_open_loop_after_apprenticeship` 保证列表序 open_loop 在 apprenticeship 之后（kernel 拓扑排序在双向环下回退输入序）。测试：`test_apprenticeship_alignment.py`(should_request_feedback 四态) + `test_open_loop_apprenticeship_actuator.py`(actuator request/idle/placeholder/standalone) + `test_apprenticeship_active_e2e.py`(默认 ACTIVE apprentice turn E2E + 普通轮 no-op)；受影响包 1687 + 49 全绿（1 个 `test_semantic_owner_kill_switch_removes_active_slot` 失败为**预存**、与本改动无关）。spec：[`apprenticeship-alignment.md`](specs/apprenticeship-alignment.md) §7.1；DATA_CONTRACT §6 已同步。**债不关闭**，残余：(a) 约束提取仍 deterministic holistic + `stub_semantic_tokens` Jaccard（升级 LLM structured extractor + 真实 embedding）；(b) `labels_saved` 随机采样对照基线（归 [#87](#87) ablation）；(c) `apprenticeship_protocol_alignment` 仍 SHADOW；(d) 真实 substrate/LLM 上的稀疏反馈增益 evidence 待跑。
@@ -2491,6 +2501,20 @@ return (
   - 打乱 segment 边界但保留 PE 数值；若效果不变，说明主动学习并未真正建立在涌现抽象上。
   - 请求反馈只能产生 typed open loop / proposal；不得由表达层直接决定，也不得越过 consent/boundary owner。
 - **EXIT**：在不降低预注册最终质量与安全指标的前提下，segment-aware active 使用显著更少的人类标签，且优于 turn-level 与 random control；否则把主张降为“PE 驱动的反馈请求”，不能称“基于涌现抽象的主动学习”。
+- **2026-07-30 verdict（NO-GO，主张进一步收缩）**：
+  原 shared trace 因 public closure 缺失被拒绝用于 Gate 4；修复 temporal
+  carryover 后另生成 `1530` 条 adjunct trace，closure/lineage/substrate
+  admission 全绿。五臂每个 active arm/seed 使用 `60` labels，typed request /
+  OpenLoop coverage=`1.0`，proposal=`0`、boundary 未变；但三 seed 所有臂
+  heldout/locked balanced accuracy 均为 `0.5`、labels-needed 均为 `61`，
+  segment 相对 turn/random/shuffled label gain 全为 `0`。
+  `segment_primary=false`、`segment_boundary_kill=false`、
+  `pe_driven_diagnostic=false`，因此当前只保留“typed feedback request
+  机制可运行、可审计且可回滚”，不能保留“PE 驱动更省标签”措辞。
+  source 仅一个 family 且 segment length 恒为 `2`，下一证据必须用 fresh
+  可变长/multi-family apprentice episodes；本 locked 分区不得重跑。
+  artifacts：`artifacts/gate4_segment_settled_trace_20260730`、
+  `artifacts/gate4_active_learning_20260730`。
 
 ### Gate 5 — CMS 多时间尺度记忆与抗遗忘
 

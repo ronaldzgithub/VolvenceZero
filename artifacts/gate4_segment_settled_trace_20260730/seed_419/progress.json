@@ -1,0 +1,7 @@
+{
+  "completed_transition_count": 510,
+  "runtime_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+  "schema_version": "gate456-shared-settled-trace.v1",
+  "seed": 419,
+  "total_transition_count": 510
+}

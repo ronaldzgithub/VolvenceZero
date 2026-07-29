@@ -1,0 +1,16 @@
+{
+  "causal_passed": false,
+  "claim": "typed active feedback is runnable but causal efficiency is unsupported",
+  "failed_gates": [
+    "segment_primary_vs_turn_and_random",
+    "segment_boundary_kill_control_passed",
+    "pe_driven_diagnostic_supported"
+  ],
+  "gate_scope": "Gate 4 segment-aware active learning",
+  "invalid_gates": [],
+  "locked_partition_consumed_once": true,
+  "mechanism_passed": true,
+  "same_locked_partition_rerun_allowed": false,
+  "schema_version": "gate4-active-learning.v1",
+  "status": "not-supported"
+}
