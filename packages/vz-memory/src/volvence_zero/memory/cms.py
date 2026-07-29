@@ -902,8 +902,45 @@ class CMSMemoryCore:
         timestamp_ms: int,
         prediction_error: "PredictionErrorSnapshot | None" = None,
     ) -> None:
+        self._observe_resolved_signal(
+            signal=self._signal_from_substrate(substrate_snapshot),
+            timestamp_ms=timestamp_ms,
+            prediction_error=prediction_error,
+        )
+
+    def observe_replay_signal(
+        self,
+        *,
+        signal: tuple[float, ...],
+        timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None" = None,
+    ) -> None:
+        """Replay an immutable owner-published signal through the live CMS law.
+
+        This evidence-only ingress exists so longitudinal harnesses can replay
+        a public memory signal without fabricating a ``SubstrateSnapshot``.
+        The signal executes the same cadence, replay, PE-gate, backflow, and
+        anti-forgetting path as a live substrate observation.
+        """
+
+        if not signal:
+            raise ValueError("CMS replay signal must be non-empty")
+        if not all(math.isfinite(value) for value in signal):
+            raise ValueError("CMS replay signal must contain only finite values")
+        self._observe_resolved_signal(
+            signal=self._align_signal_dim(signal),
+            timestamp_ms=timestamp_ms,
+            prediction_error=prediction_error,
+        )
+
+    def _observe_resolved_signal(
+        self,
+        *,
+        signal: tuple[float, ...],
+        timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None",
+    ) -> None:
         self._set_latest_pe_features(prediction_error)
-        signal = self._signal_from_substrate(substrate_snapshot)
         self._total_observations += 1
         # #89: capture pre-update band reps to measure this turn's drift.
         _proxy_online_before = self._band_representation("online-fast")

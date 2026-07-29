@@ -206,6 +206,71 @@
     aggregate verdict=`trace-contract-supported`、consumer
     admission=`allowed`；本包没有产 Gate 4/5/6 causal verdict。artifact：
     `artifacts/gate456_shared_settled_trace_20260730`。
+- Gate 5 CMS Pareto 使用 schema `gate5-cms-pareto.v1`，在实现与首次读取
+  `trace-locked-confirmation` 指标前冻结以下协议：
+  - consumer 必须按 seed `401 / 409 / 419` 分别顺序加载完整
+    `trace-train=300`、`trace-heldout-context=150`、
+    `trace-locked-confirmation=60`，不得重排、抽样或按结果删行。每条 replay
+    observation 的学习向量只能取该 transition 的 public
+    `memory_snapshot.attribute_summary` 中最新
+    `substrate_feature_digest`；PE 只能从同条 public
+    `prediction_error` 重建 typed snapshot。两者都必须保留
+    `transition_id / prediction_ref / record_sha256` lineage。该 digest 是
+    memory owner 已发布的 substrate-derived readout；harness 不遍历原始
+    runtime 私有状态，也不从自然语言重造 substrate。
+  - 五臂固定为：`nested-CMS(full)`（nested、cadence `1/2/4`、ATLAS
+    `8/4/2`、Titans PE features on）；`single-timescale`（同三 band MLP
+    参数预算，independent、cadence `1/1/1`，其余 uplift 保持）；
+    `no-ATLAS-replay`（仅将 replay 关闭）；`no-PE-write-gate`（仅将 CMS
+    Titans PE features 关闭；MemoryStore 的正式 artifact PE admission
+    gate 不变）；`memory-only`（同一 MemoryStore artifact/retrieval owner，
+    learned CMS core 关闭）。所有臂消费同一顺序、同一 typed PE 与同一
+    knowledge write/retrieval protocol。
+  - primary 只在 locked 60 条上计算，前 450 条只用于顺序适应。每条
+    `new-introduce / new-revision` 读取 owner 发布的
+    `cms_new_knowledge_absorption`，每条 `old-retention` 读取
+    `cms_old_knowledge_retention`；arm/seed 指标是对应样本算术均值。
+    `memory-only` 没有 learned core，按公共 snapshot 默认语义记为
+    absorption `0.0`、retention `1.0`。这两个指标沿用 #89 Stage 0
+    per-update band-drift proxy，只能支持 CMS 更新/抗漂移 claim，不能冒充
+    deployment-time recall。
+  - full 对每个 control 的 Pareto 门为：三 seed aggregate 的 absorption
+    与 retention 都不低于 control 超过 `0.01`（即
+    `full - control >= -0.01`），并且每个 seed 都满足相同容差。相对
+    `single-timescale`，至少一个维度的三 seed aggregate 增益必须
+    `>= 0.02`，且该维逐 seed 增益全部 `> 0`。`0.01 / 0.02` 在 locked
+    首次读取前冻结，不因结果调整。
+  - 同 bundle 报告 diagnostic（不替代 primary）：owner-published
+    `memory_updater_touched_param_ratio` 的均值作为 memory churn、
+    negative `new-revision` 后进入 durable stratum 的 trace knowledge
+    entry 比率作为错误晋升率、按正式 `RetrievalQuery` 对
+    `knowledge_key` 的 top-k 命中率、命中时的跨 session
+    `action_payoff`、以及 trace 中
+    `session_post_slow_job_ms` 与 turn latency 的分位数。cadence mechanism
+    必须断言 full 的 public intervals 为 `1/2/4`、single 为 `1/1/1`，
+    每臂 frozen substrate mutation count=`0`，background work 不被合并
+    进 turn latency。
+  - 单 seed `401` 的 train+heldout replay 可作代码/方向探针，但不得读取
+    locked；探针失败只能修复契约、lineage 或实现错误，不能改五臂、阈值或
+    metric。正式 run 首次且仅一次消费三 seed locked，产强制 12 文件
+    bundle。任一 lineage/partition/cadence/frozen-substrate 门失败则
+    verdict=`invalid`；机制门全绿但 Pareto 或最小效应失败则
+    verdict=`not-supported`，主张收缩为“多频 CMS 可运行、可审计且可
+    回滚”，禁止调参重跑同一 locked 分区。全部通过最多得到
+    `causal-supported`；回滚为恢复 `memory-only` 或显式关闭
+    `cms_pe_features_enabled / cms_replay_window_size`，不修改 frozen
+    substrate。
+  - 2026-07-30 正式 run 已完成，locked 分区按协议仅消费一次。五臂 × 三
+    seed 共 replay `7650` arm-transitions；全部 lineage、`1/2/4` 与
+    `1/1/1` cadence、matched CMS 参数预算、frozen substrate mutation=0、
+    latency 分离与 checkpoint rollback 门通过。full 对全部四个 control
+    均满足 `0.01` Pareto 不劣；但相对 `single-timescale` 的 absorption /
+    retention 增益仅为 `+0.000000251 / +0.000001173`，虽三 seed 同向，
+    仍远低于冻结最小效应 `0.02`。因此
+    verdict=`not-supported`，不调参、不重跑 locked；Gate 5 causal
+    主张收缩为“多频 CMS 可运行、可审计且可回滚”。diagnostic 中五臂
+    retrieval hit 均为 `1.0`、错误晋升率均为 `0.0`，不能补救 primary
+    effect 缺失。artifact：`artifacts/gate5_cms_pareto_20260730`。
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - ETA Gate 2 residual causal packet 使用
   `volvence_zero.agent.eta_gate2_residual_evidence` 冻结

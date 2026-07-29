@@ -722,6 +722,27 @@ class MemoryStore:
                 prediction_error=prediction_error,
             )
 
+    def observe_replay_signal(
+        self,
+        *,
+        signal: tuple[float, ...],
+        timestamp_ms: int,
+        prediction_error: "PredictionErrorSnapshot | None" = None,
+    ) -> None:
+        """Replay one immutable public signal through the memory owner.
+
+        Unlike ``observe_fast_memory_signal``, this offline evidence ingress
+        represents a complete settled observation and therefore advances all
+        CMS cadence bands via the same kernel used by ``observe_substrate``.
+        """
+
+        if self._learned_core is not None:
+            self._learned_core.observe_replay_signal(
+                signal=signal,
+                timestamp_ms=timestamp_ms,
+                prediction_error=prediction_error,
+            )
+
     def apply_prediction_error_signal(
         self,
         *,

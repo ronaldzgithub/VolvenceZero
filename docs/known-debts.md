@@ -2500,6 +2500,15 @@ return (
   - 验证 cadence：快层可每轮更新，中/慢层只在声明边界更新，background-slow 不阻塞 turn latency，rare-heavy 不在线改 base。
   - 同时报 `new_knowledge_absorption`、`old_knowledge_retention`、memory churn、错误晋升率、检索命中与跨 session payoff；禁止只报训练 loss。
 - **EXIT**：复用 [#89](#89) Stage 1 的真 trace、torch rollback 与双指标门；多频 full 在吸收-保持 Pareto 上优于单频 matched control，且没有用户隔离或延迟 SLO 回归。
+- **2026-07-30 verdict（NO-GO，主张已收缩）**：
+  `gate5-cms-pareto.v1` 在共享真 trace 上完成五臂 × 三 seed、合计
+  `7650` arm-transitions；lineage、cadence、同参数预算、frozen substrate、
+  latency 分离和 checkpoint rollback 均通过。full 对所有 control 在
+  `0.01` 容差内 Pareto 不劣，但相对 single-timescale 的 locked
+  absorption / retention 增益只有 `+2.508e-7 / +1.173e-6`，未达到
+  `0.02` 最小效应。按预注册不得重跑 locked 或调参续命；Gate 5 causal
+  claim 为 `not-supported`，当前仅保留“多频 CMS 可运行、可审计且可
+  回滚”。artifact：`artifacts/gate5_cms_pareto_20260730`。
 
 ### Gate 6 — Nested meta-init / slow→fast 知识转移
 

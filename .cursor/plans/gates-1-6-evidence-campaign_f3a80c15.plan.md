@@ -1,7 +1,7 @@
 # Gate 1–6 证据战役：长周期完整执行计划
 
-> 状态：执行中（Phase 0、Phase 1 与 Phase 2 已完成；Gate 1 causal 按
-> 预注册 NO-GO 收缩，共享真 trace 已允许消费，准备进入 Phase 3 Gate 5）。
+> 状态：执行中（Phase 0–3 已完成；Gate 1 / Gate 5 causal 按预注册
+> NO-GO 收缩，准备进入 Phase 4 Gate 4）。
 > 目标：把 `docs/known-debts.md` #92 的系统级证据门推进到
 > **Gate 1、2、4、5、6 全部拿到 mechanism + causal verdict**（Gate 2 另加
 > SHADOW 观测闭环）。注：known-debts 当前没有 `### Gate 3` 小节（编号从 2 跳到
@@ -244,7 +244,7 @@ longitudinal）全部离线 replay 它，保证「同经历」。
 | 包 1a Gate 1 mechanism | 已完成（PASS） | `gate1-pe-mechanism.v1`：五类 gold、真 LSS 最大误差 `1.39e-17`、lineage `1.0`、mismatch/duplicate `0/0`、ACTIVE evaluation-decoupled 字节一致；artifact `artifacts/gate1_pe_mechanism_20260730` |
 | 包 1b Gate 1 causal | 已完成（NO-GO） | `gate1-pe-causal.v1` seed 101：四个 held-out case 的纯行为成功率 `pe-eta=1.0 / pe-drive-off=1.0`，gain `0.0 < 0.25`；按预注册停止 211/307，不调参；Gate 1 收缩为 mechanism-only。artifact `artifacts/gate1_pe_causal_20260730` |
 | Phase 2 trace 工厂 | 已完成（PASS） | `gate456-shared-settled-trace.v1`：Qwen2.5-0.5B strict-local 三 seed 各 510、合计 1530 settled transitions；分区 900/450/180，lineage `1.0`、mismatch/duplicate `0/0`，fallback/empty residual/mutation 均 0，跨 seed fingerprint 一致；consumer admission allowed。artifact `artifacts/gate456_shared_settled_trace_20260730` |
-| Phase 3 Gate 5 Pareto | 未开始 | — |
+| Phase 3 Gate 5 Pareto | 已完成（NO-GO） | `gate5-cms-pareto.v1`：五臂 × 三 seed 共 7650 arm-transitions；mechanism/cadence/rollback 全绿，full 对所有 control Pareto 不劣，但相对 single-timescale 双指标增益 `+2.508e-7 / +1.173e-6 < 0.02`，causal claim 收缩；artifact `artifacts/gate5_cms_pareto_20260730` |
 | Phase 4 Gate 4 四臂 | 未开始 | — |
 | Phase 5 Gate 6 四臂 | 未开始 | — |
 | Phase 6 总对账 | 未开始 | — |

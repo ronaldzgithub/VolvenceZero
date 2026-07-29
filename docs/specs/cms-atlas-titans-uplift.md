@@ -189,6 +189,18 @@ The code half of Stage 1 is now complete; only the >=500-turn real-trace evidenc
 - **Anti-forgetting window hooks**: absorption/retention proxies now also aggregate over a bounded 64-observation window (`absorption_window_mean` / `retention_window_mean` in the promotion readout), the code-side metric surface for the gain-curve evidence run.
 - Tests: `tests/test_m2_cms_torch_closure.py` (SHADOW settlement, promotion gate dimensions, DISABLED no-op, rollback drill, window aggregates).
 
+### 7.6 Gate 5 longitudinal Pareto result（2026-07-30）
+
+`gate5-cms-pareto.v1` 把三 seed、每 seed 510 条的共享 frozen-Qwen settled
+trace 通过 memory owner 的 evidence-only replay ingress 重放到五个 matched
+arms。所有 mechanism、cadence、参数预算、lineage、frozen substrate 与
+checkpoint rollback 门通过；full 对所有 control 在 `0.01` 容差内 Pareto
+不劣。但 full 相对 single-timescale 的 locked absorption / retention 增益仅
+`+2.508e-7 / +1.173e-6`，没有达到预注册 `0.02` 最小效应。因此该次 locked
+确认 verdict 为 `not-supported`，不得调参重跑；Stage 1 只能保留“多频 CMS
+可运行、可审计且可回滚”的机制主张，不能声称真实 trace 上的吸收-保持因果
+优势。artifact：`artifacts/gate5_cms_pareto_20260730`。
+
 ## 8. Acceptance ladder (must pass in order)
 
 1. Unit: `test_cms_uplift_disabled_path_is_bit_equal_to_legacy` — disabled flags reproduce pre-uplift band MLP / decisions for a deterministic seed.

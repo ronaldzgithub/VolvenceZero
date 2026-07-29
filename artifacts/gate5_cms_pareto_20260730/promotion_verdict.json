@@ -1,0 +1,14 @@
+{
+  "causal_passed": false,
+  "claim": "multi-frequency CMS is runnable, auditable, and rollback-capable",
+  "failed_gates": [
+    "full_significant_vs_single_timescale"
+  ],
+  "gate_scope": "Gate 5 CMS multi-timescale Pareto",
+  "invalid_gates": [],
+  "locked_partition_consumed_once": true,
+  "mechanism_passed": true,
+  "same_locked_partition_rerun_allowed": false,
+  "schema_version": "gate5-cms-pareto.v1",
+  "status": "not-supported"
+}

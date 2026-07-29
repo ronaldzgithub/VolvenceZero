@@ -1,0 +1,116 @@
+{
+  "arms": [
+    {
+      "arm": "nested-CMS(full)",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 401
+    },
+    {
+      "arm": "single-timescale",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 401
+    },
+    {
+      "arm": "no-ATLAS-replay",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 401
+    },
+    {
+      "arm": "no-PE-write-gate",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 401
+    },
+    {
+      "arm": "memory-only",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "memory-only",
+      "seed": 401
+    },
+    {
+      "arm": "nested-CMS(full)",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 409
+    },
+    {
+      "arm": "single-timescale",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 409
+    },
+    {
+      "arm": "no-ATLAS-replay",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 409
+    },
+    {
+      "arm": "no-PE-write-gate",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 409
+    },
+    {
+      "arm": "memory-only",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "memory-only",
+      "seed": 409
+    },
+    {
+      "arm": "nested-CMS(full)",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 419
+    },
+    {
+      "arm": "single-timescale",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 419
+    },
+    {
+      "arm": "no-ATLAS-replay",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 419
+    },
+    {
+      "arm": "no-PE-write-gate",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 419
+    },
+    {
+      "arm": "memory-only",
+      "checkpoint_roundtrip_exact": true,
+      "final_state_changed_before_rollback": true,
+      "rollback_target": "memory-only",
+      "seed": 419
+    }
+  ],
+  "explicit_factory_rollback": {
+    "cms_pe_features_enabled": false,
+    "cms_replay_window_size": null
+  },
+  "passed": true,
+  "schema_version": "gate5-cms-pareto.v1",
+  "substrate_mutated": false
+}

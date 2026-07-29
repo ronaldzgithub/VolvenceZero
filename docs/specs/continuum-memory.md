@@ -221,6 +221,11 @@ NL 重新定义"记忆 = 任何由输入引起的神经更新"（附录 A.8）�
 **owner API**：
 
 - 所有写入通过 `MemoryWriteRequest` 进入 Memory owner
+- longitudinal evidence replay 只能通过
+  `MemoryStore.observe_replay_signal(...)` 把 owner 已发布的不可变 signal
+  送回 CMS；该 evidence-only ingress 与 live `observe_substrate` 共用同一
+  cadence / replay / PE-gate / anti-forgetting update kernel，空或非有限
+  signal 必须 fail loudly，不能伪造 `SubstrateSnapshot`
 - retrieval contract 区分“本轮检索结果”与“持久状态摘要”
 - retrieval ranking 由 Memory owner 内部统一负责，可组合 `user_text + substrate facets + owner query facets` 做 tower-guided retrieval；artifact / lexical 只是同一 owner-side fusion law 的不同证据源。`RetrievalQuery.facets` 与 entry tag 的命中走显式 `+5` per match 的 tie-breaker boost（debt #10D 关闭后落地，`_score_entry` 内），不只走 embedding 通道，确保 regime-context disambiguation 在 lexical/semantic 几乎并列时仍可决定 top-1
 - promotion / decay / reconstruction 先建模为显式状态，不作为隐式副作用暴露给消费者
@@ -297,6 +302,9 @@ policy 本身，且 policy 也会老化。未来 memory snapshot 至少应能发
 
 ## 变更日志
 
+- 2026-07-30: 新增 evidence-only `observe_replay_signal` owner ingress，
+  使 Gate 5 可从共享真 trace 的 public substrate-derived digest 重放完整
+  CMS update law，而不伪造 substrate snapshot 或建立第二 memory owner。
 - 2026-07-20: 新增 §"时间定位、证据区间与记忆 claim 的行为证据阶梯"：S-EMBER 时间定位/证据区间双指标要求、Beyond Perplexity 三层行为证据阶梯（loss↓ 不构成记忆 claim）、retrieval policy 版本化 motivation。不改 schema；来源 `research/frontier-sweep-2026-07-20.md` §6 同步项。
 - 2026-07-17: G4 reflection consolidation learned SHADOW 候选（反思沉淀节）。新增 `vz-cognition.reflection.consolidation_learner.ConsolidationScoreLearner`：有界线性残差 head，输入为既有 consolidation 特征（memory_pressure / cross_tension / alert_pressure / positive・negative credit / pe_penalty），固定公式 = 初始化 + 回滚点；session-held（`AgentSessionRunner` 持有，经 final wiring 注入 per-turn `ReflectionEngine`），`ConsolidationScore.learned_promotion_score`（默认 None）report-only 发布；settlement 用下一 turn realized PE magnitude（一 turn 窗口，gate-learner 语义）。promote / decay / writeback gate 全部不读 learner。测试：`tests/test_reflection_consolidation_learner.py`。
 - 2026-05-06: Phase 1.C 上线 substrate-feature retrieval embedding 与 owner-internal `MemoryAttributeReadout`；新 `MemorySnapshot.attribute_summary` 字段，`MemoryEntry` schema 不动；明确 A-Mem / HippoRAG 2 不进路线图，Titans / ATLAS update-rule 子集走 `cms-atlas-titans-uplift.md` 中期专项。

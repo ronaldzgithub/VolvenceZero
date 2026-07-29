@@ -1,0 +1,88 @@
+{
+  "arm_schedule": [
+    "nested-CMS(full)",
+    "single-timescale",
+    "no-ATLAS-replay",
+    "no-PE-write-gate",
+    "memory-only"
+  ],
+  "minimum_effect_vs_single_timescale": 0.02,
+  "cohort_scope": {
+    "context_count": 18,
+    "seed_count": 3,
+    "settled_transition_count": 1530,
+    "user_count": 18
+  },
+  "judge_or_human_protocol": "None; deterministic owner-published readout aggregation.",
+  "metric_version": "gate5-cms-pareto.v1",
+  "model_and_adapter_ids": {
+    "adapter_ids": [],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "substrate_mode": "frozen strict-local source trace"
+  },
+  "owner": "vz-memory.MemoryStore/CMSMemoryCore",
+  "pareto_tolerance": 0.01,
+  "partition_schedule": [
+    {
+      "count_per_seed": 300,
+      "partition": "trace-train"
+    },
+    {
+      "count_per_seed": 150,
+      "partition": "trace-heldout-context"
+    },
+    {
+      "count_per_seed": 60,
+      "partition": "trace-locked-confirmation"
+    }
+  ],
+  "primary_partition": "trace-locked-confirmation",
+  "prompt_and_context_budget": "No new prompts; replay consumes only immutable public signal and typed PE from the shared trace.",
+  "provenance": {
+    "git_branch": "main",
+    "git_sha": "d78eab9c8487b5578ef8414ff605c13d6dc2d05f",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "working_tree_dirty": true
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate5-cms-pareto.v1",
+  "seed_schedule": [
+    401,
+    409,
+    419
+  ],
+  "scenario_split": {
+    "trace-heldout-context": 450,
+    "trace-locked-confirmation": 180,
+    "trace-train": 900
+  },
+  "signal_source": "memory_snapshot.attribute_summary.latest.substrate_feature_digest",
+  "source_trace_sha256_by_seed": {
+    "401": "66724f38953553c6ca74cca121b6080c385d17104cb1a0117b2d289c70fd3d1d",
+    "409": "a87c195d7088bcbaee0377dbff341a153643294b5a33c8cf44dad708286a185b",
+    "419": "843561ca0cfaeba924146179d62c4c3eed65363788d204ff093767cd92efa2fc"
+  },
+  "substrate_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+  "suite_id": "gate5-cms-pareto",
+  "trace_root": "artifacts/gate456_shared_settled_trace_20260730",
+  "trace_schema_version": "gate456-shared-settled-trace.v1",
+  "wiring_levels": {
+    "memory_owner": "matched five-arm offline replay",
+    "source_runtime": "ACTIVE frozen trace",
+    "substrate_mutation": "DISABLED"
+  }
+}
