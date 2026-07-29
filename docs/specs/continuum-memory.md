@@ -116,6 +116,14 @@ y_t = MLP^(ν_K)(MLP^(ν_{K-1})(... MLP^(ν_1)(x_t)))
 - 当前 reflection durable apply 已升级为 tower-native consolidation：slow loop 对 memory 的写回不再只做 `reflect_lessons()`，而会把 promoted/durable/belief lessons 显式压进 learned tower 的 online/session/background readout 路径
 - 当前 companion evidence 增加 `RFL1 reflection_writeback_stability` gate：证明 dialogue slow-loop evidence 可通过 bounded reflection apply 写入 memory / regime，并保留 checkpoint / rollback，而不是绕过 owner 直接突变
 - 当前 tiny Hope owner-side proof 已收敛到 `MemoryStore` / `CMSMemoryCore` 内部：`LearnedUpdateRule` 生成有界 write / step / decay / reset 系数，`CMSState.hope_self_modification_state` 发布机器可读 self-mod evidence，checkpoint / restore 会同时回滚 band state 与 Hope meta-state；这不是独立 `HopeModule`，也不新增第二 memory owner。
+- Gate 6 evidence-only 初始化控制继续位于同一 owner：
+  `MemoryStore.initialize_nested_context_for_evidence()` 只允许
+  `meta-init / copy-init / random-init / no-init / external-meta-init` 五种显式
+  模式，发布不可变 `CMSContextInitializationEvidence`，并保证初始化不改
+  background-slow state、MLP 权重、nested target 或 updater 的 learned
+  parameter state（reset decision telemetry 仍按 owner 规则更新）。生产
+  `reset_nested_context()` 仍只委托 `meta-init`；其余模式不能成为 live
+  policy 或第二 memory owner。
 
 ## 当前 proof surface
 

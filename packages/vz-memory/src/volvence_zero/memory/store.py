@@ -15,6 +15,7 @@ from volvence_zero.learned_update import LearnedUpdateRuleState
 from volvence_zero.memory.artifacts import ArtifactStore
 from volvence_zero.memory.cms import (
     CMSCheckpointState,
+    CMSContextInitializationEvidence,
     CMSMemoryCore,
     CMSState,
     CMSTowerConsolidationUpdate,
@@ -220,9 +221,13 @@ class MemoryStore:
         return self._derived_index._artifact_embeddings
 
     def reset_nested_context(self, *, reason: str, timestamp_ms: int) -> tuple[str, ...]:
-        self._last_context_reset_ms = timestamp_ms
-        self._last_context_reset_reason = reason
-        if self._learned_core is None or self._learned_core.mode != "mlp" or self._learned_core.variant != "nested":
+        if (
+            self._learned_core is None
+            or self._learned_core.mode != "mlp"
+            or self._learned_core.variant != "nested"
+        ):
+            self._last_context_reset_ms = timestamp_ms
+            self._last_context_reset_reason = reason
             self._last_context_reset_applied = False
             self._last_context_reset_online_seed_strength = 0.0
             self._last_context_reset_session_seed_strength = 0.0
@@ -231,16 +236,44 @@ class MemoryStore:
             self._last_context_reset_target_distance_after = 0.0
             self._last_context_reset_target_alignment_gain = 0.0
             return ()
-        before_state = self._learned_core.snapshot()
-        before_online = before_state.online_fast.vector
-        nested_reset_targets = self._learned_core.nested_reset_targets()
-        if nested_reset_targets is None:
-            raise RuntimeError("Nested reset targets must be available for nested MLP CMS.")
-        online_target, _session_target = nested_reset_targets
-        self._learned_core.reset_context()
-        after_state = self._learned_core.snapshot()
-        after_online = after_state.online_fast.vector
-        after_session = after_state.session_medium.vector
+        evidence = self.initialize_nested_context_for_evidence(
+            mode="meta-init",
+            reason=reason,
+            timestamp_ms=timestamp_ms,
+        )
+        return ("nested-context-reset",)
+
+    def initialize_nested_context_for_evidence(
+        self,
+        *,
+        mode: str,
+        reason: str,
+        timestamp_ms: int,
+        random_seed: int | None = None,
+        external_targets: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+    ) -> CMSContextInitializationEvidence:
+        """Run one auditable nested initializer through the memory owner.
+
+        The production reset delegates here with ``mode="meta-init"``.
+        Other modes are matched evidence controls; they are intentionally
+        unavailable when the store has no nested MLP core.
+        """
+
+        self._last_context_reset_ms = timestamp_ms
+        self._last_context_reset_reason = reason
+        if self._learned_core is None or self._learned_core.mode != "mlp" or self._learned_core.variant != "nested":
+            raise RuntimeError(
+                "Evidence initialization requires a nested MLP MemoryStore."
+            )
+        evidence = self._learned_core.reset_context_with_initialization(
+            mode=mode,
+            random_seed=random_seed,
+            external_targets=external_targets,
+        )
+        before_online = evidence.online_before
+        after_online = evidence.online_after
+        after_session = evidence.session_after
+        online_target = evidence.online_target
         self._context_reset_count += 1
         self._last_context_reset_applied = True
         self._last_context_reset_online_seed_strength = sum(abs(value) for value in after_online) / max(
@@ -264,7 +297,7 @@ class MemoryStore:
         self._last_context_reset_target_alignment_gain = (
             self._last_context_reset_target_distance_before - self._last_context_reset_target_distance_after
         )
-        return ("nested-context-reset",)
+        return evidence
 
     def write(self, request: MemoryWriteRequest, *, timestamp_ms: int) -> MemoryEntry:
         entry = MemoryEntry(

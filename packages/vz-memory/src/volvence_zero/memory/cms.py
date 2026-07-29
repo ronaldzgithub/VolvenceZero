@@ -11,6 +11,7 @@ to work without changes.
 from __future__ import annotations
 
 import math
+import random
 from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Mapping
@@ -27,6 +28,7 @@ from volvence_zero.memory.cms_band_mlp import CMSBandMLP
 from volvence_zero.memory.cms_contracts import (
     CMSBandState,
     CMSCheckpointState,
+    CMSContextInitializationEvidence,
     CMSContinuumBand,
     CMSContinuumProfile,
     CMSContinuumReconstructionEdge,
@@ -1251,41 +1253,190 @@ class CMSMemoryCore:
         """
         if self._variant is not CMSVariant.NESTED or self._mode != "mlp":
             return
-        session_decision, _ = self._decide_band_update(
-            band_id="nested-session-reset",
-            current=self._session_mlp.representation_vector(),
-            target=self._nested_session_init_target,
-            pending_signal=self._session_pending_signal,
-            observations_since_update=self._session_observations_since_update,
-            cadence_interval=self._session_cadence,
-            source_signal=self._nested_session_init_target,
-        )
-        online_decision, _ = self._decide_band_update(
-            band_id="nested-online-reset",
-            current=self._online_mlp.representation_vector(),
-            target=self._nested_online_init_target,
-            pending_signal=tuple(0.0 for _ in range(self._dim)),
-            observations_since_update=0,
-            cadence_interval=1,
-            source_signal=self._nested_online_init_target,
-        )
-        self._session_mlp.load_representation(
-            self._blend_signal(
-                self._session_mlp.representation_vector(),
-                self._nested_session_init_target,
-                rate=session_decision.reset_mix,
+        self.reset_context_with_initialization(mode="meta-init")
+
+    def reset_context_with_initialization(
+        self,
+        *,
+        mode: str,
+        random_seed: int | None = None,
+        external_targets: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+    ) -> CMSContextInitializationEvidence:
+        """Reset fast bands through an explicit owner-controlled initializer.
+
+        ``meta-init`` is the production nested reset.  The remaining modes are
+        evidence controls used by the Gate 6 matched episode harness.  They
+        change only the online/session representation and reset-local pending
+        state; learned weights, updater state, background-slow state and
+        nested targets remain untouched.
+        """
+
+        if self._variant is not CMSVariant.NESTED or self._mode != "mlp":
+            raise RuntimeError(
+                "Explicit context initialization requires nested MLP CMS."
             )
-        )
-        self._online_mlp.load_representation(
-            self._blend_signal(
-                self._online_mlp.representation_vector(),
-                self._nested_online_init_target,
-                rate=online_decision.reset_mix,
+        allowed_modes = {
+            "meta-init",
+            "copy-init",
+            "random-init",
+            "no-init",
+            "external-meta-init",
+        }
+        if mode not in allowed_modes:
+            raise ValueError(
+                f"Unsupported nested context initialization mode {mode!r}."
             )
+        if mode == "random-init":
+            if random_seed is None:
+                raise ValueError("random-init requires an explicit random_seed.")
+        elif random_seed is not None:
+            raise ValueError(
+                f"random_seed is only valid for random-init, got mode={mode!r}."
+            )
+        if mode == "external-meta-init":
+            if external_targets is None:
+                raise ValueError(
+                    "external-meta-init requires explicit owner-state targets."
+                )
+        elif external_targets is not None:
+            raise ValueError(
+                f"external_targets are only valid for external-meta-init, got mode={mode!r}."
+            )
+
+        online_before = self._online_mlp.representation_vector()
+        session_before = self._session_mlp.representation_vector()
+        background_before = self._background_mlp.representation_vector()
+        nested_targets_before = (
+            self._nested_online_init_target,
+            self._nested_session_init_target,
         )
+        update_rule_before = self._update_rule.export_state()
+        hope_before = self._hope_state()
+        params_before = tuple(
+            params
+            for mlp in (
+                self._online_mlp,
+                self._session_mlp,
+                self._background_mlp,
+            )
+            for params in mlp.export_params()[2:]
+        )
+        if mode == "meta-init":
+            online_target = self._nested_online_init_target
+            session_target = self._nested_session_init_target
+        elif mode == "copy-init":
+            online_target = online_before
+            session_target = session_before
+        elif mode == "random-init":
+            generator = random.Random(random_seed)
+            online_target = tuple(
+                generator.uniform(-0.125, 0.125) for _ in range(self._dim)
+            )
+            session_target = tuple(
+                generator.uniform(-0.125, 0.125) for _ in range(self._dim)
+            )
+        elif mode == "no-init":
+            online_target = tuple(0.0 for _ in range(self._dim))
+            session_target = tuple(0.0 for _ in range(self._dim))
+        else:
+            assert external_targets is not None
+            online_target, session_target = external_targets
+
+        for target_name, target in (
+            ("online_target", online_target),
+            ("session_target", session_target),
+        ):
+            if len(target) != self._dim:
+                raise ValueError(
+                    f"{target_name} length {len(target)} != CMS dim {self._dim}."
+                )
+            if not all(math.isfinite(value) for value in target):
+                raise ValueError(f"{target_name} must contain only finite values.")
+
+        if mode in {"meta-init", "external-meta-init"}:
+            session_decision, _ = self._decide_band_update(
+                band_id="nested-session-reset",
+                current=session_before,
+                target=session_target,
+                pending_signal=self._session_pending_signal,
+                observations_since_update=self._session_observations_since_update,
+                cadence_interval=self._session_cadence,
+                source_signal=session_target,
+            )
+            online_decision, _ = self._decide_band_update(
+                band_id="nested-online-reset",
+                current=online_before,
+                target=online_target,
+                pending_signal=tuple(0.0 for _ in range(self._dim)),
+                observations_since_update=0,
+                cadence_interval=1,
+                source_signal=online_target,
+            )
+            self._session_mlp.load_representation(
+                self._blend_signal(
+                    session_before,
+                    session_target,
+                    rate=session_decision.reset_mix,
+                )
+            )
+            self._online_mlp.load_representation(
+                self._blend_signal(
+                    online_before,
+                    online_target,
+                    rate=online_decision.reset_mix,
+                )
+            )
+        elif mode != "copy-init":
+            self._session_mlp.load_representation(session_target)
+            self._online_mlp.load_representation(online_target)
+
         self._session_observations_since_update = 0
         self._session_pending_signal = tuple(0.0 for _ in range(self._dim))
         self._nested_context_steps = 0
+        online_after = self._online_mlp.representation_vector()
+        session_after = self._session_mlp.representation_vector()
+        params_after = tuple(
+            params
+            for mlp in (
+                self._online_mlp,
+                self._session_mlp,
+                self._background_mlp,
+            )
+            for params in mlp.export_params()[2:]
+        )
+        nested_targets_after = (
+            self._nested_online_init_target,
+            self._nested_session_init_target,
+        )
+        update_rule_after = self._update_rule.export_state()
+        updater_learned_state_unchanged = (
+            update_rule_after.update_count == update_rule_before.update_count
+            and update_rule_after.input_projection
+            == update_rule_before.input_projection
+            and update_rule_after.hidden_bias == update_rule_before.hidden_bias
+            and update_rule_after.output_projection
+            == update_rule_before.output_projection
+            and update_rule_after.output_bias == update_rule_before.output_bias
+        )
+        return CMSContextInitializationEvidence(
+            mode=mode,
+            online_target=online_target,
+            session_target=session_target,
+            online_before=online_before,
+            session_before=session_before,
+            online_after=online_after,
+            session_after=session_after,
+            slow_state_unchanged=(
+                self._background_mlp.representation_vector()
+                == background_before
+            ),
+            parameter_state_unchanged=(
+                params_after == params_before
+                and nested_targets_after == nested_targets_before
+                and updater_learned_state_unchanged
+                and self._hope_state() == hope_before
+            ),
+        )
 
     def nested_reset_targets(self) -> tuple[tuple[float, ...], tuple[float, ...]] | None:
         if self._variant is not CMSVariant.NESTED or self._mode != "mlp":

@@ -166,6 +166,21 @@ class CMSCheckpointState:
 
 
 @dataclass(frozen=True)
+class CMSContextInitializationEvidence:
+    """Owner-issued audit record for one bounded nested context reset."""
+
+    mode: str
+    online_target: tuple[float, ...]
+    session_target: tuple[float, ...]
+    online_before: tuple[float, ...]
+    session_before: tuple[float, ...]
+    online_after: tuple[float, ...]
+    session_after: tuple[float, ...]
+    slow_state_unchanged: bool
+    parameter_state_unchanged: bool
+
+
+@dataclass(frozen=True)
 class CMSTowerConsolidationUpdate:
     online_signal: tuple[float, ...] = ()
     session_signal: tuple[float, ...] = ()
