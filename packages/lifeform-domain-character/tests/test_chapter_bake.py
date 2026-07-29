@@ -71,6 +71,20 @@ class _ReviewedCrossChapterAbstractionProvider:
         temperature: float = 0.0,
     ) -> str:
         del max_new_tokens, temperature
+        if prompt.startswith(
+            "You are the independent second-pass semantic generalization "
+            "auditor for a"
+        ):
+            return json.dumps(
+                {
+                    "shared_structure_supported": True,
+                    "episode_specificity_absent": True,
+                    "conditions_reusable": True,
+                    "steps_reusable": True,
+                    "confidence": 0.95,
+                    "rationale": "Reviewed cross-chapter generalization.",
+                }
+            )
         if not prompt.startswith(
             "You are the background-slow semantic decoder for a "
             "CaseMemory owner."

@@ -26,6 +26,7 @@ from lifeform_domain_character import (
 from lifeform_expression import GroundedResponseSynthesizer
 from volvence_zero.application import (
     ApplicationCaseMemoryStore,
+    CaseActionAbstractionPromotion,
     LearnedActionSchemaCandidate,
     build_filesystem_persistence_backend,
 )
@@ -97,6 +98,20 @@ class _ReviewedPortfolioProvider:
         temperature: float = 0.0,
     ) -> str:
         del max_new_tokens, temperature
+        if prompt.startswith(
+            "You are the independent second-pass semantic generalization "
+            "auditor for a"
+        ):
+            return json.dumps(
+                {
+                    "shared_structure_supported": True,
+                    "episode_specificity_absent": True,
+                    "conditions_reusable": True,
+                    "steps_reusable": True,
+                    "confidence": 0.95,
+                    "rationale": "Frozen reviewed portfolio generalization.",
+                }
+            )
         if prompt.startswith(
             "You are the turn-time semantic applicability evaluator "
             "for a CaseMemory owner."
@@ -526,24 +541,64 @@ def test_action_evidence_provider_delegates_only_exact_action_protocols() -> Non
             "for a CaseMemory owner.\nEvidence"
         )
     )
+    generalization_response = scoped.generate(
+        prompt=(
+            "You are the independent second-pass semantic generalization "
+            "auditor for a CaseMemory owner.\nEvidence"
+        )
+    )
     excluded_response = scoped.generate(
         prompt="You classify a user's message in a multi-turn dialogue."
     )
 
     assert json.loads(abstraction_response) == {"structured": True}
     assert json.loads(applicability_response) == {"structured": True}
+    assert json.loads(generalization_response) == {"structured": True}
     assert excluded_response == "{}"
-    assert len(provider.prompts) == 2
+    assert len(provider.prompts) == 3
     assert tuple(trace.prompt_kind for trace in scoped.traces) == (
         BehaviorFamilyPromptKind.ACTION_ABSTRACTION,
         BehaviorFamilyPromptKind.ACTION_APPLICABILITY,
+        BehaviorFamilyPromptKind.ACTION_GENERALIZATION_AUDIT,
         BehaviorFamilyPromptKind.EXCLUDED_OTHER,
     )
     assert tuple(trace.delegated_to_provider for trace in scoped.traces) == (
         True,
         True,
+        True,
         False,
     )
+
+
+def test_owner_portfolio_rejects_legacy_promotions_without_audit() -> None:
+    promotions = tuple(
+        CaseActionAbstractionPromotion(
+            schema_id=f"schema-{suffix}",
+            action_family_id=f"family-{suffix}",
+            action_family_version=index,
+            source_outcome_ids=(
+                f"outcome-{suffix}-1",
+                f"outcome-{suffix}-2",
+            ),
+            applicability_conditions=("a reusable condition is observed",),
+        )
+        for index, suffix in enumerate(("a", "b"), start=1)
+    )
+
+    report = evaluate_behavior_family_portfolio(
+        suite_id="legacy-promotion-audit-probe",
+        expected_schema_ids=("schema-a", "schema-b"),
+        promotions=promotions,
+        routing_observations=(),
+        pending_family_ids=(),
+    )
+
+    assert report.generalization_audited_promotion_count == 0
+    assert (
+        dict(report.gate_statuses)["promotions_generalization_audited"]
+        == "fail"
+    )
+    assert report.multi_family_owner_supported is False
 
 
 def test_real_provider_report_requires_scoped_outputs_and_owner_pass() -> None:
@@ -569,6 +624,14 @@ def test_real_provider_report_requires_scoped_outputs_and_owner_pass() -> None:
             "You are the turn-time semantic applicability evaluator "
             "for a CaseMemory owner.\nsecond route"
         ),
+        (
+            "You are the independent second-pass semantic generalization "
+            "auditor for a CaseMemory owner."
+        ),
+        (
+            "You are the independent second-pass semantic generalization "
+            "auditor for a CaseMemory owner.\nsecond family"
+        ),
         "unrelated semantic owner protocol",
     ):
         scoped.generate(prompt=prompt)
@@ -578,6 +641,7 @@ def test_real_provider_report_requires_scoped_outputs_and_owner_pass() -> None:
         promoted_schema_ids=("schema-a", "schema-b"),
         promoted_family_ids=("family-a", "family-b"),
         promotion_count=2,
+        generalization_audited_promotion_count=2,
         distinct_family_count=2,
         pending_family_count=0,
         routing_case_count=2,
@@ -597,6 +661,7 @@ def test_real_provider_report_requires_scoped_outputs_and_owner_pass() -> None:
     assert report.real_provider_supported is True
     assert report.claim_status == "real-structured-provider-diagnostic-pass"
     assert report.delegated_abstraction_call_count == 2
+    assert report.delegated_generalization_audit_call_count == 2
     assert report.delegated_applicability_call_count == 2
     assert report.excluded_other_call_count == 1
     assert all(status == "pass" for _gate, status in report.gate_statuses)
@@ -620,6 +685,7 @@ def test_real_provider_report_rejects_zero_promotion_vacuous_pass() -> None:
         promoted_schema_ids=(),
         promoted_family_ids=(),
         promotion_count=0,
+        generalization_audited_promotion_count=0,
         distinct_family_count=0,
         pending_family_count=2,
         routing_case_count=0,
@@ -642,6 +708,7 @@ def test_real_provider_report_rejects_zero_promotion_vacuous_pass() -> None:
         "action_protocol_scope": "pass",
         "structured_provider_outputs": "pass",
         "provider_abstraction_consumed": "fail",
+        "provider_generalization_audit_consumed": "fail",
         "provider_applicability_consumed": "fail",
         "owner_portfolio_pass": "fail",
     }

@@ -194,6 +194,14 @@ CaseMemory 不从全局计数、arm 名称或描述文本推断 admission。
   `action_family_id / action_family_version` 与 owner 输入逐字闭合，`schema_id`
   是新的非空 kebab-case 动作短语，conditions/steps 不得复制 episode、协议 ID
   或工具命令；模型不遵守时 owner 保持 fail closed，不得放宽 family/source closure。
+- `background-action-generalization-second-pass`: 结构合法 candidate 必须再经过逻辑
+  独立的 structured semantic audit；同一 injected provider 可以服务两个协议，但
+  audit 是独立 prompt/call，且只读编号后的 situation/action 与 candidate，不读
+  outcome id、结果、reward、PE、credit 或 evaluation。shared structure、
+  episode specificity absent、conditions reusable、steps reusable 必须全部为 true，
+  confidence 必须 `>=0.80`；字段缺失、解析失败、低置信或任一语义项失败均拒绝，
+  reviewer 不得修补 candidate。晋升记录必须持久化 audit passed/confidence/rationale，
+  使 owner checkpoint 重载后仍能区分新证明与 legacy promotion。
 - `background-action-abstraction-owner-continuity`: schema-free evidence 只以
   CaseMemory-owned typed checkpoint 跨 session 续接；consumer 不解析描述文本，同
   outcome 矛盾 fail loudly，compact snapshot 回灌不得擦除 typed payload，已有
@@ -247,9 +255,15 @@ CaseMemory 不从全局计数、arm 名称或描述文本推断 admission。
 - online runtime replay 默认 `DISABLED`；回滚 transition source gate 即恢复 synthetic 路径，pending owner state 随 checkpoint 恢复。
 - 旧 CaseMemory checkpoint 缺 `ActionLearningLineage` 时仍可加载，但 schema-free evidence
   不参与 abstraction；回滚本包可恢复旧 admission 行为，不能声称 no-RL 因果隔离。
+- 旧 promotion checkpoint 缺 generalization audit 字段时仍可加载为“无新审计证明”；
+  回滚二次 audit decoder 与 admission gate 即恢复上一版 proposal 行为，既有 PE、
+  credit、Internal-RL 与 evaluation 数据流不变。
 
 ## 变更日志
 
+- 2026-07-29: 增加 candidate 后的逻辑独立 semantic generalization audit；地点化或
+  episode-specific、缺字段及低置信结果 fail closed，并将 audit provenance 持久化到
+  CaseMemory promotion，未把 reviewer 变成 PE、credit、Internal-RL 或 evaluation owner。
 - 2026-07-29: 真实本地 structured-provider audit 暴露小模型会改写 family id、留空 schema id 或复制 episode；补齐 decoder prompt 的 family/version/schema 格式契约，owner 门槛保持不变。
 - 2026-07-29: 增加 Credit owner 结构化 action lineage、Internal-RL outcome-bound consumption report 与 CaseMemory fail-closed admission；四臂 no-RL promotion 从 `4/4` 降为 `0/4`。
 - 2026-07-28: 增加 outcome-free `situation_summary` 与 application-owned multi-experience semantic candidate 边界；decoder 不读 outcome/evaluation，candidate 与 reviewed EnvironmentActionSchema provenance 隔离，并经 BACKGROUND ModificationGate promotion。

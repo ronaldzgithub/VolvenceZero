@@ -268,6 +268,14 @@ no-proposal。发布的 0.5B 证据运行至 ch-12 首个两经历抽象点；�
 已进入正式解码边界且 owner 会拒绝伪抽象，但尚未证明真实模型能完成 multi-family
 bake。不得用冻结 portfolio 的 `2/2` 替代这项缺口。
 
+下一层收敛为结构 candidate 后的逻辑独立 semantic generalization audit。reviewer
+看不到 outcome id、结果、PE、credit 或 evaluation，只比较多经历 situation/action 与
+candidate 是否共享结构、去除 episode specificity、且 conditions/steps 可复用；四项
+全真且 confidence `>=0.80` 才允许晋升。审计结果随 CaseMemory promotion 持久化。
+deterministic 负例已证明地点化 candidate 与缺字段 reviewer 输出都会 fail closed；
+当前 0.5B 在首轮 candidate 格式门已先失败，因此仍未产生真实 reviewer 消费证明，
+real-provider 状态继续为 `diagnostic-fail`，不得据此宣称 bake 成功。
+
 ## Character Migration Scenario Package（人物迁移验收包，2026-07-29）
 
 `lifeform-domain-character` 现在发布
@@ -291,6 +299,9 @@ reviewed profile、主观 live-through、关系语义脊柱、多经历动作抽
 
 ## 变更日志
 
+- 2026-07-29: 为 multi-experience candidate 增加逻辑独立 semantic generalization
+  audit，地点化与缺字段结果 fail closed；audit provenance 进入 CaseMemory promotion，
+  真实 0.5B 尚未到达该门，结论保持 diagnostic-fail。
 - 2026-07-29: 增加真实本地 structured-provider 证据包；0.5B 全链零 promotion、1.5B 定向 schema 仍不通用，状态保持 diagnostic-fail，冻结 provider 的通过结果不再冒充真实模型通过。
 - 2026-07-29: 新增 `zhang_wuji_character_migration_v1` 人物迁移验收包，冻结 SSOT、
   主观经历、关系脊柱、动作抽象和行为保真正负例的 SHADOW 包格式；新增结构测试防止

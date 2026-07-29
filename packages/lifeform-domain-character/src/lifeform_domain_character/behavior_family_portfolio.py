@@ -16,6 +16,7 @@ class BehaviorFamilyPromptKind(str, Enum):
     """Exact protocol lanes admitted to the real-provider evidence run."""
 
     ACTION_ABSTRACTION = "action_abstraction"
+    ACTION_GENERALIZATION_AUDIT = "action_generalization_audit"
     ACTION_APPLICABILITY = "action_applicability"
     EXCLUDED_OTHER = "excluded_other"
 
@@ -48,7 +49,7 @@ class ActionEvidenceOnlyTextProvider:
     """Audited provider boundary for the real-model evidence lane.
 
     ``LLMSemanticProposalRuntime`` shares one text provider across semantic
-    owners.  This wrapper delegates only the two exact action-evidence
+    owners.  This wrapper delegates only the three exact action-evidence
     protocols to the real model and returns the explicit no-proposal object
     for every other protocol.  The dispatch classifies protocol preambles,
     never user or chapter language.
@@ -61,6 +62,10 @@ class ActionEvidenceOnlyTextProvider:
     _ACTION_APPLICABILITY_PREAMBLE = (
         "You are the turn-time semantic applicability evaluator "
         "for a CaseMemory owner."
+    )
+    _ACTION_GENERALIZATION_AUDIT_PREAMBLE = (
+        "You are the independent second-pass semantic generalization "
+        "auditor for a"
     )
 
     def __init__(
@@ -88,6 +93,12 @@ class ActionEvidenceOnlyTextProvider:
     ) -> str:
         if prompt.startswith(self._ACTION_ABSTRACTION_PREAMBLE):
             prompt_kind = BehaviorFamilyPromptKind.ACTION_ABSTRACTION
+        elif prompt.startswith(
+            self._ACTION_GENERALIZATION_AUDIT_PREAMBLE
+        ):
+            prompt_kind = (
+                BehaviorFamilyPromptKind.ACTION_GENERALIZATION_AUDIT
+            )
         elif prompt.startswith(self._ACTION_APPLICABILITY_PREAMBLE):
             prompt_kind = BehaviorFamilyPromptKind.ACTION_APPLICABILITY
         else:
@@ -168,6 +179,7 @@ class BehaviorFamilyPortfolioReport:
     promoted_schema_ids: tuple[str, ...]
     promoted_family_ids: tuple[str, ...]
     promotion_count: int
+    generalization_audited_promotion_count: int
     distinct_family_count: int
     pending_family_count: int
     routing_case_count: int
@@ -182,6 +194,7 @@ class BehaviorFamilyPortfolioReport:
 class RealProviderBehaviorEvidenceReport:
     provider_id: str
     delegated_abstraction_call_count: int
+    delegated_generalization_audit_call_count: int
     delegated_applicability_call_count: int
     excluded_other_call_count: int
     non_empty_structured_response_count: int
@@ -235,6 +248,14 @@ def evaluate_behavior_family_portfolio(
     )
     source_outcomes_disjoint = (
         len(source_outcome_ids) == len(set(source_outcome_ids))
+    )
+    generalization_audited_promotion_count = sum(
+        promotion.generalization_audit_passed
+        for promotion in promotions
+    )
+    promotions_generalization_audited = (
+        bool(promotions)
+        and generalization_audited_promotion_count == len(promotions)
     )
     route_case_ids = tuple(
         observation.case_id for observation in routing_observations
@@ -291,6 +312,10 @@ def evaluate_behavior_family_portfolio(
             "pass" if source_outcomes_disjoint else "fail",
         ),
         (
+            "promotions_generalization_audited",
+            "pass" if promotions_generalization_audited else "fail",
+        ),
+        (
             "pending_families_isolated",
             "pass" if pending_families_isolated else "fail",
         ),
@@ -314,6 +339,9 @@ def evaluate_behavior_family_portfolio(
         promoted_schema_ids=promoted_schema_ids,
         promoted_family_ids=promoted_family_ids,
         promotion_count=len(promotions),
+        generalization_audited_promotion_count=(
+            generalization_audited_promotion_count
+        ),
         distinct_family_count=len(set(promoted_family_ids)),
         pending_family_count=len(pending_family_ids),
         routing_case_count=len(routing_observations),
@@ -362,12 +390,22 @@ def evaluate_real_provider_behavior_evidence(
         for trace in traces
         if trace.prompt_kind is BehaviorFamilyPromptKind.ACTION_APPLICABILITY
     )
+    generalization_traces = tuple(
+        trace
+        for trace in traces
+        if trace.prompt_kind
+        is BehaviorFamilyPromptKind.ACTION_GENERALIZATION_AUDIT
+    )
     excluded_traces = tuple(
         trace
         for trace in traces
         if trace.prompt_kind is BehaviorFamilyPromptKind.EXCLUDED_OTHER
     )
-    delegated_traces = abstraction_traces + applicability_traces
+    delegated_traces = (
+        abstraction_traces
+        + generalization_traces
+        + applicability_traces
+    )
     delegated_only_action_protocols = (
         all(trace.delegated_to_provider for trace in delegated_traces)
         and all(
@@ -395,6 +433,17 @@ def evaluate_real_provider_behavior_evidence(
         )
         >= portfolio.routing_case_count
     )
+    generalization_outputs = (
+        portfolio.promotion_count >= 2
+        and portfolio.generalization_audited_promotion_count
+        == portfolio.promotion_count
+        and len(generalization_traces) >= portfolio.promotion_count
+        and sum(
+            trace.response_is_non_empty_json_object
+            for trace in generalization_traces
+        )
+        >= portfolio.promotion_count
+    )
     gates = (
         (
             "action_protocol_scope",
@@ -409,6 +458,10 @@ def evaluate_real_provider_behavior_evidence(
             "pass" if abstraction_outputs else "fail",
         ),
         (
+            "provider_generalization_audit_consumed",
+            "pass" if generalization_outputs else "fail",
+        ),
+        (
             "provider_applicability_consumed",
             "pass" if applicability_outputs else "fail",
         ),
@@ -421,6 +474,9 @@ def evaluate_real_provider_behavior_evidence(
     return RealProviderBehaviorEvidenceReport(
         provider_id=provider_id,
         delegated_abstraction_call_count=len(abstraction_traces),
+        delegated_generalization_audit_call_count=len(
+            generalization_traces
+        ),
         delegated_applicability_call_count=len(applicability_traces),
         excluded_other_call_count=len(excluded_traces),
         non_empty_structured_response_count=sum(
@@ -435,10 +491,11 @@ def evaluate_real_provider_behavior_evidence(
             else "diagnostic-fail"
         ),
         description=(
-            "Provider-provenance diagnostic for action abstraction and "
-            "held-out applicability. Protocol-scoped non-action calls are "
-            "excluded from the real model; evaluation remains read-only "
-            "and this result is not an external blind-validation claim."
+            "Provider-provenance diagnostic for action abstraction, "
+            "second-pass generalization audit, and held-out applicability. "
+            "Protocol-scoped non-action calls are excluded from the real "
+            "model; evaluation remains read-only and this result is not an "
+            "external blind-validation claim."
         ),
     )
 

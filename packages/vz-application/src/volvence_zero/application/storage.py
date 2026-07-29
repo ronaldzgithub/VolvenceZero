@@ -135,6 +135,9 @@ class CaseActionAbstractionPromotion:
     action_family_version: int
     source_outcome_ids: tuple[str, ...]
     applicability_conditions: tuple[str, ...] = ()
+    generalization_audit_passed: bool = False
+    generalization_audit_confidence: float = 0.0
+    generalization_audit_rationale: str = ""
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -166,6 +169,28 @@ class CaseActionAbstractionPromotion:
             raise ValueError(
                 "CaseActionAbstractionPromotion applicability_conditions must "
                 "contain unique non-empty values when present."
+            )
+        if not isinstance(self.generalization_audit_passed, bool):
+            raise TypeError(
+                "CaseActionAbstractionPromotion "
+                "generalization_audit_passed must be bool."
+            )
+        if (
+            isinstance(self.generalization_audit_confidence, bool)
+            or not math.isfinite(self.generalization_audit_confidence)
+            or not 0.0 <= self.generalization_audit_confidence <= 1.0
+        ):
+            raise ValueError(
+                "CaseActionAbstractionPromotion "
+                "generalization_audit_confidence must be finite and in [0, 1]."
+            )
+        if self.generalization_audit_passed and (
+            self.generalization_audit_confidence < 0.80
+            or not self.generalization_audit_rationale.strip()
+        ):
+            raise ValueError(
+                "CaseActionAbstractionPromotion passed generalization audit "
+                "requires confidence >= 0.80 and a non-empty rationale."
             )
 
 
@@ -438,6 +463,15 @@ def _reconstruct_action_abstraction_promotion(
             tuple(str(item) for item in raw["applicability_conditions"])
             if "applicability_conditions" in raw
             else ()
+        ),
+        generalization_audit_passed=raw.get(
+            "generalization_audit_passed", False
+        ),
+        generalization_audit_confidence=float(
+            raw.get("generalization_audit_confidence", 0.0)
+        ),
+        generalization_audit_rationale=str(
+            raw.get("generalization_audit_rationale", "")
         ),
     )
 

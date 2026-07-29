@@ -7,7 +7,7 @@ independent, schema-free experiences share one stable family identity.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 from json import JSONDecodeError
 from pathlib import Path
@@ -16,6 +16,7 @@ from typing import Protocol
 
 _MIN_EVIDENCE_COUNT = 2
 _MIN_CANDIDATE_CONFIDENCE = 0.75
+_MIN_GENERALIZATION_AUDIT_CONFIDENCE = 0.80
 _RESOURCE_ROOT = Path(__file__).resolve().parent
 _SCHEMA_ID_PATTERN = re.compile(
     r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
@@ -30,6 +31,41 @@ class ActionAbstractionTextProvider(Protocol):
         max_new_tokens: int = ...,
         temperature: float = ...,
     ) -> str: ...
+
+
+@dataclass(frozen=True)
+class ActionSchemaGeneralizationAudit:
+    """Second-pass semantic admission evidence owned by CaseMemory."""
+
+    shared_structure_supported: bool
+    episode_specificity_absent: bool
+    conditions_reusable: bool
+    steps_reusable: bool
+    confidence: float
+    rationale: str
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                "ActionSchemaGeneralizationAudit confidence must be "
+                "in [0, 1]."
+            )
+        if not self.rationale.strip():
+            raise ValueError(
+                "ActionSchemaGeneralizationAudit rationale must be "
+                "non-empty."
+            )
+
+    @property
+    def admission_ready(self) -> bool:
+        return (
+            self.shared_structure_supported
+            and self.episode_specificity_absent
+            and self.conditions_reusable
+            and self.steps_reusable
+            and self.confidence
+            >= _MIN_GENERALIZATION_AUDIT_CONFIDENCE
+        )
 
 
 @dataclass(frozen=True)
@@ -178,6 +214,7 @@ class LearnedActionSchemaCandidate:
     source_outcome_ids: tuple[str, ...]
     confidence: float
     description: str
+    generalization_audit: ActionSchemaGeneralizationAudit | None = None
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -280,7 +317,52 @@ class LLMActionAbstractionDecoder:
             max_new_tokens=self._max_new_tokens,
             temperature=0.0,
         )
-        return _parse_candidate(raw)
+        candidate = _parse_candidate(raw)
+        if candidate is None:
+            return None
+        audit = self._audit_generalization(
+            candidate=candidate,
+            experiences=experiences,
+        )
+        return replace(candidate, generalization_audit=audit)
+
+    def _audit_generalization(
+        self,
+        *,
+        candidate: LearnedActionSchemaCandidate,
+        experiences: tuple[ActionAbstractionExperience, ...],
+    ) -> ActionSchemaGeneralizationAudit | None:
+        prompt = _load_generalization_audit_prompt_template().format(
+            evidence_json=json.dumps(
+                {
+                    "experiences": tuple(
+                        {
+                            "experience_index": index,
+                            "situation": experience.situation_statement,
+                            "executed_action": experience.action_statement,
+                        }
+                        for index, experience in enumerate(experiences)
+                    ),
+                    "candidate": {
+                        "schema_id": candidate.schema_id,
+                        "applicability_conditions": (
+                            candidate.applicability_conditions
+                        ),
+                        "action_steps": candidate.action_steps,
+                        "description": candidate.description,
+                    },
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            output_schema=_load_generalization_audit_schema_text(),
+        )
+        raw = self._provider.generate(
+            prompt=prompt,
+            max_new_tokens=256,
+            temperature=0.0,
+        )
+        return _parse_generalization_audit(raw)
 
 
 class ActionAbstractionOwner:
@@ -332,6 +414,8 @@ class ActionAbstractionOwner:
             or set(candidate.source_outcome_ids)
             != {item.outcome_id for item in eligible}
             or candidate.confidence < _MIN_CANDIDATE_CONFIDENCE
+            or candidate.generalization_audit is None
+            or not candidate.generalization_audit.admission_ready
         ):
             return None
         episode_sentences = {
@@ -394,15 +478,85 @@ def _load_action_applicability_schema_text() -> str:
     ).read_text(encoding="utf-8")
 
 
-def _parse_action_applicability_decision(
-    text: str,
-) -> ActionApplicabilityDecision | None:
+def _load_generalization_audit_prompt_template() -> str:
+    return (
+        _RESOURCE_ROOT
+        / "prompts"
+        / "action_schema_generalization_audit.md"
+    ).read_text(encoding="utf-8")
+
+
+def _load_generalization_audit_schema_text() -> str:
+    return (
+        _RESOURCE_ROOT
+        / "schemas"
+        / "action_schema_generalization_audit.schema.json"
+    ).read_text(encoding="utf-8")
+
+
+def _strip_json_fence(text: str) -> str:
     cleaned = text.strip()
     if cleaned.startswith("```") and cleaned.endswith("```"):
         lines = cleaned.splitlines()
-        cleaned = "\n".join(lines[1:-1]).strip()
+        return "\n".join(lines[1:-1]).strip()
+    return cleaned
+
+
+def _parse_generalization_audit(
+    text: str,
+) -> ActionSchemaGeneralizationAudit | None:
     try:
-        payload = json.loads(cleaned)
+        payload = json.loads(_strip_json_fence(text))
+    except JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    expected_keys = {
+        "shared_structure_supported",
+        "episode_specificity_absent",
+        "conditions_reusable",
+        "steps_reusable",
+        "confidence",
+        "rationale",
+    }
+    if set(payload) != expected_keys:
+        return None
+    boolean_keys = (
+        "shared_structure_supported",
+        "episode_specificity_absent",
+        "conditions_reusable",
+        "steps_reusable",
+    )
+    if any(not isinstance(payload[key], bool) for key in boolean_keys):
+        return None
+    if (
+        isinstance(payload["confidence"], bool)
+        or not isinstance(payload["confidence"], (int, float))
+        or not isinstance(payload["rationale"], str)
+    ):
+        return None
+    try:
+        return ActionSchemaGeneralizationAudit(
+            shared_structure_supported=payload[
+                "shared_structure_supported"
+            ],
+            episode_specificity_absent=payload[
+                "episode_specificity_absent"
+            ],
+            conditions_reusable=payload["conditions_reusable"],
+            steps_reusable=payload["steps_reusable"],
+            confidence=float(payload["confidence"]),
+            rationale=payload["rationale"],
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_action_applicability_decision(
+    text: str,
+) -> ActionApplicabilityDecision | None:
+    try:
+        payload = json.loads(_strip_json_fence(text))
     except JSONDecodeError:
         return None
     if not isinstance(payload, dict):
@@ -428,12 +582,8 @@ def _parse_action_applicability_decision(
 
 
 def _parse_candidate(text: str) -> LearnedActionSchemaCandidate | None:
-    cleaned = text.strip()
-    if cleaned.startswith("```") and cleaned.endswith("```"):
-        lines = cleaned.splitlines()
-        cleaned = "\n".join(lines[1:-1]).strip()
     try:
-        payload = json.loads(cleaned)
+        payload = json.loads(_strip_json_fence(text))
     except JSONDecodeError:
         return None
     if not isinstance(payload, dict):
@@ -486,6 +636,7 @@ __all__ = [
     "ActionAbstractionExperience",
     "ActionAbstractionOwner",
     "ActionAbstractionTextProvider",
+    "ActionSchemaGeneralizationAudit",
     "LLMActionApplicabilityEvaluator",
     "LearnedActionSchemaCandidate",
     "LLMActionAbstractionDecoder",

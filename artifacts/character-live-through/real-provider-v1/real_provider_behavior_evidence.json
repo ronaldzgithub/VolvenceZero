@@ -39,6 +39,10 @@
         "pass"
       ],
       [
+        "promotions_generalization_audited",
+        "fail"
+      ],
+      [
         "pending_families_isolated",
         "pass"
       ],
@@ -55,6 +59,7 @@
         "pass"
       ]
     ],
+    "generalization_audited_promotion_count": 0,
     "multi_family_owner_supported": false,
     "pending_family_count": 3,
     "promoted_family_ids": [],
@@ -67,7 +72,7 @@
   "provenance": {
     "device": "cpu",
     "git_branch": "main",
-    "git_sha": "1a45a6023ce5eca9ec659d7d786a859d32f6123d",
+    "git_sha": "68f621a3a373c2ce274a8ae77d53566aedb7d545",
     "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
     "model_snapshot": "7ae557604adf67be50417f59c2c2f167def9a775",
     "network_allowed": false,
@@ -81,7 +86,8 @@
     "claim_status": "diagnostic-fail",
     "delegated_abstraction_call_count": 1,
     "delegated_applicability_call_count": 0,
-    "description": "Provider-provenance diagnostic for action abstraction and held-out applicability. Protocol-scoped non-action calls are excluded from the real model; evaluation remains read-only and this result is not an external blind-validation claim.",
+    "delegated_generalization_audit_call_count": 0,
+    "description": "Provider-provenance diagnostic for action abstraction, second-pass generalization audit, and held-out applicability. Protocol-scoped non-action calls are excluded from the real model; evaluation remains read-only and this result is not an external blind-validation claim.",
     "excluded_other_call_count": 220,
     "gate_statuses": [
       [
@@ -94,6 +100,10 @@
       ],
       [
         "provider_abstraction_consumed",
+        "fail"
+      ],
+      [
+        "provider_generalization_audit_consumed",
         "fail"
       ],
       [

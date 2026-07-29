@@ -299,6 +299,12 @@ class ApplicationPriorProposalBuilder:
                 )
                 if candidate is None:
                     continue
+                generalization_audit = candidate.generalization_audit
+                if generalization_audit is None:
+                    raise RuntimeError(
+                        "ActionAbstractionOwner admitted a candidate without "
+                        "generalization audit evidence."
+                    )
                 source_confidence = min(
                     evidence.confidence
                     for evidence in family_experiences
@@ -375,6 +381,13 @@ class ApplicationPriorProposalBuilder:
                                     ),
                                     applicability_conditions=(
                                         candidate.applicability_conditions
+                                    ),
+                                    generalization_audit_passed=True,
+                                    generalization_audit_confidence=(
+                                        generalization_audit.confidence
+                                    ),
+                                    generalization_audit_rationale=(
+                                        generalization_audit.rationale
                                     ),
                                 )
                             ),

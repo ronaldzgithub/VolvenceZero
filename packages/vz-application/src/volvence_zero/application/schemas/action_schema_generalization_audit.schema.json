@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ActionSchemaGeneralizationAudit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "shared_structure_supported",
+    "episode_specificity_absent",
+    "conditions_reusable",
+    "steps_reusable",
+    "confidence",
+    "rationale"
+  ],
+  "properties": {
+    "shared_structure_supported": {"type": "boolean"},
+    "episode_specificity_absent": {"type": "boolean"},
+    "conditions_reusable": {"type": "boolean"},
+    "steps_reusable": {"type": "boolean"},
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "rationale": {"type": "string", "minLength": 1}
+  }
+}

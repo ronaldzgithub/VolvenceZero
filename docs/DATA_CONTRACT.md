@@ -535,9 +535,16 @@ class CaseMemorySnapshot:
   evidence 允许携带不同 bank revision，candidate/promotion 取所见最大 revision 作为
   审计锚点，不得把 revision 相等误作 family 身份；
   structured decoder 只读 situation/action，不读 outcome、PE 或 evaluation。
+  decoder 产出的结构合法 candidate 还必须经过逻辑独立的第二次 semantic
+  generalization audit；reviewer 只读带序号的 situation/action 与 candidate，
+  不读 outcome id、结果、reward、PE、credit 或 evaluation，也不得修补 candidate。
+  shared structure、episode specificity、conditions reuse、steps reuse 四项必须全部
+  通过且 confidence `>=0.80`，否则 owner fail closed。
   每条待聚合证据以 `CaseMemoryRecord.action_abstraction_evidence` 的 frozen typed
   payload 随 CaseMemory checkpoint 持久化；晋升以
-  `CaseMemoryRecord.action_abstraction_promotion` 记录 family/version 与 source closure。
+  `CaseMemoryRecord.action_abstraction_promotion` 记录 family/version、source closure
+  以及 `generalization_audit_passed / confidence / rationale`。旧 checkpoint 缺审计字段
+  时可恢复为未证明状态，但不得伪装成已通过新门。
   compact `CaseMemorySnapshot` 不发布上述 owner-only payload；其重建 record 回灌 store
   时必须保留既有 typed evidence/promotion，若同 case id 携带矛盾 typed payload 则
   fail loudly，不得以压缩快照擦除 owner 状态。

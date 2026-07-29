@@ -246,7 +246,9 @@ Character behavioral-fidelity harness 同样是 evaluation-side 的独立只读�
 - multi-experience abstraction gate 至少需要两条 outcome/situation 独立、同一
   temporal family ID 的 schema-free evidence；`action_family_version` 是全局 bank
   revision，可随采集时间变化并只作审计锚点。decoder prompt 不得包含 outcome、PE 或
-  evaluation。candidate 必须通过正式 BACKGROUND ModificationGate 才能进入
+  evaluation。结构合法 candidate 还必须经过逻辑独立的第二次 semantic generalization
+  audit；reviewer 不读 outcome id、结果、PE、credit 或 evaluation，且所有复用性判断与
+  `>=0.80` confidence 必须同时通过。candidate 必须通过正式 BACKGROUND ModificationGate 才能进入
   CaseMemory。跨 session 测试必须实际保存并重新加载 CaseMemory checkpoint，再用 owner
   的 typed pending evidence 接续第二经历；promotion 后再次加载必须不再产生 pending。
   当前 ch-11/ch-17 schema-holdout 已提供两条真实证据并完成 promotion；这只升级
@@ -355,8 +357,9 @@ family 保持 pending 且未污染 promotion。状态为
 
 ### Real structured-provider audit（2026-07-29）
 
-`ActionEvidenceOnlyTextProvider` 将同一真实 text provider 限定在两个精确协议：
-background-slow action abstraction 与 turn-time action applicability。它不按人物、
+`ActionEvidenceOnlyTextProvider` 将同一真实 text provider 限定在三个精确协议：
+background-slow action abstraction、独立的 candidate generalization audit 与
+turn-time action applicability。它不按人物、
 章节或自然语言关键词路由；其他 semantic-owner prompt 显式返回 no-proposal，并记录
 prompt/response digest。`scripts/run_character_real_provider_evidence.py` 使用本地冻结
 HF snapshot、真实章节 owner hydration、正式 CaseMemory admission 与 held-out sandbox，
@@ -372,7 +375,8 @@ routing 明确为未测试，状态为 `diagnostic-fail`。开发期同 prompt �
 与 JSON Schema 现共同拒绝非 kebab-case `schema_id`，不再只依赖 prompt 自律。
 
 `RealProviderBehaviorEvidenceReport` 因此要求至少两个实际 promotion、至少两个 held-out
-routing case、非空 structured responses 与 owner portfolio 同时通过；零 promotion /
+routing case、每个 promotion 均消费非空 second-pass audit、非空 structured responses
+与 owner portfolio 同时通过；零 promotion /
 零 routing 不得借 vacuous truth 让 consumed gate 通过。当前结论是“真实 provider 接线
 和拒绝路径已证明，0.5B/1.5B 本地档位未通过语义抽象门”，不是 bake 成功，也不是模型
 行为保真通过。退出条件是更强 provider 在不修改 owner 阈值与 reference 的前提下取得
@@ -395,6 +399,8 @@ routing case、非空 structured responses 与 owner portfolio 同时通过；�
 
 ## 变更日志
 
+- 2026-07-29: real-provider evidence 增加独立 generalization-audit 协议和 consumed
+  gate；evaluation 只核对 trace 与 owner 结果，不把 audit 结论反馈成学习信号。
 - 2026-07-29: 增加真实 structured-provider audit runner 与 prompt/response provenance；0.5B 在首个两经历抽象点零 promotion 并按条件退出，1.5B 定向探针仍未满足通用 schema 语义；修复零 promotion/零 routing 的 consumed gate 空真问题并冻结 kebab-case schema id。
 - 2026-07-29: 增加 multi-family owner portfolio：真实纵向章节形成两个不同 family promotion，held-out routing `2/2`，两个单例 family 继续 pending 且隔离；结论限定为 owner-level diagnostic。
 - 2026-07-29: 四臂报告增加 TP/FP/FN/TN 与 promotion precision/recall/specificity；baked 为 `4/0/0/12` 且三项 `1.000`，零预测正例 arm 的 precision 保持 undefined，行为评分门不升级。

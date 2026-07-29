@@ -7,6 +7,8 @@ from types import SimpleNamespace
 import pytest
 
 from volvence_zero.application import (
+    ActionAbstractionExperience,
+    ActionAbstractionOwner,
     ActionLearningLineage,
     LLMActionApplicabilityEvaluator,
     LLMActionAbstractionDecoder,
@@ -132,6 +134,26 @@ def _action_learning_lineage(
         transition_count=2,
         optimizer_consumed=optimizer_consumed,
         policy_update_applied=policy_update_applied,
+    )
+
+
+def _generalization_audit_response(prompt: str) -> str | None:
+    if not prompt.startswith(
+        "You are the independent second-pass semantic generalization "
+        "auditor for a"
+    ):
+        return None
+    return json.dumps(
+        {
+            "shared_structure_supported": True,
+            "episode_specificity_absent": True,
+            "conditions_reusable": True,
+            "steps_reusable": True,
+            "confidence": 0.93,
+            "rationale": (
+                "Reviewed candidate generalizes across both experiences."
+            ),
+        }
     )
 
 
@@ -335,6 +357,9 @@ def test_multi_experience_action_abstraction_passes_real_background_gate():
         ) -> str:
             del max_new_tokens, temperature
             self.prompts.append(prompt)
+            audit_response = _generalization_audit_response(prompt)
+            if audit_response is not None:
+                return audit_response
             return json.dumps(
                 {
                     "schema_id": "protect-unknown-third-party",
@@ -433,6 +458,11 @@ def test_multi_experience_action_abstraction_passes_real_background_gate():
         "an uninvolved person faces imminent physical harm",
         "the threatening actor's identity remains uncertain",
     )
+    assert promotion.generalization_audit_passed is True
+    assert promotion.generalization_audit_confidence == 0.93
+    assert promotion.generalization_audit_rationale == (
+        "Reviewed candidate generalizes across both experiences."
+    )
     assert provider.prompts
     assert all(
         experience.outcome_statement not in provider.prompts[0]
@@ -495,6 +525,128 @@ def test_multi_experience_action_abstraction_passes_real_background_gate():
     assert missing_eval_blocks
     assert missing_eval_audits[-1].decision is GateDecision.BLOCK
     assert blocked_store.records == ()
+
+
+@pytest.mark.parametrize(
+    "audit_payload",
+    (
+        {
+            "shared_structure_supported": True,
+            "episode_specificity_absent": False,
+            "conditions_reusable": False,
+            "steps_reusable": True,
+            "confidence": 0.96,
+            "rationale": (
+                "The conditions retain episode-specific locations and "
+                "cannot transfer."
+            ),
+        },
+        {
+            "shared_structure_supported": True,
+            "episode_specificity_absent": True,
+            "conditions_reusable": True,
+            "confidence": 0.96,
+            "rationale": "Required reviewer field is missing.",
+        },
+    ),
+    ids=("episode-specific", "missing-required-field"),
+)
+def test_action_abstraction_generalization_audit_fails_closed(
+    audit_payload: dict[str, object],
+):
+    class EpisodeSpecificProvider:
+        def __init__(self) -> None:
+            self.prompts: list[str] = []
+
+        def generate(
+            self,
+            *,
+            prompt: str,
+            max_new_tokens: int = 384,
+            temperature: float = 0.0,
+        ) -> str:
+            del max_new_tokens, temperature
+            self.prompts.append(prompt)
+            if prompt.startswith(
+                "You are the independent second-pass semantic "
+                "generalization auditor for a"
+            ):
+                return json.dumps(audit_payload)
+            return json.dumps(
+                {
+                    "schema_id": "confront-and-treat-poison",
+                    "action_family_id": "discovered_family_5",
+                    "action_family_version": 180,
+                    "applicability_conditions": [
+                        "the butterfly valley cottage at night",
+                        "the poisoned healer's bedroom",
+                    ],
+                    "action_steps": [
+                        "identify the immediate threat",
+                        "apply treatment to the injured person",
+                    ],
+                    "source_outcome_ids": [
+                        "outcome-a",
+                        "outcome-b",
+                    ],
+                    "confidence": 0.95,
+                    "description": (
+                        "Confront the cottage threat and treat the "
+                        "poisoned healer."
+                    ),
+                }
+            )
+
+    provider = EpisodeSpecificProvider()
+    decoder = LLMActionAbstractionDecoder(provider=provider)
+    experiences = (
+        ActionAbstractionExperience(
+            outcome_id="outcome-a",
+            action_id="action-a",
+            action_family_id="discovered_family_5",
+            action_family_version=136,
+            situation_statement=(
+                "Butterfly Valley cottage at night while a masked figure "
+                "threatens a visitor."
+            ),
+            action_statement=(
+                "Step out and challenge the masked figure immediately."
+            ),
+            evidence=("scene-a",),
+            confidence=0.9,
+            controller_code_digest=(0.1, 0.2),
+        ),
+        ActionAbstractionExperience(
+            outcome_id="outcome-b",
+            action_id="action-b",
+            action_family_id="discovered_family_5",
+            action_family_version=180,
+            situation_statement=(
+                "A healer's bedroom after poisoning leaves the patient "
+                "unconscious."
+            ),
+            action_statement=(
+                "Administer medicine and perform urgent treatment."
+            ),
+            evidence=("scene-b",),
+            confidence=0.9,
+            controller_code_digest=(0.2, 0.3),
+        ),
+    )
+
+    candidate = ActionAbstractionOwner().propose(
+        experiences=experiences,
+        decoder=decoder,
+    )
+
+    assert candidate is None
+    assert len(provider.prompts) == 2
+    assert provider.prompts[1].startswith(
+        "You are the independent second-pass semantic generalization "
+        "auditor for a"
+    )
+    assert "outcome-a" not in provider.prompts[1]
+    assert "outcome-b" not in provider.prompts[1]
 
 
 def test_action_applicability_evaluator_is_structured_and_fails_closed():
@@ -822,8 +974,11 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
             max_new_tokens: int = 384,
             temperature: float = 0.0,
         ) -> str:
-            del prompt, max_new_tokens, temperature
+            del max_new_tokens, temperature
             self.call_count += 1
+            audit_response = _generalization_audit_response(prompt)
+            if audit_response is not None:
+                return audit_response
             return json.dumps(
                 {
                     "schema_id": "protect-unknown-third-party",
@@ -967,7 +1122,7 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
         )
     )
     assert second_proposal is not None
-    assert provider.call_count == 1
+    assert provider.call_count == 2
     assert any(
         update.modification_evidence is not None
         for update in second_proposal.case_memory_updates
@@ -985,6 +1140,16 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
         promoted_store.promoted_action_abstraction_family_versions()
     )
     assert promoted_families == (("discovered_family_2", 54),)
+    promotion = next(
+        record.action_abstraction_promotion
+        for record in promoted_store.records
+        if record.action_abstraction_promotion is not None
+    )
+    assert promotion.generalization_audit_passed is True
+    assert promotion.generalization_audit_confidence == 0.93
+    assert promotion.generalization_audit_rationale == (
+        "Reviewed candidate generalizes across both experiences."
+    )
     post_promotion_proposal = ApplicationPriorProposalBuilder().build(
         inputs=build_inputs(
             job_id="session-c",
@@ -994,7 +1159,7 @@ def test_action_abstraction_evidence_survives_reload_and_stops_after_promotion(
         )
     )
     assert post_promotion_proposal is not None
-    assert provider.call_count == 1
+    assert provider.call_count == 2
     assert all(
         update.modification_evidence is None
         and update.record.action_abstraction_evidence is None
